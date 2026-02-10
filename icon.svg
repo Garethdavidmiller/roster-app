@@ -1,0 +1,5 @@
+<svg width="512" height="512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" fill="#001e3c"/>
+  <text x="256" y="280" font-size="200" text-anchor="middle" fill="white">🚄</text>
+  <text x="256" y="420" font-size="48" text-anchor="middle" fill="#c0c0c0" font-family="Arial">CEA Roster</text>
+</svg>
