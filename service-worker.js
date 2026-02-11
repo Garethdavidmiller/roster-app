@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cea-roster-v1';
+const CACHE_NAME = 'cea-roster-v2';
 const urlsToCache = [
 './index.html',
   './manifest.json'
