@@ -2,7 +2,7 @@
   "name": "CEA Roster Calendar",
   "short_name": "CEA Roster",
   "description": "Chiltern Railways CEA shift roster calendar for Marylebone Station",
-  "start_url": "./index.html",
+"start_url": "/roster-app/",
   "display": "standalone",
   "background_color": "#001e3c",
   "theme_color": "#001e3c",
