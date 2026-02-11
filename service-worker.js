@@ -1,6 +1,6 @@
 const CACHE_NAME = 'cea-roster-v1';
 const urlsToCache = [
-  './roster_app.html',
+'./index.html',
   './manifest.json'
 ];
 
