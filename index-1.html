@@ -1,0 +1,2055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>CEA Roster Calendar</title>
+    
+    <!-- PWA Meta Tags -->
+    <!-- CEA Roster Calendar - Version 2.78 - legend: removed boxes from bank holiday, payday, cutoff -->
+    <meta name="description" content="Chiltern Railways CEA shift roster calendar for Marylebone Station">
+    <meta name="theme-color" content="#001e3c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="CEA Roster">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Apple Touch Icons for iOS -->
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    
+    <style>
+        :root {
+            /* Colors */
+            --primary-blue: #001e3c;
+            --accent-gold: #ffd700;
+            --green: #4caf50;
+            --green-light: #e8f5e9;
+            --orange: #ff9800;
+            --orange-light: #fff3e0;
+            --blue-light: #e3f2fd;
+            --blue-sky: #2196f3;
+            --purple: #9c27b0;
+            --purple-light: #f3e5f5;
+            --gray-light: #e0e0e0;
+            --text-dark: #333;
+            
+            /* Spacing */
+            --spacing-xs: 4px;
+            --spacing-sm: 8px;
+            --spacing-md: 16px;
+            --spacing-lg: 24px;
+            --spacing-xl: 32px;
+            
+            /* Font Sizes */
+            --font-xs: 10px;
+            --font-sm: 12px;
+            --font-md: 14px;
+            --font-lg: 16px;
+            --font-xl: 20px;
+            --font-xxl: 28px;
+            
+            /* Border Radius */
+            --radius-sm: 8px;
+            --radius-md: 16px;
+            --radius-lg: 20px;
+            
+            /* Transitions */
+            --transition-fast: 0.2s;
+            --transition-normal: 0.3s;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* iOS status bar fix - blends with app theme */
+        html {
+            background-color: var(--primary-blue);
+        }
+
+        /* In-app error banner (replaces alert()) */
+        .error-banner {
+            display: none;
+            background: #c62828;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.5;
+        }
+
+        .error-banner.visible {
+            display: block;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--primary-blue);
+            min-height: 100vh;
+            padding: 20px;
+            padding-top: calc(20px + env(safe-area-inset-top));
+            padding-bottom: calc(20px + env(safe-area-inset-bottom));
+            overflow-x: hidden; /* Prevents horizontal scroll on mobile */
+            overscroll-behavior: none; /* Kills iOS rubber band bounce and pull-to-refresh */
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .header {
+            background: white;
+            padding: 35px 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            margin-bottom: 25px;
+            text-align: center;
+        }
+
+        .header h1 {
+            color: var(--primary-blue);
+            font-size: 36px;
+            margin-bottom: 10px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        
+        .title-icon {
+            height: 45px;
+            width: 45px;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 30, 60, 0.3);
+            object-fit: cover;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 18px;
+            font-weight: 500;
+        }
+
+        .controls {
+            background: white;
+            padding: 16px 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            margin-bottom: 25px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .controls button {
+            min-width: auto;
+            white-space: nowrap;
+        }
+
+        .controls label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .controls select, .controls button {
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            cursor: pointer;
+            background: white;
+            font-family: inherit;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            touch-action: manipulation; /* Removes 300ms tap delay */
+        }
+
+        .controls select {
+            text-align: center;
+            text-align-last: center;
+            -webkit-appearance: none; /* Removes iOS glossy bubble */
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 1em;
+            padding-right: 30px;
+            font-size: 16px; /* Prevents iOS Safari auto-zoom on focus */
+        }
+
+        .controls select option {
+            text-align: center;
+        }
+
+        .controls button {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .controls button:hover {
+            background: #00152a;
+            border-color: #00152a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 30, 60, 0.3);
+        }
+
+        .controls button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
+        }
+
+        .controls button.today-btn {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-color: var(--accent-gold);
+            font-weight: 800;
+        }
+
+        .controls button.today-btn:hover {
+            background: #ffb700;
+            border-color: #ffb700;
+        }
+
+        .controls button.print-btn {
+            background: var(--green);
+            color: white;
+            border-color: var(--green);
+            font-weight: 700;
+        }
+
+        .controls button.print-btn:hover {
+            background: #45a049;
+            border-color: #45a049;
+        }
+
+        .controls select:focus, .controls button:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 3px rgba(0, 30, 60, 0.1);
+        }
+
+        .calendar-container {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            margin-bottom: 25px;
+            width: 100%;
+            box-sizing: border-box;
+            transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+            user-select: none;              /* Prevents text selection on long press */
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;    /* Stops iOS "Save Image" / link menu */
+        }
+        
+        /* Swipe animation */
+        .calendar-header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 4px solid var(--primary-blue);
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .month-year {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            letter-spacing: -0.5px;
+        }
+
+        .week-info {
+            font-size: 15px;
+            color: white;
+            background: var(--primary-blue);
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(0, 30, 60, 0.2);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 16px;
+            width: 100%;
+        }
+
+        .day-header {
+            text-align: center;
+            font-weight: 800;
+            color: white;
+            background: var(--primary-blue);
+            padding: 18px 8px;
+            font-size: 15px;
+            border-radius: 10px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.15);
+        }
+
+        .calendar-day {
+            min-height: 120px;
+            border: 1px solid #e0e0e0;
+            border-radius: var(--radius-md);
+            padding: 12px;
+            background: white;
+            transition: all 0.2s ease;
+            position: relative;
+            box-shadow: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            text-align: center;
+        }
+
+        .calendar-day:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            z-index: 2;
+        }
+
+        .calendar-day.other-month {
+            opacity: 0.3;
+            background: #f5f5f5;
+        }
+
+        .calendar-day.today {
+            border-color: var(--primary-blue);
+            border-width: 3px;
+            background: var(--accent-gold);
+            box-shadow: 0 3px 10px rgba(255, 215, 0, 0.25), 0 0 0 1px var(--primary-blue);
+            transform: scale(1.02);
+        }
+
+        .calendar-day.today .day-number {
+            color: var(--primary-blue);
+            font-weight: 900;
+        }
+
+        .calendar-day.bank-holiday::before {
+            content: '⭐';
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            font-size: 12px;
+            z-index: 10;
+        }
+
+        .calendar-day.payday::before {
+            content: '💷';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            font-size: 10px;
+            z-index: 10;
+        }
+        
+        .calendar-day.cutoff::before {
+            content: '✂️';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            font-size: 10px;
+            z-index: 10;
+        }
+
+        .calendar-day.rest-day {
+            background: var(--green-light);
+            border-color: var(--green);
+        }
+
+        .calendar-day.early-shift {
+            background: var(--orange-light);
+            border-color: var(--orange);
+        }
+
+        .calendar-day.late-shift {
+            background: var(--blue-light);
+            border-color: var(--blue-sky);
+        }
+
+        .calendar-day.spare-day {
+            background: var(--purple-light);
+            border-color: var(--purple);
+        }
+
+        .day-number {
+            font-weight: 800;
+            font-size: 20px;
+            color: #333;
+            margin-bottom: 8px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .calendar-day.other-month .day-number {
+            color: #999;
+        }
+
+        .shift-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        .badge-rest {
+            background: var(--green);
+            color: white;
+        }
+
+        .badge-early {
+            background: var(--orange);
+            color: white;
+        }
+
+        .badge-late {
+            background: var(--blue-sky);
+            color: white;
+        }
+
+        .badge-spare {
+            background: var(--purple);
+            color: white;
+        }
+
+        .shift-time {
+            font-size: 15px;
+            color: #333;
+            font-weight: 700;
+            line-height: 1.5;
+            letter-spacing: 0.3px;
+            text-align: center;
+            width: 100%;
+        }
+
+        .legend {
+            background: white;
+            padding: 18px 25px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+        }
+
+        .legend-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            width: 100%;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .legend-color {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            border: 2px solid #333;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+
+        /* Legend colour variants - replaces inline styles */
+        .legend-color.rest    { background: var(--green-light);  border-color: var(--green); }
+        .legend-color.early   { background: var(--orange-light); border-color: var(--orange); }
+        .legend-color.late    { background: var(--blue-light);   border-color: var(--blue-sky); }
+        .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
+        .legend-color.today   { background: var(--accent-gold);  border-color: var(--primary-blue); border-width: 3px; }
+        .legend-color.icon    { background: white; border-color: #333; position: relative; }
+
+        .legend-color.icon span {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        .legend-color.icon span.small {
+            font-size: 11px;
+        }
+
+        .legend-text {
+            font-size: 13px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        @media (max-width: 1024px) {
+            .calendar-grid {
+                gap: 8px;
+            }
+            
+            .calendar-day {
+                min-height: 100px;
+                padding: 10px;
+            }
+
+            .shift-time {
+                font-size: 13px;
+            }
+
+            .month-year {
+                font-size: 26px;
+            }
+
+            .controls button {
+                padding: 12px 16px;
+                font-size: 13px;
+            }
+
+            .control-group {
+                gap: 8px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .container {
+                width: 100%;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .calendar-container {
+                padding: 15px;
+            }
+
+            .calendar-header {
+                flex-direction: column;
+                gap: 10px;
+                align-items: center;
+                text-align: center;
+            }
+
+            .calendar-day {
+                min-height: 80px;
+                padding: 6px;
+            }
+
+            .day-header {
+                font-size: 11px;
+                padding: 10px 3px;
+            }
+
+            .month-year {
+                font-size: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .calendar-grid {
+                gap: 4px;
+            }
+
+            .shift-time {
+                font-size: 11px;
+            }
+
+            .day-number {
+                font-size: 14px;
+                margin-bottom: 4px;
+            }
+
+            .shift-badge {
+                font-size: 8px;
+                padding: 3px 8px;
+                margin-bottom: 4px;
+            }
+
+            .controls {
+                padding: 15px;
+                gap: 10px;
+            }
+
+            .controls button {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+
+            .control-group {
+                gap: 6px;
+            }
+
+            .legend {
+                padding: 20px 15px;
+            }
+
+            .legend-item {
+                font-size: 13px;
+            }
+        }
+
+        /* Desktop/Laptop - Larger icons for better visibility */
+        @media (min-width: 1025px) {
+            .calendar-day.bank-holiday::before {
+                font-size: 18px !important;
+                top: 5px !important;
+                right: 5px !important;
+            }
+
+            .calendar-day.payday::before {
+                font-size: 16px !important;
+                top: 5px !important;
+                left: 5px !important;
+            }
+            
+            .calendar-day.cutoff::before {
+                font-size: 16px !important;
+                top: 5px !important;
+                left: 5px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 3px;
+            }
+
+            .calendar-container {
+                padding: 6px;
+                border-radius: var(--radius-md);
+            }
+            
+            .header h1 {
+                font-size: 24px;
+            }
+            
+            .title-icon {
+                height: 30px;
+                width: 30px;
+                border-radius: 6px;
+            }
+
+            .header {
+                padding: 12px;
+                border-radius: var(--radius-md);
+            }
+
+            .controls {
+                padding: 10px;
+                border-radius: var(--radius-md);
+            }
+
+            .calendar-day {
+                min-height: 70px;
+                padding: 3px;
+                border-radius: 6px;
+                border-width: 1px;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: flex-start !important;
+                text-align: center !important;
+            }
+
+            .calendar-day.today {
+                border-width: 3px;
+            }
+
+            .day-header {
+                font-size: 9px;
+                padding: 6px 1px;
+                border-radius: 6px;
+            }
+
+            .calendar-grid {
+                gap: 2px;
+            }
+
+            .shift-time {
+                font-size: 9px;
+            }
+
+            .day-number {
+                font-size: 12px;
+            }
+
+            .shift-badge {
+                font-size: 7px;
+                padding: 2px 5px;
+            }
+
+            .legend {
+                padding: 12px 8px;
+            }
+
+            .legend-item {
+                font-size: 11px;
+            }
+
+            .legend-color {
+                width: 20px;
+                height: 20px;
+            }
+        }
+
+        /* Print styles */
+        @media print {
+            @page {
+                margin: 0.5cm; /* Slightly reduced to give more breathing room */
+                size: auto;    /* Let the browser determine size based on content */
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                box-sizing: border-box !important;
+            }
+
+            html {
+                height: auto !important;
+                width: 100% !important;
+                overflow: visible !important;
+            }
+
+            body {
+                background: white !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            /* Force the body to ignore any phantom trailing whitespace */
+            body::after {
+                content: "";
+                display: block;
+                height: 0;
+                clear: both;
+            }
+
+            .container {
+                max-width: 100% !important;
+                width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                height: auto !important;
+                border: none !important;
+                page-break-after: avoid !important;
+            }
+
+            .controls {
+                display: none !important;
+                height: 0 !important;
+                overflow: hidden !important;
+                position: absolute !important;
+                visibility: hidden !important;
+            }
+
+            #calendarDisplay {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                position: relative !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+            }
+
+            .header {
+                box-shadow: none !important;
+                border: 1px solid var(--primary-blue) !important;
+                page-break-after: avoid !important;
+                page-break-inside: avoid !important;
+                margin: 0 0 8px 0 !important;
+                padding: 8px !important;
+            }
+
+            .header h1 {
+                font-size: 16px !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .header p {
+                font-size: 10px !important;
+                margin: 2px 0 0 0 !important;
+                padding: 0 !important;
+            }
+
+            /* Add team member name for print */
+            .header::after {
+                content: "Team Member: " attr(data-member-name);
+                display: block;
+                font-size: 11px;
+                font-weight: bold;
+                color: var(--primary-blue);
+                margin-top: 4px;
+            }
+
+            .calendar-container {
+                box-shadow: none !important;
+                border: 1px solid var(--primary-blue) !important;
+                page-break-inside: avoid !important;
+                page-break-after: avoid !important;
+                padding: 6px !important;
+                margin: 0 0 8px 0 !important;
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                height: auto !important;
+                width: 100% !important;
+                overflow: visible !important;
+            }
+
+            .calendar-header {
+                margin: 0 0 6px 0 !important;
+                padding: 0 0 4px 0 !important;
+                display: flex !important;
+                visibility: visible !important;
+                page-break-after: avoid !important;
+            }
+
+            .month-year {
+                font-size: 18px !important;
+                margin: 0 !important;
+            }
+
+            .week-info {
+                font-size: 11px !important;
+                padding: 4px 8px !important;
+                background: var(--primary-blue) !important;
+                margin: 0 !important;
+            }
+
+            .calendar-grid {
+                display: grid !important;
+                grid-template-columns: repeat(7, 1fr) !important;
+                gap: 2px !important;
+                page-break-inside: avoid !important;
+                page-break-after: avoid !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                width: 100% !important;
+                margin: 0 !important;
+            }
+
+            .day-header {
+                font-size: 10px !important;
+                padding: 5px 2px !important;
+                background: var(--primary-blue) !important;
+                color: white !important;
+                display: block !important;
+                visibility: visible !important;
+                margin: 0 !important;
+            }
+
+            .calendar-day {
+                box-shadow: none !important;
+                page-break-inside: avoid !important;
+                min-height: 60px !important;
+                max-height: 60px !important;
+                height: 60px !important;
+                padding: 4px !important;
+                margin: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                border: 1px solid #999 !important;
+                overflow: hidden !important;
+            }
+
+            .calendar-day:hover {
+                transform: none !important;
+                box-shadow: none !important;
+            }
+
+            .calendar-day.other-month {
+                opacity: 0.3 !important;
+            }
+
+            .calendar-day.today {
+                border-color: var(--primary-blue) !important;
+                border-width: 2px !important;
+                background: #ffffcc !important;
+                transform: none !important;
+                box-shadow: none !important;
+            }
+
+            .day-number {
+                font-size: 14px !important;
+                font-weight: bold !important;
+                display: block !important;
+                visibility: visible !important;
+                margin: 0 0 3px 0 !important;
+                padding: 0 !important;
+            }
+
+            .shift-badge {
+                font-size: 9px !important;
+                padding: 2px 5px !important;
+                display: inline-block !important;
+                visibility: visible !important;
+                margin: 2px 0 !important;
+            }
+
+            .shift-time {
+                font-size: 9px !important;
+                display: block !important;
+                visibility: visible !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* The Legend: Since this is the LAST element, its bottom margin must be ZERO */
+            .legend {
+                box-shadow: none !important;
+                border: 1px solid var(--primary-blue) !important;
+                page-break-before: avoid !important;
+                page-break-inside: avoid !important;
+                padding: 6px !important;
+                margin: 8px 0 0 0 !important; /* ONLY top margin - NO bottom margin */
+            }
+
+            .legend-title {
+                font-size: 10px !important;
+                margin: 0 0 4px 0 !important;
+            }
+
+            .legend-item {
+                font-size: 8px !important;
+                margin: 0 !important;
+            }
+
+            .legend-color {
+                width: 12px !important;
+                height: 12px !important;
+            }
+
+            .calendar-day.rest-day {
+                background: var(--green-light) !important;
+            }
+
+            .calendar-day.early-shift {
+                background: var(--orange-light) !important;
+            }
+
+            .calendar-day.late-shift {
+                background: var(--blue-light) !important;
+            }
+
+            .calendar-day.spare-day {
+                background: var(--purple-light) !important;
+            }
+
+            .badge-rest {
+                background: var(--green) !important;
+                color: white !important;
+            }
+
+            .badge-early {
+                background: var(--orange) !important;
+                color: white !important;
+            }
+
+            .badge-late {
+                background: var(--blue-sky) !important;
+                color: white !important;
+            }
+
+            .badge-spare {
+                background: var(--purple) !important;
+                color: white !important;
+            }
+
+            .calendar-day.bank-holiday::before {
+                content: '⭐' !important;
+                position: absolute !important;
+                top: 3px !important;
+                right: 3px !important;
+                font-size: 11px !important;
+            }
+
+            .calendar-day.payday::before {
+                content: '💷' !important;
+                position: absolute !important;
+                top: 3px !important;
+                left: 3px !important;
+                font-size: 10px !important;
+            }
+
+            .calendar-day.cutoff::before {
+                content: '✂️' !important;
+                position: absolute !important;
+                top: 3px !important;
+                left: 3px !important;
+                font-size: 10px !important;
+            }
+
+        }
+
+        /* Landscape print orientation */
+        @media print and (orientation: landscape) {
+            @page {
+                size: A4 landscape;
+                margin: 1cm;
+            }
+
+            body {
+                width: 100% !important;
+                height: auto !important;
+            }
+
+            .calendar-day {
+                min-height: 45px !important;
+                max-height: 45px !important;
+                height: 45px !important;
+            }
+
+            .day-number {
+                font-size: 9px !important;
+            }
+
+            .shift-badge {
+                font-size: 6px !important;
+            }
+
+            .shift-time {
+                font-size: 7px !important;
+            }
+
+            .header h1 {
+                font-size: 18px !important;
+            }
+
+            .month-year {
+                font-size: 16px !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="errorBanner" class="error-banner" role="alert"></div>
+        <div class="header">
+            <h1><img src="icon-192.png" alt="Chiltern Train" class="title-icon"> CEA Roster Calendar</h1>
+            <p>London Marylebone Station</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="teamMemberSelect">Team Member:</label>
+                <select id="teamMemberSelect">
+                    <!-- Options populated by JavaScript -->
+                </select>
+            </div>
+
+            <div class="control-group">
+                <button id="prevMonth">← Previous</button>
+                <button id="todayBtn" class="today-btn">📍 Today</button>
+                <button id="printBtn" class="print-btn">🖨️ Print</button>
+                <button id="nextMonth">Next →</button>
+            </div>
+        </div>
+
+        <div id="calendarDisplay"></div>
+
+        <div class="legend">
+            <div class="legend-title">📅 Shift Legend</div>
+            <div class="legend-item">
+                <div class="legend-color rest"></div>
+                <span class="legend-text">🏠 Rest Day</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color early"></div>
+                <span class="legend-text">☀️ Early Shift</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color late"></div>
+                <span class="legend-text">🌙 Late Shift</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color spare"></div>
+                <span class="legend-text">📋 Spare</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color today"></div>
+                <span class="legend-text">📍 Today</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-text">⭐ Bank Holiday</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-text">💷 Payday</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-text">✂️ Cut-Off Date</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CEA ROSTER CALENDAR
+        // ============================================
+        // Performance Optimizations:
+        // - Member fetched once per render (not 31+ times)
+        // - Bank holidays cached per year
+        // - Pure functions for predictable behavior
+        // - CSS variables for instant theme changes
+        // ============================================
+        
+        // ============================================
+        // CONSTANTS
+        // ============================================
+        
+        // Default team member (G. Miller)
+        const DEFAULT_MEMBER_INDEX = 2;
+        
+        // Reference dates for roster calculations (Sunday at noon for DST safety)
+        const MAIN_ROSTER_REFERENCE_DATE = new Date(2026, 1, 8, 12, 0, 0);  // Feb 8, 2026 (G. Miller on Week 3)
+        const BILINGUAL_ROSTER_REFERENCE_DATE = new Date(2026, 1, 15, 12, 0, 0);  // Feb 15, 2026 (D. Irvine on BL Week 3)
+        
+        // Payday calculation
+        const FIRST_PAYDAY = new Date(2026, 1, 13, 12, 0, 0);  // Feb 13, 2026
+        const PAYDAY_INTERVAL_DAYS = 28;  // Every 4 weeks
+        
+        // Roster cycle lengths
+        const MAIN_ROSTER_WEEKS = 20;
+        const BILINGUAL_ROSTER_WEEKS = 8;
+        
+        // ============================================
+        // DATA
+        // ============================================
+        
+        // Team members with their current week assignments (as of Feb 8, 2026)
+        const teamMembers = [
+            { name: 'L. Springer', currentWeek: 1, rosterType: 'main' },
+            { name: 'A. Hared', currentWeek: 2, rosterType: 'main' },
+            { name: 'G. Miller', currentWeek: 3, rosterType: 'main' },
+            { name: 'M. Robson', currentWeek: 4, rosterType: 'main' },
+            { name: 'C. Matthews', currentWeek: 5, rosterType: 'main' },
+            { name: 'I. Cooper', currentWeek: 6, rosterType: 'main' },
+            { name: 'A. Panchal', currentWeek: 7, rosterType: 'main' },
+            { name: 'C. Francisco-Charles', currentWeek: 8, rosterType: 'main' },
+            { name: 'O. Mylla', currentWeek: 9, rosterType: 'main' },
+            { name: 'S. Boyle', currentWeek: 10, rosterType: 'main' },
+            { name: 'L. Atrakimaviciene', currentWeek: 11, rosterType: 'main' },
+            { name: 'J. Haque', currentWeek: 12, rosterType: 'main' },
+            { name: 'R. Frimpong', currentWeek: 13, rosterType: 'main' },
+            { name: 'N. Tuck', currentWeek: 14, rosterType: 'main' },
+            { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main' },
+            { name: 'S. Langley', currentWeek: 16, rosterType: 'main' },
+            { name: 'S. Silva', currentWeek: 17, rosterType: 'main' },
+            { name: 'J. Sumaili', currentWeek: 18, rosterType: 'main' },
+            { name: 'T. Bibi', currentWeek: 19, rosterType: 'main' },
+            { name: 'T. Nsuala', currentWeek: 20, rosterType: 'main' },
+            { name: 'D. Irvine', currentWeek: 3, rosterType: 'bilingual' },
+            { name: 'T. Gherbi', currentWeek: 6, rosterType: 'bilingual' }
+        ];
+
+        // ============================================
+        // BANK HOLIDAYS CALCULATION
+        // ============================================
+        
+        // Calculate UK Bank Holidays for any year
+        function calculateBankHolidays(year) {
+            const holidays = [];
+            
+            // New Year's Day (or substitute if weekend)
+            let newYear = new Date(year, 0, 1);
+            if (newYear.getDay() === 0) { // Sunday
+                holidays.push(new Date(year, 0, 2));
+            } else if (newYear.getDay() === 6) { // Saturday
+                holidays.push(new Date(year, 0, 3));
+            } else {
+                holidays.push(newYear);
+            }
+            
+            // Easter calculation (Computus algorithm)
+            const a = year % 19;
+            const b = Math.floor(year / 100);
+            const c = year % 100;
+            const d = Math.floor(b / 4);
+            const e = b % 4;
+            const f = Math.floor((b + 8) / 25);
+            const g = Math.floor((b - f + 1) / 3);
+            const h = (19 * a + b - d - g + 15) % 30;
+            const i = Math.floor(c / 4);
+            const k = c % 4;
+            const l = (32 + 2 * e + 2 * i - h - k) % 7;
+            const m = Math.floor((a + 11 * h + 22 * l) / 451);
+            const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+            const day = ((h + l - 7 * m + 114) % 31) + 1;
+            const easter = new Date(year, month, day);
+            
+            // Good Friday (2 days before Easter)
+            const goodFriday = new Date(easter);
+            goodFriday.setDate(easter.getDate() - 2);
+            holidays.push(goodFriday);
+            
+            // Easter Monday (1 day after Easter)
+            const easterMonday = new Date(easter);
+            easterMonday.setDate(easter.getDate() + 1);
+            holidays.push(easterMonday);
+            
+            // Early May Bank Holiday (first Monday in May)
+            const mayFirst = new Date(year, 4, 1);
+            const mayFirstDay = mayFirst.getDay();
+            const daysUntilMonday = mayFirstDay === 0 ? 1 : mayFirstDay === 1 ? 0 : 8 - mayFirstDay;
+            holidays.push(new Date(year, 4, 1 + daysUntilMonday));
+            
+            // Spring Bank Holiday (last Monday in May)
+            const mayLast = new Date(year, 5, 0);
+            const mayLastDay = mayLast.getDay();
+            // Days to go back: Sat=5, Fri=4, Thu=3, Wed=2, Tue=1, Mon=0, Sun=6
+            const mayDaysBack = (mayLastDay + 6) % 7;
+            holidays.push(new Date(year, 4, mayLast.getDate() - mayDaysBack));
+            
+            // Summer Bank Holiday (last Monday in August)
+            const augLast = new Date(year, 8, 0); // 8, 0 = last day of August
+            const augLastDay = augLast.getDay();
+            const augDaysBack = (augLastDay + 6) % 7;
+            holidays.push(new Date(year, 7, augLast.getDate() - augDaysBack));
+            
+            // Christmas Day (or substitute)
+            let christmas = new Date(year, 11, 25);
+            if (christmas.getDay() === 0) {
+                holidays.push(new Date(year, 11, 27));
+            } else if (christmas.getDay() === 6) {
+                holidays.push(new Date(year, 11, 27));
+            } else {
+                holidays.push(christmas);
+            }
+            
+            // Boxing Day (or substitute)
+            let boxingDay = new Date(year, 11, 26);
+            if (boxingDay.getDay() === 0) {
+                holidays.push(new Date(year, 11, 28));
+            } else if (boxingDay.getDay() === 6) {
+                holidays.push(new Date(year, 11, 28));
+            } else if (christmas.getDay() === 0) {
+                holidays.push(new Date(year, 11, 28));
+            } else {
+                holidays.push(boxingDay);
+            }
+            
+            return holidays;
+        }
+
+        // Cache for performance (calculate once per year, reuse for all days)
+        const bankHolidaysCache = {};
+        function getBankHolidays(year) {
+            if (!bankHolidaysCache[year]) {
+                bankHolidaysCache[year] = calculateBankHolidays(year);
+            }
+            return bankHolidaysCache[year];
+        }
+
+        // Check if date is bank holiday
+        function isBankHoliday(date) {
+            const yearHolidays = getBankHolidays(date.getFullYear());
+            return yearHolidays.some(holiday => isSameDay(holiday, date));
+        }
+
+        // ============================================
+        // PAYDAY CALCULATIONS
+        // ============================================
+        
+        // Check if date is a payday (every 4 weeks from Feb 13, 2026)
+        // Cache for paydays and cutoff dates (calculated once per year)
+        const paydayCache = {};
+        
+        // Calculate all paydays and cutoff dates for a given year
+        function getPaydaysAndCutoffs(year) {
+            if (!paydayCache[year]) {
+                const paydays = [];
+                const cutoffs = [];
+                
+                // Start from first payday and calculate all paydays in this year
+                let currentPayday = new Date(FIRST_PAYDAY);
+                
+                // Go back to find first payday of the year
+                // Keep going back until we're definitely before the year starts
+                while (currentPayday.getFullYear() >= year) {
+                    currentPayday.setDate(currentPayday.getDate() - PAYDAY_INTERVAL_DAYS);
+                }
+                // Now go forward to the first payday OF this year
+                while (currentPayday.getFullYear() < year) {
+                    currentPayday.setDate(currentPayday.getDate() + PAYDAY_INTERVAL_DAYS);
+                }
+                
+                // Calculate all paydays for this year
+                while (currentPayday.getFullYear() <= year) {
+                    if (currentPayday.getFullYear() === year) {
+                        // Normalize to noon for DST safety
+                        let payday = new Date(
+                            currentPayday.getFullYear(),
+                            currentPayday.getMonth(),
+                            currentPayday.getDate(),
+                            12, 0, 0
+                        );
+                        
+                        // Check if payday falls on a bank holiday (Friday)
+                        // If so, move to Thursday
+                        if (isBankHoliday(payday)) {
+                            payday = new Date(payday);
+                            payday.setDate(payday.getDate() - 1); // Move to Thursday
+                        }
+                        
+                        paydays.push(payday);
+                        
+                        // Calculate cutoff date (most recent Saturday before payday)
+                        const cutoff = new Date(payday);
+                        const dayOfWeek = payday.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+                        
+                        // Calculate days back to previous Saturday
+                        let daysBack;
+                        if (dayOfWeek === 0) { // Sunday
+                            daysBack = 1;
+                        } else if (dayOfWeek === 6) { // Saturday (shouldn't happen with our schedule)
+                            daysBack = 0;
+                        } else { // Mon-Fri
+                            daysBack = (dayOfWeek + 1) % 7;
+                            if (daysBack === 0) daysBack = 7;
+                        }
+                        
+                        cutoff.setDate(payday.getDate() - daysBack);
+                        cutoffs.push(cutoff);
+                    }
+                    
+                    currentPayday.setDate(currentPayday.getDate() + PAYDAY_INTERVAL_DAYS);
+                }
+                
+                paydayCache[year] = { paydays, cutoffs };
+            }
+            
+            return paydayCache[year];
+        }
+        
+        // Check if a date is a payday
+        function isPayday(date) {
+            const { paydays } = getPaydaysAndCutoffs(date.getFullYear());
+            return paydays.some(payday => isSameDay(payday, date));
+        }
+        
+        // Check if a date is a cutoff date (Saturday before payday)
+        function isCutoffDate(date) {
+            const { cutoffs } = getPaydaysAndCutoffs(date.getFullYear());
+            return cutoffs.some(cutoff => isSameDay(cutoff, date));
+        }
+
+        // 20-week rotating roster pattern from the PDF (correctly parsed)
+        // SP weeks mean "Spare" - can be rostered ANY day, ANY shift during that week
+        const weeklyRoster = {
+            1: { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' },
+            2: { sun: '14:30-23:25', mon: '15:15-23:55', tue: '15:15-23:55', wed: '15:15-23:55', thu: '15:15-23:55', fri: 'RD', sat: 'RD' },
+            3: { sun: 'RD', mon: 'RD', tue: '06:20-14:20', wed: '06:20-14:20', thu: '06:20-14:20', fri: '06:20-14:20', sat: '06:20-14:00' },
+            4: { sun: '07:15-15:45', mon: 'RD', tue: '06:20-14:20', wed: '06:20-14:20', thu: 'RD', fri: 'RD', sat: '14:45-23:55' },
+            5: { sun: '14:30-23:25', mon: '14:00-22:30', tue: '14:00-22:30', wed: '14:00-22:30', thu: '14:00-22:30', fri: '15:15-23:55', sat: 'RD' },
+            6: { sun: 'RD', mon: '06:20-14:20', tue: '08:00-16:30', wed: '08:00-16:30', thu: '08:00-16:30', fri: '08:00-16:30', sat: 'RD' },
+            7: { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' },
+            8: { sun: '07:15-15:45', mon: '06:20-13:45', tue: 'RD', wed: 'RD', thu: '13:30-22:00', fri: '14:00-22:30', sat: '13:30-21:00' },
+            9: { sun: 'RD', mon: '11:00-19:30', tue: '11:00-19:30', wed: '11:00-19:30', thu: '11:00-19:30', fri: '11:00-19:30', sat: 'RD' },
+            10: { sun: 'RD', mon: 'RD', tue: '15:15-23:55', wed: '15:15-23:55', thu: '15:15-23:55', fri: '15:15-23:55', sat: '14:45-23:55' },
+            11: { sun: 'RD', mon: '08:00-16:30', tue: '13:30-22:00', wed: 'RD', thu: 'RD', fri: '06:20-13:35', sat: '06:20-14:50' },
+            12: { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' },
+            13: { sun: 'RD', mon: 'RD', tue: '14:00-22:30', wed: '14:00-22:30', thu: '14:00-22:30', fri: '14:00-22:30', sat: '14:30-22:00' },
+            14: { sun: '14:30-23:25', mon: '14:00-22:30', tue: 'RD', wed: 'RD', thu: 'RD', fri: '08:00-16:30', sat: '06:20-14:50' },
+            15: { sun: '07:15-15:45', mon: '06:20-13:35', tue: '06:20-13:35', wed: '06:20-13:35', thu: '06:20-13:35', fri: 'RD', sat: 'RD' },
+            16: { sun: 'RD', mon: '08:00-16:30', tue: '08:00-16:30', wed: '08:00-16:30', thu: 'RD', fri: 'RD', sat: 'RD' },
+            17: { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' },
+            18: { sun: '13:00-21:00', mon: '15:15-23:55', tue: 'RD', wed: 'RD', thu: '06:20-14:20', fri: '06:20-14:20', sat: '06:20-14:50' },
+            19: { sun: 'RD', mon: 'RD', tue: '06:20-13:45', wed: '06:20-13:45', thu: '06:20-13:45', fri: '06:20-13:45', sat: '12:00-20:00' },
+            20: { sun: '08:30-16:30', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: '08:00-16:30', fri: '13:30-22:00', sat: '14:30-22:00' }
+        };
+
+        // 8-week bilingual roster pattern
+        const bilingualRoster = {
+            1: { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' },
+            2: { sun: 'OFF', mon: 'RD', tue: 'RD', wed: '15:00-23:30', thu: '15:00-23:30', fri: '15:00-23:30', sat: '14:25-23:55' },
+            3: { sun: '15:25-23:25', mon: 'RD', tue: 'RD', wed: 'RD', thu: '07:00-16:00', fri: '08:00-17:00', sat: '08:00-14:30' },
+            4: { sun: 'OFF', mon: '07:00-16:00', tue: '07:00-16:00', wed: '07:00-16:00', thu: 'RD', fri: 'RD', sat: '07:00-15:00' },
+            5: { sun: 'OFF', mon: '12:00-21:00', tue: '12:00-21:00', wed: '12:00-21:00', thu: '12:00-21:00', fri: '12:00-21:00', sat: 'RD' },
+            6: { sun: '07:55-15:55', mon: '15:00-23:30', tue: '15:00-23:30', wed: 'RD', thu: '08:00-17:00', fri: '07:00-16:00', sat: '08:30-17:00' },
+            7: { sun: 'OFF', mon: '08:00-17:00', tue: '08:00-17:00', wed: '08:00-17:00', thu: 'RD', fri: 'RD', sat: 'RD' },
+            8: { sun: 'SPARE', mon: 'SPARE', tue: 'SPARE', wed: 'SPARE', thu: 'SPARE', fri: 'SPARE', sat: 'SPARE' }
+        };
+
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+
+        // ============================================
+        // DATA VALIDATION
+        // ============================================
+        
+        // Validate roster data structure on load
+        function validateRoster(roster, rosterName, expectedWeeks) {
+            const errors = [];
+            
+            // Check all weeks exist
+            for (let week = 1; week <= expectedWeeks; week++) {
+                if (!roster[week]) {
+                    errors.push(`${rosterName}: Missing week ${week}`);
+                    continue;
+                }
+                
+                // Check all days exist in each week
+                dayKeys.forEach(day => {
+                    if (roster[week][day] === undefined) {
+                        errors.push(`${rosterName}: Week ${week} missing day ${day}`);
+                    }
+                });
+            }
+            
+            return errors;
+        }
+
+        // Validate team members data
+        function validateTeamMembers() {
+            const errors = [];
+            
+            if (!teamMembers || teamMembers.length === 0) {
+                errors.push('No team members defined');
+                return errors;
+            }
+            
+            teamMembers.forEach((member, index) => {
+                if (!member.name) {
+                    errors.push(`Team member at index ${index} has no name`);
+                }
+                if (!member.currentWeek || member.currentWeek < 1) {
+                    errors.push(`${member.name || `Index ${index}`}: Invalid currentWeek`);
+                }
+                if (member.rosterType === 'bilingual' && member.currentWeek > BILINGUAL_ROSTER_WEEKS) {
+                    errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds bilingual roster weeks (${BILINGUAL_ROSTER_WEEKS})`);
+                }
+                if (member.rosterType === 'main' && member.currentWeek > MAIN_ROSTER_WEEKS) {
+                    errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds main roster weeks (${MAIN_ROSTER_WEEKS})`);
+                }
+            });
+            
+            return errors;
+        }
+
+        // Run validation on load
+        (function validateData() {
+            const allErrors = [
+                ...validateRoster(weeklyRoster, 'Main Roster', MAIN_ROSTER_WEEKS),
+                ...validateRoster(bilingualRoster, 'Bilingual Roster', BILINGUAL_ROSTER_WEEKS),
+                ...validateTeamMembers()
+            ];
+            
+            if (allErrors.length > 0) {
+                console.error('⚠️ ROSTER DATA VALIDATION ERRORS:');
+                allErrors.forEach(error => console.error('  - ' + error));
+                const banner = document.getElementById('errorBanner');
+                if (banner) {
+                    banner.textContent = '⚠️ Roster data issue: ' + allErrors.join(' | ');
+                    banner.classList.add('visible');
+                }
+            } else {
+                console.log('✅ Roster data validation passed');
+            }
+        })();
+
+        // ============================================
+        // CALENDAR STATE
+        // ============================================
+        
+        // Current date: Get actual today's date
+        const today = new Date();
+        
+        let currentDisplayMonth = today.getMonth();
+        let currentDisplayYear = today.getFullYear();
+        
+        // ============================================
+        // SWIPE GESTURE STATE
+        // ============================================
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchEndX = 0;
+        let touchEndY = 0;
+        let isRendering = false;
+        let swipeCooldown = false;
+
+        // Get selected team member index (default to G. Miller - index 2)
+        function getSelectedMemberIndex() {
+            const saved = localStorage.getItem('selectedTeamMember');
+            return saved !== null ? parseInt(saved) : DEFAULT_MEMBER_INDEX;
+        }
+
+        // Save selected team member
+        function saveSelectedMember(index) {
+            localStorage.setItem('selectedTeamMember', index);
+        }
+
+        // Populate team member dropdown
+        function populateTeamMemberDropdown() {
+            const select = document.getElementById('teamMemberSelect');
+            if (!select) return;
+            
+            // Clear any existing options
+            select.innerHTML = '';
+            
+            // Get selected member index using dedicated helper
+            const selectedIndex = getSelectedMemberIndex();
+            
+            // Add all team members
+            for (let i = 0; i < teamMembers.length; i++) {
+                const member = teamMembers[i];
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = member.name;
+                if (i === selectedIndex) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+        }
+
+        function getWeekNumberForDate(date, selectedMember) {
+            // Each week runs Sunday to Saturday
+            // If member not provided, look it up (fallback for backwards compatibility)
+            // Fallback: If member not provided, look it up (for backwards compatibility & safety)
+            // Note: This is rarely used since renderCalendar passes member directly
+            if (!selectedMember) {
+                const selectedIndex = getSelectedMemberIndex();
+                selectedMember = teamMembers[selectedIndex];
+                if (!selectedMember) return 1; // Ultimate fallback
+            }
+            
+            const memberCurrentWeek = selectedMember.currentWeek;
+            const rosterType = selectedMember.rosterType || 'main';
+            const cycleLength = rosterType === 'bilingual' ? BILINGUAL_ROSTER_WEEKS : MAIN_ROSTER_WEEKS;
+            
+            // Normalize to noon to avoid DST issues (same as isPayday)
+            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+            const dayOfWeek = dateOnly.getDay(); // 0 = Sunday
+            
+            // Get the Sunday of the week containing this date (also at noon)
+            const sundayOfWeek = new Date(dateOnly);
+            sundayOfWeek.setDate(dateOnly.getDate() - dayOfWeek);
+            
+            // Different reference dates for main vs bilingual rosters (at noon for DST safety)
+            // Main roster: Feb 8, 2026 is when G. Miller is on Week 3
+            // Bilingual roster: Feb 15, 2026 is when D. Irvine is on BL Week 3, T. Gherbi on BL Week 6
+            const referenceSunday = rosterType === 'bilingual' 
+                ? BILINGUAL_ROSTER_REFERENCE_DATE
+                : MAIN_ROSTER_REFERENCE_DATE;
+            
+            // Calculate how many full weeks have passed since the reference date
+            const millisDiff = sundayOfWeek - referenceSunday;
+            const daysDiff = Math.round(millisDiff / (1000 * 60 * 60 * 24));
+            const weeksDiff = Math.floor(daysDiff / 7);
+            
+            // Calculate which week in the cycle for this team member
+            let weekNum = memberCurrentWeek + weeksDiff;
+            
+            // Handle wrapping around the cycle
+            while (weekNum < 1) weekNum += cycleLength;
+            while (weekNum > cycleLength) weekNum -= cycleLength;
+            
+            return weekNum;
+        }
+
+        function isEarlyShift(timeStr) {
+            if (timeStr === 'RD') return false;
+            const startTime = timeStr.split('-')[0];
+            const hour = parseInt(startTime.split(':')[0]);
+            return hour < 11;
+        }
+
+        function getShiftClass(timeStr) {
+            if (timeStr === 'RD' || timeStr === 'OFF') return 'rest-day'; // OFF shows as rest day
+            if (timeStr === 'SPARE') return 'spare-day';
+            return isEarlyShift(timeStr) ? 'early-shift' : 'late-shift';
+        }
+
+        function getShiftBadge(timeStr) {
+            if (timeStr === 'RD' || timeStr === 'OFF') return '<span class="shift-badge badge-rest">🏠 Rest</span>'; // OFF shows as rest
+            if (timeStr === 'SPARE') return '<span class="shift-badge badge-spare">📋 Spare</span>';
+            return isEarlyShift(timeStr) 
+                ? '<span class="shift-badge badge-early">☀️ Early</span>'
+                : '<span class="shift-badge badge-late">🌙 Late</span>';
+        }
+
+        function isSameDay(date1, date2) {
+            return date1.getDate() === date2.getDate() &&
+                   date1.getMonth() === date2.getMonth() &&
+                   date1.getFullYear() === date2.getFullYear();
+        }
+
+        // Helper: Get current selected member
+        function getCurrentMember() {
+            const selectedIndex = getSelectedMemberIndex();
+            const member = teamMembers[selectedIndex];
+            
+            if (!member) {
+                console.error(`Invalid team member index: ${selectedIndex}`);
+                // Fallback to first team member
+                return teamMembers[0] || { name: 'Unknown', currentWeek: 1, rosterType: 'main' };
+            }
+            
+            return member;
+        }
+
+        // Helper: Get roster data for a member (pure function)
+        function getRosterForMember(member) {
+            if (!member) {
+                console.error('getRosterForMember called with null/undefined member');
+                return {
+                    type: 'main',
+                    data: weeklyRoster,
+                    cycleLength: MAIN_ROSTER_WEEKS,
+                    weekPrefix: 'Week'
+                };
+            }
+            
+            const rosterType = member.rosterType || 'main';
+            return {
+                type: rosterType,
+                data: rosterType === 'bilingual' ? bilingualRoster : weeklyRoster,
+                cycleLength: rosterType === 'bilingual' ? BILINGUAL_ROSTER_WEEKS : MAIN_ROSTER_WEEKS,
+                weekPrefix: rosterType === 'bilingual' ? 'BL Week' : 'Week'
+            };
+        }
+
+        // Helper: Create calendar header HTML (pure function)
+        function createCalendarHeader(firstWeekNum, roster) {
+            return `
+                <div class="month-year">${monthNames[currentDisplayMonth]} ${currentDisplayYear}</div>
+                <div class="week-info">Starting at ${roster.weekPrefix} ${firstWeekNum}</div>
+            `;
+        }
+
+        // Helper: Create day cell HTML (pure function)
+        function createDayCell(date, shift) {
+            return `
+                <div class="day-number">${date.getDate()}</div>
+                ${getShiftBadge(shift)}
+                ${shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' ? `<div class="shift-time">${shift}</div>` : ''}
+            `;
+        }
+
+        // ============================================
+        // SWIPE GESTURE DETECTION
+        // ============================================
+        
+        // Calculate swipe direction based on touch coordinates and angle
+        function getSwipeDirection(startX, startY, endX, endY) {
+            const deltaX = endX - startX;
+            const deltaY = endY - startY;
+            
+            // Calculate angle in degrees (0° = right, 90° = down, 180° = left, 270° = up)
+            const angle = Math.abs(Math.atan2(deltaY, deltaX) * 180 / Math.PI);
+            
+            // Swipe must be mostly horizontal (< 30° or > 150° from horizontal axis)
+            const isHorizontal = angle < 30 || angle > 150;
+            
+            if (!isHorizontal) return null; // Too vertical - probably scrolling
+            if (Math.abs(deltaX) < 75) return null; // Too short - not intentional swipe
+            
+            return deltaX > 0 ? 'right' : 'left';
+        }
+        
+        // Single swipe handler - called by touchend when a valid swipe is detected
+        function performSwipe(direction, container) {
+            if (swipeCooldown) return;
+            swipeCooldown = true;
+            setTimeout(() => swipeCooldown = false, 300);
+
+            // Haptic feedback - 30ms pulse (Android only, silently ignored elsewhere)
+            if (navigator.vibrate) navigator.vibrate(30);
+
+            // Animate off screen
+            const exitX = direction === 'left' ? -100 : 100;
+            container.style.transform = `translateX(${exitX}px)`;
+            container.style.opacity = '0';
+
+            // Change month directly then re-render
+            setTimeout(() => {
+                if (direction === 'left') {
+                    currentDisplayMonth++;
+                    if (currentDisplayMonth > 11) { currentDisplayMonth = 0; currentDisplayYear++; }
+                } else {
+                    currentDisplayMonth--;
+                    if (currentDisplayMonth < 0) { currentDisplayMonth = 11; currentDisplayYear--; }
+                }
+                renderCalendar();
+            }, 200);
+        }
+        
+        // ============================================
+        // CALENDAR RENDERING
+        // ============================================
+        
+        function renderCalendar() {
+            // Set rendering flag to prevent swipes during render
+            isRendering = true;
+            
+            try {
+                const member = getCurrentMember();
+                const roster = getRosterForMember(member);
+                
+                // Set team member name on header for printing
+                const headerElement = document.querySelector('.header');
+                if (headerElement) {
+                    headerElement.setAttribute('data-member-name', member.name);
+                }
+                
+                const calendarDisplay = document.getElementById('calendarDisplay');
+                if (!calendarDisplay) {
+                    throw new Error('Calendar display element not found');
+                }
+                
+                const calendarContainer = document.createElement('div');
+                calendarContainer.className = 'calendar-container';
+
+                // Calendar dates
+                const firstDay = new Date(currentDisplayYear, currentDisplayMonth, 1);
+                const lastDay = new Date(currentDisplayYear, currentDisplayMonth + 1, 0);
+                const firstWeekNum = getWeekNumberForDate(firstDay, member);
+
+                // Dynamic title - shows in task switcher and browser tab
+                document.title = `CEA Roster — ${monthNames[currentDisplayMonth]} ${currentDisplayYear}`;
+                
+                // Create header (passing roster to pure function)
+                const header = document.createElement('div');
+                header.className = 'calendar-header';
+            header.innerHTML = createCalendarHeader(firstWeekNum, roster);
+            calendarContainer.appendChild(header);
+
+            // Calendar grid
+            const grid = document.createElement('div');
+            grid.className = 'calendar-grid';
+
+            // Add day headers
+            dayNames.forEach(day => {
+                const dayHeader = document.createElement('div');
+                dayHeader.className = 'day-header';
+                dayHeader.textContent = day;
+                grid.appendChild(dayHeader);
+            });
+
+            // Get starting day of week (0 = Sunday)
+            const startDay = firstDay.getDay();
+
+            // Add empty cells for days before the month starts
+            const prevMonthLastDay = new Date(currentDisplayYear, currentDisplayMonth, 0);
+            for (let i = 0; i < startDay; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'calendar-day other-month';
+                
+                const dayNum = prevMonthLastDay.getDate() - startDay + i + 1;
+                emptyDay.innerHTML = `<div class="day-number">${dayNum}</div>`;
+                grid.appendChild(emptyDay);
+            }
+
+            // Add days of the month (using roster already retrieved above)
+            const daysInMonth = lastDay.getDate();
+            
+            for (let day = 1; day <= daysInMonth; day++) {
+                const currentDate = new Date(currentDisplayYear, currentDisplayMonth, day);
+                const weekNum = getWeekNumberForDate(currentDate, member);
+                const dayKey = dayKeys[currentDate.getDay()];
+                // Safe shift lookup with fallback
+                let shift = 'RD'; // Default fallback
+                if (roster.data[weekNum]) {
+                    shift = roster.data[weekNum][dayKey];
+                    if (shift === undefined) {
+                        console.warn(`Missing shift data: Week ${weekNum}, Day ${dayKey}`);
+                        shift = 'RD';
+                    }
+                } else {
+                    console.warn(`Missing week ${weekNum} in ${roster.type} roster`);
+                }
+
+
+                const dayCell = document.createElement('div');
+                dayCell.className = `calendar-day ${getShiftClass(shift)}`;
+                
+                // Build accessible label
+                const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
+                    : shift === 'SPARE' ? 'Spare day'
+                    : isEarlyShift(shift) ? `Early shift ${shift}`
+                    : `Late shift ${shift}`;
+                const extras = [
+                    isSameDay(currentDate, today) ? 'Today' : '',
+                    isBankHoliday(currentDate) ? 'Bank holiday' : '',
+                    isPayday(currentDate) ? 'Payday' : '',
+                    isCutoffDate(currentDate) ? 'Cut-off date' : ''
+                ].filter(Boolean).join(', ');
+                dayCell.setAttribute('aria-label',
+                    `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${monthNames[currentDisplayMonth]} ${currentDisplayYear} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
+                );
+                
+                if (isSameDay(currentDate, today)) {
+                    dayCell.classList.add('today');
+                }
+
+                if (isBankHoliday(currentDate)) {
+                    dayCell.classList.add('bank-holiday');
+                }
+
+                if (isPayday(currentDate)) {
+                    dayCell.classList.add('payday');
+                }
+                
+                if (isCutoffDate(currentDate)) {
+                    dayCell.classList.add('cutoff');
+                }
+
+                dayCell.innerHTML = createDayCell(currentDate, shift);
+
+                grid.appendChild(dayCell);
+            }
+
+            // Add remaining cells to complete the grid
+            const totalCells = startDay + daysInMonth;
+            const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+            
+            for (let i = 1; i <= remainingCells; i++) {
+                const emptyDay = document.createElement('div');
+                emptyDay.className = 'calendar-day other-month';
+                emptyDay.innerHTML = `<div class="day-number">${i}</div>`;
+                grid.appendChild(emptyDay);
+            }
+
+            calendarContainer.appendChild(grid);
+            calendarDisplay.innerHTML = '';
+            calendarDisplay.appendChild(calendarContainer);
+            
+            } catch (error) {
+                console.error('Error rendering calendar:', error);
+                const calendarDisplay = document.getElementById('calendarDisplay');
+                if (calendarDisplay) {
+                    calendarDisplay.innerHTML = `
+                        <div style="padding: 40px; text-align: center; color: #d32f2f; background: #ffebee; border-radius: 8px; margin: 20px;">
+                            <h2>⚠️ Calendar Error</h2>
+                            <p>Unable to render calendar. Please refresh the page.</p>
+                            <p style="font-size: 14px; color: var(--text-dark); margin-top: 10px;">
+                                Error: ${error.message}
+                            </p>
+                        </div>
+                    `;
+                }
+            } finally {
+                // Clear rendering flag after render completes (success or error)
+                // Use setTimeout to allow DOM to settle
+                setTimeout(() => isRendering = false, 100);
+            }
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+        
+        // Event listeners
+        document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
+            saveSelectedMember(parseInt(e.target.value));
+            renderCalendar();
+        });
+        
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            currentDisplayMonth--;
+            if (currentDisplayMonth < 0) {
+                currentDisplayMonth = 11;
+                currentDisplayYear--;
+            }
+            renderCalendar();
+        });
+
+        document.getElementById('todayBtn').addEventListener('click', () => {
+            currentDisplayMonth = today.getMonth();
+            currentDisplayYear = today.getFullYear();
+            renderCalendar();
+        });
+
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            currentDisplayMonth++;
+            if (currentDisplayMonth > 11) {
+                currentDisplayMonth = 0;
+                currentDisplayYear++;
+            }
+            renderCalendar();
+        });
+
+        document.getElementById('printBtn').addEventListener('click', () => {
+            window.print();
+        });
+
+        // Initialize when DOM is fully loaded
+        window.addEventListener('DOMContentLoaded', function() {
+            try {
+                populateTeamMemberDropdown();
+                renderCalendar();
+                
+                // ============================================
+                // SETUP SWIPE GESTURES (Mobile/Touch Devices)
+                // ============================================
+                const calendarDisplay = document.getElementById('calendarDisplay');
+                
+                if (calendarDisplay) {
+                    // Touch start - record position & REMOVE transition for instant response
+                    calendarDisplay.addEventListener('touchstart', (e) => {
+                        if (e.touches.length !== 1) return;
+                        
+                        const container = document.querySelector('.calendar-container');
+                        if (container) {
+                            // Remove transition so the calendar sticks 1:1 to the finger
+                            container.style.transition = 'none';
+                            calendarDisplay._swipeContainer = container; // Cache for touchmove/touchend
+                        }
+                        
+                        touchStartX = e.touches[0].screenX;
+                        touchStartY = e.touches[0].screenY;
+                    }, { passive: true });
+                    
+                    // Touch move - follow finger exactly
+                    calendarDisplay.addEventListener('touchmove', (e) => {
+                        if (e.touches.length !== 1) return;
+                        if (isRendering || swipeCooldown) return;
+                        
+                        const currentX = e.touches[0].screenX;
+                        const currentY = e.touches[0].screenY;
+                        const deltaX = currentX - touchStartX;
+                        const deltaY = currentY - touchStartY;
+                        
+                        // Only move if horizontal
+                        if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 10) {
+                            const container = calendarDisplay._swipeContainer;
+                            if (container) {
+                                // Limit movement to 80px for resistance
+                                const movement = Math.max(Math.min(deltaX, 80), -80);
+                                container.style.transform = `translateX(${movement}px)`;
+                                // Fade out slightly as you drag
+                                container.style.opacity = `${1 - (Math.abs(movement) / 200)}`;
+                            }
+                        }
+                    }, { passive: true });
+                    
+                    // Touch end - Restore transition and animate
+                    calendarDisplay.addEventListener('touchend', (e) => {
+                        if (e.changedTouches.length !== 1) return;
+                        
+                        touchEndX = e.changedTouches[0].screenX;
+                        touchEndY = e.changedTouches[0].screenY;
+                        
+                        const container = calendarDisplay._swipeContainer;
+                        if (container) {
+                            // Bring back the smooth animation for the release
+                            container.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+                            
+                            // Check if it was a valid swipe
+                            const direction = getSwipeDirection(touchStartX, touchStartY, touchEndX, touchEndY);
+                            
+                            if (direction) {
+                                performSwipe(direction, container);
+                            } else {
+                                // Invalid swipe - snap back to centre
+                                container.style.transform = 'translateX(0)';
+                                container.style.opacity = '1';
+                            }
+                        }
+                    }, { passive: true });
+                    
+                    console.log('✅ Swipe gestures enabled');
+
+                    // Prevent Android long-press context menu on calendar
+                    calendarDisplay.addEventListener('contextmenu', (e) => e.preventDefault());
+
+                }
+
+                // ============================================
+                // KEYBOARD SHORTCUTS (Desktop)
+                // ============================================
+                document.addEventListener('keydown', (e) => {
+                    // Don't fire if user is typing in an input
+                    if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+                    if (e.key === 'ArrowLeft')  { currentDisplayMonth--; if (currentDisplayMonth < 0)  { currentDisplayMonth = 11; currentDisplayYear--; } renderCalendar(); }
+                    if (e.key === 'ArrowRight') { currentDisplayMonth++; if (currentDisplayMonth > 11) { currentDisplayMonth = 0;  currentDisplayYear++; } renderCalendar(); }
+                    if (e.key === 't' || e.key === 'T') { currentDisplayMonth = new Date().getMonth(); currentDisplayYear = new Date().getFullYear(); renderCalendar(); }
+                    if (e.key === 'p' || e.key === 'P') { window.print(); }
+                });
+                console.log('✅ Keyboard shortcuts enabled (←/→/T/P)');
+                
+            } catch (error) {
+                console.error('Initialization error:', error);
+                const banner = document.getElementById('errorBanner');
+                if (banner) {
+                    banner.textContent = '⚠️ Failed to initialise calendar. Please refresh. Error: ' + error.message;
+                    banner.classList.add('visible');
+                }
+            }
+        });
+
+        // Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
