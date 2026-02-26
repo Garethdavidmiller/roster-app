@@ -1,0 +1,122 @@
+// MYB Roster — Service Worker v5.3
+// Strategy:
+//   index.html  → Network-first: always fetch fresh so roster updates reach
+//                 staff on next open. Falls back to cache when offline.
+//   All assets  → Cache-first: icons and manifest never change between versions,
+//                 serving from cache is always correct and faster.
+//
+// self.skipWaiting() on install activates the new SW immediately.
+// self.clients.claim() makes the new SW take control of all open tabs at once.
+// Together these mean updates go live on the current tab without a manual reload
+// in most cases — but the app also sends SKIP_WAITING on the rare edge case
+// where a waiting SW needs a nudge.
+
+const CACHE_NAME = "myb-roster-v5.3";
+const ASSETS_TO_CACHE = [
+    "./",
+    "./index.html",
+    "./manifest.json",
+    "./icon-120.png",
+    "./icon-152.png",
+    "./icon-167.png",
+    "./icon-180.png",
+    "./icon-192.png",
+    "./icon-512.png"
+];
+
+// ============================================
+// INSTALL — pre-cache all assets
+// ============================================
+self.addEventListener("install", event => {
+    console.log("[SW v5.3] Installing");
+    event.waitUntil(
+        caches.open(CACHE_NAME)
+            .then(cache => cache.addAll(ASSETS_TO_CACHE))
+            .then(() => {
+                console.log("[SW v5.3] Cached — activating immediately");
+                return self.skipWaiting();
+            })
+    );
+});
+
+// ============================================
+// ACTIVATE — delete old caches, claim all open tabs
+// ============================================
+self.addEventListener("activate", event => {
+    console.log("[SW v5.3] Activating");
+    event.waitUntil(
+        caches.keys()
+            .then(cacheNames => Promise.all(
+                cacheNames
+                    .filter(name => name !== CACHE_NAME)
+                    .map(name => {
+                        console.log("[SW v5.3] Deleting old cache:", name);
+                        return caches.delete(name);
+                    })
+            ))
+            .then(() => {
+                console.log("[SW v5.3] Claiming all clients");
+                return self.clients.claim();
+            })
+    );
+});
+
+// ============================================
+// FETCH — network-first for HTML, cache-first for assets
+// ============================================
+self.addEventListener("fetch", event => {
+    // Only handle same-origin GET requests
+    if (event.request.method !== "GET") return;
+    const url = new URL(event.request.url);
+    if (url.origin !== location.origin) return;
+
+    const path = url.pathname;
+    const isHtml = path.endsWith("/") || path.endsWith("/index.html") || path === "/";
+
+    if (isHtml) {
+        // Network-first: fetch fresh HTML, update cache, fall back offline
+        event.respondWith(
+            fetch(event.request)
+                .then(response => {
+                    if (response && response.status === 200) {
+                        const clone = response.clone();
+                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                    }
+                    return response;
+                })
+                .catch(() => {
+                    console.log("[SW v5.3] Offline — serving index.html from cache");
+                    return caches.match("./index.html");
+                })
+        );
+    } else {
+        // Cache-first: icons/manifest served from cache instantly, fetched if missing
+        event.respondWith(
+            caches.match(event.request)
+                .then(cached => {
+                    if (cached) return cached;
+                    return fetch(event.request).then(response => {
+                        if (response && response.status === 200) {
+                            const clone = response.clone();
+                            caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                        }
+                        return response;
+                    });
+                })
+        );
+    }
+});
+
+// ============================================
+// MESSAGE — SKIP_WAITING from the app
+// ============================================
+// The app sends { type: "SKIP_WAITING" } if it detects a waiting SW.
+// skipWaiting() already fires on install, so this handles the rare edge
+// case where auto-activation did not occur (e.g. multiple open tabs on
+// older Chrome versions).
+self.addEventListener("message", event => {
+    if (event.data && event.data.type === "SKIP_WAITING") {
+        console.log("[SW v5.3] SKIP_WAITING received — activating");
+        self.skipWaiting();
+    }
+});
