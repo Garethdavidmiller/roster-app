@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<!-- CEA Roster Calendar - Version 3.86 - iOS zoom fix, midnight night threshold, name-based default, color-scheme -->
+<!-- CEA Roster Calendar - Version 3.87 - Phase 1 Firestore overrides, color-scheme fix -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <meta name="color-scheme" content="light dark">
+    <meta name="color-scheme" content="light">
     <title>MYB Roster</title>
     
     <!-- PWA Meta Tags -->
@@ -1414,6 +1414,35 @@
             #iconLightboxClose:hover { color: white; }
         }
 
+        /* ---- Firestore override note ---- */
+        /* Displayed beneath the shift time when a Firestore override has a non-empty note.
+           Clipped with ellipsis if the note is longer than the cell width. */
+        .override-note {
+            font-size: 10px;
+            color: var(--text-light);
+            line-height: 1.2;
+            margin-top: 2px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 100%;
+        }
+
+        /* ---- Firestore loading indicator ---- */
+        /* Applied 1.5 s after page load if Firestore has not yet responded.
+           Removed immediately when data arrives or the fetch fails. */
+        #calendarDisplay.firestore-loading {
+            opacity: 0.6;
+            transition: opacity 0.4s ease;
+        }
+
+        @media print {
+            .override-note {
+                font-size: 7px !important;
+                color: #555 !important;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -1512,7 +1541,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.86',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.87',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
@@ -2219,10 +2248,25 @@
             `;
         }
 
+        /**
+         * Escape special HTML characters in a string to prevent injection.
+         * Used for Firestore override notes, which are free-text owner-entered data.
+         * @param {string} str
+         * @returns {string}
+         */
+        function escapeHtml(str) {
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
         // Helper: Create day cell HTML (pure function)
         // isWorkedDay — pre-calculated by caller (shift !== RD/SPARE/OFF) to avoid duplication.
         // permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
-        function createDayCell(date, shift, permanentShift, isWorkedDay) {
+        // note — optional Firestore override note; shown as small muted text below the shift time.
+        function createDayCell(date, shift, permanentShift, isWorkedDay, note = '') {
             let badge;
             if (isWorkedDay && permanentShift === 'late') {
                 badge = '<span class="shift-badge badge-late">🌙 Late</span>';
@@ -2235,6 +2279,7 @@
                 <div class="day-number">${date.getDate()}</div>
                 ${badge}
                 ${isWorkedDay && !permanentShift ? `<div class="shift-time">${shift}</div>` : ''}
+                ${note ? `<div class="override-note">${escapeHtml(note)}</div>` : ''}
             `;
         }
 
@@ -2337,6 +2382,20 @@
                 // Boxing Day can be overridden to RDW via Firestore in Phase 1 (overtime).
                 if (isChristmasRD(currentDate)) shift = 'RD';
 
+                // Firestore override — applied after the Christmas check so the base rule holds
+                // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime.
+                // Cache key: "memberName|YYYY-MM-DD" — pipe avoids ambiguity with names containing
+                // spaces and dots. The cache is populated by the Firebase module script on load.
+                let overrideNote = '';
+                if (window.rosterOverridesCache) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    const override = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
+                    if (override) {
+                        shift       = override.value;
+                        overrideNote = override.note;
+                    }
+                }
+
                 const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL';
                 const shiftClass = isWorkedDay && member.permanentShift === 'late'  ? 'late-shift'
                                  : isWorkedDay && member.permanentShift === 'early' ? 'early-shift'
@@ -2369,7 +2428,7 @@
                 if (isPayday(currentDate))          dayCell.classList.add('payday');
                 if (isCutoffDate(currentDate))      dayCell.classList.add('cutoff');
 
-                dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay);
+                dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote);
                 grid.appendChild(dayCell);
             }
 
@@ -2430,6 +2489,11 @@
                     nextBtn.setAttribute('aria-disabled', atEnd ? 'true' : 'false');
                     nextBtn.style.opacity = atEnd ? '0.4' : '';
                 }
+
+                // Ensure Firestore overrides are cached for the displayed month.
+                // No-op if already fetched; fires a background fetch and re-render if not
+                // (e.g. when the user navigates beyond the initial 3-month window).
+                window.ensureOverridesCached?.(currentDisplayYear, currentDisplayMonth);
 
             } catch (error) {
                 console.error('Error rendering calendar:', error);
@@ -3012,6 +3076,169 @@
                     });
             });
         }
+    </script>
+
+    <script type="module">
+        // ============================================
+        // FIREBASE PHASE 1 — Read-only Firestore overrides
+        // ============================================
+        // Fetches shift overrides from Firestore on load and caches them in
+        // window.rosterOverridesCache (a Map keyed by "memberName|YYYY-MM-DD").
+        // The non-module app script reads from this cache during calendar rendering.
+        //
+        // Why a separate <script type="module">:
+        // Firebase must load via ES module imports (import/from syntax), which only
+        // work in <script type="module">. Module scripts are isolated from regular
+        // scripts, so we bridge the gap by writing data to window — a shared space
+        // that both scripts can access.
+        //
+        // Fail-silent contract: any Firestore error renders the base roster unchanged.
+        // Errors are logged to console.error only — no visible message to users.
+        // ============================================
+
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
+        import { getFirestore, collection, query, where, getDocs }
+            from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+
+        const firebaseConfig = {
+            apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
+            authDomain:        'myb-roster.firebaseapp.com',
+            projectId:         'myb-roster',
+            storageBucket:     'myb-roster.firebasestorage.app',
+            messagingSenderId: '532910998075',
+            appId:             '1:532910998075:web:b8360ba6a582554481921e'
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db  = getFirestore(app);
+
+        // ---- Shared cache ----
+        // Initialised immediately so buildCalendarContainer() always finds a Map,
+        // never undefined — even if the fetch is still in flight.
+        window.rosterOverridesCache = new Map();
+
+        // Track which months have been fetched to avoid duplicate network requests.
+        const fetchedMonths = new Set();
+
+        /**
+         * Format a Date as 'YYYY-MM-DD' for Firestore range queries.
+         * @param {Date} date
+         * @returns {string}
+         */
+        function formatDateStr(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        /**
+         * Generate a month key string (e.g. '2026-03') for the fetchedMonths Set.
+         * @param {number} year
+         * @param {number} month - 0-indexed JS month
+         * @returns {string}
+         */
+        function monthKey(year, month) {
+            return `${year}-${String(month + 1).padStart(2, '0')}`;
+        }
+
+        /**
+         * Query Firestore for all override documents in a date range and populate the cache.
+         * Documents with missing required fields are skipped and logged.
+         * @param {string} startStr - 'YYYY-MM-DD' inclusive start
+         * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
+         */
+        async function fetchOverridesForRange(startStr, endStr) {
+            const q = query(
+                collection(db, 'overrides'),
+                where('date', '>=', startStr),
+                where('date', '<=', endStr)
+            );
+            const snapshot = await getDocs(q);
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (!data.memberName || !data.date || !data.value) {
+                    console.error('[Firestore] Skipping malformed override document:', doc.id, data);
+                    return;
+                }
+                const key = `${data.memberName}|${data.date}`;
+                window.rosterOverridesCache.set(key, {
+                    value: data.value,
+                    note:  data.note || ''
+                });
+            });
+        }
+
+        /**
+         * Ensure overrides for a given month are in the cache.
+         * Called by renderCalendar() on every navigation — no-op if the month is
+         * already fetched, fires a background fetch and re-render if not.
+         * Exposed on window so the non-module app script can call it via
+         * window.ensureOverridesCached?.()
+         * @param {number} year
+         * @param {number} month - 0-indexed JS month
+         */
+        async function ensureOverridesCached(year, month) {
+            const key = monthKey(year, month);
+            if (fetchedMonths.has(key)) return;  // Already fetched — nothing to do
+
+            // Mark before awaiting to prevent concurrent duplicate fetches
+            // if renderCalendar() fires twice in quick succession for the same month.
+            fetchedMonths.add(key);
+
+            try {
+                const startStr = formatDateStr(new Date(year, month, 1));
+                const endStr   = formatDateStr(new Date(year, month + 1, 0)); // month+1 day 0 = last day of month
+                await fetchOverridesForRange(startStr, endStr);
+                // Re-render so the newly fetched overrides are visible immediately.
+                // renderCalendar is a global function declared in the main (non-module) script.
+                if (typeof renderCalendar === 'function') renderCalendar();
+            } catch (err) {
+                console.error('[Firestore] Failed to fetch overrides for', key, err);
+            }
+        }
+
+        // Expose so renderCalendar() can trigger cache checks on navigation
+        window.ensureOverridesCached = ensureOverridesCached;
+
+        // ============================================
+        // INITIAL 3-MONTH FETCH
+        // Fetches previous, current, and next month in a single Firestore query.
+        // Pre-fills the cache for all three swipe positions so there is no visible
+        // delay when the user swipes left or right on first open.
+        // ============================================
+        (async () => {
+            const now  = new Date();
+            const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+            const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+            // Mark all three months as fetched before awaiting — prevents
+            // ensureOverridesCached() from issuing redundant per-month fetches
+            // if renderCalendar() fires while the initial query is in flight.
+            fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
+            fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
+            fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
+
+            // Show a subtle loading indicator if Firestore takes more than 1.5 seconds.
+            // Removed immediately when data arrives or the fetch fails.
+            const loadingTimer = setTimeout(() => {
+                const display = document.getElementById('calendarDisplay');
+                if (display) display.classList.add('firestore-loading');
+            }, 1500);
+
+            try {
+                const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
+                const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
+                await fetchOverridesForRange(startStr, endStr);
+                if (typeof renderCalendar === 'function') renderCalendar();
+            } catch (err) {
+                console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
+            } finally {
+                clearTimeout(loadingTimer);
+                const display = document.getElementById('calendarDisplay');
+                if (display) display.classList.remove('firestore-loading');
+            }
+        })();
     </script>
 </body>
 </html>

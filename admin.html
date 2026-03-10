@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<!-- MYB Roster Admin - Phase 1 override entry form -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYB Roster — Admin</title>
+    <style>
+        :root {
+            --primary-blue:      #001e3c;
+            --primary-blue-dark: #00152a;
+            --accent-gold:       #f5c800;
+            --green:             #43a047;
+            --error-red:         #d32f2f;
+            --error-bg:          #ffebee;
+            --text-dark:         #333;
+            --text-mid:          #555;
+            --text-light:        #999;
+            --border-light:      #e8e8e8;
+            --bg-light:          #f8f8f8;
+            --bg-faint:          #f5f5f5;
+            --al:                #00897b;
+            --radius-md:         12px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-faint);
+            color: var(--text-dark);
+            min-height: 100vh;
+        }
+
+        /* ---- Header ---- */
+        header {
+            background: var(--primary-blue);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+
+        .header-title { flex: 1; }
+
+        header h1 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            line-height: 1.2;
+        }
+
+        header p {
+            font-size: 13px;
+            color: rgba(255,255,255,0.55);
+            margin-top: 2px;
+        }
+
+        .badge-admin {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        /* ---- Layout ---- */
+        main {
+            max-width: 1140px;
+            margin: 0 auto;
+            padding: 24px 16px;
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 24px;
+            align-items: start;
+        }
+
+        @media (max-width: 780px) {
+            main { grid-template-columns: 1fr; }
+        }
+
+        /* ---- Cards ---- */
+        .card {
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border-light);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .card-header h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary-blue);
+        }
+
+        .card-body { padding: 20px; }
+
+        /* ---- Form ---- */
+        .form-group { margin-bottom: 16px; }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-mid);
+            margin-bottom: 6px;
+        }
+
+        label .optional {
+            font-weight: 400;
+            color: var(--text-light);
+        }
+
+        select,
+        input[type="text"],
+        input[type="date"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 14px;
+            color: var(--text-dark);
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            transition: border-color 0.15s;
+        }
+
+        select:focus,
+        input:focus {
+            outline: none;
+            border-color: var(--primary-blue);
+        }
+
+        input:disabled {
+            background: var(--bg-faint);
+            color: var(--text-mid);
+            cursor: not-allowed;
+        }
+
+        .field-hint {
+            font-size: 11px;
+            color: var(--text-light);
+            margin-top: 4px;
+        }
+
+        /* ---- Buttons ---- */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 11px 18px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.15s, transform 0.1s;
+            gap: 6px;
+        }
+
+        .btn:active { transform: scale(0.97); }
+
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .btn-primary:hover { background: var(--primary-blue-dark); }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-delete {
+            background: transparent;
+            color: var(--error-red);
+            border: 1px solid currentColor;
+            font-size: 12px;
+            padding: 5px 10px;
+            border-radius: 6px;
+            white-space: nowrap;
+        }
+
+        .btn-delete:hover { background: var(--error-bg); }
+
+        .btn-delete.confirming {
+            background: var(--error-red);
+            color: white;
+        }
+
+        .btn-delete.confirming:hover { background: #c62828; }
+
+        /* ---- Feedback ---- */
+        .feedback {
+            display: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 12px;
+            line-height: 1.4;
+        }
+
+        .feedback.success { display: block; background: #e8f5e9; color: #2e7d32; }
+        .feedback.error   { display: block; background: var(--error-bg); color: var(--error-red); }
+
+        /* ---- Override list ---- */
+        .list-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 20px;
+            border-bottom: 1px solid var(--border-light);
+            background: var(--bg-faint);
+        }
+
+        .list-controls select {
+            width: auto;
+            flex: 1;
+            font-size: 13px;
+            padding: 7px 10px;
+        }
+
+        .list-count {
+            font-size: 12px;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+
+        .override-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        .override-table th {
+            background: var(--bg-light);
+            color: var(--text-mid);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-light);
+            white-space: nowrap;
+        }
+
+        .override-table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: middle;
+        }
+
+        .override-table tr:last-child td { border-bottom: none; }
+        .override-table tbody tr:hover td { background: var(--bg-faint); }
+
+        /* ---- Type badges ---- */
+        .type-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .badge-spare_shift  { background: #e3f2fd; color: #1565c0; }
+        .badge-overtime     { background: #fce4ec; color: #ad1457; }
+        .badge-rdw          { background: #fce4ec; color: #e91e63; }
+        .badge-swap         { background: #f3e5f5; color: #6a1b9a; }
+        .badge-annual_leave { background: #e0f2f1; color: var(--al); }
+        .badge-correction   { background: #fff3e0; color: #e65100; }
+
+        /* ---- State rows ---- */
+        .state-row td {
+            text-align: center;
+            padding: 30px 12px;
+            color: var(--text-light);
+            font-size: 13px;
+        }
+
+        /* ---- Scrollable table wrapper ---- */
+        .table-scroll { overflow-x: auto; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-title">
+        <h1>MYB Roster</h1>
+        <p>Override Admin · Marylebone Station</p>
+    </div>
+    <span class="badge-admin">Admin</span>
+</header>
+
+<main>
+
+    <!-- ==================== ADD OVERRIDE FORM ==================== -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Add Override</h2>
+        </div>
+        <div class="card-body">
+            <form id="overrideForm" novalidate>
+
+                <div class="form-group">
+                    <label for="fieldMember">Staff Member</label>
+                    <select id="fieldMember" required>
+                        <option value="">— Select —</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="fieldDate">Date</label>
+                    <input type="date" id="fieldDate" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="fieldType">Override Type</label>
+                    <select id="fieldType" required>
+                        <option value="">— Select —</option>
+                        <option value="spare_shift">Spare → assigned shift time</option>
+                        <option value="overtime">Overtime shift worked</option>
+                        <option value="rdw">Rest Day Worked (RDW)</option>
+                        <option value="swap">Shift swap (new shift time)</option>
+                        <option value="annual_leave">Annual Leave</option>
+                        <option value="correction">Correction → back to Rest Day</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="valueGroup">
+                    <label for="fieldValue" id="valueLabel">Shift Time</label>
+                    <input type="text" id="fieldValue" placeholder="HH:MM-HH:MM" autocomplete="off">
+                    <p class="field-hint" id="valueHint">e.g. 06:20-14:20</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="fieldNote">Note <span class="optional">(optional)</span></label>
+                    <input type="text" id="fieldNote" placeholder="e.g. Gateline cover, swap with S. Boyle" autocomplete="off">
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="submitBtn">Save Override</button>
+                <div id="formFeedback" class="feedback"></div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== EXISTING OVERRIDES ==================== -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Existing Overrides</h2>
+        </div>
+        <div class="list-controls">
+            <select id="filterMember">
+                <option value="">All staff</option>
+            </select>
+            <span class="list-count" id="listCount">Loading…</span>
+        </div>
+        <div class="table-scroll">
+            <table class="override-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Member</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Note</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="overrideTableBody">
+                    <tr class="state-row"><td colspan="6">Loading overrides…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</main>
+
+<script type="module">
+    // ============================================
+    // MYB ROSTER ADMIN — Firebase Firestore
+    // ============================================
+    // Reads and writes the 'overrides' Firestore collection.
+    // Requires Firestore rules: allow write: if true (Phase 1).
+    // Replace with authenticated rules in Phase 2.
+    // ============================================
+
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
+    import {
+        getFirestore, collection, getDocs, addDoc, deleteDoc,
+        doc, serverTimestamp
+    } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+        apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
+        authDomain:        'myb-roster.firebaseapp.com',
+        projectId:         'myb-roster',
+        storageBucket:     'myb-roster.firebasestorage.app',
+        messagingSenderId: '532910998075',
+        appId:             '1:532910998075:web:b8360ba6a582554481921e'
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
+
+    // ============================================
+    // STAFF NAMES
+    // Only names are needed here — no roster data.
+    // Keep this list in sync with teamMembers in index.html when staff changes.
+    // All members included (including hidden vacancies) so any name can receive an override.
+    // ============================================
+    const STAFF_NAMES = [
+        // CEA — Main roster
+        'L. Springer', 'A. Hared', 'G. Miller', 'M. Robson', 'C. Matthews',
+        'I. Cooper', 'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
+        'L. Atrakimaviciene', 'J. Haque', 'R. Frimpong', 'N. Tuck', 'R. Forrester-Blackstock',
+        'S. Langley', 'S. Silva', 'J. Sumaili', 'T. Bibi', 'T. Nsuala',
+        // CEA — Bilingual & Fixed
+        'D. Irvine', 'T. Gherbi', 'C. Reen',
+        // Dispatchers
+        'D. Minto', 'A. Targanov', 'S. Warman', 'S. Faure', 'L. Szpejer',
+        'K. Porter', 'A. Murray', 'S. Clarke', 'A. Atkins', 'K. Yeboah',
+        // CES Supervisors
+        'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru',
+        'L. Webster', 'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman',
+    ];
+
+    // ============================================
+    // OVERRIDE TYPE METADATA
+    // valueType 'time'  — user enters a shift time string (HH:MM-HH:MM)
+    // valueType 'fixed' — value is set automatically; no user input needed
+    // ============================================
+    const OVERRIDE_TYPES = {
+        spare_shift:  { label: 'Spare → shift',  valueType: 'time',  hint: 'e.g. 06:20-14:20'   },
+        overtime:     { label: 'Overtime',        valueType: 'time',  hint: 'e.g. 08:00-16:30'   },
+        rdw:          { label: 'RDW',             valueType: 'time',  hint: 'e.g. 09:00-17:00'   },
+        swap:         { label: 'Swap',            valueType: 'time',  hint: 'e.g. 14:00-22:30'   },
+        annual_leave: { label: 'Annual Leave',    valueType: 'fixed', fixedValue: 'AL'            },
+        correction:   { label: 'Correction → RD', valueType: 'fixed', fixedValue: 'RD'            },
+    };
+
+    // Regex matching valid shift time strings (same as VALID_SHIFT_PATTERN in index.html)
+    const SHIFT_TIME_PATTERN = /^([01]?[0-9]|2[0-3]):[0-5][0-9]-([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+
+    // In-memory store of all loaded overrides — used for client-side filtering
+    let allOverrides = [];
+
+    // ============================================
+    // DOM REFS
+    // ============================================
+    const fieldMember  = document.getElementById('fieldMember');
+    const fieldDate    = document.getElementById('fieldDate');
+    const fieldType    = document.getElementById('fieldType');
+    const fieldValue   = document.getElementById('fieldValue');
+    const fieldNote    = document.getElementById('fieldNote');
+    const valueLabel   = document.getElementById('valueLabel');
+    const valueHint    = document.getElementById('valueHint');
+    const submitBtn    = document.getElementById('submitBtn');
+    const formFeedback = document.getElementById('formFeedback');
+    const filterMember = document.getElementById('filterMember');
+    const tableBody    = document.getElementById('overrideTableBody');
+    const listCount    = document.getElementById('listCount');
+
+    // ============================================
+    // INITIALISE — populate dropdowns, set default date
+    // ============================================
+
+    // Populate both member dropdowns from the single STAFF_NAMES source of truth
+    STAFF_NAMES.forEach(name => {
+        fieldMember.appendChild(new Option(name, name));
+        filterMember.appendChild(new Option(name, name));
+    });
+
+    // Default the date field to today
+    const now = new Date();
+    fieldDate.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+
+    // ============================================
+    // OVERRIDE TYPE CHANGE
+    // Shows or hides the shift time input depending on whether the selected
+    // override type needs a manual entry or has a fixed auto-set value.
+    // ============================================
+    fieldType.addEventListener('change', () => {
+        const meta = OVERRIDE_TYPES[fieldType.value];
+        if (!meta) {
+            // Nothing selected yet — reset to blank editable state
+            fieldValue.value    = '';
+            fieldValue.disabled = false;
+            fieldValue.placeholder = 'HH:MM-HH:MM';
+            valueLabel.textContent = 'Shift Time';
+            valueHint.textContent  = '';
+            return;
+        }
+        if (meta.valueType === 'fixed') {
+            // annual_leave → 'AL', correction → 'RD' — no entry needed
+            fieldValue.value    = meta.fixedValue;
+            fieldValue.disabled = true;
+            valueLabel.textContent = 'Value (set automatically)';
+            valueHint.textContent  = '';
+        } else {
+            fieldValue.value    = '';
+            fieldValue.disabled = false;
+            fieldValue.placeholder = 'HH:MM-HH:MM';
+            valueLabel.textContent = 'Shift Time';
+            valueHint.textContent  = meta.hint || '';
+        }
+    });
+
+    // ============================================
+    // FORM SUBMISSION
+    // ============================================
+    document.getElementById('overrideForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        hideFeedback();
+
+        const memberName = fieldMember.value.trim();
+        const date       = fieldDate.value;
+        const type       = fieldType.value;
+        const value      = fieldValue.value.trim();
+        const note       = fieldNote.value.trim();
+
+        // Validation
+        if (!memberName) return showError('Please select a staff member.');
+        if (!date)       return showError('Please select a date.');
+        if (!type)       return showError('Please select an override type.');
+        if (!value)      return showError('Please enter or confirm the shift value.');
+
+        const meta = OVERRIDE_TYPES[type];
+        if (meta && meta.valueType === 'time' && !SHIFT_TIME_PATTERN.test(value)) {
+            return showError('Shift time must be in HH:MM-HH:MM format — e.g. 06:20-14:20');
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving…';
+
+        try {
+            await addDoc(collection(db, 'overrides'), {
+                memberName,
+                date,
+                type,
+                value,
+                note,
+                createdAt: serverTimestamp()
+            });
+
+            showSuccess(`Saved — ${memberName} · ${formatDisplayDate(date)} · ${value}`);
+
+            // Reset the form ready for another quick entry.
+            // Member and date are kept so entering several overrides for the same person
+            // on the same day requires minimal re-selecting.
+            fieldType.selectedIndex = 0;
+            fieldValue.value    = '';
+            fieldValue.disabled = false;
+            fieldNote.value     = '';
+            valueLabel.textContent = 'Shift Time';
+            valueHint.textContent  = '';
+
+            await loadOverrides();
+
+        } catch (err) {
+            console.error('[Admin] Save failed:', err);
+            showError(
+                'Save failed. ' +
+                (err.code === 'permission-denied'
+                    ? 'Firestore rules are still blocking writes. Update them in the Firebase console → Firestore → Rules.'
+                    : 'Check the browser console for details.')
+            );
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Save Override';
+        }
+    });
+
+    // ============================================
+    // FILTER HANDLER
+    // ============================================
+    filterMember.addEventListener('change', renderTable);
+
+    // ============================================
+    // LOAD ALL OVERRIDES
+    // Fetches every document in the 'overrides' collection and stores in allOverrides.
+    // Sorts by date descending (newest first) in JS — avoids Firestore index requirements.
+    // ============================================
+    async function loadOverrides() {
+        tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
+        try {
+            const snapshot = await getDocs(collection(db, 'overrides'));
+            allOverrides = [];
+            snapshot.forEach(docSnap => {
+                allOverrides.push({ id: docSnap.id, ...docSnap.data() });
+            });
+            allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+            renderTable();
+        } catch (err) {
+            console.error('[Admin] Load failed:', err);
+            tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Failed to load. Check the browser console.</td></tr>';
+            listCount.textContent = 'Error';
+        }
+    }
+
+    // ============================================
+    // RENDER TABLE
+    // Applies the current member filter and rebuilds the table rows.
+    // ============================================
+    function renderTable() {
+        const filterVal = filterMember.value;
+        const rows = filterVal
+            ? allOverrides.filter(o => o.memberName === filterVal)
+            : allOverrides;
+
+        listCount.textContent = `${rows.length} override${rows.length !== 1 ? 's' : ''}`;
+
+        if (rows.length === 0) {
+            tableBody.innerHTML = '<tr class="state-row"><td colspan="6">No overrides found.</td></tr>';
+            return;
+        }
+
+        tableBody.innerHTML = '';
+        rows.forEach(override => {
+            const meta = OVERRIDE_TYPES[override.type];
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="white-space:nowrap;font-weight:600">${formatDisplayDate(override.date)}</td>
+                <td>${escapeHtml(override.memberName || '—')}</td>
+                <td><span class="type-badge badge-${override.type}">${meta ? meta.label : escapeHtml(override.type)}</span></td>
+                <td style="font-family:monospace;font-size:12px">${escapeHtml(override.value || '—')}</td>
+                <td style="color:var(--text-light);font-style:italic">${escapeHtml(override.note || '')}</td>
+                <td>
+                    <button class="btn btn-delete"
+                            data-id="${override.id}"
+                            aria-label="Delete override for ${escapeHtml(override.memberName)} on ${override.date}">
+                        Delete
+                    </button>
+                </td>`;
+            tableBody.appendChild(tr);
+        });
+
+        // Attach delete handlers to each button
+        tableBody.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', handleDelete);
+        });
+    }
+
+    // ============================================
+    // DELETE WITH INLINE CONFIRM
+    // First click: button turns red, shows "Confirm?", auto-resets after 3 s.
+    // Second click within 3 s: deletes the document from Firestore.
+    // ============================================
+    async function handleDelete(e) {
+        const btn = e.currentTarget;
+
+        if (!btn.classList.contains('confirming')) {
+            btn.classList.add('confirming');
+            btn.textContent = 'Confirm?';
+            setTimeout(() => {
+                if (btn.classList.contains('confirming')) {
+                    btn.classList.remove('confirming');
+                    btn.textContent = 'Delete';
+                }
+            }, 3000);
+            return;
+        }
+
+        btn.disabled = true;
+        btn.textContent = '…';
+
+        try {
+            await deleteDoc(doc(db, 'overrides', btn.dataset.id));
+            allOverrides = allOverrides.filter(o => o.id !== btn.dataset.id);
+            renderTable();
+        } catch (err) {
+            console.error('[Admin] Delete failed:', err);
+            btn.disabled = false;
+            btn.classList.remove('confirming');
+            btn.textContent = 'Delete';
+            alert('Delete failed. Check the browser console.');
+        }
+    }
+
+    // ============================================
+    // UTILITIES
+    // ============================================
+
+    /**
+     * Format a 'YYYY-MM-DD' string as '1 Mar 2026' for display.
+     * @param {string} dateStr
+     * @returns {string}
+     */
+    function formatDisplayDate(dateStr) {
+        if (!dateStr) return '—';
+        const [y, m, d] = dateStr.split('-');
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return `${parseInt(d, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+    }
+
+    /**
+     * Escape special HTML characters to prevent injection in table output.
+     * @param {string} str
+     * @returns {string}
+     */
+    function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    function showSuccess(msg) {
+        formFeedback.className = 'feedback success';
+        formFeedback.textContent = '✓ ' + msg;
+        setTimeout(hideFeedback, 6000);
+    }
+
+    function showError(msg) {
+        formFeedback.className = 'feedback error';
+        formFeedback.textContent = '⚠ ' + msg;
+    }
+
+    function hideFeedback() {
+        formFeedback.className = 'feedback';
+    }
+
+    // ============================================
+    // INITIAL LOAD
+    // ============================================
+    loadOverrides();
+
+</script>
+</body>
+</html>
