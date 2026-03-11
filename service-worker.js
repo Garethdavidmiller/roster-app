@@ -1,6 +1,7 @@
-// MYB Roster — Service Worker v5.4
+// MYB Roster — Service Worker v5.5
 // Strategy:
-//   index.html  → Network-first: always fetch fresh so roster updates reach
+//   index.html, admin.html, roster-data.js
+//               → Network-first: always fetch fresh so roster updates reach
 //                 staff on next open. Falls back to cache when offline.
 //   All assets  → Cache-first: icons and manifest never change between versions,
 //                 serving from cache is always correct and faster.
@@ -11,10 +12,16 @@
 // in most cases — but the app also sends SKIP_WAITING on the rare edge case
 // where a waiting SW needs a nudge.
 
-const CACHE_NAME = "myb-roster-v5.4";
+const CACHE_NAME = "myb-roster-v5.5";
+
+// Files that contain roster data — always fetched fresh (network-first).
+const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'roster-data.js'];
+
 const ASSETS_TO_CACHE = [
     "./",
     "./index.html",
+    "./admin.html",
+    "./roster-data.js",
     "./manifest.json",
     "./icon-120.png",
     "./icon-152.png",
@@ -28,12 +35,12 @@ const ASSETS_TO_CACHE = [
 // INSTALL — pre-cache all assets
 // ============================================
 self.addEventListener("install", event => {
-    console.log("[SW v5.4] Installing");
+    console.log("[SW v5.5] Installing");
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => cache.addAll(ASSETS_TO_CACHE))
             .then(() => {
-                console.log("[SW v5.4] Cached — activating immediately");
+                console.log("[SW v5.5] Cached — activating immediately");
                 return self.skipWaiting();
             })
     );
@@ -43,19 +50,19 @@ self.addEventListener("install", event => {
 // ACTIVATE — delete old caches, claim all open tabs
 // ============================================
 self.addEventListener("activate", event => {
-    console.log("[SW v5.4] Activating");
+    console.log("[SW v5.5] Activating");
     event.waitUntil(
         caches.keys()
             .then(cacheNames => Promise.all(
                 cacheNames
                     .filter(name => name !== CACHE_NAME)
                     .map(name => {
-                        console.log("[SW v5.4] Deleting old cache:", name);
+                        console.log("[SW v5.5] Deleting old cache:", name);
                         return caches.delete(name);
                     })
             ))
             .then(() => {
-                console.log("[SW v5.4] Claiming all clients");
+                console.log("[SW v5.5] Claiming all clients");
                 return self.clients.claim();
             })
     );
@@ -71,10 +78,11 @@ self.addEventListener("fetch", event => {
     if (url.origin !== location.origin) return;
 
     const path = url.pathname;
-    const isHtml = path.endsWith(".html") || path.endsWith("/") || path === "/";
+    const isNetworkFirst = path.endsWith("/") || path === "/"
+        || NETWORK_FIRST_FILES.some(f => path.endsWith(f));
 
-    if (isHtml) {
-        // Network-first: fetch fresh HTML, update cache, fall back offline
+    if (isNetworkFirst) {
+        // Network-first: fetch fresh, update cache, fall back to cached copy offline
         event.respondWith(
             fetch(event.request)
                 .then(response => {
@@ -85,8 +93,8 @@ self.addEventListener("fetch", event => {
                     return response;
                 })
                 .catch(() => {
-                    console.log("[SW v5.4] Offline — serving index.html from cache");
-                    return caches.match("./index.html");
+                    console.log("[SW v5.5] Offline — serving from cache:", path);
+                    return caches.match(event.request) || caches.match("./index.html");
                 })
         );
     } else {
@@ -116,7 +124,7 @@ self.addEventListener("fetch", event => {
 // older Chrome versions).
 self.addEventListener("message", event => {
     if (event.data && event.data.type === "SKIP_WAITING") {
-        console.log("[SW v5.4] SKIP_WAITING received — activating");
+        console.log("[SW v5.5] SKIP_WAITING received — activating");
         self.skipWaiting();
     }
 });
