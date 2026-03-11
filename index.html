@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 3.91 - Fix mobile: wbr on time, allow badge to wrap -->
+<!-- MYB Roster Calendar - Version 3.96 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -605,9 +605,6 @@
 
         .badge-al {
             background: var(--green);
-            color: white;
-        }
-            background: #9e9e9e;
             color: white;
         }
 
@@ -1501,7 +1498,7 @@
                 <div class="control-group">
                     <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
                     <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
-                    <button class="admin-btn" aria-label="Go to admin panel" onclick="location.href='admin.html'">🔐 Admin</button>
+                    <button id="adminBtn" class="admin-btn" aria-label="Go to admin panel">🔐 Admin</button>
                 </div>
             </div>
         </nav>
@@ -1997,7 +1994,6 @@
         // ============================================
         // SWIPE GESTURE STATE
         // ============================================
-        let isRendering = false;
         let swipeCooldown = false;
 
         // ============================================
@@ -2014,7 +2010,7 @@
             if (currentDisplayYear < CONFIG.MIN_YEAR) { currentDisplayYear = CONFIG.MIN_YEAR; currentDisplayMonth = 0;  }
         }
 
-        // Get selected team member index (default to G. Miller - index 2)
+        // Get selected team member index (default to G. Miller)
         // Resolve DEFAULT_MEMBER_NAME to an index at runtime — safe against array reordering.
         // Returns 0 as ultimate fallback if the name isn't found.
         function getDefaultMemberIndex() {
@@ -2022,19 +2018,19 @@
             return idx !== -1 ? idx : 0;
         }
 
+        // Selection is stored by name (not index) so it survives array reordering.
         function getSelectedMemberIndex() {
-            const saved = localStorage.getItem('myb_roster_selected_member');
-            if (saved === null) return getDefaultMemberIndex();
-            const index = parseInt(saved, 10);
-            if (isNaN(index) || index < 0 || index >= teamMembers.length) return getDefaultMemberIndex();
-            // If the saved member is now hidden (e.g. vacancy), fall back to default
-            if (teamMembers[index].hidden) return getDefaultMemberIndex();
-            return index;
+            const savedName = localStorage.getItem('myb_roster_selected_member');
+            if (!savedName) return getDefaultMemberIndex();
+            const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
+            return idx !== -1 ? idx : getDefaultMemberIndex();
         }
 
-        // Save selected team member
+        // Save selected team member by name
         function saveSelectedMember(index) {
-            localStorage.setItem('myb_roster_selected_member', index);
+            if (index >= 0 && index < teamMembers.length) {
+                localStorage.setItem('myb_roster_selected_member', teamMembers[index].name);
+            }
         }
 
         // Populate team member dropdown
@@ -2477,7 +2473,6 @@
         // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
         // Sets data-member-name for print header then builds and inserts fresh container.
         function renderCalendar() {
-            isRendering = true;
             try {
                 const member = getCurrentMember();
 
@@ -2528,8 +2523,6 @@
                     calendarDisplay.innerHTML = '';
                     calendarDisplay.appendChild(errDiv);
                 }
-            } finally {
-                setTimeout(() => isRendering = false, 100);
             }
         }
 
@@ -2587,6 +2580,7 @@
             currentDisplayYear = now.getFullYear();
             renderCalendar();
             pulseToday();
+            announceMonthChange();
         });
 
         document.getElementById('nextMonth').addEventListener('click', () => {
@@ -2598,6 +2592,10 @@
 
         document.getElementById('printBtn').addEventListener('click', () => {
             window.print();
+        });
+
+        document.getElementById('adminBtn').addEventListener('click', () => {
+            location.href = 'admin.html';
         });
 
         // Initialize when DOM is fully loaded
