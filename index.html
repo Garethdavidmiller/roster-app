@@ -856,7 +856,8 @@
             .shift-badge {
                 font-size: 7px;
                 padding: 2px 5px;
-                max-width: 100%;  /* let badge wrap to two lines (icon / label) */
+                display: inline-block; /* allows <br> to split icon / label onto two lines */
+                text-align: center;
             }
 
             /* Shrink corner markers so they don't crowd the day number */
@@ -866,7 +867,6 @@
                 font-size: 7px;
                 top: 2px;
                 left: 2px;
-                right: 2px;
             }
 
         }
@@ -1563,7 +1563,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.91',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.92',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
@@ -2177,15 +2177,15 @@
         }
 
         function getShiftBadge(timeStr) {
-            if (timeStr === 'RD' || timeStr === 'OFF') return '<span class="shift-badge badge-rest">🏠 Rest</span>';
-            if (timeStr === 'SPARE') return '<span class="shift-badge badge-spare">📋 Spare</span>';
-            if (timeStr === 'RDW')   return '<span class="shift-badge badge-rdw">💼 RDW</span>';
-            if (timeStr === 'AL')    return '<span class="shift-badge badge-al">🏖️ AL</span>';
-            if (!SHIFT_TIME_REGEX.test(timeStr)) return '<span class="shift-badge badge-other">❓ Unknown</span>';
-            if (isNightShift(timeStr)) return '<span class="shift-badge badge-night">🦉 Night</span>';
+            if (timeStr === 'RD' || timeStr === 'OFF') return '<span class="shift-badge badge-rest">🏠<br>Rest</span>';
+            if (timeStr === 'SPARE') return '<span class="shift-badge badge-spare">📋<br>Spare</span>';
+            if (timeStr === 'RDW')   return '<span class="shift-badge badge-rdw">💼<br>RDW</span>';
+            if (timeStr === 'AL')    return '<span class="shift-badge badge-al">🏖️<br>AL</span>';
+            if (!SHIFT_TIME_REGEX.test(timeStr)) return '<span class="shift-badge badge-other">❓<br>Unknown</span>';
+            if (isNightShift(timeStr)) return '<span class="shift-badge badge-night">🦉<br>Night</span>';
             return isEarlyShift(timeStr)
-                ? '<span class="shift-badge badge-early">☀️ Early</span>'
-                : '<span class="shift-badge badge-late">🌙 Late</span>';
+                ? '<span class="shift-badge badge-early">☀️<br>Early</span>'
+                : '<span class="shift-badge badge-late">🌙<br>Late</span>';
         }
 
         // Helper: Get current selected member
@@ -2292,9 +2292,9 @@
         function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '') {
             let badge;
             if (isWorkedDay && permanentShift === 'late') {
-                badge = '<span class="shift-badge badge-late">🌙 Late</span>';
+                badge = '<span class="shift-badge badge-late">🌙<br>Late</span>';
             } else if (isWorkedDay && permanentShift === 'early') {
-                badge = '<span class="shift-badge badge-early">☀️ Early</span>';
+                badge = '<span class="shift-badge badge-early">☀️<br>Early</span>';
             } else {
                 badge = getShiftBadge(shift);
             }
