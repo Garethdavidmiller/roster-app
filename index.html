@@ -859,7 +859,12 @@
             }
 
             /* Shrink corner markers so they don't crowd the day number */
-            .calendar-day.bank-holiday::before,
+            .calendar-day.bank-holiday::before {
+                font-size: 7px;
+                top: 2px;
+                right: 2px;
+            }
+
             .calendar-day.payday::before,
             .calendar-day.cutoff::before {
                 font-size: 7px;
@@ -1553,7 +1558,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.95',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.96',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
