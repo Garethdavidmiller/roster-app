@@ -1151,8 +1151,8 @@
 
 </div><!-- /container -->
 
-<script src="roster-data.js"></script>
 <script type="module">
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp
@@ -1304,15 +1304,6 @@ function initLoginOverlay() {
         if (e.target === lightbox || e.target === closeBtn) closeLightbox();
     });
 })();
-
-// CONFIG, teamMembers, all roster objects, DAY_KEYS, DAY_NAMES, MONTH_ABB
-// are now loaded from roster-data.js (Phase 2 data split complete).
-// ADMIN_VERSION is set below; all other CONFIG fields come from roster-data.js.
-
-// teamMembers loaded from roster-data.js
-
-// weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster,
-// DAY_KEYS, DAY_NAMES, MONTH_ABB loaded from roster-data.js
 
 // Override type metadata
 const TYPES = {
