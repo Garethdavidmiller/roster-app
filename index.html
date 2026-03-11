@@ -321,6 +321,20 @@
             font-weight: 700;
         }
 
+        .controls button.admin-btn {
+            background: var(--primary-blue);
+            color: var(--accent-gold);
+            border-color: var(--primary-blue);
+            font-weight: 700;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            .controls button.admin-btn:hover {
+                background: var(--primary-blue-dark);
+                border-color: var(--primary-blue-dark);
+            }
+        }
+
         .controls select:focus, .controls button:focus {
             outline: none;
             border-color: var(--primary-blue);
@@ -1500,6 +1514,7 @@
                 <div class="control-group">
                     <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
                     <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
+                    <button class="admin-btn" aria-label="Go to admin panel" onclick="location.href='admin.html'">🔐 Admin</button>
                 </div>
             </div>
         </nav>
