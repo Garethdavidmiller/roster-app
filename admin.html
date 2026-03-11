@@ -3,13 +3,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
     <title>MYB Roster — Admin</title>
     <style>
         :root {
+            /* Brand colours */
             --primary-blue:      #001e3c;
             --primary-blue-dark: #00152a;
             --accent-gold:       #f5c800;
+            --accent-gold-dark:  #e6bb00;
+
+            /* Shift colours */
             --green:             #43a047;
             --green-light:       #e8f5e9;
             --orange:            #ff9800;
@@ -22,27 +27,42 @@
             --rdw-light:         #fce4ec;
             --al:                #00897b;
             --al-light:          #e0f2f1;
+
+            /* Error colours */
             --error-bg:          #ffebee;
             --error-red:         #d32f2f;
+
+            /* Neutral colours */
             --text-dark:         #333;
             --text-mid:          #555;
             --text-light:        #999;
+            --text-faint:        #aaa;
             --border-light:      #e8e8e8;
+            --border-mid:        #cccccc;
             --bg-light:          #f8f8f8;
             --bg-faint:          #f5f5f5;
+
+            /* Border Radius */
             --radius-md:         16px;
+            --radius-lg:         20px;
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        /* iOS status bar fix - blends with app theme */
+        html { background-color: var(--primary-blue); }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: var(--primary-blue);
+            min-height: 100dvh;
             min-height: 100vh;
-            padding: 16px;
+            padding-top:    max(16px, env(safe-area-inset-top));
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
             padding-left:   max(16px, env(safe-area-inset-left));
             padding-right:  max(16px, env(safe-area-inset-right));
-            padding-bottom: max(16px, env(safe-area-inset-bottom));
+            overflow-x: hidden;
+            overscroll-behavior: none;
             color: var(--text-dark);
         }
 
@@ -50,8 +70,9 @@
 
         /* ---- Header ---- */
         .app-header {
-            background: white;
-            border-radius: var(--radius-md);
+            background: var(--bg-light);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
             padding: 14px 18px;
             display: flex;
             align-items: center;
@@ -185,6 +206,7 @@
 
         .week-date-wrap {
             flex: 1;
+            padding: 0 4px;
         }
 
         /* ---- Shift badges ---- */
@@ -645,11 +667,12 @@
 
         /* ---- Touch device enhancements ---- */
 
-        /* Prevent long-press text selection on interactive elements */
+        /* Prevent long-press text selection; remove 300ms tap delay on interactive elements */
         .type-pill-btn, .btn-bulk-select, .btn-bulk-apply, .btn-save,
         .btn-delete, .btn-note-toggle, .week-nav-btn {
             -webkit-user-select: none;
             user-select: none;
+            touch-action: manipulation;
         }
 
         /* Larger tap targets and slightly bigger text on touch screens */
@@ -849,7 +872,7 @@
                     <label>Week</label>
                     <div class="week-nav">
                         <button class="week-nav-btn" id="prevWeekBtn" title="Previous week">‹</button>
-                        <div class="week-date-wrap" style="padding: 0 4px;">
+                        <div class="week-date-wrap">
                             <input type="date" id="fieldDate">
                         </div>
                         <button class="week-nav-btn" id="nextWeekBtn" title="Next week">›</button>
@@ -1564,8 +1587,7 @@ saveBtn.addEventListener('click', async () => {
         const meta    = TYPES[type];
         const startEl = row.querySelector('.day-start');
         const endEl   = row.querySelector('.day-end');
-        const noteEl  = row.closest('.week-grid').querySelector(`.note-row:has([class="day-note"]) .day-note`);
-        // Simpler: note row immediately follows the day-row in the DOM
+        // Note row immediately follows the day-row in the DOM
         const noteRow = row.nextElementSibling;
         const note    = (noteRow && noteRow.classList.contains('note-row'))
                         ? (noteRow.querySelector('.day-note')?.value?.trim() || '')
@@ -1779,7 +1801,13 @@ if (lastMember) alMember.value = lastMember;
 
 // Sync alMember with the main member picker (keep them in step)
 fieldMember.addEventListener('change', () => { if (fieldMember.value) alMember.value = fieldMember.value; });
-alMember.addEventListener('change', () => { if (alMember.value) { fieldMember.value = alMember.value; localStorage.setItem('adminLastMember', alMember.value); renderWeekGrid(); } });
+alMember.addEventListener('change', () => {
+    if (alMember.value) {
+        fieldMember.value = alMember.value;
+        localStorage.setItem('adminLastMember', alMember.value);
+        renderWeekGrid();
+    }
+});
 
 function getAlDates() {
     if (!alFrom.value || !alTo.value) return [];
