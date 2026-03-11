@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v5.3
+// MYB Roster — Service Worker v5.4
 // Strategy:
 //   index.html  → Network-first: always fetch fresh so roster updates reach
 //                 staff on next open. Falls back to cache when offline.
@@ -11,7 +11,7 @@
 // in most cases — but the app also sends SKIP_WAITING on the rare edge case
 // where a waiting SW needs a nudge.
 
-const CACHE_NAME = "myb-roster-v5.3";
+const CACHE_NAME = "myb-roster-v5.4";
 const ASSETS_TO_CACHE = [
     "./",
     "./index.html",
@@ -28,12 +28,12 @@ const ASSETS_TO_CACHE = [
 // INSTALL — pre-cache all assets
 // ============================================
 self.addEventListener("install", event => {
-    console.log("[SW v5.3] Installing");
+    console.log("[SW v5.4] Installing");
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => cache.addAll(ASSETS_TO_CACHE))
             .then(() => {
-                console.log("[SW v5.3] Cached — activating immediately");
+                console.log("[SW v5.4] Cached — activating immediately");
                 return self.skipWaiting();
             })
     );
@@ -43,19 +43,19 @@ self.addEventListener("install", event => {
 // ACTIVATE — delete old caches, claim all open tabs
 // ============================================
 self.addEventListener("activate", event => {
-    console.log("[SW v5.3] Activating");
+    console.log("[SW v5.4] Activating");
     event.waitUntil(
         caches.keys()
             .then(cacheNames => Promise.all(
                 cacheNames
                     .filter(name => name !== CACHE_NAME)
                     .map(name => {
-                        console.log("[SW v5.3] Deleting old cache:", name);
+                        console.log("[SW v5.4] Deleting old cache:", name);
                         return caches.delete(name);
                     })
             ))
             .then(() => {
-                console.log("[SW v5.3] Claiming all clients");
+                console.log("[SW v5.4] Claiming all clients");
                 return self.clients.claim();
             })
     );
@@ -71,7 +71,7 @@ self.addEventListener("fetch", event => {
     if (url.origin !== location.origin) return;
 
     const path = url.pathname;
-    const isHtml = path.endsWith("/") || path.endsWith("/index.html") || path === "/";
+    const isHtml = path.endsWith(".html") || path.endsWith("/") || path === "/";
 
     if (isHtml) {
         // Network-first: fetch fresh HTML, update cache, fall back offline
@@ -85,7 +85,7 @@ self.addEventListener("fetch", event => {
                     return response;
                 })
                 .catch(() => {
-                    console.log("[SW v5.3] Offline — serving index.html from cache");
+                    console.log("[SW v5.4] Offline — serving index.html from cache");
                     return caches.match("./index.html");
                 })
         );
@@ -116,7 +116,7 @@ self.addEventListener("fetch", event => {
 // older Chrome versions).
 self.addEventListener("message", event => {
     if (event.data && event.data.type === "SKIP_WAITING") {
-        console.log("[SW v5.3] SKIP_WAITING received — activating");
+        console.log("[SW v5.4] SKIP_WAITING received — activating");
         self.skipWaiting();
     }
 });

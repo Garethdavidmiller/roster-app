@@ -856,8 +856,10 @@
             .shift-badge {
                 font-size: 7px;
                 padding: 2px 5px;
-                display: inline-block; /* allows <br> to split icon / label onto two lines */
+                display: block;     /* allows <br> to split icon / label onto two lines */
                 text-align: center;
+                width: 100%;        /* consistent width across all badge types */
+                box-sizing: border-box;
             }
 
             /* Shrink corner markers so they don't crowd the day number */
@@ -1563,7 +1565,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.92',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.93',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
