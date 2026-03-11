@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3.7 — Auth: hide container until authenticated -->
+<!-- MYB Roster Admin v3.94 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -125,6 +125,7 @@
 
         .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); flex: 1; }
         .card-header .hint { font-size: 11px; color: var(--text-light); }
+        .week-range-label { font-size: 12px; color: var(--text-mid); font-weight: 600; white-space: nowrap; }
 
         .card-body { padding: 16px; }
 
@@ -231,7 +232,7 @@
         .badge-night { background: #1a1a2e;          color: white; }
         .badge-spare { background: var(--purple);   color: white; }
         .badge-rdw   { background: var(--rdw);      color: white; }
-        .badge-al    { background: var(--al-light);  color: #004d40; }
+        .badge-al    { background: var(--green);    color: white; }
 
         /* ---- Bulk bar ---- */
         .bulk-bar {
@@ -302,7 +303,7 @@
         .type-pill-btn.active { color: white !important; }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
-        .pill-overtime     { color: var(--rdw);      } .pill-overtime.active     { background: var(--rdw);      border-color: var(--rdw);      }
+        .pill-overtime     { color: var(--orange);   } .pill-overtime.active     { background: var(--orange);   border-color: var(--orange);   }
         .pill-rdw          { color: var(--rdw);      } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-swap         { color: var(--blue-sky); } .pill-swap.active         { background: var(--blue-sky); border-color: var(--blue-sky); }
         .pill-annual_leave { color: var(--al);       } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
@@ -1014,6 +1015,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Add / Edit Overrides</h2>
+            <span class="week-range-label" id="weekRangeLabel"></span>
             <span class="hint">Click a type pill on any day to set it</span>
         </div>
         <div class="card-body">
@@ -1222,12 +1224,12 @@ function initLoginOverlay() {
     if (!overlay) return;
     overlay.classList.add('visible');
 
-    // Populate name dropdown
-    const loginRoles = [...new Set(teamMembers.map(m => m.role))];
+    // Populate name dropdown — exclude hidden members (vacancies)
+    const loginRoles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
     loginRoles.forEach(role => {
         const grp = document.createElement('optgroup');
         grp.label = role;
-        teamMembers.filter(m => m.role === role).forEach(m => {
+        teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
             grp.appendChild(new Option(m.name, m.name));
         });
         nameSelect.appendChild(grp);
@@ -1319,7 +1321,7 @@ const teamMembers = [
     { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA' },
     { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA' },
     { name: 'M. Robson',               currentWeek: 4,  rosterType: 'main',       role: 'CEA' },
-    { name: 'C. Matthews',             currentWeek: 5,  rosterType: 'main',       role: 'CEA' },
+    { name: 'C. Matthews',             currentWeek: 5,  rosterType: 'main',       role: 'CEA', hidden: true }, // Vacancy — hidden from dropdown
     { name: 'I. Cooper',               currentWeek: 6,  rosterType: 'main',       role: 'CEA' },
     { name: 'A. Panchal',              currentWeek: 7,  rosterType: 'main',       role: 'CEA' },
     { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA' },
@@ -1327,7 +1329,7 @@ const teamMembers = [
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA' },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
-    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA' },
+    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true }, // Left — vacancy to be filled
     { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA' },
     { name: 'S. Langley',              currentWeek: 16, rosterType: 'main',       role: 'CEA' },
@@ -1518,12 +1520,12 @@ const listCount    = document.getElementById('listCount');
 // ============================================
 // POPULATE MEMBER DROPDOWNS
 // ============================================
-const roles = [...new Set(teamMembers.map(m => m.role))];
+const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
 roles.forEach(role => {
     const grp1 = document.createElement('optgroup');
     const grp2 = document.createElement('optgroup');
     grp1.label = grp2.label = role;
-    teamMembers.filter(m => m.role === role).forEach(m => {
+    teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
         grp1.appendChild(new Option(m.name, m.name));
         grp2.appendChild(new Option(m.name, m.name));
     });
@@ -1560,10 +1562,13 @@ function renderWeekGrid() {
     const memberName = fieldMember.value;
     const dateStr    = fieldDate.value;
 
+    const weekRangeLabel = document.getElementById('weekRangeLabel');
+
     if (!memberName || !dateStr) {
         weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
         bulkBar.style.display = 'none';
         saveBtn.disabled = true;
+        if (weekRangeLabel) weekRangeLabel.textContent = '';
         return;
     }
 
@@ -1574,6 +1579,14 @@ function renderWeekGrid() {
     const picked = new Date(dateStr + 'T12:00:00');
     const sunday = new Date(picked);
     sunday.setDate(picked.getDate() - picked.getDay());
+
+    // Show the week range in the card header
+    if (weekRangeLabel) {
+        const saturday = new Date(sunday);
+        saturday.setDate(sunday.getDate() + 6);
+        weekRangeLabel.textContent =
+            `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} – ${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
+    }
 
     weekGrid.innerHTML = `
         <div class="week-grid-header">
@@ -1910,8 +1923,8 @@ saveBtn.addEventListener('click', async () => {
     } catch (err) {
         console.error('[Admin] Save failed:', err);
         showError(err.code === 'permission-denied'
-            ? 'Permission denied — update Firestore rules to allow write: if true'
-            : 'Save failed. See browser console.');
+            ? 'Permission denied — contact your admin to check Firestore rules.'
+            : 'Could not save — check your connection and try again.');
     } finally {
         saveBtn.disabled    = false;
         saveBtn.textContent = 'Save Selected Days';
@@ -2047,11 +2060,11 @@ const alPreview  = document.getElementById('alPreview');
 const alSaveBtn  = document.getElementById('alSaveBtn');
 const alFeedback = document.getElementById('alFeedback');
 
-// Populate alMember dropdown — same grouped list
+// Populate alMember dropdown — same grouped list, excluding vacancies
 roles.forEach(role => {
     const grp = document.createElement('optgroup');
     grp.label = role;
-    teamMembers.filter(m => m.role === role).forEach(m => {
+    teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
         grp.appendChild(new Option(m.name, m.name));
     });
     alMember.appendChild(grp);
@@ -2109,11 +2122,25 @@ function updateAlPreview() {
 
     const fromDisp = formatDisplay(dates[0]);
     const toDisp   = formatDisplay(dates[dates.length - 1]);
-    const label    = dates.length === 1 ? '1 day' : `${dates.length} days`;
     const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
+
+    // Count rest days (RD/OFF) in the range to warn the user
+    const memberObj = teamMembers.find(m => m.name === member);
+    let restCount = 0;
+    if (memberObj) {
+        dates.forEach(dateStr => {
+            const d = new Date(dateStr + 'T12:00:00');
+            const base = getBaseShift(memberObj, d);
+            if (base === 'RD' || base === 'OFF') restCount++;
+        });
+    }
+    const workDays = dates.length - restCount;
+    const label    = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
+    const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+
     alPreview.className = 'al-preview ready';
-    alPreview.innerHTML = `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}`;
-    alSaveBtn.disabled = false;
+    alPreview.innerHTML = `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}`;
+    alSaveBtn.disabled = workDays === 0;
 }
 
 alMember.addEventListener('change', updateAlPreview);
@@ -2130,8 +2157,26 @@ alSaveBtn.addEventListener('click', async () => {
     alSaveBtn.disabled    = true;
     alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
+    // Filter out rest days — no point writing AL over an already-resting day
+    const memberObj = teamMembers.find(m => m.name === member);
+    const workingDates = memberObj
+        ? dates.filter(dateStr => {
+            const d    = new Date(dateStr + 'T12:00:00');
+            const base = getBaseShift(memberObj, d);
+            return base !== 'RD' && base !== 'OFF';
+          })
+        : dates;
+
+    if (!workingDates.length) {
+        alFeedback.className = 'feedback error';
+        alFeedback.textContent = '⚠ No working days in that range — nothing to book.';
+        alSaveBtn.disabled    = false;
+        alSaveBtn.textContent = 'Book Annual Leave';
+        return;
+    }
+
     try {
-        await Promise.all(dates.map(async date => {
+        await Promise.all(workingDates.map(async date => {
             // Overwrite any existing override for this member+date
             const existing = allOverrides.find(o => o.memberName === member && o.date === date);
             if (existing) await deleteDoc(doc(db, 'overrides', existing.id));
@@ -2146,7 +2191,7 @@ alSaveBtn.addEventListener('click', async () => {
         }));
 
         alFeedback.className = 'feedback success';
-        alFeedback.textContent = `✓ Booked ${dates.length} day${dates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
+        alFeedback.textContent = `✓ Booked ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
         setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
 
         alFrom.value = alTo.value = '';
@@ -2157,7 +2202,7 @@ alSaveBtn.addEventListener('click', async () => {
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
         alFeedback.className = 'feedback error';
-        alFeedback.textContent = '⚠ Save failed. Check the browser console.';
+        alFeedback.textContent = '⚠ Could not save — check your connection and try again.';
     } finally {
         alSaveBtn.disabled    = false;
         alSaveBtn.textContent = 'Book Annual Leave';
