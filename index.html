@@ -502,7 +502,7 @@
             position: absolute;
             top: 3px;
             right: 3px;
-            font-size: 12px;
+            font-size: 10px;
             z-index: 10;
         }
 
@@ -856,20 +856,6 @@
                 text-align: center;
                 width: 100%;        /* consistent width across all badge types */
                 box-sizing: border-box;
-            }
-
-            /* Shrink corner markers so they don't crowd the day number */
-            .calendar-day.bank-holiday::before {
-                font-size: 7px;
-                top: 2px;
-                right: 2px;
-            }
-
-            .calendar-day.payday::before,
-            .calendar-day.cutoff::before {
-                font-size: 7px;
-                top: 2px;
-                left: 2px;
             }
 
         }
