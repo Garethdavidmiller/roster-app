@@ -226,7 +226,7 @@
             white-space: nowrap;
         }
 
-        .badge-rest  { background: var(--green);    color: white; }
+        .badge-rest  { background: #424242;          color: white; }
         .badge-early { background: var(--orange);   color: white; }
         .badge-late  { background: var(--blue-sky); color: white; }
         .badge-night { background: #1a1a2e;          color: white; }
@@ -303,7 +303,7 @@
         .type-pill-btn.active { color: white !important; }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
-        .pill-overtime     { color: var(--orange);   } .pill-overtime.active     { background: var(--orange);   border-color: var(--orange);   }
+        .pill-overtime     { color: #5c6bc0;          } .pill-overtime.active     { background: #5c6bc0;          border-color: #5c6bc0;          }
         .pill-rdw          { color: var(--rdw);      } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-swap         { color: var(--blue-sky); } .pill-swap.active         { background: var(--blue-sky); border-color: var(--blue-sky); }
         .pill-annual_leave { color: var(--al);       } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
@@ -523,7 +523,7 @@
             width: 100%;
             padding: 13px;
             background: var(--primary-blue);
-            color: var(--accent-gold);
+            color: white;
             border: none;
             border-radius: 10px;
             font-size: 15px;
@@ -603,7 +603,7 @@
         }
 
         .lpill-spare_shift  { background: var(--purple-light); color: var(--purple);   }
-        .lpill-overtime     { background: var(--rdw-light);    color: var(--rdw);      }
+        .lpill-overtime     { background: #ede7f6;              color: #5c6bc0;          }
         .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw);      }
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
         .lpill-annual_leave { background: var(--al-light);     color: #004d40;         }
@@ -847,7 +847,7 @@
             width: 100%;
             padding: 13px;
             background: var(--primary-blue);
-            color: var(--accent-gold);
+            color: white;
             border: none;
             border-radius: 10px;
             font-size: 15px;
@@ -1161,7 +1161,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.94';
+const ADMIN_VERSION = '3.97';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
