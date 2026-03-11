@@ -147,7 +147,7 @@
             margin-bottom: 5px;
         }
 
-        select, input[type="text"], input[type="date"], input[type="time"] {
+        select, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
             width: 100%;
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
@@ -2165,8 +2165,9 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 
 function applyPermissions() {
     // Show signed-in name in header badge
+    // Show surname (e.g. "Springer") for staff, "Admin" for G. Miller
     document.getElementById('adminBadge').textContent =
-        currentIsAdmin ? 'Admin' : currentUser.split(' ')[0];
+        currentIsAdmin ? 'Admin' : currentUser.split(' ').slice(1).join(' ');
 
     if (currentIsAdmin) return; // full access — nothing to restrict
 
