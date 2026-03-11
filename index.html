@@ -443,8 +443,8 @@
         }
 
         .calendar-day.rest-day {
-            background: var(--green-light);
-            border-color: var(--green);
+            background: white;
+            border-color: var(--border-mid);
         }
 
         .calendar-day.early-shift {
@@ -473,13 +473,8 @@
         }
 
         .calendar-day.al-day {
-            background: var(--al);
-            border-color: var(--al);
-        }
-
-        .calendar-day.al-day .day-number,
-        .calendar-day.al-day .shift-time {
-            color: white;
+            background: var(--green-light);
+            border-color: var(--green);
         }
 
         .calendar-day.other-day {
@@ -575,7 +570,7 @@
             white-space: nowrap;
         }
 
-        .badge-rest {
+        .badge-al {
             background: var(--green);
             color: white;
         }
@@ -605,10 +600,6 @@
             color: white;
         }
 
-        .badge-al {
-            background: var(--al-light);
-            color: #004d40; /* Darkened from --al (#00897b) for WCAG AA contrast: 8.49:1 vs 3.73:1 */
-        }
 
         .badge-other {
             background: #9e9e9e;
@@ -660,12 +651,12 @@
         }
 
         /* Legend colour variants */
-        .legend-color.rest    { background: var(--green-light);  border-color: var(--green); }
+        .legend-color.rest    { background: white;                border-color: var(--border-mid); }
         .legend-color.early   { background: var(--orange-light); border-color: var(--orange); }
         .legend-color.late    { background: var(--blue-light);   border-color: var(--blue-sky); }
         .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
         .legend-color.rdw     { background: var(--rdw-light);    border-color: var(--rdw); }
-        .legend-color.al      { background: var(--al);            border-color: var(--al); }
+        .legend-color.al      { background: var(--green-light);   border-color: var(--green); }
         .legend-color.today   { background: var(--accent-gold);  border-color: var(--primary-blue); }
         .legend-color.night   { background: rgba(20, 20, 40, 0.10); border-color: rgba(20, 20, 40, 0.30); }
 
@@ -1050,7 +1041,8 @@
             }
 
             .calendar-day.rest-day {
-                background: var(--green-light) !important;
+                background: white !important;
+                border-color: var(--border-mid) !important;
             }
 
             .calendar-day.early-shift {
@@ -1075,12 +1067,8 @@
             }
 
             .calendar-day.al-day {
-                background: var(--al) !important;
-            }
-
-            .calendar-day.al-day .day-number,
-            .calendar-day.al-day .shift-time {
-                color: white !important;
+                background: var(--green-light) !important;
+                border-color: var(--green) !important;
             }
 
             /* today must come after shift rules — same specificity, last wins */
@@ -1142,11 +1130,6 @@
                 height: 12px !important;
             }
 
-            .badge-rest {
-                background: var(--green) !important;
-                color: white !important;
-            }
-
             .badge-early {
                 background: var(--orange) !important;
                 color: white !important;
@@ -1173,8 +1156,8 @@
             }
 
             .badge-al {
-                background: var(--al-light) !important;
-                color: var(--al) !important;
+                background: var(--green) !important;
+                color: white !important;
             }
 
             .calendar-day.bank-holiday::before {
@@ -1565,7 +1548,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.93',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.94',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
@@ -2179,7 +2162,7 @@
         }
 
         function getShiftBadge(timeStr) {
-            if (timeStr === 'RD' || timeStr === 'OFF') return '<span class="shift-badge badge-rest">🏠<br>Rest</span>';
+            if (timeStr === 'RD' || timeStr === 'OFF') return '';
             if (timeStr === 'SPARE') return '<span class="shift-badge badge-spare">📋<br>Spare</span>';
             if (timeStr === 'RDW')   return '<span class="shift-badge badge-rdw">💼<br>RDW</span>';
             if (timeStr === 'AL')    return '<span class="shift-badge badge-al">🏖️<br>AL</span>';
