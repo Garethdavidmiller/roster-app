@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 3.90 - Fix time wrapping and icon/text overlap on mobile -->
+<!-- MYB Roster Calendar - Version 3.91 - Fix mobile: wbr on time, allow badge to wrap -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -847,7 +847,6 @@
 
             .shift-time {
                 font-size: 9px;
-                overflow-wrap: anywhere; /* break at hyphen first, then anywhere */
             }
 
             .day-number {
@@ -857,10 +856,7 @@
             .shift-badge {
                 font-size: 7px;
                 padding: 2px 5px;
-                max-width: 100%;        /* prevent badge overflowing cell */
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                max-width: 100%;  /* let badge wrap to two lines (icon / label) */
             }
 
             /* Shrink corner markers so they don't crowd the day number */
@@ -1567,7 +1563,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.90',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.91',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
@@ -2303,10 +2299,13 @@
                 badge = getShiftBadge(shift);
             }
             const displayTime = shift === 'RDW' ? rdwTime : shift;
+            // Insert a word-break opportunity after the hyphen so "06:20-14:20"
+            // breaks as "06:20-" / "14:20" on narrow mobile cells, not mid-digit.
+            const displayTimeHtml = displayTime ? displayTime.replace('-', '-<wbr>') : '';
             return `
                 <div class="day-number">${date.getDate()}</div>
                 ${badge}
-                ${isWorkedDay && !permanentShift && displayTime ? `<div class="shift-time">${displayTime}</div>` : ''}
+                ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
                 ${note ? `<div class="override-note">${escapeHtml(note)}</div>` : ''}
             `;
         }
