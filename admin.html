@@ -1159,7 +1159,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.7';
+const ADMIN_VERSION = '3.8';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1175,6 +1175,13 @@ function getSurname(fullName) {
     // 'L. Springer' → 'springer'
     // 'C. Francisco-Charles' → 'francisco-charles'
     return fullName.split(' ').slice(1).join(' ').toLowerCase();
+}
+
+// Allow ?logout in the URL to force-clear session (useful when the sign-out
+// button is unreachable due to a broken or skipped login state).
+if (new URLSearchParams(location.search).has('logout')) {
+    localStorage.removeItem(AUTH_KEY);
+    history.replaceState(null, '', location.pathname); // remove ?logout from URL
 }
 
 function getSession() {
