@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3.5 — UX: selected state, mobile notes -->
+<!-- MYB Roster Admin v3.7 — Auth: hide container until authenticated -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -66,7 +66,9 @@
             color: var(--text-dark);
         }
 
-        .container { max-width: 1100px; margin: 0 auto; display: grid; gap: 16px; }
+        /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
+        .container { max-width: 1100px; margin: 0 auto; display: none; gap: 16px; }
+        body.auth-ready .container { display: grid; }
 
         /* ---- Header ---- */
         .app-header {
@@ -1157,7 +1159,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.6';
+const ADMIN_VERSION = '3.7';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2186,6 +2188,7 @@ if (!isAuthenticated) {
     initLoginOverlay();
 } else {
     // All dropdowns are now populated — apply permissions then load data
+    document.body.classList.add('auth-ready');
     applyPermissions();
     loadOverrides().then(() => renderWeekGrid());
 }

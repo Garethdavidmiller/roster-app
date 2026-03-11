@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 3.88 - Admin button added to controls -->
+<!-- MYB Roster Calendar - Version 3.89 - Fix Saturday column clipping on mobile -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -827,6 +827,8 @@
                 padding: 3px;
                 border-radius: 6px;
                 border-width: 1px;
+                min-width: 0;
+                overflow: hidden;
             }
 
             .calendar-day.today {
@@ -845,6 +847,7 @@
 
             .shift-time {
                 font-size: 9px;
+                word-break: break-all;
             }
 
             .day-number {
@@ -1550,7 +1553,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.88',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.89',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
