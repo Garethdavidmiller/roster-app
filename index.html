@@ -570,11 +570,9 @@
             white-space: nowrap;
         }
 
-        .rest-icon {
-            font-size: 18px;
-            opacity: 0.18;
-            margin-bottom: 8px;
-            display: block;
+        .badge-rest {
+            background: #2d2d2d;
+            color: white;
         }
 
         .badge-early {
@@ -1541,7 +1539,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.97',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.98',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
@@ -2154,7 +2152,7 @@
         }
 
         function getShiftBadge(timeStr) {
-            if (timeStr === 'RD' || timeStr === 'OFF') return '<span class="rest-icon">🏠</span>';
+            if (timeStr === 'RD' || timeStr === 'OFF') return '<span class="shift-badge badge-rest">🏠<br>Rest</span>';
             if (timeStr === 'SPARE') return '<span class="shift-badge badge-spare">📋<br>Spare</span>';
             if (timeStr === 'RDW')   return '<span class="shift-badge badge-rdw">💼<br>RDW</span>';
             if (timeStr === 'AL')    return '<span class="shift-badge badge-al">🏖️<br>AL</span>';
