@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3.1 — Fast week override entry -->
+<!-- MYB Roster Admin v3.2 — Fast week override entry -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -593,6 +593,47 @@
             font-size: 13px;
         }
 
+        /* ---- Annual Leave booking form ---- */
+        .al-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 540px) { .al-form { grid-template-columns: 1fr; } }
+
+        .al-dates {
+            display: flex;
+            align-items: flex-end;
+            gap: 6px;
+        }
+
+        .al-dates .field-group { flex: 1; }
+
+        .al-dates-sep {
+            font-size: 16px;
+            color: var(--text-light);
+            padding-bottom: 9px;
+            flex-shrink: 0;
+        }
+
+        .al-preview {
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .al-preview.empty { color: var(--text-light); }
+        .al-preview.ready { background: var(--al-light); color: #004d40; }
+        .al-preview.error { background: var(--error-bg); color: var(--error-red); }
+
         /* ---- Lightbox ---- */
         #iconLightbox {
             display: none;
@@ -780,6 +821,38 @@
         </div>
     </div>
 
+    <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
+    <div class="card">
+        <div class="card-header">
+            <h2>Book Annual Leave</h2>
+            <span class="hint">Set a date range — saves one AL entry per day</span>
+        </div>
+        <div class="card-body">
+            <div class="al-form">
+                <div class="field-group">
+                    <label for="alMember">Staff member</label>
+                    <select id="alMember">
+                        <option value="">— Select member —</option>
+                    </select>
+                </div>
+                <div class="al-dates">
+                    <div class="field-group">
+                        <label for="alFrom">From</label>
+                        <input type="date" id="alFrom">
+                    </div>
+                    <div class="al-dates-sep">→</div>
+                    <div class="field-group">
+                        <label for="alTo">To</label>
+                        <input type="date" id="alTo">
+                    </div>
+                </div>
+            </div>
+            <div class="al-preview" id="alPreview"></div>
+            <button class="btn-save" id="alSaveBtn" disabled>Book Annual Leave</button>
+            <div class="feedback" id="alFeedback"></div>
+        </div>
+    </div>
+
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card">
         <div class="card-header">
@@ -828,7 +901,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.1';
+const ADMIN_VERSION = '3.2';
 
 // ---- Lightbox ----
 (function() {
@@ -1603,6 +1676,127 @@ function hideFeedback() { formFeedback.className = 'feedback'; }
 
 // Initial load — renders week grid once overrides are loaded (for overwrite detection)
 loadOverrides().then(() => renderWeekGrid());
+
+// ============================================
+// ANNUAL LEAVE BOOKING
+// ============================================
+const alMember   = document.getElementById('alMember');
+const alFrom     = document.getElementById('alFrom');
+const alTo       = document.getElementById('alTo');
+const alPreview  = document.getElementById('alPreview');
+const alSaveBtn  = document.getElementById('alSaveBtn');
+const alFeedback = document.getElementById('alFeedback');
+
+// Populate alMember dropdown — same grouped list
+roles.forEach(role => {
+    const grp = document.createElement('optgroup');
+    grp.label = role;
+    teamMembers.filter(m => m.role === role).forEach(m => {
+        grp.appendChild(new Option(m.name, m.name));
+    });
+    alMember.appendChild(grp);
+});
+
+// Restore last used member
+if (lastMember) alMember.value = lastMember;
+
+// Sync alMember with the main member picker (keep them in step)
+fieldMember.addEventListener('change', () => { if (fieldMember.value) alMember.value = fieldMember.value; });
+alMember.addEventListener('change', () => { if (alMember.value) { fieldMember.value = alMember.value; localStorage.setItem('adminLastMember', alMember.value); renderWeekGrid(); } });
+
+function getAlDates() {
+    if (!alFrom.value || !alTo.value) return [];
+    const from = new Date(alFrom.value + 'T12:00:00');
+    const to   = new Date(alTo.value   + 'T12:00:00');
+    if (to < from) return null; // invalid range
+    const dates = [];
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        dates.push(formatISO(new Date(d)));
+    }
+    return dates;
+}
+
+function updateAlPreview() {
+    const member = alMember.value;
+    const dates  = getAlDates();
+
+    if (!member || !alFrom.value || !alTo.value) {
+        alPreview.className = 'al-preview empty';
+        alPreview.textContent = 'Select a member and date range.';
+        alSaveBtn.disabled = true;
+        return;
+    }
+
+    if (dates === null) {
+        alPreview.className = 'al-preview error';
+        alPreview.textContent = '"To" date must be on or after "From" date.';
+        alSaveBtn.disabled = true;
+        return;
+    }
+
+    if (dates.length > 60) {
+        alPreview.className = 'al-preview error';
+        alPreview.textContent = `That's ${dates.length} days — maximum range is 60 days.`;
+        alSaveBtn.disabled = true;
+        return;
+    }
+
+    const fromDisp = formatDisplay(dates[0]);
+    const toDisp   = formatDisplay(dates[dates.length - 1]);
+    const label    = dates.length === 1 ? '1 day' : `${dates.length} days`;
+    const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
+    alPreview.className = 'al-preview ready';
+    alPreview.innerHTML = `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}`;
+    alSaveBtn.disabled = false;
+}
+
+alMember.addEventListener('change', updateAlPreview);
+alFrom.addEventListener('change',   updateAlPreview);
+alTo.addEventListener('change',     updateAlPreview);
+updateAlPreview();
+
+alSaveBtn.addEventListener('click', async () => {
+    const member = alMember.value;
+    const dates  = getAlDates();
+    if (!member || !dates || !dates.length) return;
+
+    alFeedback.className = 'feedback';
+    alSaveBtn.disabled    = true;
+    alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
+
+    try {
+        await Promise.all(dates.map(async date => {
+            // Overwrite any existing override for this member+date
+            const existing = allOverrides.find(o => o.memberName === member && o.date === date);
+            if (existing) await deleteDoc(doc(db, 'overrides', existing.id));
+            return addDoc(collection(db, 'overrides'), {
+                memberName: member,
+                date,
+                type:  'annual_leave',
+                value: 'AL',
+                note:  '',
+                createdAt: serverTimestamp()
+            });
+        }));
+
+        alFeedback.className = 'feedback success';
+        alFeedback.textContent = `✓ Booked ${dates.length} day${dates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
+        setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
+
+        alFrom.value = alTo.value = '';
+        updateAlPreview();
+
+        filterMember.value = member;
+        await loadOverrides();
+    } catch (err) {
+        console.error('[Admin] AL save failed:', err);
+        alFeedback.className = 'feedback error';
+        alFeedback.textContent = '⚠ Save failed. Check the browser console.';
+    } finally {
+        alSaveBtn.disabled    = false;
+        alSaveBtn.textContent = 'Book Annual Leave';
+    }
+});
 </script>
 </body>
 </html>
