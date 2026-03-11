@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3.3 — Fast week override entry -->
+<!-- MYB Roster Admin v3.5 — UX: selected state, mobile notes -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -147,7 +147,7 @@
             margin-bottom: 5px;
         }
 
-        select, input[type="text"], input[type="date"], input[type="time"] {
+        select, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
             width: 100%;
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
@@ -371,7 +371,9 @@
 
         .day-row:last-child { border-bottom: none; }
 
-        /* Active (has a type selected) */
+        /* Pre-selected (checkbox ticked, no type yet) */
+        .day-row.selected   { background: #e8f0f8; }
+        /* Active (type is set — ready to save) */
         .day-row.active     { background: #fffde7; }
         /* Has an existing Firestore override — will overwrite */
         .day-row.has-override { background: #fff8e1; border-left: 3px solid var(--orange); }
@@ -389,9 +391,13 @@
             .day-row .col-base   { grid-column: 3; grid-row: 1; justify-self: end; }
             .day-row .col-pills  { grid-column: 1 / -1; grid-row: 2; display: flex; }
             .day-row .col-time   { grid-column: 1 / -1; grid-row: 3; }
+            /* Note button: hidden by default; when type is set, move into col 3 of the time row */
             .day-row .col-note-btn { display: none; }
-            .day-row:not(.active) .col-pills { display: none; }
-            .day-row:not(.active) .col-time  { display: none; }
+            .day-row.active .col-time     { grid-column: 1 / 3; }
+            .day-row.active .col-note-btn { display: flex; grid-column: 3; grid-row: 3; }
+            /* Pills and time hidden unless pre-selected or type-active */
+            .day-row:not(.active):not(.selected) .col-pills { display: none; }
+            .day-row:not(.active):not(.selected) .col-time  { display: none; }
         }
 
         .col-check {
@@ -727,12 +733,139 @@
                 width: auto;
             }
 
+            /* Note button: larger tap target on touch */
+            .btn-note-toggle {
+                width: 36px;
+                height: 36px;
+            }
+
             /* Note-row: reset to simple indent on mobile since
                column widths don't apply at narrow breakpoints */
             .note-row {
                 padding-left: 12px;
             }
         }
+
+        /* ---- Sign-out button (in header) ---- */
+        .btn-signout {
+            background: transparent;
+            border: 1.5px solid var(--border-light);
+            color: var(--text-light);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-family: inherit;
+            touch-action: manipulation;
+            -webkit-user-select: none;
+            user-select: none;
+            transition: all 0.12s;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .btn-signout:hover { border-color: var(--error-red); color: var(--error-red); }
+        }
+
+        /* ---- Login overlay ---- */
+        #loginOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: var(--primary-blue);
+            z-index: 9000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        #loginOverlay.visible { display: flex; }
+
+        #loginCard {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 36px 32px 28px;
+            max-width: 340px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+
+        #loginCard img {
+            width: 72px;
+            height: 72px;
+            border-radius: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 16px rgba(0,30,60,0.25);
+        }
+
+        .login-app-name {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            letter-spacing: -0.3px;
+            margin-bottom: 2px;
+        }
+
+        .login-subtitle {
+            font-size: 13px;
+            color: var(--text-light);
+            margin-bottom: 24px;
+        }
+
+        .login-field {
+            text-align: left;
+            margin-bottom: 14px;
+        }
+
+        .login-field label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 5px;
+        }
+
+        .login-error {
+            font-size: 13px;
+            color: var(--error-red);
+            background: var(--error-bg);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-bottom: 14px;
+            display: none;
+            text-align: left;
+            line-height: 1.4;
+        }
+        .login-error.visible { display: block; }
+
+        #loginSubmit {
+            width: 100%;
+            padding: 13px;
+            background: var(--primary-blue);
+            color: var(--accent-gold);
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            touch-action: manipulation;
+            font-family: inherit;
+            transition: background 0.15s, transform 0.1s;
+            margin-bottom: 16px;
+        }
+        @media (hover: hover) and (pointer: fine) { #loginSubmit:hover { background: var(--primary-blue-dark); } }
+        #loginSubmit:active { transform: scale(0.98); }
+
+        .login-back {
+            font-size: 13px;
+            color: var(--text-light);
+            text-decoration: none;
+            display: inline-block;
+            transition: color 0.12s;
+        }
+        @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
 
         /* ---- Lightbox ---- */
         #iconLightbox {
@@ -832,6 +965,28 @@
     </style>
 </head>
 <body>
+<!-- Login overlay — shown when no valid session exists -->
+<div id="loginOverlay" role="dialog" aria-label="Sign in to Admin" aria-modal="true">
+    <div id="loginCard">
+        <img src="icon-192.png" alt="MYB Roster">
+        <div class="login-app-name">MYB Roster</div>
+        <div class="login-subtitle">Admin · Sign in</div>
+        <div class="login-field">
+            <label for="loginName">Your name</label>
+            <select id="loginName">
+                <option value="">— Select your name —</option>
+            </select>
+        </div>
+        <div class="login-field">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Your surname" autocomplete="current-password">
+        </div>
+        <div id="loginError" class="login-error" aria-live="polite"></div>
+        <button id="loginSubmit">Sign in →</button>
+        <a href="index.html" class="login-back">← Back to roster</a>
+    </div>
+</div>
+
 <!-- Lightbox — tap the header icon to open -->
 <div id="iconLightbox" role="dialog" aria-label="About MYB Roster Admin" aria-modal="true">
     <span id="iconLightboxClose" aria-label="Close">✕</span>
@@ -849,7 +1004,8 @@
     <header class="app-header">
         <img src="icon-192.png" alt="Chiltern Railways">
         <h1>MYB Roster <span>· Admin</span></h1>
-        <span class="badge-admin">Admin</span>
+        <span class="badge-admin" id="adminBadge">Admin</span>
+        <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
 
     <!-- ==================== OVERRIDE FORM ==================== -->
@@ -1001,7 +1157,102 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.3';
+const ADMIN_VERSION = '3.6';
+
+// ============================================
+// AUTH — SESSION MANAGEMENT
+// 30-day localStorage session.
+// Passwords are surnames (lowercase) — sufficient
+// to prevent casual misbehaviour, not cryptographic security.
+// ============================================
+const ADMIN_NAME = 'G. Miller';
+const AUTH_KEY   = 'myb_admin_session';
+const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function getSurname(fullName) {
+    // 'L. Springer' → 'springer'
+    // 'C. Francisco-Charles' → 'francisco-charles'
+    return fullName.split(' ').slice(1).join(' ').toLowerCase();
+}
+
+function getSession() {
+    try {
+        const raw = localStorage.getItem(AUTH_KEY);
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (Date.now() > s.expiry) { localStorage.removeItem(AUTH_KEY); return null; }
+        return s;
+    } catch { return null; }
+}
+
+function saveSession(name) {
+    localStorage.setItem(AUTH_KEY, JSON.stringify({
+        name,
+        expiry: Date.now() + SESSION_MS
+    }));
+}
+
+function clearSession() {
+    localStorage.removeItem(AUTH_KEY);
+}
+
+// ---- Check session immediately ----
+const currentSession = getSession();
+const isAuthenticated = !!currentSession;
+const currentUser     = currentSession?.name ?? null;
+const currentIsAdmin  = currentUser === ADMIN_NAME;
+
+// ---- Login overlay (shown when not authenticated) ----
+function initLoginOverlay() {
+    const overlay      = document.getElementById('loginOverlay');
+    const nameSelect   = document.getElementById('loginName');
+    const passwordInput = document.getElementById('loginPassword');
+    const submitBtn    = document.getElementById('loginSubmit');
+    const errorEl      = document.getElementById('loginError');
+
+    if (!overlay) return;
+    overlay.classList.add('visible');
+
+    // Populate name dropdown
+    const loginRoles = [...new Set(teamMembers.map(m => m.role))];
+    loginRoles.forEach(role => {
+        const grp = document.createElement('optgroup');
+        grp.label = role;
+        teamMembers.filter(m => m.role === role).forEach(m => {
+            grp.appendChild(new Option(m.name, m.name));
+        });
+        nameSelect.appendChild(grp);
+    });
+
+    function attempt() {
+        const name = nameSelect.value;
+        const pw   = passwordInput.value.trim().toLowerCase();
+        errorEl.classList.remove('visible');
+
+        if (!name) {
+            errorEl.textContent = 'Please select your name.';
+            errorEl.classList.add('visible');
+            return;
+        }
+        if (pw !== getSurname(name)) {
+            errorEl.textContent = 'Incorrect password — try your surname.';
+            errorEl.classList.add('visible');
+            passwordInput.value = '';
+            passwordInput.focus();
+            return;
+        }
+        saveSession(name);
+        window.location.reload();
+    }
+
+    submitBtn.addEventListener('click', attempt);
+    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
+    nameSelect.addEventListener('change', () => {
+        errorEl.classList.remove('visible');
+        passwordInput.value = '';
+        if (nameSelect.value) passwordInput.focus();
+    });
+}
 
 // ---- Lightbox ----
 (function() {
@@ -1419,7 +1670,11 @@ function renderWeekGrid() {
 
         // Checkbox: syncs with pill state
         cb.addEventListener('change', () => {
-            if (!cb.checked) deactivateRow(row, cb, pills, startEl, endEl);
+            if (cb.checked) {
+                if (!row.dataset.type) row.classList.add('selected');
+            } else {
+                deactivateRow(row, cb, pills, startEl, endEl);
+            }
             updateSaveBtn();
         });
 
@@ -1443,6 +1698,7 @@ function renderWeekGrid() {
 function activateRow(row, cb, pills, startEl, endEl, type) {
     cb.checked = true;
     row.classList.add('active');
+    row.classList.remove('selected');
     pills.forEach(p => p.classList.toggle('active', p.dataset.type === type));
     const meta = TYPES[type];
     if (meta && meta.fixed) {
@@ -1459,7 +1715,7 @@ function activateRow(row, cb, pills, startEl, endEl, type) {
 
 function deactivateRow(row, cb, pills, startEl, endEl) {
     cb.checked = false;
-    row.classList.remove('active', 'fixed-type');
+    row.classList.remove('active', 'fixed-type', 'selected');
     pills.forEach(p => p.classList.remove('active'));
     startEl.value = endEl.value = '';
     startEl.tabIndex = endEl.tabIndex = -1;
@@ -1505,8 +1761,7 @@ document.getElementById('bulkSelMonFri').addEventListener('click', () => {
         // Mon=1, Fri=5
         if (dayIdx >= 1 && dayIdx <= 5) {
             cb.checked = true;
-            row.classList.add('active');
-            // Don't deactivate already-typed rows
+            if (!row.dataset.type) row.classList.add('selected');
         } else {
             const pills  = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
@@ -1528,7 +1783,7 @@ document.getElementById('bulkSelWorking').addEventListener('click', () => {
         const works = base !== 'RD' && base !== 'OFF';
         if (works) {
             cb.checked = true;
-            row.classList.add('active');
+            if (!row.dataset.type) row.classList.add('selected');
         } else {
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
@@ -1544,7 +1799,7 @@ document.getElementById('bulkSelAll').addEventListener('click', () => {
         const cb = row.querySelector('.day-cb');
         if (!cb) return;
         cb.checked = true;
-        row.classList.add('active');
+        if (!row.dataset.type) row.classList.add('selected');
     });
     updateSaveBtn();
 });
@@ -1773,9 +2028,6 @@ function showError(msg) {
 
 function hideFeedback() { formFeedback.className = 'feedback'; }
 
-// Initial load — renders week grid once overrides are loaded (for overwrite detection)
-loadOverrides().then(() => renderWeekGrid());
-
 // ============================================
 // ANNUAL LEAVE BOOKING
 // ============================================
@@ -1902,6 +2154,41 @@ alSaveBtn.addEventListener('click', async () => {
         alSaveBtn.textContent = 'Book Annual Leave';
     }
 });
+
+// ============================================
+// INIT — runs last so all dropdowns are populated
+// ============================================
+document.getElementById('signOutBtn').addEventListener('click', () => {
+    clearSession();
+    window.location.reload();
+});
+
+function applyPermissions() {
+    // Show signed-in name in header badge
+    // Show surname (e.g. "Springer") for staff, "Admin" for G. Miller
+    document.getElementById('adminBadge').textContent =
+        currentIsAdmin ? 'Admin' : currentUser.split(' ').slice(1).join(' ');
+
+    if (currentIsAdmin) return; // full access — nothing to restrict
+
+    // Non-admin: lock all member selectors to their own name
+    fieldMember.value     = currentUser;
+    fieldMember.disabled  = true;
+    alMember.value        = currentUser;
+    alMember.disabled     = true;
+    filterMember.value    = currentUser;
+    filterMember.disabled = true;
+    localStorage.setItem('adminLastMember', currentUser);
+}
+
+if (!isAuthenticated) {
+    // Show login overlay; do not load any Firestore data
+    initLoginOverlay();
+} else {
+    // All dropdowns are now populated — apply permissions then load data
+    applyPermissions();
+    loadOverrides().then(() => renderWeekGrid());
+}
 </script>
 </body>
 </html>

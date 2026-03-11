@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- CEA Roster Calendar - Version 3.87 - Phase 1 Firestore overrides, color-scheme fix -->
+<!-- MYB Roster Calendar - Version 3.88 - Admin button added to controls -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -318,6 +318,13 @@
             background: var(--green);
             color: white;
             border-color: var(--green);
+            font-weight: 700;
+        }
+
+        .controls button.admin-btn {
+            background: var(--primary-blue);
+            color: var(--accent-gold);
+            border-color: var(--primary-blue);
             font-weight: 700;
         }
 
@@ -1500,6 +1507,7 @@
                 <div class="control-group">
                     <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
                     <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
+                    <button class="admin-btn" aria-label="Go to admin panel" onclick="location.href='admin.html'">🔐 Admin</button>
                 </div>
             </div>
         </nav>
