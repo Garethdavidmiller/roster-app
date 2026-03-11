@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3 — Fast week override entry -->
+<!-- MYB Roster Admin v3.1 — Fast week override entry -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -55,7 +55,7 @@
             gap: 12px;
         }
 
-        .app-header img { width: 36px; height: 36px; border-radius: 8px; }
+        .app-header img { width: 36px; height: 36px; border-radius: 8px; cursor: pointer; }
 
         .app-header h1 {
             font-size: 18px;
@@ -592,9 +592,117 @@
             color: var(--text-light);
             font-size: 13px;
         }
+
+        /* ---- Lightbox ---- */
+        #iconLightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 10, 20, 0.85);
+            z-index: 8000;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+        }
+
+        #iconLightbox.visible { display: flex; }
+        #iconLightbox.open    { opacity: 1; }
+
+        #iconLightboxContent {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 24px;
+            padding: 36px 40px 32px;
+            cursor: default;
+            transform: scale(0.85);
+            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            min-width: 240px;
+            text-align: center;
+        }
+
+        #iconLightbox.open #iconLightboxContent { transform: scale(1); }
+
+        #iconLightboxContent img {
+            width: 100px;
+            height: 100px;
+            border-radius: 22px;
+            box-shadow: 0 0 0 3px rgba(255,255,255,0.2), 0 12px 40px rgba(0,0,0,0.5);
+            object-fit: cover;
+            margin-bottom: 8px;
+        }
+
+        .lightbox-app-name {
+            color: white;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .lightbox-subtitle {
+            color: rgba(255,255,255,0.5);
+            font-size: 13px;
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .lightbox-version {
+            color: rgba(255,255,255,0.45);
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.3px;
+        }
+
+        .lightbox-badge {
+            margin-top: 10px;
+            padding: 5px 14px;
+            background: rgba(245,200,0,0.15);
+            border: 1px solid rgba(245,200,0,0.35);
+            border-radius: 20px;
+            color: var(--accent-gold);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        #iconLightboxClose {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 26px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 8px;
+            transition: color 0.15s ease;
+        }
+
+        @media (hover: hover) and (pointer: fine) {
+            #iconLightboxClose:hover { color: white; }
+        }
     </style>
 </head>
 <body>
+<!-- Lightbox — tap the header icon to open -->
+<div id="iconLightbox" role="dialog" aria-label="About MYB Roster Admin" aria-modal="true">
+    <span id="iconLightboxClose" aria-label="Close">✕</span>
+    <div id="iconLightboxContent">
+        <img src="icon-192.png" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">MYB Roster</div>
+        <div class="lightbox-subtitle">Marylebone Station</div>
+        <div class="lightbox-version">Admin v<span id="lightboxVersion"></span></div>
+        <div class="lightbox-badge">Admin panel</div>
+    </div>
+</div>
+
 <div class="container">
 
     <header class="app-header">
@@ -719,6 +827,41 @@ const app = initializeApp({
     appId:             '1:532910998075:web:b8360ba6a582554481921e'
 });
 const db = getFirestore(app);
+
+const ADMIN_VERSION = '3.1';
+
+// ---- Lightbox ----
+(function() {
+    const lightbox   = document.getElementById('iconLightbox');
+    const headerIcon = document.querySelector('.app-header img');
+    const closeBtn   = document.getElementById('iconLightboxClose');
+    const versionEl  = document.getElementById('lightboxVersion');
+
+    if (!lightbox || !headerIcon) return;
+
+    if (versionEl) versionEl.textContent = ADMIN_VERSION;
+
+    function openLightbox() {
+        lightbox.classList.add('visible');
+        requestAnimationFrame(() => lightbox.classList.add('open'));
+        document.addEventListener('keydown', onKey);
+    }
+
+    function closeLightbox() {
+        lightbox.classList.remove('open');
+        lightbox.addEventListener('transitionend', () => lightbox.classList.remove('visible'), { once: true });
+        document.removeEventListener('keydown', onKey);
+    }
+
+    function onKey(e) { if (e.key === 'Escape') closeLightbox(); }
+
+    headerIcon.addEventListener('click', openLightbox);
+
+    // Click on overlay (not the card) closes
+    lightbox.addEventListener('click', e => {
+        if (e.target === lightbox || e.target === closeBtn) closeLightbox();
+    });
+})();
 
 // ============================================
 // ROSTER DATA — duplicated from index.html for Phase 1.
