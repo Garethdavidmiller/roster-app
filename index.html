@@ -2266,7 +2266,8 @@
         // isWorkedDay — pre-calculated by caller (shift !== RD/SPARE/OFF) to avoid duplication.
         // permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
         // note — optional Firestore override note; shown as small muted text below the shift time.
-        function createDayCell(date, shift, permanentShift, isWorkedDay, note = '') {
+        // rdwTime — actual shift time for RDW overrides (e.g. '08:00-16:30'), since shift='RDW' sentinel.
+        function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '') {
             let badge;
             if (isWorkedDay && permanentShift === 'late') {
                 badge = '<span class="shift-badge badge-late">🌙 Late</span>';
@@ -2275,10 +2276,11 @@
             } else {
                 badge = getShiftBadge(shift);
             }
+            const displayTime = shift === 'RDW' ? rdwTime : shift;
             return `
                 <div class="day-number">${date.getDate()}</div>
                 ${badge}
-                ${isWorkedDay && !permanentShift ? `<div class="shift-time">${shift}</div>` : ''}
+                ${isWorkedDay && !permanentShift && displayTime ? `<div class="shift-time">${displayTime}</div>` : ''}
                 ${note ? `<div class="override-note">${escapeHtml(note)}</div>` : ''}
             `;
         }
@@ -2387,6 +2389,7 @@
                 // Cache key: "memberName|YYYY-MM-DD" — pipe avoids ambiguity with names containing
                 // spaces and dots. The cache is populated by the Firebase module script on load.
                 let overrideNote = '';
+                let rdwTime = '';
                 if (window.rosterOverridesCache) {
                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const override = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
@@ -2394,9 +2397,14 @@
                         // RDW overrides carry a real shift time as their value, but must
                         // render with the RDW colour scheme, not Early/Late/Night. Swap
                         // the value for the 'RDW' sentinel so getShiftClass/Badge pick up
-                        // the correct pink styling. The actual time is preserved in the note
-                        // if needed; the key visual signal is the RDW badge, not the time.
-                        shift        = override.type === 'rdw' ? 'RDW' : override.value;
+                        // the correct pink styling. The actual time is preserved in rdwTime
+                        // so it can still be shown below the badge.
+                        if (override.type === 'rdw') {
+                            rdwTime = override.value;
+                            shift   = 'RDW';
+                        } else {
+                            shift = override.value;
+                        }
                         overrideNote = override.note;
                     }
                 }
@@ -2433,7 +2441,7 @@
                 if (isPayday(currentDate))          dayCell.classList.add('payday');
                 if (isCutoffDate(currentDate))      dayCell.classList.add('cutoff');
 
-                dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote);
+                dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote, rdwTime);
                 grid.appendChild(dayCell);
             }
 
