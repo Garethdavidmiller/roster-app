@@ -1541,7 +1541,7 @@
         // CONFIGURATION
         // ============================================
         const CONFIG = {
-            APP_VERSION:                     '3.87',                                   // Displayed in the about lightbox
+            APP_VERSION:                     '3.88',                                   // Displayed in the about lightbox
             DEFAULT_MEMBER_NAME:             'G. Miller',                              // Default selection — looked up by name so array reordering is safe
             MAIN_ROSTER_WEEKS:               20,
             BILINGUAL_ROSTER_WEEKS:          8,
@@ -2391,7 +2391,12 @@
                     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const override = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
                     if (override) {
-                        shift       = override.value;
+                        // RDW overrides carry a real shift time as their value, but must
+                        // render with the RDW colour scheme, not Early/Late/Night. Swap
+                        // the value for the 'RDW' sentinel so getShiftClass/Badge pick up
+                        // the correct pink styling. The actual time is preserved in the note
+                        // if needed; the key visual signal is the RDW badge, not the time.
+                        shift        = override.type === 'rdw' ? 'RDW' : override.value;
                         overrideNote = override.note;
                     }
                 }
@@ -3164,7 +3169,8 @@
                 const key = `${data.memberName}|${data.date}`;
                 window.rosterOverridesCache.set(key, {
                     value: data.value,
-                    note:  data.note || ''
+                    note:  data.note || '',
+                    type:  data.type  || ''
                 });
             });
         }
