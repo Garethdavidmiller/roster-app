@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3.2 — Fast week override entry -->
+<!-- MYB Roster Admin v3.3 — Fast week override entry -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -40,6 +40,9 @@
             background: var(--primary-blue);
             min-height: 100vh;
             padding: 16px;
+            padding-left:   max(16px, env(safe-area-inset-left));
+            padding-right:  max(16px, env(safe-area-inset-right));
+            padding-bottom: max(16px, env(safe-area-inset-bottom));
             color: var(--text-dark);
         }
 
@@ -128,13 +131,22 @@
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
             border-radius: 8px;
-            font-size: 14px;
+            /* 16px prevents iOS Safari from zooming the page on focus */
+            font-size: 16px;
             color: var(--text-dark);
             background: white;
             -webkit-appearance: none;
             appearance: none;
             font-family: inherit;
             transition: border-color 0.12s;
+        }
+
+        /* Restore dropdown arrow removed by appearance: none */
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
         }
 
         select:focus, input:focus { outline: none; border-color: var(--primary-blue); }
@@ -169,7 +181,7 @@
             transition: background 0.12s;
         }
 
-        .week-nav-btn:hover { background: var(--primary-blue-dark); }
+        @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
 
         .week-date-wrap {
             flex: 1;
@@ -242,7 +254,7 @@
             transition: all 0.12s;
         }
 
-        .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
 
         .bulk-divider { width: 1px; background: var(--border-light); height: 24px; flex-shrink: 0; }
 
@@ -262,7 +274,7 @@
             font-family: inherit;
         }
 
-        .type-pill-btn:hover { opacity: 0.75; }
+        @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover { opacity: 0.75; } }
         .type-pill-btn.active { color: white !important; }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
@@ -280,7 +292,6 @@
 
         .bulk-time-group input[type="time"] {
             width: 105px;
-            font-size: 13px;
             padding: 5px 8px;
         }
 
@@ -300,7 +311,7 @@
             font-family: inherit;
         }
 
-        .btn-bulk-apply:hover { background: var(--primary-blue-dark); }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover { background: var(--primary-blue-dark); } }
 
         /* ---- Week grid ---- */
         .week-grid {
@@ -406,7 +417,6 @@
 
         .col-time input[type="time"] {
             width: 100px;
-            font-size: 13px;
             padding: 5px 7px;
         }
 
@@ -438,7 +448,7 @@
             justify-content: center;
         }
 
-        .btn-note-toggle:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) { .btn-note-toggle:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
         .btn-note-toggle.has-note { border-color: var(--blue-sky); color: var(--blue-sky); background: var(--blue-light); }
 
         /* Note expansion — full-width row below the main grid row */
@@ -452,7 +462,6 @@
         .note-row:last-of-type { border-bottom: none; }
 
         .note-row input[type="text"] {
-            font-size: 13px;
             padding: 6px 9px;
             border-color: var(--blue-sky);
         }
@@ -494,7 +503,7 @@
             font-family: inherit;
         }
 
-        .btn-save:hover   { background: var(--primary-blue-dark); }
+        @media (hover: hover) and (pointer: fine) { .btn-save:hover { background: var(--primary-blue-dark); } }
         .btn-save:active  { transform: scale(0.98); }
         .btn-save:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 
@@ -522,7 +531,7 @@
             border-bottom: 1px solid var(--border-light);
         }
 
-        .list-toolbar select { flex: 1; font-size: 13px; padding: 7px 9px; }
+        .list-toolbar select { flex: 1; padding: 7px 9px; }
         .list-count { font-size: 12px; color: var(--text-light); white-space: nowrap; }
 
         .table-scroll { overflow-x: auto; }
@@ -549,7 +558,7 @@
         }
 
         .override-table tr:last-child td { border-bottom: none; }
-        .override-table tbody tr:hover td { background: var(--bg-faint); }
+        @media (hover: hover) and (pointer: fine) { .override-table tbody tr:hover td { background: var(--bg-faint); } }
 
         .list-type-pill {
             display: inline-block;
@@ -583,7 +592,7 @@
             font-family: inherit;
         }
 
-        .btn-delete:hover     { background: var(--error-bg); }
+        @media (hover: hover) and (pointer: fine) { .btn-delete:hover { background: var(--error-bg); } }
         .btn-delete.confirming { background: var(--error-red); color: white; border-color: var(--error-red); }
 
         .state-row td {
@@ -633,6 +642,74 @@
         .al-preview.empty { color: var(--text-light); }
         .al-preview.ready { background: var(--al-light); color: #004d40; }
         .al-preview.error { background: var(--error-bg); color: var(--error-red); }
+
+        /* ---- Touch device enhancements ---- */
+
+        /* Prevent long-press text selection on interactive elements */
+        .type-pill-btn, .btn-bulk-select, .btn-bulk-apply, .btn-save,
+        .btn-delete, .btn-note-toggle, .week-nav-btn {
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        /* Larger tap targets and slightly bigger text on touch screens */
+        @media (hover: none) and (pointer: coarse) {
+            .type-pill-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+                min-height: 36px;
+            }
+
+            .col-pills .type-pill-btn {
+                padding: 7px 11px;
+                min-height: 36px;
+            }
+
+            .btn-bulk-select {
+                padding: 8px 12px;
+                font-size: 12px;
+                min-height: 36px;
+            }
+
+            .btn-bulk-apply {
+                padding: 9px 16px;
+                min-height: 36px;
+            }
+
+            .btn-delete {
+                padding: 8px 12px;
+                min-height: 36px;
+            }
+
+            .week-nav-btn {
+                width: 44px;
+                height: 44px;
+            }
+
+            .col-check input[type="checkbox"] {
+                width: 20px;
+                height: 20px;
+            }
+
+            /* Time inputs fill available space on mobile */
+            .col-time input[type="time"] {
+                flex: 1;
+                width: auto;
+                min-width: 0;
+            }
+
+            /* Bulk time inputs fill available space */
+            .bulk-time-group input[type="time"] {
+                flex: 1;
+                width: auto;
+            }
+
+            /* Note-row: reset to simple indent on mobile since
+               column widths don't apply at narrow breakpoints */
+            .note-row {
+                padding-left: 12px;
+            }
+        }
 
         /* ---- Lightbox ---- */
         #iconLightbox {
@@ -901,7 +978,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.2';
+const ADMIN_VERSION = '3.3';
 
 // ---- Lightbox ----
 (function() {
