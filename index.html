@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.31 -->
+<!-- MYB Roster Calendar - Version 4.32 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1025,6 +1025,10 @@
             .controls {
                 padding: 8px 10px;
                 border-radius: var(--radius-md);
+            }
+
+            .controls button {
+                padding: 10px 10px;  /* tighten horizontal padding so Prev/Next don't overflow on ~375px screens */
             }
 
             .calendar-day {
@@ -2123,7 +2127,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES } from './roster-data.js?v=4.31';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES } from './roster-data.js?v=4.32';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2135,7 +2139,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.31';
+        CONFIG.APP_VERSION = '4.32';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
