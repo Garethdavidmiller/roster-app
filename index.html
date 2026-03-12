@@ -51,8 +51,7 @@
             --night: #1a1a2e;                /* Night shift badge */
             --night-cell-bg: rgba(20, 20, 40, 0.10);   /* Night shift cell background */
             --night-cell-border: rgba(20, 20, 40, 0.30); /* Night shift cell border */
-            --ot: #5c6bc0;                   /* Overtime pill */
-            --ot-light: #ede7f6;             /* Overtime list pill background */
+            /* --ot / --ot-light reserved for future overtime feature */
 
             /* Error colours */
             --error-bg: #ffebee;
@@ -71,8 +70,8 @@
             --today-print: #ffffcc; /* Softer gold for print — avoids ink waste vs full accent-gold */
 
             /* Border Radius */
-            --radius-md: 16px;
-            --radius-lg: 20px;
+            --radius-md: 12px;
+            --radius-lg: 14px;
         }
 
         * {
@@ -85,6 +84,7 @@
         /* iOS status bar fix - blends with app theme */
         html {
             background-color: var(--primary-blue);
+            color-scheme: light; /* tells the browser this is a light-mode UI — prevents dark-mode scrollbars and form controls */
         }
 
         /* In-app error banner (replaces alert()) */
@@ -144,10 +144,10 @@
         }
 
         .header {
-            background: var(--bg-light);
+            background: white;
             padding: 9px 16px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
             margin-bottom: 16px;
             text-align: center;
         }
@@ -156,7 +156,7 @@
             color: var(--primary-blue);
             font-size: 20px;
             margin: 0;
-            font-weight: 800;
+            font-weight: 700;
             letter-spacing: -0.5px;
             display: flex;
             align-items: center;
@@ -207,7 +207,7 @@
             background: white;
             padding: 10px 16px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
             margin-bottom: 16px;
             display: flex;
             flex-direction: column;
@@ -260,7 +260,7 @@
             background: white;
             font-family: inherit;
             font-weight: 600;
-            transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
             touch-action: manipulation; /* Removes 300ms tap delay */
         }
 
@@ -287,7 +287,7 @@
             color: white;
             border-color: var(--primary-blue);
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
-            transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
         }
 
         @media (hover: hover) and (pointer: fine) {
@@ -362,7 +362,7 @@
             background: white;
             padding: 16px 24px 24px 24px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
             margin-bottom: 16px;
             width: 100%;
             box-sizing: border-box;
@@ -392,7 +392,7 @@
 
         .month-year {
             font-size: 24px;
-            font-weight: 800;
+            font-weight: 700;
             color: var(--primary-blue);
             letter-spacing: -0.5px;
         }
@@ -424,7 +424,7 @@
 
         .calendar-day {
             min-height: 120px;
-            border: 1px solid #f0f0f0;
+            border: 1px solid var(--border-light);
             border-radius: var(--radius-md);
             padding: 12px;
             background: white;
@@ -447,7 +447,7 @@
         }
 
         .calendar-day.other-month {
-            opacity: 0.15;
+            opacity: 0.25;
             background: var(--bg-faint);
         }
 
@@ -552,7 +552,7 @@
         }
 
         .day-number {
-            font-weight: 800;
+            font-weight: 700;
             font-size: 20px;
             color: var(--text-dark);
             margin-bottom: 8px;
@@ -632,7 +632,7 @@
             background: white;
             padding: 10px 16px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
             display: flex;
             flex-direction: column;
             gap: 6px;
@@ -680,17 +680,18 @@
         }
 
         /* Desktop: lock entire layout to one screen — no scrolling needed */
+        /* ── Desktop (≥1025px) ─────────────────────────────────────────────── */
         @media (min-width: 1025px) {
+
+            /* Viewport-locked layout */
             body {
                 height: 100dvh;
                 height: 100vh;
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
-                /* Rich surface colour — the dark-navy shows as a narrow border around the
-                   card stack; switching to a premium dark gradient makes it feel intentional */
                 background: linear-gradient(160deg, #0a2240 0%, #001630 100%);
-                padding: 16px; /* tighter edge so more calendar is visible */
+                padding: 16px;
             }
 
             .container {
@@ -698,21 +699,17 @@
                 min-height: 0;
                 display: flex;
                 flex-direction: column;
-                gap: 10px; /* uniform spacing between cards — replaces individual margin-bottoms */
+                gap: 10px;
             }
 
-            /* Individual card margins are no longer needed — container gap handles it */
-            .header, .controls { margin-bottom: 0; }
-            .calendar-container { margin-bottom: 0; }
-
+            /* Container gap replaces individual margin-bottoms */
+            .header, .controls, .calendar-container { margin-bottom: 0; }
             .header, .controls, .legend { flex-shrink: 0; }
 
-            /* App title: larger, more assertive on a big screen */
-            .header h1 {
-                font-size: 24px;
-            }
+            /* Header */
+            .header h1 { font-size: 24px; }
 
-            /* Controls: one compact row — desktop has the horizontal space */
+            /* Controls: one compact row */
             .controls {
                 flex-direction: row;
                 gap: 20px;
@@ -720,11 +717,15 @@
                 align-items: center;
                 justify-content: center;
             }
-            .controls-row {
-                width: auto;
+            .controls-row { width: auto; }
+
+            /* Select: no longer needs iOS font-size workaround on desktop */
+            .controls select {
+                font-size: 14px;
+                max-width: 200px;
             }
 
-            /* calendarDisplay is a flex container so .calendar-container can use flex:1 reliably */
+            /* Calendar display */
             #calendarDisplay {
                 flex: 1;
                 min-height: 0;
@@ -739,23 +740,20 @@
                 flex-direction: column;
                 box-sizing: border-box;
                 padding: 14px 18px 18px 18px;
-                overflow-y: auto; /* safety net: scrolls rather than clips on very short screens */
+                overflow-y: auto;
             }
 
-            /* Month label: strong but not so large it eats row budget */
-            .month-year {
-                font-size: 26px;
-            }
+            /* Month label */
+            .month-year { font-size: 26px; }
 
-            /* Day column headers: compact padding saves ~8px of grid budget */
+            /* Day-of-week headers */
             .day-header {
                 letter-spacing: 1.5px;
                 font-size: 11px;
                 padding: 9px 4px;
             }
 
-            /* Header row (Mon–Sun) takes its natural height; day rows share the rest equally.
-               minmax(90px, 1fr) guarantees cells never shrink below what the content needs. */
+            /* Grid: day rows fill available height equally */
             .calendar-grid {
                 flex: 1 1 0;
                 min-height: 0;
@@ -764,13 +762,19 @@
                 grid-auto-rows: minmax(90px, 1fr);
             }
 
-            /* Cell content sized to fit comfortably inside the rows.
-               Total stack: 7px pad + 22px day-num + 4px gap + 20px pill + 5px gap + 15px time + 7px pad = 80px */
+            /* Day cells */
             .calendar-day {
                 min-height: unset;
                 overflow: hidden;
                 justify-content: flex-start;
                 padding: 7px 8px;
+            }
+
+            /* Today cell: keep highlight but tone down the scale on desktop
+               to avoid overflowing into neighbours; z-index ensures it sits above them */
+            .calendar-day.today {
+                transform: scale(1.01);
+                z-index: 1;
             }
 
             .day-number {
@@ -789,10 +793,33 @@
                 line-height: 1.4;
             }
 
-            /* Legend: a single compact row with generous side padding */
+            /* Decorative icons: larger on desktop */
+            .calendar-day.bank-holiday::before {
+                font-size: 18px !important;
+                top: 5px !important;
+                right: 5px !important;
+            }
+            .calendar-day.payday::before,
+            .calendar-day.cutoff::before {
+                font-size: 16px !important;
+                top: 5px !important;
+                left: 5px !important;
+            }
+            .calendar-day.christmas-day::after {
+                font-size: 20px !important;
+                bottom: 6px !important;
+            }
+
+            /* Legend: collapse three rows into one centred strip */
             .legend {
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 6px 20px;
                 padding: 10px 24px;
             }
+            .legend-row { display: contents; }
+            .legend-text { font-size: 13px; }
         }
 
         @media (max-width: 1024px) {
@@ -986,8 +1013,8 @@
         /* Print styles */
         @media print {
             @page {
-                margin: 0.5cm; /* Slightly reduced to give more breathing room */
-                size: auto;    /* Let the browser determine size based on content */
+                margin: 0.5cm;
+                size: A4 portrait;
             }
 
             * {
@@ -1026,10 +1053,6 @@
 
             .controls {
                 display: none !important;
-                height: 0 !important;
-                overflow: hidden !important;
-                position: absolute !important;
-                visibility: hidden !important;
             }
 
             #calendarDisplay {
@@ -1154,6 +1177,7 @@
                 visibility: visible !important;
                 opacity: 1 !important;
                 border: 1px solid var(--text-light) !important;
+                border-radius: 4px !important;
                 overflow: visible !important;
             }
 
@@ -1667,7 +1691,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.10';
+        CONFIG.APP_VERSION = '4.11';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
