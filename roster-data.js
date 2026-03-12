@@ -98,19 +98,18 @@ export const teamMembers = [
 // ANNUAL LEAVE ENTITLEMENTS
 // ============================================
 //
-// Entitlements by role/rosterType (calendar year, resets 1 Jan):
-//   Bilingual CEA  → 34 days
+// Entitlements by role (calendar year, resets 1 Jan):
 //   CES            → 34 days
 //   Dispatcher     → 34 days
-//   Standard CEA   → 32 days
+//   C. Reen        → 34 days (fixed roster / reasonable adjustments)
+//   All CEAs       → 32 days  (main, bilingual, or any other CEA rosterType)
 //
 // @param {object} member — a teamMembers entry
 // @returns {number}
 export function getALEntitlement(member) {
     if (!member) return 32;
-    if (member.rosterType === 'bilingual') return 34;
     if (member.role === 'CES' || member.role === 'Dispatcher') return 34;
-    if (member.rosterType === 'fixed') return 34; // C. Reen — may need revisiting
+    if (member.rosterType === 'fixed') return 34; // C. Reen — reasonable adjustments
     return 32;
 }
 

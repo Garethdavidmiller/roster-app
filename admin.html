@@ -531,6 +531,10 @@
             overflow: hidden;
             margin-bottom: 14px;
             position: relative; /* contains absolutely-positioned carousel panels during swipe */
+            touch-action: pan-y; /* allow vertical scroll; let JS handle horizontal swipe */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
         }
 
         /* Swipe carousel — mirrors .carousel-panel / .calendar-container in index.html.
@@ -1765,7 +1769,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.32';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.33';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1781,7 +1785,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.32';
+const ADMIN_VERSION = '4.33';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
