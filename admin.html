@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.26 -->
+<!-- MYB Roster Admin v4.27 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#001e3c">
     <title>MYB Roster — Admin</title>
@@ -109,6 +109,89 @@
             border-radius: 20px;
             text-transform: uppercase;
             letter-spacing: 0.6px;
+        }
+
+        .btn-tips {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            border: 2px solid var(--primary-blue);
+            background: transparent;
+            color: var(--primary-blue);
+            font-size: 14px;
+            font-weight: 800;
+            cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) { .btn-tips:hover { background: var(--primary-blue); color: white; } }
+
+        /* ---- Tips lightbox ---- */
+        #tipsLightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,10,20,0.82);
+            z-index: 8000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+        }
+        #tipsLightbox.visible { display: flex; }
+        #tipsLightbox.open    { opacity: 1; }
+
+        #tipsLightboxContent {
+            background: white;
+            border-radius: 20px;
+            padding: 28px 28px 24px;
+            max-width: 360px;
+            width: 100%;
+            cursor: default;
+            transform: scale(0.88);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        #tipsLightbox.open #tipsLightboxContent { transform: scale(1); }
+
+        .tips-lb-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            margin-bottom: 16px;
+        }
+        .tips-lb-section {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin: 14px 0 6px;
+        }
+        .tips-lb-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-dark);
+            line-height: 1.5;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .tips-lb-item:last-child { border-bottom: none; }
+        .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+        .tips-lb-close {
+            display: block;
+            margin-top: 18px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            cursor: pointer;
         }
 
         /* ---- Cards ---- */
@@ -855,6 +938,26 @@
             color: var(--text-light);
             font-size: 13px;
         }
+        .state-row .reload-link {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(33,150,243,0.25);
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
 
         /* ---- Annual Leave booking form ---- */
         .al-form {
@@ -1162,7 +1265,7 @@
             padding: 36px 40px 32px;
             cursor: default;
             transform: scale(0.85);
-            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             min-width: 240px;
             text-align: center;
         }
@@ -1350,6 +1453,30 @@
 </div>
 
 <!-- Lightbox — tap the header icon to open -->
+<div id="tipsLightbox" role="dialog" aria-label="Admin help and tips" aria-modal="true">
+    <div id="tipsLightboxContent">
+        <div class="tips-lb-title">Admin Tips</div>
+
+        <div class="tips-lb-section">Adding overrides</div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Select a <strong>staff member</strong> and <strong>week</strong> at the top</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>type pill</strong> on any day to set that shift type</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save</strong> — unsaved changes are highlighted in amber</span></div>
+
+        <div class="tips-lb-section">Bulk changes</div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">☑️</span><span>Check multiple days, choose a type and time, then tap <strong>Apply to selected days</strong></span></div>
+
+        <div class="tips-lb-section">Annual leave</div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Book Annual Leave</strong> section — rest days within the range are skipped automatically</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">⚠️</span><span>A warning appears if leave would exceed the member's entitlement — you can still save</span></div>
+
+        <div class="tips-lb-section">Override types</div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🔄</span><span><strong>Swap</strong> — use when a member swaps a shift with a colleague</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Make Rest Day</strong> — corrects a rostered working day to a rest day</span></div>
+
+        <span class="tips-lb-close" id="tipsLightboxClose">Close</span>
+    </div>
+</div>
+
 <div id="iconLightbox" role="dialog" aria-label="About MYB Roster Admin" aria-modal="true">
     <span id="iconLightboxClose" aria-label="Close">✕</span>
     <div id="iconLightboxContent">
@@ -1368,6 +1495,7 @@
         <a href="index.html" class="btn-back" aria-label="Back to roster calendar">← Roster</a>
         <h1>MYB Roster</h1>
         <span class="badge-admin" id="adminBadge">Admin</span>
+        <button class="btn-tips" id="tipsBtn" aria-label="Help and tips">?</button>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
 
@@ -1525,7 +1653,7 @@
                     </tr>
                 </thead>
                 <tbody id="overrideTableBody">
-                    <tr class="state-row"><td colspan="6">Loading…</td></tr>
+                    <tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1686,6 +1814,33 @@ function initLoginOverlay() {
     lightbox.addEventListener('click', e => {
         if (e.target === lightbox || e.target === closeBtn) closeLightbox();
     });
+})();
+
+// ---- Tips lightbox ----
+(function() {
+    const lb       = document.getElementById('tipsLightbox');
+    const closeBtn = document.getElementById('tipsLightboxClose');
+    const tipsBtn  = document.getElementById('tipsBtn');
+
+    if (!lb || !tipsBtn) return;
+
+    function openTips() {
+        lb.classList.add('visible');
+        requestAnimationFrame(() => lb.classList.add('open'));
+        document.addEventListener('keydown', onKey);
+    }
+
+    function closeTips() {
+        lb.classList.remove('open');
+        lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+        document.removeEventListener('keydown', onKey);
+    }
+
+    function onKey(e) { if (e.key === 'Escape') closeTips(); }
+
+    tipsBtn.addEventListener('click', openTips);
+    if (closeBtn) closeBtn.addEventListener('click', closeTips);
+    lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
 })();
 
 // Override type metadata
@@ -2370,7 +2525,7 @@ let allOverrides = [];
 filterMember.addEventListener('change', renderTable);
 
 async function loadOverrides() {
-    tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Loading…</td></tr>';
+    tableBody.innerHTML = '<tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>';
     try {
         const snap = await getDocs(collection(db, 'overrides'));
         allOverrides = [];
@@ -2382,7 +2537,7 @@ async function loadOverrides() {
         updateALBanner();
     } catch (err) {
         console.error('[Admin] Load failed:', err);
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Failed to load.</td></tr>';
+        tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Failed to load overrides.<br><span class="reload-link" onclick="location.reload()">↻ Reload page</span></td></tr>';
         listCount.textContent = 'Error';
     }
 }
