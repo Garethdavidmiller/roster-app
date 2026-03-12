@@ -127,7 +127,6 @@
 
         .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); flex: 1; }
         .card-header .hint { font-size: 11px; color: var(--text-light); }
-        /* week-range-label class kept for possible future use but no longer rendered */
 
         .card-body { padding: 16px; }
 
@@ -222,7 +221,7 @@
             color: var(--text-dark);
             padding: 7px 8px;
             background: white;
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-light);
             border-radius: 8px;
             white-space: nowrap;
             pointer-events: none;
@@ -317,8 +316,6 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
-
-        .bulk-divider { width: 1px; background: var(--border-light); height: 24px; flex-shrink: 0; }
 
         .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; }
 
@@ -518,14 +515,18 @@
             border: 1.5px solid var(--border-light);
             color: var(--text-light);
             border-radius: 6px;
-            width: 28px;
             height: 28px;
-            font-size: 13px;
+            width: auto;
+            padding: 0 8px;
+            gap: 3px;
+            font-size: 11px;
+            white-space: nowrap;
             cursor: pointer;
             transition: all 0.12s;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-family: inherit;
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-note-toggle:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
@@ -788,8 +789,8 @@
 
             /* Note button: larger tap target on touch */
             .btn-note-toggle {
-                width: 36px;
-                height: 36px;
+                min-height: 36px;
+                padding: 0 12px;
             }
 
             /* Note-row: reset to simple indent on mobile since
@@ -1032,15 +1033,6 @@
             color: var(--text-mid);
             text-transform: uppercase;
             letter-spacing: 0.4px;
-            white-space: nowrap;
-        }
-
-        /* ---- Note button: icon + text ---- */
-        .btn-note-toggle {
-            font-size: 11px;
-            width: auto;
-            padding: 0 8px;
-            gap: 3px;
             white-space: nowrap;
         }
 
@@ -1506,9 +1498,16 @@ if (lastMember && teamMembers.find(m => m.name === lastMember)) {
     fieldMember.value = lastMember;
 }
 
-// Default date = today
+// Default date = today — update the week nav label immediately without
+// calling renderWeekGrid(), which depends on allOverrides (declared later).
 fieldDate.value = formatISO(new Date());
-renderWeekGrid(); // updates the week nav label on load
+(function updateWeekNavLabelFromDate() {
+    const d    = new Date(fieldDate.value + 'T12:00:00');
+    const sun  = new Date(d); sun.setDate(d.getDate() - d.getDay());
+    const sat  = new Date(sun); sat.setDate(sun.getDate() + 6);
+    const el   = document.getElementById('weekNavLabel');
+    if (el) el.textContent = `${sun.getDate()} ${MONTH_ABB[sun.getMonth()]} – ${sat.getDate()} ${MONTH_ABB[sat.getMonth()]} ${sat.getFullYear()}`;
+}());
 
 // ============================================
 // WEEK NAVIGATION
@@ -2232,7 +2231,7 @@ if (!isAuthenticated) {
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();
-    loadOverrides().then(() => renderWeekGrid());
+    loadOverrides(); // internally calls renderWeekGrid() after data loads
 }
 </script>
 </body>
