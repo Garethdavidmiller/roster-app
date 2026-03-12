@@ -1748,10 +1748,10 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.21';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.29';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
-    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp
+    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 
 const app = initializeApp({
@@ -1764,7 +1764,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.24';
+const ADMIN_VERSION = '4.29';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3126,6 +3126,53 @@ function applyPermissions() {
     localStorage.setItem('adminLastMember', currentUser);
 }
 
+// ============================================
+// RELIGIOUS CARD — collapse/expand + Firestore opt-in
+// ============================================
+(function initReligiousCard() {
+    const header   = document.getElementById('religiousToggleHeader');
+    const body     = document.getElementById('religiousBody');
+    const chevron  = document.getElementById('religiousChevron');
+    const checkbox = document.getElementById('islamicMarkersToggle');
+    const saved    = document.getElementById('religiousSaved');
+    if (!header || !body || !chevron || !checkbox || !saved) return;
+
+    // Collapse / expand
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+
+    // Load current user's setting from Firestore (runs after auth check below)
+    async function loadReligiousSetting(userName) {
+        try {
+            const snap = await getDoc(doc(db, 'memberSettings', userName));
+            if (snap.exists()) {
+                checkbox.checked = !!snap.data().islamicMarkers;
+            }
+        } catch (e) {
+            console.warn('[Firestore] memberSettings load failed:', e);
+        }
+    }
+
+    // Save on checkbox change
+    let saveTimer;
+    checkbox.addEventListener('change', async () => {
+        clearTimeout(saveTimer);
+        saved.classList.remove('visible');
+        try {
+            await setDoc(doc(db, 'memberSettings', currentUser), { islamicMarkers: checkbox.checked }, { merge: true });
+            saved.classList.add('visible');
+            saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
+        } catch (e) {
+            console.error('[Firestore] memberSettings save failed:', e);
+        }
+    });
+
+    // Expose loader so the auth block can call it after currentUser is confirmed
+    window._loadReligiousSetting = loadReligiousSetting;
+})();
+
 if (!isAuthenticated) {
     // Show login overlay; do not load any Firestore data
     initLoginOverlay();
@@ -3134,6 +3181,7 @@ if (!isAuthenticated) {
     document.body.classList.add('auth-ready');
     applyPermissions();
     loadOverrides(); // internally calls renderWeekGrid() after data loads
+    if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(currentUser);
 
     // If arriving via deep-link (e.g. from the AL lightbox), scroll to the target section
     if (location.hash) {
