@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.24 -->
+<!-- MYB Roster Calendar - Version 4.25 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1753,18 +1753,18 @@
         }
         .al-lb-link {
             margin-top: 14px;
-            color: rgba(255,255,255,0.6);
+            color: rgba(255,255,255,0.9);
             font-size: 13px;
             font-weight: 600;
             text-decoration: none;
             padding: 8px 16px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(255,255,255,0.5);
             border-radius: 20px;
-            transition: color 0.15s, border-color 0.15s;
+            transition: color 0.15s, border-color 0.15s, background 0.15s;
             cursor: pointer;
         }
         @media (hover: hover) and (pointer: fine) {
-            .al-lb-link:hover { color: white; border-color: rgba(255,255,255,0.5); }
+            .al-lb-link:hover { color: white; border-color: rgba(255,255,255,0.9); background: rgba(255,255,255,0.1); }
         }
 
         /* ---- Month/year jump picker overlay ---- */
@@ -2067,7 +2067,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.24';
+        CONFIG.APP_VERSION = '4.25';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
