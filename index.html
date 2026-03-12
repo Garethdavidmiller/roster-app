@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.27 -->
+<!-- MYB Roster Calendar - Version 4.29 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -549,6 +549,31 @@
             z-index: 10;
         }
 
+        /* Easter Sunday — 🥚 replaces the ⭐ bank holiday marker top-right.
+           Easter Sunday is not itself a bank holiday so it has no ::before by default;
+           we add our own in the same top-right position. */
+        .calendar-day.easter-day::before {
+            content: '🥚';
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            font-size: 10px;
+            z-index: 10;
+        }
+
+        /* Islamic calendar markers — bottom-right corner (currently unused by any other marker).
+           Rendered as inline <span class="day-islamic"> elements (not pseudo-elements) to avoid
+           any future conflict with the ::after used by Christmas Day (bottom-centre).
+           Only shown for members who have opted in to Islamic calendar markers. */
+        .day-islamic {
+            position: absolute;
+            bottom: 3px;
+            right: 3px;
+            font-size: 11px;
+            line-height: 1;
+            z-index: 10;
+        }
+
         /* Christmas Day (Dec 25) — 🎄 tree centred at the bottom of the cell.
            Positions below the shift content without touching the corner markers.
            Only applied to Dec 25 — Boxing Day (Dec 26) is left plain so staff
@@ -811,6 +836,16 @@
                 top: 5px !important;
                 right: 5px !important;
             }
+            .calendar-day.easter-day::before {
+                font-size: 18px !important;
+                top: 5px !important;
+                right: 5px !important;
+            }
+            .day-islamic {
+                font-size: 16px !important;
+                bottom: 6px !important;
+                right: 5px !important;
+            }
             .calendar-day.payday::before,
             .calendar-day.cutoff::before {
                 font-size: 16px !important;
@@ -923,12 +958,24 @@
                 right: 5px !important;
             }
 
+            .calendar-day.easter-day::before {
+                font-size: 18px !important;
+                top: 5px !important;
+                right: 5px !important;
+            }
+
+            .day-islamic {
+                font-size: 16px !important;
+                bottom: 6px !important;
+                right: 5px !important;
+            }
+
             .calendar-day.payday::before {
                 font-size: 16px !important;
                 top: 5px !important;
                 left: 5px !important;
             }
-            
+
             .calendar-day.cutoff::before {
                 font-size: 16px !important;
                 top: 5px !important;
@@ -1359,6 +1406,21 @@
                 top: 2px !important;
                 right: 2px !important;
                 font-size: 10px !important;
+            }
+
+            .calendar-day.easter-day::before {
+                content: '🥚' !important;
+                position: absolute !important;
+                top: 2px !important;
+                right: 2px !important;
+                font-size: 10px !important;
+            }
+
+            .day-islamic {
+                position: absolute !important;
+                bottom: 2px !important;
+                right: 2px !important;
+                font-size: 9px !important;
             }
 
             .calendar-day.payday::before {
@@ -2011,11 +2073,12 @@
                 <div class="control-group">
                     <button id="prevMonth" aria-label="Previous month">← Prev</button>
                 </div>
-                <div class="control-group">
+                <div class="control-group" style="flex-direction:column;align-items:center;gap:2px;">
                     <label for="teamMemberSelect" class="visually-hidden">Team Member:</label>
                     <select id="teamMemberSelect">
                         <!-- Options populated by JavaScript -->
                     </select>
+                    <span id="islamicHint" style="display:none;font-size:10px;color:var(--text-light);text-align:center;">Religious markers visible to all viewers</span>
                 </div>
                 <div class="control-group">
                     <button id="nextMonth" aria-label="Next month">Next →</button>
@@ -2050,12 +2113,17 @@
                 <div class="legend-item"><span class="legend-text">⭐ Bank Holiday</span></div>
                 <div class="legend-item"><span class="legend-text">✂️ Cut-Off</span></div>
                 <div class="legend-item"><span class="legend-text">💷 Payday</span></div>
+                <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🥚 Easter Sunday</span></div>
+                <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text">🎄 Christmas Day</span></div>
+                <div class="legend-item" id="legend-ramadan" style="display:none"><span class="legend-text">🌙 Ramadan</span></div>
+                <div class="legend-item" id="legend-eid-fitr" style="display:none"><span class="legend-text">☪️ Eid al-Fitr</span></div>
+                <div class="legend-item" id="legend-eid-adha" style="display:none"><span class="legend-text">🕌 Eid al-Adha</span></div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.21';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES } from './roster-data.js?v=4.29';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2067,7 +2135,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.27';
+        CONFIG.APP_VERSION = '4.29';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2191,6 +2259,22 @@
         // Check if date is Christmas Day specifically (Dec 25) — used for 🎄 decoration.
         function isChristmasDay(date) {
             return date.getMonth() === 11 && date.getDate() === 25;
+        }
+
+        // Check if date is Easter Sunday — used for 🥚 decoration.
+        // Easter Sunday itself is not a UK bank holiday (Good Friday and Easter Monday are),
+        // so it doesn't get a ⭐ — the egg is its only marker.
+        // Easter Monday is always in the holidays list (March or April, day=Monday).
+        // Easter Sunday is the day before Easter Monday.
+        function isEasterSunday(date) {
+            const holidays = getBankHolidays(date.getFullYear());
+            return holidays.some(h => {
+                if (h.getDay() !== 1) return false;              // Must be a Monday
+                if (h.getMonth() < 2 || h.getMonth() > 3) return false; // March–April only
+                const easterSun = new Date(h);
+                easterSun.setDate(h.getDate() - 1);
+                return isSameDay(date, easterSun);
+            });
         }
 
         // ============================================
@@ -2640,7 +2724,33 @@
         // permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
         // note — optional Firestore override note; shown as small muted text below the shift time.
         // rdwTime — actual shift time for RDW overrides (e.g. '08:00-16:30'), since shift='RDW' sentinel.
-        function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '') {
+        // ============================================
+        // ISLAMIC CALENDAR HELPERS
+        // ============================================
+
+        // Returns 'ramadan' | 'eid-fitr' | 'eid-adha' | null for a given date string
+        // Only returns a value if the current member has opted in to Islamic markers.
+        function getIslamicType(dateStr, memberName) {
+            if (!window.memberSettingsCache) return null;
+            if (!window.memberSettingsCache.get(memberName)?.islamicMarkers) return null;
+            if (RAMADAN_STARTS.has(dateStr)) return 'ramadan';
+            if (EID_FITR_DATES.has(dateStr))  return 'eid-fitr';
+            if (EID_ADHA_DATES.has(dateStr))  return 'eid-adha';
+            return null;
+        }
+
+        const ISLAMIC_LABELS = {
+            'ramadan':  'Ramadan begins',
+            'eid-fitr': 'Eid al-Fitr',
+            'eid-adha': 'Eid al-Adha',
+        };
+        const ISLAMIC_ICONS = {
+            'ramadan':  '🌙',
+            'eid-fitr': '☪️',
+            'eid-adha': '🕌',
+        };
+
+        function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '', islamicType = null) {
             let badge;
             if (isWorkedDay && permanentShift === 'late') {
                 badge = '<span class="shift-badge badge-late">🌙<br>Late</span>';
@@ -2658,6 +2768,7 @@
                 ${badge}
                 ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
                 ${note ? `<div class="override-note" role="note" aria-label="Note: ${escapeHtml(note)}" title="${escapeHtml(note)}">${escapeHtml(note)}</div>` : ''}
+                ${islamicType ? `<span class="day-islamic" aria-label="${ISLAMIC_LABELS[islamicType]}" title="${ISLAMIC_LABELS[islamicType]}">${ISLAMIC_ICONS[islamicType]}</span>` : ''}
             `;
         }
 
@@ -2800,12 +2911,16 @@
                     : member.permanentShift === 'early' ? 'Early shift'
                     : isEarlyShift(shift) ? `Early shift ${shift}`
                     : `Late shift ${shift}`;
+                const islamicType = getIslamicType(dateStr, member.name);
+
                 const extras = [
                     isSameDay(currentDate, today) ? 'Today' : '',
                     isBankHoliday(currentDate) ? 'Bank holiday' : '',
                     isChristmasDay(currentDate) ? 'Christmas Day' : '',
+                    isEasterSunday(currentDate) ? 'Easter Sunday' : '',
                     isPayday(currentDate) ? 'Payday' : '',
-                    isCutoffDate(currentDate) ? 'Cut-off date' : ''
+                    isCutoffDate(currentDate) ? 'Cut-off date' : '',
+                    islamicType ? ISLAMIC_LABELS[islamicType] : '',
                 ].filter(Boolean).join(', ');
                 dayCell.setAttribute('aria-label',
                     `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${monthNames[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
@@ -2814,10 +2929,11 @@
                 if (isSameDay(currentDate, today)) dayCell.classList.add('today');
                 if (isBankHoliday(currentDate))    dayCell.classList.add('bank-holiday');
                 if (isChristmasDay(currentDate))   dayCell.classList.add('christmas-day');
+                if (isEasterSunday(currentDate))   dayCell.classList.add('easter-day');
                 if (isPayday(currentDate))          dayCell.classList.add('payday');
                 if (isCutoffDate(currentDate))      dayCell.classList.add('cutoff');
 
-                dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote, rdwTime);
+                dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote, rdwTime, islamicType);
                 grid.appendChild(dayCell);
             }
 
@@ -2906,13 +3022,56 @@
             lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
         })();
 
-        // updateLegend — shows Night legend item only for Dispatcher roster members.
-        // Called on initial load and whenever the selected member changes.
+        // updateLegend — shows/hides conditional legend items:
+        //   Night        — only for Dispatcher roster members
+        //   🎄 Christmas — only in December
+        //   🥚 Easter    — only in the month Easter Sunday falls in
+        //   🌙/☪️/🕌      — only for members with Islamic markers opted in,
+        //                   and only in the month that date falls in
+        // Called inside renderCalendar() on every navigation.
         function updateLegend() {
             const member = getCurrentMember();
             const isDispatcher = member && member.rosterType === 'dispatcher';
             const nightItem = document.getElementById('legend-night');
             if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
+
+            const christmasItem = document.getElementById('legend-christmas');
+            if (christmasItem) christmasItem.style.display = currentDisplayMonth === 11 ? '' : 'none';
+
+            // Easter Sunday can fall in March or April — check which month it's in this year
+            const easterItem = document.getElementById('legend-easter');
+            if (easterItem) {
+                const holidays = getBankHolidays(currentDisplayYear);
+                const easterMonday = holidays.find(h => h.getDay() === 1 && h.getMonth() >= 2 && h.getMonth() <= 3);
+                let easterSunMonth = -1;
+                if (easterMonday) {
+                    const easterSun = new Date(easterMonday);
+                    easterSun.setDate(easterMonday.getDate() - 1);
+                    easterSunMonth = easterSun.getMonth();
+                }
+                easterItem.style.display = currentDisplayMonth === easterSunMonth ? '' : 'none';
+            }
+
+            // Islamic legend — show each item only in the month that date falls in,
+            // and only when the current member has opted in.
+            const hasIslamic = member && window.memberSettingsCache?.get(member.name)?.islamicMarkers;
+            const y = currentDisplayYear;
+            const m = currentDisplayMonth;
+
+            function islamicInMonth(dateSet) {
+                if (!hasIslamic) return false;
+                return [...dateSet].some(d => {
+                    const [dy, dm] = d.split('-').map(Number);
+                    return dy === y && (dm - 1) === m;
+                });
+            }
+
+            const ramadanItem  = document.getElementById('legend-ramadan');
+            const eidFitrItem  = document.getElementById('legend-eid-fitr');
+            const eidAdhaItem  = document.getElementById('legend-eid-adha');
+            if (ramadanItem)  ramadanItem.style.display  = islamicInMonth(RAMADAN_STARTS) ? '' : 'none';
+            if (eidFitrItem)  eidFitrItem.style.display  = islamicInMonth(EID_FITR_DATES) ? '' : 'none';
+            if (eidAdhaItem)  eidAdhaItem.style.display  = islamicInMonth(EID_ADHA_DATES) ? '' : 'none';
         }
 
         // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
@@ -2920,6 +3079,9 @@
         function renderCalendar() {
             try {
                 const member = getCurrentMember();
+
+                // Update legend for current member and month (Night, 🎄, 🥚 are conditional)
+                updateLegend();
 
                 // Set team member name on header for printing
                 const headerElement = document.querySelector('.header');
@@ -2988,9 +3150,18 @@
             saveSelectedMember(parseInt(e.target.value, 10));
             updateLegend();
             renderCalendar();
+            updateIslamicHint();
             // Close AL lightbox if open — data would be stale for the new member
             if (typeof closeALLightbox === 'function') closeALLightbox();
         });
+
+        function updateIslamicHint() {
+            const member = getCurrentMember();
+            const hint = document.getElementById('islamicHint');
+            if (!hint) return;
+            const hasIslamic = member && window.memberSettingsCache?.get(member.name)?.islamicMarkers;
+            hint.style.display = hasIslamic ? '' : 'none';
+        }
 
         document.getElementById('prevMonth').addEventListener('click', () => {
             if (swipeCooldown) return; // Don't interrupt a swipe animation
@@ -3078,6 +3249,7 @@
                 populateTeamMemberDropdown();
                 updateLegend();
                 renderCalendar();
+                updateIslamicHint();
 
                 // Dismiss splash screen after first render
                 // Small timeout ensures the calendar is painted before fading
@@ -3649,10 +3821,11 @@
         const app = initializeApp(firebaseConfig);
         const db  = getFirestore(app);
 
-        // ---- Shared cache ----
-        // Initialised immediately so buildCalendarContainer() always finds a Map,
+        // ---- Shared caches ----
+        // Initialised immediately so renderCalendar() always finds a Map,
         // never undefined — even if the fetch is still in flight.
-        window.rosterOverridesCache = new Map();
+        window.rosterOverridesCache  = new Map();
+        window.memberSettingsCache   = new Map(); // memberName → { islamicMarkers: bool }
 
         // Track which months have been fetched to avoid duplicate network requests.
         const fetchedMonths = new Set();
@@ -3778,8 +3951,23 @@
             try {
                 const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
                 const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
-                await fetchOverridesForRange(startStr, endStr);
+
+                // Fetch overrides and member settings in parallel
+                const [, settingsSnap] = await Promise.all([
+                    fetchOverridesForRange(startStr, endStr),
+                    getDocs(collection(db, 'memberSettings')).catch(e => {
+                        console.warn('[Firestore] memberSettings fetch failed:', e); return null;
+                    }),
+                ]);
+
+                if (settingsSnap) {
+                    settingsSnap.forEach(doc => {
+                        window.memberSettingsCache.set(doc.id, doc.data());
+                    });
+                }
+
                 if (typeof renderCalendar === 'function') renderCalendar();
+                if (typeof updateIslamicHint === 'function') updateIslamicHint();
             } catch (err) {
                 console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
             } finally {

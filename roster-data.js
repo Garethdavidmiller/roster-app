@@ -110,6 +110,7 @@ export function getALEntitlement(member) {
     if (!member) return 32;
     if (member.rosterType === 'bilingual') return 34;
     if (member.role === 'CES' || member.role === 'Dispatcher') return 34;
+    if (member.rosterType === 'fixed') return 34; // C. Reen — may need revisiting
     return 32;
 }
 
@@ -204,3 +205,48 @@ export const dispatcherRoster = {
 export const DAY_KEYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// ============================================
+// ISLAMIC CALENDAR DATES (Umm al-Qura)
+// ============================================
+// Verified March 2026. Review dates annually — they shift ~11 days earlier each year.
+// Source: qppstudio.net / timeanddate.com / publicholidays.ae
+// All dates carry a ±1 day margin vs actual moon-sighting confirmation.
+//
+// ⚠️  2030 quirk: the Islamic year is ~11 days shorter than the Gregorian year,
+//     so 2030 contains TWO Ramadans (Jan 5 and Dec 26). Both are included.
+//     The Dec 2030 Ramadan's Eid al-Fitr falls in January 2031 — also included.
+//     The Dec 2030 Ramadan's Eid al-Adha falls in April 2031 — also included.
+//
+// To extend beyond 2030: subtract ~11 days from each date per year and verify
+// against islamicfinder.org or the official Umm al-Qura calendar.
+
+export const RAMADAN_STARTS = new Set([
+    '2025-03-01',
+    '2026-02-18',
+    '2027-02-08',
+    '2028-01-28',
+    '2029-01-16',
+    '2030-01-05',
+    '2030-12-26', // second Ramadan in 2030
+]);
+
+export const EID_FITR_DATES = new Set([
+    '2025-03-30',
+    '2026-03-20',
+    '2027-03-09',
+    '2028-02-26',
+    '2029-02-14',
+    '2030-02-04',
+    '2031-01-24', // Eid al-Fitr from the Dec 2030 Ramadan
+]);
+
+export const EID_ADHA_DATES = new Set([
+    '2025-06-06',
+    '2026-05-26',
+    '2027-05-16',
+    '2028-05-05',
+    '2029-04-24',
+    '2030-04-13',
+    '2031-04-02', // Eid al-Adha from the Dec 2030 Ramadan (Islamic year 1452)
+]);
