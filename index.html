@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.27 -->
+<!-- MYB Roster Calendar - Version 4.28 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -549,6 +549,18 @@
             z-index: 10;
         }
 
+        /* Easter Sunday — 🥚 replaces the ⭐ bank holiday marker top-right.
+           Easter Sunday is not itself a bank holiday so it has no ::before by default;
+           we add our own in the same top-right position. */
+        .calendar-day.easter-day::before {
+            content: '🥚';
+            position: absolute;
+            top: 3px;
+            right: 3px;
+            font-size: 10px;
+            z-index: 10;
+        }
+
         /* Christmas Day (Dec 25) — 🎄 tree centred at the bottom of the cell.
            Positions below the shift content without touching the corner markers.
            Only applied to Dec 25 — Boxing Day (Dec 26) is left plain so staff
@@ -811,6 +823,11 @@
                 top: 5px !important;
                 right: 5px !important;
             }
+            .calendar-day.easter-day::before {
+                font-size: 18px !important;
+                top: 5px !important;
+                right: 5px !important;
+            }
             .calendar-day.payday::before,
             .calendar-day.cutoff::before {
                 font-size: 16px !important;
@@ -923,12 +940,18 @@
                 right: 5px !important;
             }
 
+            .calendar-day.easter-day::before {
+                font-size: 18px !important;
+                top: 5px !important;
+                right: 5px !important;
+            }
+
             .calendar-day.payday::before {
                 font-size: 16px !important;
                 top: 5px !important;
                 left: 5px !important;
             }
-            
+
             .calendar-day.cutoff::before {
                 font-size: 16px !important;
                 top: 5px !important;
@@ -1355,6 +1378,14 @@
 
             .calendar-day.bank-holiday::before {
                 content: '⭐' !important;
+                position: absolute !important;
+                top: 2px !important;
+                right: 2px !important;
+                font-size: 10px !important;
+            }
+
+            .calendar-day.easter-day::before {
+                content: '🥚' !important;
                 position: absolute !important;
                 top: 2px !important;
                 right: 2px !important;
@@ -2050,6 +2081,8 @@
                 <div class="legend-item"><span class="legend-text">⭐ Bank Holiday</span></div>
                 <div class="legend-item"><span class="legend-text">✂️ Cut-Off</span></div>
                 <div class="legend-item"><span class="legend-text">💷 Payday</span></div>
+                <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🥚 Easter Sunday</span></div>
+                <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text">🎄 Christmas Day</span></div>
             </div>
         </div>
     </div>
@@ -2067,7 +2100,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.27';
+        CONFIG.APP_VERSION = '4.28';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2191,6 +2224,22 @@
         // Check if date is Christmas Day specifically (Dec 25) — used for 🎄 decoration.
         function isChristmasDay(date) {
             return date.getMonth() === 11 && date.getDate() === 25;
+        }
+
+        // Check if date is Easter Sunday — used for 🥚 decoration.
+        // Easter Sunday itself is not a UK bank holiday (Good Friday and Easter Monday are),
+        // so it doesn't get a ⭐ — the egg is its only marker.
+        // Easter Monday is always in the holidays list (March or April, day=Monday).
+        // Easter Sunday is the day before Easter Monday.
+        function isEasterSunday(date) {
+            const holidays = getBankHolidays(date.getFullYear());
+            return holidays.some(h => {
+                if (h.getDay() !== 1) return false;              // Must be a Monday
+                if (h.getMonth() < 2 || h.getMonth() > 3) return false; // March–April only
+                const easterSun = new Date(h);
+                easterSun.setDate(h.getDate() - 1);
+                return isSameDay(date, easterSun);
+            });
         }
 
         // ============================================
@@ -2804,6 +2853,7 @@
                     isSameDay(currentDate, today) ? 'Today' : '',
                     isBankHoliday(currentDate) ? 'Bank holiday' : '',
                     isChristmasDay(currentDate) ? 'Christmas Day' : '',
+                    isEasterSunday(currentDate) ? 'Easter Sunday' : '',
                     isPayday(currentDate) ? 'Payday' : '',
                     isCutoffDate(currentDate) ? 'Cut-off date' : ''
                 ].filter(Boolean).join(', ');
@@ -2814,6 +2864,7 @@
                 if (isSameDay(currentDate, today)) dayCell.classList.add('today');
                 if (isBankHoliday(currentDate))    dayCell.classList.add('bank-holiday');
                 if (isChristmasDay(currentDate))   dayCell.classList.add('christmas-day');
+                if (isEasterSunday(currentDate))   dayCell.classList.add('easter-day');
                 if (isPayday(currentDate))          dayCell.classList.add('payday');
                 if (isCutoffDate(currentDate))      dayCell.classList.add('cutoff');
 
@@ -2906,13 +2957,33 @@
             lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
         })();
 
-        // updateLegend — shows Night legend item only for Dispatcher roster members.
-        // Called on initial load and whenever the selected member changes.
+        // updateLegend — shows/hides conditional legend items:
+        //   Night      — only for Dispatcher roster members
+        //   🎄 Christmas — only in December
+        //   🥚 Easter   — only in the month Easter Sunday falls in
+        // Called on initial load and whenever the selected member or month changes.
         function updateLegend() {
             const member = getCurrentMember();
             const isDispatcher = member && member.rosterType === 'dispatcher';
             const nightItem = document.getElementById('legend-night');
             if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
+
+            const christmasItem = document.getElementById('legend-christmas');
+            if (christmasItem) christmasItem.style.display = currentDisplayMonth === 11 ? '' : 'none';
+
+            // Easter Sunday can fall in March or April — check which month it's in this year
+            const easterItem = document.getElementById('legend-easter');
+            if (easterItem) {
+                const holidays = getBankHolidays(currentDisplayYear);
+                const easterMonday = holidays.find(h => h.getDay() === 1 && h.getMonth() >= 2 && h.getMonth() <= 3);
+                let easterSunMonth = -1;
+                if (easterMonday) {
+                    const easterSun = new Date(easterMonday);
+                    easterSun.setDate(easterMonday.getDate() - 1);
+                    easterSunMonth = easterSun.getMonth();
+                }
+                easterItem.style.display = currentDisplayMonth === easterSunMonth ? '' : 'none';
+            }
         }
 
         // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
@@ -2920,6 +2991,9 @@
         function renderCalendar() {
             try {
                 const member = getCurrentMember();
+
+                // Update legend for current member and month (Night, 🎄, 🥚 are conditional)
+                updateLegend();
 
                 // Set team member name on header for printing
                 const headerElement = document.querySelector('.header');
