@@ -215,6 +215,7 @@ export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'
 // ⚠️  2030 quirk: the Islamic year is ~11 days shorter than the Gregorian year,
 //     so 2030 contains TWO Ramadans (Jan 5 and Dec 26). Both are included.
 //     The Dec 2030 Ramadan's Eid al-Fitr falls in January 2031 — also included.
+//     The Dec 2030 Ramadan's Eid al-Adha falls in April 2031 — also included.
 //
 // To extend beyond 2030: subtract ~11 days from each date per year and verify
 // against islamicfinder.org or the official Umm al-Qura calendar.
@@ -246,4 +247,5 @@ export const EID_ADHA_DATES = new Set([
     '2028-05-05',
     '2029-04-24',
     '2030-04-13',
+    '2031-04-02', // Eid al-Adha from the Dec 2030 Ramadan (Islamic year 1452)
 ]);

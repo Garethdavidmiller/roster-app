@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.28 -->
+<!-- MYB Roster Calendar - Version 4.29 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2135,7 +2135,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.28';
+        CONFIG.APP_VERSION = '4.29';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -3249,6 +3249,7 @@
                 populateTeamMemberDropdown();
                 updateLegend();
                 renderCalendar();
+                updateIslamicHint();
 
                 // Dismiss splash screen after first render
                 // Small timeout ensures the calendar is painted before fading
