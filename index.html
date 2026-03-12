@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.03 -->
+<!-- MYB Roster Calendar - Version 4.04 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -578,7 +578,7 @@
             letter-spacing: 0.5px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
-            width: 100%;
+            min-width: 80%;
         }
 
         .badge-rest {
@@ -697,22 +697,26 @@
 
             .header, .controls, .legend { flex-shrink: 0; }
 
+            /* calendarDisplay is a flex container so .calendar-container can use flex:1 reliably */
             #calendarDisplay {
                 flex: 1;
                 min-height: 0;
+                display: flex;
+                flex-direction: column;
             }
 
             .calendar-container {
-                height: 100%;
-                box-sizing: border-box;
+                flex: 1;
+                min-height: 0;
                 display: flex;
                 flex-direction: column;
-                margin-bottom: 0;
+                box-sizing: border-box;
+                /* keep margin-bottom: 16px (declared in base rule) — gap between card and legend */
             }
 
             /* Header row (Mon–Sun) takes its natural height; day rows share the rest equally */
             .calendar-grid {
-                flex: 1;
+                flex: 1 1 0;
                 min-height: 0;
                 gap: 8px;
                 grid-template-rows: auto;
@@ -721,6 +725,7 @@
 
             .calendar-day {
                 min-height: unset;
+                overflow: hidden;
             }
         }
 
@@ -1596,7 +1601,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.03';
+        CONFIG.APP_VERSION = '4.04';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
