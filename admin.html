@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v3.99 -->
+<!-- MYB Roster Admin v4.00 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -96,10 +96,6 @@
             flex: 1;
         }
 
-        .app-header h1 span {
-            font-weight: 400;
-            color: var(--text-light);
-        }
 
         .badge-admin {
             background: var(--primary-blue);
@@ -131,7 +127,7 @@
 
         .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); flex: 1; }
         .card-header .hint { font-size: 11px; color: var(--text-light); }
-        .week-range-label { font-size: 12px; color: var(--text-mid); font-weight: 600; white-space: nowrap; }
+        /* week-range-label class kept for possible future use but no longer rendered */
 
         .card-body { padding: 16px; }
 
@@ -216,6 +212,30 @@
         .week-date-wrap {
             flex: 1;
             padding: 0 4px;
+            position: relative;
+        }
+        .week-nav-label {
+            display: block;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            padding: 7px 8px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            white-space: nowrap;
+            pointer-events: none;
+            user-select: none;
+        }
+        .week-date-wrap input[type="date"] {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 1;
         }
 
         /* ---- Shift badges ---- */
@@ -256,14 +276,25 @@
             color: var(--text-mid);
             text-transform: uppercase;
             letter-spacing: 0.4px;
+            margin-bottom: 10px;
+        }
+
+        /* Numbered-step rows inside the bulk bar */
+        .bulk-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
             margin-bottom: 8px;
         }
 
-        .bulk-actions {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 6px;
-            align-items: center;
+        .bulk-step-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            white-space: nowrap;
+            padding-top: 6px;
+            min-width: 70px;
         }
 
         .bulk-select-group {
@@ -365,7 +396,15 @@
             letter-spacing: 0.5px;
         }
 
-        @media (max-width: 680px) { .week-grid-header { display: none; } }
+        /* On narrow screens keep the header but collapse to 3 columns (checkbox/day/base) */
+        @media (max-width: 680px) {
+            .week-grid-header {
+                grid-template-columns: 32px 1fr auto;
+            }
+            .week-grid-header .hdr-pills,
+            .week-grid-header .hdr-time,
+            .week-grid-header .hdr-note { display: none; }
+        }
 
         /* day-row: checkbox | day | base | type pills | time inputs | note-btn */
         .day-row {
@@ -459,9 +498,13 @@
 
         .col-time .time-sep { font-size: 12px; color: var(--text-light); flex-shrink: 0; }
 
-        /* Hide time area when row is not active or type is fixed-value */
+        /* Hide time area when row is not active */
         .day-row:not(.active) .col-time { visibility: hidden; }
-        .day-row.fixed-type .col-time   { visibility: hidden; }
+        /* Fixed types (AL, Make Rest Day): hide inputs, show note instead */
+        .day-row.active.fixed-type .col-time input[type="time"],
+        .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
+        .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
+        .day-row.active.fixed-type .time-note { display: block; }
 
         /* Note toggle button */
         .col-note-btn {
@@ -503,16 +546,17 @@
             border-color: var(--blue-sky);
         }
 
-        /* Overwrite badge */
+        /* "Has override" badge — shown when a day already has a saved override */
         .overwrite-badge {
             font-size: 9px;
-            font-weight: 800;
-            background: var(--orange);
-            color: white;
+            font-weight: 700;
+            background: var(--orange-light);
+            color: #b34d00;
+            border: 1px solid #ffcc80;
             padding: 2px 6px;
             border-radius: 10px;
             text-transform: uppercase;
-            letter-spacing: 0.4px;
+            letter-spacing: 0.3px;
             margin-left: 4px;
             vertical-align: middle;
         }
@@ -971,6 +1015,45 @@
         @media (hover: hover) and (pointer: fine) {
             #iconLightboxClose:hover { color: white; }
         }
+
+        /* ---- Save hint (shown when button is disabled) ---- */
+        .save-hint {
+            font-size: 12px;
+            color: var(--text-light);
+            text-align: center;
+            margin-top: 6px;
+            min-height: 18px;
+        }
+
+        /* ---- Filter label in override list toolbar ---- */
+        .filter-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        /* ---- Note button: icon + text ---- */
+        .btn-note-toggle {
+            font-size: 11px;
+            width: auto;
+            padding: 0 8px;
+            gap: 3px;
+            white-space: nowrap;
+        }
+
+        /* ---- List feedback (after delete) ---- */
+        .list-feedback {
+            display: none;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            border-top: 1px solid var(--border-light);
+        }
+        .list-feedback.success { display: block; background: var(--green-light); color: #1b5e20; }
+        .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
     </style>
 </head>
 <body>
@@ -1012,7 +1095,7 @@
 
     <header class="app-header">
         <img src="icon-192.png" alt="Chiltern Railways">
-        <h1>MYB Roster <span>· Admin</span></h1>
+        <h1>MYB Roster</h1>
         <span class="badge-admin" id="adminBadge">Admin</span>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
@@ -1021,8 +1104,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Add / Edit Overrides</h2>
-            <span class="week-range-label" id="weekRangeLabel"></span>
-            <span class="hint">Click a type pill on any day to set it</span>
+            <span class="hint">Tap a type pill on a day to set it, or use Apply to multiple days below</span>
         </div>
         <div class="card-body">
 
@@ -1039,6 +1121,7 @@
                     <div class="week-nav">
                         <button class="week-nav-btn" id="prevWeekBtn" title="Previous week">‹</button>
                         <div class="week-date-wrap">
+                            <span id="weekNavLabel" class="week-nav-label">Pick a date</span>
                             <input type="date" id="fieldDate">
                         </div>
                         <button class="week-nav-btn" id="nextWeekBtn" title="Next week">›</button>
@@ -1048,32 +1131,36 @@
 
             <!-- Bulk bar — shown once member+date are chosen -->
             <div class="bulk-bar" id="bulkBar">
-                <div class="bulk-bar-label">Quick fill</div>
-                <div class="bulk-actions">
-                    <!-- Day selection shortcuts -->
+                <div class="bulk-bar-label">Apply to multiple days</div>
+                <!-- Step 1: select days -->
+                <div class="bulk-step">
+                    <span class="bulk-step-label">1. Select</span>
                     <div class="bulk-select-group">
                         <button class="btn-bulk-select" id="bulkSelMonFri">Mon–Fri</button>
-                        <button class="btn-bulk-select" id="bulkSelWorking">Working days</button>
+                        <button class="btn-bulk-select" id="bulkSelWorking">Rostered days</button>
                         <button class="btn-bulk-select" id="bulkSelAll">All 7</button>
                     </div>
-                    <div class="bulk-divider"></div>
-                    <!-- Type pills for bulk fill -->
+                </div>
+                <!-- Step 2: choose override type -->
+                <div class="bulk-step">
+                    <span class="bulk-step-label">2. Type</span>
                     <div class="bulk-type-group" id="bulkTypePills">
                         <button class="type-pill-btn pill-spare_shift" data-type="spare_shift">Spare</button>
-                        <button class="type-pill-btn pill-overtime"    data-type="overtime">OT</button>
-                        <button class="type-pill-btn pill-rdw"         data-type="rdw">RDW</button>
+                        <button class="type-pill-btn pill-overtime"    data-type="overtime">Overtime</button>
+                        <button class="type-pill-btn pill-rdw"         data-type="rdw">Rest Day Working</button>
                         <button class="type-pill-btn pill-swap"        data-type="swap">Swap</button>
-                        <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
-                        <button class="type-pill-btn pill-correction"  data-type="correction">→ Rest</button>
+                        <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">Annual Leave</button>
+                        <button class="type-pill-btn pill-correction"  data-type="correction">Make Rest Day</button>
                     </div>
-                    <!-- Time inputs for bulk (shown for time-based types) -->
+                    <!-- Time inputs shown for time-based types -->
                     <div class="bulk-time-group" id="bulkTimeGroup" style="display:none">
                         <input type="time" id="bulkStart" step="60">
                         <span class="bulk-time-sep">–</span>
                         <input type="time" id="bulkEnd" step="60">
                     </div>
-                    <button class="btn-bulk-apply" id="bulkApplyBtn">Apply to selected ↓</button>
                 </div>
+                <!-- Step 3: apply -->
+                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to selected days ↓</button>
             </div>
 
             <!-- 7-day week grid -->
@@ -1082,6 +1169,7 @@
             </div>
 
             <button class="btn-save" id="saveBtn" disabled>Save Selected Days</button>
+            <p class="save-hint" id="saveBtnHint">Select a type for at least one day to save</p>
             <div class="feedback" id="formFeedback"></div>
 
         </div>
@@ -1091,7 +1179,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Book Annual Leave</h2>
-            <span class="hint">Set a date range — saves one AL entry per day</span>
+            <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
         </div>
         <div class="card-body">
             <div class="al-form">
@@ -1125,6 +1213,7 @@
             <h2>Existing Overrides</h2>
         </div>
         <div class="list-toolbar">
+            <label for="filterMember" class="filter-label">Show:</label>
             <select id="filterMember">
                 <option value="">All staff</option>
             </select>
@@ -1137,7 +1226,7 @@
                         <th>Date</th>
                         <th>Member</th>
                         <th>Type</th>
-                        <th>Value</th>
+                        <th>Shift time</th>
                         <th>Note</th>
                         <th></th>
                     </tr>
@@ -1147,12 +1236,13 @@
                 </tbody>
             </table>
         </div>
+        <div class="list-feedback" id="listFeedback"></div>
     </div>
 
 </div><!-- /container -->
 
-<script src="roster-data.js"></script>
 <script type="module">
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp
@@ -1168,7 +1258,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '3.99';
+const ADMIN_VERSION = '4.00';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1253,7 +1343,7 @@ function initLoginOverlay() {
             return;
         }
         if (pw !== getSurname(name)) {
-            errorEl.textContent = 'Incorrect password — try your surname.';
+            errorEl.textContent = 'Incorrect password. Please try again.';
             errorEl.classList.add('visible');
             passwordInput.value = '';
             passwordInput.focus();
@@ -1305,23 +1395,14 @@ function initLoginOverlay() {
     });
 })();
 
-// CONFIG, teamMembers, all roster objects, DAY_KEYS, DAY_NAMES, MONTH_ABB
-// are now loaded from roster-data.js (Phase 2 data split complete).
-// ADMIN_VERSION is set below; all other CONFIG fields come from roster-data.js.
-
-// teamMembers loaded from roster-data.js
-
-// weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster,
-// DAY_KEYS, DAY_NAMES, MONTH_ABB loaded from roster-data.js
-
 // Override type metadata
 const TYPES = {
-    spare_shift:  { label: 'Spare → shift', fixed: false },
-    overtime:     { label: 'Overtime',      fixed: false },
-    rdw:          { label: 'RDW',           fixed: false },
-    swap:         { label: 'Swap',          fixed: false },
-    annual_leave: { label: 'Annual Leave',  fixed: true,  fixedValue: 'AL' },
-    correction:   { label: '→ Rest',        fixed: true,  fixedValue: 'RD' },
+    spare_shift:  { label: 'Spare shift',       fixed: false },
+    overtime:     { label: 'Overtime',           fixed: false },
+    rdw:          { label: 'Rest Day Working',   fixed: false },
+    swap:         { label: 'Swap',               fixed: false },
+    annual_leave: { label: 'Annual Leave',       fixed: true,  fixedValue: 'AL' },
+    correction:   { label: 'Make Rest Day',      fixed: true,  fixedValue: 'RD' },
 };
 
 // ============================================
@@ -1401,6 +1482,7 @@ const formFeedback = document.getElementById('formFeedback');
 const filterMember = document.getElementById('filterMember');
 const tableBody    = document.getElementById('overrideTableBody');
 const listCount    = document.getElementById('listCount');
+const listFeedback = document.getElementById('listFeedback');
 
 // ============================================
 // POPULATE MEMBER DROPDOWNS
@@ -1426,6 +1508,7 @@ if (lastMember && teamMembers.find(m => m.name === lastMember)) {
 
 // Default date = today
 fieldDate.value = formatISO(new Date());
+renderWeekGrid(); // updates the week nav label on load
 
 // ============================================
 // WEEK NAVIGATION
@@ -1447,13 +1530,24 @@ function renderWeekGrid() {
     const memberName = fieldMember.value;
     const dateStr    = fieldDate.value;
 
-    const weekRangeLabel = document.getElementById('weekRangeLabel');
+    // Always update the week nav label (even before the member guard below)
+    if (dateStr) {
+        const _picked   = new Date(dateStr + 'T12:00:00');
+        const _sunday   = new Date(_picked);
+        _sunday.setDate(_picked.getDate() - _picked.getDay());
+        const _saturday = new Date(_sunday);
+        _saturday.setDate(_sunday.getDate() + 6);
+        const weekNavLabel = document.getElementById('weekNavLabel');
+        if (weekNavLabel) {
+            weekNavLabel.textContent =
+                `${_sunday.getDate()} ${MONTH_ABB[_sunday.getMonth()]} – ${_saturday.getDate()} ${MONTH_ABB[_saturday.getMonth()]} ${_saturday.getFullYear()}`;
+        }
+    }
 
     if (!memberName || !dateStr) {
         weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
         bulkBar.style.display = 'none';
         saveBtn.disabled = true;
-        if (weekRangeLabel) weekRangeLabel.textContent = '';
         return;
     }
 
@@ -1465,22 +1559,14 @@ function renderWeekGrid() {
     const sunday = new Date(picked);
     sunday.setDate(picked.getDate() - picked.getDay());
 
-    // Show the week range in the card header
-    if (weekRangeLabel) {
-        const saturday = new Date(sunday);
-        saturday.setDate(sunday.getDate() + 6);
-        weekRangeLabel.textContent =
-            `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} – ${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
-    }
-
     weekGrid.innerHTML = `
         <div class="week-grid-header">
-            <div></div>
-            <div>Day</div>
-            <div>Base roster</div>
-            <div>Override type</div>
-            <div>Shift time</div>
-            <div></div>
+            <div class="hdr-check"></div>
+            <div class="hdr-day">Day</div>
+            <div class="hdr-base">Base roster</div>
+            <div class="hdr-pills">Override type</div>
+            <div class="hdr-time">Shift time</div>
+            <div class="hdr-note"></div>
         </div>`;
 
     for (let i = 0; i < 7; i++) {
@@ -1504,24 +1590,25 @@ function renderWeekGrid() {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${existing ? ' <span class="overwrite-badge">overwrite</span>' : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${existing ? ' <span class="overwrite-badge">has override</span>' : ''}</span>
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
                 <button class="type-pill-btn pill-spare_shift" data-type="spare_shift">Spare</button>
-                <button class="type-pill-btn pill-overtime"    data-type="overtime">OT</button>
-                <button class="type-pill-btn pill-rdw"         data-type="rdw">RDW</button>
+                <button class="type-pill-btn pill-overtime"    data-type="overtime">Overtime</button>
+                <button class="type-pill-btn pill-rdw"         data-type="rdw">Rest Day Working</button>
                 <button class="type-pill-btn pill-swap"        data-type="swap">Swap</button>
-                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
-                <button class="type-pill-btn pill-correction"  data-type="correction">→ Rest</button>
+                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">Annual Leave</button>
+                <button class="type-pill-btn pill-correction"  data-type="correction">Make Rest Day</button>
             </div>
             <div class="col-time">
                 <input type="time" class="day-start" step="60" tabindex="-1">
                 <span class="time-sep">–</span>
                 <input type="time" class="day-end" step="60" tabindex="-1">
+                <span class="time-note">No time needed</span>
             </div>
             <div class="col-note-btn">
-                <button class="btn-note-toggle" title="Add note">✎</button>
+                <button class="btn-note-toggle" title="Add a note to this override">✎ Note</button>
             </div>`;
 
         // --- Note row (full width, hidden by default) ---
@@ -1553,7 +1640,7 @@ function renderWeekGrid() {
                 noteInput.value = existing.note;
                 noteRow.classList.add('visible');
                 noteBtn.classList.add('has-note');
-                noteBtn.title = 'Edit note';
+                noteBtn.title = 'Edit this note';
             }
         }
 
@@ -1588,7 +1675,7 @@ function renderWeekGrid() {
         // Note button
         noteBtn.addEventListener('click', () => {
             const showing = noteRow.classList.toggle('visible');
-            noteBtn.title = showing ? 'Remove note' : 'Add note';
+            noteBtn.title = showing ? 'Remove note' : 'Add a note to this override';
             if (showing) noteInput.focus();
         });
 
@@ -1630,7 +1717,10 @@ function deactivateRow(row, cb, pills, startEl, endEl) {
 }
 
 function updateSaveBtn() {
-    saveBtn.disabled = ![...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
+    const hasType = [...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
+    saveBtn.disabled = !hasType;
+    const hint = document.getElementById('saveBtnHint');
+    if (hint) hint.textContent = hasType ? '' : 'Select a type for at least one day to save';
 }
 
 // ============================================
@@ -1713,7 +1803,7 @@ document.getElementById('bulkSelAll').addEventListener('click', () => {
 
 // Apply bulk type + time to all active (checked) rows
 bulkApplyBtn.addEventListener('click', () => {
-    if (!bulkActiveType) { showError('Pick a type in Quick fill first.'); return; }
+    if (!bulkActiveType) { showError('Choose a type in step 2 first, then tap Apply.'); return; }
     const meta = TYPES[bulkActiveType];
 
     weekGrid.querySelectorAll('.day-row').forEach(row => {
@@ -1888,19 +1978,34 @@ async function handleDelete(e) {
         }, 3000);
         return;
     }
+
+    // Capture what we're deleting before removing it
+    const deleted = allOverrides.find(o => o.id === btn.dataset.id);
+
     btn.disabled = true;
     btn.textContent = '…';
     try {
         await deleteDoc(doc(db, 'overrides', btn.dataset.id));
         allOverrides = allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
-        // Re-render week grid to clear overwrite badge if this date is visible
+        // Re-render week grid to clear the "has override" badge if this date is visible
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
+        // Brief confirmation of what was removed
+        if (deleted && listFeedback) {
+            const meta = TYPES[deleted.type];
+            listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${meta ? meta.label : deleted.type})`;
+            listFeedback.className = 'list-feedback success';
+            setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
+        }
     } catch (err) {
         console.error('[Admin] Delete failed:', err);
         btn.disabled = false;
         btn.classList.remove('confirming');
         btn.textContent = 'Delete';
+        if (listFeedback) {
+            listFeedback.textContent = '⚠ Could not delete — check your connection and try again.';
+            listFeedback.className = 'list-feedback error';
+        }
     }
 }
 

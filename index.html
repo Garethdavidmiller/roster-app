@@ -1530,8 +1530,9 @@
         </div>
     </div>
 
-    <script src="roster-data.js"></script>
-    <script>
+    <script type="module">
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js';
+
         // ============================================
         // CEA ROSTER CALENDAR
         // ============================================
@@ -1541,12 +1542,8 @@
         // - Pure functions for predictable behavior
         // - CSS variables for instant theme changes
         // ============================================
-        
-        // CONFIG, teamMembers, and all roster objects are loaded from roster-data.js.
-        // Add the index-specific version field here.
+
         CONFIG.APP_VERSION = '3.99';
-        
-        // teamMembers loaded from roster-data.js
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -1748,9 +1745,6 @@
             const { cutoffs } = getPaydaysAndCutoffs(date.getFullYear());
             return cutoffs.some(cutoff => isSameDay(cutoff, date));
         }
-
-        // weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster
-        // all loaded from roster-data.js
 
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -2373,6 +2367,10 @@
             }
         }
 
+        // Expose for the Firebase module script, which calls renderCalendar() after
+        // fetching overrides. Module top-level functions are not global by default.
+        window.renderCalendar = renderCalendar;
+
         // ============================================
         // EVENT LISTENERS
         // ============================================
@@ -2948,13 +2946,12 @@
         // ============================================
         // Fetches shift overrides from Firestore on load and caches them in
         // window.rosterOverridesCache (a Map keyed by "memberName|YYYY-MM-DD").
-        // The non-module app script reads from this cache during calendar rendering.
+        // The main app script reads from this cache during calendar rendering.
         //
         // Why a separate <script type="module">:
-        // Firebase must load via ES module imports (import/from syntax), which only
-        // work in <script type="module">. Module scripts are isolated from regular
-        // scripts, so we bridge the gap by writing data to window — a shared space
-        // that both scripts can access.
+        // Firebase CDN imports require a module context. A second module script
+        // keeps the Firebase bootstrap isolated; data is shared via window so both
+        // modules can access it without coupling their import graphs.
         //
         // Fail-silent contract: any Firestore error renders the base roster unchanged.
         // Errors are logged to console.error only — no visible message to users.
@@ -3056,7 +3053,6 @@
                 const endStr   = formatDateStr(new Date(year, month + 1, 0)); // month+1 day 0 = last day of month
                 await fetchOverridesForRange(startStr, endStr);
                 // Re-render so the newly fetched overrides are visible immediately.
-                // renderCalendar is a global function declared in the main (non-module) script.
                 if (typeof renderCalendar === 'function') renderCalendar();
             } catch (err) {
                 console.error('[Firestore] Failed to fetch overrides for', key, err);

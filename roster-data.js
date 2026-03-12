@@ -1,10 +1,9 @@
 // MYB Roster — Shared Data
 // Single source of truth for roster configuration, team members, and shift patterns.
-// Loaded by index.html and admin.html as a classic <script> (no type="module") so that
-// the globals declared here with `var` are placed on window and are therefore accessible
-// from both subsequent classic scripts and module scripts in the same page.
+// ES module — import named exports into consuming files:
+//   import { CONFIG, teamMembers, weeklyRoster, ... } from './roster-data.js';
 //
-// Each consuming file adds its own version constant after this script loads:
+// Each consuming file adds its own version constant after import:
 //   index.html → CONFIG.APP_VERSION = 'x.xx';
 //   admin.html → const ADMIN_VERSION = 'x.xx';
 
@@ -12,7 +11,7 @@
 // CONFIGURATION
 // ============================================
 
-var CONFIG = {
+export const CONFIG = {
     MAIN_ROSTER_WEEKS:                20,
     BILINGUAL_ROSTER_WEEKS:           8,
     CES_ROSTER_WEEKS:                 10,
@@ -43,7 +42,7 @@ var CONFIG = {
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
 //                            suppresses shift time. Remove to restore normal roster display.
 
-var teamMembers = [
+export const teamMembers = [
     { name: 'L. Springer',             currentWeek: 1,  rosterType: 'main',       role: 'CEA' },
     { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA' },
     { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA' },
@@ -100,7 +99,7 @@ var teamMembers = [
 
 // 20-week rotating roster pattern.
 // SP weeks mean "Spare" — can be rostered ANY day, ANY shift during that week.
-var weeklyRoster = {
+export const weeklyRoster = {
     1:  { sun: 'SPARE',       mon: 'SPARE',       tue: 'SPARE',       wed: 'SPARE',       thu: 'SPARE',       fri: 'SPARE',       sat: 'SPARE'       },
     2:  { sun: '14:30-23:25', mon: '15:15-23:55', tue: '15:15-23:55', wed: '15:15-23:55', thu: '15:15-23:55', fri: 'RD',          sat: 'RD'          },
     3:  { sun: 'RD',          mon: 'RD',          tue: '06:20-14:20', wed: '06:20-14:20', thu: '06:20-14:20', fri: '06:20-14:20', sat: '06:20-14:00' },
@@ -124,7 +123,7 @@ var weeklyRoster = {
 };
 
 // 8-week bilingual roster pattern
-var bilingualRoster = {
+export const bilingualRoster = {
     1: { sun: 'SPARE',       mon: 'SPARE',       tue: 'SPARE',       wed: 'SPARE',       thu: 'SPARE',       fri: 'SPARE',       sat: 'SPARE'       },
     2: { sun: 'OFF',         mon: 'RD',          tue: 'RD',          wed: '15:00-23:30', thu: '15:00-23:30', fri: '15:00-23:30', sat: '14:25-23:55' },
     3: { sun: '15:25-23:25', mon: 'RD',          tue: 'RD',          wed: 'RD',          thu: '07:00-16:00', fri: '08:00-17:00', sat: '08:00-14:30' },
@@ -137,14 +136,14 @@ var bilingualRoster = {
 
 // Fixed roster — single repeating week, no rotation.
 // Used for team members with reasonable adjustments or bespoke arrangements.
-var fixedRoster = {
+export const fixedRoster = {
     1: { sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00', wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD' },
 };
 
 // 10-week CES (Customer Experience Supervisor) roster — Marylebone.
 // Weeks 4 and 9 are spare weeks with guaranteed Sunday working.
 // Reference: F. Mohamed on Week 1 w/c 15 Feb 2026.
-var cesRoster = {
+export const cesRoster = {
     1:  { sun: 'RD',          mon: 'RD',          tue: 'RD',          wed: '05:40-14:30', thu: '06:20-15:30', fri: '05:40-14:30', sat: '05:40-15:00' },
     2:  { sun: 'RD',          mon: '06:20-15:30', tue: '05:40-14:30', wed: '06:20-15:30', thu: '05:40-14:30', fri: 'RD',          sat: 'RD'          },
     3:  { sun: '07:15-15:30', mon: '05:40-14:30', tue: '06:20-15:30', wed: 'RD',          thu: 'RD',          fri: '06:20-15:30', sat: '06:20-15:00' },
@@ -165,7 +164,7 @@ var cesRoster = {
 // Row 9 Mon-Fri: Dia SP (Spare diagram) — shown as SPARE, same rule as CES.
 // Sunday and Saturday in row 9 have fixed times so are shown as worked shifts.
 // Overnight shifts (e.g. 22:30-07:00) labelled by start day per Howard.
-var dispatcherRoster = {
+export const dispatcherRoster = {
     1:  { sun: '22:00-07:00', mon: '22:30-07:00', tue: '22:30-07:00', wed: '22:30-07:00', thu: '22:30-07:00', fri: '22:30-07:00', sat: '22:30-09:00' },
     2:  { sun: 'RD',          mon: 'RD',          tue: 'RD',          wed: 'RD',          thu: 'RD',          fri: 'RD',          sat: 'RD'          },
     3:  { sun: '15:00-22:00', mon: '14:00-20:30', tue: '14:00-20:30', wed: '14:00-20:30', thu: '14:00-20:30', fri: '14:00-20:30', sat: 'RD'          },
@@ -182,6 +181,6 @@ var dispatcherRoster = {
 // SHARED CONSTANTS
 // ============================================
 
-var DAY_KEYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-var DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-var MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const DAY_KEYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
