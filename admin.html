@@ -1448,7 +1448,7 @@
     </div>
 
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
-    <div class="card">
+    <div class="card" id="book-annual-leave">
         <div class="card-header">
             <h2>Book Annual Leave</h2>
             <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
@@ -2894,6 +2894,12 @@ if (!isAuthenticated) {
     document.body.classList.add('auth-ready');
     applyPermissions();
     loadOverrides(); // internally calls renderWeekGrid() after data loads
+
+    // If arriving via deep-link (e.g. from the AL lightbox), scroll to the target section
+    if (location.hash) {
+        const target = document.querySelector(location.hash);
+        if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
 }
 </script>
 <div class="al-confirm-bar" id="alConfirmBar">
