@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.12 -->
+<!-- MYB Roster Calendar - Version 4.14 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1584,6 +1584,14 @@
             }
         }
 
+        /* Tips section in lightbox.
+           Keyboard-specific tips (.keyboard-only) are hidden on touch devices
+           and shown only on devices that have a real keyboard (hover+fine pointer). */
+        .lightbox-tip.keyboard-only { display: none; }
+        @media (hover: hover) and (pointer: fine) {
+            .lightbox-tip.keyboard-only { display: flex; }
+        }
+
         /* Tips / keyboard shortcuts section in lightbox */
         .lightbox-tips {
             margin-top: 16px;
@@ -1825,10 +1833,11 @@
             </button>
             <div class="lightbox-tips">
                 <div class="lightbox-tips-title">Tips</div>
-                <div class="lightbox-tip"><span>Swipe left / right</span><span class="lightbox-tip-key">← →</span></div>
-                <div class="lightbox-tip"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
-                <div class="lightbox-tip"><span>Print</span><span class="lightbox-tip-key">P</span></div>
-                <div class="lightbox-tip"><span>Jump to month</span><span class="lightbox-tip-key">tap month</span></div>
+                <div class="lightbox-tip"><span>Swipe left / right to change month</span></div>
+                <div class="lightbox-tip"><span>Tap the month heading to jump</span></div>
+                <div class="lightbox-tip keyboard-only"><span>Keyboard: navigate months</span><span class="lightbox-tip-key">← →</span></div>
+                <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
+                <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
         </div>
     </div>
@@ -1914,7 +1923,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.12';
+        CONFIG.APP_VERSION = '4.14';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2350,15 +2359,15 @@
         function isEarlyShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
             const hour = parseInt(timeStr.split(':')[0], 10);
-            return hour < CONFIG.EARLY_SHIFT_THRESHOLD;
+            // Early = starts 05:00–10:59
+            return hour >= CONFIG.NIGHT_END_THRESHOLD && hour < CONFIG.EARLY_SHIFT_THRESHOLD;
         }
 
         function isNightShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
-            const hour = parseInt(timeStr.split(':')[0], 10);
-            // Night = starts at 22:00 or later, OR starts after midnight (00:00-05:59)
-            // The post-midnight clause future-proofs against shifts like 00:30-08:30
-            return hour >= CONFIG.NIGHT_SHIFT_THRESHOLD || hour < 6;
+            // Night = shift ends before 05:00 (e.g. 22:00–04:30)
+            const endHour = parseInt(timeStr.split('-')[1].split(':')[0], 10);
+            return endHour < CONFIG.NIGHT_END_THRESHOLD;
         }
 
         function getShiftClass(timeStr) {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.03 -->
+<!-- MYB Roster Admin v4.13 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -217,6 +217,14 @@
 
         @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
 
+        .week-nav-today {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            font-size: 10px;
+            margin-left: 4px;
+        }
+        @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-gold-dark); } }
+
         .week-date-wrap {
             flex: 1;
             padding: 0 4px;
@@ -235,6 +243,13 @@
             white-space: nowrap;
             pointer-events: none;
             user-select: none;
+        }
+        /* Calendar icon sits at the right edge of the label — purely decorative indicator
+           that the date is tappable. The invisible <input type="date"> overlay does the work. */
+        .week-nav-label::after {
+            content: ' 📅';
+            font-size: 13px;
+            opacity: 0.55;
         }
         .week-date-wrap input[type="date"] {
             position: absolute;
@@ -603,6 +618,11 @@
             vertical-align: middle;
         }
 
+        /* Today's row — subtle gold left border so it's easy to spot */
+        .day-row.today .col-day .day-name { color: var(--accent-gold-dark); font-weight: 800; }
+        .day-row.today .col-day .day-date { color: var(--accent-gold-dark); }
+        .day-row.today:not(.active):not(.has-override):not(.selected) { background: #fffdf0; }
+
         /* Row with a validation error (e.g. time not filled) — highlighted red */
         .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
 
@@ -703,6 +723,21 @@
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
         .lpill-annual_leave { background: var(--al-light);     color: #004d40;         }
         .lpill-correction   { background: var(--orange-light); color: #e65100;         }
+
+        .btn-edit {
+            background: transparent;
+            color: var(--primary-blue);
+            border: 1px solid var(--border-light);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 9px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.12s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .btn-edit:hover { background: var(--bg-faint); border-color: var(--primary-blue); } }
 
         .btn-delete {
             background: transparent;
@@ -1142,6 +1177,7 @@
             .btn-bulk-select,
             .btn-bulk-apply,
             .btn-delete,
+            .btn-edit,
             .btn-note-toggle,
             .col-check,
             .col-note-btn,
@@ -1258,9 +1294,10 @@
                         <button class="week-nav-btn" id="prevWeekBtn" title="Previous week">‹</button>
                         <div class="week-date-wrap">
                             <span id="weekNavLabel" class="week-nav-label">Pick a date</span>
-                            <input type="date" id="fieldDate">
+                            <input type="date" id="fieldDate" title="Tap to jump to any week">
                         </div>
                         <button class="week-nav-btn" id="nextWeekBtn" title="Next week">›</button>
+                        <button class="week-nav-btn week-nav-today" id="thisWeekBtn" title="Jump to current week">●</button>
                     </div>
                 </div>
             </div>
@@ -1304,7 +1341,7 @@
                 <div class="week-empty">Select a staff member and date above to load the week.</div>
             </div>
 
-            <button class="btn-save" id="saveBtn" disabled>Save Selected Days</button>
+            <button class="btn-save" id="saveBtn" disabled>Save Changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type for at least one day to save</p>
             <div class="feedback" id="formFeedback"></div>
 
@@ -1364,7 +1401,7 @@
                         <th>Type</th>
                         <th>Shift time</th>
                         <th>Note</th>
-                        <th></th>
+                        <th colspan="2"></th>
                     </tr>
                 </thead>
                 <tbody id="overrideTableBody">
@@ -1394,7 +1431,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.02';
+const ADMIN_VERSION = '4.14';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1592,9 +1629,11 @@ function shiftBadge(shift) {
     if (shift === 'RDW')   return '<span class="shift-badge badge-rdw">💼 RDW</span>';
     if (shift === 'AL')    return '<span class="shift-badge badge-al">🏖️ AL</span>';
     if (!/^\d{2}:\d{2}/.test(shift)) return `<span class="shift-badge">${shift}</span>`;
-    const h = parseInt(shift, 10);
-    if (h >= CONFIG.NIGHT_SHIFT_THRESHOLD || h < 6) return '<span class="shift-badge badge-night">🦉 Night</span>';
-    return h < CONFIG.EARLY_SHIFT_THRESHOLD
+    // Night = ends before 05:00; Early = starts 05:00–10:59; Late = starts 11:00+
+    const endHour   = parseInt((shift.split('-')[1] || '').split(':')[0], 10);
+    const startHour = parseInt(shift.split(':')[0], 10);
+    if (endHour < CONFIG.NIGHT_END_THRESHOLD) return '<span class="shift-badge badge-night">🦉 Night</span>';
+    return (startHour >= CONFIG.NIGHT_END_THRESHOLD && startHour < CONFIG.EARLY_SHIFT_THRESHOLD)
         ? '<span class="shift-badge badge-early">☀️ Early</span>'
         : '<span class="shift-badge badge-late">🌙 Late</span>';
 }
@@ -1694,6 +1733,12 @@ function shiftWeek(delta) {
 
 prevWeekBtn.addEventListener('click', () => shiftWeek(-1));
 nextWeekBtn.addEventListener('click', () => shiftWeek(+1));
+document.getElementById('thisWeekBtn').addEventListener('click', () => {
+    if (!confirmNavigate()) return;
+    fieldDate.value = formatISO(new Date());
+    lastFieldDate = fieldDate.value;
+    renderWeekGrid();
+});
 
 // ============================================
 // WEEK GRID
@@ -1757,7 +1802,8 @@ function renderWeekGrid() {
 
         // --- Main row ---
         const row = document.createElement('div');
-        row.className   = 'day-row' + (existing ? ' has-override' : '');
+        const isToday = dateISO === formatISO(new Date());
+        row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
         if (existing) row.dataset.existingId = existing.id;
 
@@ -1903,7 +1949,7 @@ function updateSaveBtn() {
     const hasType = [...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
     saveBtn.disabled = !hasType;
     const hint = document.getElementById('saveBtnHint');
-    if (hint) hint.textContent = hasType ? '' : 'Select a type for at least one day to save';
+    if (hint) hint.textContent = hasType ? '' : 'Tap an override type on at least one day, then save';
 }
 
 // ============================================
@@ -2060,7 +2106,7 @@ saveBtn.addEventListener('click', async () => {
     const creates    = toSave.length - overwrites;
 
     saveBtn.disabled    = true;
-    saveBtn.textContent = `Saving ${toSave.length}…`;
+    saveBtn.textContent = `Saving ${toSave.length} day${toSave.length !== 1 ? 's' : ''}…`;
 
     try {
         await Promise.all(toSave.map(async entry => {
@@ -2098,7 +2144,7 @@ saveBtn.addEventListener('click', async () => {
             : 'Could not save — check your connection and try again.');
     } finally {
         saveBtn.disabled    = false;
-        saveBtn.textContent = 'Save Selected Days';
+        saveBtn.textContent = 'Save Changes';
         updateSaveBtn();
     }
 });
@@ -2165,11 +2211,15 @@ function renderTable() {
             <td style="font-family:monospace;font-size:12px">${esc(o.value)}</td>
             <td style="color:var(--text-light);font-style:italic">${esc(o.note)}</td>
             <td>
+                <button class="btn-edit" data-member="${esc(o.memberName)}" data-date="${o.date}" aria-label="Edit ${esc(o.memberName)} ${o.date}">Edit</button>
+            </td>
+            <td>
                 <button class="btn-delete" data-id="${o.id}" aria-label="Delete ${esc(o.memberName)} ${o.date}">Delete</button>
             </td>`;
         tableBody.appendChild(tr);
     });
     tableBody.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', handleDelete));
+    tableBody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
 }
 
 async function handleDelete(e) {
@@ -2214,6 +2264,21 @@ async function handleDelete(e) {
             listFeedback.className = 'list-feedback error';
         }
     }
+}
+
+function handleEdit(e) {
+    const btn        = e.currentTarget;
+    const memberName = btn.dataset.member;
+    const date       = btn.dataset.date;
+    if (!confirmNavigate()) return;
+    // Populate selectors and re-render the week grid
+    fieldMember.value = memberName;
+    fieldDate.value   = date;
+    lastFieldDate     = date;
+    localStorage.setItem('adminLastMember', memberName);
+    renderWeekGrid();
+    // Scroll to the override form card
+    document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 // ============================================
