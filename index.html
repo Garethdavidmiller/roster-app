@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.18 -->
+<!-- MYB Roster Calendar - Version 4.21 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1778,6 +1778,55 @@
         /* ---- Firestore loading indicator ---- */
         /* A "Syncing…" chip injected into .calendar-header while Firestore fetch is in flight.
            Fades in after 800 ms to avoid flashing on fast connections. */
+        /* ---- Annual Leave remaining chip ---- */
+        .al-chip {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: var(--al-light, #e0f2f1);
+            border: 1.5px solid var(--al, #00897b);
+            border-radius: 10px;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            width: 100%;
+        }
+        .al-chip .al-chip-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+        .al-chip .al-chip-val {
+            font-size: 22px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--al, #00897b);
+        }
+        .al-chip .al-chip-lbl {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .al-chip .al-chip-divider {
+            width: 1px;
+            height: 32px;
+            background: var(--al, #00897b);
+            opacity: 0.3;
+        }
+        .al-chip.al-chip-low .al-chip-stat.stat-remaining .al-chip-val { color: #e67e00; }
+        .al-chip.al-chip-empty .al-chip-stat.stat-remaining .al-chip-val { color: #c0392b; }
+        .al-chip-year {
+            font-size: 11px;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-left: auto;
+        }
+
         .sync-chip {
             display: inline-flex;
             align-items: center;
@@ -1887,6 +1936,26 @@
             </div>
         </nav>
 
+        <!-- Annual Leave balance chip — populated by JS after member selection -->
+        <div class="al-chip" id="alChip" hidden aria-live="polite">
+            <span>🏖️</span>
+            <div class="al-chip-stat stat-remaining">
+                <span class="al-chip-val" id="alChipRemaining">—</span>
+                <span class="al-chip-lbl">Days remaining</span>
+            </div>
+            <div class="al-chip-divider"></div>
+            <div class="al-chip-stat">
+                <span class="al-chip-val" id="alChipUsed">—</span>
+                <span class="al-chip-lbl">Used</span>
+            </div>
+            <div class="al-chip-divider"></div>
+            <div class="al-chip-stat">
+                <span class="al-chip-val" id="alChipEntitlement">—</span>
+                <span class="al-chip-lbl">Entitlement</span>
+            </div>
+            <span class="al-chip-year" id="alChipYear"></span>
+        </div>
+
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
         <div class="legend" role="group" aria-label="Colour legend">
@@ -1911,7 +1980,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js?v=4.18';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.21';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -1923,7 +1992,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.18';
+        CONFIG.APP_VERSION = '4.21';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2691,6 +2760,59 @@
             return calendarContainer;
         }
 
+        // updateALChip — queries Firestore for this member's AL days in the current year
+        // and updates the balance chip shown between the controls and the calendar.
+        // Exposed on window so the Firebase module script can call it after overrides load.
+        async function updateALChip() {
+            const chip        = document.getElementById('alChip');
+            const remEl       = document.getElementById('alChipRemaining');
+            const usedEl      = document.getElementById('alChipUsed');
+            const entEl       = document.getElementById('alChipEntitlement');
+            const yearEl      = document.getElementById('alChipYear');
+            const member      = getCurrentMember();
+
+            if (!member) { chip.hidden = true; return; }
+
+            const entitlement = getALEntitlement(member);
+            const year        = new Date().getFullYear();
+            const yearStr     = String(year);
+
+            chip.hidden = false;
+            chip.className = 'al-chip';
+            remEl.textContent = '…';
+            usedEl.textContent = '…';
+            entEl.textContent  = entitlement;
+            yearEl.textContent = yearStr;
+
+            try {
+                // Query all overrides for this member (single equality — no composite index needed).
+                // Filter by type + year client-side.
+                let used = 0;
+                if (window._alChipQuery && window._alChipGetDocs) {
+                    const snap = await window._alChipGetDocs(window._alChipQuery(member.name));
+                    snap.forEach(d => {
+                        const data = d.data();
+                        if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr)) used++;
+                    });
+                } else {
+                    // Firestore module not ready — count from the 3-month cache as a best-effort fallback
+                    window.rosterOverridesCache.forEach((val, key) => {
+                        const [name, date] = key.split('|');
+                        if (name === member.name && val.type === 'annual_leave' && date.startsWith(yearStr)) used++;
+                    });
+                }
+                const remaining = entitlement - used;
+                remEl.textContent  = remaining;
+                usedEl.textContent = used;
+                chip.classList.toggle('al-chip-empty', remaining <= 0);
+                chip.classList.toggle('al-chip-low',   remaining > 0 && remaining <= 5);
+            } catch (e) {
+                console.error('[AL chip] Failed:', e);
+                chip.hidden = true;
+            }
+        }
+        window.updateALChip = updateALChip;
+
         // updateLegend — shows Night legend item only for Dispatcher roster members.
         // Called on initial load and whenever the selected member changes.
         function updateLegend() {
@@ -2773,6 +2895,7 @@
             saveSelectedMember(parseInt(e.target.value, 10));
             updateLegend();
             renderCalendar();
+            window.updateALChip?.();
         });
 
         document.getElementById('prevMonth').addEventListener('click', () => {
@@ -3521,6 +3644,10 @@
         // Expose so renderCalendar() can trigger cache checks on navigation
         window.ensureOverridesCached = ensureOverridesCached;
 
+        // Expose Firestore helpers for the AL chip query (main script can't import Firebase directly)
+        window._alChipQuery    = (memberName) => query(collection(db, 'overrides'), where('memberName', '==', memberName));
+        window._alChipGetDocs  = getDocs;
+
         // ============================================
         // INITIAL 3-MONTH FETCH
         // Fetches previous, current, and next month in a single Firestore query.
@@ -3559,6 +3686,7 @@
                 const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
                 await fetchOverridesForRange(startStr, endStr);
                 if (typeof renderCalendar === 'function') renderCalendar();
+                window.updateALChip?.();
             } catch (err) {
                 console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
             } finally {

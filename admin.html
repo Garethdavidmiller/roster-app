@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.20 -->
+<!-- MYB Roster Admin v4.21 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -143,6 +143,42 @@
         }
 
         @media (max-width: 540px) { .selectors { grid-template-columns: 1fr; } }
+
+        /* ---- Annual Leave balance banner ---- */
+        .al-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--al-light, #e0f2f1);
+            border: 1.5px solid var(--al, #00897b);
+            border-radius: 8px;
+            padding: 9px 14px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: var(--primary-blue);
+        }
+        .al-banner .al-banner-icon { font-size: 16px; flex-shrink: 0; }
+        .al-banner-numbers { display: flex; gap: 14px; flex-wrap: wrap; }
+        .al-banner-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+        .al-banner-stat .stat-val {
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--al, #00897b);
+        }
+        .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; }
+        .al-banner-divider { width: 1px; background: var(--al, #00897b); opacity: 0.3; align-self: stretch; }
+        .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: #e67e00; }
+        .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: #c0392b; }
+        .al-banner-warning-msg {
+            font-size: 11px;
+            font-weight: 600;
+            color: #c0392b;
+            background: #fdecea;
+            border-radius: 4px;
+            padding: 2px 7px;
+            margin-left: auto;
+        }
 
         .field-group label {
             display: block;
@@ -668,6 +704,38 @@
 
         .feedback.success { display: block; background: var(--green-light); color: #1b5e20; }
         .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
+
+        /* ---- Annual Leave over-limit confirm bar ---- */
+        .al-confirm-bar {
+            display: none;
+            align-items: flex-start;
+            gap: 12px;
+            background: #fff8e1;
+            border: 1.5px solid #f9a825;
+            border-radius: 8px;
+            padding: 12px 14px;
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--primary-blue);
+        }
+        .al-confirm-bar.visible { display: flex; }
+        .al-confirm-bar .al-confirm-icon { font-size: 20px; flex-shrink: 0; }
+        .al-confirm-bar .al-confirm-body { flex: 1; }
+        .al-confirm-bar .al-confirm-msg  { font-weight: 700; margin-bottom: 4px; }
+        .al-confirm-bar .al-confirm-sub  { font-size: 12px; color: var(--text-mid); margin-bottom: 10px; }
+        .al-confirm-bar .al-confirm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .al-confirm-bar .btn-confirm-save {
+            background: #f9a825; color: var(--primary-blue);
+            border: none; border-radius: 6px;
+            padding: 7px 14px; font-size: 13px; font-weight: 700;
+            cursor: pointer; touch-action: manipulation;
+        }
+        .al-confirm-bar .btn-confirm-cancel {
+            background: white; color: var(--text-mid);
+            border: 1.5px solid var(--border-light); border-radius: 6px;
+            padding: 7px 14px; font-size: 13px; font-weight: 600;
+            cursor: pointer; touch-action: manipulation;
+        }
 
         /* ---- Overrides list ---- */
         .list-toolbar {
@@ -1320,6 +1388,28 @@
                 </div>
             </div>
 
+            <!-- Annual Leave balance banner — shown when a member is selected -->
+            <div class="al-banner" id="alBanner" hidden>
+                <span class="al-banner-icon">🏖️</span>
+                <div class="al-banner-numbers">
+                    <div class="al-banner-stat stat-remaining">
+                        <span class="stat-val" id="alBannerRemaining">—</span>
+                        <span class="stat-lbl">Remaining</span>
+                    </div>
+                    <div class="al-banner-divider"></div>
+                    <div class="al-banner-stat">
+                        <span class="stat-val" id="alBannerUsed">—</span>
+                        <span class="stat-lbl">Used</span>
+                    </div>
+                    <div class="al-banner-divider"></div>
+                    <div class="al-banner-stat">
+                        <span class="stat-val" id="alBannerEntitlement">—</span>
+                        <span class="stat-lbl">Entitlement</span>
+                    </div>
+                </div>
+                <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Limit reached</span>
+            </div>
+
             <!-- Bulk bar — shown once member+date are chosen -->
             <div class="bulk-bar" id="bulkBar">
                 <div class="bulk-bar-label">Apply to multiple days</div>
@@ -1362,6 +1452,17 @@
             <button class="btn-save" id="saveBtn" disabled>Save Changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type for at least one day to save</p>
             <div class="feedback" id="formFeedback"></div>
+            <div class="al-confirm-bar" id="alConfirmBar">
+                <span class="al-confirm-icon">⚠️</span>
+                <div class="al-confirm-body">
+                    <div class="al-confirm-msg" id="alConfirmMsg"></div>
+                    <div class="al-confirm-sub" id="alConfirmSub"></div>
+                    <div class="al-confirm-btns">
+                        <button class="btn-confirm-save" id="alConfirmSaveBtn">Save anyway</button>
+                        <button class="btn-confirm-cancel" id="alConfirmCancelBtn">Cancel</button>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -1433,7 +1534,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js?v=4.18';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.21';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp
@@ -1449,7 +1550,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.20';
+const ADMIN_VERSION = '4.21';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1759,6 +1860,43 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
 });
 
 // ============================================
+// ANNUAL LEAVE BANNER
+// ============================================
+function updateALBanner() {
+    const banner      = document.getElementById('alBanner');
+    const remEl       = document.getElementById('alBannerRemaining');
+    const usedEl      = document.getElementById('alBannerUsed');
+    const entEl       = document.getElementById('alBannerEntitlement');
+    const warnEl      = document.getElementById('alBannerWarn');
+    const memberName  = fieldMember.value;
+
+    if (!memberName) { banner.hidden = true; return; }
+
+    const member      = teamMembers.find(m => m.name === memberName);
+    if (!member)      { banner.hidden = true; return; }
+
+    const entitlement = getALEntitlement(member);
+    const yearStr     = String(new Date().getFullYear());
+    const used        = allOverrides.filter(o =>
+        o.memberName === memberName &&
+        o.type       === 'annual_leave' &&
+        o.date       && o.date.startsWith(yearStr)
+    ).length;
+    const remaining   = entitlement - used;
+
+    remEl.textContent = remaining;
+    usedEl.textContent = used;
+    entEl.textContent  = entitlement;
+
+    banner.hidden = false;
+    banner.classList.toggle('al-banner-warning', remaining <= 0);
+    banner.classList.toggle('al-banner-low',     remaining > 0 && remaining <= 5);
+
+    warnEl.hidden     = remaining > 0;
+    warnEl.textContent = remaining === 0 ? 'Limit reached' : `${Math.abs(remaining)} over limit`;
+}
+
+// ============================================
 // WEEK GRID
 // ============================================
 function renderWeekGrid() {
@@ -1934,6 +2072,7 @@ function renderWeekGrid() {
     bulkBar.style.display = 'block';
     resetBulkPills();
     updateSaveBtn();
+    updateALBanner();
 }
 
 function activateRow(row, cb, pills, startEl, endEl, type) {
@@ -2126,6 +2265,38 @@ saveBtn.addEventListener('click', async () => {
     const ruleErrors = validateShiftRules(toSave, memberName);
     if (ruleErrors.length) return showError(ruleErrors.join(' · '));
 
+    // Annual leave entitlement warning
+    const alInBatch = toSave.filter(e => e.type === 'annual_leave');
+    if (alInBatch.length > 0) {
+        const member      = teamMembers.find(m => m.name === memberName);
+        const entitlement = getALEntitlement(member);
+        const yearStr     = String(new Date().getFullYear());
+        // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
+        const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
+        const existingAL = allOverrides.filter(o =>
+            o.memberName === memberName &&
+            o.type       === 'annual_leave' &&
+            o.date       && o.date.startsWith(yearStr) &&
+            !overwriteDates.has(o.date)
+        ).length;
+        const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr)))];
+        const projectedTotal = existingAL + newALDates.length;
+        if (projectedTotal > entitlement) {
+            const over = projectedTotal - entitlement;
+            showALConfirm(
+                `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their AL entitlement`,
+                `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
+                toSave
+            );
+            return;
+        }
+    }
+
+    await executeSave(toSave);
+});
+
+async function executeSave(toSave) {
+    const memberName = fieldMember.value;
     const overwrites = toSave.filter(e => e.existingId).length;
     const creates    = toSave.length - overwrites;
 
@@ -2171,7 +2342,7 @@ saveBtn.addEventListener('click', async () => {
         saveBtn.textContent = 'Save Changes';
         updateSaveBtn();
     }
-});
+}
 
 fieldMember.addEventListener('change', () => {
     if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
@@ -2207,6 +2378,7 @@ async function loadOverrides() {
         renderTable();
         // Re-render week grid so existing-override detection is current
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
+        updateALBanner();
     } catch (err) {
         console.error('[Admin] Load failed:', err);
         tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Failed to load.</td></tr>';
@@ -2450,7 +2622,43 @@ function showError(msg) {
     formFeedback.textContent = '⚠ ' + msg;
 }
 
-function hideFeedback() { formFeedback.className = 'feedback'; }
+function hideFeedback() {
+    formFeedback.className = 'feedback';
+    hideALConfirm();
+}
+
+// ---- AL over-limit confirm bar ----
+let _alPendingSave = null;
+const alConfirmBar       = document.getElementById('alConfirmBar');
+const alConfirmMsg       = document.getElementById('alConfirmMsg');
+const alConfirmSub       = document.getElementById('alConfirmSub');
+const alConfirmSaveBtn   = document.getElementById('alConfirmSaveBtn');
+const alConfirmCancelBtn = document.getElementById('alConfirmCancelBtn');
+
+function showALConfirm(msg, sub, pendingSave) {
+    _alPendingSave       = pendingSave;
+    alConfirmMsg.textContent = msg;
+    alConfirmSub.textContent = sub;
+    alConfirmBar.classList.add('visible');
+    alConfirmSaveBtn.focus();
+}
+function hideALConfirm() {
+    alConfirmBar.classList.remove('visible');
+    _alPendingSave = null;
+}
+
+alConfirmSaveBtn.addEventListener('click', async () => {
+    if (!_alPendingSave) return;
+    const toSave = _alPendingSave;
+    hideALConfirm();
+    await executeSave(toSave);
+});
+
+alConfirmCancelBtn.addEventListener('click', () => {
+    hideALConfirm();
+    saveBtn.disabled    = false;
+    saveBtn.textContent = 'Save Changes';
+});
 
 // ============================================
 // ANNUAL LEAVE BOOKING
