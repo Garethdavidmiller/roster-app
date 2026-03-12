@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.15 -->
+<!-- MYB Roster Admin v4.16 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1431,7 +1431,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.15';
+const ADMIN_VERSION = '4.16';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1629,11 +1629,11 @@ function shiftBadge(shift) {
     if (shift === 'RDW')   return '<span class="shift-badge badge-rdw">💼 RDW</span>';
     if (shift === 'AL')    return '<span class="shift-badge badge-al">🏖️ AL</span>';
     if (!/^\d{2}:\d{2}/.test(shift)) return `<span class="shift-badge">${shift}</span>`;
-    // Night = ends before 05:00; Early = starts 05:00–10:59; Late = starts 11:00+
-    const endHour   = parseInt((shift.split('-')[1] || '').split(':')[0], 10);
+    // Night = starts 21:00–03:59; Early = starts 04:00–10:59; Late = starts 11:00–20:59
     const startHour = parseInt(shift.split(':')[0], 10);
-    if (endHour < CONFIG.NIGHT_END_THRESHOLD) return '<span class="shift-badge badge-night">🦉 Night</span>';
-    return (startHour >= CONFIG.NIGHT_END_THRESHOLD && startHour < CONFIG.EARLY_SHIFT_THRESHOLD)
+    if (startHour >= CONFIG.NIGHT_START_THRESHOLD || startHour < CONFIG.EARLY_START_THRESHOLD)
+        return '<span class="shift-badge badge-night">🦉 Night</span>';
+    return (startHour < CONFIG.EARLY_SHIFT_THRESHOLD)
         ? '<span class="shift-badge badge-early">☀️ Early</span>'
         : '<span class="shift-badge badge-late">🌙 Late</span>';
 }

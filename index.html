@@ -1923,7 +1923,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.14';
+        CONFIG.APP_VERSION = '4.16';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2359,15 +2359,15 @@
         function isEarlyShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
             const hour = parseInt(timeStr.split(':')[0], 10);
-            // Early = starts 05:00–10:59
-            return hour >= CONFIG.NIGHT_END_THRESHOLD && hour < CONFIG.EARLY_SHIFT_THRESHOLD;
+            // Early = starts 04:00–10:59
+            return hour >= CONFIG.EARLY_START_THRESHOLD && hour < CONFIG.EARLY_SHIFT_THRESHOLD;
         }
 
         function isNightShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
-            // Night = shift ends before 05:00 (e.g. 22:00–04:30)
-            const endHour = parseInt(timeStr.split('-')[1].split(':')[0], 10);
-            return endHour < CONFIG.NIGHT_END_THRESHOLD;
+            const hour = parseInt(timeStr.split(':')[0], 10);
+            // Night = starts 21:00–03:59
+            return hour >= CONFIG.NIGHT_START_THRESHOLD || hour < CONFIG.EARLY_START_THRESHOLD;
         }
 
         function getShiftClass(timeStr) {

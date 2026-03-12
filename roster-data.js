@@ -24,8 +24,9 @@ export const CONFIG = {
     DISPATCHER_ROSTER_REFERENCE_DATE: new Date(2026, 1, 1,  12, 0, 0),          // Feb 1, 2026 (Minto on Week 1, all 10 consecutive)
     MIN_YEAR:                         2024,                                      // Earliest navigable year
     MAX_YEAR:                         2030,                                      // Latest navigable year
-    EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 05:00–10:59 are Early; 11:00+ are Late
-    NIGHT_END_THRESHOLD:              5,                                         // Shifts whose END time is before 05:00 are Night (e.g. 22:00–04:30)
+    EARLY_START_THRESHOLD:            4,                                         // Shifts starting 04:00–10:59 are Early
+    EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
+    NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
 };
 
