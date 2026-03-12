@@ -2443,9 +2443,9 @@
             location.href = 'admin.html';
         });
 
-        // Initialize when DOM is fully loaded
-        window.addEventListener('DOMContentLoaded', function() {
-            try {
+        // Modules are always deferred — the DOM is fully parsed before this code runs.
+        // No DOMContentLoaded wrapper needed; initialize directly.
+        try {
                 // Validate roster data now that DOM is ready and errorBanner element exists
                 const allErrors = [
                     ...validateRoster(weeklyRoster,   'Main Roster',      CONFIG.MAIN_ROSTER_WEEKS),
@@ -2916,15 +2916,17 @@
                     if (e.key === 'p' || e.key === 'P') { window.print(); }
                 });
 
-            } catch (error) {
-                console.error('Initialization error:', error);
-                const banner = document.getElementById('errorBanner');
-                if (banner) {
-                    banner.textContent = '⚠️ Failed to initialise calendar. Please refresh. Error: ' + error.message;
-                    banner.classList.add('visible');
-                }
+        } catch (error) {
+            console.error('Initialization error:', error);
+            // Always hide the splash — an error banner is more useful than an infinite loading screen
+            const splashEl = document.getElementById('splash');
+            if (splashEl) splashEl.remove();
+            const banner = document.getElementById('errorBanner');
+            if (banner) {
+                banner.textContent = '⚠️ Failed to initialise calendar. Please refresh. Error: ' + error.message;
+                banner.classList.add('visible');
             }
-        });
+        }
 
         // Register service worker for PWA functionality
         if ('serviceWorker' in navigator) {
