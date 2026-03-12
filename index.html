@@ -2877,8 +2877,8 @@
                 // spaces and dots. The cache is populated by the Firebase module script on load.
                 let overrideNote = '';
                 let rdwTime = '';
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 if (window.rosterOverridesCache) {
-                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                     const override = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
                     if (override) {
                         // RDW overrides carry a real shift time as their value, but must
