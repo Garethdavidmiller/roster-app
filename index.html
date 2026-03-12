@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.06 -->
+<!-- MYB Roster Calendar - Version 4.07 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -762,11 +762,10 @@
                 grid-auto-rows: 1fr;
             }
 
-            /* Centre content vertically so it looks intentional inside the taller 1fr cells */
             .calendar-day {
                 min-height: unset;
                 overflow: hidden;
-                justify-content: center;
+                justify-content: flex-start; /* top-aligned so pills sit at the same height across every cell */
                 padding: 8px 6px;
             }
 
@@ -779,7 +778,7 @@
             /* Badge: a touch more padding for a premium pill feel */
             .shift-badge {
                 padding: 7px 16px;
-                margin-bottom: 6px;
+                margin-bottom: 8px; /* restore full gap between pill and time */
             }
 
             /* Shift time: pulled down from 16px — it's supporting info, not the headline */
@@ -1665,7 +1664,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.06';
+        CONFIG.APP_VERSION = '4.07';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
