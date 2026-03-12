@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.10 -->
+<!-- MYB Roster Calendar - Version 4.12 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -893,12 +893,12 @@
             }
 
             .controls button {
-                padding: 8px 10px;
+                padding: 10px 14px;
                 font-size: 12px;
             }
 
             .controls select {
-                padding: 8px 10px;
+                padding: 10px 30px 10px 10px;
                 font-size: 16px; /* Must stay 16px — iOS Safari zooms viewport if select < 16px */
             }
         }
@@ -1008,6 +1008,42 @@
                 box-sizing: border-box;
             }
 
+        }
+
+        /* ── Mobile landscape (phones on their side) ─────────────────────── */
+        /* Trigger only on short screens (phones) — tablets in landscape are fine as-is */
+        @media (orientation: landscape) and (max-height: 500px) {
+            body {
+                padding-top:    max(6px, env(safe-area-inset-top));
+                padding-bottom: max(6px, env(safe-area-inset-bottom));
+                padding-left:   max(12px, env(safe-area-inset-left));
+                padding-right:  max(12px, env(safe-area-inset-right));
+            }
+            .header { padding: 8px 14px; margin-bottom: 8px; }
+            .header h1 { font-size: 16px; }
+            .title-icon { width: 22px; height: 22px; }
+            .controls {
+                flex-direction: row;
+                flex-wrap: wrap;
+                gap: 6px 10px;
+                padding: 6px 12px;
+                margin-bottom: 8px;
+                justify-content: center;
+                align-items: center;
+            }
+            .controls-row { width: auto; }
+            .controls button { padding: 7px 10px; font-size: 11px; }
+            .controls select { padding: 7px 28px 7px 8px; font-size: 14px; max-width: 150px; }
+            .calendar-container { padding: 8px 10px; margin-bottom: 8px; }
+            .month-year { font-size: 16px; }
+            .calendar-grid { gap: 4px; }
+            .calendar-day { min-height: 55px; padding: 4px; }
+            .day-number { font-size: 11px; margin-bottom: 2px; }
+            .shift-badge { font-size: 7px; padding: 2px 6px; margin-bottom: 2px; }
+            .shift-time { font-size: 9px; }
+            .legend { padding: 6px 12px; margin-bottom: 0; }
+            .legend-text { font-size: 10px; }
+            .legend-color { width: 12px; height: 12px; }
         }
 
         /* Print styles */
@@ -1548,6 +1584,47 @@
             }
         }
 
+        /* Tips / keyboard shortcuts section in lightbox */
+        .lightbox-tips {
+            margin-top: 16px;
+            padding-top: 14px;
+            border-top: 1px solid rgba(255,255,255,0.12);
+            width: 100%;
+            text-align: left;
+        }
+
+        .lightbox-tips-title {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.35);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .lightbox-tip {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 4px 0;
+            font-size: 12px;
+            color: rgba(255,255,255,0.55);
+        }
+
+        .lightbox-tip-key {
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 5px;
+            padding: 2px 7px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
         /* Close button */
         #iconLightboxClose {
             position: absolute;
@@ -1565,6 +1642,117 @@
             #iconLightboxClose:hover { color: white; }
         }
 
+        /* ---- Month/year jump picker overlay ---- */
+        #monthJumpOverlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 10, 20, 0.7);
+            z-index: 7000;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.18s ease;
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+            cursor: pointer;
+        }
+        #monthJumpOverlay.visible { display: flex; }
+        #monthJumpOverlay.open    { opacity: 1; }
+
+        #monthJumpCard {
+            background: white;
+            border-radius: 20px;
+            padding: 24px 28px 20px;
+            min-width: 260px;
+            cursor: default;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            transform: scale(0.88);
+            transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+            text-align: center;
+        }
+        #monthJumpOverlay.open #monthJumpCard { transform: scale(1); }
+
+        #monthJumpCard h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--primary-blue);
+            margin-bottom: 16px;
+        }
+
+        .month-jump-selects {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 18px;
+        }
+
+        .month-jump-selects select {
+            padding: 8px 10px;
+            border: 2px solid var(--border-light);
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            font-family: inherit;
+            color: var(--primary-blue);
+            background: var(--bg-faint);
+            cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+
+        #monthJumpMonth { min-width: 110px; }
+        #monthJumpYear  { min-width: 72px; }
+
+        .month-jump-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+        }
+
+        .month-jump-actions button {
+            padding: 9px 20px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 700;
+            font-family: inherit;
+            cursor: pointer;
+            border: none;
+            transition: background 0.15s, transform 0.1s;
+        }
+        .month-jump-actions button:active { transform: scale(0.96); }
+
+        #monthJumpConfirm {
+            background: var(--primary-blue);
+            color: white;
+        }
+        #monthJumpCancel {
+            background: var(--bg-faint);
+            color: var(--text-mid);
+            border: 1.5px solid var(--border-light) !important;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            #monthJumpConfirm:hover { background: var(--primary-blue-dark); }
+            #monthJumpCancel:hover  { background: var(--border-light); }
+        }
+
+        /* Make month-year text look tappable */
+        .month-year {
+            cursor: pointer;
+            border-radius: 6px;
+            padding: 2px 6px;
+            transition: background 0.15s;
+        }
+        .month-year::after {
+            content: ' ▾';
+            font-size: 0.6em;
+            opacity: 0.5;
+            vertical-align: middle;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .month-year:hover { background: rgba(0,30,60,0.07); }
+        }
+
         /* ---- Firestore override note ---- */
         /* Displayed beneath the shift time when a Firestore override has a non-empty note.
            Clipped with ellipsis if the note is longer than the cell width. */
@@ -1580,11 +1768,24 @@
         }
 
         /* ---- Firestore loading indicator ---- */
-        /* Applied 1.5 s after page load if Firestore has not yet responded.
-           Removed immediately when data arrives or the fetch fails. */
-        #calendarDisplay.firestore-loading {
-            opacity: 0.6;
-            transition: opacity 0.4s ease;
+        /* A "Syncing…" chip injected into .calendar-header while Firestore fetch is in flight.
+           Fades in after 800 ms to avoid flashing on fast connections. */
+        .sync-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--blue-sky);
+            background: rgba(33,150,243,0.10);
+            border: 1px solid rgba(33,150,243,0.25);
+            border-radius: 20px;
+            padding: 3px 9px;
+            animation: sync-pulse 1.2s ease-in-out infinite;
+        }
+        @keyframes sync-pulse {
+            0%, 100% { opacity: 0.7; }
+            50%       { opacity: 1;   }
         }
 
         @media print {
@@ -1622,6 +1823,28 @@
             <button id="lightboxUpdateBtn" class="lightbox-update-btn" style="display:none">
                 ↻ Update now
             </button>
+            <div class="lightbox-tips">
+                <div class="lightbox-tips-title">Tips</div>
+                <div class="lightbox-tip"><span>Swipe left / right</span><span class="lightbox-tip-key">← →</span></div>
+                <div class="lightbox-tip"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
+                <div class="lightbox-tip"><span>Print</span><span class="lightbox-tip-key">P</span></div>
+                <div class="lightbox-tip"><span>Jump to month</span><span class="lightbox-tip-key">tap month</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Month/year jump picker — opened by tapping the month-year heading -->
+    <div id="monthJumpOverlay" role="dialog" aria-label="Jump to month" aria-modal="true">
+        <div id="monthJumpCard" role="document">
+            <h2>Jump to month</h2>
+            <div class="month-jump-selects">
+                <select id="monthJumpMonth" aria-label="Month"></select>
+                <select id="monthJumpYear" aria-label="Year"></select>
+            </div>
+            <div class="month-jump-actions">
+                <button id="monthJumpCancel">Cancel</button>
+                <button id="monthJumpConfirm">Go →</button>
+            </div>
         </div>
     </div>
 
@@ -1650,7 +1873,7 @@
                 <div class="control-group">
                     <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
                     <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
-                    <button id="adminBtn" class="admin-btn" aria-label="Go to admin panel">🔐 Admin</button>
+                    <button id="adminBtn" class="admin-btn" aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
                 </div>
             </div>
         </nav>
@@ -1691,7 +1914,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.11';
+        CONFIG.APP_VERSION = '4.12';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -1904,8 +2127,10 @@
         // DATA VALIDATION
         // ============================================
         
+        // Compiled once — shared by validation, isEarlyShift(), isNightShift(), getShiftClass() and getShiftBadge()
+        const SHIFT_TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+
         // Validate roster data structure on load
-        const VALID_SHIFT_PATTERN = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
         const VALID_SHIFT_KEYWORDS = new Set(['RD', 'SPARE', 'RDW', 'AL', 'OFF']);
 
         function validateRoster(roster, rosterName, expectedWeeks) {
@@ -1924,7 +2149,7 @@
                         errors.push(`${rosterName}: Week ${week} missing day ${day}`);
                     } else {
                         const val = roster[week][day];
-                        if (!VALID_SHIFT_KEYWORDS.has(val) && !VALID_SHIFT_PATTERN.test(val)) {
+                        if (!VALID_SHIFT_KEYWORDS.has(val) && !SHIFT_TIME_REGEX.test(val)) {
                             errors.push(`${rosterName}: Week ${week} ${day} has invalid shift value "${val}"`);
                         }
                     }
@@ -1979,6 +2204,16 @@
         
         let currentDisplayMonth = getToday().getMonth();
         let currentDisplayYear = getToday().getFullYear();
+
+        // Restore last-viewed month from localStorage (if valid and within app bounds)
+        (function restoreViewedMonth() {
+            const m = parseInt(localStorage.getItem('myb_roster_month'), 10);
+            const y = parseInt(localStorage.getItem('myb_roster_year'),  10);
+            if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
+                currentDisplayMonth = m;
+                currentDisplayYear  = y;
+            }
+        })();
         
         // ============================================
         // SWIPE GESTURE STATE
@@ -2112,9 +2347,6 @@
             return weekNum;
         }
 
-        // Compiled once at module level — reused by isEarlyShift(), isNightShift() and getShiftClass()
-        const SHIFT_TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-
         function isEarlyShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
             const hour = parseInt(timeStr.split(':')[0], 10);
@@ -2231,7 +2463,7 @@
                 }
             }
             return `
-                <div class="month-year">${monthNames[month]} ${year}</div>
+                <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${monthNames[month]} ${year}">${monthNames[month]} ${year}</div>
                 ${weekDisplay ? `<div class="week-info">${weekDisplay}</div>` : ''}
             `;
         }
@@ -2272,7 +2504,7 @@
                 <div class="day-number">${date.getDate()}</div>
                 ${badge}
                 ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
-                ${note ? `<div class="override-note">${escapeHtml(note)}</div>` : ''}
+                ${note ? `<div class="override-note" role="note" aria-label="Note: ${escapeHtml(note)}">${escapeHtml(note)}</div>` : ''}
             `;
         }
 
@@ -2473,6 +2705,10 @@
                 if (!calendarDisplay) throw new Error('Calendar display element not found');
 
                 document.title = `MYB Roster — ${monthNames[currentDisplayMonth]} ${currentDisplayYear}`;
+
+                // Persist so the user returns to the same month after closing the app
+                localStorage.setItem('myb_roster_month', currentDisplayMonth);
+                localStorage.setItem('myb_roster_year',  currentDisplayYear);
 
                 const calendarContainer = buildCalendarContainer(); // uses defaults
                 calendarDisplay.innerHTML = '';
@@ -3052,6 +3288,70 @@
                 })();
 
                 // ============================================
+                // MONTH/YEAR JUMP PICKER
+                // ============================================
+                (function() {
+                    const overlay    = document.getElementById('monthJumpOverlay');
+                    const card       = document.getElementById('monthJumpCard');
+                    const selMonth   = document.getElementById('monthJumpMonth');
+                    const selYear    = document.getElementById('monthJumpYear');
+                    const btnConfirm = document.getElementById('monthJumpConfirm');
+                    const btnCancel  = document.getElementById('monthJumpCancel');
+                    if (!overlay) return;
+
+                    // Populate year select once (2024–2030)
+                    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
+                        const opt = document.createElement('option');
+                        opt.value = y; opt.textContent = y;
+                        selYear.appendChild(opt);
+                    }
+                    // Populate month select once
+                    monthNames.forEach((name, i) => {
+                        const opt = document.createElement('option');
+                        opt.value = i; opt.textContent = name;
+                        selMonth.appendChild(opt);
+                    });
+
+                    function openPicker() {
+                        selMonth.value = currentDisplayMonth;
+                        selYear.value  = currentDisplayYear;
+                        overlay.classList.add('visible');
+                        requestAnimationFrame(() => overlay.classList.add('open'));
+                    }
+
+                    function closePicker() {
+                        overlay.classList.remove('open');
+                        overlay.addEventListener('transitionend', () => overlay.classList.remove('visible'), { once: true });
+                    }
+
+                    // Delegated click: any .month-year element (rebuilt on each render)
+                    document.getElementById('calendarDisplay').addEventListener('click', e => {
+                        if (e.target.closest('.month-year')) openPicker();
+                    });
+                    document.getElementById('calendarDisplay').addEventListener('keydown', e => {
+                        if (e.target.closest('.month-year') && (e.key === 'Enter' || e.key === ' ')) {
+                            e.preventDefault(); openPicker();
+                        }
+                    });
+
+                    btnConfirm.addEventListener('click', () => {
+                        currentDisplayMonth = parseInt(selMonth.value, 10);
+                        currentDisplayYear  = parseInt(selYear.value, 10);
+                        closePicker();
+                        renderCalendar();
+                        announceMonthChange();
+                    });
+
+                    btnCancel.addEventListener('click', closePicker);
+                    overlay.addEventListener('click', closePicker);
+                    card.addEventListener('click', e => e.stopPropagation());
+
+                    document.addEventListener('keydown', e => {
+                        if (e.key === 'Escape' && overlay.classList.contains('open')) closePicker();
+                    });
+                })();
+
+                // ============================================
                 // KEYBOARD SHORTCUTS (Desktop)
                 // ============================================
                 document.addEventListener('keydown', (e) => {
@@ -3230,12 +3530,20 @@
             fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
             fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
 
-            // Show a subtle loading indicator if Firestore takes more than 1.5 seconds.
+            // Show a "Syncing…" chip after 800 ms if Firestore hasn't responded yet.
+            // Injected into .calendar-header so it sits next to the month/year heading.
             // Removed immediately when data arrives or the fetch fails.
+            let syncChip = null;
             const loadingTimer = setTimeout(() => {
-                const display = document.getElementById('calendarDisplay');
-                if (display) display.classList.add('firestore-loading');
-            }, 1500);
+                const header = document.querySelector('.calendar-header');
+                if (header) {
+                    syncChip = document.createElement('span');
+                    syncChip.className = 'sync-chip';
+                    syncChip.setAttribute('aria-live', 'polite');
+                    syncChip.textContent = '↻ Syncing…';
+                    header.appendChild(syncChip);
+                }
+            }, 800);
 
             try {
                 const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
@@ -3246,8 +3554,7 @@
                 console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
             } finally {
                 clearTimeout(loadingTimer);
-                const display = document.getElementById('calendarDisplay');
-                if (display) display.classList.remove('firestore-loading');
+                if (syncChip) syncChip.remove();
             }
         })();
     </script>
