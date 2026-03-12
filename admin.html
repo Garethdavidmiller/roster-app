@@ -1764,7 +1764,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.31';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.32';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1780,7 +1780,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.31';
+const ADMIN_VERSION = '4.32';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2108,8 +2108,6 @@ function shiftWeek(delta) {
     renderWeekGrid();
 }
 
-prevWeekBtn.addEventListener('click', () => shiftWeek(-1));
-nextWeekBtn.addEventListener('click', () => shiftWeek(+1));
 document.getElementById('thisWeekBtn').addEventListener('click', () => {
     if (!confirmNavigate()) return;
     fieldDate.value = formatISO(new Date());
@@ -2175,6 +2173,7 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
         wCurrent = weekGrid.querySelector('.week-panel:not(.week-carousel-panel)');
         if (!wCurrent) return;
 
+        navigator.vibrate?.(0);  // prime Vibration API on Android Chrome before gesture commits
         weekGrid.setPointerCapture(e.pointerId);
         wW = Math.ceil(weekGrid.getBoundingClientRect().width);
         wX0 = e.clientX; wY0 = e.clientY; wT0 = e.timeStamp;
@@ -2269,6 +2268,10 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
         if (wCurrent) { wCurrent.style.transition = wCurrent.style.transform = wCurrent.style.willChange = ''; }
         discardPanels(); wCurrent = null;
     });
+
+    // Button handlers inside IIFE so they share the wCooldown closure variable
+    prevWeekBtn.addEventListener('click', () => { if (!wCooldown) shiftWeek(-1); });
+    nextWeekBtn.addEventListener('click', () => { if (!wCooldown) shiftWeek(+1); });
 })();
 
 // ============================================
