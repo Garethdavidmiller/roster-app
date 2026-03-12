@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.13 -->
+<!-- MYB Roster Admin v4.16 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -380,7 +380,7 @@
             gap: 4px;
         }
 
-        .bulk-time-group input[type="time"] {
+        .bulk-time-group .time-input {
             width: 105px;
             padding: 5px 8px;
         }
@@ -544,7 +544,7 @@
             gap: 4px;
         }
 
-        .col-time input[type="time"] {
+        .col-time .time-input {
             width: 100px;
             padding: 5px 7px;
         }
@@ -554,7 +554,7 @@
         /* Hide time area when row is not active */
         .day-row:not(.active) .col-time { visibility: hidden; }
         /* Fixed types (AL, Make Rest Day): hide inputs, show note instead */
-        .day-row.active.fixed-type .col-time input[type="time"],
+        .day-row.active.fixed-type .col-time .time-input,
         .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
         .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
         .day-row.active.fixed-type .time-note { display: block; }
@@ -864,14 +864,14 @@
             }
 
             /* Time inputs fill available space on mobile */
-            .col-time input[type="time"] {
+            .col-time .time-input {
                 flex: 1;
                 width: auto;
                 min-width: 0;
             }
 
             /* Bulk time inputs fill available space */
-            .bulk-time-group input[type="time"] {
+            .bulk-time-group .time-input {
                 flex: 1;
                 width: auto;
             }
@@ -1327,9 +1327,9 @@
                     </div>
                     <!-- Time inputs shown for time-based types -->
                     <div class="bulk-time-group" id="bulkTimeGroup" style="display:none">
-                        <input type="time" id="bulkStart" step="60">
+                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5">
                         <span class="bulk-time-sep">–</span>
-                        <input type="time" id="bulkEnd" step="60">
+                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5">
                     </div>
                 </div>
                 <!-- Step 3: apply -->
@@ -1431,7 +1431,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.14';
+const ADMIN_VERSION = '4.16';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1629,11 +1629,11 @@ function shiftBadge(shift) {
     if (shift === 'RDW')   return '<span class="shift-badge badge-rdw">💼 RDW</span>';
     if (shift === 'AL')    return '<span class="shift-badge badge-al">🏖️ AL</span>';
     if (!/^\d{2}:\d{2}/.test(shift)) return `<span class="shift-badge">${shift}</span>`;
-    // Night = ends before 05:00; Early = starts 05:00–10:59; Late = starts 11:00+
-    const endHour   = parseInt((shift.split('-')[1] || '').split(':')[0], 10);
+    // Night = starts 21:00–03:59; Early = starts 04:00–10:59; Late = starts 11:00–20:59
     const startHour = parseInt(shift.split(':')[0], 10);
-    if (endHour < CONFIG.NIGHT_END_THRESHOLD) return '<span class="shift-badge badge-night">🦉 Night</span>';
-    return (startHour >= CONFIG.NIGHT_END_THRESHOLD && startHour < CONFIG.EARLY_SHIFT_THRESHOLD)
+    if (startHour >= CONFIG.NIGHT_START_THRESHOLD || startHour < CONFIG.EARLY_START_THRESHOLD)
+        return '<span class="shift-badge badge-night">🦉 Night</span>';
+    return (startHour < CONFIG.EARLY_SHIFT_THRESHOLD)
         ? '<span class="shift-badge badge-early">☀️ Early</span>'
         : '<span class="shift-badge badge-late">🌙 Late</span>';
 }
@@ -1825,9 +1825,9 @@ function renderWeekGrid() {
                 <button class="type-pill-btn pill-correction"  data-type="correction">Make Rest Day</button>
             </div>
             <div class="col-time">
-                <input type="time" class="day-start" step="60" tabindex="-1">
+                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1">
                 <span class="time-sep">–</span>
-                <input type="time" class="day-end" step="60" tabindex="-1">
+                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1">
                 <span class="time-note">No time needed</span>
             </div>
             <div class="col-note-btn">
@@ -2082,11 +2082,17 @@ saveBtn.addEventListener('click', async () => {
         if (meta && meta.fixed) {
             value = meta.fixedValue;
         } else {
-            const s = startEl.value;
-            const e = endEl.value;
+            const s = startEl.value.trim();
+            const e = endEl.value.trim();
+            const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
             if (!s || !e) {
                 row.classList.add('row-error');
                 errors.push(`${formatDisplay(date)}: fill in the start and end time`);
+                return;
+            }
+            if (!timeRe.test(s) || !timeRe.test(e)) {
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: times must be in HH:MM format (e.g. 07:00)`);
                 return;
             }
             value = `${s}-${e}`;
@@ -2280,6 +2286,21 @@ function handleEdit(e) {
     // Scroll to the override form card
     document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
+
+// ============================================
+// TIME INPUT AUTO-FORMAT
+// ============================================
+// Typing 4 digits auto-inserts the colon: "0730" → "07:30"
+document.addEventListener('input', e => {
+    if (!e.target.classList.contains('time-input')) return;
+    const el  = e.target;
+    const raw = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+    if (raw.length >= 3) {
+        el.value = raw.slice(0, 2) + ':' + raw.slice(2);
+    } else {
+        el.value = raw;
+    }
+});
 
 // ============================================
 // UTILITIES
