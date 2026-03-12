@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.03 -->
+<!-- MYB Roster Calendar - Version 4.06 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -578,7 +578,7 @@
             letter-spacing: 0.5px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
-            width: 100%;
+            min-width: 80%;
         }
 
         .badge-rest {
@@ -597,8 +597,9 @@
         }
 
         .badge-night {
-            background: var(--night);
-            color: white;
+            background: white;
+            color: var(--night);
+            border: 2px solid var(--night);
         }
 
         .badge-spare {
@@ -686,6 +687,10 @@
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
+                /* Rich surface colour — the dark-navy shows as a narrow border around the
+                   card stack; switching to a premium dark gradient makes it feel intentional */
+                background: linear-gradient(160deg, #0a2240 0%, #001630 100%);
+                padding: 16px; /* tighter edge so more calendar is visible */
             }
 
             .container {
@@ -693,34 +698,98 @@
                 min-height: 0;
                 display: flex;
                 flex-direction: column;
+                gap: 10px; /* uniform spacing between cards — replaces individual margin-bottoms */
             }
+
+            /* Individual card margins are no longer needed — container gap handles it */
+            .header, .controls { margin-bottom: 0; }
+            .calendar-container { margin-bottom: 0; }
 
             .header, .controls, .legend { flex-shrink: 0; }
 
+            /* App title: larger, more assertive on a big screen */
+            .header h1 {
+                font-size: 24px;
+            }
+
+            /* Controls: one compact row — desktop has the horizontal space */
+            .controls {
+                flex-direction: row;
+                gap: 20px;
+                padding: 10px 24px;
+                align-items: center;
+                justify-content: center;
+            }
+            .controls-row {
+                width: auto;
+            }
+
+            /* calendarDisplay is a flex container so .calendar-container can use flex:1 reliably */
             #calendarDisplay {
                 flex: 1;
                 min-height: 0;
+                display: flex;
+                flex-direction: column;
             }
 
             .calendar-container {
-                height: 100%;
-                box-sizing: border-box;
+                flex: 1;
+                min-height: 0;
                 display: flex;
                 flex-direction: column;
-                margin-bottom: 0;
+                box-sizing: border-box;
+                padding: 14px 18px 18px 18px; /* tighter than mobile — cells use the saved space */
+            }
+
+            /* Month label: stronger presence on a large screen */
+            .month-year {
+                font-size: 28px;
+            }
+
+            /* Day column headers: crisper letter-spacing suits the wider grid */
+            .day-header {
+                letter-spacing: 1.5px;
+                font-size: 11px;
+                padding: 11px 4px;
             }
 
             /* Header row (Mon–Sun) takes its natural height; day rows share the rest equally */
             .calendar-grid {
-                flex: 1;
+                flex: 1 1 0;
                 min-height: 0;
-                gap: 8px;
+                gap: 10px; /* slightly more air than 8px; less wasted space than 16px */
                 grid-template-rows: auto;
                 grid-auto-rows: 1fr;
             }
 
+            /* Centre content vertically so it looks intentional inside the taller 1fr cells */
             .calendar-day {
                 min-height: unset;
+                overflow: hidden;
+                justify-content: center;
+                padding: 8px 6px;
+            }
+
+            /* Date number: slightly larger to anchor each cell */
+            .day-number {
+                font-size: 22px;
+                margin-bottom: 5px;
+            }
+
+            /* Badge: a touch more padding for a premium pill feel */
+            .shift-badge {
+                padding: 7px 16px;
+                margin-bottom: 6px;
+            }
+
+            /* Shift time: pulled down from 16px — it's supporting info, not the headline */
+            .shift-time {
+                font-size: 14px;
+            }
+
+            /* Legend: a single compact row with generous side padding */
+            .legend {
+                padding: 10px 24px;
             }
         }
 
@@ -1596,7 +1665,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.03';
+        CONFIG.APP_VERSION = '4.06';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
