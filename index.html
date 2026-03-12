@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.08 -->
+<!-- MYB Roster Calendar - Version 4.09 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -738,52 +738,55 @@
                 display: flex;
                 flex-direction: column;
                 box-sizing: border-box;
-                padding: 14px 18px 18px 18px; /* tighter than mobile — cells use the saved space */
+                padding: 14px 18px 18px 18px;
+                overflow-y: auto; /* safety net: scrolls rather than clips on very short screens */
             }
 
-            /* Month label: stronger presence on a large screen */
+            /* Month label: strong but not so large it eats row budget */
             .month-year {
-                font-size: 28px;
+                font-size: 26px;
             }
 
-            /* Day column headers: crisper letter-spacing suits the wider grid */
+            /* Day column headers: compact padding saves ~8px of grid budget */
             .day-header {
                 letter-spacing: 1.5px;
                 font-size: 11px;
-                padding: 11px 4px;
+                padding: 9px 4px;
             }
 
-            /* Header row (Mon–Sun) takes its natural height; day rows share the rest equally */
+            /* Header row (Mon–Sun) takes its natural height; day rows share the rest equally.
+               minmax(100px, 1fr) guarantees cells are never too short to show pill + time. */
             .calendar-grid {
                 flex: 1 1 0;
                 min-height: 0;
-                gap: 10px; /* slightly more air than 8px; less wasted space than 16px */
+                gap: 10px;
                 grid-template-rows: auto;
-                grid-auto-rows: 1fr;
+                grid-auto-rows: minmax(100px, 1fr);
             }
 
             .calendar-day {
                 min-height: unset;
                 overflow: hidden;
-                justify-content: flex-start; /* top-aligned so pills sit at the same height across every cell */
-                padding: 8px 6px;
+                justify-content: flex-start;
+                padding: 6px;
             }
 
-            /* Date number: slightly larger to anchor each cell */
+            /* Date number */
             .day-number {
                 font-size: 22px;
+                margin-bottom: 3px;
+            }
+
+            /* Badge */
+            .shift-badge {
+                padding: 7px 16px;
                 margin-bottom: 5px;
             }
 
-            /* Badge: a touch more padding for a premium pill feel */
-            .shift-badge {
-                padding: 7px 16px;
-                margin-bottom: 8px; /* restore full gap between pill and time */
-            }
-
-            /* Shift time: pulled down from 16px — it's supporting info, not the headline */
+            /* Shift time: compact line-height keeps it within cell budget */
             .shift-time {
-                font-size: 14px;
+                font-size: 13px;
+                line-height: 1.4;
             }
 
             /* Legend: a single compact row with generous side padding */
@@ -1664,7 +1667,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.08';
+        CONFIG.APP_VERSION = '4.09';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
