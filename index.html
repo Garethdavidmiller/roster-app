@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.22 -->
+<!-- MYB Roster Calendar - Version 4.23 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -304,8 +304,13 @@
             }
 
             .controls button.print-btn:hover {
-                background: var(--green-hover);
-                border-color: var(--green-hover);
+                background: var(--bg-light, #f4f6f8);
+                border-color: var(--text-mid, #6b7a90);
+            }
+
+            .controls button.al-btn:hover {
+                background: #00796b;
+                border-color: #00796b;
             }
         }
 
@@ -323,9 +328,16 @@
         }
 
         .controls button.print-btn {
-            background: var(--green);
+            background: white;
+            color: var(--primary-blue);
+            border-color: var(--border-mid, #c0c8d0);
+            font-weight: 600;
+        }
+
+        .controls button.al-btn {
+            background: var(--al, #00897b);
             color: white;
-            border-color: var(--green);
+            border-color: var(--al, #00897b);
             font-weight: 700;
         }
 
@@ -1650,6 +1662,111 @@
             #iconLightboxClose:hover { color: white; }
         }
 
+        /* ---- Annual Leave lightbox ---- */
+        #alLightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 10, 20, 0.85);
+            z-index: 8000;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+        }
+        #alLightbox.visible { display: flex; }
+        #alLightbox.open    { opacity: 1; }
+
+        #alLightboxContent {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 24px;
+            padding: 36px 40px 32px;
+            cursor: default;
+            transform: scale(0.85);
+            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            min-width: 260px;
+            text-align: center;
+        }
+        #alLightbox.open #alLightboxContent { transform: scale(1); }
+
+        #alLightboxClose {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 26px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 8px;
+            transition: color 0.15s ease;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            #alLightboxClose:hover { color: white; }
+        }
+
+        .al-lb-icon   { font-size: 44px; margin-bottom: 4px; }
+        .al-lb-title  { color: white; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+        .al-lb-year   { color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+
+        .al-lb-stats {
+            display: flex;
+            gap: 0;
+            align-items: stretch;
+            margin: 12px 0 6px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+        .al-lb-stat {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 16px 22px;
+            gap: 4px;
+        }
+        .al-lb-stat + .al-lb-stat {
+            border-left: 1px solid rgba(255,255,255,0.12);
+        }
+        .al-lb-val {
+            font-size: 36px;
+            font-weight: 800;
+            line-height: 1;
+            color: #4db6ac;
+        }
+        .al-lb-val.low   { color: #ffb74d; }
+        .al-lb-val.empty { color: #ef9a9a; }
+        .al-lb-lbl {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.45);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .al-lb-link {
+            margin-top: 14px;
+            color: rgba(255,255,255,0.6);
+            font-size: 13px;
+            font-weight: 600;
+            text-decoration: none;
+            padding: 8px 16px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            transition: color 0.15s, border-color 0.15s;
+            cursor: pointer;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .al-lb-link:hover { color: white; border-color: rgba(255,255,255,0.5); }
+        }
+
         /* ---- Month/year jump picker overlay ---- */
         #monthJumpOverlay {
             display: none;
@@ -1778,23 +1895,6 @@
         /* ---- Firestore loading indicator ---- */
         /* A "Syncing…" chip injected into .calendar-header while Firestore fetch is in flight.
            Fades in after 800 ms to avoid flashing on fast connections. */
-        /* ---- Annual Leave remaining chip ---- */
-        .al-chip {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            background: var(--al-light, #e0f2f1);
-            border: 1.5px solid var(--al, #00897b);
-            border-radius: 20px;
-            padding: 7px 16px;
-            font-size: 13px;
-            font-weight: 700;
-            color: var(--al, #00897b);
-            width: 100%;
-        }
-        .al-chip.al-chip-low   { border-color: #e67e00; color: #e67e00; background: #fff3e0; }
-        .al-chip.al-chip-empty { border-color: #c0392b; color: #c0392b; background: #fdecea; }
 
         .sync-chip {
             display: inline-flex;
@@ -1860,6 +1960,31 @@
         </div>
     </div>
 
+    <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
+    <div id="alLightbox" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
+        <span id="alLightboxClose" aria-label="Close">✕</span>
+        <div id="alLightboxContent">
+            <div class="al-lb-icon">🏖️</div>
+            <div class="al-lb-title">Annual Leave</div>
+            <div class="al-lb-year" id="alLbYear"></div>
+            <div class="al-lb-stats">
+                <div class="al-lb-stat">
+                    <span class="al-lb-val" id="alLbRemaining">—</span>
+                    <span class="al-lb-lbl">Remaining</span>
+                </div>
+                <div class="al-lb-stat">
+                    <span class="al-lb-val" id="alLbUsed">—</span>
+                    <span class="al-lb-lbl">Used</span>
+                </div>
+                <div class="al-lb-stat">
+                    <span class="al-lb-val" id="alLbEntitlement">—</span>
+                    <span class="al-lb-lbl">Entitlement</span>
+                </div>
+            </div>
+            <a href="admin.html" class="al-lb-link">→ Book leave in Admin</a>
+        </div>
+    </div>
+
     <!-- Month/year jump picker — opened by tapping the month-year heading -->
     <div id="monthJumpOverlay" role="dialog" aria-label="Jump to month" aria-modal="true">
         <div id="monthJumpCard" role="document">
@@ -1899,17 +2024,12 @@
             <div class="controls-row">
                 <div class="control-group">
                     <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
+                    <button id="alBtn"    class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
                     <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
                     <button id="adminBtn" class="admin-btn" aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
                 </div>
             </div>
         </nav>
-
-        <!-- Annual Leave balance chip — populated by JS after member selection -->
-        <div class="al-chip" id="alChip" hidden aria-live="polite">
-            <span>🏖️</span>
-            <span id="alChipText"></span>
-        </div>
 
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
@@ -1947,7 +2067,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.22';
+        CONFIG.APP_VERSION = '4.23';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2715,52 +2835,74 @@
             return calendarContainer;
         }
 
-        // updateALChip — queries Firestore for this member's AL days in the current year
-        // and updates the balance chip shown between the controls and the calendar.
-        // Exposed on window so the Firebase module script can call it after overrides load.
-        async function updateALChip() {
-            const chip   = document.getElementById('alChip');
-            const textEl = document.getElementById('alChipText');
-            const member = getCurrentMember();
+        // ============================================
+        // ANNUAL LEAVE LIGHTBOX
+        // ============================================
+        (function() {
+            const lb       = document.getElementById('alLightbox');
+            const closeBtn = document.getElementById('alLightboxClose');
+            const remEl    = document.getElementById('alLbRemaining');
+            const usedEl   = document.getElementById('alLbUsed');
+            const entEl    = document.getElementById('alLbEntitlement');
+            const yearEl   = document.getElementById('alLbYear');
 
-            if (!member) { chip.hidden = true; return; }
-
-            const entitlement = getALEntitlement(member);
-            const yearStr     = String(new Date().getFullYear());
-
-            chip.hidden    = false;
-            chip.className = 'al-chip';
-            textEl.textContent = '…';
-
-            try {
-                // Query all overrides for this member (single equality — no composite index needed).
-                // Filter by type + year client-side.
-                let used = 0;
-                if (window._alChipQuery && window._alChipGetDocs) {
-                    const snap = await window._alChipGetDocs(window._alChipQuery(member.name));
-                    snap.forEach(d => {
-                        const data = d.data();
-                        if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr)) used++;
-                    });
-                } else {
-                    // Firestore module not ready — count from the 3-month cache as a best-effort fallback
-                    window.rosterOverridesCache.forEach((val, key) => {
-                        const [name, date] = key.split('|');
-                        if (name === member.name && val.type === 'annual_leave' && date.startsWith(yearStr)) used++;
-                    });
-                }
-                const remaining = entitlement - used;
-                textEl.textContent = remaining <= 0
-                    ? `No AL days remaining (${used} of ${entitlement} used)`
-                    : `${remaining} AL day${remaining !== 1 ? 's' : ''} remaining`;
-                chip.classList.toggle('al-chip-empty', remaining <= 0);
-                chip.classList.toggle('al-chip-low',   remaining > 0 && remaining <= 5);
-            } catch (e) {
-                console.error('[AL chip] Failed:', e);
-                chip.hidden = true;
+            function openALLightbox() {
+                lb.classList.add('visible');
+                requestAnimationFrame(() => lb.classList.add('open'));
+                document.addEventListener('keydown', onKey);
+                loadALStats();
             }
-        }
-        window.updateALChip = updateALChip;
+
+            function closeALLightbox() {
+                lb.classList.remove('open');
+                lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+                document.removeEventListener('keydown', onKey);
+            }
+
+            function onKey(e) { if (e.key === 'Escape') closeALLightbox(); }
+
+            async function loadALStats() {
+                const member  = getCurrentMember();
+                const year    = new Date().getFullYear();
+                const yearStr = String(year);
+
+                yearEl.textContent = yearStr;
+                remEl.textContent  = '…';
+                usedEl.textContent = '…';
+
+                if (!member) { remEl.textContent = usedEl.textContent = '—'; return; }
+
+                const entitlement = getALEntitlement(member);
+                entEl.textContent = entitlement;
+
+                try {
+                    let used = 0;
+                    if (window._alChipQuery && window._alChipGetDocs) {
+                        const snap = await window._alChipGetDocs(window._alChipQuery(member.name));
+                        snap.forEach(d => {
+                            const data = d.data();
+                            if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr)) used++;
+                        });
+                    } else {
+                        window.rosterOverridesCache.forEach((val, key) => {
+                            const [name, date] = key.split('|');
+                            if (name === member.name && val.type === 'annual_leave' && date.startsWith(yearStr)) used++;
+                        });
+                    }
+                    const remaining = entitlement - used;
+                    usedEl.textContent = used;
+                    remEl.textContent  = remaining;
+                    remEl.className    = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
+                } catch (e) {
+                    console.error('[AL lightbox] Failed:', e);
+                    remEl.textContent = usedEl.textContent = '—';
+                }
+            }
+
+            document.getElementById('alBtn').addEventListener('click', openALLightbox);
+            closeBtn.addEventListener('click', closeALLightbox);
+            lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
+        })();
 
         // updateLegend — shows Night legend item only for Dispatcher roster members.
         // Called on initial load and whenever the selected member changes.
@@ -2844,7 +2986,6 @@
             saveSelectedMember(parseInt(e.target.value, 10));
             updateLegend();
             renderCalendar();
-            window.updateALChip?.();
         });
 
         document.getElementById('prevMonth').addEventListener('click', () => {
@@ -3635,7 +3776,6 @@
                 const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
                 await fetchOverridesForRange(startStr, endStr);
                 if (typeof renderCalendar === 'function') renderCalendar();
-                window.updateALChip?.();
             } catch (err) {
                 console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
             } finally {

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.21 -->
+<!-- MYB Roster Admin v4.23 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1327,8 +1327,8 @@
             </select>
         </div>
         <div class="login-field">
-            <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" placeholder="Password" autocomplete="current-password">
+            <label for="loginPassword">Password <span style="font-weight:400;color:var(--text-light);font-size:11px;">(your surname, lowercase)</span></label>
+            <input type="password" id="loginPassword" placeholder="e.g. miller" autocomplete="current-password">
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button id="loginSubmit">Sign in →</button>
@@ -1386,28 +1386,6 @@
                         <button class="week-nav-btn week-nav-today" id="thisWeekBtn" title="Jump to current week">●</button>
                     </div>
                 </div>
-            </div>
-
-            <!-- Annual Leave balance banner — shown when a member is selected -->
-            <div class="al-banner" id="alBanner" hidden>
-                <span class="al-banner-icon">🏖️</span>
-                <div class="al-banner-numbers">
-                    <div class="al-banner-stat stat-remaining">
-                        <span class="stat-val" id="alBannerRemaining">—</span>
-                        <span class="stat-lbl">Remaining</span>
-                    </div>
-                    <div class="al-banner-divider"></div>
-                    <div class="al-banner-stat">
-                        <span class="stat-val" id="alBannerUsed">—</span>
-                        <span class="stat-lbl">Used</span>
-                    </div>
-                    <div class="al-banner-divider"></div>
-                    <div class="al-banner-stat">
-                        <span class="stat-val" id="alBannerEntitlement">—</span>
-                        <span class="stat-lbl">Entitlement</span>
-                    </div>
-                </div>
-                <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Limit reached</span>
             </div>
 
             <!-- Bulk bar — shown once member+date are chosen -->
@@ -1474,6 +1452,27 @@
             <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
         </div>
         <div class="card-body">
+            <!-- Annual Leave balance banner — updates when a member is selected -->
+            <div class="al-banner" id="alBanner" hidden>
+                <span class="al-banner-icon">🏖️</span>
+                <div class="al-banner-numbers">
+                    <div class="al-banner-stat stat-remaining">
+                        <span class="stat-val" id="alBannerRemaining">—</span>
+                        <span class="stat-lbl">Remaining</span>
+                    </div>
+                    <div class="al-banner-divider"></div>
+                    <div class="al-banner-stat">
+                        <span class="stat-val" id="alBannerUsed">—</span>
+                        <span class="stat-lbl">Used</span>
+                    </div>
+                    <div class="al-banner-divider"></div>
+                    <div class="al-banner-stat">
+                        <span class="stat-val" id="alBannerEntitlement">—</span>
+                        <span class="stat-lbl">Entitlement</span>
+                    </div>
+                </div>
+                <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Limit reached</span>
+            </div>
             <div class="al-form">
                 <div class="field-group">
                     <label for="alMember">Staff member</label>
@@ -1550,7 +1549,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.21';
+const ADMIN_VERSION = '4.23';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1868,7 +1867,7 @@ function updateALBanner() {
     const usedEl      = document.getElementById('alBannerUsed');
     const entEl       = document.getElementById('alBannerEntitlement');
     const warnEl      = document.getElementById('alBannerWarn');
-    const memberName  = fieldMember.value;
+    const memberName  = alMember.value;
 
     if (!memberName) { banner.hidden = true; return; }
 
@@ -2072,7 +2071,6 @@ function renderWeekGrid() {
     bulkBar.style.display = 'block';
     resetBulkPills();
     updateSaveBtn();
-    updateALBanner();
 }
 
 function activateRow(row, cb, pills, startEl, endEl, type) {
@@ -2106,7 +2104,7 @@ function updateSaveBtn() {
     const hasType = [...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
     saveBtn.disabled = !hasType;
     const hint = document.getElementById('saveBtnHint');
-    if (hint) hint.textContent = hasType ? '' : 'Tap an override type on at least one day, then save';
+    if (hint) hint.textContent = hasType ? 'Ready — tap Save to apply changes' : 'Tap an override type on at least one day, then save';
 }
 
 // ============================================
@@ -2428,7 +2426,7 @@ async function handleDelete(e) {
                 btn.classList.remove('confirming');
                 btn.textContent = 'Delete';
             }
-        }, 3000);
+        }, 5000);
         return;
     }
 
@@ -2648,10 +2646,17 @@ function hideALConfirm() {
 }
 
 alConfirmSaveBtn.addEventListener('click', async () => {
-    if (!_alPendingSave) return;
-    const toSave = _alPendingSave;
-    hideALConfirm();
-    await executeSave(toSave);
+    if (_alPendingSave) {
+        // Week editor path — toSave is an array of override entries
+        const toSave = _alPendingSave;
+        hideALConfirm();
+        await executeSave(toSave);
+    } else {
+        // AL booking path — set confirmed flag then re-trigger booking
+        _alBookingConfirmed = true;
+        hideALConfirm();
+        alSaveBtn.click();
+    }
 });
 
 alConfirmCancelBtn.addEventListener('click', () => {
@@ -2686,6 +2691,8 @@ if (lastMember) alMember.value = lastMember;
 // Sync alMember with the main member picker (keep them in step)
 fieldMember.addEventListener('change', () => { if (fieldMember.value) alMember.value = fieldMember.value; });
 alMember.addEventListener('change', () => {
+    updateALBanner();
+    updateAlPreview();
     if (alMember.value) {
         fieldMember.value = alMember.value;
         localStorage.setItem('adminLastMember', alMember.value);
@@ -2753,22 +2760,45 @@ function updateAlPreview() {
     alSaveBtn.disabled = workDays === 0;
 }
 
-alMember.addEventListener('change', updateAlPreview);
 alFrom.addEventListener('change',   updateAlPreview);
 alTo.addEventListener('change',     updateAlPreview);
 updateAlPreview();
 
+let _alBookingConfirmed = false;
 alSaveBtn.addEventListener('click', async () => {
     const member = alMember.value;
     const dates  = getAlDates();
     if (!member || !dates || !dates.length) return;
+
+    // Annual leave entitlement check (skip if user already confirmed via the bar)
+    if (!_alBookingConfirmed) {
+        const memberObj      = teamMembers.find(m => m.name === member);
+        const entitlement    = getALEntitlement(memberObj);
+        const yearStr        = String(new Date().getFullYear());
+        const existingAL     = allOverrides.filter(o =>
+            o.memberName === member &&
+            o.type       === 'annual_leave' &&
+            o.date       && o.date.startsWith(yearStr)
+        ).length;
+        const newALInYear    = dates.filter(d => d.startsWith(yearStr)).length;
+        const projectedTotal = existingAL + newALInYear;
+        if (projectedTotal > entitlement) {
+            const over = projectedTotal - entitlement;
+            showALConfirm(
+                `${member} will be ${over} day${over !== 1 ? 's' : ''} over their AL entitlement`,
+                `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
+                null // null = AL booking path (not week editor)
+            );
+            return;
+        }
+    }
+    _alBookingConfirmed = false; // reset after use
 
     alFeedback.className = 'feedback';
     alSaveBtn.disabled    = true;
     alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
     // Filter out rest days — no point writing AL over an already-resting day
-    const memberObj = teamMembers.find(m => m.name === member);
     const workingDates = memberObj
         ? dates.filter(dateStr => {
             const d    = new Date(dateStr + 'T12:00:00');
