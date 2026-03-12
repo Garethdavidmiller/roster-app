@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.13 -->
+<!-- MYB Roster Calendar - Version 4.14 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1923,7 +1923,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.13';
+        CONFIG.APP_VERSION = '4.14';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2359,15 +2359,15 @@
         function isEarlyShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
             const hour = parseInt(timeStr.split(':')[0], 10);
-            return hour < CONFIG.EARLY_SHIFT_THRESHOLD;
+            // Early = starts 05:00–10:59
+            return hour >= CONFIG.NIGHT_END_THRESHOLD && hour < CONFIG.EARLY_SHIFT_THRESHOLD;
         }
 
         function isNightShift(timeStr) {
             if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
-            const hour = parseInt(timeStr.split(':')[0], 10);
-            // Night = starts at 22:00 or later, OR starts after midnight (00:00-05:59)
-            // The post-midnight clause future-proofs against shifts like 00:30-08:30
-            return hour >= CONFIG.NIGHT_SHIFT_THRESHOLD || hour < 6;
+            // Night = shift ends before 05:00 (e.g. 22:00–04:30)
+            const endHour = parseInt(timeStr.split('-')[1].split(':')[0], 10);
+            return endHour < CONFIG.NIGHT_END_THRESHOLD;
         }
 
         function getShiftClass(timeStr) {
