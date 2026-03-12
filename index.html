@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.21 -->
+<!-- MYB Roster Calendar - Version 4.22 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1783,49 +1783,18 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
+            gap: 6px;
             background: var(--al-light, #e0f2f1);
             border: 1.5px solid var(--al, #00897b);
-            border-radius: 10px;
-            padding: 8px 14px;
+            border-radius: 20px;
+            padding: 7px 16px;
             font-size: 13px;
-            font-weight: 600;
-            color: var(--primary-blue);
+            font-weight: 700;
+            color: var(--al, #00897b);
             width: 100%;
         }
-        .al-chip .al-chip-stat {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0;
-        }
-        .al-chip .al-chip-val {
-            font-size: 22px;
-            font-weight: 800;
-            line-height: 1;
-            color: var(--al, #00897b);
-        }
-        .al-chip .al-chip-lbl {
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--text-mid);
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-        }
-        .al-chip .al-chip-divider {
-            width: 1px;
-            height: 32px;
-            background: var(--al, #00897b);
-            opacity: 0.3;
-        }
-        .al-chip.al-chip-low .al-chip-stat.stat-remaining .al-chip-val { color: #e67e00; }
-        .al-chip.al-chip-empty .al-chip-stat.stat-remaining .al-chip-val { color: #c0392b; }
-        .al-chip-year {
-            font-size: 11px;
-            color: var(--text-light);
-            font-weight: 500;
-            margin-left: auto;
-        }
+        .al-chip.al-chip-low   { border-color: #e67e00; color: #e67e00; background: #fff3e0; }
+        .al-chip.al-chip-empty { border-color: #c0392b; color: #c0392b; background: #fdecea; }
 
         .sync-chip {
             display: inline-flex;
@@ -1939,21 +1908,7 @@
         <!-- Annual Leave balance chip — populated by JS after member selection -->
         <div class="al-chip" id="alChip" hidden aria-live="polite">
             <span>🏖️</span>
-            <div class="al-chip-stat stat-remaining">
-                <span class="al-chip-val" id="alChipRemaining">—</span>
-                <span class="al-chip-lbl">Days remaining</span>
-            </div>
-            <div class="al-chip-divider"></div>
-            <div class="al-chip-stat">
-                <span class="al-chip-val" id="alChipUsed">—</span>
-                <span class="al-chip-lbl">Used</span>
-            </div>
-            <div class="al-chip-divider"></div>
-            <div class="al-chip-stat">
-                <span class="al-chip-val" id="alChipEntitlement">—</span>
-                <span class="al-chip-lbl">Entitlement</span>
-            </div>
-            <span class="al-chip-year" id="alChipYear"></span>
+            <span id="alChipText"></span>
         </div>
 
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
@@ -1992,7 +1947,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.21';
+        CONFIG.APP_VERSION = '4.22';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2764,25 +2719,18 @@
         // and updates the balance chip shown between the controls and the calendar.
         // Exposed on window so the Firebase module script can call it after overrides load.
         async function updateALChip() {
-            const chip        = document.getElementById('alChip');
-            const remEl       = document.getElementById('alChipRemaining');
-            const usedEl      = document.getElementById('alChipUsed');
-            const entEl       = document.getElementById('alChipEntitlement');
-            const yearEl      = document.getElementById('alChipYear');
-            const member      = getCurrentMember();
+            const chip   = document.getElementById('alChip');
+            const textEl = document.getElementById('alChipText');
+            const member = getCurrentMember();
 
             if (!member) { chip.hidden = true; return; }
 
             const entitlement = getALEntitlement(member);
-            const year        = new Date().getFullYear();
-            const yearStr     = String(year);
+            const yearStr     = String(new Date().getFullYear());
 
-            chip.hidden = false;
+            chip.hidden    = false;
             chip.className = 'al-chip';
-            remEl.textContent = '…';
-            usedEl.textContent = '…';
-            entEl.textContent  = entitlement;
-            yearEl.textContent = yearStr;
+            textEl.textContent = '…';
 
             try {
                 // Query all overrides for this member (single equality — no composite index needed).
@@ -2802,8 +2750,9 @@
                     });
                 }
                 const remaining = entitlement - used;
-                remEl.textContent  = remaining;
-                usedEl.textContent = used;
+                textEl.textContent = remaining <= 0
+                    ? `No AL days remaining (${used} of ${entitlement} used)`
+                    : `${remaining} AL day${remaining !== 1 ? 's' : ''} remaining`;
                 chip.classList.toggle('al-chip-empty', remaining <= 0);
                 chip.classList.toggle('al-chip-low',   remaining > 0 && remaining <= 5);
             } catch (e) {
