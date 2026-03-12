@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.24 -->
+<!-- MYB Roster Admin v4.25 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -705,20 +705,33 @@
         .feedback.success { display: block; background: var(--green-light); color: #1b5e20; }
         .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
 
-        /* ---- Annual Leave over-limit confirm bar ---- */
+        /* ---- Annual Leave over-limit confirm bar (fixed bottom sheet) ---- */
         .al-confirm-bar {
-            display: none;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 6000;
+            display: flex;
             align-items: flex-start;
             gap: 12px;
             background: #fff8e1;
-            border: 1.5px solid #f9a825;
-            border-radius: 8px;
-            padding: 12px 14px;
-            margin-top: 12px;
+            border-top: 2px solid #f9a825;
+            border-radius: 14px 14px 0 0;
+            padding: 16px 18px max(16px, env(safe-area-inset-bottom));
             font-size: 13px;
             color: var(--primary-blue);
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+            visibility: hidden;
+            transform: translateY(100%);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                        visibility 0s linear 0.25s;
         }
-        .al-confirm-bar.visible { display: flex; }
+        .al-confirm-bar.visible {
+            visibility: visible;
+            transform: translateY(0);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         .al-confirm-bar .al-confirm-icon { font-size: 20px; flex-shrink: 0; }
         .al-confirm-bar .al-confirm-body { flex: 1; }
         .al-confirm-bar .al-confirm-msg  { font-weight: 700; margin-bottom: 4px; }
@@ -1419,7 +1432,7 @@
                     </div>
                 </div>
                 <!-- Step 3: apply -->
-                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to checked days ↓</button>
+                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to selected days</button>
             </div>
 
             <!-- 7-day week grid -->
@@ -1430,17 +1443,6 @@
             <button class="btn-save" id="saveBtn" disabled>Save Changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type for at least one day to save</p>
             <div class="feedback" id="formFeedback"></div>
-            <div class="al-confirm-bar" id="alConfirmBar">
-                <span class="al-confirm-icon">⚠️</span>
-                <div class="al-confirm-body">
-                    <div class="al-confirm-msg" id="alConfirmMsg"></div>
-                    <div class="al-confirm-sub" id="alConfirmSub"></div>
-                    <div class="al-confirm-btns">
-                        <button class="btn-confirm-save" id="alConfirmSaveBtn">Save anyway</button>
-                        <button class="btn-confirm-cancel" id="alConfirmCancelBtn">Cancel</button>
-                    </div>
-                </div>
-            </div>
 
         </div>
     </div>
@@ -2690,14 +2692,22 @@ roles.forEach(role => {
 if (lastMember) alMember.value = lastMember;
 
 // Sync alMember with the main member picker (keep them in step)
-fieldMember.addEventListener('change', () => { if (fieldMember.value) alMember.value = fieldMember.value; });
+fieldMember.addEventListener('change', () => {
+    if (fieldMember.value) {
+        alMember.value     = fieldMember.value;
+        filterMember.value = fieldMember.value;
+        renderTable();
+    }
+});
 alMember.addEventListener('change', () => {
     updateALBanner();
     updateAlPreview();
     if (alMember.value) {
-        fieldMember.value = alMember.value;
+        fieldMember.value  = alMember.value;
+        filterMember.value = alMember.value;
         localStorage.setItem('adminLastMember', alMember.value);
         renderWeekGrid();
+        renderTable();
     }
 });
 
@@ -2886,5 +2896,16 @@ if (!isAuthenticated) {
     loadOverrides(); // internally calls renderWeekGrid() after data loads
 }
 </script>
+<div class="al-confirm-bar" id="alConfirmBar">
+    <span class="al-confirm-icon">⚠️</span>
+    <div class="al-confirm-body">
+        <div class="al-confirm-msg" id="alConfirmMsg"></div>
+        <div class="al-confirm-sub" id="alConfirmSub"></div>
+        <div class="al-confirm-btns">
+            <button class="btn-confirm-save" id="alConfirmSaveBtn">Save anyway</button>
+            <button class="btn-confirm-cancel" id="alConfirmCancelBtn">Cancel</button>
+        </div>
+    </div>
+</div>
 </body>
 </html>
