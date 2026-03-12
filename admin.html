@@ -96,10 +96,6 @@
             flex: 1;
         }
 
-        .app-header h1 span {
-            font-weight: 400;
-            color: var(--text-light);
-        }
 
         .badge-admin {
             background: var(--primary-blue);
@@ -131,7 +127,7 @@
 
         .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); flex: 1; }
         .card-header .hint { font-size: 11px; color: var(--text-light); }
-        .week-range-label { font-size: 12px; color: var(--text-mid); font-weight: 600; white-space: nowrap; }
+        /* week-range-label class kept for possible future use but no longer rendered */
 
         .card-body { padding: 16px; }
 
@@ -216,6 +212,30 @@
         .week-date-wrap {
             flex: 1;
             padding: 0 4px;
+            position: relative;
+        }
+        .week-nav-label {
+            display: block;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            padding: 7px 8px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            white-space: nowrap;
+            pointer-events: none;
+            user-select: none;
+        }
+        .week-date-wrap input[type="date"] {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 1;
         }
 
         /* ---- Shift badges ---- */
@@ -1012,7 +1032,7 @@
 
     <header class="app-header">
         <img src="icon-192.png" alt="Chiltern Railways">
-        <h1>MYB Roster <span>· Admin</span></h1>
+        <h1>MYB Roster</h1>
         <span class="badge-admin" id="adminBadge">Admin</span>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
@@ -1021,7 +1041,6 @@
     <div class="card">
         <div class="card-header">
             <h2>Add / Edit Overrides</h2>
-            <span class="week-range-label" id="weekRangeLabel"></span>
             <span class="hint">Click a type pill on any day to set it</span>
         </div>
         <div class="card-body">
@@ -1039,6 +1058,7 @@
                     <div class="week-nav">
                         <button class="week-nav-btn" id="prevWeekBtn" title="Previous week">‹</button>
                         <div class="week-date-wrap">
+                            <span id="weekNavLabel" class="week-nav-label">Pick a date</span>
                             <input type="date" id="fieldDate">
                         </div>
                         <button class="week-nav-btn" id="nextWeekBtn" title="Next week">›</button>
@@ -1417,6 +1437,7 @@ if (lastMember && teamMembers.find(m => m.name === lastMember)) {
 
 // Default date = today
 fieldDate.value = formatISO(new Date());
+renderWeekGrid(); // updates the week nav label on load
 
 // ============================================
 // WEEK NAVIGATION
@@ -1438,13 +1459,24 @@ function renderWeekGrid() {
     const memberName = fieldMember.value;
     const dateStr    = fieldDate.value;
 
-    const weekRangeLabel = document.getElementById('weekRangeLabel');
+    // Always update the week nav label (even before the member guard below)
+    if (dateStr) {
+        const _picked   = new Date(dateStr + 'T12:00:00');
+        const _sunday   = new Date(_picked);
+        _sunday.setDate(_picked.getDate() - _picked.getDay());
+        const _saturday = new Date(_sunday);
+        _saturday.setDate(_sunday.getDate() + 6);
+        const weekNavLabel = document.getElementById('weekNavLabel');
+        if (weekNavLabel) {
+            weekNavLabel.textContent =
+                `${_sunday.getDate()} ${MONTH_ABB[_sunday.getMonth()]} – ${_saturday.getDate()} ${MONTH_ABB[_saturday.getMonth()]} ${_saturday.getFullYear()}`;
+        }
+    }
 
     if (!memberName || !dateStr) {
         weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
         bulkBar.style.display = 'none';
         saveBtn.disabled = true;
-        if (weekRangeLabel) weekRangeLabel.textContent = '';
         return;
     }
 
@@ -1455,14 +1487,6 @@ function renderWeekGrid() {
     const picked = new Date(dateStr + 'T12:00:00');
     const sunday = new Date(picked);
     sunday.setDate(picked.getDate() - picked.getDay());
-
-    // Show the week range in the card header
-    if (weekRangeLabel) {
-        const saturday = new Date(sunday);
-        saturday.setDate(sunday.getDate() + 6);
-        weekRangeLabel.textContent =
-            `${sunday.getDate()} ${MONTH_ABB[sunday.getMonth()]} – ${saturday.getDate()} ${MONTH_ABB[saturday.getMonth()]} ${saturday.getFullYear()}`;
-    }
 
     weekGrid.innerHTML = `
         <div class="week-grid-header">
