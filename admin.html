@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.01 -->
+<!-- MYB Roster Admin v4.02 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1295,7 +1295,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.01';
+const ADMIN_VERSION = '4.02';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1560,9 +1560,16 @@ fieldDate.value = formatISO(new Date());
 // ============================================
 // UNSAVED CHANGES GUARD
 // ============================================
-function hasUnsavedChanges() {
-    return [...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
-}
+// Tracks whether the USER has made a change since the last render.
+// renderWeekGrid() pre-fills rows from existing overrides — those are
+// NOT unsaved changes, so we use an explicit flag rather than checking
+// dataset.type (which is set by the pre-fill as well).
+let userMadeChanges = false;
+
+function hasUnsavedChanges() { return userMadeChanges; }
+
+// Call this whenever the user explicitly interacts with the grid
+function markChanged() { userMadeChanges = true; }
 
 // Warn browser/OS before closing or navigating away
 window.addEventListener('beforeunload', e => {
@@ -1593,6 +1600,7 @@ nextWeekBtn.addEventListener('click', () => shiftWeek(+1));
 // WEEK GRID
 // ============================================
 function renderWeekGrid() {
+    userMadeChanges = false; // fresh render clears the dirty flag
     const memberName = fieldMember.value;
     const dateStr    = fieldDate.value;
 
@@ -1728,6 +1736,7 @@ function renderWeekGrid() {
                     const meta = TYPES[type];
                     if (meta && !meta.fixed) startEl.focus();
                 }
+                markChanged();
                 updateSaveBtn();
             });
         });
@@ -1739,8 +1748,13 @@ function renderWeekGrid() {
             } else {
                 deactivateRow(row, cb, pills, startEl, endEl);
             }
+            markChanged();
             updateSaveBtn();
         });
+
+        // Time inputs: user editing a time counts as a change
+        startEl.addEventListener('change', markChanged);
+        endEl.addEventListener('change', markChanged);
 
         // Note button
         noteBtn.addEventListener('click', () => {
@@ -1888,6 +1902,7 @@ bulkApplyBtn.addEventListener('click', () => {
             if (bulkEnd.value)   endEl.value   = bulkEnd.value;
         }
     });
+    markChanged();
     updateSaveBtn();
 });
 
@@ -1938,6 +1953,10 @@ saveBtn.addEventListener('click', async () => {
     if (errors.length)  return showError('Missing times — ' + errors.join(' · '));
     if (!toSave.length) return showError('No days selected.');
 
+    // Validate shift duration and rest-gap rules
+    const ruleErrors = validateShiftRules(toSave, memberName);
+    if (ruleErrors.length) return showError(ruleErrors.join(' · '));
+
     const overwrites = toSave.filter(e => e.existingId).length;
     const creates    = toSave.length - overwrites;
 
@@ -1958,6 +1977,7 @@ saveBtn.addEventListener('click', async () => {
         if (creates    > 0) parts.push(`${creates} added`);
         if (overwrites > 0) parts.push(`${overwrites} updated`);
         showSuccess(`${parts.join(', ')} for ${memberName}`);
+        userMadeChanges = false;
 
         // Reset checked rows
         weekGrid.querySelectorAll('.day-row').forEach(row => {
@@ -2102,6 +2122,107 @@ async function handleDelete(e) {
 // ============================================
 function formatISO(d) {
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// ---- Shift rule helpers ----
+
+// Parse "HH:MM" → total minutes from midnight
+function parseMinutes(timeStr) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return h * 60 + m;
+}
+
+// Effective end in minutes from midnight of the START day.
+// Overnight shifts (end < start) add 24 h so gap maths stays consistent.
+function effectiveEndMins(startStr, endStr) {
+    const s = parseMinutes(startStr);
+    const e = parseMinutes(endStr);
+    return e >= s ? e : e + 24 * 60;
+}
+
+// Human-readable hours: 450 → "7.5h", 720 → "12h"
+function fmtHours(mins) {
+    const h = mins / 60;
+    return (Number.isInteger(h) ? h : h.toFixed(1)) + 'h';
+}
+
+// Return the effective shift value string for memberName on dateISO.
+// Checks the pending save batch first, then existing overrides, then base roster.
+function getEffectiveShift(memberName, dateISO, batch) {
+    const inBatch = batch.find(e => e.date === dateISO);
+    if (inBatch) return inBatch.value;
+    const inOverrides = allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
+    if (inOverrides) return inOverrides.value;
+    const member = teamMembers.find(m => m.name === memberName);
+    if (!member) return 'RD';
+    return getBaseShift(member, new Date(dateISO + 'T12:00:00'));
+}
+
+// Validate max shift duration (12 h) and minimum rest gap (12 h) between consecutive shifts.
+// Returns an array of human-readable error strings; also marks failing rows with .row-error.
+function validateShiftRules(toSave, memberName) {
+    const ruleErrors = [];
+
+    toSave.forEach(entry => {
+        const { date, value, type } = entry;
+        if (TYPES[type]?.fixed) return;           // AL / Make Rest Day — no times
+        if (!value || !value.includes('-')) return; // RD, SPARE, etc.
+
+        const [startStr, endStr] = value.split('-');
+        const startMins = parseMinutes(startStr);
+        const endMins   = effectiveEndMins(startStr, endStr); // may exceed 1440 for overnight
+
+        const markRow = () => {
+            const row = weekGrid.querySelector(`.day-row[data-date="${date}"]`);
+            if (row) row.classList.add('row-error');
+        };
+
+        // 1. Duration check (max 12 h)
+        const duration = endMins - startMins;
+        if (duration > 12 * 60) {
+            markRow();
+            ruleErrors.push(`${formatDisplay(date)}: shift is ${fmtHours(duration)} — max is 12h`);
+        }
+
+        // 2. Gap with previous calendar day (prev shift end → this shift start)
+        const prevDate = new Date(date + 'T12:00:00');
+        prevDate.setDate(prevDate.getDate() - 1);
+        const prevISO   = formatISO(prevDate);
+        const prevShift = getEffectiveShift(memberName, prevISO, toSave);
+
+        if (prevShift && prevShift.includes('-')) {
+            const [ps, pe] = prevShift.split('-');
+            const prevEffEnd = effectiveEndMins(ps, pe);
+            // This shift starts startMins into the *next* calendar day from prevShift's start
+            const gap = (startMins + 24 * 60) - prevEffEnd;
+            if (gap < 12 * 60) {
+                markRow();
+                ruleErrors.push(
+                    `${formatDisplay(date)}: only ${fmtHours(gap)} rest after ${formatDisplay(prevISO)} shift — need 12h`
+                );
+            }
+        }
+
+        // 3. Gap with next calendar day (this shift end → next shift start)
+        const nextDate = new Date(date + 'T12:00:00');
+        nextDate.setDate(nextDate.getDate() + 1);
+        const nextISO   = formatISO(nextDate);
+        const nextShift = getEffectiveShift(memberName, nextISO, toSave);
+
+        if (nextShift && nextShift.includes('-')) {
+            const [ns] = nextShift.split('-');
+            const nextStartMins = parseMinutes(ns);
+            const gap = (nextStartMins + 24 * 60) - endMins;
+            if (gap < 12 * 60) {
+                markRow();
+                ruleErrors.push(
+                    `${formatDisplay(date)}: only ${fmtHours(gap)} rest before ${formatDisplay(nextISO)} shift — need 12h`
+                );
+            }
+        }
+    });
+
+    return ruleErrors;
 }
 
 function formatDisplay(str) {
