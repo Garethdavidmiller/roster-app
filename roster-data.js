@@ -110,6 +110,7 @@ export function getALEntitlement(member) {
     if (!member) return 32;
     if (member.rosterType === 'bilingual') return 34;
     if (member.role === 'CES' || member.role === 'Dispatcher') return 34;
+    if (member.rosterType === 'fixed') return 34; // C. Reen — may need revisiting
     return 32;
 }
 
