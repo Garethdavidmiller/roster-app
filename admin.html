@@ -854,6 +854,29 @@
             }
         }
 
+        /* ---- Back-to-roster button (in header) ---- */
+        .btn-back {
+            background: transparent;
+            border: 1.5px solid var(--border-light);
+            color: var(--primary-blue);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.12s;
+            white-space: nowrap;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
+        }
+
         /* ---- Sign-out button (in header) ---- */
         .btn-signout {
             background: transparent;
@@ -1124,6 +1147,7 @@
             .col-note-btn,
             .note-row,
             .btn-signout,
+            .btn-back,
             .list-feedback { display: none !important; }
 
             /* Reset backgrounds for print */
@@ -1206,6 +1230,7 @@
 
     <header class="app-header">
         <img src="icon-192.png" alt="Chiltern Railways">
+        <a href="index.html" class="btn-back" aria-label="Back to roster calendar">← Roster</a>
         <h1>MYB Roster</h1>
         <span class="badge-admin" id="adminBadge">Admin</span>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
