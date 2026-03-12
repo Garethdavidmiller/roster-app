@@ -530,6 +530,22 @@
             border-radius: 10px;
             overflow: hidden;
             margin-bottom: 14px;
+            position: relative; /* contains absolutely-positioned carousel panels during swipe */
+        }
+
+        /* Swipe carousel — mirrors .carousel-panel / .calendar-container in index.html.
+           .week-panel          — current (in-flow) panel; defines weekGrid height.
+           .week-carousel-panel — adjacent pre-built panel, absolutely positioned off-screen. */
+        .week-panel {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .week-carousel-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .week-grid-header {
@@ -1520,6 +1536,7 @@
         <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Select a <strong>staff member</strong> and <strong>week</strong> at the top</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>type pill</strong> on any day to set that shift type</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save</strong> — unsaved changes are highlighted in amber</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left / right on the week grid to move between weeks</span></div>
 
         <div class="tips-lb-section">Bulk changes</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">☑️</span><span>Check multiple days, choose a type and time, then tap <strong>Apply to selected days</strong></span></div>
@@ -1748,7 +1765,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.30';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.32';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1764,7 +1781,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.30';
+const ADMIN_VERSION = '4.32';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2092,14 +2109,171 @@ function shiftWeek(delta) {
     renderWeekGrid();
 }
 
-prevWeekBtn.addEventListener('click', () => shiftWeek(-1));
-nextWeekBtn.addEventListener('click', () => shiftWeek(+1));
 document.getElementById('thisWeekBtn').addEventListener('click', () => {
     if (!confirmNavigate()) return;
     fieldDate.value = formatISO(new Date());
     lastFieldDate = fieldDate.value;
     renderWeekGrid();
 });
+
+// ============================================
+// WEEK GRID — SWIPE GESTURE
+// Same architecture as the swipe carousel in index.html.
+// Safety guards: skips interactive elements, blocks if unsaved changes exist,
+// blocks if no member/week is loaded.
+// ============================================
+(function initWeekSwipe() {
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const TRANSITION  = prefersReducedMotion ? 'none' : 'transform 0.35s cubic-bezier(0.4,0,0.2,1)';
+    const DURATION_MS = prefersReducedMotion ? 0 : 350;
+    const SWIPE_PX    = 75;   // minimum px for a committed swipe
+    const SWIPE_VEL   = 0.4;  // px/ms fast-flick threshold
+
+    // Tags whose pointerdown should NOT trigger the swipe gesture
+    const INTERACTIVE = new Set(['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT', 'LABEL']);
+
+    let wPrev = null, wNext = null, wCurrent = null;
+    let wW = 0, wX0 = 0, wY0 = 0, wT0 = 0;
+    let wDragging = false, wHorizontal = null, wHapticFired = false, wCooldown = false;
+
+    // Build a fully-functional adjacent week panel offset off-screen by delta weeks.
+    function buildAdjPanel(delta) {
+        const d = new Date(fieldDate.value + 'T12:00:00');
+        d.setDate(d.getDate() + delta * 7);
+        const panel = document.createElement('div');
+        panel.className = 'week-panel week-carousel-panel';
+        buildWeekGridInto(panel, formatISO(d));
+        weekGrid.appendChild(panel);
+        panel.style.transform = `translateX(${delta < 0 ? -wW : wW}px)`;
+        return panel;
+    }
+
+    function discardPanels() {
+        if (wPrev && wPrev.parentNode) wPrev.remove();
+        if (wNext && wNext.parentNode) wNext.remove();
+        wPrev = null; wNext = null;
+    }
+
+    function snapBack() {
+        if (wCurrent) { wCurrent.style.transition = TRANSITION; wCurrent.style.transform = 'translateX(0)'; }
+        if (wPrev)    { wPrev.style.transition    = TRANSITION; wPrev.style.transform    = `translateX(${-wW}px)`; }
+        if (wNext)    { wNext.style.transition    = TRANSITION; wNext.style.transform    = `translateX(${wW}px)`; }
+        setTimeout(() => {
+            discardPanels();
+            if (wCurrent) { wCurrent.style.transition = ''; wCurrent.style.willChange = ''; }
+            wCurrent = null; wCooldown = false;
+        }, DURATION_MS + 50);
+    }
+
+    weekGrid.addEventListener('pointerdown', e => {
+        if (!e.isPrimary || wCooldown) return;
+        if (INTERACTIVE.has(e.target.tagName)) return;  // let inputs/buttons handle their own events
+        if (userMadeChanges) return;                     // block navigation while unsaved changes exist
+        if (!fieldMember.value || !fieldDate.value) return;
+
+        wCurrent = weekGrid.querySelector('.week-panel:not(.week-carousel-panel)');
+        if (!wCurrent) return;
+
+        navigator.vibrate?.(0);  // prime Vibration API on Android Chrome before gesture commits
+        weekGrid.setPointerCapture(e.pointerId);
+        wW = Math.ceil(weekGrid.getBoundingClientRect().width);
+        wX0 = e.clientX; wY0 = e.clientY; wT0 = e.timeStamp;
+        wDragging = true; wHorizontal = null; wHapticFired = false;
+
+        wCurrent.style.transition = 'none';
+        wCurrent.style.willChange = 'transform';
+        wPrev = buildAdjPanel(-1);
+        wNext = buildAdjPanel(+1);
+        wCooldown = true;
+    });
+
+    weekGrid.addEventListener('pointermove', e => {
+        if (!wDragging || !e.isPrimary) return;
+        const dx = e.clientX - wX0;
+        const dy = e.clientY - wY0;
+
+        // Determine gesture direction on first significant movement
+        if (wHorizontal === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+            wHorizontal = Math.abs(dx) > Math.abs(dy);
+        }
+        if (wHorizontal === false) {
+            // Vertical — cancel gesture immediately, restore scroll
+            wDragging = false; wCooldown = false;
+            wCurrent.style.transition = '';
+            wCurrent.style.transform  = '';
+            wCurrent.style.willChange = '';
+            discardPanels(); return;
+        }
+        if (wHorizontal !== true) return;
+
+        wCurrent.style.transform = `translateX(${dx}px)`;
+        if (wPrev) wPrev.style.transform = `translateX(${-wW + dx}px)`;
+        if (wNext) wNext.style.transform = `translateX(${wW + dx}px)`;
+
+        if (!wHapticFired && Math.abs(dx) >= SWIPE_PX) {
+            navigator.vibrate?.(6);
+            wHapticFired = true;
+        }
+    });
+
+    weekGrid.addEventListener('pointerup', e => {
+        if (!wDragging || !e.isPrimary) return;
+        wDragging = false;
+        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
+
+        const dx  = e.clientX - wX0;
+        const vel = e.timeStamp > wT0 ? Math.abs(dx) / (e.timeStamp - wT0) : 0;
+        const goLeft  = dx < 0 && (Math.abs(dx) >= SWIPE_PX || vel >= SWIPE_VEL);
+        const goRight = dx > 0 && (Math.abs(dx) >= SWIPE_PX || vel >= SWIPE_VEL);
+
+        if (goLeft || goRight) {
+            if (!wHapticFired) navigator.vibrate?.(6);
+            const incoming = goLeft ? wNext : wPrev;
+            const discard  = goLeft ? wPrev : wNext;
+            if (!incoming) { snapBack(); return; }
+
+            // Commit: advance date state before animation so label is correct
+            const d = new Date(fieldDate.value + 'T12:00:00');
+            d.setDate(d.getDate() + (goLeft ? +7 : -7));
+            fieldDate.value = lastFieldDate = formatISO(d);
+            updateWeekNavLabel(fieldDate.value);
+            userMadeChanges = false;
+
+            wCurrent.style.transition = TRANSITION;
+            wCurrent.style.transform  = `translateX(${goLeft ? -wW : wW}px)`;
+            incoming.style.transition = TRANSITION;
+            incoming.style.transform  = 'translateX(0)';
+            if (discard && discard.parentNode) discard.remove();
+
+            function restore() {
+                incoming.classList.remove('week-carousel-panel');
+                incoming.style.transition = incoming.style.transform = incoming.style.willChange = '';
+                if (wCurrent && wCurrent.parentNode) wCurrent.remove();
+                wPrev = wNext = wCurrent = null;
+                resetBulkPills();
+                updateSaveBtn();
+                wCooldown = false;
+            }
+            const timer = setTimeout(restore, DURATION_MS + 50);
+            incoming.addEventListener('transitionend', () => { clearTimeout(timer); restore(); }, { once: true });
+
+        } else {
+            snapBack();
+        }
+    });
+
+    weekGrid.addEventListener('pointercancel', e => {
+        if (!wDragging || !e.isPrimary) return;
+        wDragging = false; wCooldown = false;
+        try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (wCurrent) { wCurrent.style.transition = wCurrent.style.transform = wCurrent.style.willChange = ''; }
+        discardPanels(); wCurrent = null;
+    });
+
+    // Button handlers inside IIFE so they share the wCooldown closure variable
+    prevWeekBtn.addEventListener('click', () => { if (!wCooldown) shiftWeek(-1); });
+    nextWeekBtn.addEventListener('click', () => { if (!wCooldown) shiftWeek(+1); });
+})();
 
 // ============================================
 // ANNUAL LEAVE BANNER
@@ -2141,53 +2315,49 @@ function updateALBanner() {
 // ============================================
 // WEEK GRID
 // ============================================
-function renderWeekGrid() {
-    userMadeChanges = false; // fresh render clears the dirty flag
+
+// Update the week nav label for a given ISO date string.
+// Extracted so swipe can update the label without a full re-render.
+function updateWeekNavLabel(dateStr) {
+    if (!dateStr) return;
+    const _picked   = new Date(dateStr + 'T12:00:00');
+    const _sunday   = new Date(_picked);
+    _sunday.setDate(_picked.getDate() - _picked.getDay());
+    const _saturday = new Date(_sunday);
+    _saturday.setDate(_sunday.getDate() + 6);
+    const weekNavLabel = document.getElementById('weekNavLabel');
+    if (weekNavLabel) {
+        weekNavLabel.textContent =
+            `${_sunday.getDate()} ${MONTH_ABB[_sunday.getMonth()]} – ${_saturday.getDate()} ${MONTH_ABB[_saturday.getMonth()]} ${_saturday.getFullYear()}`;
+        const todaySun = new Date(); todaySun.setDate(todaySun.getDate() - todaySun.getDay());
+        weekNavLabel.classList.toggle('is-current-week',
+            _sunday.toDateString() === todaySun.toDateString());
+    }
+}
+
+// Build a week grid (header + 7 day rows with full event listeners) into `container`
+// for the given ISO date string. Reads fieldMember.value and allOverrides from module
+// scope but has NO side-effects on fieldDate, userMadeChanges, bulkBar, or saveBtn —
+// safe to call for adjacent panels during swipe pre-building.
+function buildWeekGridInto(container, dateStr) {
     const memberName = fieldMember.value;
-    const dateStr    = fieldDate.value;
+    const member     = teamMembers.find(m => m.name === memberName);
+    if (!member || !memberName || !dateStr) return;
 
-    // Always update the week nav label (even before the member guard below)
-    if (dateStr) {
-        const _picked   = new Date(dateStr + 'T12:00:00');
-        const _sunday   = new Date(_picked);
-        _sunday.setDate(_picked.getDate() - _picked.getDay());
-        const _saturday = new Date(_sunday);
-        _saturday.setDate(_sunday.getDate() + 6);
-        const weekNavLabel = document.getElementById('weekNavLabel');
-        if (weekNavLabel) {
-            weekNavLabel.textContent =
-                `${_sunday.getDate()} ${MONTH_ABB[_sunday.getMonth()]} – ${_saturday.getDate()} ${MONTH_ABB[_saturday.getMonth()]} ${_saturday.getFullYear()}`;
-            // Mark if this is the current week
-            const todaySun = new Date(); todaySun.setDate(todaySun.getDate() - todaySun.getDay());
-            weekNavLabel.classList.toggle('is-current-week',
-                _sunday.toDateString() === todaySun.toDateString());
-        }
-    }
-
-    if (!memberName || !dateStr) {
-        weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
-        bulkBar.style.display = 'none';
-        saveBtn.disabled = true;
-        return;
-    }
-
-    const member = teamMembers.find(m => m.name === memberName);
-    if (!member) return;
-
-    // Sunday of the selected week
     const picked = new Date(dateStr + 'T12:00:00');
     const sunday = new Date(picked);
     sunday.setDate(picked.getDate() - picked.getDay());
 
-    weekGrid.innerHTML = `
-        <div class="week-grid-header">
-            <div class="hdr-check"></div>
-            <div class="hdr-day">Day</div>
-            <div class="hdr-base">Base roster</div>
-            <div class="hdr-pills">Override type</div>
-            <div class="hdr-time">Shift time</div>
-            <div class="hdr-note"></div>
-        </div>`;
+    const header = document.createElement('div');
+    header.className = 'week-grid-header';
+    header.innerHTML = `
+        <div class="hdr-check"></div>
+        <div class="hdr-day">Day</div>
+        <div class="hdr-base">Base roster</div>
+        <div class="hdr-pills">Override type</div>
+        <div class="hdr-time">Shift time</div>
+        <div class="hdr-note"></div>`;
+    container.appendChild(header);
 
     for (let i = 0; i < 7; i++) {
         const date      = new Date(sunday);
@@ -2237,8 +2407,8 @@ function renderWeekGrid() {
         noteRow.className = 'note-row';
         noteRow.innerHTML = `<input type="text" class="day-note" placeholder="Note (optional)">`;
 
-        weekGrid.appendChild(row);
-        weekGrid.appendChild(noteRow);
+        container.appendChild(row);
+        container.appendChild(noteRow);
 
         // Refs
         const cb        = row.querySelector('.day-cb');
@@ -2271,11 +2441,9 @@ function renderWeekGrid() {
                 const type    = pill.dataset.type;
                 const already = pill.classList.contains('active');
                 if (already) {
-                    // Toggle off
                     deactivateRow(row, cb, pills, startEl, endEl);
                 } else {
                     activateRow(row, cb, pills, startEl, endEl, type);
-                    // Focus first time input if type needs it
                     const meta = TYPES[type];
                     if (meta && !meta.fixed) startEl.focus();
                 }
@@ -2310,6 +2478,30 @@ function renderWeekGrid() {
             noteBtn.classList.toggle('has-note', noteInput.value.trim().length > 0);
         });
     }
+}
+
+function renderWeekGrid() {
+    userMadeChanges = false;
+    const memberName = fieldMember.value;
+    const dateStr    = fieldDate.value;
+
+    updateWeekNavLabel(dateStr);
+
+    if (!memberName || !dateStr) {
+        weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
+        bulkBar.style.display = 'none';
+        saveBtn.disabled = true;
+        return;
+    }
+
+    const member = teamMembers.find(m => m.name === memberName);
+    if (!member) return;
+
+    weekGrid.innerHTML = '';
+    const panel = document.createElement('div');
+    panel.className = 'week-panel';
+    buildWeekGridInto(panel, dateStr);
+    weekGrid.appendChild(panel);
 
     bulkBar.style.display = 'block';
     resetBulkPills();
