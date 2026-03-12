@@ -1769,7 +1769,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.33';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.34';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1785,7 +1785,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.33';
+const ADMIN_VERSION = '4.34';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2133,8 +2133,10 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     const SWIPE_PX    = 75;   // minimum px for a committed swipe
     const SWIPE_VEL   = 0.4;  // px/ms fast-flick threshold
 
-    // Tags whose pointerdown should NOT trigger the swipe gesture
-    const INTERACTIVE = new Set(['INPUT', 'TEXTAREA', 'BUTTON', 'SELECT', 'LABEL']);
+    // Columns whose pointerdown should NOT trigger the swipe gesture.
+    // Using closest() on column classes rather than tagName so that .col-day
+    // and .col-base (always non-interactive spans) remain swipeable even on
+    // override rows where .col-pills and .col-time expand to fill the full width.
 
     let wPrev = null, wNext = null, wCurrent = null;
     let wW = 0, wX0 = 0, wY0 = 0, wT0 = 0;
@@ -2171,7 +2173,7 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
 
     weekGrid.addEventListener('pointerdown', e => {
         if (!e.isPrimary || wCooldown) return;
-        if (INTERACTIVE.has(e.target.tagName)) return;  // let inputs/buttons handle their own events
+        if (e.target.closest('.col-check,.col-pills,.col-time,.col-note-btn,.note-row')) return;
         if (userMadeChanges) return;                     // block navigation while unsaved changes exist
         if (!fieldMember.value || !fieldDate.value) return;
 
