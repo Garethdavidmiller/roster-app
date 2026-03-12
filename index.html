@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.25 -->
+<!-- MYB Roster Calendar - Version 4.27 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <title>MYB Roster</title>
     
@@ -275,7 +275,7 @@
             background-size: 1em;
             padding-right: 30px;
             font-size: 16px; /* Prevents iOS Safari auto-zoom on focus */
-            max-width: 160px;
+            max-width: 200px;
         }
 
         .controls select option {
@@ -1004,7 +1004,7 @@
             }
 
             .shift-time {
-                font-size: 9px;
+                font-size: 11px;
             }
 
             .day-number {
@@ -1045,14 +1045,14 @@
             }
             .controls-row { width: auto; }
             .controls button { padding: 7px 10px; font-size: 11px; }
-            .controls select { padding: 7px 28px 7px 8px; font-size: 14px; max-width: 150px; }
+            .controls select { padding: 7px 28px 7px 8px; font-size: 14px; max-width: 180px; }
             .calendar-container { padding: 8px 10px; margin-bottom: 8px; }
             .month-year { font-size: 16px; }
             .calendar-grid { gap: 4px; }
             .calendar-day { min-height: 55px; padding: 4px; }
             .day-number { font-size: 11px; margin-bottom: 2px; }
             .shift-badge { font-size: 7px; padding: 2px 6px; margin-bottom: 2px; }
-            .shift-time { font-size: 9px; }
+            .shift-time { font-size: 11px; }
             .legend { padding: 6px 12px; margin-bottom: 0; }
             .legend-text { font-size: 10px; }
             .legend-color { width: 12px; height: 12px; }
@@ -1293,7 +1293,7 @@
             }
 
             .shift-time {
-                font-size: 9px !important;
+                font-size: 11px !important;
                 display: block !important;
                 visibility: visible !important;
                 margin: 0 !important;
@@ -1506,7 +1506,7 @@
             padding: 36px 40px 32px;
             cursor: default;
             transform: scale(0.85);
-            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             min-width: 240px;
             text-align: center;
         }
@@ -1691,7 +1691,7 @@
             padding: 36px 40px 32px;
             cursor: default;
             transform: scale(0.85);
-            transition: transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             min-width: 260px;
             text-align: center;
         }
@@ -1793,7 +1793,7 @@
             cursor: default;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
             transform: scale(0.88);
-            transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             text-align: center;
         }
         #monthJumpOverlay.open #monthJumpCard { transform: scale(1); }
@@ -1981,7 +1981,7 @@
                     <span class="al-lb-lbl">Entitlement</span>
                 </div>
             </div>
-            <a href="admin.html" class="al-lb-link">→ Book leave in Admin</a>
+            <a href="admin.html#book-annual-leave" class="al-lb-link">→ Book leave in Admin</a>
         </div>
     </div>
 
@@ -2067,7 +2067,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.25';
+        CONFIG.APP_VERSION = '4.27';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2657,7 +2657,7 @@
                 <div class="day-number">${date.getDate()}</div>
                 ${badge}
                 ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
-                ${note ? `<div class="override-note" role="note" aria-label="Note: ${escapeHtml(note)}">${escapeHtml(note)}</div>` : ''}
+                ${note ? `<div class="override-note" role="note" aria-label="Note: ${escapeHtml(note)}" title="${escapeHtml(note)}">${escapeHtml(note)}</div>` : ''}
             `;
         }
 
@@ -2899,6 +2899,8 @@
                 }
             }
 
+            window.closeALLightbox = closeALLightbox;
+
             document.getElementById('alBtn').addEventListener('click', openALLightbox);
             closeBtn.addEventListener('click', closeALLightbox);
             lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
@@ -2986,6 +2988,8 @@
             saveSelectedMember(parseInt(e.target.value, 10));
             updateLegend();
             renderCalendar();
+            // Close AL lightbox if open — data would be stale for the new member
+            if (typeof closeALLightbox === 'function') closeALLightbox();
         });
 
         document.getElementById('prevMonth').addEventListener('click', () => {
