@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.09 -->
+<!-- MYB Roster Calendar - Version 4.10 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -755,37 +755,37 @@
             }
 
             /* Header row (Mon–Sun) takes its natural height; day rows share the rest equally.
-               minmax(100px, 1fr) guarantees cells are never too short to show pill + time. */
+               minmax(90px, 1fr) guarantees cells never shrink below what the content needs. */
             .calendar-grid {
                 flex: 1 1 0;
                 min-height: 0;
                 gap: 10px;
                 grid-template-rows: auto;
-                grid-auto-rows: minmax(100px, 1fr);
+                grid-auto-rows: minmax(90px, 1fr);
             }
 
+            /* Cell content sized to fit comfortably inside the rows.
+               Total stack: 7px pad + 22px day-num + 4px gap + 20px pill + 5px gap + 15px time + 7px pad = 80px */
             .calendar-day {
                 min-height: unset;
                 overflow: hidden;
                 justify-content: flex-start;
-                padding: 6px;
+                padding: 7px 8px;
             }
 
-            /* Date number */
             .day-number {
-                font-size: 22px;
-                margin-bottom: 3px;
+                font-size: 15px;
+                margin-bottom: 4px;
             }
 
-            /* Badge */
             .shift-badge {
-                padding: 7px 16px;
+                font-size: 10px;
+                padding: 4px 12px;
                 margin-bottom: 5px;
             }
 
-            /* Shift time: compact line-height keeps it within cell budget */
             .shift-time {
-                font-size: 13px;
+                font-size: 11px;
                 line-height: 1.4;
             }
 
@@ -1667,7 +1667,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.09';
+        CONFIG.APP_VERSION = '4.10';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
