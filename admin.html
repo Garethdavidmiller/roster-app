@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.23 -->
+<!-- MYB Roster Admin v4.24 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -326,7 +326,7 @@
         .badge-night { background: var(--night);      color: white; }
         .badge-spare { background: var(--purple);   color: white; }
         .badge-rdw   { background: var(--rdw);      color: white; }
-        .badge-al    { background: var(--green);    color: white; }
+        .badge-al    { background: var(--al);        color: white; }
 
         /* ---- Bulk bar ---- */
         .bulk-bar {
@@ -1549,7 +1549,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.23';
+const ADMIN_VERSION = '4.24';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1796,7 +1796,8 @@ roles.forEach(role => {
 // Restore last used member from localStorage
 const lastMember = localStorage.getItem('adminLastMember');
 if (lastMember && teamMembers.find(m => m.name === lastMember)) {
-    fieldMember.value = lastMember;
+    fieldMember.value  = lastMember;
+    filterMember.value = lastMember; // default overrides list to this member
 }
 
 // Default date = today — update the week nav label immediately without

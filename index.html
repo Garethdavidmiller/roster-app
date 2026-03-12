@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.23 -->
+<!-- MYB Roster Calendar - Version 4.24 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -494,8 +494,8 @@
         }
 
         .calendar-day.al-day {
-            background: var(--green-light);
-            border-color: var(--green);
+            background: var(--al-light);
+            border-color: var(--al);
         }
 
         .calendar-day.other-day {
@@ -626,7 +626,7 @@
 
 
         .badge-al {
-            background: var(--green);
+            background: var(--al);
             color: white;
         }
 
@@ -680,7 +680,7 @@
         .legend-color.late    { background: var(--blue-light);   border-color: var(--blue-sky); }
         .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
         .legend-color.rdw     { background: var(--rdw-light);    border-color: var(--rdw); }
-        .legend-color.al      { background: var(--green-light);   border-color: var(--green); }
+        .legend-color.al      { background: var(--al-light);      border-color: var(--al); }
         .legend-color.today   { background: var(--accent-gold);  border-color: var(--primary-blue); }
         .legend-color.night   { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
 
@@ -1260,8 +1260,8 @@
             }
 
             .calendar-day.al-day {
-                background: var(--green-light) !important;
-                border-color: var(--green) !important;
+                background: var(--al-light) !important;
+                border-color: var(--al) !important;
             }
 
             /* today must come after shift rules — same specificity, last wins */
@@ -1349,7 +1349,7 @@
             }
 
             .badge-al {
-                background: var(--green) !important;
+                background: var(--al) !important;
                 color: white !important;
             }
 
@@ -2067,7 +2067,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.23';
+        CONFIG.APP_VERSION = '4.24';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
