@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.16 -->
+<!-- MYB Roster Admin v4.18 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -57,7 +57,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         /* iOS status bar fix - blends with app theme */
-        html { background-color: var(--primary-blue); }
+        html { background-color: var(--primary-blue); overflow-x: hidden; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -175,6 +175,8 @@
             background-repeat: no-repeat;
             background-position: right 10px center;
             padding-right: 30px;
+            text-align: center;
+            text-align-last: center;
         }
 
         select:focus, input:focus { outline: none; }
@@ -889,6 +891,22 @@
             }
         }
 
+        /* ---- Header — narrow screen ---- */
+        @media (max-width: 480px) {
+            .app-header {
+                gap: 6px;
+                padding: 10px 12px;
+            }
+            .app-header h1 {
+                font-size: 14px;
+                min-width: 0;
+            }
+            .badge-admin {
+                padding: 4px 7px;
+                font-size: 9px;
+            }
+        }
+
         /* ---- Back-to-roster button (in header) ---- */
         .btn-back {
             background: transparent;
@@ -1415,7 +1433,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js?v=4.16';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB } from './roster-data.js?v=4.18';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp
@@ -1431,7 +1449,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.16';
+const ADMIN_VERSION = '4.18';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
