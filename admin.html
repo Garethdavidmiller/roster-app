@@ -833,6 +833,65 @@
             cursor: pointer; touch-action: manipulation;
         }
 
+        /* ---- Religious calendar card ---- */
+        .card-religious-header {
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .card-religious-header h2 { color: var(--text-mid); font-weight: 600; }
+        .card-religious-body {
+            padding: 16px;
+            display: none; /* collapsed by default */
+        }
+        .card-religious-body.open { display: block; }
+        .religious-chevron {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-light);
+            transition: transform 0.2s ease;
+        }
+        .religious-chevron.open { transform: rotate(180deg); }
+        .religious-intro {
+            font-size: 13px;
+            color: var(--text-mid);
+            margin-bottom: 14px;
+            line-height: 1.5;
+        }
+        .religious-toggle-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            cursor: pointer;
+        }
+        .religious-toggle-label input[type="checkbox"] {
+            width: 18px; height: 18px;
+            accent-color: var(--primary-blue);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .religious-disclaimer {
+            margin-top: 12px;
+            font-size: 11px;
+            color: var(--text-light);
+            line-height: 1.5;
+            padding: 8px 10px;
+            background: var(--bg-faint);
+            border-radius: 6px;
+            border: 1px solid var(--border-light);
+        }
+        .religious-saved {
+            display: none;
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--green);
+            font-weight: 600;
+        }
+        .religious-saved.visible { display: block; }
+
         /* ---- Overrides list ---- */
         .list-toolbar {
             display: flex;
@@ -1658,6 +1717,32 @@
             </table>
         </div>
         <div class="list-feedback" id="listFeedback"></div>
+    </div>
+
+    <!-- ==================== RELIGIOUS CALENDAR ==================== -->
+    <!-- Collapsed by default — unobtrusive for non-Muslim staff.    -->
+    <!-- Any staff member can expand, opt in/out independently.      -->
+    <div class="card" id="religiousCard">
+        <div class="card-header card-religious-header" id="religiousToggleHeader">
+            <h2>🌙 Religious calendar</h2>
+            <span class="hint">Islamic date markers — optional</span>
+            <span class="religious-chevron" id="religiousChevron">▾</span>
+        </div>
+        <div class="card-religious-body" id="religiousBody">
+            <p class="religious-intro">
+                Opt in to show 🌙 Ramadan start, ☪️ Eid al-Fitr, and 🕌 Eid al-Adha
+                in the bottom-right corner of the relevant days on your roster calendar.
+            </p>
+            <label class="religious-toggle-label">
+                <input type="checkbox" id="islamicMarkersToggle">
+                Show Islamic calendar markers on my roster
+            </label>
+            <p class="religious-disclaimer">
+                Dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting confirmation).
+                These markers are visible to anyone who views your roster on the main calendar.
+            </p>
+            <div class="religious-saved" id="religiousSaved">✓ Saved</div>
+        </div>
     </div>
 
 </div><!-- /container -->
