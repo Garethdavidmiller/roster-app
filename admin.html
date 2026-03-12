@@ -3,8 +3,9 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#001e3c">
     <title>MYB Roster — Admin</title>
     <style>
         :root {
@@ -60,6 +61,8 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             background: var(--primary-blue);
             min-height: 100dvh;
             min-height: 100vh;
@@ -174,7 +177,13 @@
             padding-right: 30px;
         }
 
-        select:focus, input:focus { outline: none; border-color: var(--primary-blue); }
+        select:focus, input:focus { outline: none; }
+        select:focus-visible, input:focus-visible {
+            border-color: var(--primary-blue);
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+        }
 
         select:disabled, input:disabled {
             background: var(--bg-faint);
@@ -1091,6 +1100,71 @@
         }
         .list-feedback.success { display: block; background: var(--green-light); color: #1b5e20; }
         .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
+
+        /* ---- Print styles ---- */
+        @media print {
+            @page { margin: 1cm; size: A4 portrait; }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                box-sizing: border-box !important;
+                orphans: 2;
+                widows: 2;
+            }
+
+            /* Hide interactive chrome */
+            #loginOverlay,
+            .week-nav,
+            .btn-bulk-select,
+            .btn-bulk-apply,
+            .btn-delete,
+            .btn-note-toggle,
+            .col-check,
+            .col-note-btn,
+            .note-row,
+            .btn-signout,
+            .list-feedback { display: none !important; }
+
+            /* Reset backgrounds for print */
+            html, body { background: white !important; color: black !important; padding: 0 !important; }
+            .container { display: grid !important; max-width: 100% !important; }
+
+            /* Week header */
+            .week-header {
+                font-size: 14px;
+                font-weight: 700;
+                margin-bottom: 8px;
+                color: black !important;
+            }
+
+            /* Override rows */
+            .week-grid-header,
+            .day-row {
+                border-bottom: 1px solid #ccc;
+                break-inside: avoid;
+            }
+
+            .day-row { background: white !important; }
+
+            /* Type pills — keep colours for quick scanning */
+            .type-pill-btn.active {
+                border: 1px solid currentColor;
+            }
+
+            /* Section cards */
+            .week-section { break-inside: avoid; margin-bottom: 16px; }
+
+            /* Page title */
+            body::before {
+                content: "MYB Roster — Admin Overrides";
+                display: block;
+                font-size: 18px;
+                font-weight: 700;
+                margin-bottom: 16px;
+                color: black;
+            }
+        }
     </style>
 </head>
 <body>

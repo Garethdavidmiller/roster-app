@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <title>MYB Roster</title>
     
@@ -122,6 +122,8 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             background: var(--primary-blue);
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; 100vh fallback below */
             min-height: 100vh;  /* Fallback for browsers without dvh support */
@@ -334,10 +336,11 @@
             font-weight: 700;
         }
 
-        .controls select:focus, .controls button:focus {
-            outline: none;
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 3px rgba(0, 30, 60, 0.1);
+        .controls select:focus, .controls button:focus { outline: none; }
+        .controls select:focus-visible, .controls button:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
 
         #calendarDisplay {
@@ -872,6 +875,8 @@
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
                 box-sizing: border-box !important;
+                orphans: 2;
+                widows: 2;
             }
 
             html {
