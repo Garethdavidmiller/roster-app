@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.00 -->
+<!-- MYB Roster Admin v4.01 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -237,6 +237,13 @@
             z-index: 1;
         }
 
+        /* Gold border when the displayed week is the current week */
+        .week-nav-label.is-current-week {
+            border-color: var(--accent-gold);
+            background: #fffdf0;
+            color: #5a4500;
+        }
+
         /* ---- Shift badges ---- */
         .shift-badge {
             display: inline-flex;
@@ -421,8 +428,8 @@
         /* Active (type is set — ready to save) */
         .day-row.active     { background: #fffde7; }
         /* Has an existing Firestore override — will overwrite */
-        .day-row.has-override { background: #fff8e1; border-left: 3px solid var(--orange); }
-        .day-row.has-override.active { background: #fff3e0; }
+        .day-row.has-override { background: #fff3cd; border-left: 4px solid var(--orange); }
+        .day-row.has-override.active { background: #ffe0b2; }
 
         /* Narrow: stack */
         @media (max-width: 680px) {
@@ -443,6 +450,31 @@
             /* Pills and time hidden unless pre-selected or type-active */
             .day-row:not(.active):not(.selected) .col-pills { display: none; }
             .day-row:not(.active):not(.selected) .col-time  { display: none; }
+
+            /* Inline column labels on mobile so users know what they're looking at */
+            .day-row.active .col-pills::before,
+            .day-row.selected .col-pills::before {
+                content: 'Type:';
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--text-light);
+                text-transform: uppercase;
+                letter-spacing: 0.4px;
+                align-self: center;
+                margin-right: 6px;
+                flex-shrink: 0;
+            }
+            .day-row.active .col-time::before {
+                content: 'Time:';
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--text-light);
+                text-transform: uppercase;
+                letter-spacing: 0.4px;
+                align-self: center;
+                margin-right: 6px;
+                flex-shrink: 0;
+            }
         }
 
         .col-check {
@@ -549,18 +581,21 @@
 
         /* "Has override" badge — shown when a day already has a saved override */
         .overwrite-badge {
-            font-size: 9px;
+            font-size: 10px;
             font-weight: 700;
-            background: var(--orange-light);
-            color: #b34d00;
-            border: 1px solid #ffcc80;
-            padding: 2px 6px;
+            background: var(--orange);
+            color: white;
+            border: none;
+            padding: 2px 7px;
             border-radius: 10px;
             text-transform: uppercase;
             letter-spacing: 0.3px;
             margin-left: 4px;
             vertical-align: middle;
         }
+
+        /* Row with a validation error (e.g. time not filled) — highlighted red */
+        .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
 
         .week-empty {
             text-align: center;
@@ -675,7 +710,17 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-delete:hover { background: var(--error-bg); } }
-        .btn-delete.confirming { background: var(--error-red); color: white; border-color: var(--error-red); }
+        .btn-delete.confirming {
+            background: var(--error-red);
+            color: white;
+            border-color: var(--error-red);
+            animation: pulse-confirm 0.35s ease-out;
+        }
+        @keyframes pulse-confirm {
+            0%   { transform: scale(1); }
+            50%  { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
 
         .state-row td {
             text-align: center;
@@ -1129,7 +1174,7 @@
                     <span class="bulk-step-label">1. Select</span>
                     <div class="bulk-select-group">
                         <button class="btn-bulk-select" id="bulkSelMonFri">Mon–Fri</button>
-                        <button class="btn-bulk-select" id="bulkSelWorking">Rostered days</button>
+                        <button class="btn-bulk-select" id="bulkSelWorking">Working days</button>
                         <button class="btn-bulk-select" id="bulkSelAll">All 7</button>
                     </div>
                 </div>
@@ -1152,7 +1197,7 @@
                     </div>
                 </div>
                 <!-- Step 3: apply -->
-                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to selected days ↓</button>
+                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to checked days ↓</button>
             </div>
 
             <!-- 7-day week grid -->
@@ -1250,7 +1295,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.00';
+const ADMIN_VERSION = '4.01';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1506,16 +1551,38 @@ fieldDate.value = formatISO(new Date());
     const sun  = new Date(d); sun.setDate(d.getDate() - d.getDay());
     const sat  = new Date(sun); sat.setDate(sun.getDate() + 6);
     const el   = document.getElementById('weekNavLabel');
-    if (el) el.textContent = `${sun.getDate()} ${MONTH_ABB[sun.getMonth()]} – ${sat.getDate()} ${MONTH_ABB[sat.getMonth()]} ${sat.getFullYear()}`;
+    if (el) {
+        el.textContent = `${sun.getDate()} ${MONTH_ABB[sun.getMonth()]} – ${sat.getDate()} ${MONTH_ABB[sat.getMonth()]} ${sat.getFullYear()}`;
+        el.classList.add('is-current-week'); // init always shows today's week
+    }
 }());
+
+// ============================================
+// UNSAVED CHANGES GUARD
+// ============================================
+function hasUnsavedChanges() {
+    return [...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
+}
+
+// Warn browser/OS before closing or navigating away
+window.addEventListener('beforeunload', e => {
+    if (hasUnsavedChanges()) { e.preventDefault(); e.returnValue = ''; }
+});
+
+function confirmNavigate() {
+    if (!hasUnsavedChanges()) return true;
+    return confirm('You have unsaved changes. Continue and lose them?');
+}
 
 // ============================================
 // WEEK NAVIGATION
 // ============================================
 function shiftWeek(delta) {
+    if (!confirmNavigate()) return;
     const d = new Date(fieldDate.value + 'T12:00:00');
     d.setDate(d.getDate() + delta * 7);
     fieldDate.value = formatISO(d);
+    lastFieldDate = fieldDate.value;
     renderWeekGrid();
 }
 
@@ -1540,6 +1607,10 @@ function renderWeekGrid() {
         if (weekNavLabel) {
             weekNavLabel.textContent =
                 `${_sunday.getDate()} ${MONTH_ABB[_sunday.getMonth()]} – ${_saturday.getDate()} ${MONTH_ABB[_saturday.getMonth()]} ${_saturday.getFullYear()}`;
+            // Mark if this is the current week
+            const todaySun = new Date(); todaySun.setDate(todaySun.getDate() - todaySun.getDay());
+            weekNavLabel.classList.toggle('is-current-week',
+                _sunday.toDateString() === todaySun.toDateString());
         }
     }
 
@@ -1589,7 +1660,7 @@ function renderWeekGrid() {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${existing ? ' <span class="overwrite-badge">has override</span>' : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${existing ? ' <span class="overwrite-badge">⚠ has override</span>' : ''}</span>
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
@@ -1607,7 +1678,7 @@ function renderWeekGrid() {
                 <span class="time-note">No time needed</span>
             </div>
             <div class="col-note-btn">
-                <button class="btn-note-toggle" title="Add a note to this override">✎ Note</button>
+                <button class="btn-note-toggle" title="Add a note to this override">+ Note</button>
             </div>`;
 
         // --- Note row (full width, hidden by default) ---
@@ -1708,7 +1779,7 @@ function activateRow(row, cb, pills, startEl, endEl, type) {
 
 function deactivateRow(row, cb, pills, startEl, endEl) {
     cb.checked = false;
-    row.classList.remove('active', 'fixed-type', 'selected');
+    row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
     pills.forEach(p => p.classList.remove('active'));
     startEl.value = endEl.value = '';
     startEl.tabIndex = endEl.tabIndex = -1;
@@ -1828,6 +1899,9 @@ saveBtn.addEventListener('click', async () => {
     const memberName = fieldMember.value;
     if (!memberName) return showError('No member selected.');
 
+    // Clear any previous row-level errors
+    weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
+
     const toSave = [], errors = [];
 
     weekGrid.querySelectorAll('.day-row').forEach(row => {
@@ -1850,14 +1924,18 @@ saveBtn.addEventListener('click', async () => {
         } else {
             const s = startEl.value;
             const e = endEl.value;
-            if (!s || !e) { errors.push(`${date}: missing start or end time`); return; }
+            if (!s || !e) {
+                row.classList.add('row-error');
+                errors.push(`${formatDisplay(date)}: fill in the start and end time`);
+                return;
+            }
             value = `${s}-${e}`;
         }
 
         toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null });
     });
 
-    if (errors.length)  return showError(errors.join(' · '));
+    if (errors.length)  return showError('Missing times — ' + errors.join(' · '));
     if (!toSave.length) return showError('No days selected.');
 
     const overwrites = toSave.filter(e => e.existingId).length;
@@ -1907,10 +1985,21 @@ saveBtn.addEventListener('click', async () => {
 });
 
 fieldMember.addEventListener('change', () => {
+    if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
     localStorage.setItem('adminLastMember', fieldMember.value);
     renderWeekGrid();
 });
-fieldDate.addEventListener('change', renderWeekGrid);
+let lastFieldDate = fieldDate.value;
+fieldDate.addEventListener('change', () => {
+    if (hasUnsavedChanges()) {
+        const newVal = fieldDate.value;
+        fieldDate.value = lastFieldDate; // revert so user sees the restore if they cancel
+        if (!confirm('You have unsaved changes. Continue and lose them?')) return;
+        fieldDate.value = newVal;
+    }
+    lastFieldDate = fieldDate.value;
+    renderWeekGrid();
+});
 
 // ============================================
 // OVERRIDES LIST
@@ -1968,7 +2057,7 @@ async function handleDelete(e) {
     const btn = e.currentTarget;
     if (!btn.classList.contains('confirming')) {
         btn.classList.add('confirming');
-        btn.textContent = 'Confirm?';
+        btn.textContent = '⚠ Delete?';
         setTimeout(() => {
             if (btn.classList.contains('confirming')) {
                 btn.classList.remove('confirming');
