@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.63 -->
+<!-- MYB Roster Admin v4.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2041,6 +2041,13 @@
                         <span class="faith-radio-sublabel">Lunar New Year · Lantern Festival · Qingming · Dragon Boat · Mid-Autumn</span>
                     </span>
                 </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="jamaican">
+                    <span>
+                        <strong>🇯🇲 Jamaican</strong>
+                        <span class="faith-radio-sublabel">Ash Wednesday · Labour Day · Emancipation Day · Independence Day · National Heroes Day</span>
+                    </span>
+                </label>
             </div>
             <!-- Disclaimer shown only for the selected calendar, to avoid a growing list -->
             <p class="religious-disclaimer" id="calendarDisclaimer" style="display:none;"></p>
@@ -2051,7 +2058,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.63';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.64';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2067,7 +2074,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.63';
+const ADMIN_VERSION = '4.64';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3854,10 +3861,11 @@ function updateALBookedBox() {
 
     // Disclaimer text per calendar — shown only for the active selection.
     const DISCLAIMERS = {
-        islamic: 'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting).',
-        hindu:   'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
-        chinese: 'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
-        none:    '',
+        islamic:  'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting).',
+        hindu:    'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
+        chinese:  'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
+        jamaican: 'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
+        none:     '',
     };
 
     function updateDisclaimer(value) {

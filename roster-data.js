@@ -378,6 +378,70 @@ export const MID_AUTUMN_DATES = new Set([
 ]);
 
 // ============================================
+// JAMAICAN PUBLIC HOLIDAYS — 2025–2031
+// ============================================
+
+// Ash Wednesday — 46 days before Easter Sunday (moveable).
+// 2025-03-05, 2026-02-18, 2027-02-10, 2028-03-01, 2029-02-14, 2030-03-06, 2031-02-26
+export const JAMAICAN_ASH_WEDNESDAY_DATES = new Set([
+    '2025-03-05',
+    '2026-02-18',
+    '2027-02-10',
+    '2028-03-01',
+    '2029-02-14',
+    '2030-03-06',
+    '2031-02-26',
+]);
+
+// National Labour Day — fixed on 23 May each year.
+export const JAMAICAN_LABOUR_DAY_DATES = new Set([
+    '2025-05-23',
+    '2026-05-23',
+    '2027-05-23',
+    '2028-05-23',
+    '2029-05-23',
+    '2030-05-23',
+    '2031-05-23',
+]);
+
+// Emancipation Day — fixed on 1 August each year.
+// Marks the abolition of slavery in the British Empire (1 August 1838).
+export const JAMAICAN_EMANCIPATION_DATES = new Set([
+    '2025-08-01',
+    '2026-08-01',
+    '2027-08-01',
+    '2028-08-01',
+    '2029-08-01',
+    '2030-08-01',
+    '2031-08-01',
+]);
+
+// Independence Day — fixed on 6 August each year.
+// Marks Jamaica's independence from the United Kingdom (6 August 1962).
+export const JAMAICAN_INDEPENDENCE_DATES = new Set([
+    '2025-08-06',
+    '2026-08-06',
+    '2027-08-06',
+    '2028-08-06',
+    '2029-08-06',
+    '2030-08-06',
+    '2031-08-06',
+]);
+
+// National Heroes Day — third Monday of October (moveable).
+// Dates calculated: 2025-10-20, 2026-10-19, 2027-10-18, 2028-10-16,
+//                   2029-10-15, 2030-10-21, 2031-10-20
+export const JAMAICAN_HEROES_DAY_DATES = new Set([
+    '2025-10-20',
+    '2026-10-19',
+    '2027-10-18',
+    '2028-10-16',
+    '2029-10-15',
+    '2030-10-21',
+    '2031-10-20',
+]);
+
+// ============================================
 // DATE UTILITIES — shared by index.html and admin.html
 // ============================================
 
@@ -580,6 +644,22 @@ export const CHINESE_ICONS = {
     'mid-autumn':       '🥮',
 };
 
+export const JAMAICAN_LABELS = {
+    'ash-wednesday':  'Ash Wednesday',
+    'labour-day':     'National Labour Day (Jamaica)',
+    'emancipation':   'Emancipation Day',
+    'independence':   'Independence Day (Jamaica)',
+    'heroes-day':     'National Heroes Day',
+};
+
+export const JAMAICAN_ICONS = {
+    'ash-wednesday':  '✝️',
+    'labour-day':     '🔨',
+    'emancipation':   '✊',
+    'independence':   '🇯🇲',
+    'heroes-day':     '🏅',
+};
+
 // ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
@@ -613,6 +693,13 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
         if (QINGMING_DATES.has(dateStr))         badges.push({ icon: '🌿', title: 'Qingming / Tomb Sweeping Day (清明節)' });
         if (DRAGON_BOAT_DATES.has(dateStr))      badges.push({ icon: '🐲', title: 'Dragon Boat Festival (端午節)' });
         if (MID_AUTUMN_DATES.has(dateStr))       badges.push({ icon: '🥮', title: 'Mid-Autumn Festival (中秋節)' });
+    }
+    if (faithCalendar === 'jamaican') {
+        if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) badges.push({ icon: '✝️', title: 'Ash Wednesday' });
+        if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    badges.push({ icon: '🔨', title: 'National Labour Day (Jamaica)' });
+        if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  badges.push({ icon: '✊', title: 'Emancipation Day' });
+        if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  badges.push({ icon: '🇯🇲', title: 'Independence Day (Jamaica)' });
+        if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    badges.push({ icon: '🏅', title: 'National Heroes Day' });
     }
     return badges;
 }

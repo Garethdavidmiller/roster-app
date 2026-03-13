@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.63 -->
+<!-- MYB Roster Calendar - Version 4.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2156,7 +2156,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS } from './roster-data.js?v=4.63';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.64';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2168,7 +2168,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.63';
+        CONFIG.APP_VERSION = '4.64';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2562,8 +2562,8 @@
         // Combined label/icon maps covering Islamic and Hindu calendars.
         // Chinese New Year uses CHINESE_NEW_YEAR_DATES (a Map) directly because
         // the icon varies by year (zodiac animal) rather than being a fixed value.
-        const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS };
-        const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS  };
+        const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS, ...JAMAICAN_LABELS };
+        const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS,  ...JAMAICAN_ICONS  };
 
         // Resolve which faith calendar the member has opted in to.
         // Handles backward compat: old Firestore docs stored islamicMarkers:true.
@@ -2599,6 +2599,13 @@
                 if (QINGMING_DATES.has(dateStr))         return { icon: FAITH_ICONS['qingming'],     label: FAITH_LABELS['qingming']     };
                 if (DRAGON_BOAT_DATES.has(dateStr))      return { icon: FAITH_ICONS['dragon-boat'],  label: FAITH_LABELS['dragon-boat']  };
                 if (MID_AUTUMN_DATES.has(dateStr))       return { icon: FAITH_ICONS['mid-autumn'],   label: FAITH_LABELS['mid-autumn']   };
+            }
+            if (faithCalendar === 'jamaican') {
+                if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) return { icon: FAITH_ICONS['ash-wednesday'], label: FAITH_LABELS['ash-wednesday'] };
+                if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    return { icon: FAITH_ICONS['labour-day'],    label: FAITH_LABELS['labour-day']    };
+                if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: FAITH_ICONS['emancipation'],  label: FAITH_LABELS['emancipation']  };
+                if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: FAITH_ICONS['independence'],  label: FAITH_LABELS['independence']  };
+                if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: FAITH_ICONS['heroes-day'],    label: FAITH_LABELS['heroes-day']    };
             }
             return null;
         }
