@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.27 -->
+<!-- MYB Roster Admin v4.43 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -216,16 +216,58 @@
 
         .card-body { padding: 16px; }
 
-        /* ---- Selectors row ---- */
+        /* ---- Member context bar — single member selector spanning all sections ---- */
+        .member-context-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--primary-blue);
+            border-radius: var(--radius-md);
+            padding: 10px 16px;
+            margin-bottom: 12px;
+        }
+        .member-context-bar label {
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.65);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .member-context-bar select {
+            flex: 1;
+            background: rgba(255,255,255,0.10);
+            border: 1.5px solid rgba(255,255,255,0.25);
+            color: white;
+            border-radius: 6px;
+            padding: 7px 10px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .member-context-bar select:focus { outline: none; border-color: var(--accent-gold); }
+        .member-context-bar select option { background: white; color: var(--text-dark); }
+
+        /* Read-only member display shown inside AL form once member is chosen */
+        .member-readonly-display {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-mid);
+            padding: 7px 0;
+        }
+
+        /* ---- Selectors row (week nav only) ---- */
         .selectors {
             display: grid;
-            grid-template-columns: 1fr auto;
+            grid-template-columns: 1fr;
             gap: 10px;
             align-items: end;
             margin-bottom: 14px;
         }
 
-        @media (max-width: 540px) { .selectors { grid-template-columns: 1fr; } }
+        @media (max-width: 540px) {
+            .al-form { grid-template-columns: 1fr; }
+        }
 
         /* ---- Annual Leave balance banner ---- */
         .al-banner {
@@ -454,6 +496,17 @@
             flex-wrap: wrap;
         }
 
+        .bulk-sel-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            background: var(--blue-light);
+            border-radius: 10px;
+            padding: 2px 8px;
+            white-space: nowrap;
+            align-self: center;
+        }
+
         .btn-bulk-select {
             background: white;
             border: 1.5px solid var(--border-light);
@@ -616,20 +669,10 @@
             .day-row:not(.active):not(.selected) .col-time  { display: none; }
 
             /* Inline column labels on mobile so users know what they're looking at */
+            /* Shared label style for inline col labels injected via ::before */
             .day-row.active .col-pills::before,
-            .day-row.selected .col-pills::before {
-                content: 'Type:';
-                font-size: 10px;
-                font-weight: 700;
-                color: var(--text-light);
-                text-transform: uppercase;
-                letter-spacing: 0.4px;
-                align-self: center;
-                margin-right: 6px;
-                flex-shrink: 0;
-            }
+            .day-row.selected .col-pills::before,
             .day-row.active .col-time::before {
-                content: 'Time:';
                 font-size: 10px;
                 font-weight: 700;
                 color: var(--text-light);
@@ -639,12 +682,21 @@
                 margin-right: 6px;
                 flex-shrink: 0;
             }
+            .day-row.active .col-pills::before,
+            .day-row.selected .col-pills::before { content: 'Type:'; }
+            .day-row.active .col-time::before    { content: 'Time:'; }
 
             /* Fixed-type rows: switch visibility:hidden → display:none so hidden inputs
                don't consume layout space, preventing the time-note text from overflowing
                into the note button column */
             .day-row.active.fixed-type .col-time .time-input,
             .day-row.active.fixed-type .col-time .time-sep { display: none; }
+        }
+
+        /* Wider phones (≥380px): restore note button inline on row 3 to save vertical space */
+        @media (min-width: 380px) and (max-width: 680px) {
+            .day-row.active .col-time     { grid-column: 1 / 3; }
+            .day-row.active .col-note-btn { grid-column: 3; grid-row: 3; display: flex; }
         }
 
         .col-check {
@@ -688,12 +740,25 @@
             display: flex;
             align-items: center;
             gap: 4px;
+            flex-wrap: wrap;
         }
 
-        .col-time .time-input {
-            flex: 0 0 100px;   /* explicit basis — not 'auto', so ignores width:100% */
-            width: 100px;
-            max-width: 100px;
+        .time-hint {
+            display: none;
+            flex-basis: 100%;
+            font-size: 10px;
+            color: var(--text-faint);
+            padding-left: 2px;
+        }
+        .day-row.active:not(.fixed-type) .time-hint { display: block; }
+
+        /* Selector includes element type (specificity 0,2,1) to beat the global
+           input[type="text"]{width:100%} rule which scores (0,1,1) */
+        .col-time input.time-input {
+            flex: 0 0 90px;
+            width: 90px;
+            max-width: 90px;
+            min-width: 0;
             padding: 5px 7px;
         }
 
@@ -751,7 +816,8 @@
             border-color: var(--blue-sky);
         }
 
-        /* "Has override" badge — shown when a day already has a saved override */
+        /* "Has override" badge — shown when a day already has a saved override.
+           Turns blue-teal when the row is active (about to replace that override). */
         .overwrite-badge {
             font-size: 10px;
             font-weight: 700;
@@ -764,6 +830,10 @@
             letter-spacing: 0.3px;
             margin-left: 4px;
             vertical-align: middle;
+            transition: background 0.15s;
+        }
+        .day-row.active .overwrite-badge {
+            background: var(--blue-sky);
         }
 
         /* Today's row — subtle gold left border so it's easy to spot */
@@ -1053,7 +1123,7 @@
             margin-bottom: 12px;
         }
 
-        @media (max-width: 540px) { .al-form { grid-template-columns: 1fr; } }
+        /* @media (max-width: 540px) for .al-form merged into the block near line 228 */
 
         .al-dates {
             display: flex;
@@ -1135,12 +1205,12 @@
                 height: 20px;
             }
 
-            /* Time inputs: fixed width — col-time now spans full row width so
-               flex:1 would stretch inputs across the whole row */
-            .col-time .time-input {
-                flex: 0 0 105px;
-                width: 105px;
-                max-width: 105px;
+            /* Time inputs: larger tap target on touch */
+            .col-time input.time-input {
+                flex: 0 0 100px;
+                width: 100px;
+                max-width: 100px;
+                min-width: 0;
             }
 
             /* Bulk time inputs fill available space */
@@ -1587,6 +1657,14 @@
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
 
+    <!-- ==================== MEMBER SELECTOR BAR ==================== -->
+    <div class="member-context-bar">
+        <label for="fieldMember">Staff member</label>
+        <select id="fieldMember">
+            <option value="">— Select member —</option>
+        </select>
+    </div>
+
     <!-- ==================== OVERRIDE FORM ==================== -->
     <div class="card">
         <div class="card-header">
@@ -1595,14 +1673,8 @@
         </div>
         <div class="card-body">
 
-            <!-- Member + week navigation -->
+            <!-- Week navigation -->
             <div class="selectors">
-                <div class="field-group">
-                    <label for="fieldMember">Staff member</label>
-                    <select id="fieldMember">
-                        <option value="">— Select member —</option>
-                    </select>
-                </div>
                 <div class="field-group">
                     <label>Week</label>
                     <div class="week-nav">
@@ -1628,6 +1700,7 @@
                         <button class="btn-bulk-select" id="bulkSelWorking">Working days</button>
                         <button class="btn-bulk-select" id="bulkSelAll">All 7</button>
                     </div>
+                    <span class="bulk-sel-count" id="bulkSelCount"></span>
                 </div>
                 <!-- Step 2: choose override type -->
                 <div class="bulk-step">
@@ -1642,9 +1715,9 @@
                     </div>
                     <!-- Time inputs shown for time-based types -->
                     <div class="bulk-time-group" id="bulkTimeGroup" style="display:none">
-                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5">
+                        <input type="text" class="time-input" id="bulkStart" inputmode="numeric" placeholder="HH:MM" maxlength="5" title="24-hour start time, e.g. 06:20">
                         <span class="bulk-time-sep">–</span>
-                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5">
+                        <input type="text" class="time-input" id="bulkEnd" inputmode="numeric" placeholder="HH:MM" maxlength="5" title="24-hour end time, e.g. 14:20">
                     </div>
                 </div>
                 <!-- Step 3: apply -->
@@ -1692,11 +1765,13 @@
                 <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Limit reached</span>
             </div>
             <div class="al-form">
+                <!-- alMember is hidden but kept for JS compatibility; member is set via the top bar -->
+                <select id="alMember" hidden>
+                    <option value="">— Select member —</option>
+                </select>
                 <div class="field-group">
-                    <label for="alMember">Staff member</label>
-                    <select id="alMember">
-                        <option value="">— Select member —</option>
-                    </select>
+                    <label>Staff member</label>
+                    <div class="member-readonly-display" id="alMemberDisplay">Select a staff member above</div>
                 </div>
                 <div class="al-dates">
                     <div class="field-group">
@@ -1777,7 +1852,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.40';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.43';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1793,7 +1868,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.40';
+const ADMIN_VERSION = '4.43';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2411,10 +2486,11 @@ function buildWeekGridInto(container, dateStr) {
                 <button class="type-pill-btn pill-correction"  data-type="correction">Make Rest Day</button>
             </div>
             <div class="col-time">
-                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1">
+                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20">
                 <span class="time-sep">–</span>
-                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1">
+                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour end time, e.g. 14:20">
                 <span class="time-note">No time needed</span>
+                <span class="time-hint">24h · max 12 hrs</span>
             </div>
             <div class="col-note-btn">
                 <button class="btn-note-toggle" title="Add a note to this override">+ Note</button>
@@ -2479,6 +2555,7 @@ function buildWeekGridInto(container, dateStr) {
             }
             markChanged();
             updateSaveBtn();
+            updateBulkSelCount();
         });
 
         // Time inputs: user editing a time counts as a change
@@ -2524,6 +2601,7 @@ function renderWeekGrid() {
     bulkBar.style.display = 'block';
     resetBulkPills();
     updateSaveBtn();
+    updateBulkSelCount();
 }
 
 function activateRow(row, cb, pills, startEl, endEl, type) {
@@ -2542,6 +2620,8 @@ function activateRow(row, cb, pills, startEl, endEl, type) {
         endEl.tabIndex   = 0;
     }
     row.dataset.type = type;
+    const badge = row.querySelector('.overwrite-badge');
+    if (badge) badge.textContent = '⚠ replacing';
 }
 
 function deactivateRow(row, cb, pills, startEl, endEl) {
@@ -2551,13 +2631,24 @@ function deactivateRow(row, cb, pills, startEl, endEl) {
     startEl.value = endEl.value = '';
     startEl.tabIndex = endEl.tabIndex = -1;
     delete row.dataset.type;
+    const badge = row.querySelector('.overwrite-badge');
+    if (badge) badge.textContent = '⚠ has override';
 }
 
 function updateSaveBtn() {
-    const hasType = [...weekGrid.querySelectorAll('.day-row')].some(r => r.dataset.type);
-    saveBtn.disabled = !hasType;
+    const count = [...weekGrid.querySelectorAll('.day-row')].filter(r => r.dataset.type).length;
+    saveBtn.disabled = count === 0;
     const hint = document.getElementById('saveBtnHint');
-    if (hint) hint.textContent = hasType ? 'Ready — tap Save to apply changes' : 'Tap an override type on at least one day, then save';
+    if (hint) hint.textContent = count > 0
+        ? `Ready — ${count} day${count > 1 ? 's' : ''} will be saved`
+        : 'Select an override type on at least one day';
+}
+
+function updateBulkSelCount() {
+    const el = document.getElementById('bulkSelCount');
+    if (!el) return;
+    const n = weekGrid.querySelectorAll('.day-cb:checked').length;
+    el.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
 }
 
 // ============================================
@@ -2604,6 +2695,7 @@ document.getElementById('bulkSelMonFri').addEventListener('click', () => {
         }
     });
     updateSaveBtn();
+    updateBulkSelCount();
 });
 
 document.getElementById('bulkSelWorking').addEventListener('click', () => {
@@ -2626,6 +2718,7 @@ document.getElementById('bulkSelWorking').addEventListener('click', () => {
         }
     });
     updateSaveBtn();
+    updateBulkSelCount();
 });
 
 document.getElementById('bulkSelAll').addEventListener('click', () => {
@@ -2636,6 +2729,7 @@ document.getElementById('bulkSelAll').addEventListener('click', () => {
         if (!row.dataset.type) row.classList.add('selected');
     });
     updateSaveBtn();
+    updateBulkSelCount();
 });
 
 // Apply bulk type + time to all active (checked) rows
@@ -2657,6 +2751,7 @@ bulkApplyBtn.addEventListener('click', () => {
     });
     markChanged();
     updateSaveBtn();
+    updateBulkSelCount();
 });
 
 // ============================================
@@ -3141,11 +3236,19 @@ roles.forEach(role => {
 // Restore last used member
 if (lastMember) alMember.value = lastMember;
 
+// Helper: keep alMemberDisplay in sync with fieldMember
+function syncMemberDisplay() {
+    const el = document.getElementById('alMemberDisplay');
+    if (el) el.textContent = fieldMember.value || 'Select a staff member above';
+}
+syncMemberDisplay(); // set on page load
+
 // Sync alMember with the main member picker (keep them in step)
 fieldMember.addEventListener('change', () => {
     if (fieldMember.value) {
         alMember.value     = fieldMember.value;
         filterMember.value = fieldMember.value;
+        syncMemberDisplay();
         renderTable();
     }
 });
@@ -3155,6 +3258,7 @@ alMember.addEventListener('change', () => {
     if (alMember.value) {
         fieldMember.value  = alMember.value;
         filterMember.value = alMember.value;
+        syncMemberDisplay();
         localStorage.setItem('adminLastMember', alMember.value);
         renderWeekGrid();
         renderTable();
@@ -3329,6 +3433,7 @@ function applyPermissions() {
     // Non-admin: lock all member selectors to their own name
     fieldMember.value     = currentUser;
     fieldMember.disabled  = true;
+    syncMemberDisplay();
     alMember.value        = currentUser;
     alMember.disabled     = true;
     filterMember.value    = currentUser;
