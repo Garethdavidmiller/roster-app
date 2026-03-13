@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.64 -->
+<!-- MYB Roster Calendar - Version 4.65 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2151,12 +2151,17 @@
                 <div class="legend-item" id="legend-qingming" style="display:none"><span class="legend-text">🌿 Qingming</span></div>
                 <div class="legend-item" id="legend-dragon-boat" style="display:none"><span class="legend-text">🐲 Dragon Boat Festival</span></div>
                 <div class="legend-item" id="legend-mid-autumn" style="display:none"><span class="legend-text">🥮 Mid-Autumn Festival</span></div>
+                <div class="legend-item" id="legend-ash-wednesday" style="display:none"><span class="legend-text">✝️ Ash Wednesday</span></div>
+                <div class="legend-item" id="legend-labour-day" style="display:none"><span class="legend-text">🔨 Labour Day (Jamaica)</span></div>
+                <div class="legend-item" id="legend-emancipation" style="display:none"><span class="legend-text">✊ Emancipation Day</span></div>
+                <div class="legend-item" id="legend-independence" style="display:none"><span class="legend-text">🇯🇲 Independence Day</span></div>
+                <div class="legend-item" id="legend-heroes-day" style="display:none"><span class="legend-text">🏅 National Heroes Day</span></div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.64';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.65';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2168,7 +2173,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.64';
+        CONFIG.APP_VERSION = '4.65';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2926,18 +2931,23 @@
             }
 
             const legendIds = {
-                'legend-ramadan':     [RAMADAN_STARTS,         'islamic'],
-                'legend-eid-fitr':    [EID_FITR_DATES,         'islamic'],
-                'legend-eid-adha':    [EID_ADHA_DATES,         'islamic'],
-                'legend-holi':        [HOLI_DATES,             'hindu'],
-                'legend-navratri':    [NAVRATRI_DATES,         'hindu'],
-                'legend-dussehra':    [DUSSEHRA_DATES,         'hindu'],
-                'legend-diwali':      [DIWALI_DATES,           'hindu'],
-                'legend-raksha':      [RAKSHA_BANDHAN_DATES,   'hindu'],
-                'legend-lantern':     [LANTERN_FESTIVAL_DATES, 'chinese'],
-                'legend-qingming':    [QINGMING_DATES,         'chinese'],
-                'legend-dragon-boat': [DRAGON_BOAT_DATES,      'chinese'],
-                'legend-mid-autumn':  [MID_AUTUMN_DATES,       'chinese'],
+                'legend-ramadan':        [RAMADAN_STARTS,                 'islamic'],
+                'legend-eid-fitr':       [EID_FITR_DATES,                 'islamic'],
+                'legend-eid-adha':       [EID_ADHA_DATES,                 'islamic'],
+                'legend-holi':           [HOLI_DATES,                     'hindu'],
+                'legend-navratri':       [NAVRATRI_DATES,                 'hindu'],
+                'legend-dussehra':       [DUSSEHRA_DATES,                 'hindu'],
+                'legend-diwali':         [DIWALI_DATES,                   'hindu'],
+                'legend-raksha':         [RAKSHA_BANDHAN_DATES,           'hindu'],
+                'legend-lantern':        [LANTERN_FESTIVAL_DATES,         'chinese'],
+                'legend-qingming':       [QINGMING_DATES,                 'chinese'],
+                'legend-dragon-boat':    [DRAGON_BOAT_DATES,              'chinese'],
+                'legend-mid-autumn':     [MID_AUTUMN_DATES,               'chinese'],
+                'legend-ash-wednesday':  [JAMAICAN_ASH_WEDNESDAY_DATES,   'jamaican'],
+                'legend-labour-day':     [JAMAICAN_LABOUR_DAY_DATES,      'jamaican'],
+                'legend-emancipation':   [JAMAICAN_EMANCIPATION_DATES,    'jamaican'],
+                'legend-independence':   [JAMAICAN_INDEPENDENCE_DATES,    'jamaican'],
+                'legend-heroes-day':     [JAMAICAN_HEROES_DAY_DATES,      'jamaican'],
             };
             for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
                 const el = document.getElementById(id);
