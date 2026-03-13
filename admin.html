@@ -1852,7 +1852,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.43';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.44';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1868,7 +1868,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.43';
+const ADMIN_VERSION = '4.44';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3245,12 +3245,11 @@ syncMemberDisplay(); // set on page load
 
 // Sync alMember with the main member picker (keep them in step)
 fieldMember.addEventListener('change', () => {
-    if (fieldMember.value) {
-        alMember.value     = fieldMember.value;
-        filterMember.value = fieldMember.value;
-        syncMemberDisplay();
-        renderTable();
-    }
+    alMember.value     = fieldMember.value;
+    filterMember.value = fieldMember.value;
+    syncMemberDisplay();
+    updateALBanner();
+    renderTable();
 });
 alMember.addEventListener('change', () => {
     updateALBanner();
