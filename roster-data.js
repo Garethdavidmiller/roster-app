@@ -249,3 +249,193 @@ export const EID_ADHA_DATES = new Set([
     '2030-04-13',
     '2031-04-02', // Eid al-Adha from the Dec 2030 Ramadan (Islamic year 1452)
 ]);
+
+// ============================================
+// DATE UTILITIES — shared by index.html and admin.html
+// ============================================
+
+// Compare two dates by calendar day only (ignores time component)
+export function isSameDay(date1, date2) {
+    return date1.getDate()     === date2.getDate()  &&
+           date1.getMonth()    === date2.getMonth() &&
+           date1.getFullYear() === date2.getFullYear();
+}
+
+// Calculate all UK bank holidays for a given year (England & Wales).
+// Uses the Computus algorithm for Easter. Returns an array of Date objects.
+function calculateBankHolidays(year) {
+    const holidays = [];
+
+    // New Year's Day (or substitute if weekend)
+    let newYear = new Date(year, 0, 1);
+    if      (newYear.getDay() === 0) holidays.push(new Date(year, 0, 2)); // Sun → Mon
+    else if (newYear.getDay() === 6) holidays.push(new Date(year, 0, 3)); // Sat → Mon
+    else                             holidays.push(newYear);
+
+    // Easter calculation (Computus algorithm)
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+    const day   = ((h + l - 7 * m + 114) % 31) + 1;
+    const easter = new Date(year, month, day);
+
+    // Good Friday (2 days before Easter Sunday)
+    const goodFriday = new Date(easter);
+    goodFriday.setDate(easter.getDate() - 2);
+    holidays.push(goodFriday);
+
+    // Easter Monday (1 day after Easter Sunday)
+    const easterMonday = new Date(easter);
+    easterMonday.setDate(easter.getDate() + 1);
+    holidays.push(easterMonday);
+
+    // Early May Bank Holiday (first Monday in May)
+    const mayFirst    = new Date(year, 4, 1);
+    const mayFirstDay = mayFirst.getDay();
+    holidays.push(new Date(year, 4, 1 + (mayFirstDay === 0 ? 1 : mayFirstDay === 1 ? 0 : 8 - mayFirstDay)));
+
+    // Spring Bank Holiday (last Monday in May)
+    const mayLast    = new Date(year, 5, 0);
+    const mayDaysBack = (mayLast.getDay() + 6) % 7;
+    holidays.push(new Date(year, 4, mayLast.getDate() - mayDaysBack));
+
+    // Summer Bank Holiday (last Monday in August)
+    const augLast    = new Date(year, 8, 0);
+    const augDaysBack = (augLast.getDay() + 6) % 7;
+    holidays.push(new Date(year, 7, augLast.getDate() - augDaysBack));
+
+    // Christmas Day and Boxing Day (with weekend substitutes)
+    // Sat/Sun: both substitutes fall on Mon 27 and Tue 28
+    // Fri: Christmas stays Fri 25, Boxing Day substitute Mon 28
+    // Weekday: no substitutes needed
+    const xmasDay = new Date(year, 11, 25).getDay();
+    if (xmasDay === 6 || xmasDay === 0) {
+        holidays.push(new Date(year, 11, 27));
+        holidays.push(new Date(year, 11, 28));
+    } else if (xmasDay === 5) {
+        holidays.push(new Date(year, 11, 25));
+        holidays.push(new Date(year, 11, 28));
+    } else {
+        holidays.push(new Date(year, 11, 25));
+        holidays.push(new Date(year, 11, 26));
+    }
+
+    return holidays;
+}
+
+// Cache and getter for bank holidays (calculated once per year)
+const _bankHolidaysCache = {};
+export function getBankHolidays(year) {
+    if (!_bankHolidaysCache[year]) _bankHolidaysCache[year] = calculateBankHolidays(year);
+    return _bankHolidaysCache[year];
+}
+
+export function isBankHoliday(date) {
+    return getBankHolidays(date.getFullYear()).some(h => isSameDay(h, date));
+}
+
+// Dec 25 only — used for 🎄 decoration
+export function isChristmasDay(date) {
+    return date.getMonth() === 11 && date.getDate() === 25;
+}
+
+// Easter Sunday (day before Easter Monday) — used for 🐣 decoration
+export function isEasterSunday(date) {
+    return getBankHolidays(date.getFullYear()).some(h => {
+        if (h.getDay() !== 1 || h.getMonth() < 2 || h.getMonth() > 3) return false;
+        const sun = new Date(h);
+        sun.setDate(h.getDate() - 1);
+        return isSameDay(date, sun);
+    });
+}
+
+// Cache and calculator for paydays + cutoff dates
+const _paydayCache = {};
+export function getPaydaysAndCutoffs(year) {
+    if (year < CONFIG.MIN_YEAR) return { paydays: [], cutoffs: [] };
+    if (!_paydayCache[year]) {
+        const paydays = [];
+        const cutoffs = [];
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const jan1 = new Date(year, 0, 1, 12, 0, 0);
+        const daysSinceFirst   = Math.floor((jan1 - CONFIG.FIRST_PAYDAY) / msPerDay);
+        const cyclesSinceFirst = Math.floor(daysSinceFirst / CONFIG.PAYDAY_INTERVAL_DAYS);
+        let currentMs = CONFIG.FIRST_PAYDAY.getTime()
+            + cyclesSinceFirst * CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
+
+        while (new Date(currentMs).getFullYear() < year) currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
+
+        while (new Date(currentMs).getFullYear() === year) {
+            const raw = new Date(currentMs);
+            let payday = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 12, 0, 0);
+            while (isBankHoliday(payday)) payday.setDate(payday.getDate() - 1);
+            paydays.push(payday);
+
+            // Cutoff = most recent Saturday before payday
+            const cutoff = new Date(payday);
+            const daysBackToSaturday = [1, 2, 3, 4, 5, 6, 0];
+            cutoff.setDate(payday.getDate() - daysBackToSaturday[payday.getDay()]);
+            cutoffs.push(cutoff);
+
+            currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
+        }
+        _paydayCache[year] = { paydays, cutoffs };
+    }
+    return _paydayCache[year];
+}
+
+export function isPayday(date) {
+    return getPaydaysAndCutoffs(date.getFullYear()).paydays.some(p => isSameDay(p, date));
+}
+
+export function isCutoffDate(date) {
+    return getPaydaysAndCutoffs(date.getFullYear()).cutoffs.some(c => isSameDay(c, date));
+}
+
+// ============================================
+// ISLAMIC MARKER DISPLAY DATA
+// ============================================
+
+export const ISLAMIC_LABELS = {
+    'ramadan':  'Ramadan begins',
+    'eid-fitr': 'Eid al-Fitr',
+    'eid-adha': 'Eid al-Adha',
+};
+
+export const ISLAMIC_ICONS = {
+    'ramadan':  '🌙',
+    'eid-fitr': '☪️',
+    'eid-adha': '🕌',
+};
+
+// ============================================
+// SPECIAL DAY BADGES — used by admin.html day rows
+// ============================================
+// Returns an array of { icon, title } objects for the given date.
+// islamicMarkersEnabled: pass true if the selected member has opted in.
+// dateStr: ISO date string (YYYY-MM-DD) used for Islamic set lookups.
+
+export function getSpecialDayBadges(date, dateStr, islamicMarkersEnabled) {
+    const badges = [];
+    if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank Holiday' });
+    if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off Date' });
+    if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
+    if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
+    if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
+    if (islamicMarkersEnabled) {
+        if (RAMADAN_STARTS.has(dateStr)) badges.push({ icon: '🌙', title: 'Ramadan begins' });
+        if (EID_FITR_DATES.has(dateStr))  badges.push({ icon: '☪️', title: 'Eid al-Fitr' });
+        if (EID_ADHA_DATES.has(dateStr))  badges.push({ icon: '🕌', title: 'Eid al-Adha' });
+    }
+    return badges;
+}

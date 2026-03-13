@@ -724,6 +724,14 @@
             display: block;
         }
 
+        /* Special day badges — ⭐ ✂️ 💷 🎄 🐣 🌙 ☪️ 🕌 */
+        .day-badge {
+            font-size: 11px;
+            margin-left: 4px;
+            vertical-align: middle;
+            cursor: default;
+        }
+
         .col-pills {
             display: flex;
             gap: 4px;
@@ -1848,7 +1856,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.50';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.51';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1864,7 +1872,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.50';
+const ADMIN_VERSION = '4.51';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2443,11 +2451,18 @@ function buildWeekGridInto(container, dateStr) {
         <div class="hdr-note"></div>`;
     container.appendChild(header);
 
+    // Read Islamic markers opt-in state for the selected member
+    const islamicMarkersOn = !!(document.getElementById('islamicMarkersToggle')?.checked);
+
     for (let i = 0; i < 7; i++) {
         const date      = new Date(sunday);
         date.setDate(sunday.getDate() + i);
         const dateISO   = formatISO(date);
         const baseShift = getBaseShift(member, date);
+
+        // Special day badges (⭐ ✂️ 💷 🎄 🐣 and optional Islamic markers)
+        const badges = getSpecialDayBadges(date, dateISO, islamicMarkersOn);
+        const badgeHTML = badges.map(b => `<span class="day-badge" title="${b.title}">${b.icon}</span>`).join('');
 
         // Check if an override already exists for this member + date
         const existing  = allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
@@ -2465,7 +2480,7 @@ function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${existing ? ' <span class="overwrite-badge">⚠ has override</span>' : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ' <span class="overwrite-badge">⚠ has override</span>' : ''}</span>
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
