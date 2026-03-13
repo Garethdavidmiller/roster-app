@@ -251,6 +251,66 @@ export const EID_ADHA_DATES = new Set([
 ]);
 
 // ============================================
+// HINDU CALENDAR DATES (Hindu lunar calendar)
+// ============================================
+// Source: drikpanchang.com (London, United Kingdom timezone).
+// All dates carry a ±1 day margin — actual dates may vary by region and
+// moon-sighting. Review dates annually.
+//
+// Dates for 2029–2030 marked TODO have been inferred from adjacent years;
+// verify against drikpanchang.com before those years go live.
+
+// Holi (Rangwali Holi — Festival of Colours). Second day of the two-day festival.
+export const HOLI_DATES = new Set([
+    '2025-03-14',
+    '2026-03-04',
+    '2027-03-22',
+    '2028-03-11',
+    '2029-03-30', // TODO: verify against drikpanchang.com
+    '2030-03-20', // TODO: verify against drikpanchang.com
+]);
+
+// Sharad Navratri — first day of the nine-night festival of Durga.
+export const NAVRATRI_DATES = new Set([
+    '2025-09-22',
+    '2026-10-11',
+    '2027-09-30',
+    '2028-09-19',
+    '2029-10-07', // TODO: verify against drikpanchang.com
+    '2030-09-27', // TODO: verify against drikpanchang.com
+]);
+
+// Dussehra (Vijayadashami) — tenth day of Navratri; victory of good over evil.
+export const DUSSEHRA_DATES = new Set([
+    '2025-10-02',
+    '2026-10-20',
+    '2027-10-09',
+    '2028-09-27',
+    '2029-10-16', // TODO: verify against drikpanchang.com
+    '2030-10-06', // TODO: verify against drikpanchang.com
+]);
+
+// Diwali (Lakshmi Puja) — Festival of Lights. Main day of the five-day festival.
+export const DIWALI_DATES = new Set([
+    '2025-10-20',
+    '2026-11-08',
+    '2027-10-28',
+    '2028-10-17',
+    '2029-11-05', // TODO: verify against drikpanchang.com
+    '2030-10-26', // TODO: verify against drikpanchang.com
+]);
+
+// Raksha Bandhan — brother-sister bond festival (full moon in Shravan).
+export const RAKSHA_BANDHAN_DATES = new Set([
+    '2025-08-09',
+    '2026-08-28',
+    '2027-08-17',
+    '2028-08-05',
+    '2029-08-23', // TODO: verify against drikpanchang.com
+    '2030-08-13', // TODO: verify against drikpanchang.com
+]);
+
+// ============================================
 // DATE UTILITIES — shared by index.html and admin.html
 // ============================================
 
@@ -403,7 +463,7 @@ export function isCutoffDate(date) {
 }
 
 // ============================================
-// ISLAMIC MARKER DISPLAY DATA
+// FAITH CALENDAR DISPLAY DATA
 // ============================================
 
 export const ISLAMIC_LABELS = {
@@ -418,24 +478,47 @@ export const ISLAMIC_ICONS = {
     'eid-adha': '🕌',
 };
 
+export const HINDU_LABELS = {
+    'holi':     'Holi',
+    'navratri': 'Navratri begins',
+    'dussehra': 'Dussehra',
+    'diwali':   'Diwali',
+    'raksha':   'Raksha Bandhan',
+};
+
+export const HINDU_ICONS = {
+    'holi':     '🎨',
+    'navratri': '🕉️',
+    'dussehra': '🏹',
+    'diwali':   '🪔',
+    'raksha':   '🪢',
+};
+
 // ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
 // Returns an array of { icon, title } objects for the given date.
-// islamicMarkersEnabled: pass true if the selected member has opted in.
-// dateStr: ISO date string (YYYY-MM-DD) used for Islamic set lookups.
+// faithCalendar: 'none' | 'islamic' | 'hindu' — the member's opted-in calendar.
+// dateStr: ISO date string (YYYY-MM-DD) used for faith set lookups.
 
-export function getSpecialDayBadges(date, dateStr, islamicMarkersEnabled) {
+export function getSpecialDayBadges(date, dateStr, faithCalendar) {
     const badges = [];
     if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank Holiday' });
     if (isCutoffDate(date))    badges.push({ icon: '✂️', title: 'Cut-off Date' });
     if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
     if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
     if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
-    if (islamicMarkersEnabled) {
-        if (RAMADAN_STARTS.has(dateStr)) badges.push({ icon: '🌙', title: 'Ramadan begins' });
-        if (EID_FITR_DATES.has(dateStr))  badges.push({ icon: '☪️', title: 'Eid al-Fitr' });
-        if (EID_ADHA_DATES.has(dateStr))  badges.push({ icon: '🕌', title: 'Eid al-Adha' });
+    if (faithCalendar === 'islamic') {
+        if (RAMADAN_STARTS.has(dateStr))      badges.push({ icon: '🌙', title: 'Ramadan begins' });
+        if (EID_FITR_DATES.has(dateStr))      badges.push({ icon: '☪️', title: 'Eid al-Fitr' });
+        if (EID_ADHA_DATES.has(dateStr))      badges.push({ icon: '🕌', title: 'Eid al-Adha' });
+    }
+    if (faithCalendar === 'hindu') {
+        if (HOLI_DATES.has(dateStr))           badges.push({ icon: '🎨', title: 'Holi' });
+        if (NAVRATRI_DATES.has(dateStr))       badges.push({ icon: '🕉️', title: 'Navratri begins' });
+        if (DUSSEHRA_DATES.has(dateStr))       badges.push({ icon: '🏹', title: 'Dussehra' });
+        if (DIWALI_DATES.has(dateStr))         badges.push({ icon: '🪔', title: 'Diwali' });
+        if (RAKSHA_BANDHAN_DATES.has(dateStr)) badges.push({ icon: '🪢', title: 'Raksha Bandhan' });
     }
     return badges;
 }
