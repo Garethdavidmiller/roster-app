@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.54 -->
+<!-- MYB Roster Admin v4.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2002,10 +2002,10 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.54';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.55';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
-    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
+    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 
 const app = initializeApp({
@@ -2018,7 +2018,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.54';
+const ADMIN_VERSION = '4.55';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2032,8 +2032,9 @@ const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getSurname(fullName) {
     // 'L. Springer' → 'springer'
-    // 'C. Francisco-Charles' → 'francisco-charles'
-    return fullName.split(' ').slice(1).join(' ').toLowerCase();
+    // 'C. Francisco-Charles' → 'franciscocharles'
+    // 'M. De Silva' → 'desilva'  (strips spaces so mobile auto-cap can't break login)
+    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
 }
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
@@ -3005,14 +3006,17 @@ async function executeSave(toSave) {
     saveBtn.textContent = `Saving ${toSave.length} day${toSave.length !== 1 ? 's' : ''}…`;
 
     try {
-        await Promise.all(toSave.map(async entry => {
+        const batch = writeBatch(db);
+        toSave.forEach(entry => {
             // Delete existing first if overwriting, then add fresh doc
             if (entry.existingId) {
-                await deleteDoc(doc(db, 'overrides', entry.existingId));
+                batch.delete(doc(db, 'overrides', entry.existingId));
             }
             const { existingId: _, ...data } = entry;
-            return addDoc(collection(db, 'overrides'), { ...data, createdAt: serverTimestamp() });
-        }));
+            const newRef = doc(collection(db, 'overrides'));
+            batch.set(newRef, { ...data, createdAt: serverTimestamp() });
+        });
+        await batch.commit();
 
         const parts = [];
         if (creates    > 0) parts.push(`${creates} added`);
@@ -3563,11 +3567,13 @@ alSaveBtn.addEventListener('click', async () => {
     }
 
     try {
-        await Promise.all(workingDates.map(async date => {
+        const alBatch = writeBatch(db);
+        workingDates.forEach(date => {
             // Overwrite any existing override for this member+date
             const existing = allOverrides.find(o => o.memberName === member && o.date === date);
-            if (existing) await deleteDoc(doc(db, 'overrides', existing.id));
-            return addDoc(collection(db, 'overrides'), {
+            if (existing) alBatch.delete(doc(db, 'overrides', existing.id));
+            const newRef = doc(collection(db, 'overrides'));
+            alBatch.set(newRef, {
                 memberName: member,
                 date,
                 type:  'annual_leave',
@@ -3575,7 +3581,8 @@ alSaveBtn.addEventListener('click', async () => {
                 note:  '',
                 createdAt: serverTimestamp()
             });
-        }));
+        });
+        await alBatch.commit();
 
         alFeedback.className = 'feedback success';
         alFeedback.textContent = `✓ Booked ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
@@ -3642,12 +3649,9 @@ function updateALBookedBox() {
 
     if (!entries.length) { box.hidden = true; return; }
 
-    const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
     function fmtDate(d) {
         const dt = new Date(d + 'T12:00:00');
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
+        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]} ${dt.getFullYear()}`;
     }
 
     // Group by year
