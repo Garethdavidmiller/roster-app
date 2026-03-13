@@ -2014,7 +2014,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.58';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.59';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2030,7 +2030,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.58';
+const ADMIN_VERSION = '4.59';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2543,7 +2543,7 @@ function updateALBanner() {
     if (!member)      { banner.hidden = true; return; }
 
     const entitlement = getALEntitlement(member);
-    const yearStr     = fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear());
+    const yearStr     = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
     const used        = allOverrides.filter(o =>
         o.memberName === memberName &&
         o.type       === 'annual_leave' &&
@@ -3523,8 +3523,8 @@ function updateAlPreview() {
     alSaveBtn.disabled = workDays === 0;
 }
 
-alFrom.addEventListener('change',   updateAlPreview);
-alTo.addEventListener('change',     updateAlPreview);
+alFrom.addEventListener('change',   () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
+alTo.addEventListener('change',     () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
 updateAlPreview();
 
 let _alBookingConfirmed = false;
@@ -3651,7 +3651,7 @@ function updateALBookedBox() {
     const memberName = alMember.value;
     if (!memberName) { box.hidden = true; return; }
 
-    const yearStr = fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear());
+    const yearStr = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
     const entries = allOverrides.filter(o =>
         o.memberName === memberName &&
         o.type       === 'annual_leave' &&
