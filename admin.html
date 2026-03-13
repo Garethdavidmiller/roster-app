@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.43 -->
+<!-- MYB Roster Admin v4.46 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1797,10 +1797,6 @@
             <h2>Existing Overrides</h2>
         </div>
         <div class="list-toolbar">
-            <label for="filterMember" class="filter-label">Show:</label>
-            <select id="filterMember">
-                <option value="">All staff</option>
-            </select>
             <span class="list-count" id="listCount">Loading…</span>
         </div>
         <div class="table-scroll">
@@ -1852,7 +1848,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.44';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.46';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1868,7 +1864,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.44';
+const ADMIN_VERSION = '4.46';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2118,7 +2114,6 @@ const bulkApplyBtn = document.getElementById('bulkApplyBtn');
 const weekGrid     = document.getElementById('weekGrid');
 const saveBtn      = document.getElementById('saveBtn');
 const formFeedback = document.getElementById('formFeedback');
-const filterMember = document.getElementById('filterMember');
 const tableBody    = document.getElementById('overrideTableBody');
 const listCount    = document.getElementById('listCount');
 const listFeedback = document.getElementById('listFeedback');
@@ -2129,21 +2124,17 @@ const listFeedback = document.getElementById('listFeedback');
 const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
 roles.forEach(role => {
     const grp1 = document.createElement('optgroup');
-    const grp2 = document.createElement('optgroup');
-    grp1.label = grp2.label = role;
+    grp1.label = role;
     teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
         grp1.appendChild(new Option(m.name, m.name));
-        grp2.appendChild(new Option(m.name, m.name));
     });
     fieldMember.appendChild(grp1);
-    filterMember.appendChild(grp2);
 });
 
 // Restore last used member from localStorage
 const lastMember = localStorage.getItem('adminLastMember');
 if (lastMember && teamMembers.find(m => m.name === lastMember)) {
     fieldMember.value  = lastMember;
-    filterMember.value = lastMember; // default overrides list to this member
 }
 
 // Default date = today — update the week nav label immediately without
@@ -2874,8 +2865,6 @@ async function executeSave(toSave) {
             if (cb) deactivateRow(row, cb, pills, s, e);
         });
 
-        // Auto-filter list to this member and reload
-        filterMember.value = memberName;
         await loadOverrides();
 
     } catch (err) {
@@ -2893,6 +2882,7 @@ async function executeSave(toSave) {
 fieldMember.addEventListener('change', () => {
     if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
     localStorage.setItem('adminLastMember', fieldMember.value);
+    localStorage.setItem('myb_roster_selected_member', fieldMember.value);
     renderWeekGrid();
 });
 let lastFieldDate = fieldDate.value;
@@ -2912,7 +2902,7 @@ fieldDate.addEventListener('change', () => {
 // ============================================
 let allOverrides = [];
 
-filterMember.addEventListener('change', renderTable);
+
 
 async function loadOverrides() {
     tableBody.innerHTML = '<tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>';
@@ -2933,7 +2923,7 @@ async function loadOverrides() {
 }
 
 function renderTable() {
-    const filter = filterMember.value;
+    const filter = fieldMember.value;
     const rows   = filter ? allOverrides.filter(o => o.memberName === filter) : allOverrides;
     listCount.textContent = `${rows.length} override${rows.length !== 1 ? 's' : ''}`;
 
@@ -3018,6 +3008,7 @@ function handleEdit(e) {
     fieldDate.value   = date;
     lastFieldDate     = date;
     localStorage.setItem('adminLastMember', memberName);
+    localStorage.setItem('myb_roster_selected_member', memberName);
     renderWeekGrid();
     // Scroll to the override form card
     document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3246,7 +3237,6 @@ syncMemberDisplay(); // set on page load
 // Sync alMember with the main member picker (keep them in step)
 fieldMember.addEventListener('change', () => {
     alMember.value     = fieldMember.value;
-    filterMember.value = fieldMember.value;
     syncMemberDisplay();
     updateALBanner();
     renderTable();
@@ -3256,9 +3246,9 @@ alMember.addEventListener('change', () => {
     updateAlPreview();
     if (alMember.value) {
         fieldMember.value  = alMember.value;
-        filterMember.value = alMember.value;
         syncMemberDisplay();
         localStorage.setItem('adminLastMember', alMember.value);
+        localStorage.setItem('myb_roster_selected_member', alMember.value);
         renderWeekGrid();
         renderTable();
     }
@@ -3401,7 +3391,6 @@ alSaveBtn.addEventListener('click', async () => {
         alFrom.value = alTo.value = '';
         updateAlPreview();
 
-        filterMember.value = member;
         await loadOverrides();
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
@@ -3435,9 +3424,8 @@ function applyPermissions() {
     syncMemberDisplay();
     alMember.value        = currentUser;
     alMember.disabled     = true;
-    filterMember.value    = currentUser;
-    filterMember.disabled = true;
     localStorage.setItem('adminLastMember', currentUser);
+    localStorage.setItem('myb_roster_selected_member', currentUser);
 }
 
 // ============================================
