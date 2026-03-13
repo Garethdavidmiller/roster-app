@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.58 -->
+<!-- MYB Roster Admin v4.61 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1034,20 +1034,35 @@
             margin-bottom: 14px;
             line-height: 1.5;
         }
-        .religious-toggle-label {
+        .faith-radio-group {
             display: flex;
-            align-items: center;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .faith-radio-label {
+            display: flex;
+            align-items: flex-start;
             gap: 10px;
             font-size: 14px;
-            font-weight: 600;
             color: var(--text-dark);
             cursor: pointer;
+            line-height: 1.4;
         }
-        .religious-toggle-label input[type="checkbox"] {
+        .faith-radio-label input[type="radio"] {
             width: 18px; height: 18px;
             accent-color: var(--primary-blue);
             cursor: pointer;
             flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .faith-radio-label strong {
+            font-weight: 600;
+        }
+        .faith-radio-sublabel {
+            font-size: 12px;
+            color: var(--text-light);
+            display: block;
+            margin-top: 1px;
         }
         .religious-disclaimer {
             margin-top: 12px;
@@ -1990,22 +2005,39 @@
     <!-- Any staff member can expand, opt in/out independently.      -->
     <div class="card" id="religiousCard">
         <div class="card-header card-religious-header" id="religiousToggleHeader">
-            <h2>🌙 Religious Calendar</h2>
-            <span class="hint">Islamic date markers — optional</span>
+            <h2>🕉️ Faith Calendar</h2>
+            <span class="hint">Optional date markers — one per person</span>
             <span class="religious-chevron" id="religiousChevron">▾</span>
         </div>
         <div class="card-religious-body" id="religiousBody">
             <p class="religious-intro">
-                Opt in to show 🌙 Ramadan start, ☪️ Eid al-Fitr, and 🕌 Eid al-Adha
-                in the bottom-right corner of the relevant days on your roster calendar.
+                Choose a faith calendar to show key dates in the bottom-right corner of
+                relevant days on your roster. Only one calendar can be active at a time.
+                These markers are visible to anyone who views your roster.
             </p>
-            <label class="religious-toggle-label">
-                <input type="checkbox" id="islamicMarkersToggle">
-                Show Islamic calendar markers on my roster
-            </label>
+            <div class="faith-radio-group" role="radiogroup" aria-label="Faith calendar">
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="none">
+                    <span><strong>None</strong></span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="islamic">
+                    <span>
+                        <strong>🌙 Islamic</strong>
+                        <span class="faith-radio-sublabel">Ramadan start · Eid al-Fitr · Eid al-Adha</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="hindu">
+                    <span>
+                        <strong>🪔 Hindu</strong>
+                        <span class="faith-radio-sublabel">Holi · Navratri · Dussehra · Diwali · Raksha Bandhan</span>
+                    </span>
+                </label>
+            </div>
             <p class="religious-disclaimer">
-                Dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting confirmation).
-                These markers are visible to anyone who views your roster on the main calendar.
+                Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting).
+                Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).
             </p>
             <div class="religious-saved" id="religiousSaved">✓ Saved</div>
         </div>
@@ -2014,7 +2046,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.60';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.61';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2030,7 +2062,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.60';
+const ADMIN_VERSION = '4.61';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2610,8 +2642,8 @@ function buildWeekGridInto(container, dateStr) {
         <div class="hdr-note"></div>`;
     container.appendChild(header);
 
-    // Read Islamic markers opt-in state for the selected member
-    const islamicMarkersOn = !!(document.getElementById('islamicMarkersToggle')?.checked);
+    // Read faith calendar opt-in for the selected member
+    const faithCalendar = document.querySelector('input[name="faithCalendar"]:checked')?.value || 'none';
 
     for (let i = 0; i < 7; i++) {
         const date      = new Date(sunday);
@@ -2619,8 +2651,8 @@ function buildWeekGridInto(container, dateStr) {
         const dateISO   = formatISO(date);
         const baseShift = getBaseShift(member, date);
 
-        // Special day badges (⭐ ✂️ 💷 🎄 🐣 and optional Islamic markers)
-        const badges = getSpecialDayBadges(date, dateISO, islamicMarkersOn);
+        // Special day badges (⭐ ✂️ 💷 🎄 🐣 and optional faith calendar markers)
+        const badges = getSpecialDayBadges(date, dateISO, faithCalendar);
         const badgeHTML = badges.map(b => `<span class="day-badge" title="${b.title}">${b.icon}</span>`).join('');
 
         // Check if an override already exists for this member + date
@@ -3804,15 +3836,15 @@ function updateALBookedBox() {
 })();
 
 // ============================================
-// RELIGIOUS CARD — collapse/expand + Firestore opt-in
+// FAITH CALENDAR CARD — collapse/expand + Firestore opt-in
 // ============================================
 (function initReligiousCard() {
-    const header   = document.getElementById('religiousToggleHeader');
-    const body     = document.getElementById('religiousBody');
-    const chevron  = document.getElementById('religiousChevron');
-    const checkbox = document.getElementById('islamicMarkersToggle');
-    const saved    = document.getElementById('religiousSaved');
-    if (!header || !body || !chevron || !checkbox || !saved) return;
+    const header  = document.getElementById('religiousToggleHeader');
+    const body    = document.getElementById('religiousBody');
+    const chevron = document.getElementById('religiousChevron');
+    const saved   = document.getElementById('religiousSaved');
+    const radios  = document.querySelectorAll('input[name="faithCalendar"]');
+    if (!header || !body || !chevron || !saved || !radios.length) return;
 
     // Collapse / expand
     header.addEventListener('click', () => {
@@ -3820,30 +3852,41 @@ function updateALBookedBox() {
         chevron.classList.toggle('open', isOpen);
     });
 
-    // Load the setting for the given member from Firestore
+    // Derive the faith calendar value from Firestore data.
+    // Handles backward compat: old docs stored islamicMarkers:true rather than faithCalendar.
+    function resolveFaithCalendar(data) {
+        if (!data) return 'none';
+        if (data.faithCalendar) return data.faithCalendar;
+        return data.islamicMarkers ? 'islamic' : 'none';
+    }
+
+    // Load the setting for the given member from Firestore and set the radio buttons
     async function loadReligiousSetting(userName) {
         try {
-            const snap = await getDoc(doc(db, 'memberSettings', userName));
-            checkbox.checked = snap.exists() ? !!snap.data().islamicMarkers : false;
+            const snap  = await getDoc(doc(db, 'memberSettings', userName));
+            const value = resolveFaithCalendar(snap.exists() ? snap.data() : null);
+            radios.forEach(r => { r.checked = (r.value === value); });
         } catch (e) {
             console.warn('[Firestore] memberSettings load failed:', e);
         }
     }
 
-    // Save on checkbox change — save against the currently selected member,
+    // Save on radio change — save against the currently selected member,
     // not always currentUser (admin may be managing another member's settings).
     let saveTimer;
-    checkbox.addEventListener('change', async () => {
-        clearTimeout(saveTimer);
-        saved.classList.remove('visible');
-        try {
-            const target = fieldMember.value || currentUser;
-            await setDoc(doc(db, 'memberSettings', target), { islamicMarkers: checkbox.checked }, { merge: true });
-            saved.classList.add('visible');
-            saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
-        } catch (e) {
-            console.error('[Firestore] memberSettings save failed:', e);
-        }
+    radios.forEach(radio => {
+        radio.addEventListener('change', async () => {
+            clearTimeout(saveTimer);
+            saved.classList.remove('visible');
+            try {
+                const target = fieldMember.value || currentUser;
+                await setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true });
+                saved.classList.add('visible');
+                saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
+            } catch (e) {
+                console.error('[Firestore] memberSettings save failed:', e);
+            }
+        });
     });
 
     // Reload when the member dropdown changes (admin only — non-admin is locked)
