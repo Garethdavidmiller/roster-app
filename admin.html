@@ -1769,7 +1769,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.34';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.35';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1785,7 +1785,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.34';
+const ADMIN_VERSION = '4.35';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2122,9 +2122,13 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
 
 // ============================================
 // WEEK GRID — SWIPE GESTURE
-// Same architecture as the swipe carousel in index.html.
-// Safety guards: skips interactive elements, blocks if unsaved changes exist,
-// blocks if no member/week is loaded.
+// Lazy-capture: pointerdown only records the start position. Horizontal
+// intent is confirmed in pointermove (dx > dy), at which point
+// setPointerCapture is called and the carousel starts. This makes the
+// entire grid surface swipeable — including overridden rows where
+// .col-pills and .col-time expand to full width — while still letting
+// taps on checkboxes, pills, and time inputs fire their click handlers.
+// Safety guards: blocks if unsaved changes exist, blocks if no member/week loaded.
 // ============================================
 (function initWeekSwipe() {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -2133,14 +2137,9 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     const SWIPE_PX    = 75;   // minimum px for a committed swipe
     const SWIPE_VEL   = 0.4;  // px/ms fast-flick threshold
 
-    // Columns whose pointerdown should NOT trigger the swipe gesture.
-    // Using closest() on column classes rather than tagName so that .col-day
-    // and .col-base (always non-interactive spans) remain swipeable even on
-    // override rows where .col-pills and .col-time expand to fill the full width.
-
     let wPrev = null, wNext = null, wCurrent = null;
     let wW = 0, wX0 = 0, wY0 = 0, wT0 = 0;
-    let wDragging = false, wHorizontal = null, wHapticFired = false, wCooldown = false;
+    let wListening = false, wDragging = false, wHapticFired = false, wCooldown = false;
 
     // Build a fully-functional adjacent week panel offset off-screen by delta weeks.
     function buildAdjPanel(delta) {
@@ -2171,46 +2170,45 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
         }, DURATION_MS + 50);
     }
 
+    // pointerdown: record start position only — no capture, no panel building yet.
     weekGrid.addEventListener('pointerdown', e => {
         if (!e.isPrimary || wCooldown) return;
-        if (e.target.closest('.col-check,.col-pills,.col-time,.col-note-btn,.note-row')) return;
-        if (userMadeChanges) return;                     // block navigation while unsaved changes exist
+        if (userMadeChanges) return;
         if (!fieldMember.value || !fieldDate.value) return;
 
         wCurrent = weekGrid.querySelector('.week-panel:not(.week-carousel-panel)');
         if (!wCurrent) return;
 
-        navigator.vibrate?.(0);  // prime Vibration API on Android Chrome before gesture commits
-        weekGrid.setPointerCapture(e.pointerId);
-        wW = Math.ceil(weekGrid.getBoundingClientRect().width);
+        navigator.vibrate?.(0);  // prime Vibration API on Android Chrome
         wX0 = e.clientX; wY0 = e.clientY; wT0 = e.timeStamp;
-        wDragging = true; wHorizontal = null; wHapticFired = false;
-
-        wCurrent.style.transition = 'none';
-        wCurrent.style.willChange = 'transform';
-        wPrev = buildAdjPanel(-1);
-        wNext = buildAdjPanel(+1);
-        wCooldown = true;
+        wListening = true; wDragging = false; wHapticFired = false;
     });
 
+    // pointermove: confirm direction; start carousel only when clearly horizontal.
     weekGrid.addEventListener('pointermove', e => {
-        if (!wDragging || !e.isPrimary) return;
+        if (!e.isPrimary || !wListening) return;
         const dx = e.clientX - wX0;
         const dy = e.clientY - wY0;
 
-        // Determine gesture direction on first significant movement
-        if (wHorizontal === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-            wHorizontal = Math.abs(dx) > Math.abs(dy);
+        if (!wDragging) {
+            if (Math.abs(dx) <= 5 && Math.abs(dy) <= 5) return;
+
+            if (Math.abs(dy) >= Math.abs(dx)) {
+                // Vertical — abandon; let the browser scroll
+                wListening = false;
+                return;
+            }
+
+            // Horizontal confirmed — commit to swipe gesture
+            wW = Math.ceil(weekGrid.getBoundingClientRect().width);
+            weekGrid.setPointerCapture(e.pointerId);
+            wCurrent.style.transition = 'none';
+            wCurrent.style.willChange = 'transform';
+            wPrev = buildAdjPanel(-1);
+            wNext = buildAdjPanel(+1);
+            wCooldown = true;
+            wDragging = true;
         }
-        if (wHorizontal === false) {
-            // Vertical — cancel gesture immediately, restore scroll
-            wDragging = false; wCooldown = false;
-            wCurrent.style.transition = '';
-            wCurrent.style.transform  = '';
-            wCurrent.style.willChange = '';
-            discardPanels(); return;
-        }
-        if (wHorizontal !== true) return;
 
         wCurrent.style.transform = `translateX(${dx}px)`;
         if (wPrev) wPrev.style.transform = `translateX(${-wW + dx}px)`;
@@ -2223,7 +2221,10 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     });
 
     weekGrid.addEventListener('pointerup', e => {
-        if (!wDragging || !e.isPrimary) return;
+        if (!e.isPrimary || !wListening) return;
+        wListening = false;
+
+        if (!wDragging) return; // was a tap — buttons/inputs handle their own clicks
         wDragging = false;
         try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
 
@@ -2269,11 +2270,14 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     });
 
     weekGrid.addEventListener('pointercancel', e => {
-        if (!wDragging || !e.isPrimary) return;
-        wDragging = false; wCooldown = false;
+        if (!e.isPrimary || !wListening) return;
+        wListening = false; wCooldown = false;
         try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
-        if (wCurrent) { wCurrent.style.transition = wCurrent.style.transform = wCurrent.style.willChange = ''; }
-        discardPanels(); wCurrent = null;
+        if (wDragging) {
+            wDragging = false;
+            if (wCurrent) { wCurrent.style.transition = wCurrent.style.transform = wCurrent.style.willChange = ''; }
+            discardPanels(); wCurrent = null;
+        }
     });
 
     // Button handlers inside IIFE so they share the wCooldown closure variable
