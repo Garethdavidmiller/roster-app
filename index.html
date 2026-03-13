@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.53 -->
+<!-- MYB Roster Calendar - Version 4.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -72,6 +72,19 @@
             /* Border Radius */
             --radius-md: 12px;
             --radius-lg: 14px;
+
+            /* Typography scale */
+            --type-micro:  10px;   /* tiny labels, badges */
+            --type-small:  12px;   /* hints, metadata */
+            --type-body:   14px;   /* default body text */
+            --type-medium: 16px;   /* form inputs */
+            --type-large:  18px;   /* section headers */
+            --type-xl:     24px;   /* page title */
+
+            /* Elevation system */
+            --shadow-1: 0 1px 4px rgba(0,0,0,0.10);                  /* cards, subtle lift */
+            --shadow-2: 0 2px 12px rgba(0,30,60,0.12);               /* header, calendar container */
+            --shadow-3: 0 8px 32px rgba(0,0,0,0.18);                 /* modals, lightboxes */
         }
 
         * {
@@ -1546,7 +1559,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 10, 20, 0.85);
+            background: rgba(0, 10, 20, 0.82);
             z-index: 8000;
             align-items: center;
             justify-content: center;
@@ -1733,7 +1746,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 10, 20, 0.85);
+            background: rgba(0, 10, 20, 0.82);
             z-index: 8000;
             align-items: center;
             justify-content: center;
@@ -1838,14 +1851,14 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 10, 20, 0.7);
+            background: rgba(0, 10, 20, 0.82);
             z-index: 7000;
             align-items: center;
             justify-content: center;
             opacity: 0;
             transition: opacity 0.18s ease;
-            -webkit-backdrop-filter: blur(4px);
-            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
             cursor: pointer;
         }
         #monthJumpOverlay.visible { display: flex; }
@@ -1944,20 +1957,6 @@
             .month-year:hover { background: rgba(0,30,60,0.07); }
         }
 
-        /* ---- Firestore override note ---- */
-        /* Displayed beneath the shift time when a Firestore override has a non-empty note.
-           Clipped with ellipsis if the note is longer than the cell width. */
-        .override-note {
-            font-size: 10px;
-            color: var(--text-light);
-            line-height: 1.2;
-            margin-top: 2px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-            max-width: 100%;
-        }
-
         /* ---- Firestore loading indicator ---- */
         /* A "Syncing…" chip injected into .calendar-header while Firestore fetch is in flight.
            Fades in after 800 ms to avoid flashing on fast connections. */
@@ -1980,11 +1979,29 @@
             50%       { opacity: 1;   }
         }
 
-        @media print {
-            .override-note {
-                font-size: 7px !important;
-                color: #555 !important;
-            }
+        /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */
+        @keyframes shimmer {
+            0%   { background-position: -400px 0; }
+            100% { background-position:  400px 0; }
+        }
+        .calendar-fetching .day-cell {
+            position: relative;
+            overflow: hidden;
+        }
+        .calendar-fetching .day-cell::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                90deg,
+                rgba(255,255,255,0) 0%,
+                rgba(255,255,255,0.55) 50%,
+                rgba(255,255,255,0) 100%
+            );
+            background-size: 400px 100%;
+            animation: shimmer 1.4s linear infinite;
+            pointer-events: none;
+            border-radius: inherit;
         }
 
     </style>
@@ -2127,7 +2144,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS } from './roster-data.js?v=4.53';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS } from './roster-data.js?v=4.55';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2139,7 +2156,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.53';
+        CONFIG.APP_VERSION = '4.55';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2560,7 +2577,6 @@
                 <div class="day-number">${date.getDate()}</div>
                 ${badge}
                 ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
-                ${note ? `<div class="override-note" role="note" aria-label="Note: ${escapeHtml(note)}" title="${escapeHtml(note)}">${escapeHtml(note)}</div>` : ''}
                 ${islamicType ? `<span class="day-islamic" aria-label="${ISLAMIC_LABELS[islamicType]}" title="${ISLAMIC_LABELS[islamicType]}">${ISLAMIC_ICONS[islamicType]}</span>` : ''}
             `;
         }
@@ -3730,8 +3746,10 @@
 
             // Show a "Syncing…" chip after 800 ms if Firestore hasn't responded yet.
             // Injected into .calendar-header so it sits next to the month/year heading.
-            // Removed immediately when data arrives or the fetch fails.
+            // Also adds .calendar-fetching to the calendar container to trigger skeleton shimmer.
+            // Both are removed immediately when data arrives or the fetch fails.
             let syncChip = null;
+            const calGrid = document.getElementById('calendarDisplay');
             const loadingTimer = setTimeout(() => {
                 const header = document.querySelector('.calendar-header');
                 if (header) {
@@ -3741,6 +3759,7 @@
                     syncChip.textContent = '↻ Syncing…';
                     header.appendChild(syncChip);
                 }
+                if (calGrid) calGrid.classList.add('calendar-fetching');
             }, 800);
 
             try {
@@ -3768,6 +3787,7 @@
             } finally {
                 clearTimeout(loadingTimer);
                 if (syncChip) syncChip.remove();
+                if (calGrid) calGrid.classList.remove('calendar-fetching');
             }
         })();
     </script>

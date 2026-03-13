@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.46 -->
+<!-- MYB Roster Admin v4.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -50,8 +50,21 @@
             --bg-faint:          #f5f5f5;
 
             /* Border Radius */
-            --radius-md:         16px;
-            --radius-lg:         20px;
+            --radius-md:         12px;
+            --radius-lg:         14px;
+
+            /* Typography scale */
+            --type-micro:  10px;   /* tiny labels, badges */
+            --type-small:  12px;   /* hints, metadata */
+            --type-body:   14px;   /* default body text */
+            --type-medium: 16px;   /* form inputs */
+            --type-large:  18px;   /* section headers */
+            --type-xl:     24px;   /* page title */
+
+            /* Elevation system */
+            --shadow-1: 0 1px 4px rgba(0,0,0,0.10);                  /* cards, subtle lift */
+            --shadow-2: 0 2px 12px rgba(0,30,60,0.12);               /* header, containers */
+            --shadow-3: 0 8px 32px rgba(0,0,0,0.18);                 /* modals, lightboxes */
         }
 
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -83,7 +96,7 @@
         .app-header {
             background: var(--bg-light);
             border-radius: var(--radius-lg);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            box-shadow: var(--shadow-2);
             padding: 14px 18px;
             display: flex;
             align-items: center;
@@ -147,14 +160,14 @@
 
         #tipsLightboxContent {
             background: white;
-            border-radius: 20px;
+            border-radius: var(--radius-lg);
             padding: 28px 28px 24px;
             max-width: 360px;
             width: 100%;
             cursor: default;
             transform: scale(0.88);
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            box-shadow: var(--shadow-3);
         }
         #tipsLightbox.open #tipsLightboxContent { transform: scale(1); }
 
@@ -198,7 +211,7 @@
         .card {
             background: white;
             border-radius: var(--radius-md);
-            box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+            box-shadow: var(--shadow-1);
             overflow: hidden;
         }
 
@@ -772,6 +785,21 @@
 
         .col-time .time-sep { font-size: 12px; color: var(--text-light); flex-shrink: 0; }
 
+        /* Time input inline validation */
+        .time-input.input-error {
+            border-color: var(--error-red) !important;
+            background: var(--error-bg) !important;
+        }
+        .time-error-msg {
+            display: none;
+            font-size: 10px;
+            color: var(--error-red);
+            padding-top: 2px;
+            flex-basis: 100%;
+        }
+        .time-input.input-error ~ .time-error-msg,
+        .col-time:has(.time-input.input-error) .time-error-msg { display: block; }
+
         /* Hide time area when row is not active */
         .day-row:not(.active) .col-time { visibility: hidden; }
         /* Fixed types (AL, Make Rest Day): hide inputs, show note instead */
@@ -936,6 +964,30 @@
             border: 1.5px solid var(--border-light); border-radius: 6px;
             padding: 7px 14px; font-size: 13px; font-weight: 600;
             cursor: pointer; touch-action: manipulation;
+        }
+
+        /* ---- Save toast — bottom-anchored confirmation ---- */
+        #saveToast {
+            position: fixed;
+            bottom: max(24px, env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--primary-blue);
+            color: white;
+            font-size: var(--type-small);
+            font-weight: 700;
+            padding: 10px 20px;
+            border-radius: 24px;
+            box-shadow: var(--shadow-3);
+            z-index: 7500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            white-space: nowrap;
+        }
+        #saveToast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
         }
 
         /* ---- Collapsible card shared styles ---- */
@@ -1339,9 +1391,20 @@
             white-space: nowrap;
             -webkit-user-select: none;
             user-select: none;
+            touch-action: manipulation;
         }
         @media (hover: hover) and (pointer: fine) {
             .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
+        }
+        /* On touch/mobile screens make the back link clearly button-like */
+        @media (max-width: 480px) {
+            .btn-back {
+                background: var(--primary-blue);
+                border-color: var(--primary-blue);
+                color: white;
+                font-size: 12px;
+                padding: 7px 13px;
+            }
         }
 
         /* ---- Sign-out button (in header) ---- */
@@ -1385,7 +1448,7 @@
             max-width: 340px;
             width: 100%;
             text-align: center;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            box-shadow: var(--shadow-3);
         }
 
         #loginCard img {
@@ -1470,7 +1533,7 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 10, 20, 0.85);
+            background: rgba(0, 10, 20, 0.82);
             z-index: 8000;
             align-items: center;
             justify-content: center;
@@ -1719,6 +1782,9 @@
     </div>
 </div>
 
+<!-- Save confirmation toast — anchored to bottom of screen -->
+<div id="saveToast" role="status" aria-live="polite"></div>
+
 <div class="container">
 
     <header class="app-header">
@@ -1936,10 +2002,10 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.53';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.55';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
-    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
+    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 
 const app = initializeApp({
@@ -1952,7 +2018,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.53';
+const ADMIN_VERSION = '4.55';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -1966,8 +2032,9 @@ const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 function getSurname(fullName) {
     // 'L. Springer' → 'springer'
-    // 'C. Francisco-Charles' → 'francisco-charles'
-    return fullName.split(' ').slice(1).join(' ').toLowerCase();
+    // 'C. Francisco-Charles' → 'franciscocharles'
+    // 'M. De Silva' → 'desilva'  (strips spaces so mobile auto-cap can't break login)
+    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
 }
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
@@ -2577,6 +2644,7 @@ function buildWeekGridInto(container, dateStr) {
                 <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour end time, e.g. 14:20">
                 <span class="time-note">No time needed</span>
                 <span class="time-hint">24h · max 12 hrs</span>
+                <span class="time-error-msg">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-note-btn">
                 <button class="btn-note-toggle" title="Add a note to this override">+ Note</button>
@@ -2715,6 +2783,8 @@ function deactivateRow(row, cb, pills, startEl, endEl) {
     row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
     pills.forEach(p => p.classList.remove('active'));
     startEl.value = endEl.value = '';
+    startEl.classList.remove('input-error');
+    endEl.classList.remove('input-error');
     startEl.tabIndex = endEl.tabIndex = -1;
     delete row.dataset.type;
     const badge = row.querySelector('.overwrite-badge');
@@ -2936,14 +3006,17 @@ async function executeSave(toSave) {
     saveBtn.textContent = `Saving ${toSave.length} day${toSave.length !== 1 ? 's' : ''}…`;
 
     try {
-        await Promise.all(toSave.map(async entry => {
+        const batch = writeBatch(db);
+        toSave.forEach(entry => {
             // Delete existing first if overwriting, then add fresh doc
             if (entry.existingId) {
-                await deleteDoc(doc(db, 'overrides', entry.existingId));
+                batch.delete(doc(db, 'overrides', entry.existingId));
             }
             const { existingId: _, ...data } = entry;
-            return addDoc(collection(db, 'overrides'), { ...data, createdAt: serverTimestamp() });
-        }));
+            const newRef = doc(collection(db, 'overrides'));
+            batch.set(newRef, { ...data, createdAt: serverTimestamp() });
+        });
+        await batch.commit();
 
         const parts = [];
         if (creates    > 0) parts.push(`${creates} added`);
@@ -3111,17 +3184,33 @@ function handleEdit(e) {
 }
 
 // ============================================
-// TIME INPUT AUTO-FORMAT
+// TIME INPUT AUTO-FORMAT + INLINE VALIDATION
 // ============================================
 // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
 document.addEventListener('input', e => {
     if (!e.target.classList.contains('time-input')) return;
     const el  = e.target;
+    // Clear error while user is typing so the red border doesn't linger mid-edit
+    el.classList.remove('input-error');
     const raw = el.value.replace(/[^0-9]/g, '').slice(0, 4);
     if (raw.length >= 3) {
         el.value = raw.slice(0, 2) + ':' + raw.slice(2);
     } else {
         el.value = raw;
+    }
+});
+
+// On blur: validate completed time and show inline error if malformed
+document.addEventListener('focusout', e => {
+    if (!e.target.classList.contains('time-input')) return;
+    const el  = e.target;
+    const val = el.value.trim();
+    if (!val) { el.classList.remove('input-error'); return; } // empty is fine (caught on save)
+    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
+    if (!timeRe.test(val)) {
+        el.classList.add('input-error');
+    } else {
+        el.classList.remove('input-error');
     }
 });
 
@@ -3244,10 +3333,20 @@ function esc(str) {
     return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+let _toastTimer = null;
 function showSuccess(msg) {
     formFeedback.className = 'feedback success';
     formFeedback.textContent = '✓ ' + msg;
     setTimeout(hideFeedback, 7000);
+
+    // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
+    const toast = document.getElementById('saveToast');
+    if (toast) {
+        clearTimeout(_toastTimer);
+        toast.textContent = '✓ ' + msg;
+        toast.classList.add('visible');
+        _toastTimer = setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
 }
 
 function showError(msg) {
@@ -3468,11 +3567,13 @@ alSaveBtn.addEventListener('click', async () => {
     }
 
     try {
-        await Promise.all(workingDates.map(async date => {
+        const alBatch = writeBatch(db);
+        workingDates.forEach(date => {
             // Overwrite any existing override for this member+date
             const existing = allOverrides.find(o => o.memberName === member && o.date === date);
-            if (existing) await deleteDoc(doc(db, 'overrides', existing.id));
-            return addDoc(collection(db, 'overrides'), {
+            if (existing) alBatch.delete(doc(db, 'overrides', existing.id));
+            const newRef = doc(collection(db, 'overrides'));
+            alBatch.set(newRef, {
                 memberName: member,
                 date,
                 type:  'annual_leave',
@@ -3480,7 +3581,8 @@ alSaveBtn.addEventListener('click', async () => {
                 note:  '',
                 createdAt: serverTimestamp()
             });
-        }));
+        });
+        await alBatch.commit();
 
         alFeedback.className = 'feedback success';
         alFeedback.textContent = `✓ Booked ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
@@ -3547,12 +3649,9 @@ function updateALBookedBox() {
 
     if (!entries.length) { box.hidden = true; return; }
 
-    const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
     function fmtDate(d) {
         const dt = new Date(d + 'T12:00:00');
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTHS[dt.getMonth()]} ${dt.getFullYear()}`;
+        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]} ${dt.getFullYear()}`;
     }
 
     // Group by year
