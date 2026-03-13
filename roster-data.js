@@ -311,6 +311,73 @@ export const RAKSHA_BANDHAN_DATES = new Set([
 ]);
 
 // ============================================
+// CHINESE / LUNAR NEW YEAR DATES
+// ============================================
+// Source: chinesenewyear.net / timeanddate.com (verified 2025–2030).
+// Date = first day of the Chinese lunisolar new year (新年 / 春節).
+// The zodiac animal changes each year; the emoji is shown as the cell marker.
+
+export const CHINESE_NEW_YEAR_DATES = new Map([
+    ['2025-01-29', { icon: '🐍', label: 'Lunar New Year — Year of the Snake' }],
+    ['2026-02-17', { icon: '🐴', label: 'Lunar New Year — Year of the Horse' }],
+    ['2027-02-06', { icon: '🐏', label: 'Lunar New Year — Year of the Goat' }],
+    ['2028-01-26', { icon: '🐒', label: 'Lunar New Year — Year of the Monkey' }],
+    ['2029-02-13', { icon: '🐓', label: 'Lunar New Year — Year of the Rooster' }],
+    ['2030-02-03', { icon: '🐕', label: 'Lunar New Year — Year of the Dog' }],
+]);
+
+// Lantern Festival (元宵節) — 15th day of the 1st lunar month; marks the end of CNY.
+// ±1 day — actual dates depend on the Chinese lunisolar calendar.
+export const LANTERN_FESTIVAL_DATES = new Set([
+    '2025-02-12',
+    '2026-03-03',
+    '2027-02-20',
+    '2028-02-09',
+    '2029-02-27',
+    '2030-02-17',
+]);
+
+// Qingming / Tomb Sweeping Day (清明節) — a solar term, not lunisolar.
+// Always falls on 4–5 April; no ±1 day caveat needed.
+// Note: Qingming 2026 (Apr 5) coincides with Easter Sunday 2026 (Apr 5).
+// Easter is a built-in marker shown to all users; a Chinese-calendar user will see
+// both 🐣 and 🌿 stacked in the bottom-right corner of that cell — cosmetically fine.
+export const QINGMING_DATES = new Set([
+    '2025-04-04',
+    '2026-04-05',
+    '2027-04-05',
+    '2028-04-04',
+    '2029-04-04',
+    '2030-04-05',
+]);
+
+// Dragon Boat Festival (端午節) — 5th day of the 5th lunar month.
+// ±1 day — actual dates depend on the Chinese lunisolar calendar.
+// Source: timeanddate.com / chinesecalendar.net (verified 2025–2030).
+export const DRAGON_BOAT_DATES = new Set([
+    '2025-05-31',
+    '2026-06-19',
+    '2027-06-09',
+    '2028-05-28',
+    '2029-06-16',
+    '2030-06-05',
+]);
+
+// Mid-Autumn / Moon Festival (中秋節) — 15th day of the 8th lunar month.
+// ±1 day — actual dates depend on the Chinese lunisolar calendar.
+// Source: timeanddate.com / chinesecalendar.net (verified 2025–2030).
+// Note: 2027 (Sep 16), 2029 (Sep 22), and 2030 (Sep 12) are one lunar month
+// earlier than some informal sources — the astronomical 8th-month dates are used here.
+export const MID_AUTUMN_DATES = new Set([
+    '2025-10-06',
+    '2026-09-25',
+    '2027-09-16',
+    '2028-10-03',
+    '2029-09-22',
+    '2030-09-12',
+]);
+
+// ============================================
 // DATE UTILITIES — shared by index.html and admin.html
 // ============================================
 
@@ -494,11 +561,30 @@ export const HINDU_ICONS = {
     'raksha':   '🪢',
 };
 
+// Chinese / Lunar New Year — the icon varies by year (zodiac animal).
+// CHINESE_NEW_YEAR_DATES is a Map<dateStr, {icon, label}> so the icon is
+// resolved at lookup time rather than being a fixed value here.
+export const CHINESE_LABELS = {
+    'chinese-new-year': 'Lunar New Year',
+    'lantern':          'Lantern Festival (元宵節)',
+    'qingming':         'Qingming / Tomb Sweeping Day (清明節)',
+    'dragon-boat':      'Dragon Boat Festival (端午節)',
+    'mid-autumn':       'Mid-Autumn Festival (中秋節)',
+};
+
+export const CHINESE_ICONS = {
+    'chinese-new-year': '🧧', // Red envelope — generic fallback; actual marker uses zodiac animal
+    'lantern':          '🏮',
+    'qingming':         '🌿',
+    'dragon-boat':      '🐲',
+    'mid-autumn':       '🥮',
+};
+
 // ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
 // Returns an array of { icon, title } objects for the given date.
-// faithCalendar: 'none' | 'islamic' | 'hindu' — the member's opted-in calendar.
+// faithCalendar: 'none' | 'islamic' | 'hindu' | 'chinese' — the member's opted-in calendar.
 // dateStr: ISO date string (YYYY-MM-DD) used for faith set lookups.
 
 export function getSpecialDayBadges(date, dateStr, faithCalendar) {
@@ -519,6 +605,14 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
         if (DUSSEHRA_DATES.has(dateStr))       badges.push({ icon: '🏹', title: 'Dussehra' });
         if (DIWALI_DATES.has(dateStr))         badges.push({ icon: '🪔', title: 'Diwali' });
         if (RAKSHA_BANDHAN_DATES.has(dateStr)) badges.push({ icon: '🪢', title: 'Raksha Bandhan' });
+    }
+    if (faithCalendar === 'chinese') {
+        const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
+        if (cny)                                badges.push({ icon: cny.icon, title: cny.label });
+        if (LANTERN_FESTIVAL_DATES.has(dateStr)) badges.push({ icon: '🏮', title: 'Lantern Festival (元宵節)' });
+        if (QINGMING_DATES.has(dateStr))         badges.push({ icon: '🌿', title: 'Qingming / Tomb Sweeping Day (清明節)' });
+        if (DRAGON_BOAT_DATES.has(dateStr))      badges.push({ icon: '🐲', title: 'Dragon Boat Festival (端午節)' });
+        if (MID_AUTUMN_DATES.has(dateStr))       badges.push({ icon: '🥮', title: 'Mid-Autumn Festival (中秋節)' });
     }
     return badges;
 }
