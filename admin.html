@@ -1134,11 +1134,11 @@
                 height: 20px;
             }
 
-            /* Time inputs fill available space on mobile */
+            /* Time inputs: fixed width — col-time now spans full row width so
+               flex:1 would stretch inputs across the whole row */
             .col-time .time-input {
-                flex: 1;
-                width: auto;
-                min-width: 0;
+                flex: 0 0 auto;
+                width: 105px;
             }
 
             /* Bulk time inputs fill available space */
@@ -1775,7 +1775,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.38';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.39';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1791,7 +1791,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.38';
+const ADMIN_VERSION = '4.39';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
