@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.49 -->
+<!-- MYB Roster Calendar - Version 4.50 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -549,11 +549,11 @@
             z-index: 10;
         }
 
-        /* Easter Sunday — 🥚 replaces the ⭐ bank holiday marker top-right.
+        /* Easter Sunday — 🐣 replaces the ⭐ bank holiday marker top-right.
            Easter Sunday is not itself a bank holiday so it has no ::before by default;
            we add our own in the same top-right position. */
         .calendar-day.easter-day::before {
-            content: '🥚';
+            content: '🐣';
             position: absolute;
             top: 3px;
             right: 3px;
@@ -1413,7 +1413,7 @@
             }
 
             .calendar-day.easter-day::before {
-                content: '🥚' !important;
+                content: '🐣' !important;
                 position: absolute !important;
                 top: 2px !important;
                 right: 2px !important;
@@ -2117,7 +2117,7 @@
                 <div class="legend-item"><span class="legend-text">⭐ Bank Holiday</span></div>
                 <div class="legend-item"><span class="legend-text">✂️ Cut-Off</span></div>
                 <div class="legend-item"><span class="legend-text">💷 Payday</span></div>
-                <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🥚 Easter Sunday</span></div>
+                <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🐣 Easter Sunday</span></div>
                 <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text">🎄 Christmas Day</span></div>
                 <div class="legend-item" id="legend-ramadan" style="display:none"><span class="legend-text">🌙 Ramadan</span></div>
                 <div class="legend-item" id="legend-eid-fitr" style="display:none"><span class="legend-text">☪️ Eid al-Fitr</span></div>
@@ -2127,7 +2127,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES } from './roster-data.js?v=4.49';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES } from './roster-data.js?v=4.50';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2139,7 +2139,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.49';
+        CONFIG.APP_VERSION = '4.50';
 
         // ============================================
         // BANK HOLIDAYS CALCULATION
@@ -2265,7 +2265,7 @@
             return date.getMonth() === 11 && date.getDate() === 25;
         }
 
-        // Check if date is Easter Sunday — used for 🥚 decoration.
+        // Check if date is Easter Sunday — used for 🐣 decoration.
         // Easter Sunday itself is not a UK bank holiday (Good Friday and Easter Monday are),
         // so it doesn't get a ⭐ — the egg is its only marker.
         // Easter Monday is always in the holidays list (March or April, day=Monday).
@@ -3029,7 +3029,7 @@
         // updateLegend — shows/hides conditional legend items:
         //   Night        — only for Dispatcher roster members
         //   🎄 Christmas — only in December
-        //   🥚 Easter    — only in the month Easter Sunday falls in
+        //   🐣 Easter    — only in the month Easter Sunday falls in
         //   🌙/☪️/🕌      — only for members with Islamic markers opted in,
         //                   and only in the month that date falls in
         // Called inside renderCalendar() on every navigation.
