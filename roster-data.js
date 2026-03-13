@@ -311,6 +311,22 @@ export const RAKSHA_BANDHAN_DATES = new Set([
 ]);
 
 // ============================================
+// CHINESE / LUNAR NEW YEAR DATES
+// ============================================
+// Source: chinesenewyear.net / timeanddate.com (verified 2025–2030).
+// Date = first day of the Chinese lunisolar new year (新年 / 春節).
+// The zodiac animal changes each year; the emoji is shown as the cell marker.
+
+export const CHINESE_NEW_YEAR_DATES = new Map([
+    ['2025-01-29', { icon: '🐍', label: 'Lunar New Year — Year of the Snake' }],
+    ['2026-02-17', { icon: '🐴', label: 'Lunar New Year — Year of the Horse' }],
+    ['2027-02-06', { icon: '🐏', label: 'Lunar New Year — Year of the Goat' }],
+    ['2028-01-26', { icon: '🐒', label: 'Lunar New Year — Year of the Monkey' }],
+    ['2029-02-13', { icon: '🐓', label: 'Lunar New Year — Year of the Rooster' }],
+    ['2030-02-03', { icon: '🐕', label: 'Lunar New Year — Year of the Dog' }],
+]);
+
+// ============================================
 // DATE UTILITIES — shared by index.html and admin.html
 // ============================================
 
@@ -494,11 +510,22 @@ export const HINDU_ICONS = {
     'raksha':   '🪢',
 };
 
+// Chinese / Lunar New Year — the icon varies by year (zodiac animal).
+// CHINESE_NEW_YEAR_DATES is a Map<dateStr, {icon, label}> so the icon is
+// resolved at lookup time rather than being a fixed value here.
+export const CHINESE_LABELS = {
+    'chinese-new-year': 'Lunar New Year',
+};
+
+export const CHINESE_ICONS = {
+    'chinese-new-year': '🧧', // Red envelope — generic fallback; actual marker uses zodiac animal
+};
+
 // ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
 // Returns an array of { icon, title } objects for the given date.
-// faithCalendar: 'none' | 'islamic' | 'hindu' — the member's opted-in calendar.
+// faithCalendar: 'none' | 'islamic' | 'hindu' | 'chinese' — the member's opted-in calendar.
 // dateStr: ISO date string (YYYY-MM-DD) used for faith set lookups.
 
 export function getSpecialDayBadges(date, dateStr, faithCalendar) {
@@ -519,6 +546,10 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
         if (DUSSEHRA_DATES.has(dateStr))       badges.push({ icon: '🏹', title: 'Dussehra' });
         if (DIWALI_DATES.has(dateStr))         badges.push({ icon: '🪔', title: 'Diwali' });
         if (RAKSHA_BANDHAN_DATES.has(dateStr)) badges.push({ icon: '🪢', title: 'Raksha Bandhan' });
+    }
+    if (faithCalendar === 'chinese') {
+        const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
+        if (cny) badges.push({ icon: cny.icon, title: cny.label });
     }
     return badges;
 }
