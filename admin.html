@@ -1600,8 +1600,8 @@
             </select>
         </div>
         <div class="login-field">
-            <label for="loginPassword">Password <span style="font-weight:400;color:var(--text-light);font-size:11px;">(your surname, lowercase)</span></label>
-            <input type="password" id="loginPassword" placeholder="e.g. miller" autocomplete="current-password">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" autocomplete="current-password">
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button id="loginSubmit">Sign in →</button>
@@ -1848,7 +1848,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.48';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.49';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1864,7 +1864,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.48';
+const ADMIN_VERSION = '4.49';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3445,30 +3445,35 @@ function applyPermissions() {
         chevron.classList.toggle('open', isOpen);
     });
 
-    // Load current user's setting from Firestore (runs after auth check below)
+    // Load the setting for the given member from Firestore
     async function loadReligiousSetting(userName) {
         try {
             const snap = await getDoc(doc(db, 'memberSettings', userName));
-            if (snap.exists()) {
-                checkbox.checked = !!snap.data().islamicMarkers;
-            }
+            checkbox.checked = snap.exists() ? !!snap.data().islamicMarkers : false;
         } catch (e) {
             console.warn('[Firestore] memberSettings load failed:', e);
         }
     }
 
-    // Save on checkbox change
+    // Save on checkbox change — save against the currently selected member,
+    // not always currentUser (admin may be managing another member's settings).
     let saveTimer;
     checkbox.addEventListener('change', async () => {
         clearTimeout(saveTimer);
         saved.classList.remove('visible');
         try {
-            await setDoc(doc(db, 'memberSettings', currentUser), { islamicMarkers: checkbox.checked }, { merge: true });
+            const target = fieldMember.value || currentUser;
+            await setDoc(doc(db, 'memberSettings', target), { islamicMarkers: checkbox.checked }, { merge: true });
             saved.classList.add('visible');
             saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
         } catch (e) {
             console.error('[Firestore] memberSettings save failed:', e);
         }
+    });
+
+    // Reload when the member dropdown changes (admin only — non-admin is locked)
+    fieldMember.addEventListener('change', () => {
+        if (fieldMember.value) loadReligiousSetting(fieldMember.value);
     });
 
     // Expose loader so the auth block can call it after currentUser is confirmed
@@ -3483,7 +3488,7 @@ if (!isAuthenticated) {
     document.body.classList.add('auth-ready');
     applyPermissions();
     loadOverrides(); // internally calls renderWeekGrid() after data loads
-    if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(currentUser);
+    if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value || currentUser);
 
     // If arriving via deep-link (e.g. from the AL lightbox), scroll to the target section
     if (location.hash) {
