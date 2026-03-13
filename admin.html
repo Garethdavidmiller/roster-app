@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.56 -->
+<!-- MYB Roster Admin v4.57 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1246,23 +1246,35 @@
             padding: 12px 14px;
         }
         .al-booked-body.open { display: block; }
-        .al-booked-year { margin-bottom: 10px; }
-        .al-booked-year:last-child { margin-bottom: 0; }
-        .al-booked-year strong { font-size: 12px; color: var(--text-light); text-transform: uppercase; letter-spacing: .04em; }
-        .al-booked-list {
-            list-style: none;
-            margin: 4px 0 0;
-            padding: 0;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
+        .al-period-month { margin-bottom: 12px; }
+        .al-period-month:last-child { margin-bottom: 0; }
+        .al-period-month-hdr {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-bottom: 4px;
         }
-        .al-booked-item {
-            background: var(--al-light, #e0f2f1);
-            color: #004d40;
-            border-radius: 4px;
-            padding: 3px 8px;
-            font-size: 12px;
+        .al-period-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .al-period-month > .al-period-row:last-child { border-bottom: none; }
+        .al-period-dates {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text);
+        }
+        .al-period-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--al, #00897b);
+            white-space: nowrap;
+            margin-left: 8px;
         }
 
         .al-preview {
@@ -2002,7 +2014,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.56';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.57';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2018,7 +2030,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.56';
+const ADMIN_VERSION = '4.57';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3632,15 +3644,13 @@ function applyPermissions() {
 // ANNUAL LEAVE — booked dates collapsible box
 // ============================================
 function updateALBookedBox() {
-    const box     = document.getElementById('alBookedBox');
-    const body    = document.getElementById('alBookedBody');
-    const chevron = document.getElementById('alBookedChevron');
+    const box  = document.getElementById('alBookedBox');
+    const body = document.getElementById('alBookedBody');
     if (!box || !body) return;
 
     const memberName = alMember.value;
     if (!memberName) { box.hidden = true; return; }
 
-    const yearStr = String(new Date().getFullYear());
     const entries = allOverrides.filter(o =>
         o.memberName === memberName &&
         o.type       === 'annual_leave' &&
@@ -3649,25 +3659,113 @@ function updateALBookedBox() {
 
     if (!entries.length) { box.hidden = true; return; }
 
+    const memberObj = teamMembers.find(m => m.name === memberName);
+    const alDateSet = new Set(entries.map(e => e.date));
+
+    /**
+     * Return a date string N days after the given date string.
+     * @param {string} dateStr YYYY-MM-DD
+     * @param {number} n
+     * @returns {string}
+     */
+    function addDays(dateStr, n) {
+        const d = new Date(dateStr + 'T12:00:00');
+        d.setDate(d.getDate() + n);
+        return d.toISOString().slice(0, 10);
+    }
+
+    /**
+     * Return true if the date is a non-working day on the base roster
+     * (i.e. a gap between AL dates should be bridged into the same period).
+     * @param {string} dateStr YYYY-MM-DD
+     * @returns {boolean}
+     */
+    function isRestGap(dateStr) {
+        if (!memberObj) return false;
+        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+        return shift === 'RD' || shift === 'OFF';
+    }
+
+    /**
+     * Format a date string as "Mon 9 Mar".
+     * @param {string} d YYYY-MM-DD
+     * @returns {string}
+     */
     function fmtDate(d) {
         const dt = new Date(d + 'T12:00:00');
         return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
     }
 
-    // Group by year
-    const byYear = {};
-    for (const e of entries) {
-        const yr = e.date.slice(0, 4);
-        (byYear[yr] = byYear[yr] || []).push(e);
+    /**
+     * Format a date range. Same-month ranges omit the month on the start date:
+     * "Mon 9 – Fri 13 Mar". Cross-month ranges show both: "Mon 30 Mar – Wed 1 Apr".
+     * @param {string} start YYYY-MM-DD
+     * @param {string} end   YYYY-MM-DD
+     * @returns {string}
+     */
+    function fmtRange(start, end) {
+        const ds = new Date(start + 'T12:00:00');
+        const de = new Date(end   + 'T12:00:00');
+        if (ds.getMonth() === de.getMonth()) {
+            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
+        }
+        return `${fmtDate(start)} – ${fmtDate(end)}`;
     }
 
-    let html = '';
-    for (const yr of Object.keys(byYear).sort()) {
-        html += `<div class="al-booked-year"><strong>${yr}</strong><ul class="al-booked-list">`;
-        for (const e of byYear[yr]) {
-            html += `<li class="al-booked-item"><span class="al-booked-date">${fmtDate(e.date)}</span></li>`;
+    // Merge sorted AL dates into consecutive periods, bridging gaps that are
+    // entirely rest days on the base roster.
+    const dateList = [...alDateSet].sort();
+    const periods  = []; // { start, end, count }
+    let periodStart = dateList[0];
+    let periodEnd   = dateList[0];
+    let count       = 1;
+
+    for (let i = 1; i < dateList.length; i++) {
+        const prev = dateList[i - 1];
+        const curr = dateList[i];
+
+        // Walk every day in the gap; if all are rest days, the period continues
+        let gapAllRest = true;
+        let cursor = addDays(prev, 1);
+        while (cursor < curr) {
+            if (!isRestGap(cursor)) { gapAllRest = false; break; }
+            cursor = addDays(cursor, 1);
         }
-        html += `</ul></div>`;
+
+        if (gapAllRest) {
+            periodEnd = curr;
+            count++;
+        } else {
+            periods.push({ start: periodStart, end: periodEnd, count });
+            periodStart = curr;
+            periodEnd   = curr;
+            count       = 1;
+        }
+    }
+    periods.push({ start: periodStart, end: periodEnd, count });
+
+    // Group periods by the month of their start date
+    const byMonth = {};
+    for (const p of periods) {
+        const key = p.start.slice(0, 7); // "YYYY-MM"
+        (byMonth[key] = byMonth[key] || []).push(p);
+    }
+
+    // Render
+    let html = '';
+    for (const key of Object.keys(byMonth).sort()) {
+        const [yr, mo] = key.split('-');
+        const monthLabel = `${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}`;
+        html += `<div class="al-period-month"><div class="al-period-month-hdr">${monthLabel}</div>`;
+        for (const p of byMonth[key]) {
+            const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
+            const countStr = `${p.count} day${p.count !== 1 ? 's' : ''} AL`;
+            html += `<div class="al-period-row">
+                <span class="al-period-dates">${dateStr}</span>
+                <span class="al-period-count">${countStr}</span>
+            </div>`;
+        }
+        html += `</div>`;
     }
 
     body.innerHTML = html;
