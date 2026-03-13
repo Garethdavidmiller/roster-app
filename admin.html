@@ -1824,7 +1824,7 @@
     <!-- Any staff member can expand, opt in/out independently.      -->
     <div class="card" id="religiousCard">
         <div class="card-header card-religious-header" id="religiousToggleHeader">
-            <h2>🌙 Religious calendar</h2>
+            <h2>🌙 Religious Calendar</h2>
             <span class="hint">Islamic date markers — optional</span>
             <span class="religious-chevron" id="religiousChevron">▾</span>
         </div>
@@ -1848,7 +1848,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.46';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.47';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1864,7 +1864,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.46';
+const ADMIN_VERSION = '4.47';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
