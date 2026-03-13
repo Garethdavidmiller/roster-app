@@ -640,6 +640,15 @@
                 margin-right: 6px;
                 flex-shrink: 0;
             }
+
+            /* Narrower inputs so they fit alongside the note button on small screens */
+            .col-time .time-input { width: 82px; }
+
+            /* Fixed-type rows: switch visibility:hidden → display:none so hidden inputs
+               don't consume layout space, preventing the time-note text from overflowing
+               into the note button column */
+            .day-row.active.fixed-type .col-time .time-input,
+            .day-row.active.fixed-type .col-time .time-sep { display: none; }
         }
 
         .col-check {
@@ -1769,7 +1778,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.35';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.36';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1785,7 +1794,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.35';
+const ADMIN_VERSION = '4.36';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
