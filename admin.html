@@ -690,10 +690,13 @@
             gap: 4px;
         }
 
-        .col-time .time-input {
-            flex: 0 0 100px;   /* explicit basis — not 'auto', so ignores width:100% */
-            width: 100px;
-            max-width: 100px;
+        /* Selector includes element type (specificity 0,2,1) to beat the global
+           input[type="text"]{width:100%} rule which scores (0,1,1) */
+        .col-time input.time-input {
+            flex: 0 0 90px;
+            width: 90px;
+            max-width: 90px;
+            min-width: 0;
             padding: 5px 7px;
         }
 
@@ -1135,12 +1138,12 @@
                 height: 20px;
             }
 
-            /* Time inputs: fixed width — col-time now spans full row width so
-               flex:1 would stretch inputs across the whole row */
-            .col-time .time-input {
-                flex: 0 0 105px;
-                width: 105px;
-                max-width: 105px;
+            /* Time inputs: larger tap target on touch */
+            .col-time input.time-input {
+                flex: 0 0 100px;
+                width: 100px;
+                max-width: 100px;
+                min-width: 0;
             }
 
             /* Bulk time inputs fill available space */
@@ -1777,7 +1780,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.40';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.41';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1793,7 +1796,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.40';
+const ADMIN_VERSION = '4.41';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
