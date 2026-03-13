@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.43 -->
+<!-- MYB Roster Admin v4.45 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1852,7 +1852,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.44';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement } from './roster-data.js?v=4.45';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1868,7 +1868,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.44';
+const ADMIN_VERSION = '4.45';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2893,6 +2893,7 @@ async function executeSave(toSave) {
 fieldMember.addEventListener('change', () => {
     if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
     localStorage.setItem('adminLastMember', fieldMember.value);
+    localStorage.setItem('myb_roster_selected_member', fieldMember.value);
     renderWeekGrid();
 });
 let lastFieldDate = fieldDate.value;
@@ -3018,6 +3019,7 @@ function handleEdit(e) {
     fieldDate.value   = date;
     lastFieldDate     = date;
     localStorage.setItem('adminLastMember', memberName);
+    localStorage.setItem('myb_roster_selected_member', memberName);
     renderWeekGrid();
     // Scroll to the override form card
     document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -3259,6 +3261,7 @@ alMember.addEventListener('change', () => {
         filterMember.value = alMember.value;
         syncMemberDisplay();
         localStorage.setItem('adminLastMember', alMember.value);
+        localStorage.setItem('myb_roster_selected_member', alMember.value);
         renderWeekGrid();
         renderTable();
     }
@@ -3438,6 +3441,7 @@ function applyPermissions() {
     filterMember.value    = currentUser;
     filterMember.disabled = true;
     localStorage.setItem('adminLastMember', currentUser);
+    localStorage.setItem('myb_roster_selected_member', currentUser);
 }
 
 // ============================================
