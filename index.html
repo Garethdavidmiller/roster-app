@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.55 -->
+<!-- MYB Roster Calendar - Version 4.56 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1689,7 +1689,6 @@
             padding-top: 14px;
             border-top: 1px solid rgba(255,255,255,0.12);
             width: 100%;
-            text-align: left;
         }
 
         .lightbox-tips-title {
@@ -1705,11 +1704,14 @@
         .lightbox-tip {
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: center;
             gap: 12px;
             padding: 4px 0;
             font-size: 12px;
             color: rgba(255,255,255,0.55);
+        }
+        .lightbox-tip.keyboard-only {
+            justify-content: space-between;
         }
 
         .lightbox-tip-key {
@@ -2144,7 +2146,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS } from './roster-data.js?v=4.55';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS } from './roster-data.js?v=4.56';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2156,7 +2158,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.55';
+        CONFIG.APP_VERSION = '4.56';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
