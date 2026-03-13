@@ -938,6 +938,25 @@
             cursor: pointer; touch-action: manipulation;
         }
 
+        /* ---- Collapsible card shared styles ---- */
+        .card-collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .card-collapsible-body {
+            display: none; /* collapsed by default */
+        }
+        .card-collapsible-body.open { display: block; }
+        .collapse-chevron {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-light);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+        .collapse-chevron.open { transform: rotate(180deg); }
+
         /* ---- Religious calendar card ---- */
         .card-religious-header {
             cursor: pointer;
@@ -1746,10 +1765,12 @@
 
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
-        <div class="card-header">
+        <div class="card-header card-collapsible-header" id="alToggleHeader">
             <h2>Book Annual Leave</h2>
             <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
+            <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
+        <div class="card-collapsible-body" id="alBody">
         <div class="card-body">
             <!-- Annual Leave balance banner — updates when a member is selected -->
             <div class="al-banner" id="alBanner" hidden>
@@ -1797,13 +1818,16 @@
             <button class="btn-save" id="alSaveBtn" disabled>Book Annual Leave</button>
             <div class="feedback" id="alFeedback"></div>
         </div>
+        </div><!-- /.card-collapsible-body -->
     </div>
 
     <!-- ==================== EXISTING OVERRIDES ==================== -->
-    <div class="card">
-        <div class="card-header">
+    <div class="card" id="overridesCard">
+        <div class="card-header card-collapsible-header" id="overridesToggleHeader">
             <h2>Existing Overrides</h2>
+            <span class="collapse-chevron" id="overridesChevron">▾</span>
         </div>
+        <div class="card-collapsible-body" id="overridesBody">
         <div class="list-toolbar">
             <span class="list-count" id="listCount">Loading…</span>
         </div>
@@ -1825,6 +1849,7 @@
             </table>
         </div>
         <div class="list-feedback" id="listFeedback"></div>
+        </div><!-- /.card-collapsible-body -->
     </div>
 
     <!-- ==================== RELIGIOUS CALENDAR ==================== -->
@@ -1856,7 +1881,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.51';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.52';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp
@@ -1872,7 +1897,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.51';
+const ADMIN_VERSION = '4.52';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3442,6 +3467,34 @@ function applyPermissions() {
     localStorage.setItem('adminLastMember', currentUser);
     localStorage.setItem('myb_roster_selected_member', currentUser);
 }
+
+// ============================================
+// ANNUAL LEAVE CARD — collapse/expand
+// ============================================
+(function initALCard() {
+    const header  = document.getElementById('alToggleHeader');
+    const body    = document.getElementById('alBody');
+    const chevron = document.getElementById('alChevron');
+    if (!header || !body || !chevron) return;
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+})();
+
+// ============================================
+// EXISTING OVERRIDES CARD — collapse/expand
+// ============================================
+(function initOverridesCard() {
+    const header  = document.getElementById('overridesToggleHeader');
+    const body    = document.getElementById('overridesBody');
+    const chevron = document.getElementById('overridesChevron');
+    if (!header || !body || !chevron) return;
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+})();
 
 // ============================================
 // RELIGIOUS CARD — collapse/expand + Firestore opt-in
