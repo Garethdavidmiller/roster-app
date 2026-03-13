@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.49 -->
+<!-- MYB Roster Calendar - Version 4.51 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -549,11 +549,11 @@
             z-index: 10;
         }
 
-        /* Easter Sunday — 🥚 replaces the ⭐ bank holiday marker top-right.
+        /* Easter Sunday — 🐣 replaces the ⭐ bank holiday marker top-right.
            Easter Sunday is not itself a bank holiday so it has no ::before by default;
            we add our own in the same top-right position. */
         .calendar-day.easter-day::before {
-            content: '🥚';
+            content: '🐣';
             position: absolute;
             top: 3px;
             right: 3px;
@@ -1413,7 +1413,7 @@
             }
 
             .calendar-day.easter-day::before {
-                content: '🥚' !important;
+                content: '🐣' !important;
                 position: absolute !important;
                 top: 2px !important;
                 right: 2px !important;
@@ -2117,7 +2117,7 @@
                 <div class="legend-item"><span class="legend-text">⭐ Bank Holiday</span></div>
                 <div class="legend-item"><span class="legend-text">✂️ Cut-Off</span></div>
                 <div class="legend-item"><span class="legend-text">💷 Payday</span></div>
-                <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🥚 Easter Sunday</span></div>
+                <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🐣 Easter Sunday</span></div>
                 <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text">🎄 Christmas Day</span></div>
                 <div class="legend-item" id="legend-ramadan" style="display:none"><span class="legend-text">🌙 Ramadan</span></div>
                 <div class="legend-item" id="legend-eid-fitr" style="display:none"><span class="legend-text">☪️ Eid al-Fitr</span></div>
@@ -2127,7 +2127,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES } from './roster-data.js?v=4.49';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS } from './roster-data.js?v=4.51';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2139,117 +2139,13 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.49';
+        CONFIG.APP_VERSION = '4.51';
 
         // ============================================
-        // BANK HOLIDAYS CALCULATION
+        // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
         // ============================================
-        
-        // Calculate UK Bank Holidays for any year
-        function calculateBankHolidays(year) {
-            const holidays = [];
-            
-            // New Year's Day (or substitute if weekend)
-            let newYear = new Date(year, 0, 1);
-            if (newYear.getDay() === 0) { // Sunday
-                holidays.push(new Date(year, 0, 2));
-            } else if (newYear.getDay() === 6) { // Saturday
-                holidays.push(new Date(year, 0, 3));
-            } else {
-                holidays.push(newYear);
-            }
-            
-            // Easter calculation (Computus algorithm)
-            const a = year % 19;
-            const b = Math.floor(year / 100);
-            const c = year % 100;
-            const d = Math.floor(b / 4);
-            const e = b % 4;
-            const f = Math.floor((b + 8) / 25);
-            const g = Math.floor((b - f + 1) / 3);
-            const h = (19 * a + b - d - g + 15) % 30;
-            const i = Math.floor(c / 4);
-            const k = c % 4;
-            const l = (32 + 2 * e + 2 * i - h - k) % 7;
-            const m = Math.floor((a + 11 * h + 22 * l) / 451);
-            const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-            const day = ((h + l - 7 * m + 114) % 31) + 1;
-            const easter = new Date(year, month, day);
-            
-            // Good Friday (2 days before Easter)
-            const goodFriday = new Date(easter);
-            goodFriday.setDate(easter.getDate() - 2);
-            holidays.push(goodFriday);
-            
-            // Easter Monday (1 day after Easter)
-            const easterMonday = new Date(easter);
-            easterMonday.setDate(easter.getDate() + 1);
-            holidays.push(easterMonday);
-            
-            // Early May Bank Holiday (first Monday in May)
-            const mayFirst = new Date(year, 4, 1);
-            const mayFirstDay = mayFirst.getDay();
-            const daysUntilMonday = mayFirstDay === 0 ? 1 : mayFirstDay === 1 ? 0 : 8 - mayFirstDay;
-            holidays.push(new Date(year, 4, 1 + daysUntilMonday));
-            
-            // Spring Bank Holiday (last Monday in May)
-            const mayLast = new Date(year, 5, 0);
-            const mayLastDay = mayLast.getDay();
-            // Days to go back: Sat=5, Fri=4, Thu=3, Wed=2, Tue=1, Mon=0, Sun=6
-            const mayDaysBack = (mayLastDay + 6) % 7;
-            holidays.push(new Date(year, 4, mayLast.getDate() - mayDaysBack));
-            
-            // Summer Bank Holiday (last Monday in August)
-            const augLast = new Date(year, 8, 0); // 8, 0 = last day of August
-            const augLastDay = augLast.getDay();
-            const augDaysBack = (augLastDay + 6) % 7;
-            holidays.push(new Date(year, 7, augLast.getDate() - augDaysBack));
-            
-            // Christmas Day and Boxing Day — handled together since substitutes are linked.
-            // Sat: both move → Mon 27, Tue 28
-            // Sun: both move → Mon 27, Tue 28 (26th was Sat, also needs substitute)
-            // Fri: Christmas stays, Boxing Day moves → Fri 25, Mon 28
-            // Weekday: both as normal → 25, 26
-            const christmasDay = new Date(year, 11, 25).getDay(); // 0=Sun, 6=Sat
-            if (christmasDay === 6 || christmasDay === 0) {
-                // Both substitutes fall on Mon 27 and Tue 28
-                holidays.push(new Date(year, 11, 27));
-                holidays.push(new Date(year, 11, 28));
-            } else if (christmasDay === 5) {
-                // Christmas on Friday — Boxing Day (Sat) needs substitute Mon 28
-                holidays.push(new Date(year, 11, 25));
-                holidays.push(new Date(year, 11, 28));
-            } else {
-                // Normal weekday — no substitutes needed
-                holidays.push(new Date(year, 11, 25));
-                holidays.push(new Date(year, 11, 26));
-            }
-            
-            return holidays;
-        }
-
-        // Utility: compare two dates by calendar day only (ignores time component)
-        // Defined here because isBankHoliday, isPayday and isCutoffDate all depend on it.
-        function isSameDay(date1, date2) {
-            return date1.getDate() === date2.getDate() &&
-                   date1.getMonth() === date2.getMonth() &&
-                   date1.getFullYear() === date2.getFullYear();
-        }
-
-        // Cache for performance (calculate once per year, reuse for all days)
-        const bankHolidaysCache = {};
-        function getBankHolidays(year) {
-            if (!bankHolidaysCache[year]) {
-                bankHolidaysCache[year] = calculateBankHolidays(year);
-            }
-            return bankHolidaysCache[year];
-        }
-
-        // Check if date is bank holiday
-        function isBankHoliday(date) {
-            const yearHolidays = getBankHolidays(date.getFullYear());
-            return yearHolidays.some(holiday => isSameDay(holiday, date));
-        }
+        // isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday,
+        // getPaydaysAndCutoffs, isPayday, isCutoffDate — all imported from roster-data.js.
 
         // Check if date is Christmas Day or Boxing Day (actual dates, not substitutes).
         // Both are automatically Rest Days regardless of what the roster says.
@@ -2258,104 +2154,6 @@
         // Boxing Day (Dec 26) can be overridden to RDW via Firestore in Phase 1 for overtime.
         function isChristmasRD(date) {
             return date.getMonth() === 11 && (date.getDate() === 25 || date.getDate() === 26);
-        }
-
-        // Check if date is Christmas Day specifically (Dec 25) — used for 🎄 decoration.
-        function isChristmasDay(date) {
-            return date.getMonth() === 11 && date.getDate() === 25;
-        }
-
-        // Check if date is Easter Sunday — used for 🥚 decoration.
-        // Easter Sunday itself is not a UK bank holiday (Good Friday and Easter Monday are),
-        // so it doesn't get a ⭐ — the egg is its only marker.
-        // Easter Monday is always in the holidays list (March or April, day=Monday).
-        // Easter Sunday is the day before Easter Monday.
-        function isEasterSunday(date) {
-            const holidays = getBankHolidays(date.getFullYear());
-            return holidays.some(h => {
-                if (h.getDay() !== 1) return false;              // Must be a Monday
-                if (h.getMonth() < 2 || h.getMonth() > 3) return false; // March–April only
-                const easterSun = new Date(h);
-                easterSun.setDate(h.getDate() - 1);
-                return isSameDay(date, easterSun);
-            });
-        }
-
-        // ============================================
-        // PAYDAY CALCULATIONS
-        // ============================================
-        
-        // Check if date is a payday (every 4 weeks from Feb 13, 2026)
-        // Cache for paydays and cutoff dates (calculated once per year)
-        const paydayCache = {};
-        
-        // Calculate all paydays and cutoff dates for a given year.
-        // Uses direct maths rather than iteration — no loop performance risk for far-future years.
-        function getPaydaysAndCutoffs(year) {
-            if (year < CONFIG.MIN_YEAR) return { paydays: [], cutoffs: [] };
-            if (!paydayCache[year]) {
-                const paydays = [];
-                const cutoffs = [];
-
-                // Calculate how many complete 28-day cycles fit between FIRST_PAYDAY
-                // and Jan 1 of the requested year, then jump straight to the first
-                // payday on or after Jan 1 — no iterative stepping required.
-                const jan1 = new Date(year, 0, 1, 12, 0, 0);
-                const msPerDay = 24 * 60 * 60 * 1000;
-                const daysSinceFirst = Math.floor((jan1 - CONFIG.FIRST_PAYDAY) / msPerDay);
-                const cyclesSinceFirst = Math.floor(daysSinceFirst / CONFIG.PAYDAY_INTERVAL_DAYS);
-
-                // First payday at or just before Jan 1
-                let currentMs = CONFIG.FIRST_PAYDAY.getTime()
-                    + cyclesSinceFirst * CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
-
-                // Step forward to first payday that falls within this year (at most 1 step)
-                while (new Date(currentMs).getFullYear() < year) {
-                    currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
-                }
-
-                // Collect all paydays within this year (at most 14 iterations)
-                while (new Date(currentMs).getFullYear() === year) {
-                    const raw = new Date(currentMs);
-                    let payday = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 12, 0, 0);
-
-                    // If payday falls on a bank holiday, step back day by day until clear.
-                    // Loop handles the theoretical (but not yet real) case of back-to-back
-                    // bank holidays on the payday Friday and the fallback Thursday.
-                    while (isBankHoliday(payday)) {
-                        payday.setDate(payday.getDate() - 1);
-                    }
-
-                    paydays.push(payday);
-
-                    // Cutoff = most recent Saturday before payday
-                    const cutoff = new Date(payday);
-                    const dow = payday.getDay(); // 0=Sun … 6=Sat
-                    // Days back to Saturday: Sun=1, Mon=2, Tue=3, Wed=4, Thu=5, Fri=6, Sat=0
-                    const daysBackToSaturday = [1, 2, 3, 4, 5, 6, 0];
-                    const daysBack = daysBackToSaturday[dow];
-                    cutoff.setDate(payday.getDate() - daysBack);
-                    cutoffs.push(cutoff);
-
-                    currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
-                }
-
-                paydayCache[year] = { paydays, cutoffs };
-            }
-
-            return paydayCache[year];
-        }
-        
-        // Check if a date is a payday
-        function isPayday(date) {
-            const { paydays } = getPaydaysAndCutoffs(date.getFullYear());
-            return paydays.some(payday => isSameDay(payday, date));
-        }
-        
-        // Check if a date is a cutoff date (Saturday before payday)
-        function isCutoffDate(date) {
-            const { cutoffs } = getPaydaysAndCutoffs(date.getFullYear());
-            return cutoffs.some(cutoff => isSameDay(cutoff, date));
         }
 
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -2743,16 +2541,7 @@
             return null;
         }
 
-        const ISLAMIC_LABELS = {
-            'ramadan':  'Ramadan begins',
-            'eid-fitr': 'Eid al-Fitr',
-            'eid-adha': 'Eid al-Adha',
-        };
-        const ISLAMIC_ICONS = {
-            'ramadan':  '🌙',
-            'eid-fitr': '☪️',
-            'eid-adha': '🕌',
-        };
+        // ISLAMIC_LABELS and ISLAMIC_ICONS imported from roster-data.js
 
         function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '', islamicType = null) {
             let badge;
@@ -3029,7 +2818,7 @@
         // updateLegend — shows/hides conditional legend items:
         //   Night        — only for Dispatcher roster members
         //   🎄 Christmas — only in December
-        //   🥚 Easter    — only in the month Easter Sunday falls in
+        //   🐣 Easter    — only in the month Easter Sunday falls in
         //   🌙/☪️/🕌      — only for members with Islamic markers opted in,
         //                   and only in the month that date falls in
         // Called inside renderCalendar() on every navigation.
