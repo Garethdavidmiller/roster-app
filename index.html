@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.62 -->
+<!-- MYB Roster Calendar - Version 4.63 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2147,12 +2147,16 @@
                 <div class="legend-item" id="legend-diwali" style="display:none"><span class="legend-text">🪔 Diwali</span></div>
                 <div class="legend-item" id="legend-raksha" style="display:none"><span class="legend-text">🪢 Raksha Bandhan</span></div>
                 <div class="legend-item" id="legend-cny" style="display:none"><span class="legend-text" id="legend-cny-text">🧧 Lunar New Year</span></div>
+                <div class="legend-item" id="legend-lantern" style="display:none"><span class="legend-text">🏮 Lantern Festival</span></div>
+                <div class="legend-item" id="legend-qingming" style="display:none"><span class="legend-text">🌿 Qingming</span></div>
+                <div class="legend-item" id="legend-dragon-boat" style="display:none"><span class="legend-text">🐲 Dragon Boat Festival</span></div>
+                <div class="legend-item" id="legend-mid-autumn" style="display:none"><span class="legend-text">🥮 Mid-Autumn Festival</span></div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS } from './roster-data.js?v=4.62';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS } from './roster-data.js?v=4.63';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2164,7 +2168,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.62';
+        CONFIG.APP_VERSION = '4.63';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2590,7 +2594,11 @@
             }
             if (faithCalendar === 'chinese') {
                 const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
-                if (cny) return { icon: cny.icon, label: cny.label };
+                if (cny)                                 return { icon: cny.icon,                    label: cny.label                              };
+                if (LANTERN_FESTIVAL_DATES.has(dateStr)) return { icon: FAITH_ICONS['lantern'],      label: FAITH_LABELS['lantern']      };
+                if (QINGMING_DATES.has(dateStr))         return { icon: FAITH_ICONS['qingming'],     label: FAITH_LABELS['qingming']     };
+                if (DRAGON_BOAT_DATES.has(dateStr))      return { icon: FAITH_ICONS['dragon-boat'],  label: FAITH_LABELS['dragon-boat']  };
+                if (MID_AUTUMN_DATES.has(dateStr))       return { icon: FAITH_ICONS['mid-autumn'],   label: FAITH_LABELS['mid-autumn']   };
             }
             return null;
         }
@@ -2911,14 +2919,18 @@
             }
 
             const legendIds = {
-                'legend-ramadan':  [RAMADAN_STARTS,       'islamic'],
-                'legend-eid-fitr': [EID_FITR_DATES,       'islamic'],
-                'legend-eid-adha': [EID_ADHA_DATES,       'islamic'],
-                'legend-holi':     [HOLI_DATES,           'hindu'],
-                'legend-navratri': [NAVRATRI_DATES,       'hindu'],
-                'legend-dussehra': [DUSSEHRA_DATES,       'hindu'],
-                'legend-diwali':   [DIWALI_DATES,         'hindu'],
-                'legend-raksha':   [RAKSHA_BANDHAN_DATES, 'hindu'],
+                'legend-ramadan':     [RAMADAN_STARTS,         'islamic'],
+                'legend-eid-fitr':    [EID_FITR_DATES,         'islamic'],
+                'legend-eid-adha':    [EID_ADHA_DATES,         'islamic'],
+                'legend-holi':        [HOLI_DATES,             'hindu'],
+                'legend-navratri':    [NAVRATRI_DATES,         'hindu'],
+                'legend-dussehra':    [DUSSEHRA_DATES,         'hindu'],
+                'legend-diwali':      [DIWALI_DATES,           'hindu'],
+                'legend-raksha':      [RAKSHA_BANDHAN_DATES,   'hindu'],
+                'legend-lantern':     [LANTERN_FESTIVAL_DATES, 'chinese'],
+                'legend-qingming':    [QINGMING_DATES,         'chinese'],
+                'legend-dragon-boat': [DRAGON_BOAT_DATES,      'chinese'],
+                'legend-mid-autumn':  [MID_AUTUMN_DATES,       'chinese'],
             };
             for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
                 const el = document.getElementById(id);
