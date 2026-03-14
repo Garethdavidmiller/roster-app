@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.75 -->
+<!-- MYB Roster Calendar - Version 4.76 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     
     <!-- PWA Meta Tags -->
     <meta name="description" content="Marylebone station shift roster calendar for Chiltern Railways staff">
-    <meta name="theme-color" content="#001e3c">
+    <meta name="theme-color" content="#1d3461">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
@@ -28,10 +28,10 @@
     <style>
         :root {
             /* Brand colours */
-            --primary-blue: #001e3c;
-            --primary-blue-dark: #00152a;    /* Hover state for primary buttons */
-            --accent-gold: #f5c800;
-            --accent-gold-dark: #e6bb00;     /* Hover state for today button */
+            --primary-blue:      #1d3461;
+            --primary-blue-dark: #152952;    /* Hover state for primary buttons */
+            --accent-blue:       #0091d5;
+            --accent-blue-dark:  #007ab5;    /* Hover state for today button */
 
             /* Shift colours */
             --green: #43a047;
@@ -67,7 +67,7 @@
             --border-mid: #cccccc;   /* Used for other-day cells and similar mid-tone borders */
             --bg-light: #f8f8f8;
             --bg-faint: #f5f5f5;
-            --today-print: #ffffcc; /* Softer gold for print — avoids ink waste vs full accent-gold */
+            --today-print: #e8f4fb; /* Softer blue for print — avoids ink waste vs full accent-blue */
 
             /* Border Radius */
             --radius-md: 12px;
@@ -202,7 +202,7 @@
         /* Today cell pulse - single gentle scale, fires once */
         @keyframes todayPulse {
             0%   { transform: scale(1); }
-            40%  { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.4); }
+            40%  { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(0, 145, 213, 0.4); }
             100% { transform: scale(1); box-shadow: none; }
         }
 
@@ -282,7 +282,7 @@
             text-align-last: center;
             -webkit-appearance: none; /* Removes iOS glossy bubble */
             appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d3461' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat;
             background-position: right 10px center;
             background-size: 1em;
@@ -312,8 +312,8 @@
             }
 
             .controls button.today-btn:hover {
-                background: var(--accent-gold-dark);
-                border-color: var(--accent-gold-dark);
+                background: var(--accent-blue-dark);
+                border-color: var(--accent-blue-dark);
             }
 
             .controls button.print-btn:hover {
@@ -334,9 +334,9 @@
         }
 
         .controls button.today-btn {
-            background: var(--accent-gold);
-            color: var(--primary-blue);
-            border-color: var(--accent-gold);
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
             font-weight: 700;
         }
 
@@ -356,7 +356,7 @@
 
         .controls button.admin-btn {
             background: var(--primary-blue);
-            color: var(--accent-gold);
+            color: var(--accent-blue);
             border-color: var(--primary-blue);
             font-weight: 700;
         }
@@ -517,12 +517,12 @@
         }
 
         /* today must come AFTER shift colour rules — equal specificity means
-           last rule wins, and gold should always override the shift colour */
+           last rule wins, and blue should always override the shift colour */
         .calendar-day.today {
             border-color: var(--primary-blue);
             border-width: 3px;
-            background: var(--accent-gold);
-            box-shadow: 0 3px 10px rgba(255, 215, 0, 0.25), 0 0 0 1px var(--primary-blue);
+            background: var(--accent-blue);
+            box-shadow: 0 3px 10px rgba(0, 145, 213, 0.25), 0 0 0 1px var(--primary-blue);
             transform: scale(1.02);
         }
 
@@ -719,7 +719,7 @@
         .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
         .legend-color.rdw     { background: var(--rdw-light);    border-color: var(--rdw); }
         .legend-color.al      { background: var(--al-light);      border-color: var(--al); }
-        .legend-color.today   { background: var(--accent-gold);  border-color: var(--primary-blue); }
+        .legend-color.today   { background: var(--accent-blue);  border-color: var(--primary-blue); }
         .legend-color.night   { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
 
         .legend-text {
@@ -747,7 +747,7 @@
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
-                background: linear-gradient(160deg, #0a2240 0%, #001630 100%);
+                background: linear-gradient(160deg, #1d3461 0%, #152952 100%);
                 padding: 16px;
             }
 
@@ -2173,7 +2173,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.75';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.76';
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
         import { getFirestore, collection, query, where, getDocs }
             from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -2188,7 +2188,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.75';
+        CONFIG.APP_VERSION = '4.76';
 
         // ============================================
         // FIREBASE INITIALISATION
