@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.69 -->
+<!-- MYB Roster Admin v4.70 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2082,7 +2082,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.69';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.70';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2098,7 +2098,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.69';
+const ADMIN_VERSION = '4.70';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2829,10 +2829,14 @@ function renderWeekGrid() {
         return;
     }
 
-    const member = teamMembers.find(m => m.name === memberName);
-    if (!member) return;
-
     weekGrid.innerHTML = '';
+
+    const member = teamMembers.find(m => m.name === memberName);
+    if (!member) {
+        bulkBar.style.display = 'none';
+        saveBtn.disabled = true;
+        return;
+    }
     const panel = document.createElement('div');
     panel.className = 'week-panel';
     buildWeekGridInto(panel, dateStr);
