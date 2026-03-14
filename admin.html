@@ -1660,6 +1660,23 @@
             letter-spacing: 0.6px;
         }
 
+        /* Bug report link — quiet utility link at the bottom of the about lightbox */
+        .lightbox-bug-link {
+            display: block;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.35);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
+        }
+
         #iconLightboxClose {
             position: absolute;
             top: 20px;
@@ -1831,6 +1848,7 @@
         <div class="lightbox-subtitle">Marylebone Station</div>
         <div class="lightbox-version">Admin v<span id="lightboxVersion"></span></div>
         <div class="lightbox-badge">Admin panel</div>
+        <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     </div>
 </div>
 
@@ -2097,7 +2115,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.79';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.80';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2113,7 +2131,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.79';
+const ADMIN_VERSION = '4.80';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2224,12 +2242,20 @@ function initLoginOverlay() {
     const headerIcon = document.querySelector('.app-header img');
     const closeBtn   = document.getElementById('iconLightboxClose');
     const versionEl  = document.getElementById('lightboxVersion');
+    const bugLink    = document.getElementById('adminBugReportLink');
 
     if (!lightbox || !headerIcon) return;
 
     if (versionEl) versionEl.textContent = ADMIN_VERSION;
 
     function openLightbox() {
+        if (bugLink) {
+            const name   = currentUser || 'Unknown';
+            const date   = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const ua     = navigator.userAgent;
+            const body   = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Admin v${ADMIN_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
+            bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin v${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
+        }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
         document.addEventListener('keydown', onKey);
@@ -2249,6 +2275,9 @@ function initLoginOverlay() {
     lightbox.addEventListener('click', e => {
         if (e.target === lightbox || e.target === closeBtn) closeLightbox();
     });
+
+    // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
+    if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 })();
 
 // ---- Tips lightbox ----

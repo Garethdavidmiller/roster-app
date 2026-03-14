@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.79 -->
+<!-- MYB Roster Calendar - Version 4.80 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1733,6 +1733,23 @@
             flex-shrink: 0;
         }
 
+        /* Bug report link — sits below tips, quiet but tappable */
+        .lightbox-bug-link {
+            display: block;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.35);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
+        }
+
         /* Close button */
         #iconLightboxClose {
             position: absolute;
@@ -2049,6 +2066,7 @@
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
+            <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
         </div>
     </div>
 
@@ -2186,7 +2204,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.79';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.80';
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
         import { getFirestore, collection, query, where, getDocs }
             from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -2201,7 +2219,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.79';
+        CONFIG.APP_VERSION = '4.80';
 
         // ============================================
         // FIREBASE INITIALISATION
@@ -3606,6 +3624,7 @@
                     const updateBtn    = document.getElementById('lightboxUpdateBtn');
                     const closeBtn     = document.getElementById('iconLightboxClose');
                     const contentCard  = document.getElementById('iconLightboxContent');
+                    const bugLink      = document.getElementById('bugReportLink');
 
                     if (!lightbox || !titleIcon) return;
 
@@ -3704,6 +3723,14 @@
 
                     function openLightbox() {
                         checkUpdateStatus(); // Refresh status every time it opens
+                        if (bugLink) {
+                            const member   = getCurrentMember();
+                            const name     = member ? member.name : 'Not selected';
+                            const date     = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                            const ua       = navigator.userAgent;
+                            const body     = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster v${CONFIG.APP_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
+                            bugLink.href   = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Roster v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+                        }
                         lightbox.classList.add('visible');
                         requestAnimationFrame(() => lightbox.classList.add('open'));
                         document.addEventListener('keydown', onKeyDown);
@@ -3731,7 +3758,9 @@
 
                     // Tapping the content card itself does NOT close (prevents accidental close)
                     if (contentCard) contentCard.addEventListener('click', e => e.stopPropagation());
-                    if (closeBtn)   closeBtn.addEventListener('click',   closeLightbox);
+                    if (closeBtn)    closeBtn.addEventListener('click',    closeLightbox);
+                    // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
+                    if (bugLink)     bugLink.addEventListener('click',     e => e.stopPropagation());
                 })();
 
                 // ============================================
