@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.70 -->
+<!-- MYB Roster Calendar - Version 4.71 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2173,7 +2173,10 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.70';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.71';
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
+        import { getFirestore, collection, query, where, getDocs }
+            from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2185,7 +2188,28 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.70';
+        CONFIG.APP_VERSION = '4.71';
+
+        // ============================================
+        // FIREBASE INITIALISATION
+        // Caches declared here so renderCalendar() always finds a Map — even on
+        // the first synchronous render before Firestore responds.
+        // ============================================
+        const firebaseConfig = {
+            apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
+            authDomain:        'myb-roster.firebaseapp.com',
+            projectId:         'myb-roster',
+            storageBucket:     'myb-roster.firebasestorage.app',
+            messagingSenderId: '532910998075',
+            appId:             '1:532910998075:web:b8360ba6a582554481921e'
+        };
+        const app = initializeApp(firebaseConfig);
+        const db  = getFirestore(app);
+
+        // Caches keyed "memberName|YYYY-MM-DD" and memberName respectively.
+        const rosterOverridesCache = new Map();
+        const memberSettingsCache  = new Map();
+        const fetchedMonths        = new Set();
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2595,8 +2619,7 @@
         // Chinese New Year uses the zodiac-animal icon from CHINESE_NEW_YEAR_DATES;
         // all other calendars use the static FAITH_ICONS / FAITH_LABELS maps.
         function getFaithMarker(dateStr, memberName) {
-            if (!window.memberSettingsCache) return null;
-            const faithCalendar = resolveFaithCalendar(window.memberSettingsCache.get(memberName));
+            const faithCalendar = resolveFaithCalendar(memberSettingsCache.get(memberName));
             if (faithCalendar === 'islamic') {
                 if (RAMADAN_STARTS.has(dateStr))         return { icon: FAITH_ICONS['ramadan'],    label: FAITH_LABELS['ramadan']    };
                 if (EID_FITR_DATES.has(dateStr))         return { icon: FAITH_ICONS['eid-fitr'],   label: FAITH_LABELS['eid-fitr']   };
@@ -2756,8 +2779,8 @@
                 let overrideNote = '';
                 let rdwTime = '';
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                if (window.rosterOverridesCache) {
-                    const override = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
+                {
+                    const override = rosterOverridesCache.get(`${member.name}|${dateStr}`);
                     if (override) {
                         // RDW overrides carry a real shift time as their value, but must
                         // render with the RDW colour scheme, not Early/Late/Night. Swap
@@ -2871,14 +2894,14 @@
 
                 try {
                     let used = 0;
-                    if (window._alChipQuery && window._alChipGetDocs) {
-                        const snap = await window._alChipGetDocs(window._alChipQuery(member.name));
+                    if (db) {
+                        const snap = await getDocs(query(collection(db, 'overrides'), where('memberName', '==', member.name)));
                         snap.forEach(d => {
                             const data = d.data();
                             if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr)) used++;
                         });
                     } else {
-                        window.rosterOverridesCache.forEach((val, key) => {
+                        rosterOverridesCache.forEach((val, key) => {
                             const [name, date] = key.split('|');
                             if (name === member.name && val.type === 'annual_leave' && date.startsWith(yearStr)) used++;
                         });
@@ -2917,8 +2940,8 @@
                 if (isChristmasRD(date)) shift = 'RD';
 
                 const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                if (window.rosterOverridesCache) {
-                    const ov = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
+                {
+                    const ov = rosterOverridesCache.get(`${member.name}|${dateStr}`);
                     if (ov) shift = ov.type === 'rdw' ? 'RDW' : ov.value;
                 }
 
@@ -2974,7 +2997,7 @@
 
             // Faith calendar legend — show each item only in the month that date falls in,
             // and only when the current member has opted in to that calendar.
-            const faithCalendar = member ? resolveFaithCalendar(window.memberSettingsCache?.get(member.name)) : 'none';
+            const faithCalendar = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
             const y = currentDisplayYear;
             const m = currentDisplayMonth;
 
@@ -3089,7 +3112,7 @@
                 // Ensure Firestore overrides are cached for the displayed month.
                 // No-op if already fetched; fires a background fetch and re-render if not
                 // (e.g. when the user navigates beyond the initial 3-month window).
-                window.ensureOverridesCached?.(currentDisplayYear, currentDisplayMonth);
+                ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
 
             } catch (error) {
                 console.error('Error rendering calendar:', error);
@@ -3108,9 +3131,6 @@
             }
         }
 
-        // Expose for the Firebase module script, which calls renderCalendar() after
-        // fetching overrides. Module top-level functions are not global by default.
-        window.renderCalendar = renderCalendar;
 
         // ============================================
         // EVENT LISTENERS
@@ -3130,7 +3150,7 @@
             const member = getCurrentMember();
             const hint = document.getElementById('faithHint');
             if (!hint) return;
-            const cal = member ? resolveFaithCalendar(window.memberSettingsCache?.get(member.name)) : 'none';
+            const cal = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
             const CALENDAR_NAMES = {
                 islamic:  '🌙 Islamic calendar',
                 hindu:    '🪔 Hindu calendar',
@@ -3758,61 +3778,9 @@
             }
         }
 
-        // Register service worker for PWA functionality
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then(registration => {
-                        console.log('Service Worker registered successfully:', registration.scope);
-                    })
-                    .catch(error => {
-                        console.log('Service Worker registration failed:', error);
-                    });
-            });
-        }
-    </script>
-
-    <script type="module">
         // ============================================
-        // FIREBASE PHASE 1 — Read-only Firestore overrides
+        // FIRESTORE HELPER FUNCTIONS
         // ============================================
-        // Fetches shift overrides from Firestore on load and caches them in
-        // window.rosterOverridesCache (a Map keyed by "memberName|YYYY-MM-DD").
-        // The main app script reads from this cache during calendar rendering.
-        //
-        // Why a separate <script type="module">:
-        // Firebase CDN imports require a module context. A second module script
-        // keeps the Firebase bootstrap isolated; data is shared via window so both
-        // modules can access it without coupling their import graphs.
-        //
-        // Fail-silent contract: any Firestore error renders the base roster unchanged.
-        // Errors are logged to console.error only — no visible message to users.
-        // ============================================
-
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
-        import { getFirestore, collection, query, where, getDocs }
-            from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
-
-        const firebaseConfig = {
-            apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
-            authDomain:        'myb-roster.firebaseapp.com',
-            projectId:         'myb-roster',
-            storageBucket:     'myb-roster.firebasestorage.app',
-            messagingSenderId: '532910998075',
-            appId:             '1:532910998075:web:b8360ba6a582554481921e'
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db  = getFirestore(app);
-
-        // ---- Shared caches ----
-        // Initialised immediately so renderCalendar() always finds a Map,
-        // never undefined — even if the fetch is still in flight.
-        window.rosterOverridesCache  = new Map();
-        window.memberSettingsCache   = new Map(); // memberName → { faithCalendar: string } (or legacy { islamicMarkers: bool })
-
-        // Track which months have been fetched to avoid duplicate network requests.
-        const fetchedMonths = new Set();
 
         /**
          * Format a Date as 'YYYY-MM-DD' for Firestore range queries.
@@ -3856,7 +3824,7 @@
                     return;
                 }
                 const key = `${data.memberName}|${data.date}`;
-                window.rosterOverridesCache.set(key, {
+                rosterOverridesCache.set(key, {
                     value: data.value,
                     note:  data.note || '',
                     type:  data.type  || ''
@@ -3866,10 +3834,8 @@
 
         /**
          * Ensure overrides for a given month are in the cache.
-         * Called by renderCalendar() on every navigation — no-op if the month is
-         * already fetched, fires a background fetch and re-render if not.
-         * Exposed on window so the non-module app script can call it via
-         * window.ensureOverridesCached?.()
+         * Called by renderCalendar() on every navigation — no-op if already fetched,
+         * fires a background fetch and re-render if not.
          * @param {number} year
          * @param {number} month - 0-indexed JS month
          */
@@ -3883,21 +3849,14 @@
 
             try {
                 const startStr = formatDateStr(new Date(year, month, 1));
-                const endStr   = formatDateStr(new Date(year, month + 1, 0)); // month+1 day 0 = last day of month
+                const endStr   = formatDateStr(new Date(year, month + 1, 0));
                 await fetchOverridesForRange(startStr, endStr);
                 // Re-render so the newly fetched overrides are visible immediately.
-                if (typeof renderCalendar === 'function') renderCalendar();
+                renderCalendar();
             } catch (err) {
                 console.error('[Firestore] Failed to fetch overrides for', key, err);
             }
         }
-
-        // Expose so renderCalendar() can trigger cache checks on navigation
-        window.ensureOverridesCached = ensureOverridesCached;
-
-        // Expose Firestore helpers for the AL chip query (main script can't import Firebase directly)
-        window._alChipQuery    = (memberName) => query(collection(db, 'overrides'), where('memberName', '==', memberName));
-        window._alChipGetDocs  = getDocs;
 
         // ============================================
         // INITIAL 3-MONTH FETCH
@@ -3949,12 +3908,12 @@
 
                 if (settingsSnap) {
                     settingsSnap.forEach(doc => {
-                        window.memberSettingsCache.set(doc.id, doc.data());
+                        memberSettingsCache.set(doc.id, doc.data());
                     });
                 }
 
-                if (typeof renderCalendar === 'function') renderCalendar();
-                if (typeof updateFaithHint === 'function') updateFaithHint();
+                renderCalendar();
+                updateFaithHint();
             } catch (err) {
                 console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
             } finally {
@@ -3963,6 +3922,20 @@
                 if (calGrid) calGrid.classList.remove('calendar-fetching');
             }
         })();
+
+        // Register service worker for PWA functionality
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(registration => {
+                        console.log('Service Worker registered successfully:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
     </script>
+
 </body>
 </html>

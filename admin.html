@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.70 -->
+<!-- MYB Roster Admin v4.71 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2082,7 +2082,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.70';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.71';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2098,7 +2098,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.70';
+const ADMIN_VERSION = '4.71';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3167,6 +3167,12 @@ fieldMember.addEventListener('change', () => {
     if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
     localStorage.setItem('adminLastMember', fieldMember.value);
     localStorage.setItem('myb_roster_selected_member', fieldMember.value);
+    alMember.value = fieldMember.value;
+    syncMemberDisplay();
+    if (fieldMember.value) loadReligiousSetting(fieldMember.value);
+    updateALBanner();
+    updateALBookedBox();
+    renderTable();
     renderWeekGrid();
 });
 let lastFieldDate = fieldDate.value;
@@ -3553,13 +3559,6 @@ function syncMemberDisplay() {
 syncMemberDisplay(); // set on page load
 
 // Sync alMember with the main member picker (keep them in step)
-fieldMember.addEventListener('change', () => {
-    alMember.value     = fieldMember.value;
-    syncMemberDisplay();
-    updateALBanner();
-    updateALBookedBox();
-    renderTable();
-});
 alMember.addEventListener('change', () => {
     updateALBanner();
     updateALBookedBox();
@@ -3975,16 +3974,12 @@ function updateALBookedBox() {
                 const target = fieldMember.value || currentUser;
                 await setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true });
                 saved.classList.add('visible');
+                renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
                 saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
             } catch (e) {
                 console.error('[Firestore] memberSettings save failed:', e);
             }
         });
-    });
-
-    // Reload when the member dropdown changes (admin only — non-admin is locked)
-    fieldMember.addEventListener('change', () => {
-        if (fieldMember.value) loadReligiousSetting(fieldMember.value);
     });
 
     // Expose loader so the auth block can call it after currentUser is confirmed
