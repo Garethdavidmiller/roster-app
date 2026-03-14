@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.65 -->
+<!-- MYB Roster Calendar - Version 4.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -727,6 +727,13 @@
             color: var(--text-mid);
             font-weight: 600;
             white-space: nowrap;
+        }
+
+        /* Cultural calendar row — thin top border separates it from the system legend rows */
+        .legend-faith-row {
+            border-top: 1px solid var(--border-light);
+            padding-top: 4px;
+            width: 100%;
         }
 
         /* Desktop: lock entire layout to one screen — no scrolling needed */
@@ -2138,9 +2145,14 @@
                 <div class="legend-item"><span class="legend-text">💷 Payday</span></div>
                 <div class="legend-item" id="legend-easter" style="display:none"><span class="legend-text">🐣 Easter Sunday</span></div>
                 <div class="legend-item" id="legend-christmas" style="display:none"><span class="legend-text">🎄 Christmas Day</span></div>
+            </div>
+            <!-- Cultural calendar row — shown only when a faith calendar is active and has events this month -->
+            <div class="legend-row legend-faith-row" id="legend-faith-row" style="display:none">
                 <div class="legend-item" id="legend-ramadan" style="display:none"><span class="legend-text">🌙 Ramadan</span></div>
                 <div class="legend-item" id="legend-eid-fitr" style="display:none"><span class="legend-text">☪️ Eid al-Fitr</span></div>
                 <div class="legend-item" id="legend-eid-adha" style="display:none"><span class="legend-text">🕌 Eid al-Adha</span></div>
+                <div class="legend-item" id="legend-islamic-ny" style="display:none"><span class="legend-text">📅 Islamic New Year</span></div>
+                <div class="legend-item" id="legend-mawlid" style="display:none"><span class="legend-text">🌹 Mawlid al-Nabi</span></div>
                 <div class="legend-item" id="legend-holi" style="display:none"><span class="legend-text">🎨 Holi</span></div>
                 <div class="legend-item" id="legend-navratri" style="display:none"><span class="legend-text">🕉️ Navratri</span></div>
                 <div class="legend-item" id="legend-dussehra" style="display:none"><span class="legend-text">🏹 Dussehra</span></div>
@@ -2161,7 +2173,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.65';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.66';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2173,7 +2185,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.65';
+        CONFIG.APP_VERSION = '4.66';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2586,9 +2598,11 @@
             if (!window.memberSettingsCache) return null;
             const faithCalendar = resolveFaithCalendar(window.memberSettingsCache.get(memberName));
             if (faithCalendar === 'islamic') {
-                if (RAMADAN_STARTS.has(dateStr)) return { icon: FAITH_ICONS['ramadan'],  label: FAITH_LABELS['ramadan']  };
-                if (EID_FITR_DATES.has(dateStr))  return { icon: FAITH_ICONS['eid-fitr'], label: FAITH_LABELS['eid-fitr'] };
-                if (EID_ADHA_DATES.has(dateStr))  return { icon: FAITH_ICONS['eid-adha'], label: FAITH_LABELS['eid-adha'] };
+                if (RAMADAN_STARTS.has(dateStr))         return { icon: FAITH_ICONS['ramadan'],    label: FAITH_LABELS['ramadan']    };
+                if (EID_FITR_DATES.has(dateStr))         return { icon: FAITH_ICONS['eid-fitr'],   label: FAITH_LABELS['eid-fitr']   };
+                if (EID_ADHA_DATES.has(dateStr))         return { icon: FAITH_ICONS['eid-adha'],   label: FAITH_LABELS['eid-adha']   };
+                if (ISLAMIC_NEW_YEAR_DATES.has(dateStr)) return { icon: FAITH_ICONS['islamic-ny'], label: FAITH_LABELS['islamic-ny'] };
+                if (MAWLID_DATES.has(dateStr))           return { icon: FAITH_ICONS['mawlid'],     label: FAITH_LABELS['mawlid']     };
             }
             if (faithCalendar === 'hindu') {
                 if (HOLI_DATES.has(dateStr))           return { icon: FAITH_ICONS['holi'],     label: FAITH_LABELS['holi']     };
@@ -2934,6 +2948,8 @@
                 'legend-ramadan':        [RAMADAN_STARTS,                 'islamic'],
                 'legend-eid-fitr':       [EID_FITR_DATES,                 'islamic'],
                 'legend-eid-adha':       [EID_ADHA_DATES,                 'islamic'],
+                'legend-islamic-ny':     [ISLAMIC_NEW_YEAR_DATES,         'islamic'],
+                'legend-mawlid':         [MAWLID_DATES,                   'islamic'],
                 'legend-holi':           [HOLI_DATES,                     'hindu'],
                 'legend-navratri':       [NAVRATRI_DATES,                 'hindu'],
                 'legend-dussehra':       [DUSSEHRA_DATES,                 'hindu'],
@@ -2954,6 +2970,14 @@
                 if (el) el.style.display = faithInMonth(dateSet, cal) ? '' : 'none';
             }
 
+            // Show/hide the faith row container itself — visible only when at least one item inside it is shown.
+            const faithRow = document.getElementById('legend-faith-row');
+            if (faithRow) {
+                const anyFaithVisible = [...faithRow.querySelectorAll('.legend-item')]
+                    .some(el => el.style.display !== 'none');
+                faithRow.style.display = anyFaithVisible ? '' : 'none';
+            }
+
             // Chinese New Year legend — use the zodiac icon for the matching year.
             const cnyEl   = document.getElementById('legend-cny');
             const cnyText = document.getElementById('legend-cny-text');
@@ -2970,6 +2994,12 @@
                     }
                 }
                 cnyEl.style.display = cnyVisible ? '' : 'none';
+                // Re-check faith row visibility now that CNY item state is final.
+                if (faithRow) {
+                    const anyFaithVisible = [...faithRow.querySelectorAll('.legend-item')]
+                        .some(el => el.style.display !== 'none');
+                    faithRow.style.display = anyFaithVisible ? '' : 'none';
+                }
             }
         }
 
@@ -3059,7 +3089,18 @@
             const hint = document.getElementById('faithHint');
             if (!hint) return;
             const cal = member ? resolveFaithCalendar(window.memberSettingsCache?.get(member.name)) : 'none';
-            hint.style.display = (cal !== 'none') ? '' : 'none';
+            const CALENDAR_NAMES = {
+                islamic:  '🌙 Islamic calendar',
+                hindu:    '🪔 Hindu calendar',
+                chinese:  '🧧 Chinese cultural calendar',
+                jamaican: '🇯🇲 Jamaican calendar',
+            };
+            if (cal !== 'none') {
+                hint.textContent = (CALENDAR_NAMES[cal] || 'Cultural calendar') + ' markers active';
+                hint.style.display = '';
+            } else {
+                hint.style.display = 'none';
+            }
         }
 
         document.getElementById('prevMonth').addEventListener('click', () => {

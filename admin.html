@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.65 -->
+<!-- MYB Roster Admin v4.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -69,8 +69,9 @@
 
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-        /* iOS status bar fix - blends with app theme */
-        html { background-color: var(--primary-blue); }
+        /* iOS status bar fix - blends with app theme.
+           overflow-x: hidden on html AND body prevents horizontal scroll on iOS Safari. */
+        html { background-color: var(--primary-blue); overflow-x: hidden; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -89,7 +90,7 @@
         }
 
         /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
-        .container { max-width: 1100px; margin: 0 auto; display: none; gap: 16px; }
+        .container { max-width: 1100px; width: 100%; margin: 0 auto; display: none; gap: 16px; box-sizing: border-box; }
         body.auth-ready .container { display: grid; }
 
         /* ---- Header ---- */
@@ -2024,7 +2025,7 @@
                     <input type="radio" name="faithCalendar" value="islamic">
                     <span>
                         <strong>🌙 Islamic</strong>
-                        <span class="faith-radio-sublabel">Ramadan start · Eid al-Fitr · Eid al-Adha</span>
+                        <span class="faith-radio-sublabel">Ramadan · Eid al-Fitr · Eid al-Adha · Islamic New Year · Mawlid al-Nabi</span>
                     </span>
                 </label>
                 <label class="faith-radio-label">
@@ -2058,7 +2059,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.65';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.66';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2074,7 +2075,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.65';
+const ADMIN_VERSION = '4.66';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2722,10 +2723,13 @@ function buildWeekGridInto(container, dateStr) {
         const noteBtn   = row.querySelector('.btn-note-toggle');
         const noteInput = noteRow.querySelector('.day-note');
 
-        // Pre-fill with existing override if present
+        // Pre-fill with existing override if present.
+        // Mark as prefilled-existing so the save button doesn't light up until
+        // the user explicitly changes something — and so deactivation can trigger deletion.
         if (existing) {
             const meta = TYPES[existing.type];
             activateRow(row, cb, pills, startEl, endEl, existing.type);
+            row.classList.add('prefilled-existing');
             if (meta && !meta.fixed && existing.value && existing.value.includes('-')) {
                 const [s, e] = existing.value.split('-');
                 startEl.value = s;
@@ -2739,11 +2743,13 @@ function buildWeekGridInto(container, dateStr) {
             }
         }
 
-        // Pill click: set type, activate row
+        // Pill click: set type, activate row.
+        // Remove prefilled-existing so the row counts as a user change from here on.
         pills.forEach(pill => {
             pill.addEventListener('click', () => {
                 const type    = pill.dataset.type;
                 const already = pill.classList.contains('active');
+                row.classList.remove('prefilled-existing');
                 if (already) {
                     deactivateRow(row, cb, pills, startEl, endEl);
                 } else {
@@ -2761,6 +2767,7 @@ function buildWeekGridInto(container, dateStr) {
             if (cb.checked) {
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
+                row.classList.remove('prefilled-existing');
                 deactivateRow(row, cb, pills, startEl, endEl);
             }
             markChanged();
@@ -2768,9 +2775,9 @@ function buildWeekGridInto(container, dateStr) {
             updateBulkSelCount();
         });
 
-        // Time inputs: user editing a time counts as a change
-        startEl.addEventListener('change', markChanged);
-        endEl.addEventListener('change', markChanged);
+        // Time inputs: editing a pre-filled time marks the row as user-modified
+        startEl.addEventListener('change', () => { row.classList.remove('prefilled-existing'); markChanged(); });
+        endEl.addEventListener('change',   () => { row.classList.remove('prefilled-existing'); markChanged(); });
 
         // Note button
         noteBtn.addEventListener('click', () => {
@@ -2848,12 +2855,24 @@ function deactivateRow(row, cb, pills, startEl, endEl) {
 }
 
 function updateSaveBtn() {
-    const count = [...weekGrid.querySelectorAll('.day-row')].filter(r => r.dataset.type).length;
-    saveBtn.disabled = count === 0;
+    // Only count rows the user has explicitly changed (not pre-filled existing overrides).
+    // Pre-filled rows carry the prefilled-existing class until the user interacts with them.
+    const rows     = [...weekGrid.querySelectorAll('.day-row')];
+    const saveCount   = rows.filter(r => r.dataset.type && !r.classList.contains('prefilled-existing')).length;
+    const deleteCount = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
+    const total = saveCount + deleteCount;
+    saveBtn.disabled = total === 0;
     const hint = document.getElementById('saveBtnHint');
-    if (hint) hint.textContent = count > 0
-        ? `Ready — ${count} day${count > 1 ? 's' : ''} will be saved`
-        : 'Select an override type on at least one day';
+    if (hint) {
+        if (total > 0) {
+            const parts = [];
+            if (saveCount)   parts.push(`${saveCount} day${saveCount   > 1 ? 's' : ''} to save`);
+            if (deleteCount) parts.push(`${deleteCount} override${deleteCount > 1 ? 's' : ''} to remove`);
+            hint.textContent = `Ready — ${parts.join(', ')}`;
+        } else {
+            hint.textContent = 'Select an override type on at least one day';
+        }
+    }
 }
 
 function updateBulkSelCount() {
@@ -2977,10 +2996,16 @@ saveBtn.addEventListener('click', async () => {
     // Clear any previous row-level errors
     weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
 
-    const toSave = [], errors = [];
+    const toSave = [], toDelete = [], errors = [];
 
     weekGrid.querySelectorAll('.day-row').forEach(row => {
-        if (!row.dataset.type) return; // not activated
+        if (!row.dataset.type) {
+            // Row was pre-filled with an existing override but user deactivated it → delete.
+            if (row.dataset.existingId) toDelete.push(row.dataset.existingId);
+            return;
+        }
+        // Pre-filled rows the user hasn't changed don't need re-saving.
+        if (row.classList.contains('prefilled-existing')) return;
 
         const date    = row.dataset.date;
         const type    = row.dataset.type;
@@ -3016,8 +3041,8 @@ saveBtn.addEventListener('click', async () => {
         toSave.push({ memberName, date, type, value, note, existingId: row.dataset.existingId || null });
     });
 
-    if (errors.length)  return showError('Missing times — ' + errors.join(' · '));
-    if (!toSave.length) return showError('No days selected.');
+    if (errors.length)                    return showError('Missing times — ' + errors.join(' · '));
+    if (!toSave.length && !toDelete.length) return showError('No changes to save.');
 
     // Validate shift duration and rest-gap rules
     const ruleErrors = validateShiftRules(toSave, memberName);
@@ -3045,25 +3070,31 @@ saveBtn.addEventListener('click', async () => {
             showALConfirm(
                 `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their AL entitlement`,
                 `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
-                toSave
+                toSave,
+                toDelete
             );
             return;
         }
     }
 
-    await executeSave(toSave);
+    await executeSave(toSave, toDelete);
 });
 
-async function executeSave(toSave) {
+async function executeSave(toSave, toDelete = []) {
     const memberName = fieldMember.value;
     const overwrites = toSave.filter(e => e.existingId).length;
     const creates    = toSave.length - overwrites;
+    const removes    = toDelete.length;
+    const total      = toSave.length + removes;
 
     saveBtn.disabled    = true;
-    saveBtn.textContent = `Saving ${toSave.length} day${toSave.length !== 1 ? 's' : ''}…`;
+    saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`;
 
     try {
         const batch = writeBatch(db);
+        // Process deletions first (deactivated pre-filled rows)
+        toDelete.forEach(id => batch.delete(doc(db, 'overrides', id)));
+
         toSave.forEach(entry => {
             // Delete existing first if overwriting, then add fresh doc
             if (entry.existingId) {
@@ -3078,6 +3109,7 @@ async function executeSave(toSave) {
         const parts = [];
         if (creates    > 0) parts.push(`${creates} added`);
         if (overwrites > 0) parts.push(`${overwrites} updated`);
+        if (removes    > 0) parts.push(`${removes} removed`);
         showSuccess(`${parts.join(', ')} for ${memberName}`);
         userMadeChanges = false;
 
@@ -3420,15 +3452,17 @@ function hideFeedback() {
 }
 
 // ---- AL over-limit confirm bar ----
-let _alPendingSave = null;
+let _alPendingSave   = null;
+let _alPendingDelete = [];
 const alConfirmBar       = document.getElementById('alConfirmBar');
 const alConfirmMsg       = document.getElementById('alConfirmMsg');
 const alConfirmSub       = document.getElementById('alConfirmSub');
 const alConfirmSaveBtn   = document.getElementById('alConfirmSaveBtn');
 const alConfirmCancelBtn = document.getElementById('alConfirmCancelBtn');
 
-function showALConfirm(msg, sub, pendingSave) {
-    _alPendingSave       = pendingSave;
+function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
+    _alPendingSave   = pendingSave;
+    _alPendingDelete = pendingDelete;
     alConfirmMsg.textContent = msg;
     alConfirmSub.textContent = sub;
     alConfirmBar.classList.add('visible');
@@ -3436,15 +3470,17 @@ function showALConfirm(msg, sub, pendingSave) {
 }
 function hideALConfirm() {
     alConfirmBar.classList.remove('visible');
-    _alPendingSave = null;
+    _alPendingSave   = null;
+    _alPendingDelete = [];
 }
 
 alConfirmSaveBtn.addEventListener('click', async () => {
     if (_alPendingSave) {
         // Week editor path — toSave is an array of override entries
-        const toSave = _alPendingSave;
+        const toSave   = _alPendingSave;
+        const toDelete = _alPendingDelete;
         hideALConfirm();
-        await executeSave(toSave);
+        await executeSave(toSave, toDelete);
     } else {
         // AL booking path — set confirmed flag then re-trigger booking
         _alBookingConfirmed = true;
@@ -3861,7 +3897,7 @@ function updateALBookedBox() {
 
     // Disclaimer text per calendar — shown only for the active selection.
     const DISCLAIMERS = {
-        islamic:  'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting).',
+        islamic:  'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting). Mawlid al-Nabi is observed by most UK Muslim communities but not all denominations.',
         hindu:    'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
         chinese:  'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
         jamaican: 'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',

@@ -250,6 +250,33 @@ export const EID_ADHA_DATES = new Set([
     '2031-04-02', // Eid al-Adha from the Dec 2030 Ramadan (Islamic year 1452)
 ]);
 
+// Islamic New Year (1 Muharram) — first day of the Hijri calendar year.
+// Source: Umm al-Qura calendar (Saudi Arabia). ±1 day depending on moon-sighting.
+// The Islamic year is ~354 days, so this date shifts ~10–11 days earlier each year.
+export const ISLAMIC_NEW_YEAR_DATES = new Set([
+    '2025-06-26',
+    '2026-06-16',
+    '2027-06-06',
+    '2028-05-25',
+    '2029-05-14',
+    '2030-05-03',
+    '2031-04-23',
+]);
+
+// Mawlid al-Nabi (12 Rabi' al-Awwal) — the Prophet Muhammad's birthday.
+// Observed by most UK Muslim communities (South Asian, North African, West African,
+// Turkish traditions). Not observed by Wahhabi/Salafi/Deobandi denominations.
+// Source: Umm al-Qura calendar. ±1 day depending on moon-sighting.
+export const MAWLID_DATES = new Set([
+    '2025-09-04',
+    '2026-08-25',
+    '2027-08-15',
+    '2028-08-03',
+    '2029-07-24',
+    '2030-07-13',
+    '2031-07-02',
+]);
+
 // ============================================
 // HINDU CALENDAR DATES (Hindu lunar calendar)
 // ============================================
@@ -598,15 +625,19 @@ export function isCutoffDate(date) {
 // ============================================
 
 export const ISLAMIC_LABELS = {
-    'ramadan':  'Ramadan begins',
-    'eid-fitr': 'Eid al-Fitr',
-    'eid-adha': 'Eid al-Adha',
+    'ramadan':      'Ramadan begins',
+    'eid-fitr':     'Eid al-Fitr',
+    'eid-adha':     'Eid al-Adha',
+    'islamic-ny':   'Islamic New Year (Al-Hijra)',
+    'mawlid':       'Mawlid al-Nabi',
 };
 
 export const ISLAMIC_ICONS = {
-    'ramadan':  '🌙',
-    'eid-fitr': '☪️',
-    'eid-adha': '🕌',
+    'ramadan':      '🌙',
+    'eid-fitr':     '☪️',
+    'eid-adha':     '🕌',
+    'islamic-ny':   '📅',
+    'mawlid':       '🌹',
 };
 
 export const HINDU_LABELS = {
@@ -675,9 +706,11 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
     if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
     if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
     if (faithCalendar === 'islamic') {
-        if (RAMADAN_STARTS.has(dateStr))      badges.push({ icon: '🌙', title: 'Ramadan begins' });
-        if (EID_FITR_DATES.has(dateStr))      badges.push({ icon: '☪️', title: 'Eid al-Fitr' });
-        if (EID_ADHA_DATES.has(dateStr))      badges.push({ icon: '🕌', title: 'Eid al-Adha' });
+        if (RAMADAN_STARTS.has(dateStr))            badges.push({ icon: '🌙', title: 'Ramadan begins' });
+        if (EID_FITR_DATES.has(dateStr))            badges.push({ icon: '☪️', title: 'Eid al-Fitr' });
+        if (EID_ADHA_DATES.has(dateStr))            badges.push({ icon: '🕌', title: 'Eid al-Adha' });
+        if (ISLAMIC_NEW_YEAR_DATES.has(dateStr))    badges.push({ icon: '📅', title: 'Islamic New Year (Al-Hijra)' });
+        if (MAWLID_DATES.has(dateStr))              badges.push({ icon: '🌹', title: 'Mawlid al-Nabi' });
     }
     if (faithCalendar === 'hindu') {
         if (HOLI_DATES.has(dateStr))           badges.push({ icon: '🎨', title: 'Holi' });
