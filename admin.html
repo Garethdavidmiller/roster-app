@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.71 -->
+<!-- MYB Roster Admin v4.72 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1091,6 +1091,7 @@
             font-weight: 600;
         }
         .religious-saved.visible { display: block; }
+        .religious-saved.error { color: var(--error-red); }
 
         /* ---- Overrides list ---- */
         .list-toolbar {
@@ -2082,7 +2083,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.71';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.72';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2098,7 +2099,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.71';
+const ADMIN_VERSION = '4.72';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -3169,7 +3170,7 @@ fieldMember.addEventListener('change', () => {
     localStorage.setItem('myb_roster_selected_member', fieldMember.value);
     alMember.value = fieldMember.value;
     syncMemberDisplay();
-    if (fieldMember.value) loadReligiousSetting(fieldMember.value);
+    if (fieldMember.value && typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value);
     updateALBanner();
     updateALBookedBox();
     renderTable();
@@ -3644,8 +3645,8 @@ alSaveBtn.addEventListener('click', async () => {
     if (!member || !dates || !dates.length) return;
 
     // Annual leave entitlement check (skip if user already confirmed via the bar)
+    const memberObj = teamMembers.find(m => m.name === member);
     if (!_alBookingConfirmed) {
-        const memberObj      = teamMembers.find(m => m.name === member);
         const entitlement    = getALEntitlement(memberObj);
         // Use the year from the booking dates, not the current calendar year
         const yearStr        = alFrom.value ? alFrom.value.substring(0, 4) : String(new Date().getFullYear());
@@ -3970,14 +3971,19 @@ function updateALBookedBox() {
             updateDisclaimer(radio.value);
             clearTimeout(saveTimer);
             saved.classList.remove('visible');
+            saved.classList.remove('error');
             try {
                 const target = fieldMember.value || currentUser;
                 await setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true });
+                saved.textContent = '✓ Saved';
                 saved.classList.add('visible');
-                renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
                 saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
+                renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
             } catch (e) {
                 console.error('[Firestore] memberSettings save failed:', e);
+                saved.textContent = '✗ Could not save — check connection';
+                saved.classList.add('visible', 'error');
+                saveTimer = setTimeout(() => { saved.classList.remove('visible', 'error'); saved.textContent = '✓ Saved'; }, 5000);
             }
         });
     });
