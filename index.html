@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.76 -->
+<!-- MYB Roster Calendar - Version 4.80 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     
     <!-- PWA Meta Tags -->
     <meta name="description" content="Marylebone station shift roster calendar for Chiltern Railways staff">
-    <meta name="theme-color" content="#1d3461">
+    <meta name="theme-color" content="#001e3c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
@@ -28,10 +28,10 @@
     <style>
         :root {
             /* Brand colours */
-            --primary-blue:      #1d3461;
-            --primary-blue-dark: #152952;    /* Hover state for primary buttons */
-            --accent-blue:       #0091d5;
-            --accent-blue-dark:  #007ab5;    /* Hover state for today button */
+            --primary-blue:      #001e3c;
+            --primary-blue-dark: #00152a;    /* Hover state for primary buttons */
+            --accent-gold:       #f5c800;
+            --accent-gold-dark:  #e6bb00;    /* Hover state for today button */
 
             /* Shift colours */
             --green: #43a047;
@@ -67,7 +67,7 @@
             --border-mid: #cccccc;   /* Used for other-day cells and similar mid-tone borders */
             --bg-light: #f8f8f8;
             --bg-faint: #f5f5f5;
-            --today-print: #e8f4fb; /* Softer blue for print — avoids ink waste vs full accent-blue */
+            --today-print: #fffde7; /* Softer gold for print — avoids ink waste vs full accent-gold */
 
             /* Border Radius */
             --radius-md: 12px;
@@ -202,7 +202,7 @@
         /* Today cell pulse - single gentle scale, fires once */
         @keyframes todayPulse {
             0%   { transform: scale(1); }
-            40%  { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(0, 145, 213, 0.4); }
+            40%  { transform: scale(1.06); box-shadow: 0 0 0 3px rgba(245, 200, 0, 0.4); }
             100% { transform: scale(1); box-shadow: none; }
         }
 
@@ -282,7 +282,7 @@
             text-align-last: center;
             -webkit-appearance: none; /* Removes iOS glossy bubble */
             appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231d3461' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat;
             background-position: right 10px center;
             background-size: 1em;
@@ -312,8 +312,8 @@
             }
 
             .controls button.today-btn:hover {
-                background: var(--accent-blue-dark);
-                border-color: var(--accent-blue-dark);
+                background: var(--accent-gold-dark);
+                border-color: var(--accent-gold-dark);
             }
 
             .controls button.print-btn:hover {
@@ -334,9 +334,9 @@
         }
 
         .controls button.today-btn {
-            background: var(--accent-blue);
-            color: white;
-            border-color: var(--accent-blue);
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-color: var(--accent-gold);
             font-weight: 700;
         }
 
@@ -356,7 +356,7 @@
 
         .controls button.admin-btn {
             background: var(--primary-blue);
-            color: var(--accent-blue);
+            color: var(--accent-gold);
             border-color: var(--primary-blue);
             font-weight: 700;
         }
@@ -521,8 +521,8 @@
         .calendar-day.today {
             border-color: var(--primary-blue);
             border-width: 3px;
-            background: var(--accent-blue);
-            box-shadow: 0 3px 10px rgba(0, 145, 213, 0.25), 0 0 0 1px var(--primary-blue);
+            background: var(--accent-gold);
+            box-shadow: 0 3px 10px rgba(245, 200, 0, 0.25), 0 0 0 1px var(--primary-blue);
             transform: scale(1.02);
         }
 
@@ -719,7 +719,7 @@
         .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
         .legend-color.rdw     { background: var(--rdw-light);    border-color: var(--rdw); }
         .legend-color.al      { background: var(--al-light);      border-color: var(--al); }
-        .legend-color.today   { background: var(--accent-blue);  border-color: var(--primary-blue); }
+        .legend-color.today   { background: var(--accent-gold);  border-color: var(--primary-blue); }
         .legend-color.night   { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
 
         .legend-text {
@@ -747,7 +747,7 @@
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
-                background: linear-gradient(160deg, #1d3461 0%, #152952 100%);
+                background: linear-gradient(160deg, #0a2240 0%, #001630 100%);
                 padding: 16px;
             }
 
@@ -1733,6 +1733,23 @@
             flex-shrink: 0;
         }
 
+        /* Bug report link — sits below tips, quiet but tappable */
+        .lightbox-bug-link {
+            display: block;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.35);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
+        }
+
         /* Close button */
         #iconLightboxClose {
             position: absolute;
@@ -2049,6 +2066,7 @@
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
+            <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
         </div>
     </div>
 
@@ -2168,12 +2186,25 @@
                 <div class="legend-item" id="legend-emancipation" style="display:none"><span class="legend-text">✊ Emancipation Day</span></div>
                 <div class="legend-item" id="legend-independence" style="display:none"><span class="legend-text">🇯🇲 Independence Day</span></div>
                 <div class="legend-item" id="legend-heroes-day" style="display:none"><span class="legend-text">🏅 National Heroes Day</span></div>
+                <div class="legend-item" id="legend-drc-martyrs" style="display:none"><span class="legend-text">🕊️ Martyrs' Day</span></div>
+                <div class="legend-item" id="legend-drc-liberation" style="display:none"><span class="legend-text">✊ Liberation Day</span></div>
+                <div class="legend-item" id="legend-drc-heroes" style="display:none"><span class="legend-text">🏅 Heroes' Day</span></div>
+                <div class="legend-item" id="legend-drc-independence" style="display:none"><span class="legend-text">🇨🇩 Independence Day</span></div>
+                <div class="legend-item" id="legend-pt-carnival" style="display:none"><span class="legend-text">🎭 Carnival Tuesday</span></div>
+                <div class="legend-item" id="legend-pt-freedom" style="display:none"><span class="legend-text">🌹 Freedom Day</span></div>
+                <div class="legend-item" id="legend-pt-labour" style="display:none"><span class="legend-text">🛠️ Labour Day (Portugal)</span></div>
+                <div class="legend-item" id="legend-pt-portugal-day" style="display:none"><span class="legend-text">🇵🇹 Portugal Day</span></div>
+                <div class="legend-item" id="legend-pt-corpus" style="display:none"><span class="legend-text">⛪ Corpus Christi</span></div>
+                <div class="legend-item" id="legend-pt-assumption" style="display:none"><span class="legend-text">🕊️ Assumption of Mary</span></div>
+                <div class="legend-item" id="legend-pt-republic" style="display:none"><span class="legend-text">🏛️ Republic Day</span></div>
+                <div class="legend-item" id="legend-pt-restoration" style="display:none"><span class="legend-text">⚔️ Restoration of Independence</span></div>
+                <div class="legend-item" id="legend-pt-immaculate" style="display:none"><span class="legend-text">✨ Immaculate Conception</span></div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.76';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.80';
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
         import { getFirestore, collection, query, where, getDocs }
             from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -2188,7 +2219,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.76';
+        CONFIG.APP_VERSION = '4.80';
 
         // ============================================
         // FIREBASE INITIALISATION
@@ -2603,8 +2634,8 @@
         // Combined label/icon maps covering Islamic and Hindu calendars.
         // Chinese New Year uses CHINESE_NEW_YEAR_DATES (a Map) directly because
         // the icon varies by year (zodiac animal) rather than being a fixed value.
-        const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS, ...JAMAICAN_LABELS };
-        const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS,  ...JAMAICAN_ICONS  };
+        const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS, ...JAMAICAN_LABELS, ...CONGOLESE_LABELS, ...PORTUGUESE_LABELS };
+        const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS,  ...JAMAICAN_ICONS,  ...CONGOLESE_ICONS,  ...PORTUGUESE_ICONS  };
 
         // Resolve which faith calendar the member has opted in to.
         // Handles backward compat: old Firestore docs stored islamicMarkers:true.
@@ -2648,6 +2679,23 @@
                 if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: FAITH_ICONS['emancipation'],  label: FAITH_LABELS['emancipation']  };
                 if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: FAITH_ICONS['independence'],  label: FAITH_LABELS['independence']  };
                 if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: FAITH_ICONS['heroes-day'],    label: FAITH_LABELS['heroes-day']    };
+            }
+            if (faithCalendar === 'congolese') {
+                if (CONGOLESE_MARTYRS_DATES.has(dateStr))      return { icon: FAITH_ICONS['drc-martyrs'],     label: FAITH_LABELS['drc-martyrs']     };
+                if (CONGOLESE_LIBERATION_DATES.has(dateStr))   return { icon: FAITH_ICONS['drc-liberation'],  label: FAITH_LABELS['drc-liberation']  };
+                if (CONGOLESE_HEROES_DATES.has(dateStr))       return { icon: FAITH_ICONS['drc-heroes'],      label: FAITH_LABELS['drc-heroes']      };
+                if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) return { icon: FAITH_ICONS['drc-independence'],label: FAITH_LABELS['drc-independence'] };
+            }
+            if (faithCalendar === 'portuguese') {
+                if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))       return { icon: FAITH_ICONS['pt-carnival'],    label: FAITH_LABELS['pt-carnival']    };
+                if (PORTUGUESE_FREEDOM_DATES.has(dateStr))        return { icon: FAITH_ICONS['pt-freedom'],     label: FAITH_LABELS['pt-freedom']     };
+                if (PORTUGUESE_LABOUR_DATES.has(dateStr))         return { icon: FAITH_ICONS['pt-labour'],      label: FAITH_LABELS['pt-labour']      };
+                if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))   return { icon: FAITH_ICONS['pt-portugal-day'],label: FAITH_LABELS['pt-portugal-day'] };
+                if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr)) return { icon: FAITH_ICONS['pt-corpus'],      label: FAITH_LABELS['pt-corpus']      };
+                if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))     return { icon: FAITH_ICONS['pt-assumption'],  label: FAITH_LABELS['pt-assumption']  };
+                if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))       return { icon: FAITH_ICONS['pt-republic'],    label: FAITH_LABELS['pt-republic']    };
+                if (PORTUGUESE_RESTORATION_DATES.has(dateStr))    return { icon: FAITH_ICONS['pt-restoration'], label: FAITH_LABELS['pt-restoration'] };
+                if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))     return { icon: FAITH_ICONS['pt-immaculate'],  label: FAITH_LABELS['pt-immaculate']  };
             }
             return null;
         }
@@ -3029,6 +3077,19 @@
                 'legend-emancipation':   [JAMAICAN_EMANCIPATION_DATES,    'jamaican'],
                 'legend-independence':   [JAMAICAN_INDEPENDENCE_DATES,    'jamaican'],
                 'legend-heroes-day':     [JAMAICAN_HEROES_DAY_DATES,      'jamaican'],
+                'legend-drc-martyrs':    [CONGOLESE_MARTYRS_DATES,        'congolese'],
+                'legend-drc-liberation': [CONGOLESE_LIBERATION_DATES,     'congolese'],
+                'legend-drc-heroes':     [CONGOLESE_HEROES_DATES,         'congolese'],
+                'legend-drc-independence':[CONGOLESE_INDEPENDENCE_DATES,  'congolese'],
+                'legend-pt-carnival':    [PORTUGUESE_CARNIVAL_DATES,      'portuguese'],
+                'legend-pt-freedom':     [PORTUGUESE_FREEDOM_DATES,       'portuguese'],
+                'legend-pt-labour':      [PORTUGUESE_LABOUR_DATES,        'portuguese'],
+                'legend-pt-portugal-day':[PORTUGUESE_PORTUGAL_DAY_DATES,  'portuguese'],
+                'legend-pt-corpus':      [PORTUGUESE_CORPUS_CHRISTI_DATES,'portuguese'],
+                'legend-pt-assumption':  [PORTUGUESE_ASSUMPTION_DATES,    'portuguese'],
+                'legend-pt-republic':    [PORTUGUESE_REPUBLIC_DATES,      'portuguese'],
+                'legend-pt-restoration': [PORTUGUESE_RESTORATION_DATES,   'portuguese'],
+                'legend-pt-immaculate':  [PORTUGUESE_IMMACULATE_DATES,    'portuguese'],
             };
             for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
                 const el = document.getElementById(id);
@@ -3152,10 +3213,12 @@
             if (!hint) return;
             const cal = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
             const CALENDAR_NAMES = {
-                islamic:  '🌙 Islamic calendar',
-                hindu:    '🪔 Hindu calendar',
-                chinese:  '🧧 Chinese cultural calendar',
-                jamaican: '🇯🇲 Jamaican calendar',
+                islamic:    '🌙 Islamic calendar',
+                hindu:      '🪔 Hindu calendar',
+                chinese:    '🧧 Chinese calendar',
+                jamaican:   '🇯🇲 Jamaican calendar',
+                congolese:  '🇨🇩 Congolese calendar',
+                portuguese: '🇵🇹 Portuguese calendar',
             };
             if (cal !== 'none') {
                 hint.textContent = (CALENDAR_NAMES[cal] || 'Cultural calendar') + ' markers active';
@@ -3561,6 +3624,7 @@
                     const updateBtn    = document.getElementById('lightboxUpdateBtn');
                     const closeBtn     = document.getElementById('iconLightboxClose');
                     const contentCard  = document.getElementById('iconLightboxContent');
+                    const bugLink      = document.getElementById('bugReportLink');
 
                     if (!lightbox || !titleIcon) return;
 
@@ -3659,6 +3723,14 @@
 
                     function openLightbox() {
                         checkUpdateStatus(); // Refresh status every time it opens
+                        if (bugLink) {
+                            const member   = getCurrentMember();
+                            const name     = member ? member.name : 'Not selected';
+                            const date     = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                            const ua       = navigator.userAgent;
+                            const body     = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster v${CONFIG.APP_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
+                            bugLink.href   = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Roster v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+                        }
                         lightbox.classList.add('visible');
                         requestAnimationFrame(() => lightbox.classList.add('open'));
                         document.addEventListener('keydown', onKeyDown);
@@ -3686,7 +3758,9 @@
 
                     // Tapping the content card itself does NOT close (prevents accidental close)
                     if (contentCard) contentCard.addEventListener('click', e => e.stopPropagation());
-                    if (closeBtn)   closeBtn.addEventListener('click',   closeLightbox);
+                    if (closeBtn)    closeBtn.addEventListener('click',    closeLightbox);
+                    // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
+                    if (bugLink)     bugLink.addEventListener('click',     e => e.stopPropagation());
                 })();
 
                 // ============================================

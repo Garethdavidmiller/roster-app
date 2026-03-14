@@ -10,10 +10,10 @@
     <style>
         :root {
             /* Brand colours */
-            --primary-blue:      #1d3461;
-            --primary-blue-dark: #152952;
-            --accent-blue:       #0091d5;
-            --accent-blue-dark:  #007ab5;
+            --primary-blue:      #001e3c;
+            --primary-blue-dark: #00152a;
+            --accent-gold:       #f5c800;
+            --accent-gold-dark:  #e6bb00;
 
             /* Shift colours */
             --green:             #43a047;
@@ -120,7 +120,7 @@
 
 
         .badge-admin {
-            background: var(--accent-blue);
+            background: var(--accent-gold);
             color: var(--primary-blue);
             font-size: 10px;
             font-weight: 800;
@@ -264,7 +264,7 @@
             font-size: 14px;
             font-weight: 600;
         }
-        .member-context-bar select:focus { outline: none; border-color: var(--accent-blue); }
+        .member-context-bar select:focus { outline: none; border-color: var(--accent-gold); }
         .member-context-bar select option { background: white; color: var(--text-dark); }
 
         /* Read-only member display shown inside AL form once member is chosen */
@@ -400,12 +400,12 @@
         @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
 
         .week-nav-today {
-            background: var(--accent-blue);
+            background: var(--accent-gold);
             color: var(--primary-blue);
             font-size: 10px;
             margin-left: 4px;
         }
-        @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-blue-dark); } }
+        @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-gold-dark); } }
 
         .week-date-wrap {
             flex: 1;
@@ -448,9 +448,9 @@
 
         /* Blue border when the displayed week is the current week */
         .week-nav-label.is-current-week {
-            border-color: var(--accent-blue);
+            border-color: var(--accent-gold);
             background: #e8f4fb;
-            color: #1d3461;
+            color: #001e3c;
         }
 
         /* ---- Shift badges ---- */
@@ -882,9 +882,9 @@
         }
 
         /* Today's row — subtle blue left border so it's easy to spot */
-        .day-row.today .col-day .day-name { color: var(--accent-blue-dark); font-weight: 800; }
-        .day-row.today .col-day .day-date { color: var(--accent-blue-dark); }
-        .day-row.today:not(.active):not(.has-override):not(.selected) { background: #e8f4fb; }
+        .day-row.today .col-day .day-name { color: var(--accent-gold-dark); font-weight: 800; }
+        .day-row.today .col-day .day-date { color: var(--accent-gold-dark); }
+        .day-row.today:not(.active):not(.has-override):not(.selected) { background: #fffde7; }
 
         /* Row with a validation error (e.g. time not filled) — highlighted red */
         .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
@@ -1653,11 +1653,28 @@
             background: rgba(245,200,0,0.15);
             border: 1px solid rgba(245,200,0,0.35);
             border-radius: 20px;
-            color: var(--accent-blue);
+            color: var(--accent-gold);
             font-size: 11px;
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.6px;
+        }
+
+        /* Bug report link — quiet utility link at the bottom of the about lightbox */
+        .lightbox-bug-link {
+            display: block;
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            color: rgba(255,255,255,0.35);
+            text-decoration: none;
+            transition: color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
         }
 
         #iconLightboxClose {
@@ -1831,6 +1848,7 @@
         <div class="lightbox-subtitle">Marylebone Station</div>
         <div class="lightbox-version">Admin v<span id="lightboxVersion"></span></div>
         <div class="lightbox-badge">Admin panel</div>
+        <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     </div>
 </div>
 
@@ -2062,7 +2080,7 @@
                 <label class="faith-radio-label">
                     <input type="radio" name="faithCalendar" value="chinese">
                     <span>
-                        <strong>🧧 Chinese Cultural</strong>
+                        <strong>🧧 Chinese</strong>
                         <span class="faith-radio-sublabel">Lunar New Year · Lantern Festival · Qingming · Dragon Boat · Mid-Autumn</span>
                     </span>
                 </label>
@@ -2071,6 +2089,20 @@
                     <span>
                         <strong>🇯🇲 Jamaican</strong>
                         <span class="faith-radio-sublabel">Ash Wednesday · Labour Day · Emancipation Day · Independence Day · National Heroes Day</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="congolese">
+                    <span>
+                        <strong>🇨🇩 Congolese</strong>
+                        <span class="faith-radio-sublabel">Martyrs' Day · Liberation Day · Heroes' Day · Independence Day</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="portuguese">
+                    <span>
+                        <strong>🇵🇹 Portuguese</strong>
+                        <span class="faith-radio-sublabel">Carnival · Freedom Day · Labour Day · Portugal Day · Corpus Christi · Assumption · Republic Day · Restoration of Independence · Immaculate Conception</span>
                     </span>
                 </label>
             </div>
@@ -2083,7 +2115,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.76';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.80';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2099,7 +2131,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.76';
+const ADMIN_VERSION = '4.80';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2210,12 +2242,20 @@ function initLoginOverlay() {
     const headerIcon = document.querySelector('.app-header img');
     const closeBtn   = document.getElementById('iconLightboxClose');
     const versionEl  = document.getElementById('lightboxVersion');
+    const bugLink    = document.getElementById('adminBugReportLink');
 
     if (!lightbox || !headerIcon) return;
 
     if (versionEl) versionEl.textContent = ADMIN_VERSION;
 
     function openLightbox() {
+        if (bugLink) {
+            const name   = currentUser || 'Unknown';
+            const date   = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+            const ua     = navigator.userAgent;
+            const body   = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Admin v${ADMIN_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
+            bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin v${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
+        }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
         document.addEventListener('keydown', onKey);
@@ -2235,6 +2275,9 @@ function initLoginOverlay() {
     lightbox.addEventListener('click', e => {
         if (e.target === lightbox || e.target === closeBtn) closeLightbox();
     });
+
+    // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
+    if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 })();
 
 // ---- Tips lightbox ----
@@ -3929,8 +3972,10 @@ function updateALBookedBox() {
         islamic:  'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting). Mawlid al-Nabi is observed by most UK Muslim communities but not all denominations.',
         hindu:    'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
         chinese:  'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
-        jamaican: 'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
-        none:     '',
+        jamaican:   'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
+        congolese:   'Congolese national public holidays (DRC). All four dates are fixed each year.',
+        portuguese:  'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May (coincides with the UK Early May bank holiday only when 1 May falls on a Monday). Carnival Tuesday is widely observed but discretionary. All other dates are fixed or calculated from Easter.',
+        none:        '',
     };
 
     function updateDisclaimer(value) {
