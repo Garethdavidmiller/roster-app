@@ -120,8 +120,8 @@
 
 
         .badge-admin {
-            background: var(--primary-blue);
-            color: var(--accent-gold);
+            background: var(--accent-gold);
+            color: var(--primary-blue);
             font-size: 10px;
             font-weight: 800;
             padding: 4px 10px;
@@ -2083,7 +2083,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.74';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.75';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2099,7 +2099,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.74';
+const ADMIN_VERSION = '4.75';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
