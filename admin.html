@@ -2083,7 +2083,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.72';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.74';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2099,7 +2099,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.72';
+const ADMIN_VERSION = '4.74';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2554,6 +2554,8 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             d.setDate(d.getDate() + (goLeft ? +7 : -7));
             fieldDate.value = lastFieldDate = formatISO(d);
             updateWeekNavLabel(fieldDate.value);
+            updateALBanner();
+            updateALBookedBox();
             userMadeChanges = false;
 
             wCurrent.style.transition = TRANSITION;
@@ -3951,13 +3953,20 @@ function updateALBookedBox() {
         return data.islamicMarkers ? 'islamic' : 'none';
     }
 
-    // Load the setting for the given member from Firestore and set the radio buttons
+    // Load the setting for the given member. Reads localStorage first (instant,
+    // no network), then tries Firestore so a cross-device value can override.
     async function loadReligiousSetting(userName) {
+        const local = localStorage.getItem(`faithCalendar_${userName}`) || 'none';
+        radios.forEach(r => { r.checked = (r.value === local); });
+        updateDisclaimer(local);
         try {
             const snap  = await getDoc(doc(db, 'memberSettings', userName));
-            const value = resolveFaithCalendar(snap.exists() ? snap.data() : null);
-            radios.forEach(r => { r.checked = (r.value === value); });
-            updateDisclaimer(value);
+            if (snap.exists()) {
+                const value = resolveFaithCalendar(snap.data());
+                localStorage.setItem(`faithCalendar_${userName}`, value);
+                radios.forEach(r => { r.checked = (r.value === value); });
+                updateDisclaimer(value);
+            }
         } catch (e) {
             console.warn('[Firestore] memberSettings load failed:', e);
         }
@@ -3967,24 +3976,20 @@ function updateALBookedBox() {
     // not always currentUser (admin may be managing another member's settings).
     let saveTimer;
     radios.forEach(radio => {
-        radio.addEventListener('change', async () => {
+        radio.addEventListener('change', () => {
             updateDisclaimer(radio.value);
             clearTimeout(saveTimer);
-            saved.classList.remove('visible');
-            saved.classList.remove('error');
-            try {
-                const target = fieldMember.value || currentUser;
-                await setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true });
-                saved.textContent = '✓ Saved';
-                saved.classList.add('visible');
-                saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
-                renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
-            } catch (e) {
-                console.error('[Firestore] memberSettings save failed:', e);
-                saved.textContent = '✗ Could not save — check connection';
-                saved.classList.add('visible', 'error');
-                saveTimer = setTimeout(() => { saved.classList.remove('visible', 'error'); saved.textContent = '✓ Saved'; }, 5000);
-            }
+            saved.classList.remove('visible', 'error');
+            const target = fieldMember.value || currentUser;
+            // localStorage always succeeds and is readable by index.html on the same device.
+            localStorage.setItem(`faithCalendar_${target}`, radio.value);
+            saved.textContent = '✓ Saved';
+            saved.classList.add('visible');
+            saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
+            renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
+            // Fire-and-forget Firestore sync for cross-device persistence.
+            setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true })
+                .catch(e => console.warn('[Firestore] memberSettings sync failed:', e));
         });
     });
 
