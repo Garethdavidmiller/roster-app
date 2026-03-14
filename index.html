@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.66 -->
+<!-- MYB Roster Calendar - Version 4.67 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2134,10 +2134,10 @@
                 <div class="legend-item" id="legend-night" style="display:none"><div class="legend-color night"></div><span class="legend-text">Night</span></div>
                 <div class="legend-item"><div class="legend-color today"></div><span class="legend-text">Today</span></div>
             </div>
-            <div class="legend-row">
-                <div class="legend-item"><div class="legend-color spare"></div><span class="legend-text">Spare</span></div>
-                <div class="legend-item"><div class="legend-color rdw"></div><span class="legend-text">Rest Day Work</span></div>
-                <div class="legend-item"><div class="legend-color al"></div><span class="legend-text">Annual Leave</span></div>
+            <div class="legend-row" id="legend-row-2">
+                <div class="legend-item" id="legend-spare"><div class="legend-color spare"></div><span class="legend-text">Spare</span></div>
+                <div class="legend-item" id="legend-rdw"><div class="legend-color rdw"></div><span class="legend-text">Rest Day Work</span></div>
+                <div class="legend-item" id="legend-al"><div class="legend-color al"></div><span class="legend-text">Annual Leave</span></div>
             </div>
             <div class="legend-row">
                 <div class="legend-item"><span class="legend-text">⭐ Bank Holiday</span></div>
@@ -2173,7 +2173,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.66';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.67';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2185,7 +2185,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.66';
+        CONFIG.APP_VERSION = '4.67';
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2900,15 +2900,57 @@
             lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
         })();
 
+        // Returns a Set of shift-type strings that actually appear in the given month
+        // for the given member, after applying roster pattern + Firestore overrides.
+        // Used by updateLegend() to show/hide Spare, RDW, and AL legend items.
+        function getShiftTypesInMonth(member, year, month) {
+            const types  = new Set();
+            const roster = getRosterForMember(member);
+            const days   = new Date(year, month + 1, 0).getDate(); // last day of month
+
+            for (let day = 1; day <= days; day++) {
+                const date    = new Date(year, month, day);
+                const weekNum = getWeekNumberForDate(date, member);
+                const dayKey  = DAY_KEYS[date.getDay()];
+                let shift = (roster.data[weekNum]?.[dayKey]) ?? 'RD';
+
+                if (isChristmasRD(date)) shift = 'RD';
+
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                if (window.rosterOverridesCache) {
+                    const ov = window.rosterOverridesCache.get(`${member.name}|${dateStr}`);
+                    if (ov) shift = ov.type === 'rdw' ? 'RDW' : ov.value;
+                }
+
+                if (shift === 'SPARE') types.add('SPARE');
+                else if (shift === 'RDW') types.add('RDW');
+                else if (shift === 'AL')  types.add('AL');
+            }
+            return types;
+        }
+
         // updateLegend — shows/hides conditional legend items:
+        //   Spare/RDW/AL — only when that shift type actually appears this month
         //   Night        — only for Dispatcher roster members
         //   🎄 Christmas — only in December
         //   🐣 Easter    — only in the month Easter Sunday falls in
-        //   🌙/☪️/🕌      — only for members with Islamic markers opted in,
-        //                   and only in the month that date falls in
+        //   Faith events — only for opted-in calendar, only the months that event falls in
         // Called inside renderCalendar() on every navigation.
         function updateLegend() {
             const member = getCurrentMember();
+
+            // Spare / RDW / AL — conditional on whether they appear this month
+            const typesThisMonth = member
+                ? getShiftTypesInMonth(member, currentDisplayYear, currentDisplayMonth)
+                : new Set();
+            const show = (id, visible) => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; };
+            show('legend-spare', typesThisMonth.has('SPARE'));
+            show('legend-rdw',   typesThisMonth.has('RDW'));
+            show('legend-al',    typesThisMonth.has('AL'));
+            // Hide the whole row-2 if all three are absent
+            const row2 = document.getElementById('legend-row-2');
+            if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL')) ? '' : 'none';
+
             const isDispatcher = member && member.rosterType === 'dispatcher';
             const nightItem = document.getElementById('legend-night');
             if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
