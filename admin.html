@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.66 -->
+<!-- MYB Roster Admin v4.68 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -70,9 +70,10 @@
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
         /* iOS status bar fix - blends with app theme.
-           overflow-x: clip on html clips without creating a scroll container (safe for vertical scroll).
-           overflow-x: hidden on body prevents horizontal scroll on iOS Safari. */
-        html { background-color: var(--primary-blue); overflow-x: clip; }
+           No overflow on html — lets body's overflow-x: hidden propagate to the viewport
+           scroll container, which is how index.html works and why it scrolls correctly.
+           overflow-x: hidden on body then prevents horizontal scroll on iOS Safari. */
+        html { background-color: var(--primary-blue); color-scheme: light; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
@@ -91,7 +92,10 @@
         }
 
         /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
-        .container { max-width: 1100px; width: 100%; margin: 0 auto; display: none; gap: 16px; box-sizing: border-box; }
+        /* overflow-x: clip clips any child that overflows the container at the container
+           boundary — prevents overflow from bleeding into body's 16px right padding
+           (which would hide the blue edge). clip is safe: no scroll container created. */
+        .container { max-width: 1100px; width: 100%; margin: 0 auto; display: none; gap: 16px; box-sizing: border-box; overflow-x: clip; }
         body.auth-ready .container { display: grid; }
 
         /* ---- Header ---- */
@@ -2060,7 +2064,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.67';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.68';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2076,7 +2080,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.67';
+const ADMIN_VERSION = '4.68';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
