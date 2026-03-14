@@ -2083,7 +2083,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.73';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.74';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2099,7 +2099,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.73';
+const ADMIN_VERSION = '4.74';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2554,6 +2554,8 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             d.setDate(d.getDate() + (goLeft ? +7 : -7));
             fieldDate.value = lastFieldDate = formatISO(d);
             updateWeekNavLabel(fieldDate.value);
+            updateALBanner();
+            updateALBookedBox();
             userMadeChanges = false;
 
             wCurrent.style.transition = TRANSITION;
