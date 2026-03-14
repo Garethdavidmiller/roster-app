@@ -522,6 +522,131 @@ export const CONGOLESE_INDEPENDENCE_DATES = new Set([
 ]);
 
 // ============================================
+// PORTUGUESE PUBLIC HOLIDAYS — 2025–2031
+// All mandatory national holidays that are not already covered by UK bank
+// holidays (New Year, Good Friday, Christmas) or the app-wide Easter Sunday
+// marker. Easter Sunday is marked for all members via isEasterSunday(), so
+// it is intentionally excluded here to avoid a duplicate icon on that cell.
+// ============================================
+
+// Carnival Tuesday (Terça-feira de Carnaval) — day before Ash Wednesday.
+// Widely observed (schools and public services close) but technically a
+// discretionary "tolerância de ponto" rather than a statutory day off.
+// Dates verified against confirmed Ash Wednesday dates for each year.
+// 2025-03-04, 2026-02-17, 2027-02-09, 2028-02-29, 2029-02-13, 2030-03-05, 2031-02-25
+export const PORTUGUESE_CARNIVAL_DATES = new Set([
+    '2025-03-04',
+    '2026-02-17',
+    '2027-02-09',
+    '2028-02-29',
+    '2029-02-13',
+    '2030-03-05',
+    '2031-02-25',
+]);
+
+// Freedom Day (Dia da Liberdade) — fixed on 25 April each year.
+// Commemorates the Carnation Revolution of 25 April 1974, which ended
+// 48 years of authoritarian dictatorship. The symbol is a red carnation.
+export const PORTUGUESE_FREEDOM_DATES = new Set([
+    '2025-04-25',
+    '2026-04-25',
+    '2027-04-25',
+    '2028-04-25',
+    '2029-04-25',
+    '2030-04-25',
+    '2031-04-25',
+]);
+
+// Labour Day (Dia do Trabalho) — fixed on 1 May each year.
+// Unlike the UK's moveable Early May Bank Holiday, Portugal's is always
+// 1 May. They coincide only when 1 May falls on a Monday (e.g. 2028).
+export const PORTUGUESE_LABOUR_DATES = new Set([
+    '2025-05-01',
+    '2026-05-01',
+    '2027-05-01',
+    '2028-05-01',
+    '2029-05-01',
+    '2030-05-01',
+    '2031-05-01',
+]);
+
+// Portugal Day (Dia de Portugal, de Camões e das Comunidades Portuguesas)
+// — fixed on 10 June each year. Named for Luís de Camões, the national
+// poet, whose death anniversary falls on this date.
+export const PORTUGUESE_PORTUGAL_DAY_DATES = new Set([
+    '2025-06-10',
+    '2026-06-10',
+    '2027-06-10',
+    '2028-06-10',
+    '2029-06-10',
+    '2030-06-10',
+    '2031-06-10',
+]);
+
+// Corpus Christi (Corpo de Deus) — Thursday, exactly 60 days after Easter
+// Sunday. Was suspended 2013–2016 during austerity; fully restored April 2016.
+// Dates independently verified against Easter dates for each year:
+// 2025-06-19, 2026-06-04, 2027-05-27, 2028-06-15, 2029-05-31, 2030-06-20, 2031-06-12
+export const PORTUGUESE_CORPUS_CHRISTI_DATES = new Set([
+    '2025-06-19',
+    '2026-06-04',
+    '2027-05-27',
+    '2028-06-15',
+    '2029-05-31',
+    '2030-06-20',
+    '2031-06-12',
+]);
+
+// Assumption of Mary (Assunção de Nossa Senhora) — fixed on 15 August each year.
+export const PORTUGUESE_ASSUMPTION_DATES = new Set([
+    '2025-08-15',
+    '2026-08-15',
+    '2027-08-15',
+    '2028-08-15',
+    '2029-08-15',
+    '2030-08-15',
+    '2031-08-15',
+]);
+
+// Republic Day (Implantação da República) — fixed on 5 October each year.
+// Marks the proclamation of the Portuguese Republic on 5 October 1910.
+// Suspended 2013–2016; restored April 2016.
+export const PORTUGUESE_REPUBLIC_DATES = new Set([
+    '2025-10-05',
+    '2026-10-05',
+    '2027-10-05',
+    '2028-10-05',
+    '2029-10-05',
+    '2030-10-05',
+    '2031-10-05',
+]);
+
+// Restoration of Independence (Restauração da Independência) — fixed on
+// 1 December each year. Marks the end of 60 years of Spanish rule in 1640.
+// Suspended 2013–2016; restored April 2016.
+export const PORTUGUESE_RESTORATION_DATES = new Set([
+    '2025-12-01',
+    '2026-12-01',
+    '2027-12-01',
+    '2028-12-01',
+    '2029-12-01',
+    '2030-12-01',
+    '2031-12-01',
+]);
+
+// Immaculate Conception (Imaculada Conceição) — fixed on 8 December each year.
+// A major feast in Catholic Portugal; schools and businesses close.
+export const PORTUGUESE_IMMACULATE_DATES = new Set([
+    '2025-12-08',
+    '2026-12-08',
+    '2027-12-08',
+    '2028-12-08',
+    '2029-12-08',
+    '2030-12-08',
+    '2031-12-08',
+]);
+
+// ============================================
 // DATE UTILITIES — shared by index.html and admin.html
 // ============================================
 
@@ -758,6 +883,30 @@ export const CONGOLESE_ICONS = {
     'drc-independence':'🇨🇩',
 };
 
+export const PORTUGUESE_LABELS = {
+    'pt-carnival':     'Carnival Tuesday',
+    'pt-freedom':      'Freedom Day (25 de Abril)',
+    'pt-labour':       'Labour Day (Portugal)',
+    'pt-portugal-day': 'Portugal Day',
+    'pt-corpus':       'Corpus Christi',
+    'pt-assumption':   'Assumption of Mary',
+    'pt-republic':     'Republic Day (Portugal)',
+    'pt-restoration':  'Restoration of Independence',
+    'pt-immaculate':   'Immaculate Conception',
+};
+
+export const PORTUGUESE_ICONS = {
+    'pt-carnival':     '🎭',
+    'pt-freedom':      '🌹',
+    'pt-labour':       '🛠️',
+    'pt-portugal-day': '🇵🇹',
+    'pt-corpus':       '⛪',
+    'pt-assumption':   '🕊️',
+    'pt-republic':     '🏛️',
+    'pt-restoration':  '⚔️',
+    'pt-immaculate':   '✨',
+};
+
 // ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
@@ -806,6 +955,17 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
         if (CONGOLESE_LIBERATION_DATES.has(dateStr))   badges.push({ icon: '✊', title: 'Liberation Day (DRC)' });
         if (CONGOLESE_HEROES_DATES.has(dateStr))       badges.push({ icon: '🏅', title: "Heroes' Day (DRC)" });
         if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) badges.push({ icon: '🇨🇩', title: 'Independence Day (DRC)' });
+    }
+    if (faithCalendar === 'portuguese') {
+        if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))      badges.push({ icon: '🎭', title: 'Carnival Tuesday' });
+        if (PORTUGUESE_FREEDOM_DATES.has(dateStr))       badges.push({ icon: '🌹', title: 'Freedom Day (25 de Abril)' });
+        if (PORTUGUESE_LABOUR_DATES.has(dateStr))        badges.push({ icon: '🛠️', title: 'Labour Day (Portugal)' });
+        if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))  badges.push({ icon: '🇵🇹', title: 'Portugal Day' });
+        if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr))badges.push({ icon: '⛪', title: 'Corpus Christi' });
+        if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))    badges.push({ icon: '🕊️', title: 'Assumption of Mary' });
+        if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))      badges.push({ icon: '🏛️', title: 'Republic Day (Portugal)' });
+        if (PORTUGUESE_RESTORATION_DATES.has(dateStr))   badges.push({ icon: '⚔️', title: 'Restoration of Independence' });
+        if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))    badges.push({ icon: '✨', title: 'Immaculate Conception' });
     }
     return badges;
 }
