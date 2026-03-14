@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.68 -->
+<!-- MYB Roster Admin v4.69 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -411,6 +411,7 @@
             flex: 1;
             padding: 0 4px;
             position: relative;
+            min-width: 0; /* allow flex shrink below min-content so the ● button always has room */
         }
         .week-nav-label {
             display: block;
@@ -423,6 +424,8 @@
             border: 1px solid var(--border-light);
             border-radius: 8px;
             white-space: nowrap;
+            overflow: hidden;        /* clip date text if wrap is narrower than content */
+            text-overflow: ellipsis; /* show … rather than abrupt cut */
             pointer-events: none;
             user-select: none;
         }
@@ -1404,6 +1407,21 @@
                 padding: 4px 7px;
                 font-size: 9px;
             }
+            /* Collapse btn-back to arrow-only so fixed-width items (badge, ?, Sign out)
+               all fit on narrow phones. aria-label preserves screen-reader text. */
+            .app-header .btn-back {
+                font-size: 0;    /* hide "← Roster" text */
+                letter-spacing: 0;
+                width: 34px;
+                padding: 0;
+                justify-content: center;
+            }
+            .app-header .btn-back::after {
+                content: '←';
+                font-size: 14px;
+                font-weight: 700;
+                color: white;
+            }
         }
 
         /* ---- Back-to-roster button (in header) ---- */
@@ -2064,7 +2082,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.68';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.69';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2080,7 +2098,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.68';
+const ADMIN_VERSION = '4.69';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
