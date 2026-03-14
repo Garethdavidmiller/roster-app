@@ -50,6 +50,19 @@ roster-app/
 
 ---
 
+## Brand colours — Chiltern Railways
+
+| Variable | Hex | Use |
+|----------|-----|-----|
+| `--primary-blue` | `#1d3461` | Dark navy — headers, buttons, day-header cells |
+| `--primary-blue-dark` | `#152952` | Deeper navy — hover states |
+| `--accent-blue` | `#0091d5` | Bright Chiltern blue — today cell, today button, active highlights |
+| `--accent-blue-dark` | `#007ab5` | Darker accent blue — hover on today button |
+
+These are Chiltern Railways' official brand colours. Do not revert to the old gold (`#f5c800`) palette. All colour values must be assigned to CSS variables in `:root` — never hardcode hex values in CSS rules.
+
+---
+
 ## Architecture decisions — never change without discussion
 
 | Decision | Reason |
