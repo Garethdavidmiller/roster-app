@@ -469,6 +469,59 @@ export const JAMAICAN_HEROES_DAY_DATES = new Set([
 ]);
 
 // ============================================
+// CONGOLESE PUBLIC HOLIDAYS — 2025–2031
+// All dates are fixed each year.
+// ============================================
+
+// Martyrs' Day — fixed on 4 January each year.
+// Commemorates the deaths of protesters killed on 4 January 1959 in Léopoldville (now Kinshasa).
+export const CONGOLESE_MARTYRS_DATES = new Set([
+    '2025-01-04',
+    '2026-01-04',
+    '2027-01-04',
+    '2028-01-04',
+    '2029-01-04',
+    '2030-01-04',
+    '2031-01-04',
+]);
+
+// Liberation Day — fixed on 17 May each year.
+// Marks the capture of Kinshasa by AFDL forces in 1997, ending Mobutu's rule.
+export const CONGOLESE_LIBERATION_DATES = new Set([
+    '2025-05-17',
+    '2026-05-17',
+    '2027-05-17',
+    '2028-05-17',
+    '2029-05-17',
+    '2030-05-17',
+    '2031-05-17',
+]);
+
+// Heroes' Day — fixed on 1 June each year.
+// Honours national heroes of the Democratic Republic of Congo.
+export const CONGOLESE_HEROES_DATES = new Set([
+    '2025-06-01',
+    '2026-06-01',
+    '2027-06-01',
+    '2028-06-01',
+    '2029-06-01',
+    '2030-06-01',
+    '2031-06-01',
+]);
+
+// Independence Day — fixed on 30 June each year.
+// Marks independence from Belgium on 30 June 1960.
+export const CONGOLESE_INDEPENDENCE_DATES = new Set([
+    '2025-06-30',
+    '2026-06-30',
+    '2027-06-30',
+    '2028-06-30',
+    '2029-06-30',
+    '2030-06-30',
+    '2031-06-30',
+]);
+
+// ============================================
 // DATE UTILITIES — shared by index.html and admin.html
 // ============================================
 
@@ -691,6 +744,20 @@ export const JAMAICAN_ICONS = {
     'heroes-day':     '🏅',
 };
 
+export const CONGOLESE_LABELS = {
+    'drc-martyrs':     "Martyrs' Day",
+    'drc-liberation':  'Liberation Day (DRC)',
+    'drc-heroes':      "Heroes' Day (DRC)",
+    'drc-independence':'Independence Day (DRC)',
+};
+
+export const CONGOLESE_ICONS = {
+    'drc-martyrs':     '🕊️',
+    'drc-liberation':  '✊',
+    'drc-heroes':      '🏅',
+    'drc-independence':'🇨🇩',
+};
+
 // ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
@@ -733,6 +800,12 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
         if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  badges.push({ icon: '✊', title: 'Emancipation Day' });
         if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  badges.push({ icon: '🇯🇲', title: 'Independence Day (Jamaica)' });
         if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    badges.push({ icon: '🏅', title: 'National Heroes Day' });
+    }
+    if (faithCalendar === 'congolese') {
+        if (CONGOLESE_MARTYRS_DATES.has(dateStr))      badges.push({ icon: '🕊️', title: "Martyrs' Day" });
+        if (CONGOLESE_LIBERATION_DATES.has(dateStr))   badges.push({ icon: '✊', title: 'Liberation Day (DRC)' });
+        if (CONGOLESE_HEROES_DATES.has(dateStr))       badges.push({ icon: '🏅', title: "Heroes' Day (DRC)" });
+        if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) badges.push({ icon: '🇨🇩', title: 'Independence Day (DRC)' });
     }
     return badges;
 }

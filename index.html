@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.77 -->
+<!-- MYB Roster Calendar - Version 4.78 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2168,12 +2168,16 @@
                 <div class="legend-item" id="legend-emancipation" style="display:none"><span class="legend-text">✊ Emancipation Day</span></div>
                 <div class="legend-item" id="legend-independence" style="display:none"><span class="legend-text">🇯🇲 Independence Day</span></div>
                 <div class="legend-item" id="legend-heroes-day" style="display:none"><span class="legend-text">🏅 National Heroes Day</span></div>
+                <div class="legend-item" id="legend-drc-martyrs" style="display:none"><span class="legend-text">🕊️ Martyrs' Day</span></div>
+                <div class="legend-item" id="legend-drc-liberation" style="display:none"><span class="legend-text">✊ Liberation Day</span></div>
+                <div class="legend-item" id="legend-drc-heroes" style="display:none"><span class="legend-text">🏅 Heroes' Day</span></div>
+                <div class="legend-item" id="legend-drc-independence" style="display:none"><span class="legend-text">🇨🇩 Independence Day</span></div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS } from './roster-data.js?v=4.77';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS } from './roster-data.js?v=4.78';
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
         import { getFirestore, collection, query, where, getDocs }
             from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -2188,7 +2192,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.77';
+        CONFIG.APP_VERSION = '4.78';
 
         // ============================================
         // FIREBASE INITIALISATION
@@ -2603,8 +2607,8 @@
         // Combined label/icon maps covering Islamic and Hindu calendars.
         // Chinese New Year uses CHINESE_NEW_YEAR_DATES (a Map) directly because
         // the icon varies by year (zodiac animal) rather than being a fixed value.
-        const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS, ...JAMAICAN_LABELS };
-        const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS,  ...JAMAICAN_ICONS  };
+        const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS, ...JAMAICAN_LABELS, ...CONGOLESE_LABELS };
+        const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS,  ...JAMAICAN_ICONS,  ...CONGOLESE_ICONS  };
 
         // Resolve which faith calendar the member has opted in to.
         // Handles backward compat: old Firestore docs stored islamicMarkers:true.
@@ -2648,6 +2652,12 @@
                 if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: FAITH_ICONS['emancipation'],  label: FAITH_LABELS['emancipation']  };
                 if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: FAITH_ICONS['independence'],  label: FAITH_LABELS['independence']  };
                 if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: FAITH_ICONS['heroes-day'],    label: FAITH_LABELS['heroes-day']    };
+            }
+            if (faithCalendar === 'congolese') {
+                if (CONGOLESE_MARTYRS_DATES.has(dateStr))      return { icon: FAITH_ICONS['drc-martyrs'],     label: FAITH_LABELS['drc-martyrs']     };
+                if (CONGOLESE_LIBERATION_DATES.has(dateStr))   return { icon: FAITH_ICONS['drc-liberation'],  label: FAITH_LABELS['drc-liberation']  };
+                if (CONGOLESE_HEROES_DATES.has(dateStr))       return { icon: FAITH_ICONS['drc-heroes'],      label: FAITH_LABELS['drc-heroes']      };
+                if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) return { icon: FAITH_ICONS['drc-independence'],label: FAITH_LABELS['drc-independence'] };
             }
             return null;
         }
@@ -3029,6 +3039,10 @@
                 'legend-emancipation':   [JAMAICAN_EMANCIPATION_DATES,    'jamaican'],
                 'legend-independence':   [JAMAICAN_INDEPENDENCE_DATES,    'jamaican'],
                 'legend-heroes-day':     [JAMAICAN_HEROES_DAY_DATES,      'jamaican'],
+                'legend-drc-martyrs':    [CONGOLESE_MARTYRS_DATES,        'congolese'],
+                'legend-drc-liberation': [CONGOLESE_LIBERATION_DATES,     'congolese'],
+                'legend-drc-heroes':     [CONGOLESE_HEROES_DATES,         'congolese'],
+                'legend-drc-independence':[CONGOLESE_INDEPENDENCE_DATES,  'congolese'],
             };
             for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
                 const el = document.getElementById(id);
@@ -3152,10 +3166,11 @@
             if (!hint) return;
             const cal = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
             const CALENDAR_NAMES = {
-                islamic:  '🌙 Islamic calendar',
-                hindu:    '🪔 Hindu calendar',
-                chinese:  '🧧 Chinese cultural calendar',
-                jamaican: '🇯🇲 Jamaican calendar',
+                islamic:   '🌙 Islamic calendar',
+                hindu:     '🪔 Hindu calendar',
+                chinese:   '🧧 Chinese calendar',
+                jamaican:  '🇯🇲 Jamaican calendar',
+                congolese: '🇨🇩 Congolese calendar',
             };
             if (cal !== 'none') {
                 hint.textContent = (CALENDAR_NAMES[cal] || 'Cultural calendar') + ' markers active';
