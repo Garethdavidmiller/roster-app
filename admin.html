@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.81 -->
+<!-- MYB Roster Admin v4.86 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1849,9 +1849,9 @@
     <div id="tipsLightboxContent">
         <div class="tips-lb-title">Admin Tips</div>
 
-        <div class="tips-lb-section">Adding overrides</div>
+        <div class="tips-lb-section">Changing shifts</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Select a <strong>staff member</strong> and <strong>week</strong> at the top</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>type pill</strong> on any day to set that shift type</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>shift type button</strong> on any day to change it</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save</strong> — unsaved changes are highlighted in amber</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left / right on the week grid to move between weeks</span></div>
 
@@ -1907,8 +1907,8 @@
     <!-- ==================== OVERRIDE FORM ==================== -->
     <div class="card">
         <div class="card-header">
-            <h2>Add / Edit Overrides</h2>
-            <span class="hint">Tap a type pill on a day to set it, or use Apply to multiple days below</span>
+            <h2>Change a Shift</h2>
+            <span class="hint">Tap a shift type button on any day to change it, or use the multi-day tool below</span>
         </div>
         <div class="card-body">
 
@@ -1969,7 +1969,7 @@
             </div>
 
             <button class="btn-save" id="saveBtn" disabled>Save Changes</button>
-            <p class="save-hint" id="saveBtnHint">Select a type for at least one day to save</p>
+            <p class="save-hint" id="saveBtnHint">Choose a shift type on at least one day, then tap Save</p>
             <div class="feedback" id="formFeedback"></div>
 
         </div>
@@ -2044,8 +2044,8 @@
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
-            <h2>Existing Overrides</h2>
-            <span class="hint">All manually saved schedule changes — click to expand and edit or delete</span>
+            <h2>Saved Changes</h2>
+            <span class="hint">All manually saved schedule changes — tap to expand, then edit or delete</span>
             <span class="collapse-chevron" id="overridesChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="overridesBody">
@@ -2145,10 +2145,10 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.85';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.85';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.86';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.86';
 
-const ADMIN_VERSION = '4.85';
+const ADMIN_VERSION = '4.86';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2736,7 +2736,7 @@ function buildWeekGridInto(container, dateStr) {
         <div class="hdr-check"></div>
         <div class="hdr-day">Day</div>
         <div class="hdr-base">Base roster</div>
-        <div class="hdr-pills">Override type</div>
+        <div class="hdr-pills">Change to</div>
         <div class="hdr-time">Shift time</div>
         <div class="hdr-note"></div>`;
     container.appendChild(header);
@@ -2941,7 +2941,7 @@ function deactivateRow(row, cb, pills, startEl, endEl) {
     startEl.tabIndex = endEl.tabIndex = -1;
     delete row.dataset.type;
     const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ has override';
+    if (badge) badge.textContent = '⚠ already saved';
 }
 
 function updateSaveBtn() {
@@ -2960,7 +2960,7 @@ function updateSaveBtn() {
             if (deleteCount) parts.push(`${deleteCount} override${deleteCount > 1 ? 's' : ''} to remove`);
             hint.textContent = `Ready — ${parts.join(', ')}`;
         } else {
-            hint.textContent = 'Select an override type on at least one day';
+            hint.textContent = 'Choose a shift type on at least one day, then tap Save';
         }
     }
 }
@@ -3282,7 +3282,7 @@ async function loadOverrides() {
 function renderTable() {
     const filter = fieldMember.value;
     const rows   = filter ? allOverrides.filter(o => o.memberName === filter) : allOverrides;
-    listCount.textContent = `${rows.length} override${rows.length !== 1 ? 's' : ''}`;
+    listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
 
     if (!rows.length) {
         tableBody.innerHTML = '<tr class="state-row"><td colspan="6">No overrides found.</td></tr>';
