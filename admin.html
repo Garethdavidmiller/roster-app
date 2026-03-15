@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.86 -->
+<!-- MYB Roster Admin v4.87 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -105,8 +105,8 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             background: var(--primary-blue);
-            min-height: 100dvh;
-            min-height: 100vh;
+            min-height: 100vh;  /* Fallback for browsers without dvh support */
+            min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
             padding-top:    max(16px, env(safe-area-inset-top));
             padding-bottom: max(16px, env(safe-area-inset-bottom));
             padding-left:   max(16px, env(safe-area-inset-left));
@@ -289,7 +289,7 @@
             font-size: 14px;
             font-weight: 600;
         }
-        .member-context-bar select:focus { outline: none; border-color: var(--accent-gold); }
+        .member-context-bar select:focus-visible { border-color: var(--accent-gold); }
         .member-context-bar select option { background: white; color: var(--text-dark); }
 
         /* Read-only member display shown inside AL form once member is chosen */
@@ -384,7 +384,6 @@
             text-align-last: center;
         }
 
-        select:focus, input:focus { outline: none; }
         select:focus-visible, input:focus-visible {
             border-color: var(--primary-blue);
             outline: 2px solid var(--primary-blue);
@@ -1885,6 +1884,19 @@
 <!-- Save confirmation toast — anchored to bottom of screen -->
 <div id="saveToast" role="status" aria-live="polite"></div>
 
+<!-- Annual leave over-limit confirmation bar — fixed to bottom of screen -->
+<div class="al-confirm-bar" id="alConfirmBar">
+    <span class="al-confirm-icon">⚠️</span>
+    <div class="al-confirm-body">
+        <div class="al-confirm-msg" id="alConfirmMsg"></div>
+        <div class="al-confirm-sub" id="alConfirmSub"></div>
+        <div class="al-confirm-btns">
+            <button class="btn-confirm-save" id="alConfirmSaveBtn">Save anyway</button>
+            <button class="btn-confirm-cancel" id="alConfirmCancelBtn">Cancel</button>
+        </div>
+    </div>
+</div>
+
 <div class="container">
 
     <header class="app-header">
@@ -2145,10 +2157,11 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.86';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.86';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.87';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.87';
 
-const ADMIN_VERSION = '4.86';
+// ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
+const ADMIN_VERSION = CONFIG.APP_VERSION;
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -2160,10 +2173,24 @@ const ADMIN_NAME = 'G. Miller';
 const AUTH_KEY   = 'myb_admin_session';
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+/**
+ * Derive the login password from a staff member's display name.
+ *
+ * Rules (must stay in sync with how passwords were originally set):
+ *  - Take everything after the first word (the initial + dot), e.g. "G. Miller" → "Miller"
+ *  - Join multi-word surnames without spaces, e.g. "M. De Silva" → "DeSilva"
+ *  - Lowercase the result
+ *  - Strip ALL non-alpha characters: hyphens, apostrophes, spaces, accents, etc.
+ *    e.g. "C. Francisco-Charles" → "franciscocharles"
+ *    e.g. "O'Brien" → "obrien"
+ *
+ * WARNING: changing this function will lock out every staff member.
+ * Any change must be accompanied by a password reset for all affected users.
+ *
+ * @param {string} fullName - Display name exactly as stored in teamMembers, e.g. "G. Miller"
+ * @returns {string} Lowercase password with all non-alpha characters removed
+ */
 function getSurname(fullName) {
-    // 'L. Springer' → 'springer'
-    // 'C. Francisco-Charles' → 'franciscocharles'
-    // 'M. De Silva' → 'desilva'  (strips spaces so mobile auto-cap can't break login)
     return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
 }
 
@@ -4076,16 +4103,5 @@ if (!isAuthenticated) {
     }
 }
 </script>
-<div class="al-confirm-bar" id="alConfirmBar">
-    <span class="al-confirm-icon">⚠️</span>
-    <div class="al-confirm-body">
-        <div class="al-confirm-msg" id="alConfirmMsg"></div>
-        <div class="al-confirm-sub" id="alConfirmSub"></div>
-        <div class="al-confirm-btns">
-            <button class="btn-confirm-save" id="alConfirmSaveBtn">Save anyway</button>
-            <button class="btn-confirm-cancel" id="alConfirmCancelBtn">Cancel</button>
-        </div>
-    </div>
-</div>
 </body>
 </html>
