@@ -15,13 +15,14 @@
 const CACHE_NAME = "myb-roster-v5.5";
 
 // Files that contain roster data — always fetched fresh (network-first).
-const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'roster-data.js'];
+const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'roster-data.js', 'firebase-client.js'];
 
 const ASSETS_TO_CACHE = [
     "./",
     "./index.html",
     "./admin.html",
     "./roster-data.js",
+    "./firebase-client.js",
     "./manifest.json",
     "./icon-120.png",
     "./icon-152.png",

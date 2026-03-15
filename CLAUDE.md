@@ -2,18 +2,20 @@
 
 ## Version bumping (MANDATORY on every change)
 
-Always bump the version number before committing. Five places must stay in sync:
+Always bump the version number before committing. Seven places must stay in sync:
 
 | File | Location | Example |
 |------|----------|---------|
 | `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.55 -->` |
-| `index.html` | `CONFIG.APP_VERSION = '...'` (~line 2159) | `CONFIG.APP_VERSION = '4.55';` |
-| `index.html` | `import ... from './roster-data.js?v=...'` (~line 2147) | `roster-data.js?v=4.55` |
-| `admin.html` | `const ADMIN_VERSION = '...'` (~line 2021) | `const ADMIN_VERSION = '4.55';` |
-| `admin.html` | `import ... from './roster-data.js?v=...'` (~line 1751) | `roster-data.js?v=4.55` |
+| `index.html` | `CONFIG.APP_VERSION = '...'` | `CONFIG.APP_VERSION = '4.55';` |
+| `index.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.55` |
+| `index.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.55` |
+| `admin.html` | `const ADMIN_VERSION = '...'` | `const ADMIN_VERSION = '4.55';` |
+| `admin.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.55` |
+| `admin.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.55` |
 
 - Increment the patch number (e.g. 4.55 → 4.56) for every commit that touches app behaviour
-- All five locations must show the same version number
+- All seven locations must show the same version number
 - Tell the user the new version number in your reply after committing
 
 ---
@@ -39,13 +41,14 @@ roster-app/
 ├── index.html          ← main PWA app
 ├── admin.html          ← staff self-service and admin portal
 ├── roster-data.js      ← shared module: CONFIG, teamMembers, all roster data, utility functions
+├── firebase-client.js  ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── service-worker.js   ← v5.5
 ├── manifest.json       ← PWA manifest
 └── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
 ```
 
 **Service worker caching strategy (v5.5):**
-- Network-first: `index.html`, `admin.html`, `roster-data.js` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `roster-data.js`, `firebase-client.js` — must always be fresh
 - Cache-first: all icons, `manifest.json` — stable assets
 
 ---
