@@ -11,19 +11,28 @@
 // Together these mean updates go live on the current tab without a manual reload
 // in most cases — but the app also sends SKIP_WAITING on the rare edge case
 // where a waiting SW needs a nudge.
+//
+// Cache name includes the app version so any app version bump triggers a full
+// cache refresh on all clients — staff always receive the latest roster logic.
 
-const CACHE_NAME = "myb-roster-v5.5";
+const APP_VERSION = '4.87';
+const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
 const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'roster-data.js', 'firebase-client.js'];
 
-const ASSETS_TO_CACHE = [
-    "./",
+// Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
+const CORE_ASSETS = [
     "./index.html",
     "./admin.html",
     "./roster-data.js",
     "./firebase-client.js",
-    "./manifest.json",
+    "./manifest.json"
+];
+
+// Icons — cached individually so a transient network error on one icon does not
+// block the whole service worker from installing (addAll is all-or-nothing).
+const ICON_ASSETS = [
     "./icon-120.png",
     "./icon-152.png",
     "./icon-167.png",
@@ -36,12 +45,20 @@ const ASSETS_TO_CACHE = [
 // INSTALL — pre-cache all assets
 // ============================================
 self.addEventListener("install", event => {
-    console.log("[SW v5.5] Installing");
+    console.log(`[SW ${APP_VERSION}] Installing`);
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(ASSETS_TO_CACHE))
+            .then(cache => cache.addAll(CORE_ASSETS))
+            .then(() => caches.open(CACHE_NAME).then(cache =>
+                // Cache icons one at a time — a missing icon won't block activation
+                Promise.all(ICON_ASSETS.map(icon =>
+                    cache.add(icon).catch(err =>
+                        console.warn(`[SW ${APP_VERSION}] Icon cache skipped (${icon}):`, err)
+                    )
+                ))
+            ))
             .then(() => {
-                console.log("[SW v5.5] Cached — activating immediately");
+                console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
                 return self.skipWaiting();
             })
     );
@@ -51,19 +68,19 @@ self.addEventListener("install", event => {
 // ACTIVATE — delete old caches, claim all open tabs
 // ============================================
 self.addEventListener("activate", event => {
-    console.log("[SW v5.5] Activating");
+    console.log(`[SW ${APP_VERSION}] Activating`);
     event.waitUntil(
         caches.keys()
             .then(cacheNames => Promise.all(
                 cacheNames
                     .filter(name => name !== CACHE_NAME)
                     .map(name => {
-                        console.log("[SW v5.5] Deleting old cache:", name);
+                        console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
                         return caches.delete(name);
                     })
             ))
             .then(() => {
-                console.log("[SW v5.5] Claiming all clients");
+                console.log(`[SW ${APP_VERSION}] Claiming all clients`);
                 return self.clients.claim();
             })
     );
@@ -94,8 +111,8 @@ self.addEventListener("fetch", event => {
                     return response;
                 })
                 .catch(() => {
-                    console.log("[SW v5.5] Offline — serving from cache:", path);
-                    return caches.match(event.request) || caches.match("./index.html");
+                    console.log(`[SW ${APP_VERSION}] Offline — serving from cache:`, path);
+                    return caches.match(event.request).then(r => r || caches.match("./index.html"));
                 })
         );
     } else {
@@ -125,7 +142,7 @@ self.addEventListener("fetch", event => {
 // older Chrome versions).
 self.addEventListener("message", event => {
     if (event.data && event.data.type === "SKIP_WAITING") {
-        console.log("[SW v5.5] SKIP_WAITING received — activating");
+        console.log(`[SW ${APP_VERSION}] SKIP_WAITING received — activating`);
         self.skipWaiting();
     }
 });

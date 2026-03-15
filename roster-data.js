@@ -1,11 +1,14 @@
 // MYB Roster — Shared Data
 // Single source of truth for roster configuration, team members, and shift patterns.
 // ES module — import named exports into consuming files:
-//   import { CONFIG, teamMembers, weeklyRoster, ... } from './roster-data.js';
+//   import { CONFIG, APP_VERSION, teamMembers, weeklyRoster, ... } from './roster-data.js';
 //
-// Each consuming file adds its own version constant after import:
-//   index.html → CONFIG.APP_VERSION = 'x.xx';
-//   admin.html → const ADMIN_VERSION = 'x.xx';
+// APP_VERSION is the single authoritative version number. Both HTML files read it at runtime
+// via CONFIG.APP_VERSION (set below). The only manual version step remaining is updating the
+// import cache-busting query strings in index.html and admin.html when the version changes.
+
+/** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
+export const APP_VERSION = '4.87';
 
 // ============================================
 // CONFIGURATION
@@ -28,6 +31,7 @@ export const CONFIG = {
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
+    APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
 
 // ============================================
@@ -659,7 +663,12 @@ export function isSameDay(date1, date2) {
 
 // Calculate all UK bank holidays for a given year (England & Wales).
 // Uses the Computus algorithm for Easter. Returns an array of Date objects.
+// Only supports years within CONFIG.MIN_YEAR–CONFIG.MAX_YEAR; returns [] outside that range.
 function calculateBankHolidays(year) {
+    if (year < CONFIG.MIN_YEAR || year > CONFIG.MAX_YEAR) {
+        console.warn(`calculateBankHolidays: year ${year} is outside supported range (${CONFIG.MIN_YEAR}–${CONFIG.MAX_YEAR}). Returning empty list.`);
+        return [];
+    }
     const holidays = [];
 
     // New Year's Day (or substitute if weekend)
@@ -769,9 +778,22 @@ export function getPaydaysAndCutoffs(year) {
         let currentMs = CONFIG.FIRST_PAYDAY.getTime()
             + cyclesSinceFirst * CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
 
-        while (new Date(currentMs).getFullYear() < year) currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
+        // Safety guard: if FIRST_PAYDAY is misconfigured, prevent an infinite loop.
+        let advanceGuard = 0;
+        while (new Date(currentMs).getFullYear() < year) {
+            currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
+            if (++advanceGuard > 1000) {
+                console.warn('getPaydaysAndCutoffs: exceeded loop guard advancing to year', year, '— check FIRST_PAYDAY in CONFIG.');
+                break;
+            }
+        }
 
+        let cycleGuard = 0;
         while (new Date(currentMs).getFullYear() === year) {
+            if (++cycleGuard > 100) {
+                console.warn('getPaydaysAndCutoffs: exceeded cycle guard for year', year, '— check PAYDAY_INTERVAL_DAYS in CONFIG.');
+                break;
+            }
             const raw = new Date(currentMs);
             let payday = new Date(raw.getFullYear(), raw.getMonth(), raw.getDate(), 12, 0, 0);
             while (isBankHoliday(payday)) payday.setDate(payday.getDate() - 1);
@@ -969,3 +991,75 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
     }
     return badges;
 }
+
+// ============================================
+// ROSTER PATTERN VALIDATION
+// ============================================
+
+/**
+ * Validate all shift strings in every roster pattern object.
+ * Valid values: 'RD', 'OFF', 'SPARE', 'AL', 'RDW', or 'HH:MM-HH:MM'.
+ * Logs a console.error for every invalid entry so problems are caught at load time.
+ * Called once automatically when the module loads.
+ */
+export function validateRosterPatterns() {
+    const SHIFT_RE = /^\d{2}:\d{2}-\d{2}:\d{2}$/;
+    const VALID_KEYWORDS = new Set(['RD', 'OFF', 'SPARE', 'AL', 'RDW']);
+    const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const rosters = { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
+    let errors = 0;
+
+    for (const [rosterName, roster] of Object.entries(rosters)) {
+        for (const [week, days] of Object.entries(roster)) {
+            for (const day of DAYS) {
+                const shift = days[day];
+                if (shift === undefined) {
+                    console.error(`validateRosterPatterns: ${rosterName} week ${week} is missing day '${day}'`);
+                    errors++;
+                } else if (!VALID_KEYWORDS.has(shift) && !SHIFT_RE.test(shift)) {
+                    console.error(`validateRosterPatterns: ${rosterName} week ${week} ${day} has invalid value '${shift}' — expected RD/OFF/SPARE/AL/RDW or HH:MM-HH:MM`);
+                    errors++;
+                }
+            }
+        }
+    }
+
+    if (errors === 0) {
+        console.log('validateRosterPatterns: all patterns valid ✓');
+    }
+    return errors;
+}
+
+/**
+ * Warn if any active cultural/faith calendar has no entries for the current year.
+ * Missing entries silently remove all markers for that calendar — this warning surfaces the gap.
+ * Only checks the primary Islamic calendar as a representative sample; extend as needed.
+ */
+export function warnIfCulturalCalendarMissingYear() {
+    const year = new Date().getFullYear();
+    const yearStr = String(year);
+
+    const checks = [
+        { name: 'Islamic (Eid al-Fitr)',      dates: EID_FITR_DATES },
+        { name: 'Islamic (Eid al-Adha)',       dates: EID_ADHA_DATES },
+        { name: 'Hindu (Diwali)',              dates: DIWALI_DATES },
+        { name: 'Chinese (New Year)',          dates: CHINESE_NEW_YEAR_DATES },
+        { name: 'Jamaican (Independence Day)', dates: JAMAICAN_INDEPENDENCE_DATES },
+        { name: 'Congolese (Independence)',    dates: CONGOLESE_INDEPENDENCE_DATES },
+        { name: 'Portuguese (Portugal Day)',   dates: PORTUGUESE_PORTUGAL_DAY_DATES },
+    ];
+
+    checks.forEach(({ name, dates }) => {
+        // Sets store 'YYYY-MM-DD' strings; Maps store year number keys
+        const hasYear = dates instanceof Map
+            ? dates.has(year)
+            : [...dates].some(d => d.startsWith(yearStr));
+        if (!hasYear) {
+            console.warn(`warnIfCulturalCalendarMissingYear: no entries for ${year} in ${name}. Cultural markers will be missing for this year.`);
+        }
+    });
+}
+
+// Run validations immediately at module load
+validateRosterPatterns();
+warnIfCulturalCalendarMissingYear();

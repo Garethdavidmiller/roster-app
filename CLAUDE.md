@@ -2,20 +2,23 @@
 
 ## Version bumping (MANDATORY on every change)
 
-Always bump the version number before committing. Seven places must stay in sync:
+**As of v4.87:** `APP_VERSION` is declared once in `roster-data.js` and read everywhere else. You only need to update **five** places:
 
 | File | Location | Example |
 |------|----------|---------|
-| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.55 -->` |
-| `index.html` | `CONFIG.APP_VERSION = '...'` | `CONFIG.APP_VERSION = '4.55';` |
-| `index.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.55` |
-| `index.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.55` |
-| `admin.html` | `const ADMIN_VERSION = '...'` | `const ADMIN_VERSION = '4.55';` |
-| `admin.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.55` |
-| `admin.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.55` |
+| `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.87'` ← **primary source** |
+| `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.87'` ← must match |
+| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.87 -->` |
+| `index.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.87` |
+| `index.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.87` |
+| `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.87 -->` |
+| `admin.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.87` |
+| `admin.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.87` |
 
-- Increment the patch number (e.g. 4.55 → 4.56) for every commit that touches app behaviour
-- All seven locations must show the same version number
+`CONFIG.APP_VERSION` and `ADMIN_VERSION` in the HTML files now read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
+
+- Increment the patch number (e.g. 4.87 → 4.88) for every commit that touches app behaviour
+- The import `?v=` cache-busting strings **must** still be updated manually (browsers use them to bust the module cache)
 - Tell the user the new version number in your reply after committing
 
 ---
@@ -40,16 +43,17 @@ The goal is that Gareth understands the codebase, not just that the codebase wor
 roster-app/
 ├── index.html          ← main PWA app
 ├── admin.html          ← staff self-service and admin portal
-├── roster-data.js      ← shared module: CONFIG, teamMembers, all roster data, utility functions
+├── roster-data.js      ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── firebase-client.js  ← shared module: Firebase init (one place), exports db + all Firestore functions
-├── service-worker.js   ← v5.5
+├── service-worker.js   ← v5.5 (cache name now includes app version, e.g. myb-roster-v4.87)
 ├── manifest.json       ← PWA manifest
 └── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
 ```
 
-**Service worker caching strategy (v5.5):**
+**Service worker caching strategy:**
 - Network-first: `index.html`, `admin.html`, `roster-data.js`, `firebase-client.js` — must always be fresh
-- Cache-first: all icons, `manifest.json` — stable assets
+- Cache-first: icons (cached individually), `manifest.json` — stable assets
+- Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 
 ---
 
@@ -164,3 +168,60 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 - **Print CSS** — any new shift type, cell class, or badge needs rules inside `@media print`.
 - **No `alert()`** — use `console.error()` for developer errors. No visible error text for recoverable failures.
 - **Code quality** — pure functions where possible, JSDoc on all functions, meaningful variable names, error handling on all async operations.
+
+---
+
+## Senior code review — v4.86 → v4.87 (March 2026)
+
+A full audit was completed at v4.86. The items below are ordered by priority. Items marked ✅ were fixed in v4.87.
+
+### Fixed in v4.87
+
+| # | Severity | What was fixed |
+|---|----------|----------------|
+| 2/25 | 🟠 High | **Service worker offline fallback was broken.** `caches.match() \|\| caches.match()` joined two Promises (always truthy), so the index.html fallback never triggered. Fixed to `.then(r => r \|\| ...)`. |
+| 26 | 🟠 High | **Cache name was independent of app version.** Cache is now `myb-roster-v{APP_VERSION}` so any version bump automatically invalidates old caches across all clients. |
+| 27 | 🟠 High | **`cache.addAll()` on all assets — a missing icon blocked SW install.** Icons are now cached individually in try/catch so a transient network error on one icon does not prevent the service worker from activating. |
+| 20 | 🟢 Low | **`"./"` and `"./index.html"` were both in ASSETS_TO_CACHE** — same resource cached twice. Removed `"./"`. |
+| 5 | 🟢 Low | **CSS `dvh`/`vh` fallback order was wrong** — `100dvh` came first then `100vh` overwrote it in all browsers. Swapped to `100vh` first, `100dvh` second (modern browsers use the last valid value). Fixed in both HTML files. |
+| 1 | 🟠 High | **`#alConfirmBar` HTML was after `</script>` outside the normal document flow.** Moved inside `<body>` alongside other UI elements where it is guaranteed to render correctly. |
+| 3 | 🟡 Med | **Payday loop had no guard.** If `FIRST_PAYDAY` were ever misconfigured, the while loop could iterate thousands of times. Added a 1000-iteration guard with a `console.warn`. |
+| 6 | 🟢 Low | **`calculateBankHolidays()` had no year-range guard.** Now returns `[]` and logs a warning for years outside `CONFIG.MIN_YEAR`–`CONFIG.MAX_YEAR`. |
+| 4 | 🟡 Med | **`getSurname()` lacked documentation.** Added JSDoc explaining exactly which characters are stripped and warning that changing this function locks out all staff. |
+| 21 | 🟡 Med | **`select:focus { outline: none }` removed focus ring for keyboard/AT users.** Removed the `:focus` suppression rule; the styled ring is now applied only on `:focus-visible`. Fixed in both HTML files. |
+| 29 | 🟢 Low | **`manifest.json` was missing `id` field.** Added `"id": "/"`. Without it, if the URL ever changes, installed PWAs lose their home-screen icon. |
+| 33 | 🟡 Med | **Roster pattern strings had no validation.** Added `validateRosterPatterns()` and `warnIfCulturalCalendarMissingYear()` in `roster-data.js`; both run automatically at module load and log errors/warnings to the console. |
+| 10 | 🟡 Med | **Version number required manual updates in 7 places** — a known source of drift. `APP_VERSION` is now exported from `roster-data.js` and read by both HTML files via `CONFIG.APP_VERSION`. The remaining manual step is updating the import `?v=` cache-busting strings. |
+| 15 | 🟠 High | **innerHTML + Firestore data audit.** Reviewed all `innerHTML` assignments. The override list table (admin.html ~3296) correctly passes all Firestore values through `esc()`. The `alPreview.innerHTML` correctly uses `esc(member)`. All other `innerHTML` assignments use only app-computed values. **No changes required — audit passed.** |
+
+### Remaining items — not yet fixed
+
+These were identified in the audit but not addressed in v4.87. Tackle in future sessions:
+
+#### 🔴 Critical
+- **#13 — Firestore Security Rules missing.** The Firebase credentials are public (expected), but without Firestore rules anyone can read/write the entire database from a browser console. Log in to the Firebase Console → Firestore → Rules and restrict access. Also consider Firebase App Check and restricting the API key in Google Cloud Console.
+
+#### 🟠 High
+- **#7 — Core roster logic duplicated across both HTML files.** `getWeekNumberForDate` / `getWeekNum`, `getRosterForMember` / `getRosterData`, `shiftBadge` / `getShiftBadge`, etc. exist in both files with diverging implementations. Plan: move all shared logic into `roster-data.js` and export it.
+- **#8 — ~1,500 lines of CSS duplicated** between index.html and admin.html. Plan: extract shared CSS to `shared.css` linked from both files.
+- **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
+- **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js`, and `shared.css`.
+
+#### 🟡 Medium
+- **#9 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` (added in v4.87) will now warn if a year is missing. Long-term: store in Firestore or a JSON file.
+- **#11 — `ADMIN_NAME` is hardcoded** in `admin.html`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
+- **#16 — JavaScript is embedded in HTML files** — cannot be linted, tested, or cached independently. Plan: same as #31 above.
+- **#18 — `getShiftTypesInMonth()` recalculates all days on every swipe.** Plan: cache result keyed by `memberName + year + month`, clear on override change.
+- **#22 — Splash screen uses a fixed 1.5s delay.** On fast connections this is dead time; on slow ones it disappears before the calendar is ready. Plan: dismiss when `renderCalendar()` completes, with a 300ms minimum.
+- **#28 — App auto-reloads on `controllerchange`.** The `window.location.reload()` is triggered immediately when the new service worker takes control — this can interrupt a user mid-booking. Plan: show a "Update ready — tap to refresh" toast instead, let user choose when to reload. *(Note: in index.html the reload is already behind the "Update now" button. Admin.html has no SW update UI — add it there too.)*
+- **#32 — Cultural calendar annual maintenance** (same as #9).
+- **#34 — No automated tests.** Pure utility functions in `roster-data.js` (bank holidays, payday, Easter, shift classification) are ideal for unit tests. Plan: add 10–15 tests using Node's built-in `node:test` runner — no build step, no dependencies.
+
+#### 🟢 Low
+- **#19 — Override list re-queries Firestore after every edit.** Plan: update local in-memory list and re-render from that.
+- **#23 — Legend is very long on mobile.** Plan: collapse cultural calendar section by default.
+- **#24 — Print output lacks member name, date, and print timestamp.** Plan: add `@media print` header rule.
+- **#30 — No PWA shortcuts defined in manifest.** Plan: add `shortcuts` array for "My Roster" and "Admin".
+- **#35 — No linter or formatter.** Plan: add `.eslintrc.json` with `eslint:recommended` and `.prettierrc`.
+
+---
