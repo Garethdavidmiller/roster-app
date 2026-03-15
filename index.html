@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.80 -->
+<!-- MYB Roster Calendar - Version 4.81 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -68,6 +68,26 @@
             --bg-light: #f8f8f8;
             --bg-faint: #f5f5f5;
             --today-print: #fffde7; /* Softer gold for print — avoids ink waste vs full accent-gold */
+
+            /* AL button hover */
+            --al-hover:                #00796b;
+
+            /* Desktop background gradient (≥1025px) */
+            --desktop-gradient-start:  #0a2240;
+            --desktop-gradient-end:    #001630;
+
+            /* SW update status pill colours */
+            --status-ok:               #4caf50;
+            --status-ok-bg:            rgba(76, 175, 80, 0.15);
+            --status-update:           #64b5f6;
+            --status-update-bg:        rgba(100, 181, 246, 0.15);
+            --update-btn:              #1976d2;
+            --update-btn-active:       #1565c0;
+
+            /* AL lightbox value state colours */
+            --al-lb-ok:                #4db6ac;   /* plenty of leave remaining */
+            --al-lb-low:               #ffb74d;   /* leave running low */
+            --al-lb-empty:             #ef9a9a;   /* no leave remaining */
 
             /* Border Radius */
             --radius-md: 12px;
@@ -322,8 +342,8 @@
             }
 
             .controls button.al-btn:hover {
-                background: #00796b;
-                border-color: #00796b;
+                background: var(--al-hover);
+                border-color: var(--al-hover);
             }
         }
 
@@ -747,7 +767,7 @@
                 display: flex;
                 flex-direction: column;
                 overflow: hidden;
-                background: linear-gradient(160deg, #0a2240 0%, #001630 100%);
+                background: linear-gradient(160deg, var(--desktop-gradient-start) 0%, var(--desktop-gradient-end) 100%);
                 padding: 16px;
             }
 
@@ -1643,13 +1663,13 @@
         }
 
         .lightbox-status.up-to-date {
-            color: #4caf50;
-            background: rgba(76, 175, 80, 0.15);
+            color: var(--status-ok);
+            background: var(--status-ok-bg);
         }
 
         .lightbox-status.update-available {
-            color: #64b5f6;
-            background: rgba(100, 181, 246, 0.15);
+            color: var(--status-update);
+            background: var(--status-update-bg);
         }
 
         .lightbox-status.checking {
@@ -1660,7 +1680,7 @@
         .lightbox-update-btn {
             margin-top: 8px;
             padding: 10px 24px;
-            background: #1976d2;
+            background: var(--update-btn);
             color: white;
             border: none;
             border-radius: 20px;
@@ -1672,13 +1692,13 @@
         }
 
         .lightbox-update-btn:active {
-            background: #1565c0;
+            background: var(--update-btn-active);
             transform: scale(0.96);
         }
 
         @media (hover: hover) and (pointer: fine) {
             .lightbox-update-btn:hover {
-                background: #1565c0;
+                background: var(--update-btn-active);
             }
         }
 
@@ -1845,10 +1865,10 @@
             font-size: 36px;
             font-weight: 800;
             line-height: 1;
-            color: #4db6ac;
+            color: var(--al-lb-ok);
         }
-        .al-lb-val.low   { color: #ffb74d; }
-        .al-lb-val.empty { color: #ef9a9a; }
+        .al-lb-val.low   { color: var(--al-lb-low); }
+        .al-lb-val.empty { color: var(--al-lb-empty); }
         .al-lb-lbl {
             font-size: 10px;
             font-weight: 600;
@@ -2204,7 +2224,7 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.80';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.81';
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
         import { getFirestore, collection, query, where, getDocs }
             from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -2219,7 +2239,7 @@
         // - CSS variables for instant theme changes
         // ============================================
 
-        CONFIG.APP_VERSION = '4.80';
+        CONFIG.APP_VERSION = '4.81';
 
         // ============================================
         // FIREBASE INITIALISATION
