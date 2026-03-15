@@ -1392,12 +1392,17 @@
                 height: 20px;
             }
 
-            /* Time inputs: larger tap target on touch */
+            /* Time inputs: larger tap target on touch, with padding restored.
+               The base rule reduces padding to 5px 7px for desktop compactness.
+               Without restoring it here, iOS renders the box noticeably short
+               (29px tall vs 35px for other inputs) — Android tolerates this better
+               due to looser Roboto font metrics. */
             .col-time input.time-input {
-                flex: 0 0 100px;
-                width: 100px;
-                max-width: 100px;
+                flex: 0 0 105px;
+                width: 105px;
+                max-width: 105px;
                 min-width: 0;
+                padding: 7px 8px;
             }
 
             /* Bulk time inputs fill available space */
@@ -2140,23 +2145,10 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.81';
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
-import {
-    getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
-} from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.85';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.85';
 
-const app = initializeApp({
-    apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
-    authDomain:        'myb-roster.firebaseapp.com',
-    projectId:         'myb-roster',
-    storageBucket:     'myb-roster.firebasestorage.app',
-    messagingSenderId: '532910998075',
-    appId:             '1:532910998075:web:b8360ba6a582554481921e'
-});
-const db = getFirestore(app);
-
-const ADMIN_VERSION = '4.81';
+const ADMIN_VERSION = '4.85';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
