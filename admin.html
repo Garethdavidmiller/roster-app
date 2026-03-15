@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.87 -->
+<!-- MYB Roster Admin v4.88 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1509,6 +1509,9 @@
             .btn-signout:hover { border-color: var(--error-red); color: var(--error-red); }
         }
 
+        /* Print header — hidden on screen, shown by @media print */
+        #printHeader { display: none; }
+
         /* ---- Login overlay ---- */
         #loginOverlay {
             display: none;
@@ -1808,19 +1811,27 @@
             /* Section cards */
             .week-section { break-inside: avoid; margin-bottom: 16px; }
 
-            /* Page title */
-            body::before {
-                content: "MYB Roster — Admin Overrides";
+            /* Page title — populated by beforeprint listener */
+            #printHeader {
                 display: block;
-                font-size: 18px;
+                font-size: 15px;
                 font-weight: 700;
                 margin-bottom: 16px;
                 color: black;
+            }
+            #printHeader .print-sub {
+                display: block;
+                font-size: 12px;
+                font-weight: 400;
+                margin-top: 3px;
+                color: #444;
             }
         }
     </style>
 </head>
 <body>
+<!-- Print-only header — populated by beforeprint listener; hidden on screen -->
+<div id="printHeader" aria-hidden="true"></div>
 <!-- Login overlay — shown when no valid session exists -->
 <div id="loginOverlay" role="dialog" aria-label="Sign in to Admin" aria-modal="true">
     <div id="loginCard">
@@ -2157,8 +2168,8 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.87';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.87';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.88';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.88';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3208,7 +3219,9 @@ async function executeSave(toSave, toDelete = []) {
     saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`;
 
     try {
-        const batch = writeBatch(db);
+        const batch   = writeBatch(db);
+        const newDocs = [];   // track new docs for in-memory update
+
         // Process deletions first (deactivated pre-filled rows)
         toDelete.forEach(id => batch.delete(doc(db, 'overrides', id)));
 
@@ -3220,6 +3233,8 @@ async function executeSave(toSave, toDelete = []) {
             const { existingId: _, ...data } = entry;
             const newRef = doc(collection(db, 'overrides'));
             batch.set(newRef, { ...data, createdAt: serverTimestamp() });
+            // Capture the new ID so we can update allOverrides without a round-trip
+            newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
         });
         await batch.commit();
 
@@ -3239,7 +3254,16 @@ async function executeSave(toSave, toDelete = []) {
             if (cb) deactivateRow(row, cb, pills, s, e);
         });
 
-        await loadOverrides();
+        // Update allOverrides in-memory — no Firestore round-trip needed
+        const removedIds = new Set([
+            ...toDelete,
+            ...toSave.filter(e => e.existingId).map(e => e.existingId)
+        ]);
+        allOverrides = allOverrides.filter(o => !removedIds.has(o.id));
+        allOverrides.push(...newDocs);
+        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        renderTable();
+        if (fieldMember.value && fieldDate.value) renderWeekGrid();
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);
@@ -3780,11 +3804,13 @@ alSaveBtn.addEventListener('click', async () => {
     }
 
     try {
-        const alBatch = writeBatch(db);
+        const alNewDocs    = [];   // track new docs for in-memory update
+        const alDeletedIds = new Set();
+        const alBatch      = writeBatch(db);
         workingDates.forEach(date => {
             // Overwrite any existing override for this member+date
             const existing = allOverrides.find(o => o.memberName === member && o.date === date);
-            if (existing) alBatch.delete(doc(db, 'overrides', existing.id));
+            if (existing) { alBatch.delete(doc(db, 'overrides', existing.id)); alDeletedIds.add(existing.id); }
             const newRef = doc(collection(db, 'overrides'));
             alBatch.set(newRef, {
                 memberName: member,
@@ -3794,6 +3820,8 @@ alSaveBtn.addEventListener('click', async () => {
                 note:  '',
                 createdAt: serverTimestamp()
             });
+            // Capture the new ID so we can update allOverrides without a round-trip
+            alNewDocs.push({ id: newRef.id, memberName: member, date, type: 'annual_leave', value: 'AL', note: '', createdAt: new Date() });
         });
         await alBatch.commit();
 
@@ -3804,7 +3832,12 @@ alSaveBtn.addEventListener('click', async () => {
         alFrom.value = alTo.value = '';
         updateAlPreview();
 
-        await loadOverrides();
+        // Update allOverrides in-memory — no Firestore round-trip needed
+        allOverrides = allOverrides.filter(o => !alDeletedIds.has(o.id));
+        allOverrides.push(...alNewDocs);
+        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        renderTable();
+        if (fieldMember.value && fieldDate.value) renderWeekGrid();
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
         alFeedback.className = 'feedback error';
@@ -4085,6 +4118,17 @@ function updateALBookedBox() {
     // Expose loader so the auth block can call it after currentUser is confirmed
     window._loadReligiousSetting = loadReligiousSetting;
 })();
+
+// ============================================
+// PRINT HEADER — member name, week, timestamp
+// ============================================
+window.addEventListener('beforeprint', () => {
+    const member    = fieldMember.value || 'All members';
+    const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
+    const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
+    const el        = document.getElementById('printHeader');
+    if (el) el.innerHTML = `MYB Roster \u2014 ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} \u00b7 Printed: ${esc(now)}</span>`;
+});
 
 if (!isAuthenticated) {
     // Show login overlay; do not load any Firestore data
