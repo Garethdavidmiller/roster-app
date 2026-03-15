@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.72 -->
+<!-- MYB Roster Admin v4.81 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -48,6 +48,31 @@
             --border-mid:        #cccccc;
             --bg-light:          #f8f8f8;
             --bg-faint:          #f5f5f5;
+            --today-print:       #fffde7;   /* Softer gold highlight — today row and active row */
+
+            /* AL balance state colours */
+            --al-low:            #e67e00;   /* AL running low — orange */
+            --al-warning:        #c0392b;   /* AL at zero / over limit — red */
+            --al-warning-bg:     #fdecea;   /* AL warning message background */
+            --al-deep:           #004d40;   /* Deep teal — AL pill text, AL preview ready */
+
+            /* Day-row state backgrounds */
+            --row-selected-bg:        #e8f0f8;   /* Checkbox ticked, no type yet */
+            --row-override-bg:        #fff3cd;   /* Has existing Firestore override */
+            --row-override-active-bg: #ffe0b2;   /* Override + type set */
+
+            /* Current-week nav highlight */
+            --week-current-bg:   #e8f4fb;
+
+            /* Feedback / status */
+            --success-text:      #1b5e20;   /* Success message text (dark green) */
+
+            /* AL over-limit confirm bar */
+            --al-confirm-bg:     #fff8e1;   /* Warm yellow bar background */
+            --al-confirm-accent: #f9a825;   /* Border and save button */
+
+            /* Override list pill text colours */
+            --correction-text:   #e65100;   /* Correction pill text (burnt orange) */
 
             /* Border Radius */
             --radius-md:         12px;
@@ -312,13 +337,13 @@
         }
         .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; }
         .al-banner-divider { width: 1px; background: var(--al, #00897b); opacity: 0.3; align-self: stretch; }
-        .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: #e67e00; }
-        .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: #c0392b; }
+        .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: var(--al-low); }
+        .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: var(--al-warning); }
         .al-banner-warning-msg {
             font-size: 11px;
             font-weight: 600;
-            color: #c0392b;
-            background: #fdecea;
+            color: var(--al-warning);
+            background: var(--al-warning-bg);
             border-radius: 4px;
             padding: 2px 7px;
             margin-left: auto;
@@ -449,8 +474,8 @@
         /* Blue border when the displayed week is the current week */
         .week-nav-label.is-current-week {
             border-color: var(--accent-gold);
-            background: #e8f4fb;
-            color: #001e3c;
+            background: var(--week-current-bg);
+            color: var(--primary-blue);
         }
 
         /* ---- Shift badges ---- */
@@ -664,12 +689,12 @@
         .day-row:last-child { border-bottom: none; }
 
         /* Pre-selected (checkbox ticked, no type yet) */
-        .day-row.selected   { background: #e8f0f8; }
+        .day-row.selected   { background: var(--row-selected-bg); }
         /* Active (type is set — ready to save) */
-        .day-row.active     { background: #fffde7; }
+        .day-row.active     { background: var(--today-print); }
         /* Has an existing Firestore override — will overwrite */
-        .day-row.has-override { background: #fff3cd; border-left: 4px solid var(--orange); }
-        .day-row.has-override.active { background: #ffe0b2; }
+        .day-row.has-override { background: var(--row-override-bg); border-left: 4px solid var(--orange); }
+        .day-row.has-override.active { background: var(--row-override-active-bg); }
 
         /* Narrow: stack */
         @media (max-width: 680px) {
@@ -884,7 +909,7 @@
         /* Today's row — subtle blue left border so it's easy to spot */
         .day-row.today .col-day .day-name { color: var(--accent-gold-dark); font-weight: 800; }
         .day-row.today .col-day .day-date { color: var(--accent-gold-dark); }
-        .day-row.today:not(.active):not(.has-override):not(.selected) { background: #fffde7; }
+        .day-row.today:not(.active):not(.has-override):not(.selected) { background: var(--today-print); }
 
         /* Row with a validation error (e.g. time not filled) — highlighted red */
         .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
@@ -927,7 +952,7 @@
             line-height: 1.4;
         }
 
-        .feedback.success { display: block; background: var(--green-light); color: #1b5e20; }
+        .feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
         .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
 
         /* ---- Annual Leave over-limit confirm bar (fixed bottom sheet) ---- */
@@ -940,8 +965,8 @@
             display: flex;
             align-items: flex-start;
             gap: 12px;
-            background: #fff8e1;
-            border-top: 2px solid #f9a825;
+            background: var(--al-confirm-bg);
+            border-top: 2px solid var(--al-confirm-accent);
             border-radius: 14px 14px 0 0;
             padding: 16px 18px max(16px, env(safe-area-inset-bottom));
             font-size: 13px;
@@ -963,7 +988,7 @@
         .al-confirm-bar .al-confirm-sub  { font-size: 12px; color: var(--text-mid); margin-bottom: 10px; }
         .al-confirm-bar .al-confirm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
         .al-confirm-bar .btn-confirm-save {
-            background: #f9a825; color: var(--primary-blue);
+            background: var(--al-confirm-accent); color: var(--primary-blue);
             border: none; border-radius: 6px;
             padding: 7px 14px; font-size: 13px; font-weight: 700;
             cursor: pointer; touch-action: manipulation;
@@ -1147,8 +1172,8 @@
         .lpill-overtime     { background: var(--ot-light);       color: var(--ot);         }
         .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw);      }
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
-        .lpill-annual_leave { background: var(--al-light);     color: #004d40;         }
-        .lpill-correction   { background: var(--orange-light); color: #e65100;         }
+        .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);          }
+        .lpill-correction   { background: var(--orange-light); color: var(--correction-text);  }
 
         .btn-edit {
             background: transparent;
@@ -1315,7 +1340,7 @@
         }
 
         .al-preview.empty { color: var(--text-light); }
-        .al-preview.ready { background: var(--al-light); color: #004d40; }
+        .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
         .al-preview.error { background: var(--error-bg); color: var(--error-red); }
 
         /* ---- Touch device enhancements ---- */
@@ -1720,7 +1745,7 @@
             font-weight: 600;
             border-top: 1px solid var(--border-light);
         }
-        .list-feedback.success { display: block; background: var(--green-light); color: #1b5e20; }
+        .list-feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
         .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
 
         /* ---- Print styles ---- */
@@ -1765,7 +1790,7 @@
             /* Override rows */
             .week-grid-header,
             .day-row {
-                border-bottom: 1px solid #ccc;
+                border-bottom: 1px solid var(--border-mid);
                 break-inside: avoid;
             }
 
@@ -2115,7 +2140,7 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.80';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.81';
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch
@@ -2131,7 +2156,7 @@ const app = initializeApp({
 });
 const db = getFirestore(app);
 
-const ADMIN_VERSION = '4.80';
+const ADMIN_VERSION = '4.81';
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
