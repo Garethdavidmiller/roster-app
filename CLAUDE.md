@@ -2,23 +2,25 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v4.92:** `APP_VERSION` is declared once in `roster-data.js` and read everywhere else. You only need to update **five** places:
+**As of v4.95:** JS is now in separate files. You need to update **six** places:
 
 | File | Location | Example |
 |------|----------|---------|
-| `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.92'` ← **primary source** |
-| `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.92'` ← must match |
-| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.92 -->` |
-| `index.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.92` |
-| `index.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.92` |
-| `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.92 -->` |
-| `admin.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.92` |
-| `admin.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.92` |
+| `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← **primary source** |
+| `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← must match |
+| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.95 -->` |
+| `index.html` | `<script src="./app.js?v=...">` | `app.js?v=4.95` |
+| `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.95 -->` |
+| `admin.html` | `<script src="./admin-app.js?v=...">` | `admin-app.js?v=4.95` |
+| `app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
+| `app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
+| `admin-app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
+| `admin-app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
 
-`CONFIG.APP_VERSION` and `ADMIN_VERSION` in the HTML files now read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
+`CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
 
-- Increment the patch number (e.g. 4.92 → 4.88) for every commit that touches app behaviour
-- The import `?v=` cache-busting strings **must** still be updated manually (browsers use them to bust the module cache)
+- Increment the patch number for every commit that touches app behaviour
+- The `?v=` cache-busting strings **must** be updated manually (browsers use them to bust the module cache)
 - Tell the user the new version number in your reply after committing
 
 ---
@@ -41,17 +43,20 @@ The goal is that Gareth understands the codebase, not just that the codebase wor
 
 ```
 roster-app/
-├── index.html          ← main PWA app
-├── admin.html          ← staff self-service and admin portal
+├── index.html          ← main PWA app (HTML + CSS only)
+├── admin.html          ← staff self-service and admin portal (HTML + CSS only)
+├── app.js              ← all JavaScript for index.html
+├── admin-app.js        ← all JavaScript for admin.html
 ├── roster-data.js      ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── firebase-client.js  ← shared module: Firebase init (one place), exports db + all Firestore functions
-├── service-worker.js   ← v5.5 (cache name now includes app version, e.g. myb-roster-v4.92)
+├── shared.css          ← CSS shared between index.html and admin.html
+├── service-worker.js   ← cache name includes app version, e.g. myb-roster-v4.95
 ├── manifest.json       ← PWA manifest
 └── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `roster-data.js`, `firebase-client.js` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 
@@ -200,6 +205,11 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 22 | 🟡 Med | **Splash screen used a fixed 1.5s delay.** Now dismissed when `renderCalendar()` completes, with a 300ms minimum to ensure the calendar is painted before the fade. |
 | 35 | 🟢 Low | **No linter or formatter.** Added `.eslintrc.json` (`eslint:recommended`) and `.prettierrc` to the repo root. |
 | 28 | 🟡 Med | **admin.html auto-reloaded immediately on `controllerchange`.** Added SW registration to admin.html with an `#updateToast` banner (top of screen, navy + gold "Refresh now" button). Toast appears when a new SW is waiting; pressing the button sends `SKIP_WAITING` then reloads — user controls when to refresh. |
+| 8 | 🟠 High | **~1,500 lines of CSS duplicated** between index.html and admin.html. Extracted shared CSS to `shared.css` (242 lines); both HTML files now link to it. |
+| 7 | 🟠 High | **Core roster logic duplicated across both HTML files.** `getWeekNumberForDate`, `getRosterForMember`, `getShiftBadge`, etc. moved to `roster-data.js` and exported. Both HTML files import them. admin.html retains a one-liner `shiftBadge()` alias with a different default separator — not a duplicate. |
+| 34 | 🟡 Med | **No automated tests.** Added `roster-data.test.mjs` (158 lines) using Node's built-in `node:test` runner — covers bank holidays, Easter, paydays, cutoffs, AL entitlement, and roster validation. Run with `node --test roster-data.test.mjs`. |
+| 23 | 🟢 Low | **Legend was very long on mobile.** Responsive CSS collapses the three legend rows into a single centred strip at narrow viewports. |
+| 31/16 | 🟠 High | **Two 4,000-line monolithic HTML files; JS embedded in HTML.** Extracted all JavaScript from `index.html` into `app.js` (1,693 lines) and from `admin.html` into `admin-app.js` (1,983 lines). Both HTML files now contain only HTML and CSS. JS can now be linted, cached independently, and navigated separately. |
 
 ### Remaining items — not yet fixed
 
@@ -209,18 +219,10 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 - **#13 — Firestore Security Rules missing.** The Firebase credentials are public (expected), but without Firestore rules anyone can read/write the entire database from a browser console. Log in to the Firebase Console → Firestore → Rules and restrict access. Also consider Firebase App Check and restricting the API key in Google Cloud Console.
 
 #### 🟠 High
-- **#7 — Core roster logic duplicated across both HTML files.** `getWeekNumberForDate` / `getWeekNum`, `getRosterForMember` / `getRosterData`, `shiftBadge` / `getShiftBadge`, etc. exist in both files with diverging implementations. Plan: move all shared logic into `roster-data.js` and export it.
-- **#8 — ~1,500 lines of CSS duplicated** between index.html and admin.html. Plan: extract shared CSS to `shared.css` linked from both files.
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
-- **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js`, and `shared.css`.
 
 #### 🟡 Medium
 - **#9/#32 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` will warn if a year is missing. Long-term: store in Firestore or a JSON file.
-- **#11 — `ADMIN_NAME` is hardcoded** in `admin.html`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
-- **#16 — JavaScript is embedded in HTML files** — cannot be linted, tested, or cached independently. Plan: same as #31 above.
-- **#34 — No automated tests.** Pure utility functions in `roster-data.js` (bank holidays, payday, Easter, shift classification) are ideal for unit tests. Plan: add 10–15 tests using Node's built-in `node:test` runner — no build step, no dependencies.
-
-#### 🟢 Low
-- **#23 — Legend is very long on mobile.** Plan: collapse cultural calendar section by default.
+- **#11 — `ADMIN_NAME` is hardcoded** in `admin-app.js`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
 
 ---
