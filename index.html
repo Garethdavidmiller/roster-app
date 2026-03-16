@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.89 -->
+<!-- MYB Roster Calendar - Version 4.90 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2234,8 +2234,8 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.89';
-        import { db, collection, query, where, getDocs } from './firebase-client.js?v=4.89';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.90';
+        import { db, collection, query, where, getDocs } from './firebase-client.js?v=4.90';
 
         // ============================================
         // CEA ROSTER CALENDAR
@@ -2257,9 +2257,12 @@
         // ============================================
 
         // Caches keyed "memberName|YYYY-MM-DD" and memberName respectively.
-        const rosterOverridesCache = new Map();
-        const memberSettingsCache  = new Map();
-        const fetchedMonths        = new Set();
+        const rosterOverridesCache  = new Map();
+        const memberSettingsCache   = new Map();
+        const fetchedMonths         = new Set();
+        // Cache for getShiftTypesInMonth(). Key: "memberName|year|month".
+        // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
+        const shiftTypesMonthCache  = new Map();
 
         // ============================================
         // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -2990,10 +2993,24 @@
             lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
         })();
 
-        // Returns a Set of shift-type strings that actually appear in the given month
-        // for the given member, after applying roster pattern + Firestore overrides.
-        // Used by updateLegend() to show/hide Spare, RDW, and AL legend items.
+        /**
+         * Returns a Set of shift-type strings that actually appear in the given month
+         * for the given member, after applying roster pattern + Firestore overrides.
+         * Used by updateLegend() to show/hide Spare, RDW, and AL legend items.
+         *
+         * Result is memoised in shiftTypesMonthCache keyed by "memberName|year|month".
+         * The cache is cleared by fetchOverridesForRange() whenever fresh override data
+         * arrives from Firestore, so stale results are never served.
+         *
+         * @param {Object} member - member object from teamMembers
+         * @param {number} year
+         * @param {number} month - 0-indexed JS month
+         * @returns {Set<string>}
+         */
         function getShiftTypesInMonth(member, year, month) {
+            const cacheKey = `${member.name}|${year}|${month}`;
+            if (shiftTypesMonthCache.has(cacheKey)) return shiftTypesMonthCache.get(cacheKey);
+
             const types  = new Set();
             const roster = getRosterForMember(member);
             const days   = new Date(year, month + 1, 0).getDate(); // last day of month
@@ -3016,6 +3033,8 @@
                 else if (shift === 'RDW') types.add('RDW');
                 else if (shift === 'AL')  types.add('AL');
             }
+
+            shiftTypesMonthCache.set(cacheKey, types);
             return types;
         }
 
@@ -3926,6 +3945,9 @@
                     type:  data.type  || ''
                 });
             });
+            // New override data may change which shift types appear in a month,
+            // so invalidate the getShiftTypesInMonth() memo cache.
+            shiftTypesMonthCache.clear();
         }
 
         /**
