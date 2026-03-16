@@ -201,6 +201,7 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 35 | 🟢 Low | **No linter or formatter.** Added `.eslintrc.json` (`eslint:recommended`) and `.prettierrc` to the repo root. |
 | 28 | 🟡 Med | **admin.html auto-reloaded immediately on `controllerchange`.** Added SW registration to admin.html with an `#updateToast` banner (top of screen, navy + gold "Refresh now" button). Toast appears when a new SW is waiting; pressing the button sends `SKIP_WAITING` then reloads — user controls when to refresh. |
 | 8 | 🟠 High | **~1,500 lines of CSS duplicated** between index.html and admin.html. Extracted shared CSS to `shared.css` (242 lines); both HTML files now link to it. |
+| 7 | 🟠 High | **Core roster logic duplicated across both HTML files.** `getWeekNumberForDate`, `getRosterForMember`, `getShiftBadge`, etc. moved to `roster-data.js` and exported. Both HTML files import them. admin.html retains a one-liner `shiftBadge()` alias with a different default separator — not a duplicate. |
 | 34 | 🟡 Med | **No automated tests.** Added `roster-data.test.mjs` (158 lines) using Node's built-in `node:test` runner — covers bank holidays, Easter, paydays, cutoffs, AL entitlement, and roster validation. Run with `node --test roster-data.test.mjs`. |
 | 23 | 🟢 Low | **Legend was very long on mobile.** Responsive CSS collapses the three legend rows into a single centred strip at narrow viewports. |
 
@@ -212,7 +213,6 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 - **#13 — Firestore Security Rules missing.** The Firebase credentials are public (expected), but without Firestore rules anyone can read/write the entire database from a browser console. Log in to the Firebase Console → Firestore → Rules and restrict access. Also consider Firebase App Check and restricting the API key in Google Cloud Console.
 
 #### 🟠 High
-- **#7 — Core roster logic duplicated across both HTML files.** `getWeekNumberForDate` / `getWeekNum`, `getRosterForMember` / `getRosterData`, `shiftBadge` / `getShiftBadge`, etc. exist in both files with diverging implementations. Plan: move all shared logic into `roster-data.js` and export it.
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
 - **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js` (shared.css already done). JS is still embedded in HTML — cannot be linted, tested, or cached independently.
 
