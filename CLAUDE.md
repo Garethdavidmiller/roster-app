@@ -200,6 +200,9 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 22 | 🟡 Med | **Splash screen used a fixed 1.5s delay.** Now dismissed when `renderCalendar()` completes, with a 300ms minimum to ensure the calendar is painted before the fade. |
 | 35 | 🟢 Low | **No linter or formatter.** Added `.eslintrc.json` (`eslint:recommended`) and `.prettierrc` to the repo root. |
 | 28 | 🟡 Med | **admin.html auto-reloaded immediately on `controllerchange`.** Added SW registration to admin.html with an `#updateToast` banner (top of screen, navy + gold "Refresh now" button). Toast appears when a new SW is waiting; pressing the button sends `SKIP_WAITING` then reloads — user controls when to refresh. |
+| 8 | 🟠 High | **~1,500 lines of CSS duplicated** between index.html and admin.html. Extracted shared CSS to `shared.css` (242 lines); both HTML files now link to it. |
+| 34 | 🟡 Med | **No automated tests.** Added `roster-data.test.mjs` (158 lines) using Node's built-in `node:test` runner — covers bank holidays, Easter, paydays, cutoffs, AL entitlement, and roster validation. Run with `node --test roster-data.test.mjs`. |
+| 23 | 🟢 Low | **Legend was very long on mobile.** Responsive CSS collapses the three legend rows into a single centred strip at narrow viewports. |
 
 ### Remaining items — not yet fixed
 
@@ -210,17 +213,12 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 
 #### 🟠 High
 - **#7 — Core roster logic duplicated across both HTML files.** `getWeekNumberForDate` / `getWeekNum`, `getRosterForMember` / `getRosterData`, `shiftBadge` / `getShiftBadge`, etc. exist in both files with diverging implementations. Plan: move all shared logic into `roster-data.js` and export it.
-- **#8 — ~1,500 lines of CSS duplicated** between index.html and admin.html. Plan: extract shared CSS to `shared.css` linked from both files.
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
-- **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js`, and `shared.css`.
+- **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js` (shared.css already done). JS is still embedded in HTML — cannot be linted, tested, or cached independently.
 
 #### 🟡 Medium
 - **#9/#32 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` will warn if a year is missing. Long-term: store in Firestore or a JSON file.
-- **#11 — `ADMIN_NAME` is hardcoded** in `admin.html`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
+- **#11 — `ADMIN_NAME` is hardcoded** in `admin.html` (line 2040). Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
 - **#16 — JavaScript is embedded in HTML files** — cannot be linted, tested, or cached independently. Plan: same as #31 above.
-- **#34 — No automated tests.** Pure utility functions in `roster-data.js` (bank holidays, payday, Easter, shift classification) are ideal for unit tests. Plan: add 10–15 tests using Node's built-in `node:test` runner — no build step, no dependencies.
-
-#### 🟢 Low
-- **#23 — Legend is very long on mobile.** Plan: collapse cultural calendar section by default.
 
 ---
