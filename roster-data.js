@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '4.95';
+export const APP_VERSION = '4.98';
 
 // ============================================
 // CONFIGURATION
@@ -31,6 +31,7 @@ export const CONFIG = {
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
+    ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access — add names here to grant admin rights
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
 
@@ -208,6 +209,86 @@ export const dispatcherRoster = {
 export const DAY_KEYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// ============================================
+// CALENDAR DATE HELPERS
+// ============================================
+// These private helpers generate date Sets automatically for CONFIG.MIN_YEAR
+// through CONFIG.MAX_YEAR + 1, so they never need manual updates.
+
+/**
+ * Easter Sunday for a given year, via the Computus algorithm.
+ * Duplicates the logic in calculateBankHolidays but returns a standalone Date.
+ * @param {number} year
+ * @returns {Date}
+ */
+function computeEaster(year) {
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
+    const day   = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(year, month, day);
+}
+
+/**
+ * Generate a Set of 'YYYY-MM-DD' strings for a fixed annual date (same MM-DD every year).
+ * Automatically covers CONFIG.MIN_YEAR through CONFIG.MAX_YEAR + 1 — no manual updates needed.
+ * @param {number} month  1-based (1 = January)
+ * @param {number} day
+ * @returns {Set<string>}
+ */
+function fixedAnnualDate(month, day) {
+    const s  = new Set();
+    const mm = String(month).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR + 1; y++) s.add(`${y}-${mm}-${dd}`);
+    return s;
+}
+
+/**
+ * Generate a Set of 'YYYY-MM-DD' strings by offsetting from Easter Sunday.
+ * Automatically covers CONFIG.MIN_YEAR through CONFIG.MAX_YEAR + 1 — no manual updates needed.
+ * @param {number} offsetDays  Positive = after Easter, negative = before Easter
+ * @returns {Set<string>}
+ */
+function easterOffset(offsetDays) {
+    const s = new Set();
+    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR + 1; y++) {
+        const d = computeEaster(y);
+        d.setDate(d.getDate() + offsetDays);
+        s.add(d.toISOString().slice(0, 10));
+    }
+    return s;
+}
+
+/**
+ * Generate a Set of 'YYYY-MM-DD' strings for the Nth occurrence of a weekday in a month.
+ * Automatically covers CONFIG.MIN_YEAR through CONFIG.MAX_YEAR + 1 — no manual updates needed.
+ * @param {number} weekday  0 = Sunday … 6 = Saturday
+ * @param {number} n        1-based ordinal (1 = first, 3 = third …)
+ * @param {number} month    0-based month (0 = January, 9 = October …)
+ * @returns {Set<string>}
+ */
+function nthWeekdayOfMonth(weekday, n, month) {
+    const s = new Set();
+    for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR + 1; y++) {
+        const first  = new Date(y, month, 1);
+        const offset = (weekday - first.getDay() + 7) % 7;
+        const date   = new Date(y, month, 1 + offset + (n - 1) * 7);
+        s.add(date.toISOString().slice(0, 10));
+    }
+    return s;
+}
 
 // ============================================
 // ISLAMIC CALENDAR DATES (Umm al-Qura)
@@ -409,246 +490,78 @@ export const MID_AUTUMN_DATES = new Set([
 ]);
 
 // ============================================
-// JAMAICAN PUBLIC HOLIDAYS — 2025–2031
+// JAMAICAN PUBLIC HOLIDAYS — auto-computed
 // ============================================
+// Fixed-date and moveable holidays are generated automatically for the full
+// CONFIG year range. No manual updates needed when MAX_YEAR is extended.
 
-// Ash Wednesday — 46 days before Easter Sunday (moveable).
-// 2025-03-05, 2026-02-18, 2027-02-10, 2028-03-01, 2029-02-14, 2030-03-06, 2031-02-26
-export const JAMAICAN_ASH_WEDNESDAY_DATES = new Set([
-    '2025-03-05',
-    '2026-02-18',
-    '2027-02-10',
-    '2028-03-01',
-    '2029-02-14',
-    '2030-03-06',
-    '2031-02-26',
-]);
+// Ash Wednesday — 46 days before Easter Sunday (moveable). Auto-computed.
+export const JAMAICAN_ASH_WEDNESDAY_DATES = easterOffset(-46);
 
-// National Labour Day — fixed on 23 May each year.
-export const JAMAICAN_LABOUR_DAY_DATES = new Set([
-    '2025-05-23',
-    '2026-05-23',
-    '2027-05-23',
-    '2028-05-23',
-    '2029-05-23',
-    '2030-05-23',
-    '2031-05-23',
-]);
+// National Labour Day — fixed on 23 May. Auto-computed.
+export const JAMAICAN_LABOUR_DAY_DATES = fixedAnnualDate(5, 23);
 
-// Emancipation Day — fixed on 1 August each year.
-// Marks the abolition of slavery in the British Empire (1 August 1838).
-export const JAMAICAN_EMANCIPATION_DATES = new Set([
-    '2025-08-01',
-    '2026-08-01',
-    '2027-08-01',
-    '2028-08-01',
-    '2029-08-01',
-    '2030-08-01',
-    '2031-08-01',
-]);
+// Emancipation Day — fixed on 1 August. Marks abolition of slavery (1 Aug 1838). Auto-computed.
+export const JAMAICAN_EMANCIPATION_DATES = fixedAnnualDate(8, 1);
 
-// Independence Day — fixed on 6 August each year.
-// Marks Jamaica's independence from the United Kingdom (6 August 1962).
-export const JAMAICAN_INDEPENDENCE_DATES = new Set([
-    '2025-08-06',
-    '2026-08-06',
-    '2027-08-06',
-    '2028-08-06',
-    '2029-08-06',
-    '2030-08-06',
-    '2031-08-06',
-]);
+// Independence Day — fixed on 6 August. Marks independence from the UK (6 Aug 1962). Auto-computed.
+export const JAMAICAN_INDEPENDENCE_DATES = fixedAnnualDate(8, 6);
 
-// National Heroes Day — third Monday of October (moveable).
-// Dates calculated: 2025-10-20, 2026-10-19, 2027-10-18, 2028-10-16,
-//                   2029-10-15, 2030-10-21, 2031-10-20
-export const JAMAICAN_HEROES_DAY_DATES = new Set([
-    '2025-10-20',
-    '2026-10-19',
-    '2027-10-18',
-    '2028-10-16',
-    '2029-10-15',
-    '2030-10-21',
-    '2031-10-20',
-]);
+// National Heroes Day — third Monday of October. Auto-computed.
+export const JAMAICAN_HEROES_DAY_DATES = nthWeekdayOfMonth(1, 3, 9); // weekday=Mon, n=3rd, month=Oct
 
 // ============================================
-// CONGOLESE PUBLIC HOLIDAYS — 2025–2031
-// All dates are fixed each year.
+// CONGOLESE PUBLIC HOLIDAYS — auto-computed
 // ============================================
+// All Congolese public holidays fall on fixed calendar dates each year.
+// Generated automatically for the full CONFIG year range.
 
-// Martyrs' Day — fixed on 4 January each year.
-// Commemorates the deaths of protesters killed on 4 January 1959 in Léopoldville (now Kinshasa).
-export const CONGOLESE_MARTYRS_DATES = new Set([
-    '2025-01-04',
-    '2026-01-04',
-    '2027-01-04',
-    '2028-01-04',
-    '2029-01-04',
-    '2030-01-04',
-    '2031-01-04',
-]);
+// Martyrs' Day — 4 January. Commemorates protesters killed 4 Jan 1959 in Léopoldville. Auto-computed.
+export const CONGOLESE_MARTYRS_DATES = fixedAnnualDate(1, 4);
 
-// Liberation Day — fixed on 17 May each year.
-// Marks the capture of Kinshasa by AFDL forces in 1997, ending Mobutu's rule.
-export const CONGOLESE_LIBERATION_DATES = new Set([
-    '2025-05-17',
-    '2026-05-17',
-    '2027-05-17',
-    '2028-05-17',
-    '2029-05-17',
-    '2030-05-17',
-    '2031-05-17',
-]);
+// Liberation Day — 17 May. Marks end of Mobutu's rule in 1997. Auto-computed.
+export const CONGOLESE_LIBERATION_DATES = fixedAnnualDate(5, 17);
 
-// Heroes' Day — fixed on 1 June each year.
-// Honours national heroes of the Democratic Republic of Congo.
-export const CONGOLESE_HEROES_DATES = new Set([
-    '2025-06-01',
-    '2026-06-01',
-    '2027-06-01',
-    '2028-06-01',
-    '2029-06-01',
-    '2030-06-01',
-    '2031-06-01',
-]);
+// Heroes' Day — 1 June. Honours national heroes of the DRC. Auto-computed.
+export const CONGOLESE_HEROES_DATES = fixedAnnualDate(6, 1);
 
-// Independence Day — fixed on 30 June each year.
-// Marks independence from Belgium on 30 June 1960.
-export const CONGOLESE_INDEPENDENCE_DATES = new Set([
-    '2025-06-30',
-    '2026-06-30',
-    '2027-06-30',
-    '2028-06-30',
-    '2029-06-30',
-    '2030-06-30',
-    '2031-06-30',
-]);
+// Independence Day — 30 June. Independence from Belgium (30 Jun 1960). Auto-computed.
+export const CONGOLESE_INDEPENDENCE_DATES = fixedAnnualDate(6, 30);
 
 // ============================================
-// PORTUGUESE PUBLIC HOLIDAYS — 2025–2031
-// All mandatory national holidays that are not already covered by UK bank
-// holidays (New Year, Good Friday, Christmas) or the app-wide Easter Sunday
-// marker. Easter Sunday is marked for all members via isEasterSunday(), so
-// it is intentionally excluded here to avoid a duplicate icon on that cell.
+// PORTUGUESE PUBLIC HOLIDAYS — auto-computed
 // ============================================
+// All mandatory national holidays not already covered by UK bank holidays,
+// Good Friday, Christmas, or the app-wide Easter Sunday marker.
+// Fixed-date and Easter-relative holidays are generated automatically.
 
-// Carnival Tuesday (Terça-feira de Carnaval) — day before Ash Wednesday.
-// Widely observed (schools and public services close) but technically a
-// discretionary "tolerância de ponto" rather than a statutory day off.
-// Dates verified against confirmed Ash Wednesday dates for each year.
-// 2025-03-04, 2026-02-17, 2027-02-09, 2028-02-29, 2029-02-13, 2030-03-05, 2031-02-25
-export const PORTUGUESE_CARNIVAL_DATES = new Set([
-    '2025-03-04',
-    '2026-02-17',
-    '2027-02-09',
-    '2028-02-29',
-    '2029-02-13',
-    '2030-03-05',
-    '2031-02-25',
-]);
+// Carnival Tuesday — day before Ash Wednesday (Easter − 47 days). Auto-computed.
+// Widely observed (schools close); technically "tolerância de ponto" not statutory.
+export const PORTUGUESE_CARNIVAL_DATES = easterOffset(-47);
 
-// Freedom Day (Dia da Liberdade) — fixed on 25 April each year.
-// Commemorates the Carnation Revolution of 25 April 1974, which ended
-// 48 years of authoritarian dictatorship. The symbol is a red carnation.
-export const PORTUGUESE_FREEDOM_DATES = new Set([
-    '2025-04-25',
-    '2026-04-25',
-    '2027-04-25',
-    '2028-04-25',
-    '2029-04-25',
-    '2030-04-25',
-    '2031-04-25',
-]);
+// Freedom Day (25 Abril) — fixed. Commemorates the Carnation Revolution (25 Apr 1974). Auto-computed.
+export const PORTUGUESE_FREEDOM_DATES = fixedAnnualDate(4, 25);
 
-// Labour Day (Dia do Trabalho) — fixed on 1 May each year.
-// Unlike the UK's moveable Early May Bank Holiday, Portugal's is always
-// 1 May. They coincide only when 1 May falls on a Monday (e.g. 2028).
-export const PORTUGUESE_LABOUR_DATES = new Set([
-    '2025-05-01',
-    '2026-05-01',
-    '2027-05-01',
-    '2028-05-01',
-    '2029-05-01',
-    '2030-05-01',
-    '2031-05-01',
-]);
+// Labour Day (1 Maio) — fixed. Unlike UK's moveable May BH, Portugal's is always 1 May. Auto-computed.
+export const PORTUGUESE_LABOUR_DATES = fixedAnnualDate(5, 1);
 
-// Portugal Day (Dia de Portugal, de Camões e das Comunidades Portuguesas)
-// — fixed on 10 June each year. Named for Luís de Camões, the national
-// poet, whose death anniversary falls on this date.
-export const PORTUGUESE_PORTUGAL_DAY_DATES = new Set([
-    '2025-06-10',
-    '2026-06-10',
-    '2027-06-10',
-    '2028-06-10',
-    '2029-06-10',
-    '2030-06-10',
-    '2031-06-10',
-]);
+// Portugal Day (10 Junho) — fixed. Named for Luís de Camões (death anniversary). Auto-computed.
+export const PORTUGUESE_PORTUGAL_DAY_DATES = fixedAnnualDate(6, 10);
 
-// Corpus Christi (Corpo de Deus) — Thursday, exactly 60 days after Easter
-// Sunday. Was suspended 2013–2016 during austerity; fully restored April 2016.
-// Dates independently verified against Easter dates for each year:
-// 2025-06-19, 2026-06-04, 2027-05-27, 2028-06-15, 2029-05-31, 2030-06-20, 2031-06-12
-export const PORTUGUESE_CORPUS_CHRISTI_DATES = new Set([
-    '2025-06-19',
-    '2026-06-04',
-    '2027-05-27',
-    '2028-06-15',
-    '2029-05-31',
-    '2030-06-20',
-    '2031-06-12',
-]);
+// Corpus Christi — Thursday, 60 days after Easter. Restored April 2016. Auto-computed.
+export const PORTUGUESE_CORPUS_CHRISTI_DATES = easterOffset(60);
 
-// Assumption of Mary (Assunção de Nossa Senhora) — fixed on 15 August each year.
-export const PORTUGUESE_ASSUMPTION_DATES = new Set([
-    '2025-08-15',
-    '2026-08-15',
-    '2027-08-15',
-    '2028-08-15',
-    '2029-08-15',
-    '2030-08-15',
-    '2031-08-15',
-]);
+// Assumption of Mary (15 Agosto) — fixed. Auto-computed.
+export const PORTUGUESE_ASSUMPTION_DATES = fixedAnnualDate(8, 15);
 
-// Republic Day (Implantação da República) — fixed on 5 October each year.
-// Marks the proclamation of the Portuguese Republic on 5 October 1910.
-// Suspended 2013–2016; restored April 2016.
-export const PORTUGUESE_REPUBLIC_DATES = new Set([
-    '2025-10-05',
-    '2026-10-05',
-    '2027-10-05',
-    '2028-10-05',
-    '2029-10-05',
-    '2030-10-05',
-    '2031-10-05',
-]);
+// Republic Day (5 Outubro) — fixed. Proclamation of Portuguese Republic (5 Oct 1910). Auto-computed.
+export const PORTUGUESE_REPUBLIC_DATES = fixedAnnualDate(10, 5);
 
-// Restoration of Independence (Restauração da Independência) — fixed on
-// 1 December each year. Marks the end of 60 years of Spanish rule in 1640.
-// Suspended 2013–2016; restored April 2016.
-export const PORTUGUESE_RESTORATION_DATES = new Set([
-    '2025-12-01',
-    '2026-12-01',
-    '2027-12-01',
-    '2028-12-01',
-    '2029-12-01',
-    '2030-12-01',
-    '2031-12-01',
-]);
+// Restoration of Independence (1 Dezembro) — fixed. End of Spanish rule in 1640. Auto-computed.
+export const PORTUGUESE_RESTORATION_DATES = fixedAnnualDate(12, 1);
 
-// Immaculate Conception (Imaculada Conceição) — fixed on 8 December each year.
-// A major feast in Catholic Portugal; schools and businesses close.
-export const PORTUGUESE_IMMACULATE_DATES = new Set([
-    '2025-12-08',
-    '2026-12-08',
-    '2027-12-08',
-    '2028-12-08',
-    '2029-12-08',
-    '2030-12-08',
-    '2031-12-08',
-]);
+// Immaculate Conception (8 Dezembro) — fixed. Major Catholic feast; schools close. Auto-computed.
+export const PORTUGUESE_IMMACULATE_DATES = fixedAnnualDate(12, 8);
 
 // ============================================
 // DATE UTILITIES — shared by index.html and admin.html
@@ -1036,23 +949,37 @@ export function validateRosterPatterns() {
  * Only checks the primary Islamic calendar as a representative sample; extend as needed.
  */
 export function warnIfCulturalCalendarMissingYear() {
-    const year = new Date().getFullYear();
+    const year    = new Date().getFullYear();
     const yearStr = String(year);
 
+    // Only the genuinely lunar/lunisolar datasets need manual updates each year.
+    // Fixed-date, Easter-relative, and day-of-week-rule datasets are auto-computed
+    // and will always have data — they are intentionally excluded from this check.
     const checks = [
-        { name: 'Islamic (Eid al-Fitr)',      dates: EID_FITR_DATES },
-        { name: 'Islamic (Eid al-Adha)',       dates: EID_ADHA_DATES },
-        { name: 'Hindu (Diwali)',              dates: DIWALI_DATES },
-        { name: 'Chinese (New Year)',          dates: CHINESE_NEW_YEAR_DATES },
-        { name: 'Jamaican (Independence Day)', dates: JAMAICAN_INDEPENDENCE_DATES },
-        { name: 'Congolese (Independence)',    dates: CONGOLESE_INDEPENDENCE_DATES },
-        { name: 'Portuguese (Portugal Day)',   dates: PORTUGUESE_PORTUGAL_DAY_DATES },
+        // Islamic — shift ~11 days earlier each year; verify against islamicfinder.org
+        { name: 'Islamic (Ramadan)',       dates: RAMADAN_STARTS },
+        { name: 'Islamic (Eid al-Fitr)',   dates: EID_FITR_DATES },
+        { name: 'Islamic (Eid al-Adha)',   dates: EID_ADHA_DATES },
+        { name: 'Islamic (New Year)',      dates: ISLAMIC_NEW_YEAR_DATES },
+        { name: 'Islamic (Mawlid)',        dates: MAWLID_DATES },
+        // Hindu — verify against drikpanchang.com (London timezone)
+        { name: 'Hindu (Holi)',            dates: HOLI_DATES },
+        { name: 'Hindu (Navratri)',        dates: NAVRATRI_DATES },
+        { name: 'Hindu (Dussehra)',        dates: DUSSEHRA_DATES },
+        { name: 'Hindu (Diwali)',          dates: DIWALI_DATES },
+        { name: 'Hindu (Raksha Bandhan)',  dates: RAKSHA_BANDHAN_DATES },
+        // Chinese lunisolar — verify against chinesenewyear.net / timeanddate.com
+        { name: 'Chinese (New Year)',      dates: CHINESE_NEW_YEAR_DATES },
+        { name: 'Chinese (Lantern)',       dates: LANTERN_FESTIVAL_DATES },
+        { name: 'Chinese (Qingming)',      dates: QINGMING_DATES },
+        { name: 'Chinese (Dragon Boat)',   dates: DRAGON_BOAT_DATES },
+        { name: 'Chinese (Mid-Autumn)',    dates: MID_AUTUMN_DATES },
     ];
 
     checks.forEach(({ name, dates }) => {
-        // Sets store 'YYYY-MM-DD' strings; Maps store year number keys
+        // Sets store 'YYYY-MM-DD' strings; Maps (CHINESE_NEW_YEAR_DATES) store date string keys
         const hasYear = dates instanceof Map
-            ? dates.has(year)
+            ? [...dates.keys()].some(k => k.startsWith(yearStr))
             : [...dates].some(d => d.startsWith(yearStr));
         if (!hasYear) {
             console.warn(`warnIfCulturalCalendarMissingYear: no entries for ${year} in ${name}. Cultural markers will be missing for this year.`);

@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=4.95';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.95';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=4.98';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.98';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -10,7 +10,6 @@ const ADMIN_VERSION = CONFIG.APP_VERSION;
 // Passwords are surnames (lowercase) — sufficient
 // to prevent casual misbehaviour, not cryptographic security.
 // ============================================
-const ADMIN_NAME = 'G. Miller';
 const AUTH_KEY   = 'myb_admin_session';
 const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -67,7 +66,7 @@ function clearSession() {
 const currentSession = getSession();
 const isAuthenticated = !!currentSession;
 const currentUser     = currentSession?.name ?? null;
-const currentIsAdmin  = currentUser === ADMIN_NAME;
+const currentIsAdmin  = CONFIG.ADMIN_NAMES.includes(currentUser);
 
 // ---- Login overlay (shown when not authenticated) ----
 function initLoginOverlay() {
@@ -249,9 +248,10 @@ if (lastMember && teamMembers.find(m => m.name === lastMember)) {
     fieldMember.value  = lastMember;
 }
 
-// Default date = today — update the week nav label immediately without
-// calling renderWeekGrid(), which depends on allOverrides (declared later).
-fieldDate.value = formatISO(new Date());
+// Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
+// This preserves the month the staff member was viewing when they tapped Admin.
+const _urlDate = new URLSearchParams(location.search).get('date');
+fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate : formatISO(new Date());
 (function updateWeekNavLabelFromDate() {
     const d    = new Date(fieldDate.value + 'T12:00:00');
     const sun  = new Date(d); sun.setDate(d.getDate() - d.getDay());
