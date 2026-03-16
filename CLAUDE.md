@@ -195,10 +195,14 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 15 | 🟠 High | **innerHTML + Firestore data audit.** Reviewed all `innerHTML` assignments. The override list table (admin.html ~3296) correctly passes all Firestore values through `esc()`. The `alPreview.innerHTML` correctly uses `esc(member)`. All other `innerHTML` assignments use only app-computed values. **No changes required — audit passed.** |
 | 30 | 🟢 Low | **No PWA shortcuts defined in manifest.** Added `shortcuts` array with "My Roster" (index.html) and "Admin" (admin.html) entries, each with a 192×192 icon. |
 | 24 | 🟢 Low | **Print output lacked member name, date, and print timestamp.** index.html uses `beforeprint` to set `data-print-date` on `.header`; admin.html populates a `#printHeader` div with member name, week label, and timestamp. |
+| 19 | 🟢 Low | **Override list re-queried Firestore after every edit.** After saving or deleting, `allOverrides` is now updated in-memory (filter removed IDs, push new docs, re-sort) and `renderTable()` is called directly — no round-trip. |
+| 18 | 🟡 Med | **`getShiftTypesInMonth()` recalculated all days on every swipe.** Result is now memoised in a Map keyed by `"memberName\|year\|month"`, cleared on override change. |
+| 22 | 🟡 Med | **Splash screen used a fixed 1.5s delay.** Now dismissed when `renderCalendar()` completes, with a 300ms minimum to ensure the calendar is painted before the fade. |
+| 35 | 🟢 Low | **No linter or formatter.** Added `.eslintrc.json` (`eslint:recommended`) and `.prettierrc` to the repo root. |
 
 ### Remaining items — not yet fixed
 
-These were identified in the audit but not addressed in v4.87. Tackle in future sessions:
+These were identified in the audit but not addressed. Tackle in future sessions:
 
 #### 🔴 Critical
 - **#13 — Firestore Security Rules missing.** The Firebase credentials are public (expected), but without Firestore rules anyone can read/write the entire database from a browser console. Log in to the Firebase Console → Firestore → Rules and restrict access. Also consider Firebase App Check and restricting the API key in Google Cloud Console.
@@ -210,18 +214,13 @@ These were identified in the audit but not addressed in v4.87. Tackle in future 
 - **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js`, and `shared.css`.
 
 #### 🟡 Medium
-- **#9 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` (added in v4.87) will now warn if a year is missing. Long-term: store in Firestore or a JSON file.
+- **#9/#32 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` will warn if a year is missing. Long-term: store in Firestore or a JSON file.
 - **#11 — `ADMIN_NAME` is hardcoded** in `admin.html`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
 - **#16 — JavaScript is embedded in HTML files** — cannot be linted, tested, or cached independently. Plan: same as #31 above.
-- **#18 — `getShiftTypesInMonth()` recalculates all days on every swipe.** Plan: cache result keyed by `memberName + year + month`, clear on override change.
-- **#22 — Splash screen uses a fixed 1.5s delay.** On fast connections this is dead time; on slow ones it disappears before the calendar is ready. Plan: dismiss when `renderCalendar()` completes, with a 300ms minimum.
-- **#28 — App auto-reloads on `controllerchange`.** The `window.location.reload()` is triggered immediately when the new service worker takes control — this can interrupt a user mid-booking. Plan: show a "Update ready — tap to refresh" toast instead, let user choose when to reload. *(Note: in index.html the reload is already behind the "Update now" button. Admin.html has no SW update UI — add it there too.)*
-- **#32 — Cultural calendar annual maintenance** (same as #9).
+- **#28 — App auto-reloads on `controllerchange` in admin.html.** index.html already has an "Update now" button; admin.html still reloads immediately. Plan: add the same toast UI to admin.html.
 - **#34 — No automated tests.** Pure utility functions in `roster-data.js` (bank holidays, payday, Easter, shift classification) are ideal for unit tests. Plan: add 10–15 tests using Node's built-in `node:test` runner — no build step, no dependencies.
 
 #### 🟢 Low
-- **#19 — Override list re-queries Firestore after every edit.** Plan: update local in-memory list and re-render from that.
 - **#23 — Legend is very long on mobile.** Plan: collapse cultural calendar section by default.
-- **#35 — No linter or formatter.** Plan: add `.eslintrc.json` with `eslint:recommended` and `.prettierrc`.
 
 ---
