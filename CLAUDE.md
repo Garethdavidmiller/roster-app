@@ -193,6 +193,8 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 33 | 🟡 Med | **Roster pattern strings had no validation.** Added `validateRosterPatterns()` and `warnIfCulturalCalendarMissingYear()` in `roster-data.js`; both run automatically at module load and log errors/warnings to the console. |
 | 10 | 🟡 Med | **Version number required manual updates in 7 places** — a known source of drift. `APP_VERSION` is now exported from `roster-data.js` and read by both HTML files via `CONFIG.APP_VERSION`. The remaining manual step is updating the import `?v=` cache-busting strings. |
 | 15 | 🟠 High | **innerHTML + Firestore data audit.** Reviewed all `innerHTML` assignments. The override list table (admin.html ~3296) correctly passes all Firestore values through `esc()`. The `alPreview.innerHTML` correctly uses `esc(member)`. All other `innerHTML` assignments use only app-computed values. **No changes required — audit passed.** |
+| 30 | 🟢 Low | **No PWA shortcuts defined in manifest.** Added `shortcuts` array with "My Roster" (index.html) and "Admin" (admin.html) entries, each with a 192×192 icon. |
+| 24 | 🟢 Low | **Print output lacked member name, date, and print timestamp.** index.html uses `beforeprint` to set `data-print-date` on `.header`; admin.html populates a `#printHeader` div with member name, week label, and timestamp. |
 
 ### Remaining items — not yet fixed
 
@@ -220,8 +222,6 @@ These were identified in the audit but not addressed in v4.87. Tackle in future 
 #### 🟢 Low
 - **#19 — Override list re-queries Firestore after every edit.** Plan: update local in-memory list and re-render from that.
 - **#23 — Legend is very long on mobile.** Plan: collapse cultural calendar section by default.
-- **#24 — Print output lacks member name, date, and print timestamp.** Plan: add `@media print` header rule.
-- **#30 — No PWA shortcuts defined in manifest.** Plan: add `shortcuts` array for "My Roster" and "Admin".
 - **#35 — No linter or formatter.** Plan: add `.eslintrc.json` with `eslint:recommended` and `.prettierrc`.
 
 ---
