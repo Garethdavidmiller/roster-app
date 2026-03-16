@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.93 -->
+<!-- MYB Roster Admin v4.94 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2025,8 +2025,8 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.93';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.93';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=4.94';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.94';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2233,61 +2233,9 @@ const TYPES = {
 // ROSTER LOGIC
 // ============================================
 
-function getRosterData(member) {
-    const t = member.rosterType || 'main';
-    if (t === 'fixed')      return fixedRoster;
-    if (t === 'ces')        return cesRoster;
-    if (t === 'dispatcher') return dispatcherRoster;
-    if (t === 'bilingual')  return bilingualRoster;
-    return weeklyRoster;
-}
-
-function getWeekNum(date, member) {
-    const t = member.rosterType || 'main';
-    if (t === 'fixed') return 1;
-
-    const cycle = t === 'bilingual'  ? CONFIG.BILINGUAL_ROSTER_WEEKS
-                : t === 'ces'        ? CONFIG.CES_ROSTER_WEEKS
-                : t === 'dispatcher' ? CONFIG.DISPATCHER_ROSTER_WEEKS
-                : CONFIG.MAIN_ROSTER_WEEKS;
-
-    const ref = t === 'bilingual'  ? CONFIG.BILINGUAL_ROSTER_REFERENCE_DATE
-              : t === 'ces'        ? CONFIG.CES_ROSTER_REFERENCE_DATE
-              : t === 'dispatcher' ? CONFIG.DISPATCHER_ROSTER_REFERENCE_DATE
-              : CONFIG.MAIN_ROSTER_REFERENCE_DATE;
-
-    const noon    = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
-    const sunday  = new Date(noon);
-    sunday.setDate(noon.getDate() - noon.getDay());
-
-    const weeks = Math.floor(Math.round((sunday - ref) / 86400000) / 7);
-    const w     = member.currentWeek + weeks;
-    return ((w - 1) % cycle + cycle) % cycle + 1;
-}
-
-function getBaseShift(member, date) {
-    // Christmas protection — same rule as index.html
-    if (date.getMonth() === 11 && (date.getDate() === 25 || date.getDate() === 26)) return 'RD';
-    const weekNum = getWeekNum(date, member);
-    const dayKey  = DAY_KEYS[date.getDay()];
-    const data    = getRosterData(member);
-    return (data[weekNum] && data[weekNum][dayKey]) || 'RD';
-}
-
-function shiftBadge(shift) {
-    if (!shift || shift === 'RD' || shift === 'OFF') return '<span class="shift-badge badge-rest">🏠 Rest</span>';
-    if (shift === 'SPARE') return '<span class="shift-badge badge-spare">📋 Spare</span>';
-    if (shift === 'RDW')   return '<span class="shift-badge badge-rdw">💼 RDW</span>';
-    if (shift === 'AL')    return '<span class="shift-badge badge-al">🏖️ AL</span>';
-    if (!/^\d{2}:\d{2}/.test(shift)) return `<span class="shift-badge">${shift}</span>`;
-    // Night = starts 21:00–03:59; Early = starts 04:00–10:59; Late = starts 11:00–20:59
-    const startHour = parseInt(shift.split(':')[0], 10);
-    if (startHour >= CONFIG.NIGHT_START_THRESHOLD || startHour < CONFIG.EARLY_START_THRESHOLD)
-        return '<span class="shift-badge badge-night">🦉 Night</span>';
-    return (startHour < CONFIG.EARLY_SHIFT_THRESHOLD)
-        ? '<span class="shift-badge badge-early">☀️ Early</span>'
-        : '<span class="shift-badge badge-late">🌙 Late</span>';
-}
+// getRosterData, getWeekNum, getBaseShift — imported from roster-data.js as getRosterForMember, getWeekNumberForDate, getBaseShift
+// shiftBadge — thin wrapper so inline admin grid uses a space separator instead of <br>
+function shiftBadge(shift) { return getShiftBadge(shift, ' '); }
 
 // ============================================
 // DOM
@@ -3428,10 +3376,8 @@ function formatDisplay(str) {
     return `${parseInt(d,10)} ${MONTH_ABB[parseInt(m,10)-1]} ${y}`;
 }
 
-function esc(str) {
-    if (str == null) return '';
-    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
+// escapeHtml — imported from roster-data.js; local alias preserves existing call sites
+const esc = escapeHtml;
 
 let _toastTimer = null;
 function showSuccess(msg) {

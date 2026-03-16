@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '4.93';
+export const APP_VERSION = '4.94';
 
 // ============================================
 // CONFIGURATION
@@ -1058,6 +1058,178 @@ export function warnIfCulturalCalendarMissingYear() {
             console.warn(`warnIfCulturalCalendarMissingYear: no entries for ${year} in ${name}. Cultural markers will be missing for this year.`);
         }
     });
+}
+
+// ============================================
+// SHIFT CLASSIFICATION — shared by both HTML files
+// ============================================
+
+/**
+ * Compiled once. Matches "HH:MM-HH:MM" shift time strings.
+ * Used by isEarlyShift, isNightShift, getShiftClass, getShiftBadge.
+ */
+export const SHIFT_TIME_REGEX = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]-([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+
+/**
+ * Returns true if the date is Christmas Day (25 Dec) or Boxing Day (26 Dec).
+ * Both are automatically Rest Days regardless of what the roster pattern says.
+ * Boxing Day can still be overridden to RDW via Firestore for overtime.
+ * IMPORTANT: isChristmasRD must be applied before any Firestore override logic.
+ * @param {Date} date
+ * @returns {boolean}
+ */
+export function isChristmasRD(date) {
+    return date.getMonth() === 11 && (date.getDate() === 25 || date.getDate() === 26);
+}
+
+/**
+ * Returns true for shifts starting 04:00–10:59 (Early classification).
+ * @param {string} timeStr  e.g. "06:00-14:00"
+ * @returns {boolean}
+ */
+export function isEarlyShift(timeStr) {
+    if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
+    const hour = parseInt(timeStr.split(':')[0], 10);
+    return hour >= CONFIG.EARLY_START_THRESHOLD && hour < CONFIG.EARLY_SHIFT_THRESHOLD;
+}
+
+/**
+ * Returns true for shifts starting 21:00–03:59 (Night classification).
+ * @param {string} timeStr  e.g. "21:30-05:30"
+ * @returns {boolean}
+ */
+export function isNightShift(timeStr) {
+    if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
+    const hour = parseInt(timeStr.split(':')[0], 10);
+    return hour >= CONFIG.NIGHT_START_THRESHOLD || hour < CONFIG.EARLY_START_THRESHOLD;
+}
+
+/**
+ * Returns a CSS class name for a shift value.
+ * Used to apply day-cell background colours in both HTML files.
+ * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
+ * @returns {string}  CSS class name
+ */
+export function getShiftClass(timeStr) {
+    if (timeStr === 'RD' || timeStr === 'OFF') return 'rest-day';
+    if (timeStr === 'SPARE') return 'spare-day';
+    if (timeStr === 'RDW')   return 'rdw-day';
+    if (timeStr === 'AL')    return 'al-day';
+    if (!SHIFT_TIME_REGEX.test(timeStr)) {
+        console.warn(`Unknown shift value: "${timeStr}" — rendered as other-day`);
+        return 'other-day';
+    }
+    if (isNightShift(timeStr)) return 'night-shift';
+    return isEarlyShift(timeStr) ? 'early-shift' : 'late-shift';
+}
+
+/**
+ * Returns an HTML shift badge `<span>` for a shift value.
+ * @param {string} timeStr  Shift value (e.g. "RD", "06:00-14:00")
+ * @param {string} [sep='<br>']  Separator between icon and label — use ' ' for inline layouts.
+ * @returns {string}  HTML string (safe — no user data interpolated)
+ */
+export function getShiftBadge(timeStr, sep = '<br>') {
+    if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return `<span class="shift-badge badge-rest">🏠${sep}Rest</span>`;
+    if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare">📋${sep}Spare</span>`;
+    if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw">💼${sep}RDW</span>`;
+    if (timeStr === 'AL')    return `<span class="shift-badge badge-al">🏖️${sep}AL</span>`;
+    if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-other">❓${sep}Unknown</span>`;
+    if (isNightShift(timeStr)) return `<span class="shift-badge badge-night">🦉${sep}Night</span>`;
+    return isEarlyShift(timeStr)
+        ? `<span class="shift-badge badge-early">☀️${sep}Early</span>`
+        : `<span class="shift-badge badge-late">🌙${sep}Late</span>`;
+}
+
+// ============================================
+// ROSTER LOOKUP — shared by both HTML files
+// ============================================
+
+/**
+ * Returns the roster week number (1-based, within the cycle) for a given date and member.
+ * Each week runs Sunday–Saturday. Normalises to noon to avoid DST edge cases.
+ * @param {Date} date
+ * @param {Object} member  teamMembers entry
+ * @returns {number}  Week number within the roster cycle
+ */
+export function getWeekNumberForDate(date, member) {
+    if (!member) return 1; // safety fallback — should always be provided
+    const rosterType = member.rosterType || 'main';
+    if (rosterType === 'fixed') return 1; // single week, always repeats
+
+    const cycleLength = rosterType === 'bilingual'   ? CONFIG.BILINGUAL_ROSTER_WEEKS
+                      : rosterType === 'ces'         ? CONFIG.CES_ROSTER_WEEKS
+                      : rosterType === 'dispatcher'  ? CONFIG.DISPATCHER_ROSTER_WEEKS
+                      : CONFIG.MAIN_ROSTER_WEEKS;
+
+    const referenceSunday = rosterType === 'bilingual'  ? CONFIG.BILINGUAL_ROSTER_REFERENCE_DATE
+                          : rosterType === 'ces'        ? CONFIG.CES_ROSTER_REFERENCE_DATE
+                          : rosterType === 'dispatcher' ? CONFIG.DISPATCHER_ROSTER_REFERENCE_DATE
+                          : CONFIG.MAIN_ROSTER_REFERENCE_DATE;
+
+    // Normalise to noon to avoid DST issues
+    const noon = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
+    const sunday = new Date(noon);
+    sunday.setDate(noon.getDate() - noon.getDay());
+
+    const weeksDiff = Math.floor(Math.round((sunday - referenceSunday) / (1000 * 60 * 60 * 24)) / 7);
+    const w = member.currentWeek + weeksDiff;
+    return ((w - 1) % cycleLength + cycleLength) % cycleLength + 1;
+}
+
+/**
+ * Returns the full roster descriptor for a member.
+ * Returns an object with: type, data (the roster map), cycleLength, weekPrefix.
+ * admin.html's simple getRosterData can be replaced by `.data` on this result.
+ * @param {Object} member  teamMembers entry
+ * @returns {{ type: string, data: Object, cycleLength: number, weekPrefix: string }}
+ */
+export function getRosterForMember(member) {
+    if (!member) {
+        console.error('getRosterForMember called with null/undefined member');
+        return { type: 'main', data: weeklyRoster, cycleLength: CONFIG.MAIN_ROSTER_WEEKS, weekPrefix: 'CEA Week' };
+    }
+    const t = member.rosterType || 'main';
+    if (t === 'fixed')      return { type: 'fixed',      data: fixedRoster,      cycleLength: 1,                           weekPrefix: '' };
+    if (t === 'ces')        return { type: 'ces',        data: cesRoster,        cycleLength: CONFIG.CES_ROSTER_WEEKS,      weekPrefix: 'CES Week' };
+    if (t === 'dispatcher') return { type: 'dispatcher', data: dispatcherRoster, cycleLength: CONFIG.DISPATCHER_ROSTER_WEEKS, weekPrefix: 'Dispatch Week' };
+    if (t === 'bilingual')  return { type: 'bilingual',  data: bilingualRoster,  cycleLength: CONFIG.BILINGUAL_ROSTER_WEEKS,  weekPrefix: 'BL Week' };
+    return { type: 'main', data: weeklyRoster, cycleLength: CONFIG.MAIN_ROSTER_WEEKS, weekPrefix: 'CEA Week' };
+}
+
+/**
+ * Returns the base roster shift for a member on a given date, before any Firestore overrides.
+ * Applies the Christmas/Boxing Day RD rule before the roster lookup.
+ * @param {Object} member  teamMembers entry
+ * @param {Date}   date
+ * @returns {string}  Shift value e.g. "RD", "06:00-14:00"
+ */
+export function getBaseShift(member, date) {
+    if (isChristmasRD(date)) return 'RD';
+    const weekNum = getWeekNumberForDate(date, member);
+    const dayKey  = DAY_KEYS[date.getDay()];
+    const data    = getRosterForMember(member).data;
+    return (data[weekNum] && data[weekNum][dayKey]) || 'RD';
+}
+
+// ============================================
+// SECURITY UTILITIES — shared by both HTML files
+// ============================================
+
+/**
+ * Escapes special HTML characters to prevent XSS injection.
+ * Use on all Firestore-sourced strings before inserting into innerHTML.
+ * Handles null/undefined safely (returns '').
+ * @param {string|null|undefined} str
+ * @returns {string}
+ */
+export function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
 // Run validations immediately at module load
