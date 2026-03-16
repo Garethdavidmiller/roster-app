@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '4.96';
+export const APP_VERSION = '4.97';
 
 // ============================================
 // CONFIGURATION
@@ -31,6 +31,7 @@ export const CONFIG = {
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
+    ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access — add names here to grant admin rights
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
 
