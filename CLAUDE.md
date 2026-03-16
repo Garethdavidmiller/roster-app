@@ -210,6 +210,7 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 34 | 🟡 Med | **No automated tests.** Added `roster-data.test.mjs` (158 lines) using Node's built-in `node:test` runner — covers bank holidays, Easter, paydays, cutoffs, AL entitlement, and roster validation. Run with `node --test roster-data.test.mjs`. |
 | 23 | 🟢 Low | **Legend was very long on mobile.** Responsive CSS collapses the three legend rows into a single centred strip at narrow viewports. |
 | 31/16 | 🟠 High | **Two 4,000-line monolithic HTML files; JS embedded in HTML.** Extracted all JavaScript from `index.html` into `app.js` (1,693 lines) and from `admin.html` into `admin-app.js` (1,983 lines). Both HTML files now contain only HTML and CSS. JS can now be linted, cached independently, and navigated separately. |
+| 9/32 | 🟡 Med | **Cultural calendar dates were 400+ lines of hardcoded strings.** Added three private helpers (`fixedAnnualDate`, `easterOffset`, `nthWeekdayOfMonth`) in `roster-data.js`. 18 of 33 datasets (all fixed-date, Easter-relative, and day-of-week-rule holidays) are now auto-computed for the full CONFIG year range — no manual updates ever needed. 15 genuinely lunar/lunisolar datasets (Islamic ×5, Hindu ×5, Chinese ×5) remain as lookup tables and still need annual updates. `warnIfCulturalCalendarMissingYear()` now checks all 15 of these. |
 
 ### Remaining items — not yet fixed
 
@@ -222,7 +223,7 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
 
 #### 🟡 Medium
-- **#9/#32 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` will warn if a year is missing. Long-term: store in Firestore or a JSON file.
+- **#9/32 — 15 lunar/lunisolar calendar datasets still need annual updates**: Islamic (Ramadan, Eid al-Fitr, Eid al-Adha, Islamic New Year, Mawlid), Hindu (Holi, Navratri, Dussehra, Diwali, Raksha Bandhan), Chinese (New Year, Lantern, Qingming, Dragon Boat, Mid-Autumn). Sources: islamicfinder.org, drikpanchang.com (London), chinesenewyear.net. `warnIfCulturalCalendarMissingYear()` logs a warning if any are missing for the current year.
 - **#11 — `ADMIN_NAME` is hardcoded** in `admin-app.js`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
 
 ---
