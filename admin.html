@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.88 -->
+<!-- MYB Roster Admin v4.89 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2168,8 +2168,8 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.88';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.88';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.89';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.89';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3263,6 +3263,8 @@ async function executeSave(toSave, toDelete = []) {
         allOverrides.push(...newDocs);
         allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         renderTable();
+        updateALBanner();
+        updateALBookedBox();
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
 
     } catch (err) {
@@ -3385,6 +3387,8 @@ async function handleDelete(e) {
         await deleteDoc(doc(db, 'overrides', btn.dataset.id));
         allOverrides = allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
+        updateALBanner();
+        updateALBookedBox();
         // Re-render week grid to clear the "has override" badge if this date is visible
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         // Brief confirmation of what was removed
@@ -3837,6 +3841,8 @@ alSaveBtn.addEventListener('click', async () => {
         allOverrides.push(...alNewDocs);
         allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         renderTable();
+        updateALBanner();
+        updateALBookedBox();
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
