@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.91 -->
+<!-- MYB Roster Admin v4.92 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1023,6 +1023,44 @@
             transform: translateX(-50%) translateY(0);
         }
 
+        /* ---- SW update toast — appears when a new version is waiting ---- */
+        #updateToast {
+            position: fixed;
+            top: max(16px, env(safe-area-inset-top));
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            background: var(--primary-blue);
+            color: white;
+            font-size: var(--type-small);
+            padding: 10px 16px;
+            border-radius: 24px;
+            box-shadow: var(--shadow-3);
+            z-index: 7500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        #updateToast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+            pointer-events: auto;
+        }
+        #updateToastBtn {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border: none;
+            border-radius: 12px;
+            font-size: var(--type-small);
+            font-weight: 700;
+            padding: 4px 12px;
+            cursor: pointer;
+        }
+        #updateToastBtn:hover { background: var(--accent-gold-dark); }
+
         /* ---- Collapsible card shared styles ---- */
         .card-collapsible-header {
             cursor: pointer;
@@ -1894,6 +1932,10 @@
 
 <!-- Save confirmation toast — anchored to bottom of screen -->
 <div id="saveToast" role="status" aria-live="polite"></div>
+<!-- SW update toast — hidden until a new service worker is waiting -->
+<div id="updateToast" role="status" aria-live="polite">
+    Update ready — <button id="updateToastBtn" type="button">Refresh now</button>
+</div>
 
 <!-- Annual leave over-limit confirmation bar — fixed to bottom of screen -->
 <div class="al-confirm-bar" id="alConfirmBar">
@@ -2168,8 +2210,8 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.91';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.91';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.92';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.92';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -4150,6 +4192,59 @@ if (!isAuthenticated) {
     if (location.hash) {
         const target = document.querySelector(location.hash);
         if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
+}
+
+// ============================================
+// SERVICE WORKER — registration + update toast
+// ============================================
+// Registers the shared service worker so admin.html benefits from caching.
+// When a new SW finishes installing and is waiting, shows the update toast
+// instead of reloading immediately — lets the user decide when to refresh.
+if ('serviceWorker' in navigator) {
+    const updateToast = document.getElementById('updateToast');
+    const updateBtn   = document.getElementById('updateToastBtn');
+    let swRegistration = null;
+
+    /** Show the "Update ready" toast. */
+    function showUpdateToast() {
+        if (updateToast) updateToast.classList.add('visible');
+    }
+
+    navigator.serviceWorker.register('./service-worker.js')
+        .then(registration => {
+            swRegistration = registration;
+
+            // A new SW is already waiting (page was loaded while one was pending)
+            if (registration.waiting) showUpdateToast();
+
+            // A new SW starts downloading — watch for it to finish installing
+            registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (!newWorker) return;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                        showUpdateToast();
+                    }
+                });
+            });
+
+            // Poll for updates every 60 minutes (catches long-lived sessions)
+            setInterval(() => registration.update(), 60 * 60 * 1000);
+        })
+        .catch(e => console.warn('[SW] Registration failed:', e));
+
+    // "Refresh now" button — sends SKIP_WAITING then reloads once the new SW takes control
+    if (updateBtn) {
+        updateBtn.addEventListener('click', () => {
+            if (!swRegistration?.waiting) return;
+            updateBtn.textContent = 'Updating…';
+            updateBtn.disabled    = true;
+            swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
+            }, { once: true });
+        });
     }
 }
 </script>
