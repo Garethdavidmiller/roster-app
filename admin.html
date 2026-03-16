@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v4.92 -->
+<!-- MYB Roster Admin v4.93 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -7,99 +7,11 @@
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#001e3c">
     <title>MYB Roster — Admin</title>
+
+    <!-- Shared styles: CSS variables, global reset, icon lightbox -->
+    <link rel="stylesheet" href="shared.css?v=4.93">
+
     <style>
-        :root {
-            /* Brand colours */
-            --primary-blue:      #001e3c;
-            --primary-blue-dark: #00152a;
-            --accent-gold:       #f5c800;
-            --accent-gold-dark:  #e6bb00;
-
-            /* Shift colours */
-            --green:             #43a047;
-            --green-light:       #e8f5e9;
-            --orange:            #ff9800;
-            --orange-light:      #fff3e0;
-            --blue-light:        #e3f2fd;
-            --blue-sky:          #2196f3;
-            --purple:            #9c27b0;
-            --purple-light:      #f3e5f5;
-            --rdw:               #e91e63;
-            --rdw-light:         #fce4ec;
-            --al:                #00897b;
-            --al-light:          #e0f2f1;
-            --charcoal:          #2d2d2d;  /* Rest badge background */
-            --night:             #1a1a2e;  /* Night shift badge */
-            --night-cell-bg:     rgba(20, 20, 40, 0.10);
-            --night-cell-border: rgba(20, 20, 40, 0.30);
-            --ot:                #5c6bc0;  /* Overtime pill */
-            --ot-light:          #ede7f6;  /* Overtime list pill background */
-
-            /* Error colours */
-            --error-bg:          #ffebee;
-            --error-red:         #d32f2f;
-
-            /* Neutral colours */
-            --text-dark:         #333;
-            --text-mid:          #555;
-            --text-light:        #999;
-            --text-faint:        #aaa;
-            --border-light:      #e8e8e8;
-            --border-mid:        #cccccc;
-            --bg-light:          #f8f8f8;
-            --bg-faint:          #f5f5f5;
-            --today-print:       #fffde7;   /* Softer gold highlight — today row and active row */
-
-            /* AL balance state colours */
-            --al-low:            #e67e00;   /* AL running low — orange */
-            --al-warning:        #c0392b;   /* AL at zero / over limit — red */
-            --al-warning-bg:     #fdecea;   /* AL warning message background */
-            --al-deep:           #004d40;   /* Deep teal — AL pill text, AL preview ready */
-
-            /* Day-row state backgrounds */
-            --row-selected-bg:        #e8f0f8;   /* Checkbox ticked, no type yet */
-            --row-override-bg:        #fff3cd;   /* Has existing Firestore override */
-            --row-override-active-bg: #ffe0b2;   /* Override + type set */
-
-            /* Current-week nav highlight */
-            --week-current-bg:   #e8f4fb;
-
-            /* Feedback / status */
-            --success-text:      #1b5e20;   /* Success message text (dark green) */
-
-            /* AL over-limit confirm bar */
-            --al-confirm-bg:     #fff8e1;   /* Warm yellow bar background */
-            --al-confirm-accent: #f9a825;   /* Border and save button */
-
-            /* Override list pill text colours */
-            --correction-text:   #e65100;   /* Correction pill text (burnt orange) */
-
-            /* Border Radius */
-            --radius-md:         12px;
-            --radius-lg:         14px;
-
-            /* Typography scale */
-            --type-micro:  10px;   /* tiny labels, badges */
-            --type-small:  12px;   /* hints, metadata */
-            --type-body:   14px;   /* default body text */
-            --type-medium: 16px;   /* form inputs */
-            --type-large:  18px;   /* section headers */
-            --type-xl:     24px;   /* page title */
-
-            /* Elevation system */
-            --shadow-1: 0 1px 4px rgba(0,0,0,0.10);                  /* cards, subtle lift */
-            --shadow-2: 0 2px 12px rgba(0,30,60,0.12);               /* header, containers */
-            --shadow-3: 0 8px 32px rgba(0,0,0,0.18);                 /* modals, lightboxes */
-        }
-
-        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-
-        /* iOS status bar fix - blends with app theme.
-           No overflow on html — lets body's overflow-x: hidden propagate to the viewport
-           scroll container, which is how index.html works and why it scrolls correctly.
-           overflow-x: hidden on body then prevents horizontal scroll on iOS Safari. */
-        html { background-color: var(--primary-blue); color-scheme: light; }
-
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             -webkit-font-smoothing: antialiased;
@@ -1650,73 +1562,9 @@
         }
         @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
 
-        /* ---- Lightbox ---- */
-        #iconLightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 10, 20, 0.82);
-            z-index: 8000;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            -webkit-backdrop-filter: blur(6px);
-            backdrop-filter: blur(6px);
-            cursor: pointer;
-        }
-
-        #iconLightbox.visible { display: flex; }
-        #iconLightbox.open    { opacity: 1; }
-
-        #iconLightboxContent {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 24px;
-            padding: 36px 40px 32px;
-            cursor: default;
-            transform: scale(0.85);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-            min-width: 240px;
-            text-align: center;
-        }
-
-        #iconLightbox.open #iconLightboxContent { transform: scale(1); }
-
-        #iconLightboxContent img {
-            width: 100px;
-            height: 100px;
-            border-radius: 22px;
-            box-shadow: 0 0 0 3px rgba(255,255,255,0.2), 0 12px 40px rgba(0,0,0,0.5);
-            object-fit: cover;
-            margin-bottom: 8px;
-        }
-
-        .lightbox-app-name {
-            color: white;
-            font-size: 22px;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }
-
-        .lightbox-subtitle {
-            color: rgba(255,255,255,0.5);
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 4px;
-        }
-
-        .lightbox-version {
-            color: rgba(255,255,255,0.45);
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.3px;
-        }
-
+        /* ---- Lightbox — admin.html additions ----
+           Base overlay, content card, and close button are in shared.css.
+           Only the admin role badge is defined here. */
         .lightbox-badge {
             margin-top: 10px;
             padding: 5px 14px;
@@ -1728,39 +1576,6 @@
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.6px;
-        }
-
-        /* Bug report link — quiet utility link at the bottom of the about lightbox */
-        .lightbox-bug-link {
-            display: block;
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            width: 100%;
-            text-align: center;
-            font-size: 12px;
-            color: rgba(255,255,255,0.35);
-            text-decoration: none;
-            transition: color 0.15s;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
-        }
-
-        #iconLightboxClose {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            color: rgba(255,255,255,0.5);
-            font-size: 26px;
-            line-height: 1;
-            cursor: pointer;
-            padding: 8px;
-            transition: color 0.15s ease;
-        }
-
-        @media (hover: hover) and (pointer: fine) {
-            #iconLightboxClose:hover { color: white; }
         }
 
         /* ---- Save hint (shown when button is disabled) ---- */
@@ -2210,8 +2025,8 @@
 </div><!-- /container -->
 
 <script type="module">
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.92';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.92';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges } from './roster-data.js?v=4.93';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.93';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;

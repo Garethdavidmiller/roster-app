@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 4.92 -->
+<!-- MYB Roster Calendar - Version 4.93 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24,102 +24,11 @@
     <!-- Favicon -->
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
-    
+
+    <!-- Shared styles: CSS variables, global reset, icon lightbox -->
+    <link rel="stylesheet" href="shared.css?v=4.93">
+
     <style>
-        :root {
-            /* Brand colours */
-            --primary-blue:      #001e3c;
-            --primary-blue-dark: #00152a;    /* Hover state for primary buttons */
-            --accent-gold:       #f5c800;
-            --accent-gold-dark:  #e6bb00;    /* Hover state for today button */
-
-            /* Shift colours */
-            --green: #43a047;
-            --green-hover: #388e3c;          /* Hover state for print button */
-            --green-light: #e8f5e9;
-            --orange: #ff9800;
-            --orange-light: #fff3e0;
-            --blue-light: #e3f2fd;
-            --blue-sky: #2196f3;
-            --purple: #9c27b0;
-            --purple-light: #f3e5f5;
-            --rdw: #e91e63;
-            --rdw-light: #fce4ec;
-            --al: #00897b;
-            --al-light: #e0f2f1;
-            --charcoal: #2d2d2d;             /* Rest badge background */
-            --night: #1a1a2e;                /* Night shift badge */
-            --night-cell-bg: rgba(20, 20, 40, 0.10);   /* Night shift cell background */
-            --night-cell-border: rgba(20, 20, 40, 0.30); /* Night shift cell border */
-            /* --ot / --ot-light reserved for future overtime feature */
-
-            /* Error colours */
-            --error-bg: #ffebee;
-            --error-red: #d32f2f;
-            --error-banner: #c62828;
-
-            /* Neutral colours */
-            --text-dark: #333;
-            --text-mid: #555;
-            --text-light: #999;
-            --text-faint: #aaa;
-            --border-light: #e8e8e8;
-            --border-mid: #cccccc;   /* Used for other-day cells and similar mid-tone borders */
-            --bg-light: #f8f8f8;
-            --bg-faint: #f5f5f5;
-            --today-print: #fffde7; /* Softer gold for print — avoids ink waste vs full accent-gold */
-
-            /* AL button hover */
-            --al-hover:                #00796b;
-
-            /* Desktop background gradient (≥1025px) */
-            --desktop-gradient-start:  #0a2240;
-            --desktop-gradient-end:    #001630;
-
-            /* SW update status pill colours */
-            --status-ok:               #4caf50;
-            --status-ok-bg:            rgba(76, 175, 80, 0.15);
-            --status-update:           #64b5f6;
-            --status-update-bg:        rgba(100, 181, 246, 0.15);
-            --update-btn:              #1976d2;
-            --update-btn-active:       #1565c0;
-
-            /* AL lightbox value state colours */
-            --al-lb-ok:                #4db6ac;   /* plenty of leave remaining */
-            --al-lb-low:               #ffb74d;   /* leave running low */
-            --al-lb-empty:             #ef9a9a;   /* no leave remaining */
-
-            /* Border Radius */
-            --radius-md: 12px;
-            --radius-lg: 14px;
-
-            /* Typography scale */
-            --type-micro:  10px;   /* tiny labels, badges */
-            --type-small:  12px;   /* hints, metadata */
-            --type-body:   14px;   /* default body text */
-            --type-medium: 16px;   /* form inputs */
-            --type-large:  18px;   /* section headers */
-            --type-xl:     24px;   /* page title */
-
-            /* Elevation system */
-            --shadow-1: 0 1px 4px rgba(0,0,0,0.10);                  /* cards, subtle lift */
-            --shadow-2: 0 2px 12px rgba(0,30,60,0.12);               /* header, calendar container */
-            --shadow-3: 0 8px 32px rgba(0,0,0,0.18);                 /* modals, lightboxes */
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent; /* Removes grey flash on tap in iOS Safari */
-        }
-
-        /* iOS status bar fix - blends with app theme */
-        html {
-            background-color: var(--primary-blue);
-            color-scheme: light; /* tells the browser this is a light-mode UI — prevents dark-mode scrollbars and form controls */
-        }
-
         /* In-app error banner (replaces alert()) */
         .error-banner {
             display: none;
@@ -1586,81 +1495,11 @@
             margin-top: -12px;
         }
         /* ============================================
-           ICON LIGHTBOX / ABOUT PANEL
-           Shown when the user taps the header icon.
-           Displays app name, version, and update status.
+           ICON LIGHTBOX — page-specific additions
+           Base overlay, content card, and close button are
+           in shared.css. Below are index.html-only extras:
+           SW update status pill and keyboard tips section.
            ============================================ */
-
-        /* Full-screen overlay */
-        #iconLightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 10, 20, 0.82);
-            z-index: 8000;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            -webkit-backdrop-filter: blur(6px);
-            backdrop-filter: blur(6px);
-            cursor: pointer;
-        }
-
-        #iconLightbox.visible { display: flex; }
-        #iconLightbox.open    { opacity: 1; }
-
-        /* Content card — sits above the overlay, not clickable-through */
-        #iconLightboxContent {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 6px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px;
-            padding: 36px 40px 32px;
-            cursor: default;
-            transform: scale(0.85);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-            min-width: 240px;
-            text-align: center;
-        }
-
-        #iconLightbox.open #iconLightboxContent {
-            transform: scale(1);
-        }
-
-        /* Enlarged icon */
-        #iconLightboxContent img {
-            width: 100px;
-            height: 100px;
-            border-radius: 22px;
-            box-shadow: 0 0 0 3px rgba(255,255,255,0.2), 0 12px 40px rgba(0,0,0,0.5);
-            object-fit: cover;
-            margin-bottom: 8px;
-        }
-
-        .lightbox-app-name {
-            color: white;
-            font-size: 22px;
-            font-weight: 700;
-            letter-spacing: -0.3px;
-        }
-
-        .lightbox-subtitle {
-            color: rgba(255,255,255,0.5);
-            font-size: 13px;
-            font-weight: 500;
-            margin-bottom: 4px;
-        }
-
-        .lightbox-version {
-            color: rgba(255,255,255,0.45);
-            font-size: 12px;
-            font-weight: 500;
-            letter-spacing: 0.3px;
-        }
 
         /* Update status line — changes text and colour based on state */
         .lightbox-status {
@@ -1761,40 +1600,6 @@
             padding: 2px 7px;
             white-space: nowrap;
             flex-shrink: 0;
-        }
-
-        /* Bug report link — sits below tips, quiet but tappable */
-        .lightbox-bug-link {
-            display: block;
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255,255,255,0.1);
-            width: 100%;
-            text-align: center;
-            font-size: 12px;
-            color: rgba(255,255,255,0.35);
-            text-decoration: none;
-            transition: color 0.15s;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
-        }
-
-        /* Close button */
-        #iconLightboxClose {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            color: rgba(255,255,255,0.5);
-            font-size: 26px;
-            line-height: 1;
-            cursor: pointer;
-            padding: 8px;
-            transition: color 0.15s ease;
-        }
-
-        @media (hover: hover) and (pointer: fine) {
-            #iconLightboxClose:hover { color: white; }
         }
 
         /* ---- Annual Leave lightbox ---- */
@@ -2234,8 +2039,8 @@
     </div>
 
     <script type="module">
-        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.92';
-        import { db, collection, query, where, getDocs } from './firebase-client.js?v=4.92';
+        import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS } from './roster-data.js?v=4.93';
+        import { db, collection, query, where, getDocs } from './firebase-client.js?v=4.93';
 
         // ============================================
         // CEA ROSTER CALENDAR
