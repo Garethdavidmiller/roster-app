@@ -2,22 +2,22 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v4.87:** `APP_VERSION` is declared once in `roster-data.js` and read everywhere else. You only need to update **five** places:
+**As of v4.92:** `APP_VERSION` is declared once in `roster-data.js` and read everywhere else. You only need to update **five** places:
 
 | File | Location | Example |
 |------|----------|---------|
-| `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.87'` ← **primary source** |
-| `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.87'` ← must match |
-| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.87 -->` |
-| `index.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.87` |
-| `index.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.87` |
-| `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.87 -->` |
-| `admin.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.87` |
-| `admin.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.87` |
+| `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.92'` ← **primary source** |
+| `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.92'` ← must match |
+| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.92 -->` |
+| `index.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.92` |
+| `index.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.92` |
+| `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.92 -->` |
+| `admin.html` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.92` |
+| `admin.html` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.92` |
 
 `CONFIG.APP_VERSION` and `ADMIN_VERSION` in the HTML files now read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
 
-- Increment the patch number (e.g. 4.87 → 4.88) for every commit that touches app behaviour
+- Increment the patch number (e.g. 4.92 → 4.88) for every commit that touches app behaviour
 - The import `?v=` cache-busting strings **must** still be updated manually (browsers use them to bust the module cache)
 - Tell the user the new version number in your reply after committing
 
@@ -45,7 +45,7 @@ roster-app/
 ├── admin.html          ← staff self-service and admin portal
 ├── roster-data.js      ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── firebase-client.js  ← shared module: Firebase init (one place), exports db + all Firestore functions
-├── service-worker.js   ← v5.5 (cache name now includes app version, e.g. myb-roster-v4.87)
+├── service-worker.js   ← v5.5 (cache name now includes app version, e.g. myb-roster-v4.92)
 ├── manifest.json       ← PWA manifest
 └── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
 ```
@@ -171,11 +171,11 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ---
 
-## Senior code review — v4.86 → v4.87 (March 2026)
+## Senior code review — v4.86 → v4.92 (March 2026)
 
-A full audit was completed at v4.86. The items below are ordered by priority. Items marked ✅ were fixed in v4.87.
+A full audit was completed at v4.86. The items below are ordered by priority. Items marked ✅ were fixed in v4.92.
 
-### Fixed in v4.87
+### Fixed in v4.92
 
 | # | Severity | What was fixed |
 |---|----------|----------------|
@@ -193,10 +193,17 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 33 | 🟡 Med | **Roster pattern strings had no validation.** Added `validateRosterPatterns()` and `warnIfCulturalCalendarMissingYear()` in `roster-data.js`; both run automatically at module load and log errors/warnings to the console. |
 | 10 | 🟡 Med | **Version number required manual updates in 7 places** — a known source of drift. `APP_VERSION` is now exported from `roster-data.js` and read by both HTML files via `CONFIG.APP_VERSION`. The remaining manual step is updating the import `?v=` cache-busting strings. |
 | 15 | 🟠 High | **innerHTML + Firestore data audit.** Reviewed all `innerHTML` assignments. The override list table (admin.html ~3296) correctly passes all Firestore values through `esc()`. The `alPreview.innerHTML` correctly uses `esc(member)`. All other `innerHTML` assignments use only app-computed values. **No changes required — audit passed.** |
+| 30 | 🟢 Low | **No PWA shortcuts defined in manifest.** Added `shortcuts` array with "My Roster" (index.html) and "Admin" (admin.html) entries, each with a 192×192 icon. |
+| 24 | 🟢 Low | **Print output lacked member name, date, and print timestamp.** index.html uses `beforeprint` to set `data-print-date` on `.header`; admin.html populates a `#printHeader` div with member name, week label, and timestamp. |
+| 19 | 🟢 Low | **Override list re-queried Firestore after every edit.** After saving or deleting, `allOverrides` is now updated in-memory (filter removed IDs, push new docs, re-sort) and `renderTable()` is called directly — no round-trip. |
+| 18 | 🟡 Med | **`getShiftTypesInMonth()` recalculated all days on every swipe.** Result is now memoised in a Map keyed by `"memberName\|year\|month"`, cleared on override change. |
+| 22 | 🟡 Med | **Splash screen used a fixed 1.5s delay.** Now dismissed when `renderCalendar()` completes, with a 300ms minimum to ensure the calendar is painted before the fade. |
+| 35 | 🟢 Low | **No linter or formatter.** Added `.eslintrc.json` (`eslint:recommended`) and `.prettierrc` to the repo root. |
+| 28 | 🟡 Med | **admin.html auto-reloaded immediately on `controllerchange`.** Added SW registration to admin.html with an `#updateToast` banner (top of screen, navy + gold "Refresh now" button). Toast appears when a new SW is waiting; pressing the button sends `SKIP_WAITING` then reloads — user controls when to refresh. |
 
 ### Remaining items — not yet fixed
 
-These were identified in the audit but not addressed in v4.87. Tackle in future sessions:
+These were identified in the audit but not addressed. Tackle in future sessions:
 
 #### 🔴 Critical
 - **#13 — Firestore Security Rules missing.** The Firebase credentials are public (expected), but without Firestore rules anyone can read/write the entire database from a browser console. Log in to the Firebase Console → Firestore → Rules and restrict access. Also consider Firebase App Check and restricting the API key in Google Cloud Console.
@@ -208,20 +215,12 @@ These were identified in the audit but not addressed in v4.87. Tackle in future 
 - **#31 — Two 4,000-line monolithic HTML files.** Plan: extract to `app.js`, `admin-app.js`, and `shared.css`.
 
 #### 🟡 Medium
-- **#9 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` (added in v4.87) will now warn if a year is missing. Long-term: store in Firestore or a JSON file.
+- **#9/#32 — Cultural calendar dates are 400+ lines of hardcoded strings** that must be updated manually each year. `warnIfCulturalCalendarMissingYear()` will warn if a year is missing. Long-term: store in Firestore or a JSON file.
 - **#11 — `ADMIN_NAME` is hardcoded** in `admin.html`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
 - **#16 — JavaScript is embedded in HTML files** — cannot be linted, tested, or cached independently. Plan: same as #31 above.
-- **#18 — `getShiftTypesInMonth()` recalculates all days on every swipe.** Plan: cache result keyed by `memberName + year + month`, clear on override change.
-- **#22 — Splash screen uses a fixed 1.5s delay.** On fast connections this is dead time; on slow ones it disappears before the calendar is ready. Plan: dismiss when `renderCalendar()` completes, with a 300ms minimum.
-- **#28 — App auto-reloads on `controllerchange`.** The `window.location.reload()` is triggered immediately when the new service worker takes control — this can interrupt a user mid-booking. Plan: show a "Update ready — tap to refresh" toast instead, let user choose when to reload. *(Note: in index.html the reload is already behind the "Update now" button. Admin.html has no SW update UI — add it there too.)*
-- **#32 — Cultural calendar annual maintenance** (same as #9).
 - **#34 — No automated tests.** Pure utility functions in `roster-data.js` (bank holidays, payday, Easter, shift classification) are ideal for unit tests. Plan: add 10–15 tests using Node's built-in `node:test` runner — no build step, no dependencies.
 
 #### 🟢 Low
-- **#19 — Override list re-queries Firestore after every edit.** Plan: update local in-memory list and re-render from that.
 - **#23 — Legend is very long on mobile.** Plan: collapse cultural calendar section by default.
-- **#24 — Print output lacks member name, date, and print timestamp.** Plan: add `@media print` header rule.
-- **#30 — No PWA shortcuts defined in manifest.** Plan: add `shortcuts` array for "My Roster" and "Admin".
-- **#35 — No linter or formatter.** Plan: add `.eslintrc.json` with `eslint:recommended` and `.prettierrc`.
 
 ---

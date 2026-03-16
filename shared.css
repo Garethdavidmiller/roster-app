@@ -1,0 +1,242 @@
+/* MYB Roster App — shared.css
+   CSS shared between index.html and admin.html.
+   Loaded by both pages via <link rel="stylesheet" href="shared.css?v=...">
+   before their own <style> block, so page-specific rules can override. */
+
+/* ============================================================
+   CSS CUSTOM PROPERTIES
+   All CSS variables for the entire app live here — both pages
+   read them. Variables only used by one page are commented to
+   make that clear, but keeping them all here means colour or
+   spacing changes only ever need one edit.
+   ============================================================ */
+:root {
+    /* Brand colours — Chiltern Railways */
+    --primary-blue:      #001e3c;
+    --primary-blue-dark: #00152a;   /* hover state for primary buttons */
+    --accent-gold:       #f5c800;
+    --accent-gold-dark:  #e6bb00;   /* hover state for today/gold buttons */
+
+    /* Shift colours */
+    --green:             #43a047;
+    --green-hover:       #388e3c;   /* index.html: print button hover */
+    --green-light:       #e8f5e9;
+    --orange:            #ff9800;
+    --orange-light:      #fff3e0;
+    --blue-light:        #e3f2fd;
+    --blue-sky:          #2196f3;
+    --purple:            #9c27b0;
+    --purple-light:      #f3e5f5;
+    --rdw:               #e91e63;
+    --rdw-light:         #fce4ec;
+    --al:                #00897b;
+    --al-light:          #e0f2f1;
+    --charcoal:          #2d2d2d;   /* rest badge background */
+    --night:             #1a1a2e;   /* night shift badge */
+    --night-cell-bg:     rgba(20, 20, 40, 0.10);
+    --night-cell-border: rgba(20, 20, 40, 0.30);
+    --ot:                #5c6bc0;   /* admin.html: overtime pill */
+    --ot-light:          #ede7f6;   /* admin.html: overtime list pill background */
+
+    /* Error colours */
+    --error-bg:          #ffebee;
+    --error-red:         #d32f2f;
+    --error-banner:      #c62828;   /* index.html: error banner background */
+
+    /* Neutral colours */
+    --text-dark:         #333;
+    --text-mid:          #555;
+    --text-light:        #999;
+    --text-faint:        #aaa;
+    --border-light:      #e8e8e8;
+    --border-mid:        #cccccc;   /* other-day cells and mid-tone borders */
+    --bg-light:          #f8f8f8;
+    --bg-faint:          #f5f5f5;
+    --today-print:       #fffde7;   /* softer gold for print/today highlight */
+
+    /* index.html: interactive element hover and desktop colours */
+    --al-hover:               #00796b;
+    --desktop-gradient-start: #0a2240;
+    --desktop-gradient-end:   #001630;
+
+    /* index.html: SW update status pill colours */
+    --status-ok:         #4caf50;
+    --status-ok-bg:      rgba(76, 175, 80, 0.15);
+    --status-update:     #64b5f6;
+    --status-update-bg:  rgba(100, 181, 246, 0.15);
+    --update-btn:        #1976d2;
+    --update-btn-active: #1565c0;
+
+    /* index.html: AL lightbox state colours */
+    --al-lb-ok:          #4db6ac;   /* plenty of leave remaining */
+    --al-lb-low:         #ffb74d;   /* leave running low */
+    --al-lb-empty:       #ef9a9a;   /* no leave remaining */
+
+    /* admin.html: AL balance state colours */
+    --al-low:            #e67e00;   /* AL running low — orange */
+    --al-warning:        #c0392b;   /* AL at zero / over limit — red */
+    --al-warning-bg:     #fdecea;   /* AL warning message background */
+    --al-deep:           #004d40;   /* deep teal — AL pill text, AL preview ready */
+
+    /* admin.html: day-row state backgrounds */
+    --row-selected-bg:        #e8f0f8;   /* checkbox ticked, no type yet */
+    --row-override-bg:        #fff3cd;   /* has existing Firestore override */
+    --row-override-active-bg: #ffe0b2;   /* override + type set */
+
+    /* admin.html: current-week nav highlight */
+    --week-current-bg:   #e8f4fb;
+
+    /* admin.html: feedback colours */
+    --success-text:      #1b5e20;   /* success message text (dark green) */
+
+    /* admin.html: AL over-limit confirm bar */
+    --al-confirm-bg:     #fff8e1;   /* warm yellow bar background */
+    --al-confirm-accent: #f9a825;   /* border and save button */
+
+    /* admin.html: override list pill text colours */
+    --correction-text:   #e65100;   /* correction pill text (burnt orange) */
+
+    /* Border Radius */
+    --radius-md: 12px;
+    --radius-lg: 14px;
+
+    /* Typography scale */
+    --type-micro:  10px;   /* tiny labels, badges */
+    --type-small:  12px;   /* hints, metadata */
+    --type-body:   14px;   /* default body text */
+    --type-medium: 16px;   /* form inputs */
+    --type-large:  18px;   /* section headers */
+    --type-xl:     24px;   /* page title */
+
+    /* Elevation system */
+    --shadow-1: 0 1px 4px rgba(0,0,0,0.10);                  /* cards, subtle lift */
+    --shadow-2: 0 2px 12px rgba(0,30,60,0.12);               /* header, containers */
+    --shadow-3: 0 8px 32px rgba(0,0,0,0.18);                 /* modals, lightboxes */
+}
+
+/* ============================================================
+   GLOBAL RESET
+   ============================================================ */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent; /* removes grey flash on tap in iOS Safari */
+}
+
+/* iOS status bar — blends with app theme.
+   No overflow-x on html; each page's body handles scroll containment. */
+html {
+    background-color: var(--primary-blue);
+    color-scheme: light; /* prevents dark-mode scrollbars and form controls */
+}
+
+/* ============================================================
+   ICON / ABOUT LIGHTBOX
+   Both pages show the same "About MYB Roster" panel when the
+   app icon is tapped. Page-specific additions (index: SW status
+   + tips; admin: role badge) live in each page's own <style>.
+   ============================================================ */
+#iconLightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 10, 20, 0.82);
+    z-index: 8000;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    cursor: pointer;
+}
+
+#iconLightbox.visible { display: flex; }
+#iconLightbox.open    { opacity: 1; }
+
+/* Content card — sits above the overlay, not clickable-through */
+#iconLightboxContent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 36px 40px 32px;
+    cursor: default;
+    transform: scale(0.85);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    min-width: 240px;
+    text-align: center;
+}
+
+#iconLightbox.open #iconLightboxContent {
+    transform: scale(1);
+}
+
+/* Enlarged app icon */
+#iconLightboxContent img {
+    width: 100px;
+    height: 100px;
+    border-radius: 22px;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.2), 0 12px 40px rgba(0,0,0,0.5);
+    object-fit: cover;
+    margin-bottom: 8px;
+}
+
+.lightbox-app-name {
+    color: white;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+}
+
+.lightbox-subtitle {
+    color: rgba(255,255,255,0.5);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.lightbox-version {
+    color: rgba(255,255,255,0.45);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+}
+
+/* Bug report link — quiet utility link at the bottom of the about lightbox */
+.lightbox-bug-link {
+    display: block;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    color: rgba(255,255,255,0.35);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+@media (hover: hover) and (pointer: fine) {
+    .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
+}
+
+/* Close button — positioned absolute over the overlay */
+#iconLightboxClose {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: rgba(255,255,255,0.5);
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 8px;
+    transition: color 0.15s ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    #iconLightboxClose:hover { color: white; }
+}
