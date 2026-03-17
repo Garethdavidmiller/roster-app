@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.22';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.22';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.23';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.23';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1062,7 +1062,7 @@ async function executeSave(toSave, toDelete = []) {
             : 'Could not save — check your connection and try again.');
     } finally {
         saveBtn.disabled    = false;
-        saveBtn.textContent = 'Save Changes';
+        saveBtn.textContent = 'Save changes';
         updateSaveBtn();
     }
 }
@@ -1604,7 +1604,7 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.className = 'feedback error';
         alFeedback.textContent = '⚠ No working days in that range — nothing to book.';
         alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Record Annual Leave';
+        alSaveBtn.textContent = 'Record annual leave';
         return;
     }
 
@@ -1652,7 +1652,7 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.textContent = '⚠ Could not save — check your connection and try again.';
     } finally {
         alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Record Annual Leave';
+        alSaveBtn.textContent = 'Record annual leave';
     }
 });
 
@@ -1825,7 +1825,7 @@ sickSaveBtn.addEventListener('click', async () => {
         sickFeedback.textContent = '⚠ Could not save — check your connection and try again.';
     } finally {
         sickSaveBtn.disabled    = false;
-        sickSaveBtn.textContent = 'Record Sick Days';
+        sickSaveBtn.textContent = 'Record sick days';
     }
 });
 
@@ -1842,11 +1842,10 @@ function updateSickBookedBox() {
     const memberName = sickMember.value;
     if (!memberName) { box.hidden = true; return; }
 
-    const yearStr = sickFrom.value ? sickFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
     const entries = allOverrides.filter(o =>
         o.memberName === memberName &&
         o.type       === 'sick' &&
-        o.date       && o.date.startsWith(yearStr)
+        o.date
     ).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
     if (!entries.length) { box.hidden = true; return; }
@@ -1979,11 +1978,10 @@ function updateALBookedBox() {
     const memberName = alMember.value;
     if (!memberName) { box.hidden = true; return; }
 
-    const yearStr = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
     const entries = allOverrides.filter(o =>
         o.memberName === memberName &&
         o.type       === 'annual_leave' &&
-        o.date       && o.date.startsWith(yearStr)
+        o.date
     ).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
     if (!entries.length) { box.hidden = true; return; }
@@ -2296,7 +2294,9 @@ if (!isAuthenticated) {
             const chevron = target.querySelector('.collapse-chevron');
             if (body)    body.classList.add('open');
             if (chevron) chevron.classList.add('open');
-            setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+            requestAnimationFrame(() => requestAnimationFrame(() =>
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            ));
         }
     }
 }
@@ -2335,8 +2335,12 @@ if ('serviceWorker' in navigator) {
                 });
             });
 
-            // Poll for updates every 60 minutes (catches long-lived sessions)
-            setInterval(() => registration.update(), 60 * 60 * 1000);
+            // Poll for updates every 60 minutes (catches long-lived sessions).
+            // Paused when the page is hidden to avoid unnecessary background network traffic.
+            const updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') clearInterval(updateInterval);
+            });
         })
         .catch(e => console.warn('[SW] Registration failed:', e));
 
