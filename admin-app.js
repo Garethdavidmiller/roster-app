@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=4.99';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=4.99';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.00';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.00';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -479,7 +479,8 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
 function updateALBanner() {
     const banner      = document.getElementById('alBanner');
     const remEl       = document.getElementById('alBannerRemaining');
-    const usedEl      = document.getElementById('alBannerUsed');
+    const takenEl     = document.getElementById('alBannerTaken');
+    const bookedEl    = document.getElementById('alBannerBooked');
     const entEl       = document.getElementById('alBannerEntitlement');
     const warnEl      = document.getElementById('alBannerWarn');
     const memberName  = alMember.value;
@@ -491,22 +492,27 @@ function updateALBanner() {
 
     const entitlement = getALEntitlement(member);
     const yearStr     = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
-    const used        = allOverrides.filter(o =>
-        o.memberName === memberName &&
-        o.type       === 'annual_leave' &&
-        o.date       && o.date.startsWith(yearStr)
-    ).length;
-    const remaining   = entitlement - used;
+    const todayStr    = new Date().toISOString().slice(0, 10);
 
-    remEl.textContent = remaining;
-    usedEl.textContent = used;
-    entEl.textContent  = entitlement;
+    let taken  = 0;
+    let booked = 0;
+    allOverrides.forEach(o => {
+        if (o.memberName === memberName && o.type === 'annual_leave' && o.date && o.date.startsWith(yearStr)) {
+            if (o.date <= todayStr) taken++; else booked++;
+        }
+    });
+    const remaining   = entitlement - taken - booked;
+
+    remEl.textContent    = remaining;
+    takenEl.textContent  = taken;
+    bookedEl.textContent = booked;
+    entEl.textContent    = entitlement;
 
     banner.hidden = false;
     banner.classList.toggle('al-banner-warning', remaining <= 0);
     banner.classList.toggle('al-banner-low',     remaining > 0 && remaining <= 5);
 
-    warnEl.hidden     = remaining > 0;
+    warnEl.hidden      = remaining > 0;
     warnEl.textContent = remaining === 0 ? 'Limit reached' : `${Math.abs(remaining)} over limit`;
 }
 
