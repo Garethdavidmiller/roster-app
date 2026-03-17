@@ -1,8 +1,12 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.25';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.25';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.26';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.26';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
+
+/** Returns true if dateStr (YYYY-MM-DD) falls on a Sunday.
+ *  Sunday shifts are uncontracted for all staff — they do not consume AL or sick days. */
+function isSunday(dateStr) { return new Date(dateStr + 'T12:00:00').getDay() === 0; }
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -499,7 +503,8 @@ function updateALBanner() {
     let taken  = 0;
     let booked = 0;
     allOverrides.forEach(o => {
-        if (o.memberName === memberName && o.type === 'annual_leave' && o.date && o.date.startsWith(yearStr)) {
+        // Sundays are uncontracted — don't count Sunday AL entries against the entitlement
+        if (o.memberName === memberName && o.type === 'annual_leave' && o.date && o.date.startsWith(yearStr) && !isSunday(o.date)) {
             if (o.date <= todayStr) taken++; else booked++;
         }
     });
@@ -984,13 +989,15 @@ saveBtn.addEventListener('click', async () => {
         const entitlement = getALEntitlement(member, parseInt(yearStr, 10), allOverrides);
         // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
         const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
+        // Sundays are uncontracted — exclude from entitlement counts
         const existingAL = allOverrides.filter(o =>
             o.memberName === memberName &&
             o.type       === 'annual_leave' &&
             o.date       && o.date.startsWith(yearStr) &&
-            !overwriteDates.has(o.date)
+            !overwriteDates.has(o.date) &&
+            !isSunday(o.date)
         ).length;
-        const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr)))];
+        const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
         const projectedTotal = existingAL + newALDates.length;
         if (projectedTotal > entitlement) {
             const over = projectedTotal - entitlement;
@@ -1559,6 +1566,8 @@ function updateAlPreview() {
             // Also treat existing RD/OFF overrides as rest days (same logic as the booking filter)
             const ov = allOverrides.find(o => o.memberName === memberObj.name && o.date === dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
+            // Sundays are uncontracted for all staff — skip, don't book AL
+            if (isSunday(dateStr)) { restCount++; return; }
             if (base === 'SPARE') spareCount++;
         });
     }
@@ -1592,12 +1601,13 @@ alSaveBtn.addEventListener('click', async () => {
         // Use the year from the booking dates, not the current calendar year
         const yearStr        = alFrom.value ? alFrom.value.substring(0, 4) : String(new Date().getFullYear());
         const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), allOverrides);
+        // Sundays are uncontracted — exclude from entitlement counts
         const existingAL     = allOverrides.filter(o =>
             o.memberName === member &&
             o.type       === 'annual_leave' &&
-            o.date       && o.date.startsWith(yearStr)
+            o.date       && o.date.startsWith(yearStr) && !isSunday(o.date)
         ).length;
-        const newALInYear    = dates.filter(d => d.startsWith(yearStr)).length;
+        const newALInYear    = dates.filter(d => d.startsWith(yearStr) && !isSunday(d)).length;
         const projectedTotal = existingAL + newALInYear;
         if (projectedTotal > entitlement) {
             const over = projectedTotal - entitlement;
@@ -1615,10 +1625,11 @@ alSaveBtn.addEventListener('click', async () => {
     alSaveBtn.disabled    = true;
     alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
-    // Filter out rest days — skip base-roster RDs/OFFs and any existing RD/OFF overrides
-    // so that RD corrections added via the week editor are respected by the AL booking.
+    // Filter out rest days and Sundays — Sundays are uncontracted for all staff.
+    // Also skips base-roster RDs/OFFs and existing RD/OFF overrides.
     const workingDates = memberObj
         ? dates.filter(dateStr => {
+            if (isSunday(dateStr)) return false;
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') return false;
@@ -1766,11 +1777,13 @@ function updateSickPreview() {
     const toDisp   = formatDisplay(dates[dates.length - 1]);
     const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
 
-    // Count rest days in the range — they will be skipped
+    // Count rest days in the range — they will be skipped.
+    // Sundays are always skipped (uncontracted for all staff).
     const memberObj = teamMembers.find(m => m.name === member);
     let restCount = 0;
     if (memberObj) {
         dates.forEach(dateStr => {
+            if (isSunday(dateStr)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') restCount++;
@@ -1795,8 +1808,10 @@ sickSaveBtn.addEventListener('click', async () => {
     if (!member || !dates || !dates.length) return;
 
     const memberObj    = teamMembers.find(m => m.name === member);
+    // Sundays are uncontracted — never record sick on a Sunday
     const workingDates = memberObj
         ? dates.filter(dateStr => {
+            if (isSunday(dateStr)) return false;
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             return base !== 'RD' && base !== 'OFF';
@@ -1887,6 +1902,7 @@ function updateSickBookedBox() {
         return d.toISOString().slice(0, 10);
     }
     function isRestGap(dateStr) {
+        if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
         if (!memberObj) return false;
         const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
         return shift === 'RD' || shift === 'OFF';
@@ -1904,7 +1920,8 @@ function updateSickBookedBox() {
         return `${fmtDate(start)} – ${fmtDate(end)}`;
     }
 
-    const dateList = [...sickDateSet].sort();
+    // Sundays excluded from count (uncontracted) but still bridge via isRestGap
+    const dateList = [...sickDateSet].filter(d => !isSunday(d)).sort();
     const periods  = [];
     let periodStart = dateList[0];
     let periodEnd   = dateList[0];
@@ -2030,12 +2047,13 @@ function updateALBookedBox() {
     }
 
     /**
-     * Return true if the date is a non-working day on the base roster
-     * (i.e. a gap between AL dates should be bridged into the same period).
+     * Return true if the date is a non-working day and should bridge AL periods.
+     * Sundays are always a rest gap (uncontracted for all staff).
      * @param {string} dateStr YYYY-MM-DD
      * @returns {boolean}
      */
     function isRestGap(dateStr) {
+        if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
         if (!memberObj) return false;
         const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
         return shift === 'RD' || shift === 'OFF';
@@ -2068,8 +2086,9 @@ function updateALBookedBox() {
     }
 
     // Merge sorted AL dates into consecutive periods, bridging gaps that are
-    // entirely rest days on the base roster.
-    const dateList = [...alDateSet].sort();
+    // entirely rest days on the base roster. Sundays are excluded from the count
+    // (uncontracted) but still act as bridge days via isRestGap.
+    const dateList = [...alDateSet].filter(d => !isSunday(d)).sort();
     const periods  = []; // { start, end, count }
     let periodStart = dateList[0];
     let periodEnd   = dateList[0];
