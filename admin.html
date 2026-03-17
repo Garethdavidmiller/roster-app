@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.02 -->
+<!-- MYB Roster Admin v5.08 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.02">
+    <link rel="stylesheet" href="shared.css?v=5.08">
 
     <style>
         body {
@@ -240,9 +240,10 @@
             color: var(--primary-blue);
         }
         .al-banner .al-banner-icon { font-size: 16px; flex-shrink: 0; }
-        .al-banner-numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 0; }
-        .al-banner-divider { display: none; }
-        .al-banner-stat { display: flex; flex-direction: column; align-items: center; gap: 1px; }
+        /* Four stats on one row — flex with dividers, matching the index lightbox layout */
+        .al-banner-numbers { display: flex; align-items: stretch; flex: 1; }
+        .al-banner-divider { width: 1px; background: var(--al, #00897b); opacity: 0.3; flex-shrink: 0; }
+        .al-banner-stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0 4px; }
         .al-banner-stat .stat-val {
             font-size: 20px;
             font-weight: 800;
@@ -1967,12 +1968,12 @@
                 </div>
                 <div class="al-dates">
                     <div class="field-group">
-                        <label for="sickFrom">First sick day</label>
+                        <label for="sickFrom">From</label>
                         <input type="date" id="sickFrom">
                     </div>
                     <div class="al-dates-sep">→</div>
                     <div class="field-group">
-                        <label for="sickTo">Last sick day</label>
+                        <label for="sickTo">To</label>
                         <input type="date" id="sickTo">
                     </div>
                 </div>
@@ -2097,6 +2098,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.02"></script>
+<script type="module" src="./admin-app.js?v=5.08"></script>
 </body>
 </html>
