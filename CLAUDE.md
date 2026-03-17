@@ -249,6 +249,14 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 | v5.19 | 🟠 High | **RDW text contrast failures in admin.** Amber text on white pill (1.4:1) and amber text on pale amber lpill (1.4:1) both failed WCAG AA. Added --rdw-text: #8b6000 (dark amber, 5.5:1 on white) for all text-on-light contexts. |
 | #13 | 🔴 Critical | **Firestore Security Rules deployed.** Rules now: allow reads on both collections; allow writes only if all required fields are present and `type`/`faithCalendar` values are within the valid set. Junk/missing-field writes return 403. Verified by live REST API tests (read ✅, invalid write blocked ✅, valid write allowed ✅). |
 | v5.22 | 🟢 Low | **RDW colour reverted to magenta** (`#c2185b`) while colour scheme is reconsidered. Amber was too close to early-shift orange. RDW badge text changed from dark (`--text-dark`) to white (7.9:1 contrast on magenta). `--rdw-light` set to `#fce4ec`, `--rdw-text` to `#880e4f`. |
+| v5.23 | 🟢 Low | **Per-row type pills centred** in the week grid to match the bulk-bar pills (added `justify-content: center` to `.col-pills`). |
+| v5.23 | 🟢 Low | **Button label casing made consistent** — "Save Changes", "Record Annual Leave", "Record Sick Days" changed to sentence case to match the rest of the UI. |
+| v5.23 | 🟠 High | **`fetchedMonths` no longer permanently poisoned on Firestore error.** Month key deleted from Set in catch block so it retries on next navigation. |
+| v5.23 | 🟢 Low | **AL/sick booked boxes now show all years** instead of filtering to the year inferred from input fields, which could silently hide records from other years. |
+| v5.23 | 🟡 Med | **Service worker network-first fetch bypasses browser HTTP cache** (`{ cache: 'no-store' }`) so a stale HTTP-cached file can no longer defeat the network-first strategy. |
+| v5.23 | 🟡 Med | **Service worker network-first fetch times out after 5 s** on slow/hanging connections and falls back to the cached copy, preventing indefinite loading on weak signal. |
+| v5.23 | 🟢 Low | **Deep-link card scroll** switched from `setTimeout(300)` to double `requestAnimationFrame` for reliable timing on slow devices. |
+| v5.23 | 🟢 Low | **SW update poll interval** cleared on `visibilitychange: hidden` to avoid unnecessary background network traffic on mobile. |
 
 ---
 

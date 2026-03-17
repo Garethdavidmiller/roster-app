@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.22 -->
+<!-- MYB Roster Admin v5.23 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.22">
+    <link rel="stylesheet" href="shared.css?v=5.23">
 
     <style>
         body {
@@ -698,6 +698,7 @@
             display: flex;
             gap: 4px;
             flex-wrap: wrap;
+            justify-content: center;
         }
 
         /* Per-row type pills — same style as bulk pills */
@@ -1890,7 +1891,7 @@
                 <div class="week-empty">Select a staff member and date above to load the week.</div>
             </div>
 
-            <button class="btn-save" id="saveBtn" disabled>Save Changes</button>
+            <button class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Choose a shift type on at least one day, then tap Save</p>
             <div class="feedback" id="formFeedback"></div>
 
@@ -1953,7 +1954,7 @@
                 </div>
             </div>
             <div class="al-preview" id="alPreview"></div>
-            <button class="btn-save" id="alSaveBtn" disabled>Record Annual Leave</button>
+            <button class="btn-save" id="alSaveBtn" disabled>Record annual leave</button>
             <div class="feedback" id="alFeedback"></div>
 
             <!-- Collapsible: all booked AL dates for the selected member -->
@@ -1998,7 +1999,7 @@
                 </div>
             </div>
             <div class="al-preview sick-preview" id="sickPreview"></div>
-            <button class="btn-save" id="sickSaveBtn" disabled>Record Sick Days</button>
+            <button class="btn-save" id="sickSaveBtn" disabled>Record sick days</button>
             <div class="feedback" id="sickFeedback"></div>
 
             <!-- Collapsible: all recorded sick days for the selected member -->
@@ -2117,6 +2118,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.22"></script>
+<script type="module" src="./admin-app.js?v=5.23"></script>
 </body>
 </html>

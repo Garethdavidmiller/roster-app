@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v5.22
+// MYB Roster — Service Worker v5.23
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '5.22';
+const APP_VERSION = '5.23';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -103,9 +103,14 @@ self.addEventListener("fetch", event => {
         || NETWORK_FIRST_FILES.some(f => path.endsWith(f));
 
     if (isNetworkFirst) {
-        // Network-first: fetch fresh, update cache, fall back to cached copy offline
+        // Network-first: fetch fresh (bypassing browser HTTP cache), update SW cache,
+        // fall back to cached copy if offline or the network hangs past 5 seconds.
+        const networkFetch = fetch(event.request, { cache: 'no-store' });
+        const fetchTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), 5000)
+        );
         event.respondWith(
-            fetch(event.request)
+            Promise.race([networkFetch, fetchTimeout])
                 .then(response => {
                     if (response && response.status === 200) {
                         const clone = response.clone();
@@ -114,7 +119,7 @@ self.addEventListener("fetch", event => {
                     return response;
                 })
                 .catch(() => {
-                    console.log(`[SW ${APP_VERSION}] Offline — serving from cache:`, path);
+                    console.log(`[SW ${APP_VERSION}] Offline/timeout — serving from cache:`, path);
                     const fallback = path.includes('admin') ? './admin.html' : './index.html';
                     return caches.match(event.request).then(r => r || caches.match(fallback));
                 })
