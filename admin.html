@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.06 -->
+<!-- MYB Roster Admin v5.07 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.06">
+    <link rel="stylesheet" href="shared.css?v=5.07">
 
     <style>
         body {
@@ -231,8 +231,8 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            background: var(--al-light, #e0f2f1);
-            border: 1.5px solid var(--al, #00897b);
+            background: rgba(0, 30, 60, 0.06);
+            border: 1.5px solid var(--primary-blue);
             border-radius: 8px;
             padding: 9px 14px;
             margin-bottom: 12px;
@@ -247,7 +247,7 @@
             font-size: 20px;
             font-weight: 800;
             line-height: 1;
-            color: var(--al, #00897b);
+            color: var(--primary-blue);
         }
         .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; }
         .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: var(--al-low); }
@@ -1967,12 +1967,12 @@
                 </div>
                 <div class="al-dates">
                     <div class="field-group">
-                        <label for="sickFrom">First sick day</label>
+                        <label for="sickFrom">From</label>
                         <input type="date" id="sickFrom">
                     </div>
                     <div class="al-dates-sep">→</div>
                     <div class="field-group">
-                        <label for="sickTo">Last sick day</label>
+                        <label for="sickTo">To</label>
                         <input type="date" id="sickTo">
                     </div>
                 </div>
@@ -2097,6 +2097,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.06"></script>
+<script type="module" src="./admin-app.js?v=5.07"></script>
 </body>
 </html>
