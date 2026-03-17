@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v5.5
+// MYB Roster — Service Worker v5.17
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
