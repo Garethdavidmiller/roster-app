@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.14';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.14';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.15';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.15';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1604,7 +1604,7 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.className = 'feedback error';
         alFeedback.textContent = '⚠ No working days in that range — nothing to book.';
         alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Book Annual Leave';
+        alSaveBtn.textContent = 'Record Annual Leave';
         return;
     }
 
@@ -1652,7 +1652,7 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.textContent = '⚠ Could not save — check your connection and try again.';
     } finally {
         alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Book Annual Leave';
+        alSaveBtn.textContent = 'Record Annual Leave';
     }
 });
 
