@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.09';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.09';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.10';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.10';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2343,13 +2343,20 @@ if ('serviceWorker' in navigator) {
     // "Refresh now" button — sends SKIP_WAITING then reloads once the new SW takes control
     if (updateBtn) {
         updateBtn.addEventListener('click', () => {
-            if (!swRegistration?.waiting) return;
             updateBtn.textContent = 'Updating…';
             updateBtn.disabled    = true;
-            swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
+
+            if (swRegistration?.waiting) {
+                // Normal case: new SW installed and waiting — tell it to activate
+                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
+                navigator.serviceWorker.addEventListener('controllerchange', () => {
+                    window.location.reload();
+                }, { once: true });
+            } else {
+                // SW already auto-activated via skipWaiting() on install —
+                // the new version is in control; just reload to run it.
                 window.location.reload();
-            }, { once: true });
+            }
         });
     }
 }
