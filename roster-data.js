@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '5.23';
+export const APP_VERSION = '5.26';
 
 // ============================================
 // CONFIGURATION
@@ -105,15 +105,67 @@ export const teamMembers = [
 //
 // Entitlements by role (calendar year, resets 1 Jan):
 //   CES            → 34 days
-//   Dispatcher     → 34 days
+//   Dispatcher     → 22 days base + 1 day lieu per bank holiday actually worked that year.
+//                    "Worked" means the resolved shift (base roster after Firestore overrides)
+//                    is not RD, OFF, SPARE, AL, or SICK. SPARE does NOT count — only actual
+//                    worked shifts (time-format shifts or RDW) earn a lieu day.
 //   C. Reen        → 34 days (fixed roster / reasonable adjustments)
 //   All CEAs       → 32 days  (main, bilingual, or any other CEA rosterType)
-//
-// @param {object} member — a teamMembers entry
-// @returns {number}
-export function getALEntitlement(member) {
+
+/**
+ * Count how many UK bank holidays a dispatcher actually worked in a given year,
+ * after applying Firestore overrides. Each worked bank holiday earns 1 day in lieu.
+ *
+ * @param {object} member   — teamMembers entry (must be a Dispatcher)
+ * @param {number} year     — calendar year to check
+ * @param {Array}  overrides — flat array of override objects { memberName, date, value, ... }
+ * @returns {number}  count of bank holidays on which the member worked
+ */
+function getDispatcherBankHolidayLieu(member, year, overrides) {
+    const NON_WORKED = new Set(['RD', 'OFF', 'SPARE', 'AL', 'SICK']);
+    const bankHolidays = getBankHolidays(year);
+
+    // Build a quick date → value lookup for this member's overrides
+    const overrideMap = new Map();
+    for (const o of overrides) {
+        if (o.memberName === member.name && o.date) {
+            overrideMap.set(o.date, o.value);
+        }
+    }
+
+    let lieuDays = 0;
+    for (const bh of bankHolidays) {
+        // Use local-time date string to match Firestore override keys (YYYY-MM-DD)
+        const y = bh.getFullYear();
+        const m = String(bh.getMonth() + 1).padStart(2, '0');
+        const d = String(bh.getDate()).padStart(2, '0');
+        const dateStr = `${y}-${m}-${d}`;
+
+        // Override takes precedence; fall back to base roster
+        const shift = overrideMap.has(dateStr)
+            ? overrideMap.get(dateStr)
+            : getBaseShift(member, bh);
+
+        if (!NON_WORKED.has(shift)) lieuDays++;
+    }
+    return lieuDays;
+}
+
+/**
+ * Annual leave entitlement for a staff member in a given year.
+ * For Dispatchers the entitlement is dynamic: 22 base days plus one day in lieu
+ * for every bank holiday on which they worked (after overrides). All other roles
+ * return a fixed number regardless of year or overrides.
+ *
+ * @param {object} member    — teamMembers entry
+ * @param {number} [year]    — calendar year; defaults to current year
+ * @param {Array}  [overrides] — all override objects for this member; defaults to []
+ * @returns {number}
+ */
+export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
     if (!member) return 32;
-    if (member.role === 'CES' || member.role === 'Dispatcher') return 34;
+    if (member.role === 'Dispatcher') return 22 + getDispatcherBankHolidayLieu(member, year, overrides);
+    if (member.role === 'CES') return 34;
     if (member.rosterType === 'fixed') return 34; // C. Reen — reasonable adjustments
     return 32;
 }

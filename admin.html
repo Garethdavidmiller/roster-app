@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.23 -->
+<!-- MYB Roster Admin v5.26 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.23">
+    <link rel="stylesheet" href="shared.css?v=5.26">
 
     <style>
         body {
@@ -251,6 +251,7 @@
             color: var(--al, #00897b);
         }
         .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; }
+        .al-banner-stat .stat-breakdown { font-size: 9px; color: var(--text-mid); opacity: 0.75; white-space: nowrap; }
         .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: var(--al-low); }
         .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: var(--al-warning); }
         .al-banner-warning-msg {
@@ -1928,6 +1929,7 @@
                     <div class="al-banner-stat">
                         <span class="stat-val" id="alBannerEntitlement">—</span>
                         <span class="stat-lbl">Entitlement</span>
+                        <span class="stat-breakdown" id="alBannerBreakdown" hidden></span>
                     </div>
                 </div>
                 <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Limit reached</span>
@@ -2118,6 +2120,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.23"></script>
+<script type="module" src="./admin-app.js?v=5.26"></script>
 </body>
 </html>

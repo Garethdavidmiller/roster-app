@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml } from './roster-data.js?v=5.23';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=5.23';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml } from './roster-data.js?v=5.26';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=5.26';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -577,12 +577,11 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         remEl.textContent   = '…';
 
         if (!member) {
-            takenEl.textContent = bookedEl.textContent = remEl.textContent = '—';
+            takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
             return;
         }
 
-        const entitlement = getALEntitlement(member);
-        entEl.textContent = entitlement;
+        entEl.textContent = '…';
 
         // today's date as YYYY-MM-DD for comparing AL dates
         const todayStr = new Date().toISOString().slice(0, 10);
@@ -590,22 +589,33 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         try {
             let taken = 0;
             let booked = 0;
+            // Collect all overrides for this member so Dispatcher lieu days can be calculated
+            const memberOverrides = [];
             if (db) {
                 const snap = await getDocs(query(collection(db, 'overrides'), where('memberName', '==', member.name)));
                 snap.forEach(d => {
                     const data = d.data();
-                    if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr)) {
+                    memberOverrides.push(data);
+                    // Sundays are uncontracted — don't count Sunday AL entries
+                    if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr) &&
+                            new Date(data.date + 'T12:00:00').getDay() !== 0) {
                         if (data.date <= todayStr) taken++; else booked++;
                     }
                 });
             } else {
                 rosterOverridesCache.forEach((val, key) => {
                     const [name, date] = key.split('|');
-                    if (name === member.name && val.type === 'annual_leave' && date.startsWith(yearStr)) {
+                    if (name !== member.name) return;
+                    memberOverrides.push({ memberName: name, date, ...val });
+                    // Sundays are uncontracted — don't count Sunday AL entries
+                    if (val.type === 'annual_leave' && date.startsWith(yearStr) &&
+                            new Date(date + 'T12:00:00').getDay() !== 0) {
                         if (date <= todayStr) taken++; else booked++;
                     }
                 });
             }
+            const entitlement = getALEntitlement(member, year, memberOverrides);
+            entEl.textContent = entitlement;
             const remaining = entitlement - taken - booked;
             takenEl.textContent  = taken;
             bookedEl.textContent = booked;
@@ -613,7 +623,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
         } catch (e) {
             console.error('[AL lightbox] Failed:', e);
-            takenEl.textContent = bookedEl.textContent = remEl.textContent = '—';
+            takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
         }
     }
 
