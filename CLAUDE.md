@@ -218,6 +218,9 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | v5.00 | 🟢 Low | **`shared.css?v=` was missing from the version bump checklist.** Both HTML files were stuck on `?v=4.93` while the app moved through several releases. Added `shared.css` to the mandatory version bump table and corrected both references to v5.00. |
 | v5.00 | 🟢 Low | **app.js defined `dayNames` and `dayKeys` locally when identical constants were already imported from `roster-data.js`.** Removed local declarations; all call sites updated to use `DAY_NAMES` and `DAY_KEYS`. `fullDayNames` and `monthNames` retained as they have no equivalent in the shared module. |
 | v5.00 | 🟢 Low | **Test suite expanded from 23 to 51 tests.** Added coverage for `isChristmasRD`, `isEarlyShift`, `isNightShift`, `getShiftClass`, `getShiftBadge`, `isSameDay`, `getRosterForMember`, `getWeekNumberForDate`, `getBaseShift`, and AL entitlement edge cases. |
+| v5.15 | 🟢 Low | **"Book/Booked Annual Leave" label was verbose.** Renamed to "Record Annual Leave" in both the type pill and the confirm button for consistency and brevity. |
+| v5.16 | 🟢 Low | **Date inputs in the sick/AL date row overflowed their container on narrow viewports.** Added `min-width: 0` and `width: 100%` to `.date-input` so inputs shrink correctly inside the flex row. |
+| v5.17 | 🟢 Low | **Bulk type pills left-aligned when wrapping to a second row.** Added `justify-content: center` to `.bulk-type-group` so the second row (Swap, Sick, Rest Day) is centred rather than left-orphaned on mobile. |
 
 ### Remaining items — not yet fixed
 

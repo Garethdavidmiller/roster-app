@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.14 -->
+<!-- MYB Roster Admin v5.17 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.14">
+    <link rel="stylesheet" href="shared.css?v=5.17">
 
     <style>
         body {
@@ -483,7 +483,7 @@
 
         @media (hover: hover) and (pointer: fine) { .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
 
-        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; }
+        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
 
         /* Type pills — outline when idle, filled when active */
         .type-pill-btn {
@@ -1245,7 +1245,7 @@
             gap: 6px;
         }
 
-        .al-dates .field-group { flex: 1; }
+        .al-dates .field-group { flex: 1; min-width: 0; }
 
         .al-dates-sep {
             font-size: 16px;
@@ -1763,7 +1763,7 @@
         <div class="tips-lb-item"><span class="tips-lb-icon">☑️</span><span>Check multiple days, choose a type and time, then tap <strong>Apply to selected days</strong></span></div>
 
         <div class="tips-lb-section">Annual leave</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Book Annual Leave</strong> section — rest days within the range are skipped automatically</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Record Annual Leave</strong> section — rest days within the range are skipped automatically</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">⚠️</span><span>A warning appears if leave would exceed the member's entitlement — you can still save</span></div>
 
         <div class="tips-lb-section">Override types</div>
@@ -1900,7 +1900,7 @@
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
-            <h2>🏖️ Book Annual Leave</h2>
+            <h2>🏖️ Record Annual Leave</h2>
             <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
@@ -1953,13 +1953,13 @@
                 </div>
             </div>
             <div class="al-preview" id="alPreview"></div>
-            <button class="btn-save" id="alSaveBtn" disabled>Book Annual Leave</button>
+            <button class="btn-save" id="alSaveBtn" disabled>Record Annual Leave</button>
             <div class="feedback" id="alFeedback"></div>
 
             <!-- Collapsible: all booked AL dates for the selected member -->
             <div class="al-booked-box" id="alBookedBox" hidden>
                 <div class="al-booked-header" id="alBookedToggle">
-                    <span class="al-booked-title">🏖️ Booked Annual Leave dates</span>
+                    <span class="al-booked-title">🏖️ Recorded Annual Leave dates</span>
                     <span class="collapse-chevron" id="alBookedChevron">▾</span>
                 </div>
                 <div class="al-booked-body" id="alBookedBody">
@@ -2117,6 +2117,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.14"></script>
+<script type="module" src="./admin-app.js?v=5.17"></script>
 </body>
 </html>
