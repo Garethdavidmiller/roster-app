@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.08 -->
+<!-- MYB Roster Admin v5.09 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.08">
+    <link rel="stylesheet" href="shared.css?v=5.09">
 
     <style>
         body {
@@ -993,6 +993,7 @@
         .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
         .card-collapsible-body {
             display: none; /* collapsed by default */
+            padding: 16px;
         }
         .card-collapsible-body.open { display: block; }
         .collapse-chevron {
@@ -1017,6 +1018,20 @@
         .card-religious-header h2           { grid-column: 1; grid-row: 1; color: var(--text-mid); font-weight: 600; }
         .card-religious-header .hint        { grid-column: 1; grid-row: 2; }
         .card-religious-header .religious-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+        .calendar-active-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--accent-gold);
+            background: var(--primary-blue);
+            border: 1.5px solid var(--accent-gold);
+            border-radius: 20px;
+            padding: 2px 8px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
         .card-religious-body {
             padding: 16px;
             display: none; /* collapsed by default */
@@ -1085,6 +1100,9 @@
         .religious-saved.error { color: var(--error-red); }
 
         /* ---- Overrides list ---- */
+        /* The overrides body manages its own internal spacing */
+        #overridesBody { padding: 0; }
+
         .list-toolbar {
             display: flex;
             align-items: center;
@@ -1853,6 +1871,7 @@
                         <button class="type-pill-btn pill-rdw"         data-type="rdw">Rest Day Working</button>
                         <button class="type-pill-btn pill-swap"        data-type="swap">Swap</button>
                         <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">Annual Leave</button>
+                        <button class="type-pill-btn pill-sick"        data-type="sick">Sick</button>
                         <button class="type-pill-btn pill-correction"  data-type="correction">Make Rest Day</button>
                     </div>
                     <!-- Time inputs shown for time-based types -->
@@ -1995,44 +2014,12 @@
         </div>
     </div>
 
-    <!-- ==================== EXISTING OVERRIDES ==================== -->
-    <div class="card" id="overridesCard">
-        <div class="card-header card-collapsible-header" id="overridesToggleHeader">
-            <h2>Saved Changes</h2>
-            <span class="hint">All manually saved schedule changes — tap to expand, then edit or delete</span>
-            <span class="collapse-chevron" id="overridesChevron">▾</span>
-        </div>
-        <div class="card-collapsible-body" id="overridesBody">
-        <div class="list-toolbar">
-            <span class="list-count" id="listCount">Loading…</span>
-        </div>
-        <div class="table-scroll">
-            <table class="override-table">
-                <thead>
-                    <tr>
-                        <th>Date</th>
-                        <th>Member</th>
-                        <th>Type</th>
-                        <th>Shift time</th>
-                        <th>Note</th>
-                        <th colspan="2"></th>
-                    </tr>
-                </thead>
-                <tbody id="overrideTableBody">
-                    <tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="list-feedback" id="listFeedback"></div>
-        </div><!-- /.card-collapsible-body -->
-    </div>
-
     <!-- ==================== CULTURAL CALENDAR ==================== -->
     <!-- Collapsed by default — unobtrusive for staff who don't need it. -->
     <!-- Any staff member can expand, opt in/out independently.          -->
     <div class="card" id="religiousCard">
         <div class="card-header card-religious-header" id="religiousToggleHeader">
-            <h2>🌍 Cultural Calendar</h2>
+            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span></h2>
             <span class="hint">Optional date markers — one per person</span>
             <span class="religious-chevron" id="religiousChevron">▾</span>
         </div>
@@ -2096,8 +2083,40 @@
         </div>
     </div>
 
+    <!-- ==================== EXISTING OVERRIDES ==================== -->
+    <div class="card" id="overridesCard">
+        <div class="card-header card-collapsible-header" id="overridesToggleHeader">
+            <h2>Saved Changes</h2>
+            <span class="hint">All manually saved schedule changes — tap to expand, then edit or delete</span>
+            <span class="collapse-chevron" id="overridesChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="overridesBody">
+        <div class="list-toolbar">
+            <span class="list-count" id="listCount">Loading…</span>
+        </div>
+        <div class="table-scroll">
+            <table class="override-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Member</th>
+                        <th>Type</th>
+                        <th>Shift time</th>
+                        <th>Note</th>
+                        <th colspan="2"></th>
+                    </tr>
+                </thead>
+                <tbody id="overrideTableBody">
+                    <tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="list-feedback" id="listFeedback"></div>
+        </div><!-- /.card-collapsible-body -->
+    </div>
+
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.08"></script>
+<script type="module" src="./admin-app.js?v=5.09"></script>
 </body>
 </html>
