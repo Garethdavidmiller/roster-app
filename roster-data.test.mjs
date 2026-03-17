@@ -18,6 +18,16 @@ import {
     isCutoffDate,
     getALEntitlement,
     validateRosterPatterns,
+    isChristmasRD,
+    isEarlyShift,
+    isNightShift,
+    getShiftClass,
+    getShiftBadge,
+    getWeekNumberForDate,
+    getRosterForMember,
+    getBaseShift,
+    isSameDay,
+    teamMembers,
 } from './roster-data.js';
 
 // ---------------------------------------------------------------------------
@@ -155,4 +165,172 @@ test('getALEntitlement: null member returns default 32 days', () => {
 
 test('validateRosterPatterns: all roster patterns are valid (returns 0 errors)', () => {
     assert.equal(validateRosterPatterns(), 0);
+});
+
+// ---------------------------------------------------------------------------
+// Annual leave entitlement — edge cases
+// ---------------------------------------------------------------------------
+
+test('getALEntitlement: bilingual roster CEA gets 32 days', () => {
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'bilingual' }), 32);
+});
+
+test('getALEntitlement: hidden member still returns correct entitlement', () => {
+    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', hidden: true }), 32);
+});
+
+// ---------------------------------------------------------------------------
+// isChristmasRD
+// ---------------------------------------------------------------------------
+
+test('isChristmasRD: 25 Dec is always a rest day', () => {
+    assert.ok(isChristmasRD(d(2026, 12, 25)));
+});
+
+test('isChristmasRD: 26 Dec is a rest day (can be overridden to RDW via Firestore)', () => {
+    assert.ok(isChristmasRD(d(2026, 12, 26)));
+});
+
+test('isChristmasRD: 27 Dec is not a Christmas rest day', () => {
+    assert.equal(isChristmasRD(d(2026, 12, 27)), false);
+});
+
+test('isChristmasRD: 24 Dec is not a Christmas rest day', () => {
+    assert.equal(isChristmasRD(d(2026, 12, 24)), false);
+});
+
+// ---------------------------------------------------------------------------
+// Shift classification — isEarlyShift, isNightShift, getShiftClass
+// ---------------------------------------------------------------------------
+
+test('isEarlyShift: 04:00-12:00 is an early shift', () => {
+    assert.ok(isEarlyShift('04:00-12:00'));
+});
+
+test('isEarlyShift: 06:30-14:30 is an early shift', () => {
+    assert.ok(isEarlyShift('06:30-14:30'));
+});
+
+test('isEarlyShift: 11:00-19:00 is not an early shift (starts at threshold)', () => {
+    assert.equal(isEarlyShift('11:00-19:00'), false);
+});
+
+test('isNightShift: 21:00-05:00 is a night shift', () => {
+    assert.ok(isNightShift('21:00-05:00'));
+});
+
+test('isNightShift: 23:30-07:30 is a night shift', () => {
+    assert.ok(isNightShift('23:30-07:30'));
+});
+
+test('isNightShift: 14:00-22:00 is not a night shift', () => {
+    assert.equal(isNightShift('14:00-22:00'), false);
+});
+
+test('getShiftClass: early shift returns "early-shift"', () => {
+    assert.equal(getShiftClass('06:00-14:00'), 'early-shift');
+});
+
+test('getShiftClass: night shift returns "night-shift"', () => {
+    assert.equal(getShiftClass('22:00-06:00'), 'night-shift');
+});
+
+test('getShiftClass: late shift returns "late-shift"', () => {
+    assert.equal(getShiftClass('14:00-22:00'), 'late-shift');
+});
+
+// ---------------------------------------------------------------------------
+// getShiftBadge
+// ---------------------------------------------------------------------------
+
+test('getShiftBadge: RD returns rest badge', () => {
+    const badge = getShiftBadge('RD');
+    assert.ok(badge.includes('🏠'), `Expected 🏠 in "${badge}"`);
+});
+
+test('getShiftBadge: AL returns annual leave badge', () => {
+    const badge = getShiftBadge('AL');
+    assert.ok(badge.includes('🏖️'), `Expected 🏖️ in "${badge}"`);
+});
+
+test('getShiftBadge: SPARE returns spare badge', () => {
+    const badge = getShiftBadge('SPARE');
+    assert.ok(badge.includes('📋'), `Expected 📋 in "${badge}"`);
+});
+
+test('getShiftBadge: RDW returns RDW badge', () => {
+    const badge = getShiftBadge('RDW');
+    assert.ok(badge.includes('💼'), `Expected 💼 in "${badge}"`);
+});
+
+test('getShiftBadge: early worked shift shows early badge', () => {
+    const badge = getShiftBadge('06:00-14:00');
+    assert.ok(badge.includes('☀️') && badge.includes('Early'), `Expected early badge in "${badge}"`);
+});
+
+// ---------------------------------------------------------------------------
+// isSameDay
+// ---------------------------------------------------------------------------
+
+test('isSameDay: same date returns true', () => {
+    assert.ok(isSameDay(d(2026, 6, 15), d(2026, 6, 15)));
+});
+
+test('isSameDay: different dates return false', () => {
+    assert.equal(isSameDay(d(2026, 6, 15), d(2026, 6, 16)), false);
+});
+
+test('isSameDay: same day different times return true', () => {
+    assert.ok(isSameDay(new Date(2026, 5, 15, 0, 0), new Date(2026, 5, 15, 23, 59)));
+});
+
+// ---------------------------------------------------------------------------
+// getRosterForMember
+// ---------------------------------------------------------------------------
+
+test('getRosterForMember: main roster member returns weeklyRoster', () => {
+    const member = teamMembers.find(m => m.rosterType === 'main');
+    assert.ok(member, 'No main roster member found in teamMembers');
+    const roster = getRosterForMember(member);
+    assert.ok(roster, 'getRosterForMember returned falsy');
+    assert.ok(roster.data, 'Roster has no data property');
+});
+
+test('getRosterForMember: fixed roster member returns fixedRoster', () => {
+    const member = teamMembers.find(m => m.rosterType === 'fixed');
+    assert.ok(member, 'No fixed roster member found in teamMembers');
+    const roster = getRosterForMember(member);
+    assert.ok(roster, 'getRosterForMember returned falsy');
+});
+
+// ---------------------------------------------------------------------------
+// getWeekNumberForDate
+// ---------------------------------------------------------------------------
+
+test('getWeekNumberForDate: returns a number between 1 and roster cycle length', () => {
+    const member = teamMembers.find(m => m.rosterType === 'main');
+    assert.ok(member, 'No main roster member found');
+    const week = getWeekNumberForDate(d(2026, 3, 17), member);
+    assert.ok(typeof week === 'number', 'Expected a number');
+    assert.ok(week >= 1 && week <= 20, `Week ${week} out of range for 20-week main roster`);
+});
+
+// ---------------------------------------------------------------------------
+// getBaseShift
+// ---------------------------------------------------------------------------
+
+test('getBaseShift: returns a string for a known member on a weekday', () => {
+    const member = teamMembers.find(m => m.rosterType === 'main' && !m.hidden);
+    assert.ok(member, 'No visible main roster member found');
+    // Any Monday in 2026 — use a stable date
+    const shift = getBaseShift(member, d(2026, 3, 16)); // Mon 16 Mar 2026
+    assert.ok(typeof shift === 'string' && shift.length > 0, `Expected shift string, got "${shift}"`);
+});
+
+test('getBaseShift: fixed-roster member on a weekend returns RD', () => {
+    const member = teamMembers.find(m => m.rosterType === 'fixed');
+    assert.ok(member, 'No fixed roster member found');
+    // Fixed roster is Mon–Fri; Saturday should be RD
+    const shift = getBaseShift(member, d(2026, 3, 14)); // Sat 14 Mar 2026
+    assert.equal(shift, 'RD');
 });
