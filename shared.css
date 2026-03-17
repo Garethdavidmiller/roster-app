@@ -29,7 +29,7 @@
     --purple-light:      #f3e5f5;
     --rdw:               #f59f00;   /* RDW/overtime — amber, distinct from sick (red family) */
     --rdw-text:          #8b6000;   /* RDW text on light bg — dark amber, 5.5:1 on white */
-    --rdw-light:         #fff8e1;   /* RDW cell background — pale amber */
+    --rdw-light:         #fef9c3;   /* RDW cell background — pale lemon yellow, clearly distinct from early's peach (#fff3e0) */
     --al:                #00897b;
     --al-light:          #e0f2f1;
     --sick:              #e53935;   /* sick day — red */

@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '5.19';
+export const APP_VERSION = '5.21';
 
 // ============================================
 // CONFIGURATION
@@ -369,8 +369,10 @@ export const MAWLID_DATES = new Set([
 // All dates carry a ±1 day margin — actual dates may vary by region and
 // moon-sighting. Review dates annually.
 //
-// Dates for 2029–2030 marked TODO have been inferred from adjacent years;
-// verify against drikpanchang.com before those years go live.
+// 2025–2030 dates verified March 2026 against multiple Panchang sources.
+// Holi 2029 corrected from 2029-03-30 to 2029-03-01; the earlier estimate
+// was wrong — 2029 Adhik Maas is Adhik Chaitra (falls after Phalguna, so
+// does not affect Holi). All other 2029–2030 estimates were confirmed correct.
 
 // Holi (Rangwali Holi — Festival of Colours). Second day of the two-day festival.
 export const HOLI_DATES = new Set([
@@ -378,8 +380,10 @@ export const HOLI_DATES = new Set([
     '2026-03-04',
     '2027-03-22',
     '2028-03-11',
-    '2029-03-30', // TODO: verify against drikpanchang.com
-    '2030-03-20', // TODO: verify against drikpanchang.com
+    '2029-03-01', // Phalguna Purnima ~11 days before 2028. 2029 Adhik Maas is Adhik Chaitra
+                  // (falls after Phalguna), so does not shift Holi. Some sources cite Mar 30
+                  // in error — that would require Adhik Phalguna, which does not occur in 2029.
+    '2030-03-20',
 ]);
 
 // Sharad Navratri — first day of the nine-night festival of Durga.
@@ -388,8 +392,8 @@ export const NAVRATRI_DATES = new Set([
     '2026-10-11',
     '2027-09-30',
     '2028-09-19',
-    '2029-10-07', // TODO: verify against drikpanchang.com
-    '2030-09-27', // TODO: verify against drikpanchang.com
+    '2029-10-07',
+    '2030-09-27',
 ]);
 
 // Dussehra (Vijayadashami) — tenth day of Navratri; victory of good over evil.
@@ -398,8 +402,8 @@ export const DUSSEHRA_DATES = new Set([
     '2026-10-20',
     '2027-10-09',
     '2028-09-27',
-    '2029-10-16', // TODO: verify against drikpanchang.com
-    '2030-10-06', // TODO: verify against drikpanchang.com
+    '2029-10-16',
+    '2030-10-06',
 ]);
 
 // Diwali (Lakshmi Puja) — Festival of Lights. Main day of the five-day festival.
@@ -408,8 +412,8 @@ export const DIWALI_DATES = new Set([
     '2026-11-08',
     '2027-10-28',
     '2028-10-17',
-    '2029-11-05', // TODO: verify against drikpanchang.com
-    '2030-10-26', // TODO: verify against drikpanchang.com
+    '2029-11-05',
+    '2030-10-26',
 ]);
 
 // Raksha Bandhan — brother-sister bond festival (full moon in Shravan).
@@ -418,8 +422,8 @@ export const RAKSHA_BANDHAN_DATES = new Set([
     '2026-08-28',
     '2027-08-17',
     '2028-08-05',
-    '2029-08-23', // TODO: verify against drikpanchang.com
-    '2030-08-13', // TODO: verify against drikpanchang.com
+    '2029-08-23',
+    '2030-08-13',
 ]);
 
 // ============================================
