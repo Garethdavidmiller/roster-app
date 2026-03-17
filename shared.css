@@ -24,15 +24,17 @@
     --orange:            #ff9800;
     --orange-light:      #fff3e0;
     --blue-light:        #e3f2fd;
-    --blue-sky:          #2196f3;
-    --purple:            #9c27b0;
+    --blue-sky:          #1565c0;   /* late shift — darkened from #2196f3 for AA contrast */
+    --purple:            #7b1fa2;   /* spare shift — darkened from #9c27b0 for AA contrast */
     --purple-light:      #f3e5f5;
-    --rdw:               #e91e63;
-    --rdw-light:         #fce4ec;
+    --rdw:               #f59f00;   /* RDW/overtime — amber, distinct from sick (red family) */
+    --rdw-text:          #8b6000;   /* RDW text on light bg — dark amber, 5.5:1 on white */
+    --rdw-light:         #fff8e1;   /* RDW cell background — pale amber */
     --al:                #00897b;
     --al-light:          #e0f2f1;
     --sick:              #e53935;   /* sick day — red */
     --sick-light:        #ffebee;   /* sick day cell background */
+    --rest-day-bg:       #f9f9fb;   /* rest day cell — off-white so it doesn't vanish on page */
     --charcoal:          #2d2d2d;   /* rest badge background */
     --night:             #1a1a2e;   /* night shift badge */
     --night-cell-bg:     rgba(20, 20, 40, 0.10);

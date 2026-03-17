@@ -2,11 +2,12 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v4.95:** JS is now in separate files. You need to update **six** places:
+**As of v4.95:** JS is now in separate files. You need to update **thirteen** places:
 
 | File | Location | Example |
 |------|----------|---------|
 | `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← **primary source** |
+| `service-worker.js` | Line 1 comment | `// MYB Roster — Service Worker v4.95` |
 | `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← must match |
 | `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.95 -->` |
 | `index.html` | `<script src="./app.js?v=...">` | `app.js?v=4.95` |
@@ -102,6 +103,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | `'SPARE'` | 📋 Spare | On standby, shift not yet assigned |
 | `'RDW'` | 💼 RDW | Rest day worked — overtime |
 | `'AL'` | 🏖️ AL | Annual leave |
+| `'SICK'` | 🤒 Sick | Sick day — recorded via override, shown in calendar and summary |
 | `'HH:MM-HH:MM'` | ☀️ / 🌙 / 🌃 | Worked shift |
 
 **Shift classification:**
@@ -109,7 +111,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 - Late: 11:00–20:59
 - Night: 21:00–03:59 (`NIGHT_START_THRESHOLD = 21`)
 
-**isWorkedDay:** Returns false for RD, OFF, SPARE, AL. True for everything else including RDW.
+**isWorkedDay:** Returns false for RD, OFF, SPARE, AL, SICK. True for everything else including RDW.
 
 ---
 
@@ -148,13 +150,22 @@ memberName   string     Must match teamMembers[n].name exactly — including
                         capitalisation and punctuation. One character mismatch
                         means overrides silently fail to appear.
 type         string     "spare_shift" | "overtime" | "rdw" | "swap" |
-                        "annual_leave" | "correction"
-value        string     "HH:MM-HH:MM" or "AL" or "RD"
+                        "annual_leave" | "correction" | "sick"
+value        string     "HH:MM-HH:MM" for spare_shift/overtime/rdw/swap;
+                        "AL" for annual_leave; "RD" for correction; "SICK" for sick
 note         string     Free text — use "" if none. Field must always be present.
 createdAt    timestamp  Firestore server timestamp
 ```
 
-**memberSettings** — per-member preferences (currently: Islamic marker toggle)
+**memberSettings** — per-member preferences
+
+```
+memberName   string     Must match teamMembers[n].name exactly
+faithCalendar string    'islamic' | 'hindu' | 'chinese' | 'jamaican' |
+                        'congolese' | 'portuguese' | 'none'
+                        Controls which cultural calendar badges appear in
+                        the user's calendar view.
+```
 
 Override cache key format: `"memberName|YYYY-MM-DD"` (pipe separator)
 
@@ -162,7 +173,7 @@ Override cache key format: `"memberName|YYYY-MM-DD"` (pipe separator)
 
 Staff log in to admin.html with their name (dropdown) and surname as password (lowercase, no spaces or special characters). Example: `'G. Miller'` → `miller`. Sessions persist for 30 days via localStorage.
 
-`ADMIN_NAME = 'G. Miller'` has elevated admin access beyond standard staff permissions.
+`CONFIG.ADMIN_NAMES = ['G. Miller']` — an array in `roster-data.js`. Members in this array have elevated admin access. To add another admin, add their name to the array (must match `teamMembers[n].name` exactly).
 
 Firebase SDK: currently v12.10.0. Check for the current version before any new Firebase work.
 
@@ -221,6 +232,7 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | v5.15 | 🟢 Low | **"Book/Booked Annual Leave" label was verbose.** Renamed to "Record Annual Leave" in both the type pill and the confirm button for consistency and brevity. |
 | v5.16 | 🟢 Low | **Date inputs in the sick/AL date row overflowed their container on narrow viewports.** Added `min-width: 0` and `width: 100%` to `.date-input` so inputs shrink correctly inside the flex row. |
 | v5.17 | 🟢 Low | **Bulk type pills left-aligned when wrapping to a second row.** Added `justify-content: center` to `.bulk-type-group` so the second row (Swap, Sick, Rest Day) is centred rather than left-orphaned on mobile. |
+| v5.00 | 🟡 Med | **#11 — `ADMIN_NAME` was hardcoded** in `admin-app.js`. Moved to `CONFIG.ADMIN_NAMES` as an array in `roster-data.js`. Admin check now uses `CONFIG.ADMIN_NAMES.includes(currentUser)`. |
 
 ### Remaining items — not yet fixed
 
@@ -233,7 +245,6 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
 
 #### 🟡 Medium
-- **#9/32 — 15 lunar/lunisolar calendar datasets still need annual updates**: Islamic (Ramadan, Eid al-Fitr, Eid al-Adha, Islamic New Year, Mawlid), Hindu (Holi, Navratri, Dussehra, Diwali, Raksha Bandhan), Chinese (New Year, Lantern, Qingming, Dragon Boat, Mid-Autumn). Sources: islamicfinder.org, drikpanchang.com (London), chinesenewyear.net. `warnIfCulturalCalendarMissingYear()` logs a warning if any are missing for the current year.
-- **#11 — `ADMIN_NAME` is hardcoded** in `admin-app.js`. Plan: move to `CONFIG.ADMIN_NAMES` as an array, or a Firestore `admins` collection.
+- **#9/32 — 15 lunar/lunisolar calendar datasets still need annual updates**: Islamic (Ramadan, Eid al-Fitr, Eid al-Adha, Islamic New Year, Mawlid), Hindu (Holi, Navratri, Dussehra, Diwali, Raksha Bandhan), Chinese (New Year, Lantern, Qingming, Dragon Boat, Mid-Autumn). The app also supports Jamaican, Congolese, and Portuguese calendars — these are rule-based (fixed-date or Easter-relative) and auto-compute without annual updates. Sources for manual datasets: islamicfinder.org, drikpanchang.com (London), chinesenewyear.net. `warnIfCulturalCalendarMissingYear()` logs a warning if any are missing for the current year.
 
 ---

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.17 -->
+<!-- MYB Roster Calendar - Version 5.19 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.17">
+    <link rel="stylesheet" href="shared.css?v=5.19">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -406,7 +406,7 @@
         }
 
         .calendar-day.rest-day {
-            background: white;
+            background: var(--rest-day-bg);
             border-color: var(--border-mid);
         }
 
@@ -593,7 +593,7 @@
 
         .badge-rdw {
             background: var(--rdw);
-            color: white;
+            color: var(--text-dark);
         }
 
 
@@ -652,7 +652,7 @@
         }
 
         /* Legend colour variants */
-        .legend-color.rest    { background: white;                border-color: var(--border-mid); }
+        .legend-color.rest    { background: var(--rest-day-bg);   border-color: var(--border-mid); }
         .legend-color.early   { background: var(--orange-light); border-color: var(--orange); }
         .legend-color.late    { background: var(--blue-light);   border-color: var(--blue-sky); }
         .legend-color.spare   { background: var(--purple-light); border-color: var(--purple); }
@@ -1255,7 +1255,7 @@
             }
 
             .calendar-day.rest-day {
-                background: white !important;
+                background: var(--rest-day-bg) !important;
                 border-color: var(--border-mid) !important;
             }
 
@@ -1371,7 +1371,7 @@
 
             .badge-rdw {
                 background: var(--rdw) !important;
-                color: white !important;
+                color: var(--text-dark) !important;
             }
 
             .badge-al {
@@ -2058,7 +2058,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.17"></script>
+    <script type="module" src="./app.js?v=5.19"></script>
 
 </body>
 </html>
