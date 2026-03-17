@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.01';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.01';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.02';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.02';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -199,6 +199,7 @@ const TYPES = {
     swap:         { label: 'Swap',               fixed: false },
     annual_leave: { label: 'Annual Leave',       fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Make Rest Day',      fixed: true,  fixedValue: 'RD' },
+    sick:         { label: 'Sick',               fixed: true,  fixedValue: 'SICK' },
 };
 
 // ============================================
@@ -432,6 +433,7 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             updateWeekNavLabel(fieldDate.value);
             updateALBanner();
             updateALBookedBox();
+            updateSickBookedBox();
             userMadeChanges = false;
 
             wCurrent.style.transition = TRANSITION;
@@ -1049,6 +1051,7 @@ async function executeSave(toSave, toDelete = []) {
         renderTable();
         updateALBanner();
         updateALBookedBox();
+        updateSickBookedBox();
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
 
     } catch (err) {
@@ -1067,11 +1070,14 @@ fieldMember.addEventListener('change', () => {
     if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
     localStorage.setItem('adminLastMember', fieldMember.value);
     localStorage.setItem('myb_roster_selected_member', fieldMember.value);
-    alMember.value = fieldMember.value;
+    alMember.value   = fieldMember.value;
+    sickMember.value = fieldMember.value;
     syncMemberDisplay();
+    syncSickMemberDisplay();
     if (fieldMember.value && typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value);
     updateALBanner();
     updateALBookedBox();
+    updateSickBookedBox();
     renderTable();
     renderWeekGrid();
 });
@@ -1088,6 +1094,7 @@ fieldDate.addEventListener('change', () => {
     // Banner year follows the week being viewed (when no alFrom date is set)
     updateALBanner();
     updateALBookedBox();
+    updateSickBookedBox();
 });
 
 // ============================================
@@ -1109,6 +1116,7 @@ async function loadOverrides() {
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         updateALBanner();
         updateALBookedBox();
+        updateSickBookedBox();
     } catch (err) {
         console.error('[Admin] Load failed:', err);
         tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Failed to load overrides.<br><span class="reload-link" onclick="location.reload()">↻ Reload page</span></td></tr>';
@@ -1173,6 +1181,7 @@ async function handleDelete(e) {
         renderTable();
         updateALBanner();
         updateALBookedBox();
+        updateSickBookedBox();
         // Re-render week grid to clear the "has override" badge if this date is visible
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         // Brief confirmation of what was removed
@@ -1462,10 +1471,13 @@ syncMemberDisplay(); // set on page load
 alMember.addEventListener('change', () => {
     updateALBanner();
     updateALBookedBox();
+    updateSickBookedBox();
     updateAlPreview();
     if (alMember.value) {
         fieldMember.value  = alMember.value;
+        sickMember.value   = alMember.value;
         syncMemberDisplay();
+        syncSickMemberDisplay();
         localStorage.setItem('adminLastMember', alMember.value);
         localStorage.setItem('myb_roster_selected_member', alMember.value);
         renderWeekGrid();
@@ -1625,6 +1637,7 @@ alSaveBtn.addEventListener('click', async () => {
         renderTable();
         updateALBanner();
         updateALBookedBox();
+        updateSickBookedBox();
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
@@ -1635,6 +1648,284 @@ alSaveBtn.addEventListener('click', async () => {
         alSaveBtn.textContent = 'Book Annual Leave';
     }
 });
+
+// ============================================
+// SICK DAYS RECORDING
+// ============================================
+const sickMember   = document.getElementById('sickMember');
+const sickFrom     = document.getElementById('sickFrom');
+const sickTo       = document.getElementById('sickTo');
+const sickPreview  = document.getElementById('sickPreview');
+const sickSaveBtn  = document.getElementById('sickSaveBtn');
+const sickFeedback = document.getElementById('sickFeedback');
+
+// Populate sickMember dropdown (hidden, mirrors fieldMember)
+roles.forEach(role => {
+    const grp = document.createElement('optgroup');
+    grp.label = role;
+    teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
+        grp.appendChild(new Option(m.name, m.name));
+    });
+    sickMember.appendChild(grp);
+});
+if (lastMember) sickMember.value = lastMember;
+
+/** Keep the sick section's read-only member display in sync with fieldMember. */
+function syncSickMemberDisplay() {
+    const el = document.getElementById('sickMemberDisplay');
+    if (el) el.textContent = fieldMember.value || 'Select a staff member above';
+}
+syncSickMemberDisplay();
+
+/**
+ * Returns an array of ISO date strings from sickFrom to sickTo inclusive,
+ * or null if the range is invalid (to < from), or [] if either input is empty.
+ * Maximum range is 60 days.
+ * @returns {string[]|null}
+ */
+function getSickDates() {
+    if (!sickFrom.value || !sickTo.value) return [];
+    const from = new Date(sickFrom.value + 'T12:00:00');
+    const to   = new Date(sickTo.value   + 'T12:00:00');
+    if (to < from) return null;
+    const dates = [];
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        dates.push(formatISO(new Date(d)));
+    }
+    return dates;
+}
+
+/** Refreshes the preview message and enables/disables the save button. */
+function updateSickPreview() {
+    const member = sickMember.value;
+    const dates  = getSickDates();
+
+    if (!member || !sickFrom.value || !sickTo.value) {
+        sickPreview.className = 'al-preview sick-preview empty';
+        sickPreview.textContent = 'Select a staff member and the dates above.';
+        sickSaveBtn.disabled = true;
+        return;
+    }
+
+    if (dates === null) {
+        sickPreview.className = 'al-preview sick-preview error';
+        sickPreview.textContent = '"Last sick day" must be on or after "First sick day".';
+        sickSaveBtn.disabled = true;
+        return;
+    }
+
+    if (dates.length > 60) {
+        sickPreview.className = 'al-preview sick-preview error';
+        sickPreview.textContent = `That's ${dates.length} days — maximum range is 60 days.`;
+        sickSaveBtn.disabled = true;
+        return;
+    }
+
+    const fromDisp = formatDisplay(dates[0]);
+    const toDisp   = formatDisplay(dates[dates.length - 1]);
+    const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
+
+    // Count rest days in the range — they will be skipped
+    const memberObj = teamMembers.find(m => m.name === member);
+    let restCount = 0;
+    if (memberObj) {
+        dates.forEach(dateStr => {
+            const d    = new Date(dateStr + 'T12:00:00');
+            const base = getBaseShift(memberObj, d);
+            if (base === 'RD' || base === 'OFF') restCount++;
+        });
+    }
+    const workDays = dates.length - restCount;
+    const label    = workDays === 1 ? '1 sick day' : `${workDays} sick days`;
+    const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+
+    sickPreview.className = 'al-preview sick-preview ready';
+    sickPreview.innerHTML = `🤒 <strong>${label}</strong> for ${esc(member)}: ${rangeStr}${restNote}`;
+    sickSaveBtn.disabled = workDays === 0;
+}
+
+sickFrom.addEventListener('change', () => { updateSickPreview(); updateSickBookedBox(); });
+sickTo.addEventListener('change',   () => { updateSickPreview(); updateSickBookedBox(); });
+updateSickPreview();
+
+sickSaveBtn.addEventListener('click', async () => {
+    const member = sickMember.value;
+    const dates  = getSickDates();
+    if (!member || !dates || !dates.length) return;
+
+    const memberObj    = teamMembers.find(m => m.name === member);
+    const workingDates = memberObj
+        ? dates.filter(dateStr => {
+            const d    = new Date(dateStr + 'T12:00:00');
+            const base = getBaseShift(memberObj, d);
+            return base !== 'RD' && base !== 'OFF';
+          })
+        : dates;
+
+    if (!workingDates.length) {
+        sickFeedback.className = 'feedback error';
+        sickFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+        return;
+    }
+
+    sickFeedback.className = 'feedback';
+    sickSaveBtn.disabled    = true;
+    sickSaveBtn.textContent = `Saving ${workingDates.length} day${workingDates.length > 1 ? 's' : ''}…`;
+
+    try {
+        const sickNewDocs    = [];
+        const sickDeletedIds = new Set();
+        const sickBatch      = writeBatch(db);
+        workingDates.forEach(date => {
+            const existing = allOverrides.find(o => o.memberName === member && o.date === date);
+            if (existing) { sickBatch.delete(doc(db, 'overrides', existing.id)); sickDeletedIds.add(existing.id); }
+            const newRef = doc(collection(db, 'overrides'));
+            sickBatch.set(newRef, {
+                memberName: member,
+                date,
+                type:      'sick',
+                value:     'SICK',
+                note:      '',
+                createdAt: serverTimestamp()
+            });
+            sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'sick', value: 'SICK', note: '', createdAt: new Date() });
+        });
+        await sickBatch.commit();
+
+        sickFeedback.className = 'feedback success';
+        sickFeedback.textContent = `✓ Recorded ${workingDates.length} sick day${workingDates.length > 1 ? 's' : ''} for ${member}`;
+        setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
+
+        sickFrom.value = sickTo.value = '';
+        updateSickPreview();
+
+        // Update in-memory cache — no Firestore round-trip needed
+        allOverrides = allOverrides.filter(o => !sickDeletedIds.has(o.id));
+        allOverrides.push(...sickNewDocs);
+        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        renderTable();
+        updateSickBookedBox();
+        if (fieldMember.value && fieldDate.value) renderWeekGrid();
+    } catch (err) {
+        console.error('[Admin] Sick save failed:', err);
+        sickFeedback.className = 'feedback error';
+        sickFeedback.textContent = '⚠ Could not save — check your connection and try again.';
+    } finally {
+        sickSaveBtn.disabled    = false;
+        sickSaveBtn.textContent = 'Record Sick Days';
+    }
+});
+
+/**
+ * Refreshes the collapsible list of recorded sick days for the selected member.
+ * Shows sick periods grouped by month, merging consecutive dates that are
+ * bridged by rest days on the base roster (same logic as AL booked box).
+ */
+function updateSickBookedBox() {
+    const box  = document.getElementById('sickBookedBox');
+    const body = document.getElementById('sickBookedBody');
+    if (!box || !body) return;
+
+    const memberName = sickMember.value;
+    if (!memberName) { box.hidden = true; return; }
+
+    const yearStr = sickFrom.value ? sickFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
+    const entries = allOverrides.filter(o =>
+        o.memberName === memberName &&
+        o.type       === 'sick' &&
+        o.date       && o.date.startsWith(yearStr)
+    ).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+    if (!entries.length) { box.hidden = true; return; }
+
+    const memberObj  = teamMembers.find(m => m.name === memberName);
+    const sickDateSet = new Set(entries.map(e => e.date));
+
+    function addDays(dateStr, n) {
+        const d = new Date(dateStr + 'T12:00:00');
+        d.setDate(d.getDate() + n);
+        return d.toISOString().slice(0, 10);
+    }
+    function isRestGap(dateStr) {
+        if (!memberObj) return false;
+        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+        return shift === 'RD' || shift === 'OFF';
+    }
+    function fmtDate(d) {
+        const dt = new Date(d + 'T12:00:00');
+        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
+    }
+    function fmtRange(start, end) {
+        const ds = new Date(start + 'T12:00:00');
+        const de = new Date(end   + 'T12:00:00');
+        if (ds.getMonth() === de.getMonth()) {
+            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
+        }
+        return `${fmtDate(start)} – ${fmtDate(end)}`;
+    }
+
+    const dateList = [...sickDateSet].sort();
+    const periods  = [];
+    let periodStart = dateList[0];
+    let periodEnd   = dateList[0];
+    let count       = 1;
+    for (let i = 1; i < dateList.length; i++) {
+        const prev = dateList[i - 1];
+        const curr = dateList[i];
+        let gapAllRest = true;
+        let cursor = addDays(prev, 1);
+        while (cursor < curr) {
+            if (!isRestGap(cursor)) { gapAllRest = false; break; }
+            cursor = addDays(cursor, 1);
+        }
+        if (gapAllRest) {
+            periodEnd = curr;
+            count++;
+        } else {
+            periods.push({ start: periodStart, end: periodEnd, count });
+            periodStart = curr;
+            periodEnd   = curr;
+            count       = 1;
+        }
+    }
+    periods.push({ start: periodStart, end: periodEnd, count });
+
+    const byMonth = {};
+    for (const p of periods) {
+        const key = p.start.slice(0, 7);
+        (byMonth[key] = byMonth[key] || []).push(p);
+    }
+
+    let html = '';
+    for (const key of Object.keys(byMonth).sort()) {
+        const [yr, mo] = key.split('-');
+        const monthLabel = `${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}`;
+        html += `<div class="al-period-month"><div class="al-period-month-hdr">${monthLabel}</div>`;
+        for (const p of byMonth[key]) {
+            const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
+            const countStr = `${p.count} sick day${p.count !== 1 ? 's' : ''}`;
+            html += `<div class="al-period-row">
+                <span class="al-period-dates">${dateStr}</span>
+                <span class="sick-period-count">${countStr}</span>
+            </div>`;
+        }
+        html += `</div>`;
+    }
+
+    body.innerHTML = html;
+    box.hidden = false;
+}
+
+(function initSickBookedToggle() {
+    const toggle  = document.getElementById('sickBookedToggle');
+    const body    = document.getElementById('sickBookedBody');
+    const chevron = document.getElementById('sickBookedChevron');
+    if (!toggle || !body || !chevron) return;
+    toggle.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+})();
 
 // ============================================
 // INIT — runs last so all dropdowns are populated
@@ -1658,6 +1949,8 @@ function applyPermissions() {
     syncMemberDisplay();
     alMember.value        = currentUser;
     alMember.disabled     = true;
+    sickMember.value      = currentUser;
+    sickMember.disabled   = true;
     localStorage.setItem('adminLastMember', currentUser);
     localStorage.setItem('myb_roster_selected_member', currentUser);
 }

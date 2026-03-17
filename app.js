@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml } from './roster-data.js?v=5.01';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=5.01';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml } from './roster-data.js?v=5.02';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=5.02';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -483,7 +483,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             }
         }
 
-        const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL';
+        const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL' && shift !== 'SICK';
         const shiftClass = isWorkedDay && member.permanentShift === 'late'  ? 'late-shift'
                          : isWorkedDay && member.permanentShift === 'early' ? 'early-shift'
                          : getShiftClass(shift);
@@ -493,6 +493,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
             : shift === 'SPARE' ? 'Spare day'
             : shift === 'AL'    ? 'Annual leave'
+            : shift === 'SICK'  ? 'Sick day'
             : shift === 'RDW'   ? 'Rest day worked'
             : member.permanentShift === 'late'  ? 'Late shift'
             : member.permanentShift === 'early' ? 'Early shift'
@@ -660,8 +661,9 @@ function getShiftTypesInMonth(member, year, month) {
         }
 
         if (shift === 'SPARE') types.add('SPARE');
-        else if (shift === 'RDW') types.add('RDW');
-        else if (shift === 'AL')  types.add('AL');
+        else if (shift === 'RDW')  types.add('RDW');
+        else if (shift === 'AL')   types.add('AL');
+        else if (shift === 'SICK') types.add('SICK');
     }
 
     shiftTypesMonthCache.set(cacheKey, types);
@@ -686,9 +688,10 @@ function updateLegend() {
     show('legend-spare', typesThisMonth.has('SPARE'));
     show('legend-rdw',   typesThisMonth.has('RDW'));
     show('legend-al',    typesThisMonth.has('AL'));
-    // Hide the whole row-2 if all three are absent
+    show('legend-sick',  typesThisMonth.has('SICK'));
+    // Hide the whole row-2 if all four are absent
     const row2 = document.getElementById('legend-row-2');
-    if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL')) ? '' : 'none';
+    if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK')) ? '' : 'none';
 
     const isDispatcher = member && member.rosterType === 'dispatcher';
     const nightItem = document.getElementById('legend-night');

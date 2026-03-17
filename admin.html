@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.01 -->
+<!-- MYB Roster Admin v5.02 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.01">
+    <link rel="stylesheet" href="shared.css?v=5.02">
 
     <style>
         body {
@@ -410,6 +410,7 @@
         .badge-spare { background: var(--purple);   color: white; }
         .badge-rdw   { background: var(--rdw);      color: white; }
         .badge-al    { background: var(--al);        color: white; }
+        .badge-sick  { background: var(--sick);      color: white; }
 
         /* ---- Bulk bar ---- */
         .bulk-bar {
@@ -504,6 +505,7 @@
         .pill-rdw          { color: var(--rdw);      } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-swap         { color: var(--blue-sky); } .pill-swap.active         { background: var(--blue-sky); border-color: var(--blue-sky); }
         .pill-annual_leave { color: var(--al);       } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
+        .pill-sick         { color: var(--sick);     } .pill-sick.active         { background: var(--sick);     border-color: var(--sick);     }
         .pill-correction   { color: var(--orange);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
 
         .bulk-time-group {
@@ -1122,6 +1124,7 @@
         .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw);      }
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
         .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);          }
+        .lpill-sick         { background: var(--sick-light);   color: var(--sick);             }
         .lpill-correction   { background: var(--orange-light); color: var(--correction-text);  }
 
         .btn-edit {
@@ -1291,6 +1294,11 @@
         .al-preview.empty { color: var(--text-light); }
         .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
         .al-preview.error { background: var(--error-bg); color: var(--error-red); }
+
+        /* Sick preview — reuses al-preview layout; overrides ready colour to red */
+        .sick-preview.ready { background: var(--sick-light); color: var(--sick); }
+        /* Sick period count in the booked-dates list */
+        .sick-period-count  { font-size: 11px; font-weight: 600; color: var(--sick); white-space: nowrap; margin-left: 8px; }
 
         /* ---- Touch device enhancements ---- */
 
@@ -1926,6 +1934,50 @@
         </div>
     </div>
 
+    <!-- ==================== SICK DAYS ==================== -->
+    <div class="card" id="record-sick-days">
+        <div class="card-header">
+            <h2>Record Sick Days</h2>
+            <span class="hint">Choose the days you were off sick — rest days are skipped automatically</span>
+        </div>
+        <div class="card-body">
+            <div class="al-form">
+                <select id="sickMember" hidden>
+                    <option value="">— Select member —</option>
+                </select>
+                <div class="field-group">
+                    <label>Staff member</label>
+                    <div class="member-readonly-display" id="sickMemberDisplay">Select a staff member above</div>
+                </div>
+                <div class="al-dates">
+                    <div class="field-group">
+                        <label for="sickFrom">First sick day</label>
+                        <input type="date" id="sickFrom">
+                    </div>
+                    <div class="al-dates-sep">→</div>
+                    <div class="field-group">
+                        <label for="sickTo">Last sick day</label>
+                        <input type="date" id="sickTo">
+                    </div>
+                </div>
+            </div>
+            <div class="al-preview sick-preview" id="sickPreview"></div>
+            <button class="btn-save" id="sickSaveBtn" disabled>Record Sick Days</button>
+            <div class="feedback" id="sickFeedback"></div>
+
+            <!-- Collapsible: all recorded sick days for the selected member -->
+            <div class="al-booked-box" id="sickBookedBox" hidden>
+                <div class="al-booked-header" id="sickBookedToggle">
+                    <span class="al-booked-title">🤒 Recorded sick days</span>
+                    <span class="collapse-chevron" id="sickBookedChevron">▾</span>
+                </div>
+                <div class="al-booked-body" id="sickBookedBody">
+                    <!-- populated by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
@@ -2029,6 +2081,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.01"></script>
+<script type="module" src="./admin-app.js?v=5.02"></script>
 </body>
 </html>
