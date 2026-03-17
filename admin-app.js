@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.24';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.24';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.25';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.25';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1545,22 +1545,34 @@ function updateAlPreview() {
     const toDisp   = formatDisplay(dates[dates.length - 1]);
     const rangeStr = dates.length === 1 ? fromDisp : `${fromDisp} – ${toDisp}`;
 
-    // Count rest days (RD/OFF) in the range to warn the user
+    // Count rest days (RD/OFF) in the range to warn the user.
+    // Checks both the base roster and any existing RD/OFF Firestore overrides so the
+    // preview matches what the booking will actually skip.
     const memberObj = teamMembers.find(m => m.name === member);
-    let restCount = 0;
+    let restCount  = 0;
+    let spareCount = 0; // spare days that will be booked as AL (not already overridden to RD)
     if (memberObj) {
         dates.forEach(dateStr => {
-            const d = new Date(dateStr + 'T12:00:00');
+            const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') restCount++;
+            if (base === 'RD' || base === 'OFF') { restCount++; return; }
+            // Also treat existing RD/OFF overrides as rest days (same logic as the booking filter)
+            const ov = allOverrides.find(o => o.memberName === memberObj.name && o.date === dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
+            if (base === 'SPARE') spareCount++;
         });
     }
-    const workDays = dates.length - restCount;
-    const label    = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
-    const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+    const workDays  = dates.length - restCount;
+    const label     = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
+    const restNote  = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
+    // Warn for CEA/CES when spare days will be booked as AL: prompt admin to add RDs first if needed
+    const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
+    const spareNote = (isSpareRole && spareCount > 0)
+        ? `<br><em>⚠ Includes ${spareCount} spare day${spareCount !== 1 ? 's' : ''}. For shifts over 7h, add RD corrections in the week editor first to reduce to 4 AL days.</em>`
+        : '';
 
     alPreview.className = 'al-preview ready';
-    alPreview.innerHTML = `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}`;
+    alPreview.innerHTML = `🏖️ <strong>${label}</strong> of Annual Leave for ${esc(member)}: ${rangeStr}${restNote}${spareNote}`;
     alSaveBtn.disabled = workDays === 0;
 }
 
@@ -1603,12 +1615,16 @@ alSaveBtn.addEventListener('click', async () => {
     alSaveBtn.disabled    = true;
     alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
-    // Filter out rest days — no point writing AL over an already-resting day
+    // Filter out rest days — skip base-roster RDs/OFFs and any existing RD/OFF overrides
+    // so that RD corrections added via the week editor are respected by the AL booking.
     const workingDates = memberObj
         ? dates.filter(dateStr => {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
-            return base !== 'RD' && base !== 'OFF';
+            if (base === 'RD' || base === 'OFF') return false;
+            const ov = allOverrides.find(o => o.memberName === member && o.date === dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
+            return true;
           })
         : dates;
 
