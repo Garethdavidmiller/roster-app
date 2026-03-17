@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.08';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.08';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.09';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.09';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -603,6 +603,7 @@ function buildWeekGridInto(container, dateStr) {
                 <button class="type-pill-btn pill-rdw"         data-type="rdw">Rest Day Working</button>
                 <button class="type-pill-btn pill-swap"        data-type="swap">Swap</button>
                 <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">Annual Leave</button>
+                <button class="type-pill-btn pill-sick"        data-type="sick">Sick</button>
                 <button class="type-pill-btn pill-correction"  data-type="correction">Make Rest Day</button>
             </div>
             <div class="col-time">
@@ -2162,8 +2163,30 @@ function updateALBookedBox() {
     const chevron    = document.getElementById('religiousChevron');
     const saved      = document.getElementById('religiousSaved');
     const disclaimer = document.getElementById('calendarDisclaimer');
+    const activeTag  = document.getElementById('calendarActiveTag');
     const radios     = document.querySelectorAll('input[name="faithCalendar"]');
     if (!header || !body || !chevron || !saved || !radios.length) return;
+
+    // Human-readable names for each calendar option.
+    const CALENDAR_NAMES = {
+        islamic:    '🌙 Islamic',
+        hindu:      '🪔 Hindu',
+        chinese:    '🧧 Chinese',
+        jamaican:   '🇯🇲 Jamaican',
+        congolese:  '🇨🇩 Congolese',
+        portuguese: '🇵🇹 Portuguese',
+    };
+
+    // Update the "active calendar" tag shown in the card header.
+    function updateActiveTag(value) {
+        if (!activeTag) return;
+        if (value && value !== 'none') {
+            activeTag.textContent = (CALENDAR_NAMES[value] || value) + ' active';
+            activeTag.style.display = '';
+        } else {
+            activeTag.style.display = 'none';
+        }
+    }
 
     // Disclaimer text per calendar — shown only for the active selection.
     const DISCLAIMERS = {
@@ -2172,7 +2195,7 @@ function updateALBookedBox() {
         chinese:  'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
         jamaican:   'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
         congolese:   'Congolese national public holidays (DRC). All four dates are fixed each year.',
-        portuguese:  'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May (coincides with the UK Early May bank holiday only when 1 May falls on a Monday). Carnival Tuesday is widely observed but discretionary. All other dates are fixed or calculated from Easter.',
+        portuguese:  'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May (coincides with the UK Early May back holiday only when 1 May falls on a Monday). Carnival Tuesday is widely observed but discretionary. All other dates are fixed or calculated from Easter.',
         none:        '',
     };
 
@@ -2202,6 +2225,7 @@ function updateALBookedBox() {
         const local = localStorage.getItem(`faithCalendar_${userName}`) || 'none';
         radios.forEach(r => { r.checked = (r.value === local); });
         updateDisclaimer(local);
+        updateActiveTag(local);
         try {
             const snap  = await getDoc(doc(db, 'memberSettings', userName));
             if (snap.exists()) {
@@ -2209,6 +2233,7 @@ function updateALBookedBox() {
                 localStorage.setItem(`faithCalendar_${userName}`, value);
                 radios.forEach(r => { r.checked = (r.value === value); });
                 updateDisclaimer(value);
+                updateActiveTag(value);
             }
         } catch (e) {
             console.warn('[Firestore] memberSettings load failed:', e);
@@ -2221,6 +2246,7 @@ function updateALBookedBox() {
     radios.forEach(radio => {
         radio.addEventListener('change', () => {
             updateDisclaimer(radio.value);
+            updateActiveTag(radio.value);
             clearTimeout(saveTimer);
             saved.classList.remove('visible', 'error');
             const target = fieldMember.value || currentUser;
