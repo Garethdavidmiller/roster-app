@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '4.99';
+const APP_VERSION = '5.01';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -115,7 +115,8 @@ self.addEventListener("fetch", event => {
                 })
                 .catch(() => {
                     console.log(`[SW ${APP_VERSION}] Offline — serving from cache:`, path);
-                    return caches.match(event.request).then(r => r || caches.match("./index.html"));
+                    const fallback = path.includes('admin') ? './admin.html' : './index.html';
+                    return caches.match(event.request).then(r => r || caches.match(fallback));
                 })
         );
     } else {

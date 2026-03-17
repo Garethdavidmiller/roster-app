@@ -16,6 +16,8 @@
 | `app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
 | `admin-app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
 | `admin-app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
+| `index.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
+| `admin.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
 
 `CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
 
@@ -211,6 +213,11 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 | 23 | 🟢 Low | **Legend was very long on mobile.** Responsive CSS collapses the three legend rows into a single centred strip at narrow viewports. |
 | 31/16 | 🟠 High | **Two 4,000-line monolithic HTML files; JS embedded in HTML.** Extracted all JavaScript from `index.html` into `app.js` (1,693 lines) and from `admin.html` into `admin-app.js` (1,983 lines). Both HTML files now contain only HTML and CSS. JS can now be linted, cached independently, and navigated separately. |
 | 9/32 | 🟡 Med | **Cultural calendar dates were 400+ lines of hardcoded strings.** Added three private helpers (`fixedAnnualDate`, `easterOffset`, `nthWeekdayOfMonth`) in `roster-data.js`. 18 of 33 datasets (all fixed-date, Easter-relative, and day-of-week-rule holidays) are now auto-computed for the full CONFIG year range — no manual updates ever needed. 15 genuinely lunar/lunisolar datasets (Islamic ×5, Hindu ×5, Chinese ×5) remain as lookup tables and still need annual updates. `warnIfCulturalCalendarMissingYear()` now checks all 15 of these. |
+
+| v5.00 | 🟡 Med | **SW offline fallback served index.html for admin requests.** The catch branch fell back to `caches.match("./index.html")` regardless of which page was requested. Fixed to detect `admin` in the path and fall back to `./admin.html` instead. |
+| v5.00 | 🟢 Low | **`shared.css?v=` was missing from the version bump checklist.** Both HTML files were stuck on `?v=4.93` while the app moved through several releases. Added `shared.css` to the mandatory version bump table and corrected both references to v5.00. |
+| v5.00 | 🟢 Low | **app.js defined `dayNames` and `dayKeys` locally when identical constants were already imported from `roster-data.js`.** Removed local declarations; all call sites updated to use `DAY_NAMES` and `DAY_KEYS`. `fullDayNames` and `monthNames` retained as they have no equivalent in the shared module. |
+| v5.00 | 🟢 Low | **Test suite expanded from 23 to 51 tests.** Added coverage for `isChristmasRD`, `isEarlyShift`, `isNightShift`, `getShiftClass`, `getShiftBadge`, `isSameDay`, `getRosterForMember`, `getWeekNumberForDate`, `getBaseShift`, and AL entitlement edge cases. |
 
 ### Remaining items — not yet fixed
 
