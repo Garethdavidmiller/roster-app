@@ -27,9 +27,9 @@
     --blue-sky:          #1565c0;   /* late shift — darkened from #2196f3 for AA contrast */
     --purple:            #7b1fa2;   /* spare shift — darkened from #9c27b0 for AA contrast */
     --purple-light:      #f3e5f5;
-    --rdw:               #f59f00;   /* RDW/overtime — amber, distinct from sick (red family) */
-    --rdw-text:          #8b6000;   /* RDW text on light bg — dark amber, 5.5:1 on white */
-    --rdw-light:         #fef9c3;   /* RDW cell background — pale lemon yellow, clearly distinct from early's peach (#fff3e0) */
+    --rdw:               #c2185b;   /* RDW/overtime — magenta/raspberry */
+    --rdw-text:          #880e4f;   /* RDW text on light bg — deep magenta, 7.9:1 on white */
+    --rdw-light:         #fce4ec;   /* RDW cell background — light pink */
     --al:                #00897b;
     --al-light:          #e0f2f1;
     --sick:              #e53935;   /* sick day — red */
