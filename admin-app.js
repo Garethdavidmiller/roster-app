@@ -1501,9 +1501,15 @@ function updateAlPreview() {
     const member = alMember.value;
     const dates  = getAlDates();
 
-    if (!member || !alFrom.value || !alTo.value) {
+    if (!member) {
         alPreview.className = 'al-preview empty';
-        alPreview.textContent = 'Select a member and date range.';
+        alPreview.textContent = 'Select a staff member above.';
+        alSaveBtn.disabled = true;
+        return;
+    }
+    if (!alFrom.value || !alTo.value) {
+        alPreview.className = 'al-preview empty';
+        alPreview.textContent = 'Choose a date range to see a preview.';
         alSaveBtn.disabled = true;
         return;
     }
@@ -1700,9 +1706,15 @@ function updateSickPreview() {
     const member = sickMember.value;
     const dates  = getSickDates();
 
-    if (!member || !sickFrom.value || !sickTo.value) {
+    if (!member) {
         sickPreview.className = 'al-preview sick-preview empty';
-        sickPreview.textContent = 'Select a staff member and the dates above.';
+        sickPreview.textContent = 'Select a staff member above.';
+        sickSaveBtn.disabled = true;
+        return;
+    }
+    if (!sickFrom.value || !sickTo.value) {
+        sickPreview.className = 'al-preview sick-preview empty';
+        sickPreview.textContent = 'Choose the dates you were off sick.';
         sickSaveBtn.disabled = true;
         return;
     }
