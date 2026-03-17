@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '5.15';
+export const APP_VERSION = '5.16';
 
 // ============================================
 // CONFIGURATION
