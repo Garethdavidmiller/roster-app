@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.18 -->
+<!-- MYB Roster Admin v5.19 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.18">
+    <link rel="stylesheet" href="shared.css?v=5.19">
 
     <style>
         body {
@@ -504,7 +504,7 @@
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
         .pill-overtime     { color: var(--ot);         } .pill-overtime.active     { background: var(--ot);         border-color: var(--ot);         }
-        .pill-rdw          { color: var(--rdw);      } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
+        .pill-rdw          { color: var(--rdw-text); } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-swap         { color: var(--blue-sky); } .pill-swap.active         { background: var(--blue-sky); border-color: var(--blue-sky); }
         .pill-annual_leave { color: var(--al);       } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
         .pill-sick         { color: var(--sick);     } .pill-sick.active         { background: var(--sick);     border-color: var(--sick);     }
@@ -1154,7 +1154,7 @@
 
         .lpill-spare_shift  { background: var(--purple-light); color: var(--purple);   }
         .lpill-overtime     { background: var(--ot-light);       color: var(--ot);         }
-        .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw);      }
+        .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw-text); }
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
         .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);          }
         .lpill-sick         { background: var(--sick-light);   color: var(--sick);             }
@@ -2117,6 +2117,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.18"></script>
+<script type="module" src="./admin-app.js?v=5.19"></script>
 </body>
 </html>
