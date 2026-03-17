@@ -238,11 +238,16 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 
 These were identified in the audit but not addressed. Tackle in future sessions:
 
-#### 🔴 Critical
-- **#13 — Firestore Security Rules missing.** The Firebase credentials are public (expected), but without Firestore rules anyone can read/write the entire database from a browser console. Log in to the Firebase Console → Firestore → Rules and restrict access. Also consider Firebase App Check and restricting the API key in Google Cloud Console.
-
 #### 🟠 High
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
+
+### Fixed after v5.19
+
+| Version | Severity | What was fixed |
+|---------|----------|----------------|
+| v5.18 | 🟢 Low | **Colour audit — RDW, late, spare, rest day.** RDW changed from magenta to amber (distinct from sick's red family). Late badge darkened (#2196f3 → #1565c0, contrast 3.7:1 → 8.5:1). Spare badge darkened (#9c27b0 → #7b1fa2, contrast 3.5:1 → 8.3:1). Rest day background changed from pure white to #f9f9fb so cells don't vanish on the page. |
+| v5.19 | 🟠 High | **RDW text contrast failures in admin.** Amber text on white pill (1.4:1) and amber text on pale amber lpill (1.4:1) both failed WCAG AA. Added --rdw-text: #8b6000 (dark amber, 5.5:1 on white) for all text-on-light contexts. |
+| #13 | 🔴 Critical | **Firestore Security Rules deployed.** Rules now: allow reads on both collections; allow writes only if all required fields are present and `type`/`faithCalendar` values are within the valid set. Junk/missing-field writes return 403. Verified by live REST API tests (read ✅, invalid write blocked ✅, valid write allowed ✅). |
 
 #### 🟡 Medium
 - **#9/32 — 15 lunar/lunisolar calendar datasets still need annual updates**: Islamic (Ramadan, Eid al-Fitr, Eid al-Adha, Islamic New Year, Mawlid), Hindu (Holi, Navratri, Dussehra, Diwali, Raksha Bandhan), Chinese (New Year, Lantern, Qingming, Dragon Boat, Mid-Autumn). The app also supports Jamaican, Congolese, and Portuguese calendars — these are rule-based (fixed-date or Easter-relative) and auto-compute without annual updates. Sources for manual datasets: islamicfinder.org, drikpanchang.com (London), chinesenewyear.net. `warnIfCulturalCalendarMissingYear()` logs a warning if any are missing for the current year.
