@@ -1879,11 +1879,12 @@
 
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
-        <div class="card-header">
-            <h2>Book Annual Leave</h2>
+        <div class="card-header card-collapsible-header" id="alToggleHeader">
+            <h2>🏖️ Book Annual Leave</h2>
             <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
+            <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
-        <div class="card-body">
+        <div class="card-collapsible-body" id="alBody">
             <!-- Annual Leave balance banner — updates when a member is selected -->
             <div class="al-banner" id="alBanner" hidden>
                 <span class="al-banner-icon">🏖️</span>
@@ -1950,11 +1951,12 @@
 
     <!-- ==================== SICK DAYS ==================== -->
     <div class="card" id="record-sick-days">
-        <div class="card-header">
-            <h2>Record Sick Days</h2>
+        <div class="card-header card-collapsible-header" id="sickToggleHeader">
+            <h2>🤒 Record Sick Days</h2>
             <span class="hint">Choose the days you were off sick — rest days are skipped automatically</span>
+            <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
-        <div class="card-body">
+        <div class="card-collapsible-body" id="sickBody">
             <div class="al-form">
                 <select id="sickMember" hidden>
                     <option value="">— Select member —</option>

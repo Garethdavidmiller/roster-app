@@ -2112,6 +2112,34 @@ function updateALBookedBox() {
 })();
 
 // ============================================
+// ANNUAL LEAVE CARD — collapse/expand
+// ============================================
+(function initALCard() {
+    const header  = document.getElementById('alToggleHeader');
+    const body    = document.getElementById('alBody');
+    const chevron = document.getElementById('alChevron');
+    if (!header || !body || !chevron) return;
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+})();
+
+// ============================================
+// SICK DAYS CARD — collapse/expand
+// ============================================
+(function initSickCard() {
+    const header  = document.getElementById('sickToggleHeader');
+    const body    = document.getElementById('sickBody');
+    const chevron = document.getElementById('sickChevron');
+    if (!header || !body || !chevron) return;
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+})();
+
+// ============================================
 // EXISTING OVERRIDES CARD — collapse/expand
 // ============================================
 (function initOverridesCard() {
@@ -2233,10 +2261,17 @@ if (!isAuthenticated) {
     loadOverrides(); // internally calls renderWeekGrid() after data loads
     if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value || currentUser);
 
-    // If arriving via deep-link (e.g. from the AL lightbox), scroll to the target section
+    // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
     if (location.hash) {
         const target = document.querySelector(location.hash);
-        if (target) setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+        if (target) {
+            // Open the collapsible body inside the target card if present
+            const body    = target.querySelector('.card-collapsible-body');
+            const chevron = target.querySelector('.collapse-chevron');
+            if (body)    body.classList.add('open');
+            if (chevron) chevron.classList.add('open');
+            setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+        }
     }
 }
 
