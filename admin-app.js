@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.23';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.23';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.24';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.24';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -492,8 +492,8 @@ function updateALBanner() {
     const member      = teamMembers.find(m => m.name === memberName);
     if (!member)      { banner.hidden = true; return; }
 
-    const entitlement = getALEntitlement(member);
     const yearStr     = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
+    const entitlement = getALEntitlement(member, parseInt(yearStr, 10), allOverrides);
     const todayStr    = new Date().toISOString().slice(0, 10);
 
     let taken  = 0;
@@ -509,6 +509,18 @@ function updateALBanner() {
     takenEl.textContent  = taken;
     bookedEl.textContent = booked;
     entEl.textContent    = entitlement;
+
+    // Show breakdown note for Dispatchers (22 base + N bank holiday lieu days)
+    const breakdownEl = document.getElementById('alBannerBreakdown');
+    if (breakdownEl) {
+        if (member.role === 'Dispatcher') {
+            const lieu = entitlement - 22;
+            breakdownEl.textContent = `22 base + ${lieu} BH lieu`;
+            breakdownEl.hidden = false;
+        } else {
+            breakdownEl.hidden = true;
+        }
+    }
 
     banner.hidden = false;
     banner.classList.toggle('al-banner-warning', remaining <= 0);
@@ -967,9 +979,9 @@ saveBtn.addEventListener('click', async () => {
     const alInBatch = toSave.filter(e => e.type === 'annual_leave');
     if (alInBatch.length > 0) {
         const member      = teamMembers.find(m => m.name === memberName);
-        const entitlement = getALEntitlement(member);
         // Use the year of the AL dates being saved, not the current calendar year
         const yearStr     = alInBatch[0].date.substring(0, 4);
+        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), allOverrides);
         // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
         const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
         const existingAL = allOverrides.filter(o =>
@@ -1565,9 +1577,9 @@ alSaveBtn.addEventListener('click', async () => {
     // Annual leave entitlement check (skip if user already confirmed via the bar)
     const memberObj = teamMembers.find(m => m.name === member);
     if (!_alBookingConfirmed) {
-        const entitlement    = getALEntitlement(memberObj);
         // Use the year from the booking dates, not the current calendar year
         const yearStr        = alFrom.value ? alFrom.value.substring(0, 4) : String(new Date().getFullYear());
+        const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), allOverrides);
         const existingAL     = allOverrides.filter(o =>
             o.memberName === member &&
             o.type       === 'annual_leave' &&
