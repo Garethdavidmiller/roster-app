@@ -1574,8 +1574,10 @@ async function fetchOverridesForRange(startStr, endStr) {
         where('date', '<=', endStr)
     );
     const snapshot = await getDocs(q);
+    console.log(`[Firestore] fetchOverridesForRange ${startStr}→${endStr}: ${snapshot.size} doc(s)`);
     snapshot.forEach(doc => {
         const data = doc.data();
+        console.log('[Firestore] override doc:', JSON.stringify({ id: doc.id, memberName: data.memberName, date: data.date, type: data.type, value: data.value }));
         if (!data.memberName || !data.date || !data.value) {
             console.error('[Firestore] Skipping malformed override document:', doc.id, data);
             return;
