@@ -42,24 +42,28 @@ export { collection, query, where, getDocs, getDoc, addDoc, setDoc, deleteDoc, d
 const storage = getStorage(app);
 
 /**
- * Upload a Huddle PDF for a given date.
+ * Upload a Huddle file (PDF or Word .docx) for a given date.
  *
- * Stores the file at huddles/YYYY-MM-DD.pdf in Firebase Storage and writes
- * a metadata document to the `huddles` Firestore collection. If a Huddle
- * was already uploaded for that date, this overwrites it (latest wins).
+ * Stores the file at huddles/YYYY-MM-DD.pdf or huddles/YYYY-MM-DD.docx in
+ * Firebase Storage and writes a metadata document to the `huddles` Firestore
+ * collection. If a Huddle was already uploaded for that date, this overwrites
+ * it (latest wins). The `fileType` field in Firestore tells the app whether
+ * to open the file directly (PDF) or via Office Online viewer (docx).
  *
  * @param {string} date       - ISO date string, e.g. "2026-03-18"
- * @param {File}   file       - PDF file chosen by the admin
+ * @param {File}   file       - PDF or .docx file chosen by the admin
  * @param {string} uploadedBy - memberName of the uploading admin
- * @returns {Promise<string>} Publicly accessible download URL of the stored PDF
+ * @returns {Promise<string>} Publicly accessible download URL of the stored file
  */
 export async function uploadHuddle(date, file, uploadedBy) {
-    const storageRef = ref(storage, `huddles/${date}.pdf`);
+    const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+    const storageRef = ref(storage, `huddles/${date}.${fileType}`);
     await uploadBytes(storageRef, file);
     const storageUrl = await getDownloadURL(storageRef);
     await setDoc(doc(db, 'huddles', date), {
         date,
         storageUrl,
+        fileType,
         uploadedAt: serverTimestamp(),
         uploadedBy,
     });
