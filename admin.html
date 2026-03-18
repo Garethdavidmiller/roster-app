@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.31 -->
+<!-- MYB Roster Admin v5.32 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.31">
+    <link rel="stylesheet" href="shared.css?v=5.32">
 
     <style>
         body {
@@ -1757,26 +1757,26 @@
 
         <div class="tips-lb-section">Changing shifts</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Select a <strong>staff member</strong> and <strong>week</strong> at the top</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>shift type button</strong> on any day to change it</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save changes</strong> — unsaved changes are highlighted in amber</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left / right on the week grid to move between weeks</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a type button on any day — <strong>AL, Spare, Sick, RDW</strong> etc.</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save changes</strong> — changed days are highlighted in amber until saved</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left or right to move between weeks</span></div>
 
         <div class="tips-lb-section">Bulk changes</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or check individual days in the grid</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Pick a shift type — add a start and end time if needed</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick individual days</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Pick a type — add a start and end time if needed</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">3️⃣</span><span>Tap <strong>3. Apply to selected days</strong></span></div>
 
         <div class="tips-lb-section">Annual leave</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Record Annual Leave</strong> section — rest days and Sundays are skipped automatically</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">⚠️</span><span>A warning appears if leave would exceed the member's entitlement — you can still save</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Scroll down to <strong>Record Annual Leave</strong> — rest days and Sundays are skipped automatically</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">⚠️</span><span>A warning appears if leave would exceed the entitlement — you can still save</span></div>
 
         <div class="tips-lb-section">Sick days</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🤒</span><span>Use the <strong>Record Sick Days</strong> section — rest days and Sundays are skipped automatically</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🤒</span><span>Scroll down to <strong>Record Sick Days</strong> — rest days and Sundays are skipped automatically</span></div>
 
         <div class="tips-lb-section">Override types</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🔄</span><span><strong>Swap</strong> — use when a member swaps a shift with a colleague</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">💼</span><span><strong>RDW</strong> — rest day worked (overtime on a scheduled rest day)</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Rest Day</strong> — corrects a rostered working day to a rest day</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🔄</span><span><strong>Swap</strong> — a shift swapped with a colleague</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">💼</span><span><strong>RDW</strong> — rest day worked (overtime on a rest day)</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Rest Day</strong> — corrects a working day to a rest day</span></div>
 
         <span class="tips-lb-close" id="tipsLightboxClose">Close</span>
     </div>
@@ -1837,7 +1837,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Change a Shift</h2>
-            <span class="hint">Tap a shift type button on any day to change it, or use the multi-day tool below</span>
+            <span class="hint">Tap a type button on any day to change it — or use Apply to multiple days below</span>
         </div>
         <div class="card-body">
 
@@ -1899,7 +1899,7 @@
             </div>
 
             <button class="btn-save" id="saveBtn" disabled>Save changes</button>
-            <p class="save-hint" id="saveBtnHint">Select a shift type on at least one day, then tap Save</p>
+            <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
             <div class="feedback" id="formFeedback"></div>
 
         </div>
@@ -1909,7 +1909,7 @@
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
             <h2>🏖️ Record Annual Leave</h2>
-            <span class="hint">Select a staff member and date range — rest days are skipped automatically</span>
+            <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="alBody">
@@ -1982,7 +1982,7 @@
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
             <h2>🤒 Record Sick Days</h2>
-            <span class="hint">Select a staff member and date range — rest days are skipped automatically</span>
+            <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="sickBody">
@@ -2096,7 +2096,7 @@
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
             <h2>Saved Changes</h2>
-            <span class="hint">All manually saved schedule changes — tap to expand, then edit or delete</span>
+            <span class="hint">All schedule changes — tap any row to edit or delete</span>
             <span class="collapse-chevron" id="overridesChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="overridesBody">
@@ -2126,6 +2126,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.31"></script>
+<script type="module" src="./admin-app.js?v=5.32"></script>
 </body>
 </html>
