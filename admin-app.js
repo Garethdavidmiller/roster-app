@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.29';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.29';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.30';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.30';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1994,6 +1994,17 @@ function updateSickBookedBox() {
 document.getElementById('signOutBtn').addEventListener('click', () => {
     clearSession();
     window.location.reload();
+});
+
+// ← Roster button: write the current fieldDate month/year to localStorage before
+// navigating so index.html opens on the same month the user was looking at in admin.
+document.querySelector('.btn-back').addEventListener('click', e => {
+    if (fieldDate.value) {
+        const d = new Date(fieldDate.value + 'T12:00:00');
+        localStorage.setItem('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
+        localStorage.setItem('myb_roster_year',  d.getFullYear());
+    }
+    // Let the <a> navigate normally
 });
 
 function applyPermissions() {
