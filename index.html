@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.36 -->
+<!-- MYB Roster Calendar - Version 5.37 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.36">
+    <link rel="stylesheet" href="shared.css?v=5.37">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -614,19 +614,19 @@
             background: white;
             padding: 10px 16px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
+            box-shadow: var(--shadow-2);
             display: flex;
-            flex-direction: column;
-            gap: 6px;
+            flex-wrap: wrap;
+            gap: 6px 14px;
+            justify-content: center;
             align-items: center;
         }
 
+        /* Each row's wrapper is removed from layout — items flow directly into
+           the .legend flex container. This means all visible items always wrap
+           together as one pool, so no single item can be orphaned on its own line. */
         .legend-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px 14px;
-            align-items: center;
-            justify-content: center;
+            display: contents;
         }
 
         .legend-item {
@@ -662,8 +662,15 @@
             white-space: nowrap;
         }
 
-        /* Cultural calendar row — thin top border separates it from the system legend rows */
+        /* Cultural calendar row — overrides display:contents from .legend-row so the
+           element keeps its box and shows the top-border separator. Items inside still
+           wrap and centre naturally within this full-width sub-container. */
         .legend-faith-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 6px 14px;
             border-top: 1px solid var(--border-light);
             padding-top: 4px;
             width: 100%;
@@ -810,15 +817,8 @@
                 bottom: 6px !important;
             }
 
-            /* Legend: collapse three rows into one centred strip */
-            .legend {
-                flex-direction: row;
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 6px 20px;
-                padding: 10px 24px;
-            }
-            .legend-row { display: contents; }
+            /* Legend: wider spacing on desktop */
+            .legend { gap: 6px 20px; padding: 10px 24px; }
             .legend-text { font-size: 13px; }
         }
 
@@ -940,24 +940,9 @@
                 bottom: 6px !important;
             }
 
-            /* On desktop the legend has plenty of horizontal space —
-               collapse all three rows into a single centred row.
-               legend-row wrappers become inline so items flow together. */
-            .legend {
-                flex-direction: row;
-                flex-wrap: wrap;
-                justify-content: center;
-                gap: 6px 20px;
-                padding: 12px 24px;
-            }
-
-            .legend-row {
-                display: contents; /* Removes the row wrapper from layout — items flow directly into the legend flex container */
-            }
-
-            .legend-text {
-                font-size: 13px;
-            }
+            /* Legend: wider spacing at this breakpoint */
+            .legend { gap: 6px 20px; padding: 12px 24px; }
+            .legend-text { font-size: 13px; }
         }
 
         @media (max-width: 480px) {
@@ -2053,7 +2038,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.36"></script>
+    <script type="module" src="./app.js?v=5.37"></script>
 
 </body>
 </html>
