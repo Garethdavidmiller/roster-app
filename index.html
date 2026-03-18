@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.49 -->
+<!-- MYB Roster Calendar - Version 5.52 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.49">
+    <link rel="stylesheet" href="shared.css?v=5.52">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1060,6 +1060,20 @@
             .legend-color { width: 12px; height: 12px; }
         }
 
+        /* ---- Huddle button — gold, same weight as Today button ---- */
+        .controls button.huddle-btn {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-color: var(--accent-gold);
+            font-weight: 700;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .controls button.huddle-btn:hover {
+                background: var(--accent-gold-dark);
+                border-color: var(--accent-gold-dark);
+            }
+        }
+
         /* Print styles */
         @media print {
             @page {
@@ -1981,10 +1995,11 @@
             </div>
             <div class="controls-row">
                 <div class="control-group">
-                    <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
-                    <button id="alBtn"    class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
-                    <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
-                    <button id="adminBtn" class="admin-btn" aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
+                    <button id="todayBtn"  class="today-btn"  aria-label="Go to today">📍 Today</button>
+                    <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
+                    <button id="huddleBtn" class="huddle-btn" aria-label="Open latest Huddle PDF">📋 Huddle</button>
+                    <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
+                    <button id="printBtn"  class="print-btn"  aria-label="Print calendar">🖨️ Print</button>
                 </div>
             </div>
         </nav>
@@ -2051,7 +2066,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.49"></script>
+    <script type="module" src="./app.js?v=5.52"></script>
 
 </body>
 </html>

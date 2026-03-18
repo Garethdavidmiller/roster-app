@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.49 -->
+<!-- MYB Roster Admin v5.52 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.49">
+    <link rel="stylesheet" href="shared.css?v=5.52">
 
     <style>
         body {
@@ -1615,6 +1615,61 @@
         .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
 
         /* ---- Print styles ---- */
+        /* ---- Huddle upload card ---- */
+        .huddle-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .huddle-row input[type="date"] {
+            flex: 0 0 auto;
+            width: auto;
+        }
+        .huddle-file-label {
+            display: inline-block;
+            padding: 8px 14px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            background: var(--bg-light);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-file-label:hover { border-color: var(--primary-blue); } }
+        .huddle-filename {
+            font-size: 13px;
+            color: var(--text-mid);
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        .huddle-upload-btn {
+            display: block;
+            width: 100%;
+            padding: 11px 16px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
+        .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .huddle-feedback {
+            margin-top: 10px;
+            font-size: 13px;
+            min-height: 18px;
+        }
+        .huddle-feedback--ok  { color: #2e7d32; }
+        .huddle-feedback--err { color: var(--error-red); }
+
         @media print {
             @page { margin: 1cm; size: A4 portrait; }
 
@@ -1638,7 +1693,8 @@
             .overrides-month-filter,
             .btn-signout,
             .btn-back,
-            .list-feedback { display: none !important; }
+            .list-feedback,
+            #huddleUploadCard { display: none !important; }
 
             /* Reset backgrounds for print */
             html, body { background: white !important; color: black !important; padding: 0 !important; }
@@ -2032,6 +2088,25 @@
         </div>
     </div>
 
+    <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
+    <!-- Shown by JS only when currentIsAdmin is true -->
+    <div class="card" id="huddleUploadCard" style="display:none">
+        <div class="card-header">
+            <h2>📋 Daily Huddle</h2>
+            <span class="hint">Upload today's Huddle PDF — staff will see a button in the main app</span>
+        </div>
+        <div class="card-body">
+            <div class="huddle-row">
+                <input type="date" id="huddleDate" aria-label="Huddle date">
+                <label for="huddleFileInput" class="huddle-file-label">Choose PDF</label>
+                <input type="file" id="huddleFileInput" accept="application/pdf" style="display:none" aria-label="Choose huddle PDF">
+            </div>
+            <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+            <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
+            <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+        </div>
+    </div>
+
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
@@ -2067,8 +2142,9 @@
         </div><!-- /.card-collapsible-body -->
     </div>
 
+
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.49"></script>
+<script type="module" src="./admin-app.js?v=5.52"></script>
 </body>
 </html>

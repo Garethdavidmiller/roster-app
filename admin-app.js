@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.49';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.49';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.52';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.52';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2527,6 +2527,73 @@ if (overridesMonthFilter) {
 
     // Expose loader so the auth block can call it after currentUser is confirmed
     window._loadReligiousSetting = loadReligiousSetting;
+})();
+
+// ============================================
+// DAILY HUDDLE UPLOAD — admin only
+// ============================================
+// The card HTML is always in the DOM but hidden via style="display:none".
+// This block reveals it and wires up the upload flow only when the signed-in
+// user is an admin. Non-admins never see the card.
+(function initHuddleUpload() {
+    if (!currentIsAdmin) return;
+
+    const card      = document.getElementById('huddleUploadCard');
+    const dateInput = document.getElementById('huddleDate');
+    const fileInput = document.getElementById('huddleFileInput');
+    const fileLabel = document.getElementById('huddleFileName');
+    const uploadBtn = document.getElementById('huddleUploadBtn');
+    const feedback  = document.getElementById('huddleFeedback');
+
+    if (!card || !dateInput || !fileInput || !uploadBtn) return;
+
+    // Reveal card for admin
+    card.style.display = '';
+
+    // Default date to today
+    dateInput.value = formatISO(new Date());
+
+    // Show chosen filename and enable upload button when a file is selected
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        if (file) {
+            fileLabel.textContent = file.name;
+            fileLabel.style.display = '';
+            uploadBtn.disabled = false;
+        } else {
+            fileLabel.style.display = 'none';
+            uploadBtn.disabled = true;
+        }
+        feedback.textContent = '';
+        feedback.className = 'huddle-feedback';
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        const date = dateInput.value;
+        const file = fileInput.files[0];
+        if (!date || !file) return;
+
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading…';
+        feedback.textContent = '';
+        feedback.className = 'huddle-feedback';
+
+        try {
+            await uploadHuddle(date, file, currentUser);
+            feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
+            feedback.className = 'huddle-feedback huddle-feedback--ok';
+            fileInput.value = '';
+            fileLabel.textContent = '';
+            fileLabel.style.display = 'none';
+        } catch (err) {
+            console.error('[Huddle] Upload failed:', err);
+            feedback.textContent = 'Upload failed — please try again';
+            feedback.className = 'huddle-feedback huddle-feedback--err';
+            uploadBtn.disabled = false;
+        }
+
+        uploadBtn.textContent = 'Upload Huddle';
+    });
 })();
 
 // ============================================
