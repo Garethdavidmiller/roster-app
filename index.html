@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.37 -->
+<!-- MYB Roster Calendar - Version 5.38 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.37">
+    <link rel="stylesheet" href="shared.css?v=5.38">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -142,7 +142,7 @@
             background: white;
             padding: 10px 16px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
+            box-shadow: var(--shadow-2);
             margin-bottom: 16px;
             display: flex;
             flex-direction: column;
@@ -309,7 +309,7 @@
             background: white;
             padding: 16px 24px 24px 24px;
             border-radius: var(--radius-lg);
-            box-shadow: 0 2px 20px rgba(0,30,60,0.10);
+            box-shadow: var(--shadow-2);
             margin-bottom: 16px;
             width: 100%;
             box-sizing: border-box;
@@ -1008,6 +1008,13 @@
                 width: 100%;        /* consistent width across all badge types */
                 box-sizing: border-box;
             }
+
+            /* Tighten the gaps between the three white cards — saves ~18px of
+               navy background showing between header / controls / calendar. */
+            .header, .controls, .calendar-container { margin-bottom: 10px; }
+
+            /* Narrower calendar side padding gives each cell ~3px more width. */
+            .calendar-container { padding: 12px 10px 14px; }
 
         }
 
@@ -2038,7 +2045,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.37"></script>
+    <script type="module" src="./app.js?v=5.38"></script>
 
 </body>
 </html>
