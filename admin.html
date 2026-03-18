@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.26 -->
+<!-- MYB Roster Admin v5.27 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.26">
+    <link rel="stylesheet" href="shared.css?v=5.27">
 
     <style>
         body {
@@ -1762,7 +1762,7 @@
         <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left / right on the week grid to move between weeks</span></div>
 
         <div class="tips-lb-section">Bulk changes</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">☑️</span><span>Check multiple days, choose a type and time, then tap <strong>Apply to selected days</strong></span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">☑️</span><span>Check multiple days, select a type and time, then tap <strong>Apply to selected days</strong></span></div>
 
         <div class="tips-lb-section">Annual leave</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Record Annual Leave</strong> section — rest days within the range are skipped automatically</span></div>
@@ -1770,7 +1770,7 @@
 
         <div class="tips-lb-section">Override types</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">🔄</span><span><strong>Swap</strong> — use when a member swaps a shift with a colleague</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Make Rest Day</strong> — corrects a rostered working day to a rest day</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Rest Day</strong> — corrects a rostered working day to a rest day</span></div>
 
         <span class="tips-lb-close" id="tipsLightboxClose">Close</span>
     </div>
@@ -1893,7 +1893,7 @@
             </div>
 
             <button class="btn-save" id="saveBtn" disabled>Save changes</button>
-            <p class="save-hint" id="saveBtnHint">Choose a shift type on at least one day, then tap Save</p>
+            <p class="save-hint" id="saveBtnHint">Select a shift type on at least one day, then tap Save</p>
             <div class="feedback" id="formFeedback"></div>
 
         </div>
@@ -1903,7 +1903,7 @@
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
             <h2>🏖️ Record Annual Leave</h2>
-            <span class="hint">Choose a member and date range — rest days are skipped automatically</span>
+            <span class="hint">Select a staff member and date range — rest days are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="alBody">
@@ -1976,7 +1976,7 @@
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
             <h2>🤒 Record Sick Days</h2>
-            <span class="hint">Choose the days you were off sick — rest days are skipped automatically</span>
+            <span class="hint">Select a staff member and date range — rest days are skipped automatically</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="sickBody">
@@ -2120,6 +2120,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.26"></script>
+<script type="module" src="./admin-app.js?v=5.27"></script>
 </body>
 </html>

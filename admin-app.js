@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.26';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.26';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.27';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.27';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -802,7 +802,7 @@ function updateSaveBtn() {
             if (deleteCount) parts.push(`${deleteCount} override${deleteCount > 1 ? 's' : ''} to remove`);
             hint.textContent = `Ready — ${parts.join(', ')}`;
         } else {
-            hint.textContent = 'Choose a shift type on at least one day, then tap Save';
+            hint.textContent = 'Select a shift type on at least one day, then tap Save';
         }
     }
 }
@@ -1529,7 +1529,7 @@ function updateAlPreview() {
     }
     if (!alFrom.value || !alTo.value) {
         alPreview.className = 'al-preview empty';
-        alPreview.textContent = 'Choose a date range to see a preview.';
+        alPreview.textContent = 'Select a date range to see a preview.';
         alSaveBtn.disabled = true;
         return;
     }
@@ -1641,7 +1641,7 @@ alSaveBtn.addEventListener('click', async () => {
 
     if (!workingDates.length) {
         alFeedback.className = 'feedback error';
-        alFeedback.textContent = '⚠ No working days in that range — nothing to book.';
+        alFeedback.textContent = '⚠ No working days in that range — nothing to record.';
         alSaveBtn.disabled    = false;
         alSaveBtn.textContent = 'Record annual leave';
         return;
@@ -1670,7 +1670,7 @@ alSaveBtn.addEventListener('click', async () => {
         await alBatch.commit();
 
         alFeedback.className = 'feedback success';
-        alFeedback.textContent = `✓ Booked ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
+        alFeedback.textContent = `✓ Recorded ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
         setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
 
         alFrom.value = alTo.value = '';
@@ -1754,7 +1754,7 @@ function updateSickPreview() {
     }
     if (!sickFrom.value || !sickTo.value) {
         sickPreview.className = 'al-preview sick-preview empty';
-        sickPreview.textContent = 'Choose the dates you were off sick.';
+        sickPreview.textContent = 'Select a date range to see a preview.';
         sickSaveBtn.disabled = true;
         return;
     }
