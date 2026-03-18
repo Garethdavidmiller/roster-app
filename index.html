@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.49 -->
+<!-- MYB Roster Calendar - Version 5.50 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.49">
+    <link rel="stylesheet" href="shared.css?v=5.50">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1060,6 +1060,30 @@
             .legend-color { width: 12px; height: 12px; }
         }
 
+        /* ---- Today's Huddle banner ---- */
+        /* Hidden by default; JS shows it when a huddle is available for today */
+        .huddle-banner {
+            background: var(--primary-blue);
+            border-radius: var(--radius-lg);
+            padding: 0;
+            overflow: hidden;
+        }
+        .huddle-banner-btn {
+            display: block;
+            width: 100%;
+            padding: 13px 18px;
+            background: none;
+            border: none;
+            color: white;
+            font-size: 15px;
+            font-weight: 700;
+            text-align: left;
+            cursor: pointer;
+            letter-spacing: 0.01em;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-banner-btn:hover { background: var(--primary-blue-dark); } }
+        .huddle-banner-btn:active { opacity: 0.85; }
+
         /* Print styles */
         @media print {
             @page {
@@ -1101,7 +1125,8 @@
                 page-break-after: avoid !important;
             }
 
-            .controls {
+            .controls,
+            .huddle-banner {
                 display: none !important;
             }
 
@@ -1989,6 +2014,11 @@
             </div>
         </nav>
 
+        <!-- Today's Huddle — hidden until JS confirms a huddle exists for today -->
+        <div id="huddleBanner" class="huddle-banner" style="display:none" role="complementary" aria-label="Today's Huddle">
+            <button id="huddleOpenBtn" class="huddle-banner-btn">📋 Today's Huddle — tap to open</button>
+        </div>
+
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
         <div class="legend" role="group" aria-label="Colour legend">
@@ -2051,7 +2081,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.49"></script>
+    <script type="module" src="./app.js?v=5.50"></script>
 
 </body>
 </html>
