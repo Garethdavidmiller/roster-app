@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.30 -->
+<!-- MYB Roster Admin v5.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.30">
+    <link rel="stylesheet" href="shared.css?v=5.31">
 
     <style>
         body {
@@ -1758,18 +1758,24 @@
         <div class="tips-lb-section">Changing shifts</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Select a <strong>staff member</strong> and <strong>week</strong> at the top</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>shift type button</strong> on any day to change it</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save</strong> — unsaved changes are highlighted in amber</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save changes</strong> — unsaved changes are highlighted in amber</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left / right on the week grid to move between weeks</span></div>
 
         <div class="tips-lb-section">Bulk changes</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">☑️</span><span>Check multiple days, select a type and time, then tap <strong>Apply to selected days</strong></span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or check individual days in the grid</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Pick a shift type — add a start and end time if needed</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">3️⃣</span><span>Tap <strong>3. Apply to selected days</strong></span></div>
 
         <div class="tips-lb-section">Annual leave</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Record Annual Leave</strong> section — rest days within the range are skipped automatically</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Record Annual Leave</strong> section — rest days and Sundays are skipped automatically</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">⚠️</span><span>A warning appears if leave would exceed the member's entitlement — you can still save</span></div>
+
+        <div class="tips-lb-section">Sick days</div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">🤒</span><span>Use the <strong>Record Sick Days</strong> section — rest days and Sundays are skipped automatically</span></div>
 
         <div class="tips-lb-section">Override types</div>
         <div class="tips-lb-item"><span class="tips-lb-icon">🔄</span><span><strong>Swap</strong> — use when a member swaps a shift with a colleague</span></div>
+        <div class="tips-lb-item"><span class="tips-lb-icon">💼</span><span><strong>RDW</strong> — rest day worked (overtime on a scheduled rest day)</span></div>
         <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Rest Day</strong> — corrects a rostered working day to a rest day</span></div>
 
         <span class="tips-lb-close" id="tipsLightboxClose">Close</span>
@@ -2120,6 +2126,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.30"></script>
+<script type="module" src="./admin-app.js?v=5.31"></script>
 </body>
 </html>
