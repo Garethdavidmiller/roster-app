@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.27 -->
+<!-- MYB Roster Calendar - Version 5.28 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.27">
+    <link rel="stylesheet" href="shared.css?v=5.28">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1707,6 +1707,11 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+        .al-lb-breakdown {
+            font-size: 9px;
+            color: rgba(255,255,255,0.45);
+            white-space: nowrap;
+        }
         .al-lb-link {
             margin-top: 14px;
             color: rgba(255,255,255,0.9);
@@ -1944,6 +1949,7 @@
                 <div class="al-lb-stat">
                     <span class="al-lb-val" id="alLbEntitlement">—</span>
                     <span class="al-lb-lbl">Entitlement</span>
+                    <span class="al-lb-breakdown" id="alLbBreakdown" hidden></span>
                 </div>
             </div>
             <a href="admin.html#book-annual-leave" class="al-lb-link">→ Record leave in Admin</a>
@@ -2058,7 +2064,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.27"></script>
+    <script type="module" src="./app.js?v=5.28"></script>
 
 </body>
 </html>

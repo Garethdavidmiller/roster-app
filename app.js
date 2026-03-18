@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml } from './roster-data.js?v=5.27';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=5.27';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml } from './roster-data.js?v=5.28';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=5.28';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -543,13 +543,14 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
 // ANNUAL LEAVE LIGHTBOX
 // ============================================
 (function() {
-    const lb        = document.getElementById('alLightbox');
-    const closeBtn  = document.getElementById('alLightboxClose');
-    const takenEl   = document.getElementById('alLbTaken');
-    const bookedEl  = document.getElementById('alLbBooked');
-    const remEl     = document.getElementById('alLbRemaining');
-    const entEl     = document.getElementById('alLbEntitlement');
-    const yearEl    = document.getElementById('alLbYear');
+    const lb           = document.getElementById('alLightbox');
+    const closeBtn     = document.getElementById('alLightboxClose');
+    const takenEl      = document.getElementById('alLbTaken');
+    const bookedEl     = document.getElementById('alLbBooked');
+    const remEl        = document.getElementById('alLbRemaining');
+    const entEl        = document.getElementById('alLbEntitlement');
+    const yearEl       = document.getElementById('alLbYear');
+    const breakdownEl  = document.getElementById('alLbBreakdown');
 
     function openALLightbox() {
         lb.classList.add('visible');
@@ -578,6 +579,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
 
         if (!member) {
             takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
+            if (breakdownEl) breakdownEl.hidden = true;
             return;
         }
 
@@ -621,9 +623,20 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             bookedEl.textContent = booked;
             remEl.textContent    = remaining;
             remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
+            // Dispatchers: explain the entitlement split (22 base + bank holiday lieu days)
+            if (breakdownEl) {
+                if (member.role === 'Dispatcher') {
+                    const lieu = entitlement - 22;
+                    breakdownEl.textContent = `22 base + ${lieu} BH lieu`;
+                    breakdownEl.hidden = false;
+                } else {
+                    breakdownEl.hidden = true;
+                }
+            }
         } catch (e) {
             console.error('[AL lightbox] Failed:', e);
             takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
+            if (breakdownEl) breakdownEl.hidden = true;
         }
     }
 
