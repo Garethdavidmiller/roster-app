@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: March 2026 — v5.49 (Huddle viewer roadmap added)*
+*Last updated: March 2026 — v5.55 (Huddle Phase 1 complete; Phase 2 written)*
 
 ---
 
@@ -32,7 +32,8 @@ Nothing below is committed. Each area is independent unless a dependency is note
 ---
 
 ### Daily Huddle viewer
-**What:** Each morning a "Huddle" PDF arrives by email — it lists the day's responsibilities across the team. Staff should be able to open the latest Huddle from the app without having to find the email.
+
+**What:** Each morning a "Huddle" PDF arrives by email — it lists the day's responsibilities across the team. Staff can open the latest Huddle directly from the app without finding the email.
 
 ---
 
@@ -42,117 +43,190 @@ Nothing below is committed. Each area is independent unless a dependency is note
 Huddle email arrives in inbox
          ↓
 Upload PDF to Firebase Storage
-(manual via admin.html — Phase 1 | automated via Apps Script — Phase 2)
+(manual via admin.html — Phase 1 ✓ | automated via Apps Script — Phase 2)
          ↓
 Firestore records metadata:
-  { date: "2026-03-18", storageUrl: "...", uploadedAt: timestamp }
+  { date: "YYYY-MM-DD", storageUrl: "...", uploadedAt: timestamp, uploadedBy: "G. Miller" }
          ↓
-App checks Firestore on load for today's date
+App calls getLatestHuddle() on load
          ↓
-"Today's Huddle" card appears — tap to open in native PDF viewer
+📋 Huddle button appears in controls bar — tap to open in native PDF viewer
 ```
 
 ---
 
-#### Phase 1 — Manual upload (build this first)
+#### Phase 1 — Manual upload ✓ Complete (v5.53–v5.55)
 
-An admin-only "Upload Huddle" button in admin.html. Admin taps it, picks the PDF, it uploads to Firebase Storage and writes the Firestore record. Takes ~10 seconds. No automation required.
+**What was built:**
 
-**What needs building:**
-- Enable Firebase Storage in the Firebase console (free tier — 5 GB storage, 1 GB/day download; a daily PDF will never get close)
-- `huddles` Firestore collection with documents keyed by date: `{ date: "YYYY-MM-DD", storageUrl: string, uploadedAt: timestamp }`
-- Upload UI in admin.html — visible to admins only (guarded by `CONFIG.ADMIN_NAMES`)
-- Firebase Storage security rules — authenticated upload, public read (or app-only read)
-- "Today's Huddle" card in index.html — shown if a document exists for today's date, hidden otherwise
-- Same card in admin.html if useful
+| Component | Detail |
+|-----------|--------|
+| Firebase Storage | Enabled. Path: `huddles/YYYY-MM-DD.pdf`. Overwrites on same-day re-upload (latest wins). |
+| `uploadHuddle(date, file, uploadedBy)` | In `firebase-client.js`. Uploads to Storage, writes Firestore doc. |
+| `getLatestHuddle()` | In `firebase-client.js`. Queries `huddles` ordered by date desc, returns most recent doc. Validates `storageUrl` present before returning. |
+| `getTodaysHuddle(date)` | In `firebase-client.js`. Exported — available for Phase 2 if the distinction between "today's" and "latest" becomes important. |
+| Upload UI | Collapsible card in `admin.html`, admin-only (`CONFIG.ADMIN_NAMES` guard). Date picker + PDF chooser + "Upload Huddle" button. |
+| Client-side validation | JS rejects non-PDF files and files over 20 MB before any upload attempt. |
+| `📋 Huddle` button | In `index.html` controls bar. Hidden until a huddle exists; calls `window.open(storageUrl)` to hand PDF to the device's native viewer. |
+| Firestore security rules | `huddles` collection: reads open; writes require all fields present and `date` in `YYYY-MM-DD` format. |
 
-**Display approach — why native PDF viewer:**
-iframes with PDFs are unreliable on Android/iOS. The right approach is `window.open(storageUrl)` — this hands the PDF to the device's native viewer, which is fast and handles pinch-zoom correctly. No PDF library needed.
+**Design decisions made:**
 
-**File structure follows existing pattern:**
-No new pages needed. Upload logic lives in `admin-app.js`. Display card lives in `app.js`. Shared Firebase calls go in `firebase-client.js`.
+- `getLatestHuddle()` rather than `getTodaysHuddle()` — the button shows whatever was most recently uploaded, even if it was yesterday's. This is intentional: if the Huddle arrives late or upload is delayed, staff still see something rather than nothing.
+- `window.open()` rather than an iframe — iframes with PDFs are unreliable on Android/iOS. Native viewer handles pinch-zoom correctly with no library needed.
+- File stored at `huddles/YYYY-MM-DD.pdf` — simple, one file per calendar day, no versioning complexity.
 
 ---
 
 #### Phase 2 — Automated upload
 
-Once Phase 1 is working and the display is confirmed, the manual upload step can be eliminated.
+**Goal:** Remove the daily manual step. The PDF should appear in the app automatically when the Huddle email arrives, with no admin action required.
 
-**Option A — Google Apps Script (preferred if Gmail is used)**
-
-Google Apps Script is a free scripting environment built into Google's cloud. It has direct access to Gmail and can run on a schedule or trigger.
-
-Script logic (approximately 50 lines of JavaScript):
-1. Check Gmail for emails matching the Huddle sender/subject
-2. Find any not yet processed (use a Gmail label as a "done" flag)
-3. Extract the PDF attachment
-4. Upload to Firebase Storage via the Firebase REST API (Storage supports plain HTTP — no SDK needed in Apps Script)
-5. Write the Firestore document via the Firestore REST API
-6. Apply the "done" label so the email is not processed again
-
-Set the script to run every hour, or use a Gmail push trigger for near-instant processing. Cost: £0. No server required.
-
-**Option B — Microsoft Power Automate (if Outlook / Microsoft 365 is used)**
-
-Flow: *When an email matching [sender/subject] arrives → extract attachment → HTTP POST to Firebase Storage → HTTP POST to Firestore*
-
-Power Automate is included in Microsoft 365 subscriptions (which Chiltern Railways likely has). GUI-based, no code. Cost: included.
-
-**Option C — Zapier or Make (third-party automation)**
-
-Both can connect Gmail/Outlook to Firebase Storage via HTTP actions. Make (formerly Integromat) has a free tier generous enough for one Huddle per day. Zapier's free tier caps at 100 tasks/month (~3 months of daily Huddles before needing a paid plan). Simpler to configure than Apps Script but introduces a dependency on a third-party service.
+**Trigger for building this:** Phase 1 has been running reliably for a few weeks and the manual upload is confirmed as the only friction point. Do not automate until the end-to-end flow is understood from real use.
 
 ---
 
-#### Firestore schema
+##### Step 1 — Identify the Huddle email pattern
 
-Collection: `huddles`
-One document per date, document ID = `"YYYY-MM-DD"`:
+Before writing any automation, establish:
+- Which email address sends the Huddle (the `From:` address)
+- Whether the subject line is consistent (e.g. always contains "Huddle" or a route code)
+- Whether the PDF is always the only attachment, or mixed with other files
+- Whether emails arrive 7 days a week or only on operating days
+
+This determines which automation option is viable and how to write the filter rule.
+
+---
+
+##### The conversion problem
+
+The Huddle arrives as a **.docx (Word) attachment**, not a PDF. During Phase 1, the admin converts it manually before uploading. Phase 2 must handle this conversion automatically — the app stores and serves PDFs, so the automation needs to convert the Word document as part of the pipeline.
+
+This actually makes **Google Apps Script the strongest option**, because Google Drive can convert a Word document to PDF with a single API call — no third-party conversion service needed.
+
+---
+
+##### Step 2 — Choose an automation route
+
+**Option A — Google Apps Script �recommended (works with Gmail; handles docx → PDF natively)**
+
+Apps Script is Google's free scripting environment, built into Google's cloud. It has direct API access to Gmail and Google Drive, and runs entirely on Google's infrastructure — no server, no cost.
+
+The conversion trick: Google Drive's API can import a `.docx` file and immediately export it as a PDF in the same operation. This is the same thing Google does when you open a Word file in Google Docs and click File → Download → PDF — Apps Script can do it programmatically.
+
+Script logic (~60 lines of JavaScript):
+1. Search Gmail for emails from the known Huddle sender with a `.docx` attachment
+2. Skip any already labelled `"huddle-processed"` (Gmail label used as a done-flag)
+3. Extract the `.docx` attachment as a byte array
+4. Upload it to Google Drive as a Google Doc (Drive converts it automatically on import)
+5. Export the Google Doc as a PDF byte array (one API call)
+6. Delete the temporary Google Doc from Drive (no clutter left behind)
+7. Upload the PDF to Firebase Storage via the Storage REST API
+8. Write the Firestore document via the Firestore REST API
+9. Apply the `"huddle-processed"` label so the email is not re-processed next run
+
+**Trigger options:**
+- Time-based: run every 30–60 minutes (simplest — catches the email within the hour)
+- Gmail push trigger: near-instant processing when the email arrives (slightly more complex to set up, but means staff see the Huddle as soon as it hits the inbox)
+
+**Cost:** £0. Runs entirely on Google's free tier. Drive storage used is temporary (deleted in step 6).
+
+**What Claude will need to write this:**
+- The confirmed `From:` address and subject line pattern of the Huddle email
+- The Firebase project ID (already known — in `firebase-client.js`)
+- A Firebase service account key (JSON) — created in the Firebase console under Project Settings → Service Accounts → Generate new private key. This key is stored in Apps Script's Script Properties (encrypted storage), never in the codebase.
+
+---
+
+**Option B — Microsoft Power Automate (if the Huddle email goes to an Outlook inbox)**
+
+Power Automate is included in most Microsoft 365 subscriptions (Chiltern Railways likely has this). GUI-based, no code to write.
+
+Flow: *When email matching [sender] arrives → get .docx attachment → convert to PDF (OneDrive "Convert file" action) → HTTP PUT to Firebase Storage → HTTP POST to Firestore*
+
+The conversion step uses Power Automate's built-in OneDrive connector, which can convert Word documents to PDF without any external service. The result is then sent to Firebase via plain HTTP actions.
+
+**When to choose this:** If the Huddle email arrives in an Outlook inbox rather than Gmail, and Microsoft 365 is available.
+
+**Limitation:** The HTTP steps require manually constructing the Firebase Storage and Firestore REST URLs. Slightly more fiddly than Apps Script but no code is written.
+
+---
+
+**Option C — Make or Zapier + conversion service (third-party, last resort)**
+
+Neither Make nor Zapier has native docx-to-PDF conversion. An intermediate step via a conversion API (e.g. CloudConvert, which has a free tier) would be needed, making the flow:
+
+*Email arrives → get attachment → POST .docx to CloudConvert → receive PDF → upload to Firebase Storage → write Firestore doc*
+
+- **Make**: free tier handles 1,000 operations/month — comfortably covers one multi-step flow per day.
+- **Zapier**: free tier caps at 100 tasks/month — would be exhausted quickly given the number of steps per Huddle.
+
+**When to choose this:** Only if Gmail is not available and Microsoft 365 is not accessible. Introduces dependencies on two third-party services (Make/Zapier and a conversion API).
+
+---
+
+##### Admin upload (Phase 1 holdover)
+
+The manual upload UI in admin.html currently accepts PDF only. If Phase 2 automation is in place, manual upload becomes a fallback for days when automation fails. Two options:
+
+- **Keep PDF-only upload:** Admin converts manually as a fallback (same as Phase 1). Simple, no code change.
+- **Accept .docx in the upload UI and convert in-browser:** Browser-side docx-to-PDF conversion requires a heavy library (~2 MB). Not worth the complexity for an occasional fallback. **Recommended: keep PDF-only.**
+
+---
+
+##### Step 3 — App-side changes for Phase 2
+
+The `📋 Huddle` button already works. The only change needed is deciding whether to distinguish "today's huddle" from "latest huddle":
+
+| Scenario | Current behaviour | Possible Phase 2 change |
+|----------|------------------|------------------------|
+| Huddle uploaded for today | Button visible | Could add "Today" label or highlight |
+| No huddle today, yesterday's exists | Button visible (shows yesterday's) | Could show date of huddle so staff know it's not today's |
+| No huddle at all | Button hidden | No change needed |
+
+**Recommendation:** Add the huddle date to the button tooltip or as a small sub-label (e.g. `📋 Huddle · Mon 18 Mar`). This makes it immediately clear whether the huddle is current without changing the tap-to-open behaviour.
+
+This is a small `app.js` change — `getLatestHuddle()` already returns the `date` field.
+
+---
+
+##### Step 4 — Archive / history view (optional, low priority)
+
+Once automated, the `huddles` Firestore collection will accumulate documents. A simple archive could be added to admin.html:
+
+- A date-picker that fetches the huddle for a chosen date
+- Or a scrollable list of recent dates with a tap-to-open link
+
+This is not needed for day-to-day use — staff only need today's Huddle. Consider only if supervisors ask for it.
+
+---
+
+#### Firestore schema (unchanged from Phase 1)
+
+Collection: `huddles` — one document per date, document ID = `"YYYY-MM-DD"`:
 
 ```
 date        string     "2026-03-18"
 storageUrl  string     Firebase Storage download URL
 uploadedAt  timestamp  Firestore server timestamp
-uploadedBy  string     memberName of uploader (admin only, for audit)
+uploadedBy  string     memberName of uploader (admin); "apps-script" for automated uploads
 ```
 
-#### Firebase Storage path
+#### Firebase Storage path (unchanged from Phase 1)
 
 ```
 huddles/YYYY-MM-DD.pdf
 ```
 
-Simple, one file per day. If a second Huddle is uploaded on the same day it overwrites the first (intentional — latest version wins).
+One file per calendar day. Same-day re-upload overwrites (latest version wins).
 
 ---
 
-#### Security rules
+#### Security rules (Phase 2 addition)
 
-Storage: allow read by anyone with the app; allow write only if the user is authenticated as an admin (tie to the same surname-password session in localStorage, or use a Firebase Storage custom token if stricter access is needed).
+The Phase 1 Firestore rules allow any valid write. For Phase 2, the Apps Script uses a service account — consider restricting Firestore `huddles` writes to require a valid Firebase Auth token (service account JWT) rather than open writes. This is optional if the Firestore rules already validate the document shape.
 
-Firestore: `huddles` collection — allow reads; allow writes only from admin upload path (same pattern as `overrides`).
-
----
-
-#### What is already in place
-
-| Component | Status |
-|-----------|--------|
-| Firebase project | ✓ Exists |
-| Firestore | ✓ In use |
-| Firebase Storage | ✗ Not yet enabled — one toggle in Firebase console |
-| `firebase-client.js` | ✓ Central place to add Storage init and upload/read functions |
-| Admin auth guard | ✓ `CONFIG.ADMIN_NAMES` check already used for elevated UI |
-
----
-
-#### Integration notes
-
-- Add Storage init to `firebase-client.js` alongside the existing Firestore init — one place, same pattern
-- Export `uploadHuddle(date, file)` and `getTodaysHuddle(date)` from `firebase-client.js`
-- The "Today's Huddle" card should degrade silently if Storage or Firestore is unavailable — same offline-first rule as everything else
-- Add `huddles` to Firestore security rules in the Firebase console alongside `overrides` and `memberSettings`
-- Version bump required when this is built (two files affected: `app.js` and `admin-app.js`; possibly `firebase-client.js`)
+Storage rules remain unchanged: authenticated write, open read.
 
 ---
 

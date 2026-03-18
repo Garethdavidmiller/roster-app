@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.55';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.55';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.56';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.56';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2563,10 +2563,13 @@ if (overridesMonthFilter) {
             uploadBtn.disabled = true;
             return;
         }
-        if (file.type !== 'application/pdf') {
+        const isPdf  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    || file.name.toLowerCase().endsWith('.docx');
+        if (!isPdf && !isDocx) {
             fileLabel.style.display = 'none';
             uploadBtn.disabled = true;
-            feedback.textContent = 'Please choose a PDF file';
+            feedback.textContent = 'Please choose a PDF or Word (.docx) file';
             feedback.className = 'huddle-feedback huddle-feedback--err';
             fileInput.value = '';
             return;
