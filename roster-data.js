@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '5.34';
+export const APP_VERSION = '5.35';
 
 // ============================================
 // CONFIGURATION
@@ -1215,6 +1215,27 @@ export function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Formats a Date object as a YYYY-MM-DD string using local time components.
+ * Safer than toISOString().slice(0,10) which can return the previous day in
+ * timezones behind UTC when the local time is near midnight.
+ * @param {Date} d
+ * @returns {string}  e.g. "2026-03-18"
+ */
+export function formatISO(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/**
+ * Returns true if the ISO date string falls on a Sunday.
+ * Sundays are uncontracted for all staff — they never count as AL or sick days.
+ * @param {string} dateStr  YYYY-MM-DD
+ * @returns {boolean}
+ */
+export function isSunday(dateStr) {
+    return new Date(dateStr + 'T12:00:00').getDay() === 0;
 }
 
 // Run validations immediately at module load
