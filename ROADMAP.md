@@ -98,51 +98,79 @@ This determines which automation option is viable and how to write the filter ru
 
 ---
 
+##### The conversion problem
+
+The Huddle arrives as a **.docx (Word) attachment**, not a PDF. During Phase 1, the admin converts it manually before uploading. Phase 2 must handle this conversion automatically — the app stores and serves PDFs, so the automation needs to convert the Word document as part of the pipeline.
+
+This actually makes **Google Apps Script the strongest option**, because Google Drive can convert a Word document to PDF with a single API call — no third-party conversion service needed.
+
+---
+
 ##### Step 2 — Choose an automation route
 
-**Option A — Google Apps Script (preferred if a Gmail account is used for Huddle emails)**
+**Option A — Google Apps Script �recommended (works with Gmail; handles docx → PDF natively)**
 
-Apps Script is Google's free scripting environment, built into Google's cloud. It has direct API access to Gmail and runs entirely on Google's infrastructure — no server, no cost.
+Apps Script is Google's free scripting environment, built into Google's cloud. It has direct API access to Gmail and Google Drive, and runs entirely on Google's infrastructure — no server, no cost.
 
-Script logic (~50 lines of JavaScript):
-1. Search Gmail for emails from the known Huddle sender with a PDF attachment
-2. Skip any already labelled "huddle-processed" (Gmail label used as a done-flag)
-3. Extract the PDF attachment as a byte array
-4. Upload to Firebase Storage via the Storage REST API (plain HTTP — no SDK needed)
-5. Write the Firestore document via the Firestore REST API
-6. Apply the "huddle-processed" label so the email is not re-processed next run
+The conversion trick: Google Drive's API can import a `.docx` file and immediately export it as a PDF in the same operation. This is the same thing Google does when you open a Word file in Google Docs and click File → Download → PDF — Apps Script can do it programmatically.
+
+Script logic (~60 lines of JavaScript):
+1. Search Gmail for emails from the known Huddle sender with a `.docx` attachment
+2. Skip any already labelled `"huddle-processed"` (Gmail label used as a done-flag)
+3. Extract the `.docx` attachment as a byte array
+4. Upload it to Google Drive as a Google Doc (Drive converts it automatically on import)
+5. Export the Google Doc as a PDF byte array (one API call)
+6. Delete the temporary Google Doc from Drive (no clutter left behind)
+7. Upload the PDF to Firebase Storage via the Storage REST API
+8. Write the Firestore document via the Firestore REST API
+9. Apply the `"huddle-processed"` label so the email is not re-processed next run
 
 **Trigger options:**
 - Time-based: run every 30–60 minutes (simplest — catches the email within the hour)
-- Gmail push trigger: near-instant processing when the email arrives (slightly more complex to set up)
+- Gmail push trigger: near-instant processing when the email arrives (slightly more complex to set up, but means staff see the Huddle as soon as it hits the inbox)
 
-**Cost:** £0. Runs entirely on Google's free tier.
+**Cost:** £0. Runs entirely on Google's free tier. Drive storage used is temporary (deleted in step 6).
 
 **What Claude will need to write this:**
-- The confirmed `From:` address and subject pattern
+- The confirmed `From:` address and subject line pattern of the Huddle email
 - The Firebase project ID (already known — in `firebase-client.js`)
-- A Firebase service account key (JSON) — created in the Firebase console under Project Settings → Service Accounts → Generate new private key. This key stays in Apps Script's script properties (encrypted), never in the codebase.
+- A Firebase service account key (JSON) — created in the Firebase console under Project Settings → Service Accounts → Generate new private key. This key is stored in Apps Script's Script Properties (encrypted storage), never in the codebase.
 
 ---
 
-**Option B — Microsoft Power Automate (if Outlook / Microsoft 365 is used)**
+**Option B — Microsoft Power Automate (if the Huddle email goes to an Outlook inbox)**
 
-Flow: *When email arrives matching [sender] → get attachment → HTTP PUT to Firebase Storage → HTTP POST to Firestore*
+Power Automate is included in most Microsoft 365 subscriptions (Chiltern Railways likely has this). GUI-based, no code to write.
 
-Power Automate is included in most Microsoft 365 subscriptions (Chiltern Railways likely has this). GUI-based, no code to write. The HTTP steps need the Firebase Storage and Firestore REST URLs constructed from the project ID.
+Flow: *When email matching [sender] arrives → get .docx attachment → convert to PDF (OneDrive "Convert file" action) → HTTP PUT to Firebase Storage → HTTP POST to Firestore*
 
-**When to choose this:** If the Huddle email goes to an Outlook inbox rather than Gmail.
+The conversion step uses Power Automate's built-in OneDrive connector, which can convert Word documents to PDF without any external service. The result is then sent to Firebase via plain HTTP actions.
+
+**When to choose this:** If the Huddle email arrives in an Outlook inbox rather than Gmail, and Microsoft 365 is available.
+
+**Limitation:** The HTTP steps require manually constructing the Firebase Storage and Firestore REST URLs. Slightly more fiddly than Apps Script but no code is written.
 
 ---
 
-**Option C — Make or Zapier (third-party automation)**
+**Option C — Make or Zapier + conversion service (third-party, last resort)**
 
-Both platforms connect Gmail/Outlook to Firebase via HTTP actions using a point-and-click interface.
+Neither Make nor Zapier has native docx-to-PDF conversion. An intermediate step via a conversion API (e.g. CloudConvert, which has a free tier) would be needed, making the flow:
 
-- **Make** (formerly Integromat): free tier handles 1,000 operations/month — more than enough for one PDF per day.
-- **Zapier**: free tier caps at 100 tasks/month (~3 months of daily Huddles before hitting the limit).
+*Email arrives → get attachment → POST .docx to CloudConvert → receive PDF → upload to Firebase Storage → write Firestore doc*
 
-**When to choose this:** If neither Apps Script nor Power Automate is accessible, or if a no-code solution is preferred. Introduces a dependency on a third-party service.
+- **Make**: free tier handles 1,000 operations/month — comfortably covers one multi-step flow per day.
+- **Zapier**: free tier caps at 100 tasks/month — would be exhausted quickly given the number of steps per Huddle.
+
+**When to choose this:** Only if Gmail is not available and Microsoft 365 is not accessible. Introduces dependencies on two third-party services (Make/Zapier and a conversion API).
+
+---
+
+##### Admin upload (Phase 1 holdover)
+
+The manual upload UI in admin.html currently accepts PDF only. If Phase 2 automation is in place, manual upload becomes a fallback for days when automation fails. Two options:
+
+- **Keep PDF-only upload:** Admin converts manually as a fallback (same as Phase 1). Simple, no code change.
+- **Accept .docx in the upload UI and convert in-browser:** Browser-side docx-to-PDF conversion requires a heavy library (~2 MB). Not worth the complexity for an occasional fallback. **Recommended: keep PDF-only.**
 
 ---
 
