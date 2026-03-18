@@ -90,5 +90,8 @@ export async function getTodaysHuddle(date) {
 export async function getLatestHuddle() {
     const q    = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
     const snap = await getDocs(q);
-    return snap.empty ? null : snap.docs[0].data();
+    if (snap.empty) return null;
+    const data = snap.docs[0].data();
+    // Guard against a document that somehow has no storageUrl — opening undefined would fail silently
+    return data.storageUrl ? data : null;
 }

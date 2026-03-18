@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.52 -->
+<!-- MYB Roster Admin v5.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.52">
+    <link rel="stylesheet" href="shared.css?v=5.55">
 
     <style>
         body {
@@ -2091,19 +2091,22 @@
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="huddleUploadCard" style="display:none">
-        <div class="card-header">
+        <div class="card-header card-collapsible-header" id="huddleToggleHeader">
             <h2>📋 Daily Huddle</h2>
             <span class="hint">Upload today's Huddle PDF — staff will see a button in the main app</span>
+            <span class="collapse-chevron" id="huddleChevron">▾</span>
         </div>
-        <div class="card-body">
-            <div class="huddle-row">
-                <input type="date" id="huddleDate" aria-label="Huddle date">
-                <label for="huddleFileInput" class="huddle-file-label">Choose PDF</label>
-                <input type="file" id="huddleFileInput" accept="application/pdf" style="display:none" aria-label="Choose huddle PDF">
+        <div class="card-collapsible-body" id="huddleBody">
+            <div class="card-body">
+                <div class="huddle-row">
+                    <input type="date" id="huddleDate" aria-label="Huddle date">
+                    <label for="huddleFileInput" class="huddle-file-label">Choose PDF</label>
+                    <input type="file" id="huddleFileInput" accept="application/pdf" style="display:none" aria-label="Choose huddle PDF">
+                </div>
+                <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
+                <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
-            <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
-            <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
-            <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
         </div>
     </div>
 
@@ -2145,6 +2148,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.52"></script>
+<script type="module" src="./admin-app.js?v=5.55"></script>
 </body>
 </html>

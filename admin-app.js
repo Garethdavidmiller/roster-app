@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.52';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.52';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.55';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.55';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2556,16 +2556,32 @@ if (overridesMonthFilter) {
     // Show chosen filename and enable upload button when a file is selected
     fileInput.addEventListener('change', () => {
         const file = fileInput.files[0];
-        if (file) {
-            fileLabel.textContent = file.name;
-            fileLabel.style.display = '';
-            uploadBtn.disabled = false;
-        } else {
-            fileLabel.style.display = 'none';
-            uploadBtn.disabled = true;
-        }
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
+        if (!file) {
+            fileLabel.style.display = 'none';
+            uploadBtn.disabled = true;
+            return;
+        }
+        if (file.type !== 'application/pdf') {
+            fileLabel.style.display = 'none';
+            uploadBtn.disabled = true;
+            feedback.textContent = 'Please choose a PDF file';
+            feedback.className = 'huddle-feedback huddle-feedback--err';
+            fileInput.value = '';
+            return;
+        }
+        if (file.size > 20 * 1024 * 1024) {
+            fileLabel.style.display = 'none';
+            uploadBtn.disabled = true;
+            feedback.textContent = 'File too large — maximum 20 MB';
+            feedback.className = 'huddle-feedback huddle-feedback--err';
+            fileInput.value = '';
+            return;
+        }
+        fileLabel.textContent = file.name;
+        fileLabel.style.display = '';
+        uploadBtn.disabled = false;
     });
 
     uploadBtn.addEventListener('click', async () => {
@@ -2593,6 +2609,20 @@ if (overridesMonthFilter) {
         }
 
         uploadBtn.textContent = 'Upload Huddle';
+    });
+})();
+
+// ============================================
+// HUDDLE CARD — collapse/expand
+// ============================================
+(function initHuddleCard() {
+    const header  = document.getElementById('huddleToggleHeader');
+    const body    = document.getElementById('huddleBody');
+    const chevron = document.getElementById('huddleChevron');
+    if (!header || !body || !chevron) return;
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
     });
 })();
 
