@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 5.50 -->
+<!-- MYB Roster Calendar - Version 5.51 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.50">
+    <link rel="stylesheet" href="shared.css?v=5.51">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1060,29 +1060,19 @@
             .legend-color { width: 12px; height: 12px; }
         }
 
-        /* ---- Today's Huddle banner ---- */
-        /* Hidden by default; JS shows it when a huddle is available for today */
-        .huddle-banner {
-            background: var(--primary-blue);
-            border-radius: var(--radius-lg);
-            padding: 0;
-            overflow: hidden;
-        }
-        .huddle-banner-btn {
-            display: block;
-            width: 100%;
-            padding: 13px 18px;
-            background: none;
-            border: none;
-            color: white;
-            font-size: 15px;
+        /* ---- Huddle button — gold, same weight as Today button ---- */
+        .controls button.huddle-btn {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-color: var(--accent-gold);
             font-weight: 700;
-            text-align: left;
-            cursor: pointer;
-            letter-spacing: 0.01em;
         }
-        @media (hover: hover) and (pointer: fine) { .huddle-banner-btn:hover { background: var(--primary-blue-dark); } }
-        .huddle-banner-btn:active { opacity: 0.85; }
+        @media (hover: hover) and (pointer: fine) {
+            .controls button.huddle-btn:hover {
+                background: var(--accent-gold-dark);
+                border-color: var(--accent-gold-dark);
+            }
+        }
 
         /* Print styles */
         @media print {
@@ -1125,8 +1115,7 @@
                 page-break-after: avoid !important;
             }
 
-            .controls,
-            .huddle-banner {
+            .controls {
                 display: none !important;
             }
 
@@ -2006,18 +1995,14 @@
             </div>
             <div class="controls-row">
                 <div class="control-group">
-                    <button id="todayBtn" class="today-btn" aria-label="Go to today">📍 Today</button>
-                    <button id="alBtn"    class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
-                    <button id="printBtn" class="print-btn" aria-label="Print calendar">🖨️ Print</button>
-                    <button id="adminBtn" class="admin-btn" aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
+                    <button id="todayBtn"  class="today-btn"  aria-label="Go to today">📍 Today</button>
+                    <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
+                    <button id="huddleBtn" class="huddle-btn" aria-label="Open today's Huddle PDF" style="display:none">📋 Huddle</button>
+                    <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
+                    <button id="printBtn"  class="print-btn"  aria-label="Print calendar">🖨️ Print</button>
                 </div>
             </div>
         </nav>
-
-        <!-- Today's Huddle — hidden until JS confirms a huddle exists for today -->
-        <div id="huddleBanner" class="huddle-banner" style="display:none" role="complementary" aria-label="Today's Huddle">
-            <button id="huddleOpenBtn" class="huddle-banner-btn">📋 Today's Huddle — tap to open</button>
-        </div>
 
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
@@ -2081,7 +2066,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=5.50"></script>
+    <script type="module" src="./app.js?v=5.51"></script>
 
 </body>
 </html>
