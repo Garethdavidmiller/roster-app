@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.58';
-import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.58';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.59';
+import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.59';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1058,8 +1058,10 @@ try {
             let touchStartX = 0;
             let touchStartY = 0;
             let touchStartTime = 0;
-            let gestureW = 0;            // Cached display width — measured once horizontal intent confirmed, reused throughout gesture
+            let gestureW = 0;            // Cached display width — measured on pointerdown, reused throughout gesture
             let gestureCurrentPanel = null; // Cached current panel — queried once on pointerdown, reused throughout gesture
+            let rafId = null;            // requestAnimationFrame handle — throttles transform writes to one per frame
+            let pendingX = 0;            // Most recent deltaX — consumed by the scheduled RAF frame
 
             // Returns true if swiping in the given direction would actually change the month.
             // At the year boundaries, swiping toward the blocked side should always snap back.
@@ -1092,7 +1094,7 @@ try {
             function parkPanel(panel, side) {
                 panel.classList.add('carousel-panel');
                 panel.style.transition = 'none';
-                panel.style.transform  = `translateX(${side === 'right' ? gestureW : -gestureW}px)`;
+                panel.style.transform  = `translate3d(${side === 'right' ? gestureW : -gestureW}px, 0, 0)`;
                 panel.style.willChange = 'transform';
             }
 
@@ -1106,11 +1108,17 @@ try {
 
             let hapticFired = false;
 
-            // pointerdown — record start position only. No pointer capture, no panel building yet.
+            // pointerdown — record start position and pre-build adjacent panels.
             // Pointer Events unifies mouse, touch and stylus into one API. We defer setPointerCapture
             // to pointermove (once horizontal intent is confirmed) because capturing immediately on
             // pointerdown causes iOS Safari to mis-classify the gesture and suppress pointermove
             // events — the same approach used in admin.html where swipe works reliably on iOS.
+            //
+            // Panels are built here (not in pointermove) so that DOM construction and layer promotion
+            // happen during the dead-zone before horizontal intent is confirmed. By the time the user
+            // has moved far enough to trigger dragging, the GPU layers are already ready — eliminating
+            // the jank spike that occurred when panels were built mid-swipe. If the gesture turns out
+            // to be a tap, discardPanels() in pointerup cleans them up with no visible effect.
             calendarDisplay.addEventListener('pointerdown', (e) => {
                 if (!e.isPrimary || swipeCooldown) return;
 
@@ -1127,13 +1135,36 @@ try {
                 isListening    = true;
                 isDragging     = false;
                 hapticFired    = false;
+
+                // Measure width now — avoids a forced layout reflow mid-gesture.
+                gestureW = Math.ceil(calendarDisplay.getBoundingClientRect().width);
+
+                // Promote current panel to its own compositor layer before dragging starts.
+                gestureCurrentPanel.style.willChange = 'transform';
+
+                // Build and park adjacent panels while the finger is still in the dead-zone.
+                try {
+                    if (canNavigate('prev')) {
+                        prevPanel = buildAdjacentPanel(-1);
+                        parkPanel(prevPanel, 'left');
+                        calendarDisplay.appendChild(prevPanel);
+                    }
+                    if (canNavigate('next')) {
+                        nextPanel = buildAdjacentPanel(1);
+                        parkPanel(nextPanel, 'right');
+                        calendarDisplay.appendChild(nextPanel);
+                    }
+                } catch (err) {
+                    console.error('Failed to pre-build adjacent panels:', err);
+                    discardPanels();
+                }
             });
 
-            // pointermove — confirm direction before committing to swipe.
-            // On the first move past the dead zone we decide: vertical → abandon and let the
-            // browser scroll; horizontal → capture the pointer, build adjacent panels, and start
-            // dragging. Deferring setPointerCapture to this point (rather than pointerdown) is the
-            // key fix for iOS Safari, which is stricter than Android about gesture arbitration.
+            // pointermove — confirm direction then track finger position.
+            // On the first move past the dead zone we decide: vertical → abandon (panels were
+            // pre-built in pointerdown, so discard them); horizontal → capture the pointer and
+            // start dragging. Deferring setPointerCapture to here (not pointerdown) is the key
+            // fix for iOS Safari, which is stricter than Android about gesture arbitration.
             calendarDisplay.addEventListener('pointermove', (e) => {
                 if (!e.isPrimary || !isListening) return;
 
@@ -1145,43 +1176,24 @@ try {
                     if (Math.abs(deltaX) <= 5 && Math.abs(deltaY) <= 5) return;
 
                     if (Math.abs(deltaY) >= Math.abs(deltaX)) {
-                        // Vertical intent — abandon; let the browser handle scrolling
+                        // Vertical intent — abandon; let the browser handle scrolling.
+                        // Clean up the panels pre-built in pointerdown.
                         isListening = false;
-                        gestureCurrentPanel = null;
+                        discardPanels();
+                        if (gestureCurrentPanel) {
+                            gestureCurrentPanel.style.willChange = '';
+                            gestureCurrentPanel = null;
+                        }
                         return;
                     }
 
-                    // Horizontal intent confirmed — commit to swipe gesture
-                    // Cache width once — ceil() rounds up sub-pixel values so adjacent panels
-                    // overlap by at least 1px, eliminating the sub-pixel rendering seam.
-                    gestureW = Math.ceil(calendarDisplay.getBoundingClientRect().width);
+                    // Horizontal intent confirmed — panels are already in the DOM from pointerdown.
+                    // Defer setPointerCapture to here (iOS Safari suppresses pointermove if captured
+                    // on pointerdown). Disable transition so finger maps 1:1 to panel position.
                     calendarDisplay.setPointerCapture(e.pointerId);
                     gestureCurrentPanel.style.transition = 'none';
-                    gestureCurrentPanel.style.willChange = 'transform';
-
-                    try {
-                        if (canNavigate('prev')) {
-                            prevPanel = buildAdjacentPanel(-1);
-                            parkPanel(prevPanel, 'left');
-                            calendarDisplay.appendChild(prevPanel);
-                        }
-                        if (canNavigate('next')) {
-                            nextPanel = buildAdjacentPanel(1);
-                            parkPanel(nextPanel, 'right');
-                            calendarDisplay.appendChild(nextPanel);
-                        }
-                        swipeCooldown = true;
-                        isDragging    = true;
-                    } catch (err) {
-                        console.error('Failed to build adjacent panels:', err);
-                        discardPanels();
-                        isListening = false;
-                        isDragging  = false;
-                        gestureCurrentPanel.style.transition = '';
-                        gestureCurrentPanel.style.willChange = '';
-                        gestureCurrentPanel = null;
-                        return;
-                    }
+                    swipeCooldown = true;
+                    isDragging    = true;
                 }
 
                 if (!gestureCurrentPanel) return;
@@ -1193,9 +1205,23 @@ try {
                     ? deltaX * RESISTANCE
                     : deltaX;
 
-                gestureCurrentPanel.style.transform = `translateX(${effectiveDeltaX}px)`;
-                if (prevPanel) prevPanel.style.transform = `translateX(${-gestureW + effectiveDeltaX}px)`;
-                if (nextPanel) nextPanel.style.transform = `translateX(${gestureW  + effectiveDeltaX}px)`;
+                // RAF-throttle transform writes — pointermove fires faster than the display refresh
+                // rate (up to 120 Hz on ProMotion). Writing style.transform on every event causes
+                // redundant style mutations per frame and is the main source of swipe jitter on iOS.
+                // Storing the latest position in pendingX and scheduling one RAF per frame keeps
+                // transforms in sync with the compositor.
+                // translate3d(x, 0, 0) is used instead of translateX(x) — functionally equivalent
+                // but more reliably pushed to the GPU compositing thread on iOS Safari.
+                pendingX = effectiveDeltaX;
+                if (!rafId) {
+                    rafId = requestAnimationFrame(() => {
+                        rafId = null;
+                        if (!gestureCurrentPanel) return;
+                        gestureCurrentPanel.style.transform = `translate3d(${pendingX}px, 0, 0)`;
+                        if (prevPanel) prevPanel.style.transform = `translate3d(${-gestureW + pendingX}px, 0, 0)`;
+                        if (nextPanel) nextPanel.style.transform = `translate3d(${gestureW  + pendingX}px, 0, 0)`;
+                    });
+                }
 
                 if (!hapticFired && !atPrevBoundary && !atNextBoundary && Math.abs(deltaX) >= SWIPE_THRESHOLD) {
                     if (navigator.vibrate) navigator.vibrate(30);
@@ -1210,11 +1236,15 @@ try {
 
                 if (!isDragging) {
                     // Pointer went down and up without confirmed horizontal drag — was a tap.
-                    // Buttons and day cells handle their own click events; nothing to do here.
+                    // Discard the panels pre-built in pointerdown and clear layer promotion.
+                    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+                    discardPanels();
+                    if (gestureCurrentPanel) gestureCurrentPanel.style.willChange = '';
                     gestureCurrentPanel = null;
                     return;
                 }
                 isDragging = false;
+                if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
                 // Release pointer capture now gesture is complete
                 try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
@@ -1247,9 +1277,9 @@ try {
                     updateFaithHint();
 
                     current.style.transition       = TRANSITION;
-                    current.style.transform        = `translateX(${direction === 'left' ? -w : w}px)`;
+                    current.style.transform        = `translate3d(${direction === 'left' ? -w : w}px, 0, 0)`;
                     incomingPanel.style.transition = TRANSITION;
-                    incomingPanel.style.transform  = 'translateX(0)';
+                    incomingPanel.style.transform  = 'translate3d(0, 0, 0)';
 
                     if (discardPanel && discardPanel.parentNode) discardPanel.remove();
 
@@ -1273,10 +1303,10 @@ try {
 
                 } else {
                     current.style.transition = TRANSITION;
-                    current.style.transform  = 'translateX(0)';
+                    current.style.transform  = 'translate3d(0, 0, 0)';
                     current.style.willChange = '';
-                    if (prevPanel) { prevPanel.style.transition = TRANSITION; prevPanel.style.transform = `translateX(${-w}px)`; }
-                    if (nextPanel) { nextPanel.style.transition = TRANSITION; nextPanel.style.transform = `translateX(${w}px)`;  }
+                    if (prevPanel) { prevPanel.style.transition = TRANSITION; prevPanel.style.transform = `translate3d(${-w}px, 0, 0)`; }
+                    if (nextPanel) { nextPanel.style.transition = TRANSITION; nextPanel.style.transform = `translate3d(${w}px, 0, 0)`;  }
                     setTimeout(() => {
                         discardPanels();
                         gestureCurrentPanel = null;
@@ -1291,6 +1321,7 @@ try {
                 isListening   = false;
                 isDragging    = false;
                 swipeCooldown = false;
+                if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
 
                 // Release pointer capture on cancel
                 try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
