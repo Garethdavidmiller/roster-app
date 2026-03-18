@@ -135,6 +135,16 @@ html {
     color-scheme: light; /* prevents dark-mode scrollbars and form controls */
 }
 
+/* Safe-area padding — keeps content clear of the iOS notch and home indicator.
+   Uses 16px as the minimum fallback. index.html overrides with 20px in its own
+   <style> block; the cascade ensures page-specific values always win. */
+body {
+    padding-top:    max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding-left:   max(16px, env(safe-area-inset-left));
+    padding-right:  max(16px, env(safe-area-inset-right));
+}
+
 /* ============================================================
    ICON / ABOUT LIGHTBOX
    Both pages show the same "About MYB Roster" panel when the

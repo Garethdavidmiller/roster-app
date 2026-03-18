@@ -1,12 +1,8 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.34';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.34';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.35';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.35';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
-
-/** Returns true if dateStr (YYYY-MM-DD) falls on a Sunday.
- *  Sunday shifts are uncontracted for all staff — they do not consume AL or sick days. */
-function isSunday(dateStr) { return new Date(dateStr + 'T12:00:00').getDay() === 0; }
 
 // ============================================
 // AUTH — SESSION MANAGEMENT
@@ -355,9 +351,10 @@ fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate 
 // dataset.type (which is set by the pre-fill as well).
 let userMadeChanges = false;
 
+/** Returns true if the user has interacted with the week grid without saving. */
 function hasUnsavedChanges() { return userMadeChanges; }
 
-// Call this whenever the user explicitly interacts with the grid
+/** Marks the grid as having unsaved changes. Call on any user interaction. */
 function markChanged() { userMadeChanges = true; }
 
 // Warn browser/OS before closing or navigating away
@@ -365,6 +362,11 @@ window.addEventListener('beforeunload', e => {
     if (hasUnsavedChanges()) { e.preventDefault(); e.returnValue = ''; }
 });
 
+/**
+ * Prompts for confirmation when there are unsaved changes.
+ * Returns true immediately if nothing is unsaved.
+ * @returns {boolean} true = safe to navigate, false = user cancelled
+ */
 function confirmNavigate() {
     if (!hasUnsavedChanges()) return true;
     return confirm('You have unsaved changes. Continue and lose them?');
@@ -373,6 +375,11 @@ function confirmNavigate() {
 // ============================================
 // WEEK NAVIGATION
 // ============================================
+/**
+ * Moves the selected week forwards or backwards by delta weeks.
+ * Prompts for confirmation if there are unsaved changes.
+ * @param {number} delta  Positive = forward, negative = back
+ */
 function shiftWeek(delta) {
     if (!confirmNavigate()) return;
     const d = new Date(fieldDate.value + 'T12:00:00');
@@ -560,6 +567,12 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
 // ============================================
 // ANNUAL LEAVE BANNER
 // ============================================
+/**
+ * Refreshes the AL entitlement banner above the Annual Leave card.
+ * Shows taken, booked, and remaining days for the year inferred from
+ * the current AL date inputs or the week currently being viewed.
+ * Hidden when no member is selected.
+ */
 function updateALBanner() {
     const banner      = document.getElementById('alBanner');
     const remEl       = document.getElementById('alBannerRemaining');
@@ -576,7 +589,7 @@ function updateALBanner() {
 
     const yearStr     = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
     const entitlement = getALEntitlement(member, parseInt(yearStr, 10), allOverrides);
-    const todayStr    = new Date().toISOString().slice(0, 10);
+    const todayStr    = formatISO(new Date());
 
     let taken  = 0;
     let booked = 0;
@@ -619,6 +632,11 @@ function updateALBanner() {
 
 // Update the week nav label for a given ISO date string.
 // Extracted so swipe can update the label without a full re-render.
+/**
+ * Updates the week navigation date label to show the Sun–Sat range that
+ * contains dateStr, and highlights it if it is the current week.
+ * @param {string} dateStr  YYYY-MM-DD
+ */
 function updateWeekNavLabel(dateStr) {
     if (!dateStr) return;
     const _picked   = new Date(dateStr + 'T12:00:00');
@@ -636,10 +654,17 @@ function updateWeekNavLabel(dateStr) {
     }
 }
 
-// Build a week grid (header + 7 day rows with full event listeners) into `container`
-// for the given ISO date string. Reads fieldMember.value and allOverrides from module
-// scope but has NO side-effects on fieldDate, userMadeChanges, bulkBar, or saveBtn —
-// safe to call for adjacent panels during swipe pre-building.
+/**
+ * Builds a 7-day week grid (column header + one row per day) into container
+ * for the week that contains dateStr.
+ *
+ * Reads fieldMember.value and allOverrides from module scope, but has NO
+ * side-effects on fieldDate, userMadeChanges, bulkBar, or saveBtn —
+ * safe to call for adjacent panels during carousel pre-building.
+ *
+ * @param {HTMLElement} container  DOM node to append the grid into
+ * @param {string}      dateStr    YYYY-MM-DD — any date within the target week
+ */
 function buildWeekGridInto(container, dateStr) {
     const memberName = fieldMember.value;
     const member     = teamMembers.find(m => m.name === memberName);
@@ -798,6 +823,11 @@ function buildWeekGridInto(container, dateStr) {
     }
 }
 
+/**
+ * Re-renders the full week grid for the currently selected member and date.
+ * Resets unsaved-changes state, shows the bulk bar, and refreshes Save button.
+ * Shows a placeholder message if either selector is empty.
+ */
 function renderWeekGrid() {
     userMadeChanges = false;
     const memberName = fieldMember.value;
@@ -831,6 +861,16 @@ function renderWeekGrid() {
     updateBulkSelCount();
 }
 
+/**
+ * Activates a day row by checking the checkbox, highlighting the selected type pill,
+ * and enabling or disabling the time inputs based on whether the type has fixed times.
+ * @param {HTMLElement}         row     The .day-row element
+ * @param {HTMLInputElement}    cb      The row's checkbox
+ * @param {NodeList}            pills   All .type-pill-btn elements in the row
+ * @param {HTMLInputElement}    startEl The shift-start time input
+ * @param {HTMLInputElement}    endEl   The shift-end time input
+ * @param {string}              type    Override type key (e.g. 'annual_leave', 'swap')
+ */
 function activateRow(row, cb, pills, startEl, endEl, type) {
     cb.checked = true;
     row.classList.add('active');
@@ -851,6 +891,15 @@ function activateRow(row, cb, pills, startEl, endEl, type) {
     if (badge) badge.textContent = '⚠ replacing';
 }
 
+/**
+ * Deactivates a day row by unchecking the checkbox, clearing the active pill,
+ * wiping time inputs, and removing all state classes.
+ * @param {HTMLElement}      row     The .day-row element
+ * @param {HTMLInputElement} cb      The row's checkbox
+ * @param {NodeList}         pills   All .type-pill-btn elements in the row
+ * @param {HTMLInputElement} startEl The shift-start time input
+ * @param {HTMLInputElement} endEl   The shift-end time input
+ */
 function deactivateRow(row, cb, pills, startEl, endEl) {
     cb.checked = false;
     row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
@@ -864,6 +913,10 @@ function deactivateRow(row, cb, pills, startEl, endEl) {
     if (badge) badge.textContent = '⚠ already saved';
 }
 
+/**
+ * Updates the Save button — disabled when nothing has changed, enabled with a
+ * summary hint ("2 days to save, 1 override to remove") when there are pending writes.
+ */
 function updateSaveBtn() {
     // Only count rows the user has explicitly changed (not pre-filled existing overrides).
     // Pre-filled rows carry the prefilled-existing class until the user interacts with them.
@@ -885,6 +938,7 @@ function updateSaveBtn() {
     }
 }
 
+/** Updates the "N days selected" counter in the bulk bar. */
 function updateBulkSelCount() {
     const el = document.getElementById('bulkSelCount');
     if (!el) return;
@@ -897,6 +951,7 @@ function updateBulkSelCount() {
 // ============================================
 let bulkActiveType = '';
 
+/** Clears the active bulk-bar type pill, hides the time inputs, and resets their values. */
 function resetBulkPills() {
     bulkActiveType = '';
     bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
@@ -999,6 +1054,7 @@ bulkApplyBtn.addEventListener('click', () => {
 // SAVE
 // ============================================
 saveBtn.addEventListener('click', async () => {
+    try {
     hideFeedback();
     const memberName = fieldMember.value;
     if (!memberName) return showError('No member selected.');
@@ -1090,8 +1146,19 @@ saveBtn.addEventListener('click', async () => {
     }
 
     await executeSave(toSave, toDelete);
+    } catch (err) {
+        console.error('[Admin] Save handler error:', err);
+        showError('Unexpected error — please reload and try again.');
+    }
 });
 
+/**
+ * Writes a batch of override changes to Firestore and updates the in-memory cache.
+ * Disables the Save button while running, then re-enables it in the finally block.
+ * Shows success/error feedback in the week editor feedback area.
+ * @param {Array<{memberName,date,type,value,note,existingId}>} toSave   Overrides to create (existingId means overwrite)
+ * @param {string[]} toDelete  Firestore document IDs to delete
+ */
 async function executeSave(toSave, toDelete = []) {
     const memberName = fieldMember.value;
     const overwrites = toSave.filter(e => e.existingId).length;
@@ -1202,6 +1269,11 @@ let allOverrides = [];
 
 
 
+/**
+ * Loads all override documents from Firestore into the allOverrides module-level
+ * array, then renders the table, week grid, and AL/sick summary boxes.
+ * On failure shows an inline error with a reload link.
+ */
 async function loadOverrides() {
     tableBody.innerHTML = '<tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>';
     try {
@@ -1222,6 +1294,10 @@ async function loadOverrides() {
     }
 }
 
+/**
+ * Renders the Saved Changes table from the allOverrides in-memory array.
+ * Filtered to the currently selected member if one is chosen; otherwise shows all.
+ */
 function renderTable() {
     const filter = fieldMember.value;
     const rows   = filter ? allOverrides.filter(o => o.memberName === filter) : allOverrides;
@@ -1254,6 +1330,12 @@ function renderTable() {
     tableBody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
 }
 
+/**
+ * Handles delete button clicks in the Saved Changes table.
+ * First click changes the label to "⚠ Delete?" (5 s to confirm); second click
+ * deletes the document from Firestore and removes it from the in-memory cache.
+ * @param {MouseEvent} e
+ */
 async function handleDelete(e) {
     const btn = e.currentTarget;
     if (!btn.classList.contains('confirming')) {
@@ -1301,6 +1383,12 @@ async function handleDelete(e) {
     }
 }
 
+/**
+ * Handles edit button clicks in the Saved Changes table.
+ * Populates the member selector and week date with the override's values,
+ * re-renders the week grid, and scrolls to the Change a Shift card.
+ * @param {MouseEvent} e
+ */
 function handleEdit(e) {
     const btn        = e.currentTarget;
     const memberName = btn.dataset.member;
@@ -1351,9 +1439,12 @@ document.addEventListener('focusout', e => {
 // ============================================
 // UTILITIES
 // ============================================
-function formatISO(d) {
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
+// formatISO and isSunday are imported from roster-data.js
+
+/** Formats YYYY-MM-DD as a readable date string: "18 Mar 2026".
+ *  Returns "—" for empty/null input.
+ *  @param {string} str  YYYY-MM-DD
+ *  @returns {string} */
 
 // ---- Shift rule helpers ----
 
@@ -1379,6 +1470,15 @@ function fmtHours(mins) {
 
 // Return the effective shift value string for memberName on dateISO.
 // Checks the pending save batch first, then existing overrides, then base roster.
+/**
+ * Returns the effective shift value for a member on a given date, checking
+ * the pending save batch first, then allOverrides, then the base roster.
+ * Used by validateShiftRules to calculate rest gaps across day boundaries.
+ * @param {string}   memberName
+ * @param {string}   dateISO  YYYY-MM-DD
+ * @param {Array}    batch    The toSave array being validated (may override allOverrides)
+ * @returns {string} shift value e.g. "07:00-15:00" or "RD"
+ */
 function getEffectiveShift(memberName, dateISO, batch) {
     const inBatch = batch.find(e => e.date === dateISO);
     if (inBatch) return inBatch.value;
@@ -1389,8 +1489,13 @@ function getEffectiveShift(memberName, dateISO, batch) {
     return getBaseShift(member, new Date(dateISO + 'T12:00:00'));
 }
 
-// Validate max shift duration (12 h) and minimum rest gap (12 h) between consecutive shifts.
-// Returns an array of human-readable error strings; also marks failing rows with .row-error.
+/**
+ * Validates max shift duration (12 h) and minimum rest gap (12 h) between consecutive
+ * shifts for all entries in toSave. Also marks failing rows with .row-error in the DOM.
+ * @param {Array}  toSave      The pending save batch from the week editor
+ * @param {string} memberName
+ * @returns {string[]} Array of human-readable error strings (empty = no violations)
+ */
 function validateShiftRules(toSave, memberName) {
     const ruleErrors = [];
 
@@ -1466,6 +1571,7 @@ function formatDisplay(str) {
 const esc = escapeHtml;
 
 let _toastTimer = null;
+/** Shows a success message in the week editor feedback area.  @param {string} msg */
 function showSuccess(msg) {
     formFeedback.className = 'feedback success';
     formFeedback.textContent = '✓ ' + msg;
@@ -1481,11 +1587,13 @@ function showSuccess(msg) {
     }
 }
 
+/** Shows an error message in the week editor feedback area.  @param {string} msg */
 function showError(msg) {
     formFeedback.className = 'feedback error';
     formFeedback.textContent = '⚠ ' + msg;
 }
 
+/** Clears the week editor feedback area. */
 function hideFeedback() {
     formFeedback.className = 'feedback';
     hideALConfirm();
@@ -1500,6 +1608,15 @@ const alConfirmSub       = document.getElementById('alConfirmSub');
 const alConfirmSaveBtn   = document.getElementById('alConfirmSaveBtn');
 const alConfirmCancelBtn = document.getElementById('alConfirmCancelBtn');
 
+/**
+ * Shows the AL over-entitlement confirmation bar with a warning and two options.
+ * In the week editor path, pendingSave is the toSave array to resume with.
+ * In the AL booking path, pendingSave is null — the bar re-triggers alSaveBtn.click().
+ * @param {string}      msg          Main warning line
+ * @param {string}      sub          Secondary detail line
+ * @param {Array|null}  pendingSave  toSave batch to resume, or null for AL booking path
+ * @param {string[]}    pendingDelete  IDs to delete in the same batch
+ */
 function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
     _alPendingSave   = pendingSave;
     _alPendingDelete = pendingDelete;
@@ -1508,6 +1625,7 @@ function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
     alConfirmBar.classList.add('visible');
     alConfirmSaveBtn.focus();
 }
+/** Hides the AL over-entitlement confirmation bar and clears pending save state. */
 function hideALConfirm() {
     alConfirmBar.classList.remove('visible');
     _alPendingSave   = null;
@@ -1977,7 +2095,7 @@ function updateSickBookedBox() {
     function addDays(dateStr, n) {
         const d = new Date(dateStr + 'T12:00:00');
         d.setDate(d.getDate() + n);
-        return d.toISOString().slice(0, 10);
+        return formatISO(d);
     }
     function isRestGap(dateStr) {
         if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
@@ -2132,7 +2250,7 @@ function updateALBookedBox() {
     function addDays(dateStr, n) {
         const d = new Date(dateStr + 'T12:00:00');
         d.setDate(d.getDate() + n);
-        return d.toISOString().slice(0, 10);
+        return formatISO(d);
     }
 
     /**
