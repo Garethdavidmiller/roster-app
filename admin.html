@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.45 -->
+<!-- MYB Roster Admin v5.46 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.45">
+    <link rel="stylesheet" href="shared.css?v=5.46">
 
     <style>
         body {
@@ -217,7 +217,7 @@
             grid-template-columns: 1fr;
             gap: 10px;
             align-items: end;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
         }
 
         @media (max-width: 540px) {
@@ -429,7 +429,7 @@
             color: var(--text-mid);
             text-transform: uppercase;
             letter-spacing: 0.4px;
-            margin-bottom: 6px;
+            margin-bottom: 10px;
         }
 
         /* Numbered-step rows inside the bulk bar */
@@ -438,7 +438,9 @@
             align-items: flex-start;
             gap: 8px;
             flex-wrap: wrap;
-            margin-bottom: 6px;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-light);
         }
 
         .bulk-step-label {
@@ -530,6 +532,7 @@
             font-size: 12px;
             font-weight: 700;
             padding: 7px 14px;
+            margin-top: 2px;
             cursor: pointer;
             white-space: nowrap;
             transition: background 0.12s;
@@ -610,12 +613,15 @@
         .day-row.has-override { background: var(--row-override-bg); border-left: 4px solid var(--orange); }
         .day-row.has-override.active { background: var(--row-override-active-bg); }
 
+        /* More breathing room when a row is expanded */
+        .day-row.active, .day-row.selected { padding-top: 10px; padding-bottom: 10px; }
+
         /* Narrow: stack */
         @media (max-width: 680px) {
             .day-row {
                 grid-template-columns: 32px 1fr auto;
                 grid-template-rows: auto auto auto;
-                gap: 6px;
+                gap: 8px;
             }
             .day-row .col-check  { grid-column: 1; grid-row: 1; }
             .day-row .col-day    { grid-column: 2; grid-row: 1; }
@@ -646,6 +652,13 @@
             .day-row.active .col-pills::before,
             .day-row.selected .col-pills::before { content: 'Type:'; }
             .day-row.active .col-time::before    { content: 'Time:'; }
+
+            /* Hairline separator between day-header row and the type/time controls */
+            .day-row.active .col-pills,
+            .day-row.selected .col-pills {
+                padding-top: 6px;
+                border-top: 1px solid rgba(0,0,0,0.08);
+            }
 
             /* Fixed-type rows: switch visibility:hidden → display:none so hidden inputs
                don't consume layout space, preventing the time-note text from overflowing
@@ -1803,7 +1816,6 @@
             <!-- Week navigation -->
             <div class="selectors">
                 <div class="field-group">
-                    <label>Week</label>
                     <div class="week-nav">
                         <button class="week-nav-btn" id="prevWeekBtn" title="Previous week">‹</button>
                         <div class="week-date-wrap">
@@ -2085,6 +2097,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.45"></script>
+<script type="module" src="./admin-app.js?v=5.46"></script>
 </body>
 </html>
