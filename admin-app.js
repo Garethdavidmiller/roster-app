@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.48';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.48';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.49';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.49';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -526,6 +526,7 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             updateALBookedBox();
             updateSickBookedBox();
             userMadeChanges = false;
+            if (shiftNote) shiftNote.value = '';
 
             wCurrent.style.transition = TRANSITION;
             wCurrent.style.transform  = `translateX(${goLeft ? -wW : wW}px)`;
@@ -816,10 +817,12 @@ function renderWeekGrid() {
         weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
         bulkBar.style.display = 'none';
         saveBtn.disabled = true;
+        if (shiftNote) shiftNote.value = '';
         return;
     }
 
     weekGrid.innerHTML = '';
+    if (shiftNote) shiftNote.value = '';
 
     const member = teamMembers.find(m => m.name === memberName);
     if (!member) {
