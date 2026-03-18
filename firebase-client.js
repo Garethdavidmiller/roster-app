@@ -14,7 +14,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
     getFirestore,
-    collection, query, where,
+    collection, query, where, orderBy, limit,
     getDocs, getDoc, addDoc, setDoc, deleteDoc,
     doc, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
@@ -78,4 +78,17 @@ export async function uploadHuddle(date, file, uploadedBy) {
 export async function getTodaysHuddle(date) {
     const snap = await getDoc(doc(db, 'huddles', date));
     return snap.exists() ? snap.data() : null;
+}
+
+/**
+ * Retrieve the most recently uploaded Huddle document from Firestore,
+ * regardless of date. Used to keep the Huddle button always active —
+ * staff can always access the latest briefing, not just today's.
+ *
+ * @returns {Promise<{date: string, storageUrl: string, uploadedBy: string}|null>}
+ */
+export async function getLatestHuddle() {
+    const q    = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
+    const snap = await getDocs(q);
+    return snap.empty ? null : snap.docs[0].data();
 }
