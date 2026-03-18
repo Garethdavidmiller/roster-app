@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.33 -->
+<!-- MYB Roster Admin v5.34 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.33">
+    <link rel="stylesheet" href="shared.css?v=5.34">
 
     <style>
         body {
@@ -54,7 +54,6 @@
             color: var(--primary-blue);
             flex: 1;
         }
-
 
         .badge-admin {
             background: var(--accent-gold);
@@ -1432,21 +1431,6 @@
                 padding: 4px 7px;
                 font-size: 9px;
             }
-            /* Collapse btn-back to arrow-only so fixed-width items (badge, ?, Sign out)
-               all fit on narrow phones. aria-label preserves screen-reader text. */
-            .app-header .btn-back {
-                font-size: 0;    /* hide "← Roster" text */
-                letter-spacing: 0;
-                width: 34px;
-                padding: 0;
-                justify-content: center;
-            }
-            .app-header .btn-back::after {
-                content: '←';
-                font-size: 14px;
-                font-weight: 700;
-                color: white;
-            }
         }
 
         /* ---- Back-to-roster button (in header) ---- */
@@ -2104,6 +2088,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.33"></script>
+<script type="module" src="./admin-app.js?v=5.34"></script>
 </body>
 </html>
