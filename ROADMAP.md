@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: March 2026 — v5.49*
+*Last updated: March 2026 — v5.49 (Huddle viewer roadmap added)*
 
 ---
 
@@ -28,6 +28,131 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 ## Future capabilities — optional, no fixed sequence
 
 Nothing below is committed. Each area is independent unless a dependency is noted.
+
+---
+
+### Daily Huddle viewer
+**What:** Each morning a "Huddle" PDF arrives by email — it lists the day's responsibilities across the team. Staff should be able to open the latest Huddle from the app without having to find the email.
+
+---
+
+#### How it works (end-to-end)
+
+```
+Huddle email arrives in inbox
+         ↓
+Upload PDF to Firebase Storage
+(manual via admin.html — Phase 1 | automated via Apps Script — Phase 2)
+         ↓
+Firestore records metadata:
+  { date: "2026-03-18", storageUrl: "...", uploadedAt: timestamp }
+         ↓
+App checks Firestore on load for today's date
+         ↓
+"Today's Huddle" card appears — tap to open in native PDF viewer
+```
+
+---
+
+#### Phase 1 — Manual upload (build this first)
+
+An admin-only "Upload Huddle" button in admin.html. Admin taps it, picks the PDF, it uploads to Firebase Storage and writes the Firestore record. Takes ~10 seconds. No automation required.
+
+**What needs building:**
+- Enable Firebase Storage in the Firebase console (free tier — 5 GB storage, 1 GB/day download; a daily PDF will never get close)
+- `huddles` Firestore collection with documents keyed by date: `{ date: "YYYY-MM-DD", storageUrl: string, uploadedAt: timestamp }`
+- Upload UI in admin.html — visible to admins only (guarded by `CONFIG.ADMIN_NAMES`)
+- Firebase Storage security rules — authenticated upload, public read (or app-only read)
+- "Today's Huddle" card in index.html — shown if a document exists for today's date, hidden otherwise
+- Same card in admin.html if useful
+
+**Display approach — why native PDF viewer:**
+iframes with PDFs are unreliable on Android/iOS. The right approach is `window.open(storageUrl)` — this hands the PDF to the device's native viewer, which is fast and handles pinch-zoom correctly. No PDF library needed.
+
+**File structure follows existing pattern:**
+No new pages needed. Upload logic lives in `admin-app.js`. Display card lives in `app.js`. Shared Firebase calls go in `firebase-client.js`.
+
+---
+
+#### Phase 2 — Automated upload
+
+Once Phase 1 is working and the display is confirmed, the manual upload step can be eliminated.
+
+**Option A — Google Apps Script (preferred if Gmail is used)**
+
+Google Apps Script is a free scripting environment built into Google's cloud. It has direct access to Gmail and can run on a schedule or trigger.
+
+Script logic (approximately 50 lines of JavaScript):
+1. Check Gmail for emails matching the Huddle sender/subject
+2. Find any not yet processed (use a Gmail label as a "done" flag)
+3. Extract the PDF attachment
+4. Upload to Firebase Storage via the Firebase REST API (Storage supports plain HTTP — no SDK needed in Apps Script)
+5. Write the Firestore document via the Firestore REST API
+6. Apply the "done" label so the email is not processed again
+
+Set the script to run every hour, or use a Gmail push trigger for near-instant processing. Cost: £0. No server required.
+
+**Option B — Microsoft Power Automate (if Outlook / Microsoft 365 is used)**
+
+Flow: *When an email matching [sender/subject] arrives → extract attachment → HTTP POST to Firebase Storage → HTTP POST to Firestore*
+
+Power Automate is included in Microsoft 365 subscriptions (which Chiltern Railways likely has). GUI-based, no code. Cost: included.
+
+**Option C — Zapier or Make (third-party automation)**
+
+Both can connect Gmail/Outlook to Firebase Storage via HTTP actions. Make (formerly Integromat) has a free tier generous enough for one Huddle per day. Zapier's free tier caps at 100 tasks/month (~3 months of daily Huddles before needing a paid plan). Simpler to configure than Apps Script but introduces a dependency on a third-party service.
+
+---
+
+#### Firestore schema
+
+Collection: `huddles`
+One document per date, document ID = `"YYYY-MM-DD"`:
+
+```
+date        string     "2026-03-18"
+storageUrl  string     Firebase Storage download URL
+uploadedAt  timestamp  Firestore server timestamp
+uploadedBy  string     memberName of uploader (admin only, for audit)
+```
+
+#### Firebase Storage path
+
+```
+huddles/YYYY-MM-DD.pdf
+```
+
+Simple, one file per day. If a second Huddle is uploaded on the same day it overwrites the first (intentional — latest version wins).
+
+---
+
+#### Security rules
+
+Storage: allow read by anyone with the app; allow write only if the user is authenticated as an admin (tie to the same surname-password session in localStorage, or use a Firebase Storage custom token if stricter access is needed).
+
+Firestore: `huddles` collection — allow reads; allow writes only from admin upload path (same pattern as `overrides`).
+
+---
+
+#### What is already in place
+
+| Component | Status |
+|-----------|--------|
+| Firebase project | ✓ Exists |
+| Firestore | ✓ In use |
+| Firebase Storage | ✗ Not yet enabled — one toggle in Firebase console |
+| `firebase-client.js` | ✓ Central place to add Storage init and upload/read functions |
+| Admin auth guard | ✓ `CONFIG.ADMIN_NAMES` check already used for elevated UI |
+
+---
+
+#### Integration notes
+
+- Add Storage init to `firebase-client.js` alongside the existing Firestore init — one place, same pattern
+- Export `uploadHuddle(date, file)` and `getTodaysHuddle(date)` from `firebase-client.js`
+- The "Today's Huddle" card should degrade silently if Storage or Firestore is unavailable — same offline-first rule as everything else
+- Add `huddles` to Firestore security rules in the Firebase console alongside `overrides` and `memberSettings`
+- Version bump required when this is built (two files affected: `app.js` and `admin-app.js`; possibly `firebase-client.js`)
 
 ---
 
