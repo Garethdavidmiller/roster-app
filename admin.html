@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.57 -->
+<!-- MYB Roster Admin v5.58 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.57">
+    <link rel="stylesheet" href="shared.css?v=5.58">
 
     <style>
         body {
@@ -281,6 +281,11 @@
             appearance: none;
             font-family: inherit;
             transition: border-color 0.12s;
+        }
+
+        /* iOS Safari collapses date inputs when -webkit-appearance:none removes native chrome */
+        input[type="date"] {
+            min-height: 44px;
         }
 
         /* Restore dropdown arrow removed by appearance: none */
@@ -2147,6 +2152,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.57"></script>
+<script type="module" src="./admin-app.js?v=5.58"></script>
 </body>
 </html>
