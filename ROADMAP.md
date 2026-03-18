@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: March 2026 — v4.80*
+*Last updated: March 2026 — v5.49*
 
 ---
 
@@ -9,7 +9,7 @@
 ### Phase 1 — Firestore read layer ✓
 Owner manually enters shift overrides. App reads and overlays them on the base roster. No user logins required.
 
-### Phase 2 — Staff self-service portal ✓ Nearly complete
+### Phase 2 — Staff self-service portal ✓
 Individual staff log in and enter their own overrides. Admin (G. Miller) has elevated access.
 
 **What was built:**
@@ -17,16 +17,37 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 - Individual login per staff member (name + surname password)
 - AL booking with entitlement tracking (32 days CEA, 34 days CES/Dispatcher/Fixed)
 - Bulk override operations and override history
-- Islamic calendar marker preference per member
+- Cultural calendar marker preference per member (Islamic, Hindu, Chinese, Jamaican, Congolese, Portuguese)
 - Dispatcher and fixed roster types
+- Firestore security rules — server-side validation of all writes
 
-**Auth note:** The original plan specified Firebase Auth (Microsoft SSO or email/password). The implementation uses a simpler surname-based password with localStorage sessions. This was a deliberate divergence — no Chiltern IT dependency, no registration flow, works immediately for all staff. If stronger authentication is ever needed, this is the point to revisit.
+**Auth note:** The original plan specified Firebase Auth (Microsoft SSO or email/password). The implementation uses a simpler surname-based password with localStorage sessions. This was a deliberate divergence — no Chiltern IT dependency, no registration flow, works immediately for all staff. If stronger authentication is ever needed, see #14 in CLAUDE.md.
 
 ---
 
 ## Future capabilities — optional, no fixed sequence
 
 Nothing below is committed. Each area is independent unless a dependency is noted.
+
+---
+
+### Payday calculator ⚙️ In progress
+**What:** A view that shows the staff member's worked shifts for the current pay period, counts hours and shift types, and gives a breakdown of what contributes to pay. Paydays are every 4 weeks (Friday); the cutoff for each period is the preceding Saturday.
+
+**What is already built:**
+- `getPaydaysAndCutoffs(year)` in `roster-data.js` — calculates every payday and cutoff date for a given year, adjusts backwards if payday falls on a bank holiday
+- `isPayday()` and `isCutoffDate()` helper functions, both tested
+- `FIRST_PAYDAY` and `PAYDAY_INTERVAL_DAYS` in `CONFIG`
+- Calendar cells already show 💷 payday and ✂️ cutoff markers
+- Gareth has calculator UI work in progress externally — will be integrated when ready
+
+**Depends on:** Nothing new. All shift data already in Firestore; pay period boundaries already calculated.
+
+**Integration notes for when the code arrives:**
+- The data layer lives in `roster-data.js` — do not duplicate it in the new file
+- Any new page should follow the same file structure: `paycalc.html` (HTML+CSS only) + `paycalc.js` (JS only) + import from `roster-data.js` and `firebase-client.js`
+- Add to service worker `ASSETS_TO_CACHE` and network-first list
+- Version bump table will need two new rows
 
 ---
 
@@ -97,9 +118,9 @@ Do not build speculatively. The PWA works well for the current use case.
 
 ## Open decisions
 
-**Auth hardening:** The surname password is practical for a roster app. If approval workflows or formal AL management are added, consider whether a colleague logging in as another person is an acceptable risk. Assess at the time.
+**Auth hardening:** The surname password is practical for a roster app. If approval workflows or formal AL management are added, consider whether a colleague logging in as another person is an acceptable risk. Assess at the time. See #14 in CLAUDE.md for the migration plan.
 
-**Multi-admin:** `ADMIN_NAME` is currently a single hardcoded value. If the app is relied upon operationally, who covers admin when G. Miller is absent?
+**Multi-admin:** ✓ Resolved — `CONFIG.ADMIN_NAMES` is now an array in `roster-data.js`. Adding another admin is a one-line change (name must match `teamMembers[n].name` exactly).
 
 **Official status:** Is this app sanctioned by Chiltern Railways? The more operationally critical it becomes, the more important this question is.
 

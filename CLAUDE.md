@@ -2,7 +2,7 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v4.95:** JS is now in separate files. You need to update **thirteen** places:
+**As of v5.49:** JS is now in separate files. You need to update **thirteen** places:
 
 | File | Location | Example |
 |------|----------|---------|
@@ -91,6 +91,27 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | Semantic elements (`<nav>`, `<header>`, `<main>`) | Screen readers depend on these landmarks. Do not revert to `<div>`. |
 | Network-first service worker for app files | Ensures staff always receive roster updates on next open. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
+
+---
+
+## Payday calculator — planned feature
+
+Work on a payday calculator UI is in progress externally and will be integrated when ready. **Do not rebuild the data layer — it already exists.**
+
+| What exists | Location |
+|-------------|----------|
+| `getPaydaysAndCutoffs(year)` | `roster-data.js` — returns `{ paydays[], cutoffs[] }` for any year |
+| `isPayday(date)` / `isCutoffDate(date)` | `roster-data.js` — boolean helpers |
+| `FIRST_PAYDAY`, `PAYDAY_INTERVAL_DAYS` | `CONFIG` in `roster-data.js` |
+| 💷 / ✂️ calendar markers | `app.js` — `.payday` and `.cutoff` CSS classes applied per cell |
+| Tests | `roster-data.test.mjs` — payday and cutoff tests already passing |
+
+**When integrating the calculator UI:**
+- Follow the existing file pattern: `paycalc.html` (HTML+CSS only) + `paycalc.js` (JS only)
+- Import shared functions from `roster-data.js` and `firebase-client.js` — do not duplicate
+- Add both new files to the service worker `ASSETS_TO_CACHE` and network-first list
+- The version bump table will need two new rows (`paycalc.html` and `paycalc.js`)
+- See ROADMAP.md for full context
 
 ---
 
@@ -257,6 +278,9 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 | v5.23 | 🟡 Med | **Service worker network-first fetch times out after 5 s** on slow/hanging connections and falls back to the cached copy, preventing indefinite loading on weak signal. |
 | v5.23 | 🟢 Low | **Deep-link card scroll** switched from `setTimeout(300)` to double `requestAnimationFrame` for reliable timing on slow devices. |
 | v5.23 | 🟢 Low | **SW update poll interval** cleared on `visibilitychange: hidden` to avoid unnecessary background network traffic on mobile. |
+| v5.48 | 🟢 Low | **Month/year filter added to Saved Changes.** Dropdown in the list toolbar lets admin filter overrides by month. Options rebuild automatically from available data when member selection changes. |
+| v5.48 | 🟢 Low | **Per-row note buttons replaced with a shared note field.** The `+ Note` button on each day row (and its expanding note-row, extra grid column, and associated CSS) was removed. A single `Note (optional)` input now sits between the week grid and the Save button — applies to all days in the batch. Pre-populates when editing an existing override that has a note. Clears on save. |
+| v5.49 | 🟢 Low | **Stale note field on week navigation fixed.** Typing a note then swiping or navigating to a different week without saving left the old note text in the field, where it would silently attach to the next save. `renderWeekGrid()` and the swipe commit path now both clear the field before loading a new week. |
 
 ---
 
