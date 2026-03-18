@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.47';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.47';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.48';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.48';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -302,7 +302,9 @@ const saveBtn      = document.getElementById('saveBtn');
 const formFeedback = document.getElementById('formFeedback');
 const tableBody    = document.getElementById('overrideTableBody');
 const listCount    = document.getElementById('listCount');
-const listFeedback = document.getElementById('listFeedback');
+const listFeedback          = document.getElementById('listFeedback');
+const shiftNote             = document.getElementById('shiftNote');
+const overridesMonthFilter  = document.getElementById('overridesMonthFilter');
 
 // ============================================
 // POPULATE MEMBER DROPDOWNS
@@ -681,8 +683,7 @@ function buildWeekGridInto(container, dateStr) {
         <div class="hdr-day">Day</div>
         <div class="hdr-base">Base roster</div>
         <div class="hdr-pills">Change to</div>
-        <div class="hdr-time">Shift time</div>
-        <div class="hdr-note"></div>`;
+        <div class="hdr-time">Shift time</div>`;
     container.appendChild(header);
 
     // Read faith calendar opt-in for the selected member
@@ -733,26 +734,15 @@ function buildWeekGridInto(container, dateStr) {
                 <span class="time-note">No time needed</span>
                 <span class="time-hint">24h · max 12 hrs</span>
                 <span class="time-error-msg">Use HH:MM format (e.g. 07:00)</span>
-            </div>
-            <div class="col-note-btn">
-                <button class="btn-note-toggle" title="Add a note to this override">+ Note</button>
             </div>`;
 
-        // --- Note row (full width, hidden by default) ---
-        const noteRow = document.createElement('div');
-        noteRow.className = 'note-row';
-        noteRow.innerHTML = `<input type="text" class="day-note" placeholder="Note (optional)">`;
-
         container.appendChild(row);
-        container.appendChild(noteRow);
 
         // Refs
-        const cb        = row.querySelector('.day-cb');
-        const pills     = row.querySelectorAll('.type-pill-btn');
-        const startEl   = row.querySelector('.day-start');
-        const endEl     = row.querySelector('.day-end');
-        const noteBtn   = row.querySelector('.btn-note-toggle');
-        const noteInput = noteRow.querySelector('.day-note');
+        const cb      = row.querySelector('.day-cb');
+        const pills   = row.querySelectorAll('.type-pill-btn');
+        const startEl = row.querySelector('.day-start');
+        const endEl   = row.querySelector('.day-end');
 
         // Pre-fill with existing override if present.
         // Mark as prefilled-existing so the save button doesn't light up until
@@ -766,11 +756,8 @@ function buildWeekGridInto(container, dateStr) {
                 startEl.value = s;
                 endEl.value   = e;
             }
-            if (existing.note) {
-                noteInput.value = existing.note;
-                noteRow.classList.add('visible');
-                noteBtn.classList.add('has-note');
-                noteBtn.title = 'Edit this note';
+            if (existing.note && shiftNote) {
+                shiftNote.value = existing.note;
             }
         }
 
@@ -810,16 +797,6 @@ function buildWeekGridInto(container, dateStr) {
         startEl.addEventListener('change', () => { row.classList.remove('prefilled-existing'); markChanged(); });
         endEl.addEventListener('change',   () => { row.classList.remove('prefilled-existing'); markChanged(); });
 
-        // Note button
-        noteBtn.addEventListener('click', () => {
-            const showing = noteRow.classList.toggle('visible');
-            noteBtn.title = showing ? 'Remove note' : 'Add a note to this override';
-            if (showing) noteInput.focus();
-        });
-
-        noteInput.addEventListener('input', () => {
-            noteBtn.classList.toggle('has-note', noteInput.value.trim().length > 0);
-        });
     }
 }
 
@@ -1063,6 +1040,7 @@ saveBtn.addEventListener('click', async () => {
     weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
 
     const toSave = [], toDelete = [], errors = [];
+    const batchNote = shiftNote ? shiftNote.value.trim() : '';
 
     weekGrid.querySelectorAll('.day-row').forEach(row => {
         if (!row.dataset.type) {
@@ -1078,11 +1056,7 @@ saveBtn.addEventListener('click', async () => {
         const meta    = TYPES[type];
         const startEl = row.querySelector('.day-start');
         const endEl   = row.querySelector('.day-end');
-        // Note row immediately follows the day-row in the DOM
-        const noteRow = row.nextElementSibling;
-        const note    = (noteRow && noteRow.classList.contains('note-row'))
-                        ? (noteRow.querySelector('.day-note')?.value?.trim() || '')
-                        : '';
+        const note    = batchNote;
 
         let value;
         if (meta && meta.fixed) {
@@ -1195,6 +1169,7 @@ async function executeSave(toSave, toDelete = []) {
         if (removes    > 0) parts.push(`${removes} removed`);
         showSuccess(`${parts.join(', ')} for ${memberName}`);
         userMadeChanges = false;
+        if (shiftNote) shiftNote.value = '';
 
         // Reset checked rows
         weekGrid.querySelectorAll('.day-row').forEach(row => {
@@ -1296,11 +1271,38 @@ async function loadOverrides() {
 
 /**
  * Renders the Saved Changes table from the allOverrides in-memory array.
- * Filtered to the currently selected member if one is chosen; otherwise shows all.
+ * Filtered to the currently selected member (if one is chosen) and by the
+ * selected month/year from the overridesMonthFilter dropdown.
+ * Rebuilds the month dropdown options each time from available data.
  */
 function renderTable() {
-    const filter = fieldMember.value;
-    const rows   = filter ? allOverrides.filter(o => o.memberName === filter) : allOverrides;
+    const memberFilter = fieldMember.value;
+    const memberRows   = memberFilter
+        ? allOverrides.filter(o => o.memberName === memberFilter)
+        : allOverrides;
+
+    // Rebuild month dropdown from data available after the member filter
+    if (overridesMonthFilter) {
+        const months     = [...new Set(memberRows.map(o => (o.date || '').substring(0, 7)))]
+            .filter(Boolean)
+            .sort((a, b) => b.localeCompare(a));
+        const prevValue  = overridesMonthFilter.value;
+        overridesMonthFilter.innerHTML = '<option value="">All months</option>';
+        months.forEach(ym => {
+            const [y, m] = ym.split('-');
+            const label  = `${new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'long' })} ${y}`;
+            const opt    = document.createElement('option');
+            opt.value    = ym;
+            opt.textContent = label;
+            if (ym === prevValue) opt.selected = true;
+            overridesMonthFilter.appendChild(opt);
+        });
+    }
+
+    const monthFilter = overridesMonthFilter ? overridesMonthFilter.value : '';
+    const rows = monthFilter
+        ? memberRows.filter(o => (o.date || '').startsWith(monthFilter))
+        : memberRows;
     listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
 
     if (!rows.length) {
@@ -2391,6 +2393,12 @@ function updateALBookedBox() {
         chevron.classList.toggle('open', isOpen);
     });
 })();
+
+// ============================================
+// Month filter re-renders the table when changed
+if (overridesMonthFilter) {
+    overridesMonthFilter.addEventListener('change', renderTable);
+}
 
 // ============================================
 // EXISTING OVERRIDES CARD — collapse/expand
