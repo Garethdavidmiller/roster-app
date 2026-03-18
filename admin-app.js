@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.27';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.27';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.31';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.31';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -247,10 +247,14 @@ roles.forEach(role => {
     fieldMember.appendChild(grp1);
 });
 
-// Restore last used member from localStorage
-const lastMember = localStorage.getItem('adminLastMember');
+// Restore last used member — prefer the shared cross-page key (written by both index and admin)
+// so navigating between pages keeps the same person selected. Fall back to admin-only key.
+const lastMember = localStorage.getItem('myb_roster_selected_member') || localStorage.getItem('adminLastMember');
 if (lastMember && teamMembers.find(m => m.name === lastMember)) {
-    fieldMember.value  = lastMember;
+    fieldMember.value = lastMember;
+    // Keep both keys in sync so the reverse journey (admin → index) always works
+    localStorage.setItem('adminLastMember', lastMember);
+    localStorage.setItem('myb_roster_selected_member', lastMember);
 }
 
 // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
@@ -1087,7 +1091,7 @@ async function executeSave(toSave, toDelete = []) {
 }
 
 fieldMember.addEventListener('change', () => {
-    if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('adminLastMember') || ''; return; }
+    if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('myb_roster_selected_member') || localStorage.getItem('adminLastMember') || ''; return; }
     localStorage.setItem('adminLastMember', fieldMember.value);
     localStorage.setItem('myb_roster_selected_member', fieldMember.value);
     alMember.value   = fieldMember.value;
@@ -1990,6 +1994,17 @@ function updateSickBookedBox() {
 document.getElementById('signOutBtn').addEventListener('click', () => {
     clearSession();
     window.location.reload();
+});
+
+// ← Roster button: write the current fieldDate month/year to localStorage before
+// navigating so index.html opens on the same month the user was looking at in admin.
+document.querySelector('.btn-back').addEventListener('click', e => {
+    if (fieldDate.value) {
+        const d = new Date(fieldDate.value + 'T12:00:00');
+        localStorage.setItem('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
+        localStorage.setItem('myb_roster_year',  d.getFullYear());
+    }
+    // Let the <a> navigate normally
 });
 
 function applyPermissions() {
