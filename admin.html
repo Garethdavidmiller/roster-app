@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.46 -->
+<!-- MYB Roster Admin v5.47 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.46">
+    <link rel="stylesheet" href="shared.css?v=5.47">
 
     <style>
         body {
@@ -218,10 +218,6 @@
             gap: 10px;
             align-items: end;
             margin-bottom: 12px;
-        }
-
-        @media (max-width: 540px) {
-            .al-form { grid-template-columns: 1fr; }
         }
 
         /* ---- Annual Leave balance banner ---- */
@@ -1006,7 +1002,7 @@
         .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
         .card-collapsible-body {
             display: none; /* collapsed by default */
-            padding: 16px;
+            padding: 12px;
         }
         .card-collapsible-body.open { display: block; }
         .collapse-chevron {
@@ -1245,10 +1241,14 @@
         /* ---- Annual Leave booking form ---- */
         .al-form {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr;
             gap: 12px;
             margin-bottom: 12px;
         }
+
+        /* Staff member display is already shown in the member context bar at the top —
+           hide it here so the date inputs span the full card width */
+        .al-member-field { display: none; }
 
         /* @media (max-width: 540px) for .al-form merged into the block near line 228 */
 
@@ -1269,7 +1269,7 @@
 
         /* ---- Booked AL dates collapsible box ---- */
         .al-booked-box {
-            margin-top: 16px;
+            margin-top: 10px;
             border: 1px solid var(--border);
             border-radius: 8px;
             overflow: hidden;
@@ -1326,12 +1326,12 @@
         }
 
         .al-preview {
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 8px;
             font-size: 13px;
             font-weight: 600;
-            margin-bottom: 12px;
-            min-height: 36px;
+            margin-bottom: 10px;
+            min-height: 28px;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -1916,7 +1916,7 @@
                 <select id="alMember" hidden>
                     <option value="">— Select member —</option>
                 </select>
-                <div class="field-group">
+                <div class="field-group al-member-field">
                     <label>Staff member</label>
                     <div class="member-readonly-display" id="alMemberDisplay">Select a staff member above</div>
                 </div>
@@ -1961,7 +1961,7 @@
                 <select id="sickMember" hidden>
                     <option value="">— Select member —</option>
                 </select>
-                <div class="field-group">
+                <div class="field-group al-member-field">
                     <label>Staff member</label>
                     <div class="member-readonly-display" id="sickMemberDisplay">Select a staff member above</div>
                 </div>
@@ -2097,6 +2097,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.46"></script>
+<script type="module" src="./admin-app.js?v=5.47"></script>
 </body>
 </html>
