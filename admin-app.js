@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.31';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.31';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml } from './roster-data.js?v=5.33';
+import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js?v=5.33';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -168,15 +168,82 @@ function initLoginOverlay() {
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 })();
 
-// ---- Tips lightbox ----
+// ---- Per-card tips lightbox ----
+// Each card has a small ? button. Tapping it opens a focused lightbox
+// with only the tips relevant to that card. Content lives here as data
+// so the HTML stays clean.
 (function() {
     const lb       = document.getElementById('tipsLightbox');
     const closeBtn = document.getElementById('tipsLightboxClose');
-    const tipsBtn  = document.getElementById('tipsBtn');
+    const titleEl  = document.getElementById('tipsLbTitle');
+    const bodyEl   = document.getElementById('tipsLbBody');
+    if (!lb) return;
 
-    if (!lb || !tipsBtn) return;
+    /** Tips content keyed by data-card attribute on each .btn-card-tips button. */
+    const CARD_TIPS = {
+        'change-shift': {
+            title: 'Changing shifts',
+            sections: [
+                { heading: 'One shift', items: [
+                    { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top' },
+                    { icon: '2️⃣', html: 'Tap a type button on any day — <strong>AL, Spare, Sick, RDW</strong> etc.' },
+                    { icon: '💾', html: 'Tap <strong>Save changes</strong> — changed days show in amber until saved' },
+                    { icon: '👆', html: 'Swipe left or right to move between weeks' },
+                ]},
+                { heading: 'Multiple shifts', items: [
+                    { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick individual days' },
+                    { icon: '2️⃣', html: 'Pick a type — add a start and end time if needed' },
+                    { icon: '3️⃣', html: 'Tap <strong>3. Apply to selected days</strong>' },
+                ]},
+                { heading: 'Type meanings', items: [
+                    { icon: '🔄', html: '<strong>Swap</strong> — a shift swapped with a colleague' },
+                    { icon: '💼', html: '<strong>RDW</strong> — rest day worked (overtime on a rest day)' },
+                    { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day to a rest day' },
+                ]},
+            ],
+        },
+        'annual-leave': {
+            title: 'Annual leave',
+            sections: [
+                { items: [
+                    { icon: '🏖️', html: 'Select a staff member and date range — rest days and Sundays are skipped automatically' },
+                    { icon: '⚠️', html: 'A warning appears if leave would exceed the entitlement — you can still save' },
+                ]},
+            ],
+        },
+        'sick-days': {
+            title: 'Sick days',
+            sections: [
+                { items: [
+                    { icon: '🤒', html: 'Select a staff member and date range — rest days and Sundays are skipped automatically' },
+                ]},
+            ],
+        },
+        'cultural-calendar': {
+            title: 'Cultural calendar',
+            sections: [
+                { items: [
+                    { icon: '🌍', html: 'Shows key dates for the chosen tradition in the corner of matching days' },
+                    { icon: '👁️', html: 'Visible to anyone who views that person\'s roster' },
+                    { icon: 'ℹ️', html: 'Only one calendar can be active per person at a time' },
+                ]},
+            ],
+        },
+    };
 
-    function openTips() {
+    function openTips(key) {
+        const tips = CARD_TIPS[key];
+        if (!tips || !titleEl || !bodyEl) return;
+        lb.setAttribute('aria-label', tips.title);
+        titleEl.textContent = tips.title;
+        let html = '';
+        for (const section of tips.sections) {
+            if (section.heading) html += `<div class="tips-lb-section">${section.heading}</div>`;
+            for (const { icon, html: content } of section.items) {
+                html += `<div class="tips-lb-item"><span class="tips-lb-icon">${icon}</span><span>${content}</span></div>`;
+            }
+        }
+        bodyEl.innerHTML = html;
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
         document.addEventListener('keydown', onKey);
@@ -190,7 +257,14 @@ function initLoginOverlay() {
 
     function onKey(e) { if (e.key === 'Escape') closeTips(); }
 
-    tipsBtn.addEventListener('click', openTips);
+    // Wire every card's ? button — stopPropagation prevents collapsing the card
+    document.querySelectorAll('.btn-card-tips').forEach(btn => {
+        btn.addEventListener('click', e => {
+            e.stopPropagation();
+            openTips(btn.dataset.card);
+        });
+    });
+
     if (closeBtn) closeBtn.addEventListener('click', closeTips);
     lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
 })();
@@ -806,7 +880,7 @@ function updateSaveBtn() {
             if (deleteCount) parts.push(`${deleteCount} override${deleteCount > 1 ? 's' : ''} to remove`);
             hint.textContent = `Ready — ${parts.join(', ')}`;
         } else {
-            hint.textContent = 'Select a shift type on at least one day, then tap Save';
+            hint.textContent = 'Select a type on at least one day, then tap Save changes';
         }
     }
 }

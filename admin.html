@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.31 -->
+<!-- MYB Roster Admin v5.33 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.31">
+    <link rel="stylesheet" href="shared.css?v=5.33">
 
     <style>
         body {
@@ -67,20 +67,22 @@
             letter-spacing: 0.6px;
         }
 
-        .btn-tips {
-            width: 28px; height: 28px;
+        /* Small ? button inside each card heading */
+        .btn-card-tips {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 16px; height: 16px;
             border-radius: 50%;
-            border: 2px solid var(--primary-blue);
+            border: 1.5px solid var(--text-mid);
             background: transparent;
-            color: var(--primary-blue);
-            font-size: 14px;
-            font-weight: 800;
+            color: var(--text-mid);
+            font-size: 10px; font-weight: 700;
             cursor: pointer;
-            display: flex; align-items: center; justify-content: center;
+            vertical-align: middle;
             flex-shrink: 0;
-            transition: background 0.15s, color 0.15s;
+            margin-left: 5px;
+            transition: border-color 0.15s, color 0.15s;
         }
-        @media (hover: hover) and (pointer: fine) { .btn-tips:hover { background: var(--primary-blue); color: white; } }
+        @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
 
         /* ---- Tips lightbox ---- */
         #tipsLightbox {
@@ -1751,33 +1753,10 @@
 </div>
 
 <!-- Lightbox — tap the header icon to open -->
-<div id="tipsLightbox" role="dialog" aria-label="Admin help and tips" aria-modal="true">
+<div id="tipsLightbox" role="dialog" aria-label="Tips" aria-modal="true">
     <div id="tipsLightboxContent">
-        <div class="tips-lb-title">Admin Tips</div>
-
-        <div class="tips-lb-section">Changing shifts</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Select a <strong>staff member</strong> and <strong>week</strong> at the top</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Tap a <strong>shift type button</strong> on any day to change it</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">💾</span><span>Tap <strong>Save changes</strong> — unsaved changes are highlighted in amber</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">👆</span><span>Swipe left / right on the week grid to move between weeks</span></div>
-
-        <div class="tips-lb-section">Bulk changes</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">1️⃣</span><span>Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or check individual days in the grid</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">2️⃣</span><span>Pick a shift type — add a start and end time if needed</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">3️⃣</span><span>Tap <strong>3. Apply to selected days</strong></span></div>
-
-        <div class="tips-lb-section">Annual leave</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🏖️</span><span>Use the <strong>Record Annual Leave</strong> section — rest days and Sundays are skipped automatically</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">⚠️</span><span>A warning appears if leave would exceed the member's entitlement — you can still save</span></div>
-
-        <div class="tips-lb-section">Sick days</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🤒</span><span>Use the <strong>Record Sick Days</strong> section — rest days and Sundays are skipped automatically</span></div>
-
-        <div class="tips-lb-section">Override types</div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">🔄</span><span><strong>Swap</strong> — use when a member swaps a shift with a colleague</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">💼</span><span><strong>RDW</strong> — rest day worked (overtime on a scheduled rest day)</span></div>
-        <div class="tips-lb-item"><span class="tips-lb-icon">✏️</span><span><strong>Rest Day</strong> — corrects a rostered working day to a rest day</span></div>
-
+        <div class="tips-lb-title" id="tipsLbTitle"></div>
+        <div id="tipsLbBody"></div>
         <span class="tips-lb-close" id="tipsLightboxClose">Close</span>
     </div>
 </div>
@@ -1821,7 +1800,6 @@
         <a href="index.html" class="btn-back" aria-label="Back to roster calendar">← Roster</a>
         <h1>MYB Roster</h1>
         <span class="badge-admin" id="adminBadge">Admin</span>
-        <button class="btn-tips" id="tipsBtn" aria-label="Help and tips">?</button>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
 
@@ -1836,8 +1814,8 @@
     <!-- ==================== OVERRIDE FORM ==================== -->
     <div class="card">
         <div class="card-header">
-            <h2>Change a Shift</h2>
-            <span class="hint">Tap a shift type button on any day to change it, or use the multi-day tool below</span>
+            <h2>Change a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing shifts">?</button></h2>
+            <span class="hint">Tap a type button on any day to change it — or use Apply to multiple days below</span>
         </div>
         <div class="card-body">
 
@@ -1899,7 +1877,7 @@
             </div>
 
             <button class="btn-save" id="saveBtn" disabled>Save changes</button>
-            <p class="save-hint" id="saveBtnHint">Select a shift type on at least one day, then tap Save</p>
+            <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
             <div class="feedback" id="formFeedback"></div>
 
         </div>
@@ -1908,8 +1886,8 @@
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
-            <h2>🏖️ Record Annual Leave</h2>
-            <span class="hint">Select a staff member and date range — rest days are skipped automatically</span>
+            <h2>🏖️ Record Annual Leave <button class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave">?</button></h2>
+            <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="alBody">
@@ -1981,8 +1959,8 @@
     <!-- ==================== SICK DAYS ==================== -->
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
-            <h2>🤒 Record Sick Days</h2>
-            <span class="hint">Select a staff member and date range — rest days are skipped automatically</span>
+            <h2>🤒 Record Sick Days <button class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording sick days">?</button></h2>
+            <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="sickBody">
@@ -2028,7 +2006,7 @@
     <!-- Any staff member can expand, opt in/out independently.          -->
     <div class="card" id="religiousCard">
         <div class="card-header card-religious-header" id="religiousToggleHeader">
-            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span></h2>
+            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar">?</button></h2>
             <span class="hint">Optional date markers — one per person</span>
             <span class="religious-chevron" id="religiousChevron">▾</span>
         </div>
@@ -2096,7 +2074,7 @@
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
             <h2>Saved Changes</h2>
-            <span class="hint">All manually saved schedule changes — tap to expand, then edit or delete</span>
+            <span class="hint">All schedule changes — tap any row to edit or delete</span>
             <span class="collapse-chevron" id="overridesChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="overridesBody">
@@ -2126,6 +2104,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.31"></script>
+<script type="module" src="./admin-app.js?v=5.33"></script>
 </body>
 </html>
