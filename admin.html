@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.59 -->
+<!-- MYB Roster Admin v5.60 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.59">
+    <link rel="stylesheet" href="shared.css?v=5.60">
 
     <style>
         body {
@@ -309,6 +309,16 @@
             background: var(--bg-faint);
             color: var(--text-light);
             cursor: not-allowed;
+        }
+
+        /* The member select in the context bar is locked for non-admins (they can only view
+           their own data), but it should look like a normal display box — not a greyed-out
+           disabled input. Higher specificity (0,2,1) beats select:disabled (0,1,1). */
+        #fieldMember:disabled {
+            background: white;
+            color: var(--text-dark);
+            cursor: default;
+            opacity: 1;
         }
 
         /* ---- Week navigation ---- */
@@ -2152,6 +2162,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.59"></script>
+<script type="module" src="./admin-app.js?v=5.60"></script>
 </body>
 </html>
