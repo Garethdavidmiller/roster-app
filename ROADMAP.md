@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: March 2026 — v5.55 (Huddle Phase 1 complete; Phase 2 written)*
+*Last updated: March 2026 — v5.60 (Huddle Phase 1 complete; Phase 2 Cloud Function built, Power Automate pending)*
 
 ---
 
@@ -78,9 +78,13 @@ App calls getLatestHuddle() on load
 
 ---
 
-#### Phase 2 — Automated upload
+#### Phase 2 — Automated upload ⚙️ In progress
 
 **Goal:** Remove the daily manual step. The PDF should appear in the app automatically when the Huddle email arrives, with no admin action required.
+
+**Status:** Cloud Function built (`functions/index.js`). Power Automate flow to be configured once the Huddle email sender address and subject pattern are confirmed.
+
+**Note:** The Huddle email often arrives with both PDF and DOCX attached. The Power Automate flow can use the PDF directly — no conversion step needed, unlike what was originally anticipated.
 
 **Trigger for building this:** Phase 1 has been running reliably for a few weeks and the manual upload is confirmed as the only friction point. Do not automate until the end-to-end flow is understood from real use.
 
