@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.62';
-import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.62';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.63';
+import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.63';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -348,12 +348,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     const startDay = firstDay.getDay();
     const prevMonthLastDay = new Date(year, month, 0);
     for (let i = 0; i < startDay; i++) {
-        const emptyDay = document.createElement('div');
-        emptyDay.className = 'calendar-day other-month';
-        emptyDay.setAttribute('aria-hidden', 'true');
+        const adjacentMonthCell = document.createElement('div');
+        adjacentMonthCell.className = 'calendar-day other-month';
+        adjacentMonthCell.setAttribute('aria-hidden', 'true');
         const dayNum = prevMonthLastDay.getDate() - startDay + i + 1;
-        emptyDay.innerHTML = `<div class="day-number">${dayNum}</div>`;
-        grid.appendChild(emptyDay);
+        adjacentMonthCell.innerHTML = `<div class="day-number">${dayNum}</div>`;
+        grid.appendChild(adjacentMonthCell);
     }
 
     const daysInMonth = lastDay.getDate();
@@ -448,11 +448,11 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     const totalCells = startDay + daysInMonth;
     const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
     for (let i = 1; i <= remainingCells; i++) {
-        const emptyDay = document.createElement('div');
-        emptyDay.className = 'calendar-day other-month';
-        emptyDay.setAttribute('aria-hidden', 'true');
-        emptyDay.innerHTML = `<div class="day-number">${i}</div>`;
-        grid.appendChild(emptyDay);
+        const adjacentMonthCell = document.createElement('div');
+        adjacentMonthCell.className = 'calendar-day other-month';
+        adjacentMonthCell.setAttribute('aria-hidden', 'true');
+        adjacentMonthCell.innerHTML = `<div class="day-number">${i}</div>`;
+        grid.appendChild(adjacentMonthCell);
     }
 
     calendarContainer.appendChild(grid);
@@ -608,11 +608,11 @@ function updateLegend() {
     const typesThisMonth = member
         ? getShiftTypesInMonth(member, currentDisplayYear, currentDisplayMonth)
         : new Set();
-    const show = (id, visible) => { const el = document.getElementById(id); if (el) el.style.display = visible ? '' : 'none'; };
-    show('legend-spare', typesThisMonth.has('SPARE'));
-    show('legend-rdw',   typesThisMonth.has('RDW'));
-    show('legend-al',    typesThisMonth.has('AL'));
-    show('legend-sick',  typesThisMonth.has('SICK'));
+    const setLegendItemVisible = (id, visible) => { const legendItem = document.getElementById(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
+    setLegendItemVisible('legend-spare', typesThisMonth.has('SPARE'));
+    setLegendItemVisible('legend-rdw',   typesThisMonth.has('RDW'));
+    setLegendItemVisible('legend-al',    typesThisMonth.has('AL'));
+    setLegendItemVisible('legend-sick',  typesThisMonth.has('SICK'));
     // Hide the whole row-2 if all four are absent
     const row2 = document.getElementById('legend-row-2');
     if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK')) ? '' : 'none';
@@ -647,8 +647,8 @@ function updateLegend() {
     function faithInMonth(dateSet, requiredCalendar) {
         if (faithCalendar !== requiredCalendar) return false;
         return [...dateSet].some(d => {
-            const [dy, dm] = d.split('-').map(Number);
-            return dy === y && (dm - 1) === m;
+            const [faithYear, faithMonth] = d.split('-').map(Number);
+            return faithYear === y && (faithMonth - 1) === m;
         });
     }
 
@@ -706,8 +706,8 @@ function updateLegend() {
         let cnyVisible = false;
         if (faithCalendar === 'chinese') {
             for (const [dateStr, { icon, label }] of CHINESE_NEW_YEAR_DATES) {
-                const [dy, dm] = dateStr.split('-').map(Number);
-                if (dy === y && (dm - 1) === m) {
+                const [faithYear, faithMonth] = dateStr.split('-').map(Number);
+                if (faithYear === y && (faithMonth - 1) === m) {
                     cnyText.textContent = `${icon} ${label}`;
                     cnyVisible = true;
                     break;

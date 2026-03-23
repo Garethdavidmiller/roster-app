@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.62';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.62';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.63';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.63';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -265,7 +265,7 @@ function initLoginOverlay() {
     lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
 })();
 
-// Override type metadata
+// Override type typeMetadata
 const TYPES = {
     spare_shift:  { label: 'Spare shift',       fixed: false },
     overtime:     { label: 'Overtime',           fixed: false },
@@ -313,12 +313,12 @@ const bulkDeleteBtn         = document.getElementById('bulkDeleteBtn');
 // ============================================
 const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
 roles.forEach(role => {
-    const grp1 = document.createElement('optgroup');
-    grp1.label = role;
+    const roleGroup = document.createElement('optgroup');
+    roleGroup.label = role;
     teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
-        grp1.appendChild(new Option(m.name, m.name));
+        roleGroup.appendChild(new Option(m.name, m.name));
     });
-    fieldMember.appendChild(grp1);
+    fieldMember.appendChild(roleGroup);
 });
 
 // Restore last used member — prefer the shared cross-page key (written by both index and admin)
@@ -339,10 +339,10 @@ fieldDate.value = (_urlDate && /^\d{4}-\d{2}-\d{2}$/.test(_urlDate)) ? _urlDate 
     const d    = new Date(fieldDate.value + 'T12:00:00');
     const sun  = new Date(d); sun.setDate(d.getDate() - d.getDay());
     const sat  = new Date(sun); sat.setDate(sun.getDate() + 6);
-    const el   = document.getElementById('weekNavLabel');
-    if (el) {
-        el.textContent = `${sun.getDate()} ${MONTH_ABB[sun.getMonth()]} – ${sat.getDate()} ${MONTH_ABB[sat.getMonth()]} ${sat.getFullYear()}`;
-        el.classList.add('is-current-week'); // init always shows today's week
+    const weekNavLabel   = document.getElementById('weekNavLabel');
+    if (weekNavLabel) {
+        weekNavLabel.textContent = `${sun.getDate()} ${MONTH_ABB[sun.getMonth()]} – ${sat.getDate()} ${MONTH_ABB[sat.getMonth()]} ${sat.getFullYear()}`;
+        weekNavLabel.classList.add('is-current-week'); // init always shows today's week
     }
 }());
 
@@ -417,9 +417,9 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     const SWIPE_PX  = SWIPE_THRESHOLD;  // shared constant from roster-data.js
     const SWIPE_VEL = SWIPE_VELOCITY;   // shared constant from roster-data.js
 
-    let wPrev = null, wNext = null, wCurrent = null;
-    let wW = 0, wX0 = 0, wY0 = 0, wT0 = 0;
-    let wListening = false, wDragging = false, wHapticFired = false, wCooldown = false;
+    let swipePanelPrev = null, swipePanelNext = null, swipePanelCurrent = null;
+    let swipePanelWidth = 0, swipeStartX = 0, swipeStartY = 0, swipeStartTime = 0;
+    let swipeListening = false, swipeDragging = false, swipeHapticFired = false, swipeCooldown = false;
 
     // Build a fully-functional adjacent week panel offset off-screen by delta weeks.
     function buildAdjPanel(delta) {
@@ -429,94 +429,94 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
         panel.className = 'week-panel week-carousel-panel';
         buildWeekGridInto(panel, formatISO(d));
         weekGrid.appendChild(panel);
-        panel.style.transform = `translate3d(${delta < 0 ? -wW : wW}px, 0, 0)`;
+        panel.style.transform = `translate3d(${delta < 0 ? -swipePanelWidth : swipePanelWidth}px, 0, 0)`;
         return panel;
     }
 
     function discardPanels() {
-        if (wPrev && wPrev.parentNode) wPrev.remove();
-        if (wNext && wNext.parentNode) wNext.remove();
-        wPrev = null; wNext = null;
+        if (swipePanelPrev && swipePanelPrev.parentNode) swipePanelPrev.remove();
+        if (swipePanelNext && swipePanelNext.parentNode) swipePanelNext.remove();
+        swipePanelPrev = null; swipePanelNext = null;
     }
 
     function snapBack() {
-        if (wCurrent) { wCurrent.style.transition = TRANSITION; wCurrent.style.transform = 'translate3d(0, 0, 0)'; }
-        if (wPrev)    { wPrev.style.transition    = TRANSITION; wPrev.style.transform    = `translate3d(${-wW}px, 0, 0)`; }
-        if (wNext)    { wNext.style.transition    = TRANSITION; wNext.style.transform    = `translate3d(${wW}px, 0, 0)`; }
+        if (swipePanelCurrent) { swipePanelCurrent.style.transition = TRANSITION; swipePanelCurrent.style.transform = 'translate3d(0, 0, 0)'; }
+        if (swipePanelPrev)    { swipePanelPrev.style.transition    = TRANSITION; swipePanelPrev.style.transform    = `translate3d(${-swipePanelWidth}px, 0, 0)`; }
+        if (swipePanelNext)    { swipePanelNext.style.transition    = TRANSITION; swipePanelNext.style.transform    = `translate3d(${swipePanelWidth}px, 0, 0)`; }
         setTimeout(() => {
             discardPanels();
-            if (wCurrent) { wCurrent.style.transition = ''; wCurrent.style.willChange = ''; }
-            wCurrent = null; wCooldown = false;
+            if (swipePanelCurrent) { swipePanelCurrent.style.transition = ''; swipePanelCurrent.style.willChange = ''; }
+            swipePanelCurrent = null; swipeCooldown = false;
         }, DURATION_MS + 50);
     }
 
     // pointerdown: record start position only — no capture, no panel building yet.
     weekGrid.addEventListener('pointerdown', e => {
-        if (!e.isPrimary || wCooldown) return;
+        if (!e.isPrimary || swipeCooldown) return;
         if (userMadeChanges) return;
         if (!fieldMember.value || !fieldDate.value) return;
 
-        wCurrent = weekGrid.querySelector('.week-panel:not(.week-carousel-panel)');
-        if (!wCurrent) return;
+        swipePanelCurrent = weekGrid.querySelector('.week-panel:not(.week-carousel-panel)');
+        if (!swipePanelCurrent) return;
 
         navigator.vibrate?.(0);  // prime Vibration API on Android Chrome
-        wX0 = e.clientX; wY0 = e.clientY; wT0 = e.timeStamp;
-        wListening = true; wDragging = false; wHapticFired = false;
+        swipeStartX = e.clientX; swipeStartY = e.clientY; swipeStartTime = e.timeStamp;
+        swipeListening = true; swipeDragging = false; swipeHapticFired = false;
     });
 
     // pointermove: confirm direction; start carousel only when clearly horizontal.
     weekGrid.addEventListener('pointermove', e => {
-        if (!e.isPrimary || !wListening) return;
-        const dx = e.clientX - wX0;
-        const dy = e.clientY - wY0;
+        if (!e.isPrimary || !swipeListening) return;
+        const dx = e.clientX - swipeStartX;
+        const dy = e.clientY - swipeStartY;
 
-        if (!wDragging) {
+        if (!swipeDragging) {
             if (Math.abs(dx) <= 5 && Math.abs(dy) <= 5) return;
 
             if (Math.abs(dy) >= Math.abs(dx)) {
                 // Vertical — abandon; let the browser scroll
-                wListening = false;
+                swipeListening = false;
                 return;
             }
 
             // Horizontal confirmed — commit to swipe gesture
-            wW = Math.ceil(weekGrid.getBoundingClientRect().width);
+            swipePanelWidth = Math.ceil(weekGrid.getBoundingClientRect().width);
             weekGrid.setPointerCapture(e.pointerId);
-            wCurrent.style.transition = 'none';
-            wCurrent.style.willChange = 'transform';
-            wPrev = buildAdjPanel(-1);
-            wNext = buildAdjPanel(+1);
-            wCooldown = true;
-            wDragging = true;
+            swipePanelCurrent.style.transition = 'none';
+            swipePanelCurrent.style.willChange = 'transform';
+            swipePanelPrev = buildAdjPanel(-1);
+            swipePanelNext = buildAdjPanel(+1);
+            swipeCooldown = true;
+            swipeDragging = true;
         }
 
-        wCurrent.style.transform = `translate3d(${dx}px, 0, 0)`;
-        if (wPrev) wPrev.style.transform = `translate3d(${-wW + dx}px, 0, 0)`;
-        if (wNext) wNext.style.transform = `translate3d(${wW + dx}px, 0, 0)`;
+        swipePanelCurrent.style.transform = `translate3d(${dx}px, 0, 0)`;
+        if (swipePanelPrev) swipePanelPrev.style.transform = `translate3d(${-swipePanelWidth + dx}px, 0, 0)`;
+        if (swipePanelNext) swipePanelNext.style.transform = `translate3d(${swipePanelWidth + dx}px, 0, 0)`;
 
-        if (!wHapticFired && Math.abs(dx) >= SWIPE_PX) {
+        if (!swipeHapticFired && Math.abs(dx) >= SWIPE_PX) {
             navigator.vibrate?.(6);
-            wHapticFired = true;
+            swipeHapticFired = true;
         }
     });
 
     weekGrid.addEventListener('pointerup', e => {
-        if (!e.isPrimary || !wListening) return;
-        wListening = false;
+        if (!e.isPrimary || !swipeListening) return;
+        swipeListening = false;
 
-        if (!wDragging) return; // was a tap — buttons/inputs handle their own clicks
-        wDragging = false;
+        if (!swipeDragging) return; // was a tap — buttons/inputs handle their own clicks
+        swipeDragging = false;
         try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
 
-        const dx  = e.clientX - wX0;
-        const vel = e.timeStamp > wT0 ? Math.abs(dx) / (e.timeStamp - wT0) : 0;
+        const dx  = e.clientX - swipeStartX;
+        const vel = e.timeStamp > swipeStartTime ? Math.abs(dx) / (e.timeStamp - swipeStartTime) : 0;
         const goLeft  = dx < 0 && (Math.abs(dx) >= SWIPE_PX || vel >= SWIPE_VEL);
         const goRight = dx > 0 && (Math.abs(dx) >= SWIPE_PX || vel >= SWIPE_VEL);
 
         if (goLeft || goRight) {
-            if (!wHapticFired) navigator.vibrate?.(6);
-            const incoming = goLeft ? wNext : wPrev;
-            const discard  = goLeft ? wPrev : wNext;
+            if (!swipeHapticFired) navigator.vibrate?.(6);
+            const incoming = goLeft ? swipePanelNext : swipePanelPrev;
+            const discard  = goLeft ? swipePanelPrev : swipePanelNext;
             if (!incoming) { snapBack(); return; }
 
             // Commit: advance date state before animation so label is correct
@@ -530,8 +530,8 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             userMadeChanges = false;
             if (shiftNote) shiftNote.value = '';
 
-            wCurrent.style.transition = TRANSITION;
-            wCurrent.style.transform  = `translate3d(${goLeft ? -wW : wW}px, 0, 0)`;
+            swipePanelCurrent.style.transition = TRANSITION;
+            swipePanelCurrent.style.transform  = `translate3d(${goLeft ? -swipePanelWidth : swipePanelWidth}px, 0, 0)`;
             incoming.style.transition = TRANSITION;
             incoming.style.transform  = 'translate3d(0, 0, 0)';
             if (discard && discard.parentNode) discard.remove();
@@ -539,11 +539,11 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             function restore() {
                 incoming.classList.remove('week-carousel-panel');
                 incoming.style.transition = incoming.style.transform = incoming.style.willChange = '';
-                if (wCurrent && wCurrent.parentNode) wCurrent.remove();
-                wPrev = wNext = wCurrent = null;
+                if (swipePanelCurrent && swipePanelCurrent.parentNode) swipePanelCurrent.remove();
+                swipePanelPrev = swipePanelNext = swipePanelCurrent = null;
                 resetBulkPills();
                 updateSaveBtn();
-                wCooldown = false;
+                swipeCooldown = false;
             }
             const timer = setTimeout(restore, DURATION_MS + 50);
             incoming.addEventListener('transitionend', () => { clearTimeout(timer); restore(); }, { once: true });
@@ -554,19 +554,19 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     });
 
     weekGrid.addEventListener('pointercancel', e => {
-        if (!e.isPrimary || !wListening) return;
-        wListening = false; wCooldown = false;
+        if (!e.isPrimary || !swipeListening) return;
+        swipeListening = false; swipeCooldown = false;
         try { weekGrid.releasePointerCapture(e.pointerId); } catch (_) {}
-        if (wDragging) {
-            wDragging = false;
-            if (wCurrent) { wCurrent.style.transition = wCurrent.style.transform = wCurrent.style.willChange = ''; }
-            discardPanels(); wCurrent = null;
+        if (swipeDragging) {
+            swipeDragging = false;
+            if (swipePanelCurrent) { swipePanelCurrent.style.transition = swipePanelCurrent.style.transform = swipePanelCurrent.style.willChange = ''; }
+            discardPanels(); swipePanelCurrent = null;
         }
     });
 
-    // Button handlers inside IIFE so they share the wCooldown closure variable
-    prevWeekBtn.addEventListener('click', () => { if (!wCooldown) shiftWeek(-1); });
-    nextWeekBtn.addEventListener('click', () => { if (!wCooldown) shiftWeek(+1); });
+    // Button handlers inside IIFE so they share the swipeCooldown closure variable
+    prevWeekBtn.addEventListener('click', () => { if (!swipeCooldown) shiftWeek(-1); });
+    nextWeekBtn.addEventListener('click', () => { if (!swipeCooldown) shiftWeek(+1); });
 })();
 
 // ============================================
@@ -742,19 +742,19 @@ function buildWeekGridInto(container, dateStr) {
         container.appendChild(row);
 
         // Refs
-        const cb      = row.querySelector('.day-cb');
-        const pills   = row.querySelectorAll('.type-pill-btn');
-        const startEl = row.querySelector('.day-start');
-        const endEl   = row.querySelector('.day-end');
+        const checkbox = row.querySelector('.day-cb');
+        const pills    = row.querySelectorAll('.type-pill-btn');
+        const startEl  = row.querySelector('.day-start');
+        const endEl    = row.querySelector('.day-end');
 
         // Pre-fill with existing override if present.
         // Mark as prefilled-existing so the save button doesn't light up until
         // the user explicitly changes something — and so deactivation can trigger deletion.
         if (existing) {
-            const meta = TYPES[existing.type];
-            activateRow(row, cb, pills, startEl, endEl, existing.type);
+            const typeMeta = TYPES[existing.type];
+            activateRow(row, checkbox, pills, startEl, endEl, existing.type);
             row.classList.add('prefilled-existing');
-            if (meta && !meta.fixed && existing.value && existing.value.includes('-')) {
+            if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
                 const [s, e] = existing.value.split('-');
                 startEl.value = s;
                 endEl.value   = e;
@@ -772,11 +772,11 @@ function buildWeekGridInto(container, dateStr) {
                 const already = pill.classList.contains('active');
                 row.classList.remove('prefilled-existing');
                 if (already) {
-                    deactivateRow(row, cb, pills, startEl, endEl);
+                    deactivateRow(row, checkbox, pills, startEl, endEl);
                 } else {
-                    activateRow(row, cb, pills, startEl, endEl, type);
-                    const meta = TYPES[type];
-                    if (meta && !meta.fixed) startEl.focus();
+                    activateRow(row, checkbox, pills, startEl, endEl, type);
+                    const typeMeta = TYPES[type];
+                    if (typeMeta && !typeMeta.fixed) startEl.focus();
                 }
                 markChanged();
                 updateSaveBtn();
@@ -784,12 +784,12 @@ function buildWeekGridInto(container, dateStr) {
         });
 
         // Checkbox: syncs with pill state
-        cb.addEventListener('change', () => {
-            if (cb.checked) {
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
                 row.classList.remove('prefilled-existing');
-                deactivateRow(row, cb, pills, startEl, endEl);
+                deactivateRow(row, checkbox, pills, startEl, endEl);
             }
             markChanged();
             updateSaveBtn();
@@ -853,13 +853,13 @@ function renderWeekGrid() {
  * @param {HTMLInputElement}    endEl   The shift-end time input
  * @param {string}              type    Override type key (e.g. 'annual_leave', 'swap')
  */
-function activateRow(row, cb, pills, startEl, endEl, type) {
-    cb.checked = true;
+function activateRow(row, checkbox, pills, startEl, endEl, type) {
+    checkbox.checked = true;
     row.classList.add('active');
     row.classList.remove('selected');
     pills.forEach(p => p.classList.toggle('active', p.dataset.type === type));
-    const meta = TYPES[type];
-    if (meta && meta.fixed) {
+    const typeMeta = TYPES[type];
+    if (typeMeta && typeMeta.fixed) {
         row.classList.add('fixed-type');
         startEl.tabIndex = -1;
         endEl.tabIndex   = -1;
@@ -882,8 +882,8 @@ function activateRow(row, cb, pills, startEl, endEl, type) {
  * @param {HTMLInputElement} startEl The shift-start time input
  * @param {HTMLInputElement} endEl   The shift-end time input
  */
-function deactivateRow(row, cb, pills, startEl, endEl) {
-    cb.checked = false;
+function deactivateRow(row, checkbox, pills, startEl, endEl) {
+    checkbox.checked = false;
     row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
     pills.forEach(p => p.classList.remove('active'));
     startEl.value = endEl.value = '';
@@ -922,10 +922,10 @@ function updateSaveBtn() {
 
 /** Updates the "N days selected" counter in the bulk bar. */
 function updateBulkSelCount() {
-    const el = document.getElementById('bulkSelCount');
-    if (!el) return;
+    const selCountDisplay = document.getElementById('bulkSelCount');
+    if (!selCountDisplay) return;
     const n = weekGrid.querySelectorAll('.day-cb:checked').length;
-    el.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
+    selCountDisplay.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
 }
 
 // ============================================
@@ -949,8 +949,8 @@ bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pill => {
         bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
         pill.classList.add('active');
         bulkActiveType = type;
-        const meta = TYPES[type];
-        bulkTimeGroup.style.display = (meta && !meta.fixed) ? 'flex' : 'none';
+        const typeMeta = TYPES[type];
+        bulkTimeGroup.style.display = (typeMeta && !typeMeta.fixed) ? 'flex' : 'none';
         bulkStart.value = bulkEnd.value = '';
     });
 });
@@ -958,18 +958,18 @@ bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pill => {
 // Day selection shortcuts
 document.getElementById('bulkSelMonFri').addEventListener('click', () => {
     weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const dayIdx = new Date(row.dataset.date + 'T12:00:00').getDay();
-        const cb = row.querySelector('.day-cb');
-        if (!cb) return;
+        const dayIdx   = new Date(row.dataset.date + 'T12:00:00').getDay();
+        const checkbox = row.querySelector('.day-cb');
+        if (!checkbox) return;
         // Mon=1, Fri=5
         if (dayIdx >= 1 && dayIdx <= 5) {
-            cb.checked = true;
+            checkbox.checked = true;
             if (!row.dataset.type) row.classList.add('selected');
         } else {
-            const pills  = row.querySelectorAll('.type-pill-btn');
+            const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
             const endEl   = row.querySelector('.day-end');
-            deactivateRow(row, cb, pills, startEl, endEl);
+            deactivateRow(row, checkbox, pills, startEl, endEl);
         }
     });
     updateSaveBtn();
@@ -980,19 +980,19 @@ document.getElementById('bulkSelWorking').addEventListener('click', () => {
     const memberName = fieldMember.value;
     const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
     weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const date  = new Date(row.dataset.date + 'T12:00:00');
-        const cb    = row.querySelector('.day-cb');
-        if (!cb) return;
+        const date     = new Date(row.dataset.date + 'T12:00:00');
+        const checkbox = row.querySelector('.day-cb');
+        if (!checkbox) return;
         const base  = member ? getBaseShift(member, date) : 'RD';
         const works = base !== 'RD' && base !== 'OFF';
         if (works) {
-            cb.checked = true;
+            checkbox.checked = true;
             if (!row.dataset.type) row.classList.add('selected');
         } else {
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
             const endEl   = row.querySelector('.day-end');
-            deactivateRow(row, cb, pills, startEl, endEl);
+            deactivateRow(row, checkbox, pills, startEl, endEl);
         }
     });
     updateSaveBtn();
@@ -1001,9 +1001,9 @@ document.getElementById('bulkSelWorking').addEventListener('click', () => {
 
 document.getElementById('bulkSelAll').addEventListener('click', () => {
     weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const cb = row.querySelector('.day-cb');
-        if (!cb) return;
-        cb.checked = true;
+        const checkbox = row.querySelector('.day-cb');
+        if (!checkbox) return;
+        checkbox.checked = true;
         if (!row.dataset.type) row.classList.add('selected');
     });
     updateSaveBtn();
@@ -1013,16 +1013,16 @@ document.getElementById('bulkSelAll').addEventListener('click', () => {
 // Apply bulk type + time to all active (checked) rows
 bulkApplyBtn.addEventListener('click', () => {
     if (!bulkActiveType) { showError('Choose a type in step 2 first, then tap Apply.'); return; }
-    const meta = TYPES[bulkActiveType];
+    const typeMeta = TYPES[bulkActiveType];
 
     weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const cb = row.querySelector('.day-cb');
-        if (!cb || !cb.checked) return;
+        const checkbox = row.querySelector('.day-cb');
+        if (!checkbox || !checkbox.checked) return;
         const pills   = row.querySelectorAll('.type-pill-btn');
         const startEl = row.querySelector('.day-start');
         const endEl   = row.querySelector('.day-end');
-        activateRow(row, cb, pills, startEl, endEl, bulkActiveType);
-        if (meta && !meta.fixed) {
+        activateRow(row, checkbox, pills, startEl, endEl, bulkActiveType);
+        if (typeMeta && !typeMeta.fixed) {
             if (bulkStart.value) startEl.value = bulkStart.value;
             if (bulkEnd.value)   endEl.value   = bulkEnd.value;
         }
@@ -1058,14 +1058,14 @@ saveBtn.addEventListener('click', async () => {
 
         const date    = row.dataset.date;
         const type    = row.dataset.type;
-        const meta    = TYPES[type];
+        const typeMeta    = TYPES[type];
         const startEl = row.querySelector('.day-start');
         const endEl   = row.querySelector('.day-end');
         const note    = batchNote;
 
         let value;
-        if (meta && meta.fixed) {
-            value = meta.fixedValue;
+        if (typeMeta && typeMeta.fixed) {
+            value = typeMeta.fixedValue;
         } else {
             const s = startEl.value.trim();
             const e = endEl.value.trim();
@@ -1178,11 +1178,11 @@ async function executeSave(toSave, toDelete = []) {
 
         // Reset checked rows
         weekGrid.querySelectorAll('.day-row').forEach(row => {
-            const cb    = row.querySelector('.day-cb');
-            const pills = row.querySelectorAll('.type-pill-btn');
-            const s     = row.querySelector('.day-start');
-            const e     = row.querySelector('.day-end');
-            if (cb) deactivateRow(row, cb, pills, s, e);
+            const checkbox = row.querySelector('.day-cb');
+            const pills    = row.querySelectorAll('.type-pill-btn');
+            const s        = row.querySelector('.day-start');
+            const e        = row.querySelector('.day-end');
+            if (checkbox) deactivateRow(row, checkbox, pills, s, e);
         });
 
         // Update allOverrides in-memory — no Firestore round-trip needed
@@ -1319,13 +1319,13 @@ function renderTable() {
     if (selectAllOverrides) selectAllOverrides.checked = false;
     if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
     rows.forEach(o => {
-        const meta = TYPES[o.type];
+        const typeMeta = TYPES[o.type];
         const tr   = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${esc(o.memberName)} ${o.date}"></td>
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
             <td>${esc(o.memberName)}</td>
-            <td><span class="list-type-pill lpill-${o.type}">${meta ? meta.label : esc(o.type)}</span></td>
+            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : esc(o.type)}</span></td>
             <td style="font-family:monospace;font-size:12px">${esc(o.value)}</td>
             <td style="color:var(--text-light);font-style:italic">${esc(o.note)}</td>
             <td>
@@ -1338,24 +1338,24 @@ function renderTable() {
     });
     tableBody.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', handleDelete));
     tableBody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
-    tableBody.querySelectorAll('.row-select').forEach(cb => cb.addEventListener('change', updateBulkDeleteVisibility));
+    tableBody.querySelectorAll('.row-select').forEach(checkbox => checkbox.addEventListener('change', updateBulkDeleteVisibility));
 }
 
 /** Shows or hides the "Delete selected" button based on how many rows are checked. */
 function updateBulkDeleteVisibility() {
-    const checked = tableBody.querySelectorAll('.row-select:checked').length;
-    if (bulkDeleteBtn) bulkDeleteBtn.style.display = checked > 0 ? 'inline-block' : 'none';
+    const checkedCount = tableBody.querySelectorAll('.row-select:checked').length;
+    if (bulkDeleteBtn) bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
     if (selectAllOverrides) {
         const total = tableBody.querySelectorAll('.row-select').length;
-        selectAllOverrides.checked = total > 0 && checked === total;
-        selectAllOverrides.indeterminate = checked > 0 && checked < total;
+        selectAllOverrides.checked = total > 0 && checkedCount === total;
+        selectAllOverrides.indeterminate = checkedCount > 0 && checkedCount < total;
     }
 }
 
 // Select-all checkbox — checks/unchecks every visible row and updates the button visibility.
 if (selectAllOverrides) {
     selectAllOverrides.addEventListener('change', () => {
-        tableBody.querySelectorAll('.row-select').forEach(cb => { cb.checked = selectAllOverrides.checked; });
+        tableBody.querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selectAllOverrides.checked; });
         updateBulkDeleteVisibility();
     });
 }
@@ -1363,9 +1363,9 @@ if (selectAllOverrides) {
 // Bulk delete — deletes all checked rows in one Firestore batch.
 if (bulkDeleteBtn) {
     bulkDeleteBtn.addEventListener('click', async () => {
-        const checked = [...tableBody.querySelectorAll('.row-select:checked')];
-        if (!checked.length) return;
-        const ids = checked.map(cb => cb.dataset.id);
+        const checkedRows = [...tableBody.querySelectorAll('.row-select:checked')];
+        if (!checkedRows.length) return;
+        const ids = checkedRows.map(checkbox => checkbox.dataset.id);
         bulkDeleteBtn.disabled = true;
         bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
         try {
@@ -1434,8 +1434,8 @@ async function handleDelete(e) {
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         // Brief confirmation of what was removed
         if (deleted && listFeedback) {
-            const meta = TYPES[deleted.type];
-            listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${meta ? meta.label : deleted.type})`;
+            const typeMeta = TYPES[deleted.type];
+            listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`;
             listFeedback.className = 'list-feedback success';
             setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
         }
@@ -1482,28 +1482,28 @@ function handleEdit(e) {
 // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
 document.addEventListener('input', e => {
     if (!e.target.classList.contains('time-input')) return;
-    const el  = e.target;
+    const timeInput  = e.target;
     // Clear error while user is typing so the red border doesn't linger mid-edit
-    el.classList.remove('input-error');
-    const raw = el.value.replace(/[^0-9]/g, '').slice(0, 4);
+    timeInput.classList.remove('input-error');
+    const raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
     if (raw.length >= 3) {
-        el.value = raw.slice(0, 2) + ':' + raw.slice(2);
+        timeInput.value = raw.slice(0, 2) + ':' + raw.slice(2);
     } else {
-        el.value = raw;
+        timeInput.value = raw;
     }
 });
 
 // On blur: validate completed time and show inline error if malformed
 document.addEventListener('focusout', e => {
     if (!e.target.classList.contains('time-input')) return;
-    const el  = e.target;
-    const val = el.value.trim();
-    if (!val) { el.classList.remove('input-error'); return; } // empty is fine (caught on save)
+    const timeInput  = e.target;
+    const val = timeInput.value.trim();
+    if (!val) { timeInput.classList.remove('input-error'); return; } // empty is fine (caught on save)
     const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
     if (!timeRe.test(val)) {
-        el.classList.add('input-error');
+        timeInput.classList.add('input-error');
     } else {
-        el.classList.remove('input-error');
+        timeInput.classList.remove('input-error');
     }
 });
 
@@ -1749,8 +1749,8 @@ if (lastMember) alMember.value = lastMember;
 
 // Helper: keep alMemberDisplay in sync with fieldMember
 function syncMemberDisplay() {
-    const el = document.getElementById('alMemberDisplay');
-    if (el) el.textContent = fieldMember.value || 'Select a staff member above';
+    const memberDisplay = document.getElementById('alMemberDisplay');
+    if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
 }
 syncMemberDisplay(); // set on page load
 
@@ -1986,8 +1986,8 @@ if (lastMember) sickMember.value = lastMember;
 
 /** Keep the sick section's read-only member display in sync with fieldMember. */
 function syncSickMemberDisplay() {
-    const el = document.getElementById('sickMemberDisplay');
-    if (el) el.textContent = fieldMember.value || 'Select a staff member above';
+    const memberDisplay = document.getElementById('sickMemberDisplay');
+    if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
 }
 syncSickMemberDisplay();
 
@@ -2797,8 +2797,8 @@ window.addEventListener('beforeprint', () => {
     const member    = fieldMember.value || 'All members';
     const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
     const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
-    const el        = document.getElementById('printHeader');
-    if (el) el.innerHTML = `MYB Roster \u2014 ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} \u00b7 Printed: ${esc(now)}</span>`;
+    const printHeaderEl        = document.getElementById('printHeader');
+    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster \u2014 ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} \u00b7 Printed: ${esc(now)}</span>`;
 });
 
 if (!isAuthenticated) {
@@ -2852,10 +2852,10 @@ if ('serviceWorker' in navigator) {
 
             // A new SW starts downloading — watch for it to finish installing
             registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                if (!newWorker) return;
-                newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                const neswipePanelWidthorker = registration.installing;
+                if (!neswipePanelWidthorker) return;
+                neswipePanelWidthorker.addEventListener('statechange', () => {
+                    if (neswipePanelWidthorker.state === 'installed' && navigator.serviceWorker.controller) {
                         showUpdateToast();
                     }
                 });

@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '5.62';
+export const APP_VERSION = '5.63';
 
 // ============================================
 // CONFIGURATION
@@ -121,7 +121,7 @@ export const teamMembers = [
  * @param {Array}  overrides — flat array of override objects { memberName, date, value, ... }
  * @returns {number}  count of bank holidays on which the member worked
  */
-function getDispatcherBankHolidayLieu(member, year, overrides) {
+function countDispatcherBankHolidaysWorked(member, year, overrides) {
     const NON_WORKED = new Set(['RD', 'OFF', 'SPARE', 'AL', 'SICK']);
     const bankHolidays = getBankHolidays(year);
 
@@ -167,7 +167,7 @@ function getDispatcherBankHolidayLieu(member, year, overrides) {
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
     if (!member) return 32;
-    if (member.role === 'Dispatcher') return 22 + getDispatcherBankHolidayLieu(member, year, overrides);
+    if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
     if (member.rosterType === 'fixed') return 34; // C. Reen — reasonable adjustments
     return 32;
@@ -1046,7 +1046,7 @@ export function warnIfCulturalCalendarMissingYear() {
     // Only the genuinely lunar/lunisolar datasets need manual updates each year.
     // Fixed-date, Easter-relative, and day-of-week-rule datasets are auto-computed
     // and will always have data — they are intentionally excluded from this check.
-    const checks = [
+    const lunarCalendarDatasets = [
         // Islamic — shift ~11 days earlier each year; verify against islamicfinder.org
         { name: 'Islamic (Ramadan)',       dates: RAMADAN_STARTS },
         { name: 'Islamic (Eid al-Fitr)',   dates: EID_FITR_DATES },
@@ -1067,7 +1067,7 @@ export function warnIfCulturalCalendarMissingYear() {
         { name: 'Chinese (Mid-Autumn)',    dates: MID_AUTUMN_DATES },
     ];
 
-    checks.forEach(({ name, dates }) => {
+    lunarCalendarDatasets.forEach(({ name, dates }) => {
         // Sets store 'YYYY-MM-DD' strings; Maps (CHINESE_NEW_YEAR_DATES) store date string keys
         const hasYear = dates instanceof Map
             ? [...dates.keys()].some(k => k.startsWith(yearStr))
