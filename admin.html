@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.61 -->
+<!-- MYB Roster Admin v5.62 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.61">
+    <link rel="stylesheet" href="shared.css?v=5.62">
 
     <style>
         body {
@@ -1330,6 +1330,23 @@
             white-space: nowrap;
             margin-left: 8px;
         }
+        .btn-period-delete {
+            margin-left: 10px;
+            padding: 2px 8px;
+            border: 1px solid #e53935;
+            border-radius: 6px;
+            background: #fff;
+            color: #e53935;
+            font-size: 11px;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .btn-period-delete.confirming {
+            background: #e53935;
+            color: #fff;
+        }
 
         .al-preview {
             padding: 8px 12px;
@@ -2177,6 +2194,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.61"></script>
+<script type="module" src="./admin-app.js?v=5.62"></script>
 </body>
 </html>

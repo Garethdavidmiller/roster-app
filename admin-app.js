@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.61';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.61';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.62';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.62';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2146,6 +2146,58 @@ sickSaveBtn.addEventListener('click', async () => {
  * Shows sick periods grouped by month, merging consecutive dates that are
  * bridged by rest days on the base roster (same logic as AL booked box).
  */
+/**
+ * Deletes all overrides of the given type for a member within a date range.
+ * Used by the period-row delete buttons in the AL and sick booked boxes.
+ * @param {string}      type       'annual_leave' | 'sick'
+ * @param {string}      memberName
+ * @param {string}      start      YYYY-MM-DD — inclusive
+ * @param {string}      end        YYYY-MM-DD — inclusive
+ * @param {HTMLElement} feedbackEl Feedback div to write success/error into
+ * @param {HTMLElement} btn        The delete button (disabled during the request)
+ */
+async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
+    const toDelete = allOverrides.filter(o =>
+        o.memberName === memberName &&
+        o.type       === type &&
+        o.date       >= start &&
+        o.date       <= end
+    );
+    if (!toDelete.length) return;
+    btn.disabled    = true;
+    btn.textContent = '…';
+    try {
+        const batch = writeBatch(db);
+        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
+        await batch.commit();
+        const ids = new Set(toDelete.map(o => o.id));
+        allOverrides = allOverrides.filter(o => !ids.has(o.id));
+        renderTable();
+        updateALBanner();
+        updateALBookedBox();
+        updateSickBookedBox();
+        if (fieldMember.value && fieldDate.value) renderWeekGrid();
+        if (feedbackEl) {
+            const noun = type === 'annual_leave' ? 'AL day' : 'sick day';
+            feedbackEl.textContent = `✓ Deleted ${toDelete.length} ${noun}${toDelete.length !== 1 ? 's' : ''} for ${memberName}`;
+            feedbackEl.className = 'feedback success';
+            setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
+        }
+    } catch (err) {
+        console.error('[Admin] Period delete failed:', err);
+        btn.disabled = false;
+        btn.classList.remove('confirming');
+        btn.textContent = 'Delete';
+        if (feedbackEl) {
+            const msg = err.code === 'unavailable'
+                ? '⚠ You appear to be offline — reconnect and try again.'
+                : '⚠ Delete failed — check your connection and try again.';
+            feedbackEl.textContent = msg;
+            feedbackEl.className = 'feedback error';
+        }
+    }
+}
+
 function updateSickBookedBox() {
     const box  = document.getElementById('sickBookedBox');
     const body = document.getElementById('sickBookedBody');
@@ -2222,23 +2274,44 @@ function updateSickBookedBox() {
         (byMonth[key] = byMonth[key] || []).push(p);
     }
 
-    let html = '';
+    // Render — use createElement so delete buttons can have direct event listeners
+    body.innerHTML = '';
+    const sickFeedbackEl = document.getElementById('sickFeedback');
     for (const key of Object.keys(byMonth).sort()) {
         const [yr, mo] = key.split('-');
-        const monthLabel = `${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}`;
-        html += `<div class="al-period-month"><div class="al-period-month-hdr">${monthLabel}</div>`;
+        const monthDiv = document.createElement('div');
+        monthDiv.className = 'al-period-month';
+        monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
             const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
             const countStr = `${p.count} sick day${p.count !== 1 ? 's' : ''}`;
-            html += `<div class="al-period-row">
+            const row = document.createElement('div');
+            row.className = 'al-period-row';
+            row.innerHTML = `
                 <span class="al-period-dates">${dateStr}</span>
-                <span class="sick-period-count">${countStr}</span>
-            </div>`;
+                <span class="sick-period-count">${countStr}</span>`;
+            const btn = document.createElement('button');
+            btn.className   = 'btn-period-delete';
+            btn.textContent = 'Delete';
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('confirming')) {
+                    btn.classList.add('confirming');
+                    btn.textContent = '⚠ Delete?';
+                    setTimeout(() => {
+                        if (btn.classList.contains('confirming')) {
+                            btn.classList.remove('confirming');
+                            btn.textContent = 'Delete';
+                        }
+                    }, 5000);
+                    return;
+                }
+                deletePeriodOverrides('sick', memberName, p.start, p.end, sickFeedbackEl, btn);
+            });
+            row.appendChild(btn);
+            monthDiv.appendChild(row);
         }
-        html += `</div>`;
+        body.appendChild(monthDiv);
     }
-
-    body.innerHTML = html;
     box.hidden = false;
 }
 
@@ -2405,24 +2478,44 @@ function updateALBookedBox() {
         (byMonth[key] = byMonth[key] || []).push(p);
     }
 
-    // Render
-    let html = '';
+    // Render — use createElement so delete buttons can have direct event listeners
+    body.innerHTML = '';
+    const alFeedbackEl = document.getElementById('alFeedback');
     for (const key of Object.keys(byMonth).sort()) {
         const [yr, mo] = key.split('-');
-        const monthLabel = `${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}`;
-        html += `<div class="al-period-month"><div class="al-period-month-hdr">${monthLabel}</div>`;
+        const monthDiv = document.createElement('div');
+        monthDiv.className = 'al-period-month';
+        monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
             const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
             const countStr = `${p.count} day${p.count !== 1 ? 's' : ''} AL`;
-            html += `<div class="al-period-row">
+            const row = document.createElement('div');
+            row.className = 'al-period-row';
+            row.innerHTML = `
                 <span class="al-period-dates">${dateStr}</span>
-                <span class="al-period-count">${countStr}</span>
-            </div>`;
+                <span class="al-period-count">${countStr}</span>`;
+            const btn = document.createElement('button');
+            btn.className   = 'btn-period-delete';
+            btn.textContent = 'Delete';
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('confirming')) {
+                    btn.classList.add('confirming');
+                    btn.textContent = '⚠ Delete?';
+                    setTimeout(() => {
+                        if (btn.classList.contains('confirming')) {
+                            btn.classList.remove('confirming');
+                            btn.textContent = 'Delete';
+                        }
+                    }, 5000);
+                    return;
+                }
+                deletePeriodOverrides('annual_leave', memberName, p.start, p.end, alFeedbackEl, btn);
+            });
+            row.appendChild(btn);
+            monthDiv.appendChild(row);
         }
-        html += `</div>`;
+        body.appendChild(monthDiv);
     }
-
-    body.innerHTML = html;
     box.hidden = false;
 }
 
