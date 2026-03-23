@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '5.60';
+export const APP_VERSION = '5.62';
 
 // ============================================
 // CONFIGURATION
@@ -26,7 +26,7 @@ export const CONFIG = {
     CES_ROSTER_REFERENCE_DATE:        new Date(2026, 1, 15, 12, 0, 0),          // Feb 15, 2026 (F. Mohamed on CES Week 1)
     DISPATCHER_ROSTER_REFERENCE_DATE: new Date(2026, 1, 1,  12, 0, 0),          // Feb 1, 2026 (Minto on Week 1, all 10 consecutive)
     MIN_YEAR:                         2024,                                      // Earliest navigable year
-    MAX_YEAR:                         2030,                                      // Latest navigable year
+    MAX_YEAR:                         2030,                                      // Latest navigable year — extend to 2032+ by end of 2028; update lunar calendar data first
     EARLY_START_THRESHOLD:            4,                                         // Shifts starting 04:00–10:59 are Early
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
@@ -141,7 +141,10 @@ function getDispatcherBankHolidayLieu(member, year, overrides) {
         const d = String(bh.getDate()).padStart(2, '0');
         const dateStr = `${y}-${m}-${d}`;
 
-        // Override takes precedence; fall back to base roster
+        // Override takes precedence; fall back to base roster.
+        // NOTE: getBaseShift applies isChristmasRD, so Dec 26 (Boxing Day) always returns
+        // 'RD' from the base roster even when a dispatcher is scheduled to work. A lieu day
+        // for Boxing Day is only counted when an RDW override is recorded for that date.
         const shift = overrideMap.has(dateStr)
             ? overrideMap.get(dateStr)
             : getBaseShift(member, bh);
@@ -261,6 +264,11 @@ export const dispatcherRoster = {
 export const DAY_KEYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Swipe gesture thresholds — shared by app.js and admin-app.js so tuning
+// in one place applies to both pages.
+export const SWIPE_THRESHOLD = 75;   // Minimum px to count as an intentional swipe
+export const SWIPE_VELOCITY  = 0.4;  // px/ms — fast flick commits even below distance threshold
 
 // ============================================
 // CALENDAR DATE HELPERS
@@ -630,8 +638,25 @@ export function isSameDay(date1, date2) {
            date1.getFullYear() === date2.getFullYear();
 }
 
+// ============================================
+// SPECIAL (ONE-OFF) BANK HOLIDAYS
+// ============================================
+// For government-announced extra bank holidays (jubilees, coronations etc.)
+// that fall outside the standard algorithm. Add entries here as they are
+// announced. Format: { year: number, month: number (1-based), day: number }
+//
+// Historical examples (already past, kept for reference):
+//   { year: 2022, month: 6, day: 3 }  — Platinum Jubilee extra BH
+//   { year: 2023, month: 5, day: 8 }  — King's Coronation extra BH
+//
+// None currently scheduled for 2024–2030. Check gov.uk each autumn.
+export const SPECIAL_BANK_HOLIDAYS = [
+    // Add future one-off bank holidays here when announced by the government.
+];
+
 // Calculate all UK bank holidays for a given year (England & Wales).
-// Uses the Computus algorithm for Easter. Returns an array of Date objects.
+// Delegates Easter to computeEaster() — no Computus code is duplicated here.
+// Returns an array of Date objects.
 // Only supports years within CONFIG.MIN_YEAR–CONFIG.MAX_YEAR; returns [] outside that range.
 function calculateBankHolidays(year) {
     if (year < CONFIG.MIN_YEAR || year > CONFIG.MAX_YEAR) {
@@ -646,22 +671,8 @@ function calculateBankHolidays(year) {
     else if (newYear.getDay() === 6) holidays.push(new Date(year, 0, 3)); // Sat → Mon
     else                             holidays.push(newYear);
 
-    // Easter calculation (Computus algorithm)
-    const a = year % 19;
-    const b = Math.floor(year / 100);
-    const c = year % 100;
-    const d = Math.floor(b / 4);
-    const e = b % 4;
-    const f = Math.floor((b + 8) / 25);
-    const g = Math.floor((b - f + 1) / 3);
-    const h = (19 * a + b - d - g + 15) % 30;
-    const i = Math.floor(c / 4);
-    const k = c % 4;
-    const l = (32 + 2 * e + 2 * i - h - k) % 7;
-    const m = Math.floor((a + 11 * h + 22 * l) / 451);
-    const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-    const day   = ((h + l - 7 * m + 114) % 31) + 1;
-    const easter = new Date(year, month, day);
+    // Easter — delegated to computeEaster() to avoid duplicating the Computus algorithm
+    const easter = computeEaster(year);
 
     // Good Friday (2 days before Easter Sunday)
     const goodFriday = new Date(easter);
@@ -704,14 +715,19 @@ function calculateBankHolidays(year) {
         holidays.push(new Date(year, 11, 26));
     }
 
+    // One-off government-announced bank holidays (jubilees, coronations, etc.)
+    SPECIAL_BANK_HOLIDAYS
+        .filter(bh => bh.year === year)
+        .forEach(bh => holidays.push(new Date(year, bh.month - 1, bh.day)));
+
     return holidays;
 }
 
 // Cache and getter for bank holidays (calculated once per year)
-const _bankHolidaysCache = {};
+const _bankHolidaysCache = new Map();
 export function getBankHolidays(year) {
-    if (!_bankHolidaysCache[year]) _bankHolidaysCache[year] = calculateBankHolidays(year);
-    return _bankHolidaysCache[year];
+    if (!_bankHolidaysCache.has(year)) _bankHolidaysCache.set(year, calculateBankHolidays(year));
+    return _bankHolidaysCache.get(year);
 }
 
 export function isBankHoliday(date) {
@@ -734,10 +750,10 @@ export function isEasterSunday(date) {
 }
 
 // Cache and calculator for paydays + cutoff dates
-const _paydayCache = {};
+const _paydayCache = new Map();
 export function getPaydaysAndCutoffs(year) {
     if (year < CONFIG.MIN_YEAR) return { paydays: [], cutoffs: [] };
-    if (!_paydayCache[year]) {
+    if (!_paydayCache.has(year)) {
         const paydays = [];
         const cutoffs = [];
         const msPerDay = 24 * 60 * 60 * 1000;
@@ -776,9 +792,9 @@ export function getPaydaysAndCutoffs(year) {
 
             currentMs += CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
         }
-        _paydayCache[year] = { paydays, cutoffs };
+        _paydayCache.set(year, { paydays, cutoffs });
     }
-    return _paydayCache[year];
+    return _paydayCache.get(year);
 }
 
 export function isPayday(date) {
@@ -899,11 +915,74 @@ export const PORTUGUESE_ICONS = {
 };
 
 // ============================================
+// FAITH BADGE LOOKUP — single source of truth for cultural calendar markers
+// ============================================
+
+/**
+ * Returns the cultural calendar marker for a date, or null if none matches.
+ * This is the canonical lookup — both app.js and getSpecialDayBadges use it
+ * so adding a new calendar only requires updating this one function.
+ *
+ * @param {string} dateStr       YYYY-MM-DD
+ * @param {string} faithCalendar 'none'|'islamic'|'hindu'|'chinese'|'jamaican'|'congolese'|'portuguese'
+ * @returns {{ icon: string, label: string }|null}
+ */
+export function getFaithBadge(dateStr, faithCalendar) {
+    if (faithCalendar === 'islamic') {
+        if (RAMADAN_STARTS.has(dateStr))         return { icon: ISLAMIC_ICONS['ramadan'],    label: ISLAMIC_LABELS['ramadan']    };
+        if (EID_FITR_DATES.has(dateStr))         return { icon: ISLAMIC_ICONS['eid-fitr'],   label: ISLAMIC_LABELS['eid-fitr']   };
+        if (EID_ADHA_DATES.has(dateStr))         return { icon: ISLAMIC_ICONS['eid-adha'],   label: ISLAMIC_LABELS['eid-adha']   };
+        if (ISLAMIC_NEW_YEAR_DATES.has(dateStr)) return { icon: ISLAMIC_ICONS['islamic-ny'], label: ISLAMIC_LABELS['islamic-ny'] };
+        if (MAWLID_DATES.has(dateStr))           return { icon: ISLAMIC_ICONS['mawlid'],     label: ISLAMIC_LABELS['mawlid']     };
+    }
+    if (faithCalendar === 'hindu') {
+        if (HOLI_DATES.has(dateStr))           return { icon: HINDU_ICONS['holi'],    label: HINDU_LABELS['holi']    };
+        if (NAVRATRI_DATES.has(dateStr))       return { icon: HINDU_ICONS['navratri'], label: HINDU_LABELS['navratri'] };
+        if (DUSSEHRA_DATES.has(dateStr))       return { icon: HINDU_ICONS['dussehra'], label: HINDU_LABELS['dussehra'] };
+        if (DIWALI_DATES.has(dateStr))         return { icon: HINDU_ICONS['diwali'],   label: HINDU_LABELS['diwali']   };
+        if (RAKSHA_BANDHAN_DATES.has(dateStr)) return { icon: HINDU_ICONS['raksha'],   label: HINDU_LABELS['raksha']   };
+    }
+    if (faithCalendar === 'chinese') {
+        const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
+        if (cny)                                 return { icon: cny.icon,                    label: cny.label                    };
+        if (LANTERN_FESTIVAL_DATES.has(dateStr)) return { icon: CHINESE_ICONS['lantern'],     label: CHINESE_LABELS['lantern']     };
+        if (QINGMING_DATES.has(dateStr))         return { icon: CHINESE_ICONS['qingming'],    label: CHINESE_LABELS['qingming']    };
+        if (DRAGON_BOAT_DATES.has(dateStr))      return { icon: CHINESE_ICONS['dragon-boat'], label: CHINESE_LABELS['dragon-boat'] };
+        if (MID_AUTUMN_DATES.has(dateStr))       return { icon: CHINESE_ICONS['mid-autumn'],  label: CHINESE_LABELS['mid-autumn']  };
+    }
+    if (faithCalendar === 'jamaican') {
+        if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) return { icon: JAMAICAN_ICONS['ash-wednesday'], label: JAMAICAN_LABELS['ash-wednesday'] };
+        if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    return { icon: JAMAICAN_ICONS['labour-day'],    label: JAMAICAN_LABELS['labour-day']    };
+        if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: JAMAICAN_ICONS['emancipation'],  label: JAMAICAN_LABELS['emancipation']  };
+        if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: JAMAICAN_ICONS['independence'],  label: JAMAICAN_LABELS['independence']  };
+        if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: JAMAICAN_ICONS['heroes-day'],    label: JAMAICAN_LABELS['heroes-day']    };
+    }
+    if (faithCalendar === 'congolese') {
+        if (CONGOLESE_MARTYRS_DATES.has(dateStr))      return { icon: CONGOLESE_ICONS['drc-martyrs'],      label: CONGOLESE_LABELS['drc-martyrs']      };
+        if (CONGOLESE_LIBERATION_DATES.has(dateStr))   return { icon: CONGOLESE_ICONS['drc-liberation'],   label: CONGOLESE_LABELS['drc-liberation']   };
+        if (CONGOLESE_HEROES_DATES.has(dateStr))       return { icon: CONGOLESE_ICONS['drc-heroes'],       label: CONGOLESE_LABELS['drc-heroes']       };
+        if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) return { icon: CONGOLESE_ICONS['drc-independence'], label: CONGOLESE_LABELS['drc-independence']  };
+    }
+    if (faithCalendar === 'portuguese') {
+        if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))       return { icon: PORTUGUESE_ICONS['pt-carnival'],     label: PORTUGUESE_LABELS['pt-carnival']     };
+        if (PORTUGUESE_FREEDOM_DATES.has(dateStr))        return { icon: PORTUGUESE_ICONS['pt-freedom'],      label: PORTUGUESE_LABELS['pt-freedom']      };
+        if (PORTUGUESE_LABOUR_DATES.has(dateStr))         return { icon: PORTUGUESE_ICONS['pt-labour'],       label: PORTUGUESE_LABELS['pt-labour']       };
+        if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))   return { icon: PORTUGUESE_ICONS['pt-portugal-day'], label: PORTUGUESE_LABELS['pt-portugal-day']  };
+        if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr)) return { icon: PORTUGUESE_ICONS['pt-corpus'],       label: PORTUGUESE_LABELS['pt-corpus']       };
+        if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))     return { icon: PORTUGUESE_ICONS['pt-assumption'],   label: PORTUGUESE_LABELS['pt-assumption']   };
+        if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))       return { icon: PORTUGUESE_ICONS['pt-republic'],     label: PORTUGUESE_LABELS['pt-republic']     };
+        if (PORTUGUESE_RESTORATION_DATES.has(dateStr))    return { icon: PORTUGUESE_ICONS['pt-restoration'],  label: PORTUGUESE_LABELS['pt-restoration']  };
+        if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))     return { icon: PORTUGUESE_ICONS['pt-immaculate'],   label: PORTUGUESE_LABELS['pt-immaculate']   };
+    }
+    return null;
+}
+
+// ============================================
 // SPECIAL DAY BADGES — used by admin.html day rows
 // ============================================
 // Returns an array of { icon, title } objects for the given date.
-// faithCalendar: 'none' | 'islamic' | 'hindu' | 'chinese' — the member's opted-in calendar.
-// dateStr: ISO date string (YYYY-MM-DD) used for faith set lookups.
+// Faith calendar lookup is delegated to getFaithBadge() — update that
+// function (not this one) when adding new cultural calendars.
 
 export function getSpecialDayBadges(date, dateStr, faithCalendar) {
     const badges = [];
@@ -912,52 +991,8 @@ export function getSpecialDayBadges(date, dateStr, faithCalendar) {
     if (isPayday(date))        badges.push({ icon: '💷', title: 'Payday' });
     if (isChristmasDay(date))  badges.push({ icon: '🎄', title: 'Christmas Day' });
     if (isEasterSunday(date))  badges.push({ icon: '🐣', title: 'Easter Sunday' });
-    if (faithCalendar === 'islamic') {
-        if (RAMADAN_STARTS.has(dateStr))            badges.push({ icon: '🌙', title: 'Ramadan begins' });
-        if (EID_FITR_DATES.has(dateStr))            badges.push({ icon: '☪️', title: 'Eid al-Fitr' });
-        if (EID_ADHA_DATES.has(dateStr))            badges.push({ icon: '🕌', title: 'Eid al-Adha' });
-        if (ISLAMIC_NEW_YEAR_DATES.has(dateStr))    badges.push({ icon: '📅', title: 'Islamic New Year (Al-Hijra)' });
-        if (MAWLID_DATES.has(dateStr))              badges.push({ icon: '🌹', title: 'Mawlid al-Nabi' });
-    }
-    if (faithCalendar === 'hindu') {
-        if (HOLI_DATES.has(dateStr))           badges.push({ icon: '🎨', title: 'Holi' });
-        if (NAVRATRI_DATES.has(dateStr))       badges.push({ icon: '🕉️', title: 'Navratri begins' });
-        if (DUSSEHRA_DATES.has(dateStr))       badges.push({ icon: '🏹', title: 'Dussehra' });
-        if (DIWALI_DATES.has(dateStr))         badges.push({ icon: '🪔', title: 'Diwali' });
-        if (RAKSHA_BANDHAN_DATES.has(dateStr)) badges.push({ icon: '🪢', title: 'Raksha Bandhan' });
-    }
-    if (faithCalendar === 'chinese') {
-        const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
-        if (cny)                                badges.push({ icon: cny.icon, title: cny.label });
-        if (LANTERN_FESTIVAL_DATES.has(dateStr)) badges.push({ icon: '🏮', title: 'Lantern Festival (元宵節)' });
-        if (QINGMING_DATES.has(dateStr))         badges.push({ icon: '🌿', title: 'Qingming / Tomb Sweeping Day (清明節)' });
-        if (DRAGON_BOAT_DATES.has(dateStr))      badges.push({ icon: '🐲', title: 'Dragon Boat Festival (端午節)' });
-        if (MID_AUTUMN_DATES.has(dateStr))       badges.push({ icon: '🥮', title: 'Mid-Autumn Festival (中秋節)' });
-    }
-    if (faithCalendar === 'jamaican') {
-        if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) badges.push({ icon: '✝️', title: 'Ash Wednesday' });
-        if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    badges.push({ icon: '🔨', title: 'National Labour Day (Jamaica)' });
-        if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  badges.push({ icon: '✊', title: 'Emancipation Day' });
-        if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  badges.push({ icon: '🇯🇲', title: 'Independence Day (Jamaica)' });
-        if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    badges.push({ icon: '🏅', title: 'National Heroes Day' });
-    }
-    if (faithCalendar === 'congolese') {
-        if (CONGOLESE_MARTYRS_DATES.has(dateStr))      badges.push({ icon: '🕊️', title: "Martyrs' Day" });
-        if (CONGOLESE_LIBERATION_DATES.has(dateStr))   badges.push({ icon: '✊', title: 'Liberation Day (DRC)' });
-        if (CONGOLESE_HEROES_DATES.has(dateStr))       badges.push({ icon: '🏅', title: "Heroes' Day (DRC)" });
-        if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) badges.push({ icon: '🇨🇩', title: 'Independence Day (DRC)' });
-    }
-    if (faithCalendar === 'portuguese') {
-        if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))      badges.push({ icon: '🎭', title: 'Carnival Tuesday' });
-        if (PORTUGUESE_FREEDOM_DATES.has(dateStr))       badges.push({ icon: '🌹', title: 'Freedom Day (25 de Abril)' });
-        if (PORTUGUESE_LABOUR_DATES.has(dateStr))        badges.push({ icon: '🛠️', title: 'Labour Day (Portugal)' });
-        if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))  badges.push({ icon: '🇵🇹', title: 'Portugal Day' });
-        if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr))badges.push({ icon: '⛪', title: 'Corpus Christi' });
-        if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))    badges.push({ icon: '🕊️', title: 'Assumption of Mary' });
-        if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))      badges.push({ icon: '🏛️', title: 'Republic Day (Portugal)' });
-        if (PORTUGUESE_RESTORATION_DATES.has(dateStr))   badges.push({ icon: '⚔️', title: 'Restoration of Independence' });
-        if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))    badges.push({ icon: '✨', title: 'Immaculate Conception' });
-    }
+    const faithBadge = getFaithBadge(dateStr, faithCalendar);
+    if (faithBadge) badges.push({ icon: faithBadge.icon, title: faithBadge.label });
     return badges;
 }
 

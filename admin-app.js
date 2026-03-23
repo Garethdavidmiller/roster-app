@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.60';
-import { db, collection, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.60';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.62';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.62';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -305,6 +305,8 @@ const listCount    = document.getElementById('listCount');
 const listFeedback          = document.getElementById('listFeedback');
 const shiftNote             = document.getElementById('shiftNote');
 const overridesMonthFilter  = document.getElementById('overridesMonthFilter');
+const selectAllOverrides    = document.getElementById('selectAllOverrides');
+const bulkDeleteBtn         = document.getElementById('bulkDeleteBtn');
 
 // ============================================
 // POPULATE MEMBER DROPDOWNS
@@ -412,8 +414,8 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const TRANSITION  = prefersReducedMotion ? 'none' : 'transform 0.35s cubic-bezier(0.4,0,0.2,1)';
     const DURATION_MS = prefersReducedMotion ? 0 : 350;
-    const SWIPE_PX    = 75;   // minimum px for a committed swipe
-    const SWIPE_VEL   = 0.4;  // px/ms fast-flick threshold
+    const SWIPE_PX  = SWIPE_THRESHOLD;  // shared constant from roster-data.js
+    const SWIPE_VEL = SWIPE_VELOCITY;   // shared constant from roster-data.js
 
     let wPrev = null, wNext = null, wCurrent = null;
     let wW = 0, wX0 = 0, wY0 = 0, wT0 = 0;
@@ -427,7 +429,7 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
         panel.className = 'week-panel week-carousel-panel';
         buildWeekGridInto(panel, formatISO(d));
         weekGrid.appendChild(panel);
-        panel.style.transform = `translateX(${delta < 0 ? -wW : wW}px)`;
+        panel.style.transform = `translate3d(${delta < 0 ? -wW : wW}px, 0, 0)`;
         return panel;
     }
 
@@ -438,9 +440,9 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     }
 
     function snapBack() {
-        if (wCurrent) { wCurrent.style.transition = TRANSITION; wCurrent.style.transform = 'translateX(0)'; }
-        if (wPrev)    { wPrev.style.transition    = TRANSITION; wPrev.style.transform    = `translateX(${-wW}px)`; }
-        if (wNext)    { wNext.style.transition    = TRANSITION; wNext.style.transform    = `translateX(${wW}px)`; }
+        if (wCurrent) { wCurrent.style.transition = TRANSITION; wCurrent.style.transform = 'translate3d(0, 0, 0)'; }
+        if (wPrev)    { wPrev.style.transition    = TRANSITION; wPrev.style.transform    = `translate3d(${-wW}px, 0, 0)`; }
+        if (wNext)    { wNext.style.transition    = TRANSITION; wNext.style.transform    = `translate3d(${wW}px, 0, 0)`; }
         setTimeout(() => {
             discardPanels();
             if (wCurrent) { wCurrent.style.transition = ''; wCurrent.style.willChange = ''; }
@@ -488,9 +490,9 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             wDragging = true;
         }
 
-        wCurrent.style.transform = `translateX(${dx}px)`;
-        if (wPrev) wPrev.style.transform = `translateX(${-wW + dx}px)`;
-        if (wNext) wNext.style.transform = `translateX(${wW + dx}px)`;
+        wCurrent.style.transform = `translate3d(${dx}px, 0, 0)`;
+        if (wPrev) wPrev.style.transform = `translate3d(${-wW + dx}px, 0, 0)`;
+        if (wNext) wNext.style.transform = `translate3d(${wW + dx}px, 0, 0)`;
 
         if (!wHapticFired && Math.abs(dx) >= SWIPE_PX) {
             navigator.vibrate?.(6);
@@ -529,9 +531,9 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             if (shiftNote) shiftNote.value = '';
 
             wCurrent.style.transition = TRANSITION;
-            wCurrent.style.transform  = `translateX(${goLeft ? -wW : wW}px)`;
+            wCurrent.style.transform  = `translate3d(${goLeft ? -wW : wW}px, 0, 0)`;
             incoming.style.transition = TRANSITION;
-            incoming.style.transform  = 'translateX(0)';
+            incoming.style.transform  = 'translate3d(0, 0, 0)';
             if (discard && discard.parentNode) discard.remove();
 
             function restore() {
@@ -1160,7 +1162,7 @@ async function executeSave(toSave, toDelete = []) {
             }
             const { existingId: _, ...data } = entry;
             const newRef = doc(collection(db, 'overrides'));
-            batch.set(newRef, { ...data, createdAt: serverTimestamp() });
+            batch.set(newRef, { ...data, createdAt: serverTimestamp(), changedBy: currentUser });
             // Capture the new ID so we can update allOverrides without a round-trip
             newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
         });
@@ -1253,12 +1255,11 @@ let allOverrides = [];
  * On failure shows an inline error with a reload link.
  */
 async function loadOverrides() {
-    tableBody.innerHTML = '<tr class="state-row"><td colspan="6"><span class="spinner"></span>Loading…</td></tr>';
+    tableBody.innerHTML = '<tr class="state-row"><td colspan="8"><span class="spinner"></span>Loading…</td></tr>';
     try {
-        const snap = await getDocs(collection(db, 'overrides'));
+        const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(2000)));
         allOverrides = [];
         snap.forEach(s => allOverrides.push({ id: s.id, ...s.data() }));
-        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         renderTable();
         // Re-render week grid so existing-override detection is current
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
@@ -1267,7 +1268,8 @@ async function loadOverrides() {
         updateSickBookedBox();
     } catch (err) {
         console.error('[Admin] Load failed:', err);
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="6">Failed to load overrides.<br><span class="reload-link" onclick="location.reload()">↻ Reload page</span></td></tr>';
+        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">Failed to load overrides.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
+        document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
         listCount.textContent = 'Error';
     }
 }
@@ -1309,15 +1311,18 @@ function renderTable() {
     listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
 
     if (!rows.length) {
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="6">No overrides found.</td></tr>';
+        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">No overrides found.</td></tr>';
         return;
     }
 
     tableBody.innerHTML = '';
+    if (selectAllOverrides) selectAllOverrides.checked = false;
+    if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
     rows.forEach(o => {
         const meta = TYPES[o.type];
         const tr   = document.createElement('tr');
         tr.innerHTML = `
+            <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${esc(o.memberName)} ${o.date}"></td>
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
             <td>${esc(o.memberName)}</td>
             <td><span class="list-type-pill lpill-${o.type}">${meta ? meta.label : esc(o.type)}</span></td>
@@ -1333,6 +1338,64 @@ function renderTable() {
     });
     tableBody.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', handleDelete));
     tableBody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
+    tableBody.querySelectorAll('.row-select').forEach(cb => cb.addEventListener('change', updateBulkDeleteVisibility));
+}
+
+/** Shows or hides the "Delete selected" button based on how many rows are checked. */
+function updateBulkDeleteVisibility() {
+    const checked = tableBody.querySelectorAll('.row-select:checked').length;
+    if (bulkDeleteBtn) bulkDeleteBtn.style.display = checked > 0 ? 'inline-block' : 'none';
+    if (selectAllOverrides) {
+        const total = tableBody.querySelectorAll('.row-select').length;
+        selectAllOverrides.checked = total > 0 && checked === total;
+        selectAllOverrides.indeterminate = checked > 0 && checked < total;
+    }
+}
+
+// Select-all checkbox — checks/unchecks every visible row and updates the button visibility.
+if (selectAllOverrides) {
+    selectAllOverrides.addEventListener('change', () => {
+        tableBody.querySelectorAll('.row-select').forEach(cb => { cb.checked = selectAllOverrides.checked; });
+        updateBulkDeleteVisibility();
+    });
+}
+
+// Bulk delete — deletes all checked rows in one Firestore batch.
+if (bulkDeleteBtn) {
+    bulkDeleteBtn.addEventListener('click', async () => {
+        const checked = [...tableBody.querySelectorAll('.row-select:checked')];
+        if (!checked.length) return;
+        const ids = checked.map(cb => cb.dataset.id);
+        bulkDeleteBtn.disabled = true;
+        bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
+        try {
+            const batch = writeBatch(db);
+            ids.forEach(id => batch.delete(doc(db, 'overrides', id)));
+            await batch.commit();
+            allOverrides = allOverrides.filter(o => !ids.includes(o.id));
+            renderTable();
+            updateALBanner();
+            updateALBookedBox();
+            updateSickBookedBox();
+            if (fieldMember.value && fieldDate.value) renderWeekGrid();
+            if (listFeedback) {
+                listFeedback.textContent = `✓ Deleted ${ids.length} override${ids.length !== 1 ? 's' : ''}`;
+                listFeedback.className = 'list-feedback success';
+                setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
+            }
+        } catch (err) {
+            console.error('[Admin] Bulk delete failed:', err);
+            bulkDeleteBtn.disabled = false;
+            bulkDeleteBtn.textContent = 'Delete selected';
+            if (listFeedback) {
+                const msg = err.code === 'unavailable'
+                    ? '⚠ You appear to be offline — reconnect and try again.'
+                    : '⚠ Bulk delete failed — check your connection and try again.';
+                listFeedback.textContent = msg;
+                listFeedback.className = 'list-feedback error';
+            }
+        }
+    });
 }
 
 /**
@@ -1382,7 +1445,10 @@ async function handleDelete(e) {
         btn.classList.remove('confirming');
         btn.textContent = 'Delete';
         if (listFeedback) {
-            listFeedback.textContent = '⚠ Could not delete — check your connection and try again.';
+            const msg = err.code === 'unavailable'
+                ? '⚠ You appear to be offline — reconnect and try again.'
+                : '⚠ Could not delete — check your connection and try again.';
+            listFeedback.textContent = msg;
             listFeedback.className = 'list-feedback error';
         }
     }
@@ -1860,10 +1926,11 @@ alSaveBtn.addEventListener('click', async () => {
             alBatch.set(newRef, {
                 memberName: member,
                 date,
-                type:  'annual_leave',
-                value: 'AL',
-                note:  '',
-                createdAt: serverTimestamp()
+                type:      'annual_leave',
+                value:     'AL',
+                note:      '',
+                createdAt: serverTimestamp(),
+                changedBy: currentUser
             });
             // Capture the new ID so we can update allOverrides without a round-trip
             alNewDocs.push({ id: newRef.id, memberName: member, date, type: 'annual_leave', value: 'AL', note: '', createdAt: new Date() });
@@ -2043,7 +2110,8 @@ sickSaveBtn.addEventListener('click', async () => {
                 type:      'sick',
                 value:     'SICK',
                 note:      '',
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                changedBy: currentUser
             });
             sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'sick', value: 'SICK', note: '', createdAt: new Date() });
         });
@@ -2078,6 +2146,58 @@ sickSaveBtn.addEventListener('click', async () => {
  * Shows sick periods grouped by month, merging consecutive dates that are
  * bridged by rest days on the base roster (same logic as AL booked box).
  */
+/**
+ * Deletes all overrides of the given type for a member within a date range.
+ * Used by the period-row delete buttons in the AL and sick booked boxes.
+ * @param {string}      type       'annual_leave' | 'sick'
+ * @param {string}      memberName
+ * @param {string}      start      YYYY-MM-DD — inclusive
+ * @param {string}      end        YYYY-MM-DD — inclusive
+ * @param {HTMLElement} feedbackEl Feedback div to write success/error into
+ * @param {HTMLElement} btn        The delete button (disabled during the request)
+ */
+async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
+    const toDelete = allOverrides.filter(o =>
+        o.memberName === memberName &&
+        o.type       === type &&
+        o.date       >= start &&
+        o.date       <= end
+    );
+    if (!toDelete.length) return;
+    btn.disabled    = true;
+    btn.textContent = '…';
+    try {
+        const batch = writeBatch(db);
+        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
+        await batch.commit();
+        const ids = new Set(toDelete.map(o => o.id));
+        allOverrides = allOverrides.filter(o => !ids.has(o.id));
+        renderTable();
+        updateALBanner();
+        updateALBookedBox();
+        updateSickBookedBox();
+        if (fieldMember.value && fieldDate.value) renderWeekGrid();
+        if (feedbackEl) {
+            const noun = type === 'annual_leave' ? 'AL day' : 'sick day';
+            feedbackEl.textContent = `✓ Deleted ${toDelete.length} ${noun}${toDelete.length !== 1 ? 's' : ''} for ${memberName}`;
+            feedbackEl.className = 'feedback success';
+            setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
+        }
+    } catch (err) {
+        console.error('[Admin] Period delete failed:', err);
+        btn.disabled = false;
+        btn.classList.remove('confirming');
+        btn.textContent = 'Delete';
+        if (feedbackEl) {
+            const msg = err.code === 'unavailable'
+                ? '⚠ You appear to be offline — reconnect and try again.'
+                : '⚠ Delete failed — check your connection and try again.';
+            feedbackEl.textContent = msg;
+            feedbackEl.className = 'feedback error';
+        }
+    }
+}
+
 function updateSickBookedBox() {
     const box  = document.getElementById('sickBookedBox');
     const body = document.getElementById('sickBookedBody');
@@ -2154,23 +2274,44 @@ function updateSickBookedBox() {
         (byMonth[key] = byMonth[key] || []).push(p);
     }
 
-    let html = '';
+    // Render — use createElement so delete buttons can have direct event listeners
+    body.innerHTML = '';
+    const sickFeedbackEl = document.getElementById('sickFeedback');
     for (const key of Object.keys(byMonth).sort()) {
         const [yr, mo] = key.split('-');
-        const monthLabel = `${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}`;
-        html += `<div class="al-period-month"><div class="al-period-month-hdr">${monthLabel}</div>`;
+        const monthDiv = document.createElement('div');
+        monthDiv.className = 'al-period-month';
+        monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
             const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
             const countStr = `${p.count} sick day${p.count !== 1 ? 's' : ''}`;
-            html += `<div class="al-period-row">
+            const row = document.createElement('div');
+            row.className = 'al-period-row';
+            row.innerHTML = `
                 <span class="al-period-dates">${dateStr}</span>
-                <span class="sick-period-count">${countStr}</span>
-            </div>`;
+                <span class="sick-period-count">${countStr}</span>`;
+            const btn = document.createElement('button');
+            btn.className   = 'btn-period-delete';
+            btn.textContent = 'Delete';
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('confirming')) {
+                    btn.classList.add('confirming');
+                    btn.textContent = '⚠ Delete?';
+                    setTimeout(() => {
+                        if (btn.classList.contains('confirming')) {
+                            btn.classList.remove('confirming');
+                            btn.textContent = 'Delete';
+                        }
+                    }, 5000);
+                    return;
+                }
+                deletePeriodOverrides('sick', memberName, p.start, p.end, sickFeedbackEl, btn);
+            });
+            row.appendChild(btn);
+            monthDiv.appendChild(row);
         }
-        html += `</div>`;
+        body.appendChild(monthDiv);
     }
-
-    body.innerHTML = html;
     box.hidden = false;
 }
 
@@ -2337,24 +2478,44 @@ function updateALBookedBox() {
         (byMonth[key] = byMonth[key] || []).push(p);
     }
 
-    // Render
-    let html = '';
+    // Render — use createElement so delete buttons can have direct event listeners
+    body.innerHTML = '';
+    const alFeedbackEl = document.getElementById('alFeedback');
     for (const key of Object.keys(byMonth).sort()) {
         const [yr, mo] = key.split('-');
-        const monthLabel = `${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}`;
-        html += `<div class="al-period-month"><div class="al-period-month-hdr">${monthLabel}</div>`;
+        const monthDiv = document.createElement('div');
+        monthDiv.className = 'al-period-month';
+        monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
             const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
             const countStr = `${p.count} day${p.count !== 1 ? 's' : ''} AL`;
-            html += `<div class="al-period-row">
+            const row = document.createElement('div');
+            row.className = 'al-period-row';
+            row.innerHTML = `
                 <span class="al-period-dates">${dateStr}</span>
-                <span class="al-period-count">${countStr}</span>
-            </div>`;
+                <span class="al-period-count">${countStr}</span>`;
+            const btn = document.createElement('button');
+            btn.className   = 'btn-period-delete';
+            btn.textContent = 'Delete';
+            btn.addEventListener('click', () => {
+                if (!btn.classList.contains('confirming')) {
+                    btn.classList.add('confirming');
+                    btn.textContent = '⚠ Delete?';
+                    setTimeout(() => {
+                        if (btn.classList.contains('confirming')) {
+                            btn.classList.remove('confirming');
+                            btn.textContent = 'Delete';
+                        }
+                    }, 5000);
+                    return;
+                }
+                deletePeriodOverrides('annual_leave', memberName, p.start, p.end, alFeedbackEl, btn);
+            });
+            row.appendChild(btn);
+            monthDiv.appendChild(row);
         }
-        html += `</div>`;
+        body.appendChild(monthDiv);
     }
-
-    body.innerHTML = html;
     box.hidden = false;
 }
 
