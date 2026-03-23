@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.63';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.63';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.64';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.64';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2287,16 +2287,17 @@ function updateSickBookedBox() {
             const countStr = `${p.count} sick day${p.count !== 1 ? 's' : ''}`;
             const row = document.createElement('div');
             row.className = 'al-period-row';
-            row.innerHTML = `
-                <span class="al-period-dates">${dateStr}</span>
-                <span class="sick-period-count">${countStr}</span>`;
+            row.innerHTML = `<span class="al-period-dates">${dateStr}</span>`;
+            const meta = document.createElement('div');
+            meta.className = 'al-period-row-meta';
+            meta.innerHTML = `<span class="sick-period-count">${countStr}</span>`;
             const btn = document.createElement('button');
             btn.className   = 'btn-period-delete';
             btn.textContent = 'Delete';
             btn.addEventListener('click', () => {
                 if (!btn.classList.contains('confirming')) {
                     btn.classList.add('confirming');
-                    btn.textContent = '⚠ Delete?';
+                    btn.textContent = '⚠ Confirm?';
                     setTimeout(() => {
                         if (btn.classList.contains('confirming')) {
                             btn.classList.remove('confirming');
@@ -2307,7 +2308,8 @@ function updateSickBookedBox() {
                 }
                 deletePeriodOverrides('sick', memberName, p.start, p.end, sickFeedbackEl, btn);
             });
-            row.appendChild(btn);
+            meta.appendChild(btn);
+            row.appendChild(meta);
             monthDiv.appendChild(row);
         }
         body.appendChild(monthDiv);
@@ -2491,16 +2493,17 @@ function updateALBookedBox() {
             const countStr = `${p.count} day${p.count !== 1 ? 's' : ''} AL`;
             const row = document.createElement('div');
             row.className = 'al-period-row';
-            row.innerHTML = `
-                <span class="al-period-dates">${dateStr}</span>
-                <span class="al-period-count">${countStr}</span>`;
+            row.innerHTML = `<span class="al-period-dates">${dateStr}</span>`;
+            const meta = document.createElement('div');
+            meta.className = 'al-period-row-meta';
+            meta.innerHTML = `<span class="al-period-count">${countStr}</span>`;
             const btn = document.createElement('button');
             btn.className   = 'btn-period-delete';
             btn.textContent = 'Delete';
             btn.addEventListener('click', () => {
                 if (!btn.classList.contains('confirming')) {
                     btn.classList.add('confirming');
-                    btn.textContent = '⚠ Delete?';
+                    btn.textContent = '⚠ Confirm?';
                     setTimeout(() => {
                         if (btn.classList.contains('confirming')) {
                             btn.classList.remove('confirming');
@@ -2511,7 +2514,8 @@ function updateALBookedBox() {
                 }
                 deletePeriodOverrides('annual_leave', memberName, p.start, p.end, alFeedbackEl, btn);
             });
-            row.appendChild(btn);
+            meta.appendChild(btn);
+            row.appendChild(meta);
             monthDiv.appendChild(row);
         }
         body.appendChild(monthDiv);

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.63 -->
+<!-- MYB Roster Admin v5.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.63">
+    <link rel="stylesheet" href="shared.css?v=5.64">
 
     <style>
         body {
@@ -1312,9 +1312,10 @@
         }
         .al-period-row {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 8px 0;
+            gap: 5px;
             border-bottom: 1px solid var(--border);
         }
         .al-period-month > .al-period-row:last-child { border-bottom: none; }
@@ -1323,28 +1324,44 @@
             font-weight: 500;
             color: var(--text);
         }
+        .al-period-row-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
         .al-period-count {
             font-size: 11px;
-            font-weight: 600;
-            color: var(--al, #00897b);
+            font-weight: 700;
+            color: var(--al-deep);
+            background: var(--al-light);
+            padding: 2px 8px;
+            border-radius: 10px;
             white-space: nowrap;
-            margin-left: 8px;
+        }
+        .sick-period-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--sick);
+            background: var(--sick-light);
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
         }
         .btn-period-delete {
-            margin-left: 10px;
-            padding: 2px 8px;
-            border: 1px solid #e53935;
+            padding: 2px 10px;
+            border: none;
             border-radius: 6px;
-            background: #fff;
-            color: #e53935;
+            background: transparent;
+            color: var(--text-light);
             font-size: 11px;
             font-family: inherit;
             cursor: pointer;
             white-space: nowrap;
-            flex-shrink: 0;
         }
+        .btn-period-delete:hover { color: var(--sick); }
         .btn-period-delete.confirming {
-            background: #e53935;
+            background: var(--sick);
             color: #fff;
         }
 
@@ -1367,7 +1384,6 @@
         /* Sick preview — reuses al-preview layout; overrides ready colour to red */
         .sick-preview.ready { background: var(--sick-light); color: var(--sick); }
         /* Sick period count in the booked-dates list */
-        .sick-period-count  { font-size: 11px; font-weight: 600; color: var(--sick); white-space: nowrap; margin-left: 8px; }
 
         /* ---- Touch device enhancements ---- */
 
@@ -2194,6 +2210,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.63"></script>
+<script type="module" src="./admin-app.js?v=5.64"></script>
 </body>
 </html>
