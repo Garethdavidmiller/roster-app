@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, ISLAMIC_LABELS, ISLAMIC_ICONS, HINDU_LABELS, HINDU_ICONS, CHINESE_LABELS, CHINESE_ICONS, JAMAICAN_LABELS, JAMAICAN_ICONS, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, CONGOLESE_LABELS, CONGOLESE_ICONS, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, PORTUGUESE_LABELS, PORTUGUESE_ICONS, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, escapeHtml, formatISO, isSunday } from './roster-data.js?v=5.60';
-import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.60';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.61';
+import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.61';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -42,34 +42,9 @@ const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
 // DATA VALIDATION
 // ============================================
 
-// Validate roster data structure on load
-const VALID_SHIFT_KEYWORDS = new Set(['RD', 'SPARE', 'RDW', 'AL', 'OFF']);
-
-function validateRoster(roster, rosterName, expectedWeeks) {
-    const errors = [];
-    
-    // Check all weeks exist
-    for (let week = 1; week <= expectedWeeks; week++) {
-        if (!roster[week]) {
-            errors.push(`${rosterName}: Missing week ${week}`);
-            continue;
-        }
-        
-        // Check all days exist and have valid shift values
-        DAY_KEYS.forEach(day => {
-            if (roster[week][day] === undefined) {
-                errors.push(`${rosterName}: Week ${week} missing day ${day}`);
-            } else {
-                const val = roster[week][day];
-                if (!VALID_SHIFT_KEYWORDS.has(val) && !SHIFT_TIME_REGEX.test(val)) {
-                    errors.push(`${rosterName}: Week ${week} ${day} has invalid shift value "${val}"`);
-                }
-            }
-        });
-    }
-    
-    return errors;
-}
+// validateRosterPatterns() already runs automatically when roster-data.js loads.
+// We only keep validateTeamMembers() here — it checks team member object shape,
+// which has no equivalent in the shared module.
 
 // Validate team members data
 function validateTeamMembers() {
@@ -269,12 +244,6 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 // FAITH CALENDAR HELPERS
 // ============================================
 
-// Combined label/icon maps covering Islamic and Hindu calendars.
-// Chinese New Year uses CHINESE_NEW_YEAR_DATES (a Map) directly because
-// the icon varies by year (zodiac animal) rather than being a fixed value.
-const FAITH_LABELS = { ...ISLAMIC_LABELS, ...HINDU_LABELS, ...CHINESE_LABELS, ...JAMAICAN_LABELS, ...CONGOLESE_LABELS, ...PORTUGUESE_LABELS };
-const FAITH_ICONS  = { ...ISLAMIC_ICONS,  ...HINDU_ICONS,  ...CHINESE_ICONS,  ...JAMAICAN_ICONS,  ...CONGOLESE_ICONS,  ...PORTUGUESE_ICONS  };
-
 // Resolve which faith calendar the member has opted in to.
 // Handles backward compat: old Firestore docs stored islamicMarkers:true.
 function resolveFaithCalendar(settings) {
@@ -284,58 +253,11 @@ function resolveFaithCalendar(settings) {
 }
 
 // Returns { icon, label } for the faith marker on this date, or null if none.
-// Only returns a value if the member has opted in and the date matches.
-// Chinese New Year uses the zodiac-animal icon from CHINESE_NEW_YEAR_DATES;
-// all other calendars use the static FAITH_ICONS / FAITH_LABELS maps.
+// Delegates the lookup to getFaithBadge() in roster-data.js — the single source
+// of truth for cultural calendar markers.
 function getFaithMarker(dateStr, memberName) {
     const faithCalendar = resolveFaithCalendar(memberSettingsCache.get(memberName));
-    if (faithCalendar === 'islamic') {
-        if (RAMADAN_STARTS.has(dateStr))         return { icon: FAITH_ICONS['ramadan'],    label: FAITH_LABELS['ramadan']    };
-        if (EID_FITR_DATES.has(dateStr))         return { icon: FAITH_ICONS['eid-fitr'],   label: FAITH_LABELS['eid-fitr']   };
-        if (EID_ADHA_DATES.has(dateStr))         return { icon: FAITH_ICONS['eid-adha'],   label: FAITH_LABELS['eid-adha']   };
-        if (ISLAMIC_NEW_YEAR_DATES.has(dateStr)) return { icon: FAITH_ICONS['islamic-ny'], label: FAITH_LABELS['islamic-ny'] };
-        if (MAWLID_DATES.has(dateStr))           return { icon: FAITH_ICONS['mawlid'],     label: FAITH_LABELS['mawlid']     };
-    }
-    if (faithCalendar === 'hindu') {
-        if (HOLI_DATES.has(dateStr))           return { icon: FAITH_ICONS['holi'],     label: FAITH_LABELS['holi']     };
-        if (NAVRATRI_DATES.has(dateStr))       return { icon: FAITH_ICONS['navratri'],  label: FAITH_LABELS['navratri']  };
-        if (DUSSEHRA_DATES.has(dateStr))       return { icon: FAITH_ICONS['dussehra'],  label: FAITH_LABELS['dussehra']  };
-        if (DIWALI_DATES.has(dateStr))         return { icon: FAITH_ICONS['diwali'],    label: FAITH_LABELS['diwali']    };
-        if (RAKSHA_BANDHAN_DATES.has(dateStr)) return { icon: FAITH_ICONS['raksha'],    label: FAITH_LABELS['raksha']    };
-    }
-    if (faithCalendar === 'chinese') {
-        const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
-        if (cny)                                 return { icon: cny.icon,                    label: cny.label                              };
-        if (LANTERN_FESTIVAL_DATES.has(dateStr)) return { icon: FAITH_ICONS['lantern'],      label: FAITH_LABELS['lantern']      };
-        if (QINGMING_DATES.has(dateStr))         return { icon: FAITH_ICONS['qingming'],     label: FAITH_LABELS['qingming']     };
-        if (DRAGON_BOAT_DATES.has(dateStr))      return { icon: FAITH_ICONS['dragon-boat'],  label: FAITH_LABELS['dragon-boat']  };
-        if (MID_AUTUMN_DATES.has(dateStr))       return { icon: FAITH_ICONS['mid-autumn'],   label: FAITH_LABELS['mid-autumn']   };
-    }
-    if (faithCalendar === 'jamaican') {
-        if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) return { icon: FAITH_ICONS['ash-wednesday'], label: FAITH_LABELS['ash-wednesday'] };
-        if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    return { icon: FAITH_ICONS['labour-day'],    label: FAITH_LABELS['labour-day']    };
-        if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: FAITH_ICONS['emancipation'],  label: FAITH_LABELS['emancipation']  };
-        if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: FAITH_ICONS['independence'],  label: FAITH_LABELS['independence']  };
-        if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: FAITH_ICONS['heroes-day'],    label: FAITH_LABELS['heroes-day']    };
-    }
-    if (faithCalendar === 'congolese') {
-        if (CONGOLESE_MARTYRS_DATES.has(dateStr))      return { icon: FAITH_ICONS['drc-martyrs'],     label: FAITH_LABELS['drc-martyrs']     };
-        if (CONGOLESE_LIBERATION_DATES.has(dateStr))   return { icon: FAITH_ICONS['drc-liberation'],  label: FAITH_LABELS['drc-liberation']  };
-        if (CONGOLESE_HEROES_DATES.has(dateStr))       return { icon: FAITH_ICONS['drc-heroes'],      label: FAITH_LABELS['drc-heroes']      };
-        if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) return { icon: FAITH_ICONS['drc-independence'],label: FAITH_LABELS['drc-independence'] };
-    }
-    if (faithCalendar === 'portuguese') {
-        if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))       return { icon: FAITH_ICONS['pt-carnival'],    label: FAITH_LABELS['pt-carnival']    };
-        if (PORTUGUESE_FREEDOM_DATES.has(dateStr))        return { icon: FAITH_ICONS['pt-freedom'],     label: FAITH_LABELS['pt-freedom']     };
-        if (PORTUGUESE_LABOUR_DATES.has(dateStr))         return { icon: FAITH_ICONS['pt-labour'],      label: FAITH_LABELS['pt-labour']      };
-        if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))   return { icon: FAITH_ICONS['pt-portugal-day'],label: FAITH_LABELS['pt-portugal-day'] };
-        if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr)) return { icon: FAITH_ICONS['pt-corpus'],      label: FAITH_LABELS['pt-corpus']      };
-        if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))     return { icon: FAITH_ICONS['pt-assumption'],  label: FAITH_LABELS['pt-assumption']  };
-        if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))       return { icon: FAITH_ICONS['pt-republic'],    label: FAITH_LABELS['pt-republic']    };
-        if (PORTUGUESE_RESTORATION_DATES.has(dateStr))    return { icon: FAITH_ICONS['pt-restoration'], label: FAITH_LABELS['pt-restoration'] };
-        if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))     return { icon: FAITH_ICONS['pt-immaculate'],  label: FAITH_LABELS['pt-immaculate']  };
-    }
-    return null;
+    return getFaithBadge(dateStr, faithCalendar);
 }
 
 function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '', faithMarker = null) {
@@ -363,9 +285,7 @@ function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwT
 // SWIPE GESTURE DETECTION
 // ============================================
 
-// Swipe gesture thresholds — defined at module level so getSwipeDirection can reference them
-const SWIPE_THRESHOLD    = 75;  // Minimum px to count as intentional swipe
-const VELOCITY_THRESHOLD = 0.4; // px/ms — fast flick commits even below distance threshold
+// SWIPE_THRESHOLD and SWIPE_VELOCITY imported from roster-data.js — shared with admin-app.js
 
 // Calculate swipe direction based on touch coordinates, distance and velocity.
 // A gesture commits if it crosses SWIPE_THRESHOLD distance OR exceeds VELOCITY_THRESHOLD
@@ -383,7 +303,7 @@ function getSwipeDirection(startX, startY, endX, endY, elapsed) {
     const velocity = elapsed > 0 ? distance / elapsed : 0; // px/ms
 
     // Commit if distance threshold met OR velocity threshold met (fast flick)
-    if (distance < SWIPE_THRESHOLD && velocity < VELOCITY_THRESHOLD) return null;
+    if (distance < SWIPE_THRESHOLD && velocity < SWIPE_VELOCITY) return null;
 
     return deltaX > 0 ? 'right' : 'left';
 }
@@ -593,29 +513,16 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             let booked = 0;
             // Collect all overrides for this member so Dispatcher lieu days can be calculated
             const memberOverrides = [];
-            if (db) {
-                const snap = await getDocs(query(collection(db, 'overrides'), where('memberName', '==', member.name)));
-                snap.forEach(d => {
-                    const data = d.data();
-                    memberOverrides.push(data);
-                    // Sundays are uncontracted — don't count Sunday AL entries
-                    if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr) &&
-                            !isSunday(data.date)) {
-                        if (data.date <= todayStr) taken++; else booked++;
-                    }
-                });
-            } else {
-                rosterOverridesCache.forEach((val, key) => {
-                    const [name, date] = key.split('|');
-                    if (name !== member.name) return;
-                    memberOverrides.push({ memberName: name, date, ...val });
-                    // Sundays are uncontracted — don't count Sunday AL entries
-                    if (val.type === 'annual_leave' && date.startsWith(yearStr) &&
-                            !isSunday(date)) {
-                        if (date <= todayStr) taken++; else booked++;
-                    }
-                });
-            }
+            const snap = await getDocs(query(collection(db, 'overrides'), where('memberName', '==', member.name)));
+            snap.forEach(d => {
+                const data = d.data();
+                memberOverrides.push(data);
+                // Sundays are uncontracted — don't count Sunday AL entries
+                if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr) &&
+                        !isSunday(data.date)) {
+                    if (data.date <= todayStr) taken++; else booked++;
+                }
+            });
             const entitlement = getALEntitlement(member, year, memberOverrides);
             entEl.textContent = entitlement;
             const remaining = entitlement - taken - booked;
@@ -665,23 +572,17 @@ function getShiftTypesInMonth(member, year, month) {
     const cacheKey = `${member.name}|${year}|${month}`;
     if (shiftTypesMonthCache.has(cacheKey)) return shiftTypesMonthCache.get(cacheKey);
 
-    const types  = new Set();
-    const roster = getRosterForMember(member);
-    const days   = new Date(year, month + 1, 0).getDate(); // last day of month
+    const types = new Set();
+    const days  = new Date(year, month + 1, 0).getDate(); // last day of month
 
     for (let day = 1; day <= days; day++) {
         const date    = new Date(year, month, day);
-        const weekNum = getWeekNumberForDate(date, member);
-        const dayKey  = DAY_KEYS[date.getDay()];
-        let shift = (roster.data[weekNum]?.[dayKey]) ?? 'RD';
-
-        if (isChristmasRD(date)) shift = 'RD';
+        // getBaseShift applies the Christmas RD rule before the roster lookup
+        let shift = getBaseShift(member, date);
 
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        {
-            const ov = rosterOverridesCache.get(`${member.name}|${dateStr}`);
-            if (ov) shift = ov.type === 'rdw' ? 'RDW' : ov.value;
-        }
+        const ov = rosterOverridesCache.get(`${member.name}|${dateStr}`);
+        if (ov) shift = ov.type === 'rdw' ? 'RDW' : ov.value;
 
         if (shift === 'SPARE') types.add('SPARE');
         else if (shift === 'RDW')  types.add('RDW');
@@ -992,15 +893,9 @@ document.getElementById('adminBtn').addEventListener('click', () => {
 // Modules are always deferred — the DOM is fully parsed before this code runs.
 // No DOMContentLoaded wrapper needed; initialize directly.
 try {
-        // Validate roster data now that DOM is ready and errorBanner element exists
-        const allErrors = [
-            ...validateRoster(weeklyRoster,   'Main Roster',      CONFIG.MAIN_ROSTER_WEEKS),
-            ...validateRoster(bilingualRoster, 'Bilingual Roster', CONFIG.BILINGUAL_ROSTER_WEEKS),
-            ...validateRoster(cesRoster,        'CES Roster',        CONFIG.CES_ROSTER_WEEKS),
-            ...validateRoster(dispatcherRoster, 'Dispatcher Roster', CONFIG.DISPATCHER_ROSTER_WEEKS),
-            ...validateRoster(fixedRoster,     'Fixed Roster',     1),
-            ...validateTeamMembers()
-        ];
+        // validateRosterPatterns() already ran at module load (roster-data.js line 1242).
+        // Only run the team-member shape check here — it's unique to this file.
+        const allErrors = validateTeamMembers();
         if (allErrors.length > 0) {
             console.error('⚠️ ROSTER DATA VALIDATION ERRORS:');
             allErrors.forEach(error => console.error('  - ' + error));
@@ -1426,8 +1321,17 @@ try {
                     });
 
                     // Periodically check for updates (every 60 mins)
-                    // — catches cases where the app is left open for a long time
-                    setInterval(() => registration.update(), 60 * 60 * 1000);
+                    // — catches cases where the app is left open for a long time.
+                    // Paused while the tab is hidden to avoid unnecessary background traffic on mobile.
+                    let swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+                    document.addEventListener('visibilitychange', () => {
+                        if (document.hidden) {
+                            clearInterval(swUpdateInterval);
+                        } else {
+                            registration.update();
+                            swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+                        }
+                    });
                 });
             }
 

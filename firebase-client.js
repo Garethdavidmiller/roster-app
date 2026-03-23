@@ -35,7 +35,7 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
 // Re-export Firestore operation functions so callers import from one place.
-export { collection, query, where, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch };
+export { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch };
 
 // ---- Firebase Storage ----
 
