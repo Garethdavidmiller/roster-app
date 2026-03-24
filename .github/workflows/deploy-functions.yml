@@ -29,6 +29,18 @@ jobs:
       - name: Write service account key
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa-key.json
 
+      - name: Authenticate gcloud
+        run: gcloud auth activate-service-account --key-file=/tmp/sa-key.json
+
+      - name: Push HUDDLE_SECRET to Secret Manager
+        run: |
+          # Create the secret if it doesn't exist yet
+          gcloud secrets describe HUDDLE_SECRET --project=myb-roster 2>/dev/null \
+            || gcloud secrets create HUDDLE_SECRET --project=myb-roster --replication-policy=automatic
+          # Add (or update) the secret value
+          echo -n '${{ secrets.HUDDLE_SECRET }}' \
+            | gcloud secrets versions add HUDDLE_SECRET --project=myb-roster --data-file=-
+
       - name: Deploy to Firebase
         run: firebase deploy --only functions --project myb-roster
         env:
