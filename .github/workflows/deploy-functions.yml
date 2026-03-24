@@ -19,14 +19,17 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
       - name: Install function dependencies
         run: npm install
         working-directory: functions
 
+      - name: Write service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa-key.json
+
       - name: Deploy to Firebase
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only functions
+        run: firebase deploy --only functions --project myb-roster
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          PROJECT_ID: myb-roster
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
