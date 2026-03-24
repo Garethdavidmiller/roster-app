@@ -42,6 +42,6 @@ jobs:
             | gcloud secrets versions add HUDDLE_SECRET --project=myb-roster --data-file=-
 
       - name: Deploy to Firebase
-        run: firebase deploy --only functions --project myb-roster
+        run: firebase deploy --only functions --force --project myb-roster
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
