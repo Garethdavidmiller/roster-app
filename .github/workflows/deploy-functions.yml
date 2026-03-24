@@ -43,10 +43,11 @@ jobs:
 
       - name: Set artifact cleanup policy
         run: firebase functions:artifacts:setpolicy --project myb-roster
+        continue-on-error: true
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
 
       - name: Deploy to Firebase
-        run: firebase deploy --only functions --project myb-roster
+        run: firebase deploy --only functions --force --project myb-roster
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
