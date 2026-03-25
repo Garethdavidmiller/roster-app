@@ -19,41 +19,25 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Firebase CLI
-        run: npm install -g firebase-tools
-
       - name: Install function dependencies
         run: npm install
         working-directory: functions
 
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
       - name: Write service account key
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/sa-key.json
-
-      - name: Authenticate gcloud
-        run: gcloud auth activate-service-account --key-file=/tmp/sa-key.json
-
-      - name: Push HUDDLE_SECRET to Secret Manager
-        run: |
-          gcloud secrets describe HUDDLE_SECRET --project=myb-roster 2>/dev/null \
-            || gcloud secrets create HUDDLE_SECRET --project=myb-roster --replication-policy=automatic
-          echo -n '${{ secrets.HUDDLE_SECRET }}' \
-            | gcloud secrets versions add HUDDLE_SECRET --project=myb-roster --data-file=-
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json
 
       - name: Deploy to Firebase
         run: |
-          # Use || to capture exit code without bash -e terminating the script early.
+          set +e
           firebase deploy --only functions --force --project myb-roster \
-            > /tmp/deploy-out.txt 2>&1 || exit_code=$?
-
-          # Print output but strip the cleanup-policy noise so it never appears in logs.
-          grep -v "cleanup policy\|setpolicy\|Pass the --force" /tmp/deploy-out.txt || true
-
-          if [ "${exit_code:-0}" -ne 0 ]; then
-            if grep -q "cleanup policy" /tmp/deploy-out.txt; then
-              echo "Deploy succeeded. Cleanup policy permission not granted — harmless, ignoring."
-              exit 0
-            fi
-            exit "${exit_code}"
-          fi
+            > /tmp/out.txt 2>&1
+          code=$?
+          cat /tmp/out.txt
+          [ $code -eq 0 ] && exit 0
+          grep -q "cleanup policy" /tmp/out.txt && exit 0
+          exit $code
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json
