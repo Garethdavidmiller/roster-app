@@ -49,13 +49,15 @@ jobs:
 
       - name: Deploy to Firebase
         run: |
-          firebase deploy --only functions --force --project myb-roster > /tmp/deploy-out.txt 2>&1
-          exit_code=$?
+          # GH Actions runs bash -e so a failing command exits the script immediately.
+          # The || captures the exit code without triggering -e.
+          firebase deploy --only functions --force --project myb-roster \
+            > /tmp/deploy-out.txt 2>&1 || exit_code=$?
           cat /tmp/deploy-out.txt
-          if [ $exit_code -ne 0 ] && grep -q "cleanup policy" /tmp/deploy-out.txt; then
+          if [ "${exit_code:-0}" -ne 0 ] && grep -q "cleanup policy" /tmp/deploy-out.txt; then
             echo "::warning::Cleanup policy could not be set — functions deployed OK."
             exit 0
           fi
-          exit $exit_code
+          exit "${exit_code:-0}"
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
