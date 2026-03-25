@@ -90,15 +90,12 @@ App calls getLatestHuddle() on load
 
 ---
 
-##### Step 1 — Identify the Huddle email pattern
+##### Step 1 — Identify the Huddle email pattern ✓
 
-Before writing any automation, establish:
-- Which email address sends the Huddle (the `From:` address)
-- Whether the subject line is consistent (e.g. always contains "Huddle" or a route code)
-- Whether the PDF is always the only attachment, or mixed with other files
-- Whether emails arrive 7 days a week or only on operating days
-
-This determines which automation option is viable and how to write the filter rule.
+Confirmed:
+- Sender varies (multiple addresses) — filter by subject, not sender
+- Subject always contains "huddle"
+- Both PDF and DOCX attachments arrive together — prefer PDF, fall back to DOCX
 
 ---
 
@@ -135,8 +132,12 @@ Script logic (~60 lines of JavaScript):
 
 **Cost:** £0. Runs entirely on Google's free tier. Drive storage used is temporary (deleted in step 6).
 
+**Confirmed email pattern:**
+- Sender: varies (multiple addresses send the Huddle) — do not filter by sender
+- Subject: always contains "huddle" — use subject filter in the trigger
+- Attachments: both PDF and DOCX arrive together — prefer PDF, fall back to DOCX
+
 **What Claude will need to write this:**
-- The confirmed `From:` address and subject line pattern of the Huddle email
 - The Firebase project ID (already known — in `firebase-client.js`)
 - A Firebase service account key (JSON) — created in the Firebase console under Project Settings → Service Accounts → Generate new private key. This key is stored in Apps Script's Script Properties (encrypted storage), never in the codebase.
 
