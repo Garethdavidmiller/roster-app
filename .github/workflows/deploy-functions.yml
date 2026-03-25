@@ -34,36 +34,25 @@ jobs:
 
       - name: Push HUDDLE_SECRET to Secret Manager
         run: |
-          # Create the secret if it doesn't exist yet
           gcloud secrets describe HUDDLE_SECRET --project=myb-roster 2>/dev/null \
             || gcloud secrets create HUDDLE_SECRET --project=myb-roster --replication-policy=automatic
-          # Add (or update) the secret value
           echo -n '${{ secrets.HUDDLE_SECRET }}' \
             | gcloud secrets versions add HUDDLE_SECRET --project=myb-roster --data-file=-
 
-      - name: Set artifact cleanup policy
-        run: firebase functions:artifacts:setpolicy --project myb-roster
-        continue-on-error: true
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
-
       - name: Deploy to Firebase
         run: |
-          # Capture output and exit code separately.
-          # || prevents bash -e from killing the script on non-zero exit.
+          # Use || to capture exit code without bash -e terminating the script early.
           firebase deploy --only functions --force --project myb-roster \
             > /tmp/deploy-out.txt 2>&1 || exit_code=$?
 
-          # Print output but strip the cleanup-policy noise entirely.
+          # Print output but strip the cleanup-policy noise so it never appears in logs.
           grep -v "cleanup policy\|setpolicy\|Pass the --force" /tmp/deploy-out.txt || true
 
-          # Non-zero exit caused solely by cleanup policy → treat as success.
           if [ "${exit_code:-0}" -ne 0 ]; then
             if grep -q "cleanup policy" /tmp/deploy-out.txt; then
               echo "Deploy succeeded. Cleanup policy permission not granted — harmless, ignoring."
               exit 0
             fi
-            # Real deployment failure — surface it.
             exit "${exit_code}"
           fi
         env:
