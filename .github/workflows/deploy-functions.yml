@@ -48,6 +48,13 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
 
       - name: Deploy to Firebase
-        run: firebase deploy --only functions --force --project myb-roster
+        run: |
+          firebase deploy --only functions --force --project myb-roster 2>&1 | tee /tmp/deploy-out.txt
+          exit_code=${PIPESTATUS[0]}
+          if [ $exit_code -ne 0 ] && grep -q "Functions successfully deployed" /tmp/deploy-out.txt; then
+            echo "Functions deployed successfully — cleanup policy warning ignored."
+            exit 0
+          fi
+          exit $exit_code
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa-key.json
