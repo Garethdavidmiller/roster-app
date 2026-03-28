@@ -27,7 +27,6 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
-const express = require('express');
 
 admin.initializeApp();
 
@@ -64,13 +63,6 @@ exports.ingestHuddle = onRequest(
         timeoutSeconds: 60,
     },
     async (req, res) => {
-        // Re-parse the body with a 30 MB limit — the default Express body-parser
-        // limit (100 kb) truncates large base64-encoded PDF attachments.
-        await new Promise((resolve, reject) => {
-            express.json({ limit: '30mb' })(req, res, (err) => {
-                if (err) reject(err); else resolve();
-            });
-        });
 
         // ---- Method check ----
         if (req.method !== 'POST') {
@@ -88,7 +80,22 @@ exports.ingestHuddle = onRequest(
         }
 
         // ---- Parse body ----
-        const { date, filename, content } = req.body || {};
+        // Firebase Functions v2 pre-parses req.body with a size limit that truncates
+        // large base64 payloads. req.rawBody is a Buffer of the complete raw request
+        // body set by the Functions runtime before any parsing — use it instead.
+        let parsedBody;
+        try {
+            const raw = req.rawBody
+                ? req.rawBody.toString('utf8')
+                : JSON.stringify(req.body);
+            parsedBody = JSON.parse(raw);
+        } catch (err) {
+            console.error('[ingestHuddle] Failed to parse body:', err.message);
+            res.status(400).json({ error: 'Invalid JSON body' });
+            return;
+        }
+        const { date, filename, content } = parsedBody || {};
+        console.log(`[ingestHuddle] rawBody length: ${req.rawBody ? req.rawBody.length : 'N/A'}, content length: ${content ? content.length : 0}`);
 
         if (!date || !filename || !content) {
             res.status(400).json({ error: 'Missing required fields: date, filename, content' });
