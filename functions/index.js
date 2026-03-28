@@ -27,6 +27,7 @@ const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 const crypto = require('crypto');
+const express = require('express');
 
 admin.initializeApp();
 
@@ -63,6 +64,13 @@ exports.ingestHuddle = onRequest(
         timeoutSeconds: 60,
     },
     async (req, res) => {
+        // Re-parse the body with a 30 MB limit — the default Express body-parser
+        // limit (100 kb) truncates large base64-encoded PDF attachments.
+        await new Promise((resolve, reject) => {
+            express.json({ limit: '30mb' })(req, res, (err) => {
+                if (err) reject(err); else resolve();
+            });
+        });
 
         // ---- Method check ----
         if (req.method !== 'POST') {
