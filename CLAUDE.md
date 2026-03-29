@@ -1,5 +1,29 @@
 # Claude Code Instructions — MYB Roster App
 
+## Project identity — read this first
+
+| Property | Value |
+|----------|-------|
+| GitHub repository | `Garethdavidmiller/roster-app` |
+| Firebase project ID | `myb-roster` |
+| Firebase project region | `europe-west2` (London) |
+| Current app version | `5.66` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
+| Cloud Function URL | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
+| Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
+
+**GitHub Actions secrets required** (Settings → Secrets and variables → Actions):
+
+| Secret name | What it is |
+|-------------|-----------|
+| `FIREBASE_SERVICE_ACCOUNT` | Full JSON of a Firebase service account key with Functions deploy permissions |
+| `HUDDLE_SECRET` | The Bearer token that Power Automate sends to authenticate with `ingestHuddle` — must also be set in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
+
+**GitHub Actions workflows:**
+- `.github/workflows/deploy-functions.yml` — triggers on push to `main` when any file under `functions/` changes, or manually via `workflow_dispatch`. Deploys Cloud Functions only (not the PWA). Exit code from Firebase CLI is treated as success if the only error text is "cleanup policy" (a benign GCP Artifact Registry warning).
+
+---
+
 ## Version bumping (MANDATORY on every change)
 
 **As of v5.49:** JS is now in separate files. You need to update **thirteen** places:
@@ -55,7 +79,10 @@ roster-app/
 ├── shared.css          ← CSS shared between index.html and admin.html
 ├── service-worker.js   ← cache name includes app version, e.g. myb-roster-v4.95
 ├── manifest.json       ← PWA manifest
-└── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
+└── functions/
+    ├── index.js        ← Firebase Cloud Functions (ingestHuddle endpoint)
+    └── package.json    ← Node 20, firebase-admin + firebase-functions only
 ```
 
 **Service worker caching strategy:**
@@ -281,6 +308,233 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 | v5.48 | 🟢 Low | **Month/year filter added to Saved Changes.** Dropdown in the list toolbar lets admin filter overrides by month. Options rebuild automatically from available data when member selection changes. |
 | v5.48 | 🟢 Low | **Per-row note buttons replaced with a shared note field.** The `+ Note` button on each day row (and its expanding note-row, extra grid column, and associated CSS) was removed. A single `Note (optional)` input now sits between the week grid and the Save button — applies to all days in the batch. Pre-populates when editing an existing override that has a note. Clears on save. |
 | v5.49 | 🟢 Low | **Stale note field on week navigation fixed.** Typing a note then swiping or navigating to a different week without saving left the old note text in the field, where it would silently attach to the next save. `renderWeekGrid()` and the swipe commit path now both clear the field before loading a new week. |
+
+---
+
+## Huddle ingest — automated briefing upload
+
+### What it does
+
+The daily Huddle briefing arrives as an email with a PDF or DOCX attachment. A Power Automate flow detects it, extracts the file, and calls a Firebase Cloud Function (`ingestHuddle`) which stores the file in Firebase Storage and writes a metadata record to Firestore. This mirrors what admin staff would otherwise do manually through admin.html.
+
+### Files
+
+| File | Purpose |
+|------|---------|
+| `functions/index.js` | Cloud Function — receives file, validates, uploads to Storage, writes Firestore doc |
+| `functions/package.json` | Node 20; only `firebase-admin` and `firebase-functions` as dependencies |
+
+### Firebase Storage
+
+Files are stored at: `huddles/YYYY-MM-DD.pdf` or `huddles/YYYY-MM-DD.docx`
+
+Each file is uploaded with a custom `firebaseStorageDownloadTokens` metadata field so a stable direct download URL is available immediately after upload.
+
+Download URL format:
+```
+https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD.pdf?alt=media&token={uuid}
+```
+
+### Firestore — `huddles` collection
+
+Document ID = `YYYY-MM-DD` (the London date of the huddle).
+
+```
+date        string     "YYYY-MM-DD"
+storageUrl  string     Full Firebase Storage download URL (with token)
+fileType    string     "pdf" | "docx"
+uploadedAt  timestamp  Firestore server timestamp
+uploadedBy  string     "power-automate" (hardcoded — identifies automated uploads)
+```
+
+### Cloud Function — `ingestHuddle`
+
+- **Region:** `europe-west2` (London)
+- **Auth:** `Authorization: Bearer <HUDDLE_SECRET>` — secret stored in Firebase Secret Manager, accessed via `defineSecret('HUDDLE_SECRET')`
+- **Method:** POST only
+
+**Request format** (this is critical — do not change without updating the Power Automate flow):
+
+```
+Headers:
+  Authorization:      Bearer <secret>
+  Content-Type:       text/plain
+  X-Huddle-Date:      YYYY-MM-DD
+  X-Huddle-Filename:  original-name.pdf   (or .docx)
+
+Body:
+  Raw base64-encoded file content — plain text, no JSON wrapper
+```
+
+**Why plain-text body instead of JSON?**
+Power Automate's `@{body('...')?['contentBytes']}` template substitution in a JSON body has a practical size limit and silently truncates large base64 strings (a 190 KB PDF produces a ~256,000-char base64 string). Putting the file in the raw body as `text/plain` bypasses this entirely. Metadata goes in custom headers instead.
+
+**Body reading:** The function reads `req.rawBody` first (Firebase Functions runtime provides this); falls back to streaming the request if rawBody is unavailable. Never use an Express body-parser — it consumes the stream before the function can read it.
+
+**File type detection:** Based on the `X-Huddle-Filename` header extension (`.docx` → DOCX; anything else → PDF). Never rely on `Content-Type` from Power Automate as it sends `text/plain` for both.
+
+**Deploying the function:**
+
+Gareth's GitHub repo is **online-only** — he does not have a local clone. All deploys happen via GitHub Actions. To trigger a deploy of the Cloud Function, commit a change to any file under `functions/` and push to `main`. The workflow (`.github/workflows/deploy-functions.yml`) runs automatically.
+
+If the workflow shows "Skipped (No changes detected)" it means Firebase compared the deployed function hash with the local build and found no difference — this is normal and means the function is already up to date.
+
+For first-time secret setup (must be done once from a machine with `firebase-tools` installed, or via the Firebase Console):
+```bash
+firebase login
+firebase use myb-roster
+firebase functions:secrets:set HUDDLE_SECRET   # paste a strong random UUID when prompted
+cd functions && npm install
+```
+
+The `HUDDLE_SECRET` must exist in **two places**:
+1. Firebase Secret Manager (so the Cloud Function can read it at runtime)
+2. GitHub Actions secrets (not directly used by the function, but useful to have the same value documented)
+
+**Generating a secret:**
+```
+node -e "console.log(require('crypto').randomUUID())"
+```
+
+**Finding secrets in Firebase Console:**
+In Firebase Console, go to the project → Build → Functions → then look for "Secret Manager" in the left nav (it may be under Google Cloud Console → Security → Secret Manager for project `myb-roster`). The secret is named `HUDDLE_SECRET`.
+
+### Power Automate flow — "huddle ingest"
+
+The flow is built in Power Automate (Microsoft 365). Gareth's organisation provides access. The HTTP connector used is the **HTTP** (Premium) connector — not "Send an HTTP request (Office 365)".
+
+**Trigger:** "When a new email arrives (V3)" on the Huddle mailbox, filtered to emails with attachments.
+
+**Overall structure:**
+
+```
+Trigger: new email with attachment
+│
+├── Compose: London_time
+│   convertTimeZone(triggerOutputs()?['body/receivedDateTime'],
+│                   'UTC', 'GMT Standard Time', 'yyyy-MM-dd')
+│
+├── Set variable: huddleDate  ← outputs('London_time')
+│
+└── Condition: is it after noon? (to avoid duplicate early-morning emails)
+    │
+    ├── YES branch (afternoon/main email):
+    │   ├── Filter array: filter_array_1
+    │   │   From: triggerOutputs()?['body/attachments']
+    │   │   Condition: item()?['contentType']  is equal to  application/pdf
+    │   │             (LEFT = expression tab; RIGHT = value tab)
+    │   │
+    │   ├── Compose: attachment
+    │   │   body('filter_array_1')[0]?['contentBytes']
+    │   │
+    │   ├── Compose: debug_content   ← REMOVE THIS once everything works
+    │   │   length(outputs('attachment'))
+    │   │
+    │   └── HTTP action (Premium)
+    │       Method: POST
+    │       URI: https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle
+    │         (URI goes in value tab, NOT expression tab)
+    │       Headers:
+    │         Authorization  →  Bearer <paste secret here>  (value tab)
+    │         Content-Type   →  text/plain                  (value tab)
+    │         X-Huddle-Date  →  @{variables('huddleDate')}  (value tab, @{} syntax)
+    │         X-Huddle-Filename → @{body('filter_array_1')[0]?['name']}  (value tab)
+    │       Body: @{outputs('attachment')}  (value tab, @{} syntax — NOT expression tab)
+    │
+    └── NO branch (morning/DOCX email):
+        ├── Filter array: filter_array_2
+        │   From: triggerOutputs()?['body/attachments']
+        │   Condition: item()?['contentType']  is equal to
+        │     application/vnd.openxmlformats-officedocument.wordprocessingml.document
+        │             (LEFT = expression tab; RIGHT = value tab)
+        │
+        ├── Compose: attachment
+        │   body('filter_array_2')[0]?['contentBytes']
+        │
+        └── HTTP action (Premium)
+            (same structure as YES branch but references filter_array_2 and filter_array_2's name)
+```
+
+### Critical Power Automate gotchas — read carefully
+
+**1. Expression tab vs value tab**
+Power Automate input fields have two modes: "Expression" (for dynamic functions/variables) and "Value" (for static text). Getting this wrong silently breaks the flow:
+
+| What you're entering | Which tab |
+|---------------------|-----------|
+| `item()?['contentType']` — left side of filter condition | Expression |
+| `application/pdf` — right side of filter condition | Value |
+| `application/vnd.openxmlformats-officedocument.wordprocessingml.document` — right side of DOCX filter | Value |
+| `body('filter_array_1')[0]?['contentBytes']` — Compose source | Expression |
+| The Cloud Function URL | Value |
+| `Bearer <secret>` — Authorization header value | Value |
+| `text/plain` — Content-Type header value | Value |
+| `@{variables('huddleDate')}` — X-Huddle-Date header value | Value (the @{} syntax works in value tab) |
+| `@{body('filter_array_1')[0]?['name']}` — X-Huddle-Filename | Value |
+| `@{outputs('attachment')}` — HTTP body | Value |
+
+**2. Filter array returning empty — the most common failure**
+If `body('filter_array_1')[0]` or `body('filter_array_2')[0]` throws "array index 0 cannot be selected from empty array", the filter returned nothing. Check:
+- Left side of condition is on the **expression** tab (if on value tab it compares literal string `"item()?['contentType']"` which never matches)
+- Right side MIME type has no typos — the DOCX one is 71 characters and easy to mistype
+- "From" field references `triggerOutputs()?['body/attachments']` directly — not a previous filter's output
+
+**3. London timezone**
+The Compose action that calculates the huddle date must be named `London_time` (underscore, not space). Power Automate action names with spaces are accessible via expressions but cause `InvalidTemplate` errors in some contexts. Always use underscores in action names.
+
+Expression used:
+```
+convertTimeZone(triggerOutputs()?['body/receivedDateTime'], 'UTC', 'GMT Standard Time', 'yyyy-MM-dd')
+```
+Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` (no spaces) is invalid.
+
+**4. `@{}` syntax in value tab**
+To reference a dynamic value in a header or body field while on the **value tab**, use `@{expression}` syntax — for example `@{variables('huddleDate')}`. Do not switch to expression tab for this; the @{} wrapper is how Power Automate interpolates expressions inside value-tab strings.
+
+**5. HTTP action references**
+The HTTP action body cannot reference a Compose action by name inside the action's own "inputs" scope. Always use a separate Compose action to prepare the value first, then reference it as `@{outputs('attachment')}` in the HTTP body.
+
+### Power Automate flow — condition logic
+
+The flow sends Huddle emails to the correct branch based on when they arrive:
+- **Yes branch (after noon):** Assumed to be the main/final PDF version. Filters for `application/pdf`.
+- **No branch (before noon):** Assumed to be the morning DOCX draft. Filters for the full DOCX MIME type.
+
+The condition expression checks the received time in London timezone:
+```
+greater(int(formatDateTime(outputs('London_time'), 'HH')), 12)
+```
+
+### Firestore Security Rules — `huddles` collection
+
+The `huddles` collection is written only by the Cloud Function (server-side, authenticated via service account — bypasses Security Rules). The Security Rules for client-side reads should be:
+
+```
+match /huddles/{docId} {
+  allow read: if true;   // all authenticated staff can read huddle links
+  allow write: if false; // writes only via Cloud Function (server-side)
+}
+```
+
+If `allow write: if false` blocks the Cloud Function, that is a misconfiguration — the Admin SDK bypasses Security Rules entirely. Client-side writes (from the browser) are correctly blocked.
+
+### Current status (as of v5.66)
+
+- ✅ Cloud Function deployed and live at `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle`
+- ✅ PDF upload via Power Automate Yes branch — working end to end
+- ✅ DOCX upload via Power Automate No branch — working end to end
+  - Root cause of previous failure: both sides of the `Filter_array_2` condition had been entered as values instead of the left side (expression) / right side (value) pattern. Once corrected, the branch worked.
+- ⏳ `debug_content` Compose action in the Yes branch (outputs `length(outputs('attachment'))` to confirm base64 length) — safe to remove once both branches are confirmed stable over several days
+- ⏳ Huddle viewer UI in admin.html — not yet built. Firestore `huddles` collection is populated and ready; UI needs to query it and display a download link per date
+
+### Next steps for huddle viewer UI
+
+When building the viewer in admin.html:
+- Query the `huddles` Firestore collection, order by `date` descending
+- Display date, file type badge, and a download link using `storageUrl`
+- The `storageUrl` already contains the access token — open directly in a new tab
+- Admin-only section (check `CONFIG.ADMIN_NAMES.includes(currentUser)`)
+- Follow the existing file pattern — JS stays in `admin-app.js`, HTML/CSS in `admin.html`
 
 ---
 
