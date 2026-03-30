@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.69 -->
+<!-- MYB Roster Admin v5.70 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.69">
+    <link rel="stylesheet" href="shared.css?v=5.70">
 
     <style>
         body {
@@ -1731,14 +1731,17 @@
         .huddle-feedback--err { color: var(--error-red); }
 
         /* ---- Roster upload card ---- */
-        .roster-upload-row {
-            display: flex;
+        /* Two equal fields side-by-side: Roster type | Week ending */
+        .roster-fields-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 10px;
-            align-items: flex-end;
-            flex-wrap: wrap;
             margin-bottom: 10px;
         }
-        .roster-upload-field {
+        /* Stack fields on very narrow screens */
+        @media (max-width: 360px) { .roster-fields-row { grid-template-columns: 1fr; } }
+
+        .roster-field {
             display: flex;
             flex-direction: column;
             gap: 4px;
@@ -1750,19 +1753,79 @@
             letter-spacing: 0.5px;
             color: var(--text-mid);
         }
+        .field-label-hint {
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 10px;
+        }
         .roster-select, .roster-date-input {
-            padding: 8px 10px;
+            height: 40px;
+            padding: 0 10px;
             border: 1.5px solid #d0d7de;
             border-radius: var(--radius-md);
             font-size: 14px;
             background: var(--bg-light);
             color: var(--text-dark);
             cursor: pointer;
+            box-sizing: border-box;
+            width: 100%;
         }
         .roster-select:focus, .roster-date-input:focus {
             outline: 2px solid var(--primary-blue);
             outline-offset: 1px;
             border-color: var(--primary-blue);
+        }
+
+        /* File row: "Choose PDF" (auto width) + "Read Roster" (fills remaining space) */
+        .roster-file-row {
+            display: flex;
+            gap: 8px;
+            align-items: stretch;
+            margin-bottom: 8px;
+        }
+        .btn-roster-file {
+            flex: 0 0 auto;
+            display: inline-flex;
+            align-items: center;
+            height: 40px;
+            padding: 0 14px;
+            border: 1.5px solid var(--primary-blue);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            background: white;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+            box-sizing: border-box;
+            transition: background 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .btn-roster-file:hover { background: var(--primary-blue); color: white; }
+        }
+        .btn-roster-parse {
+            flex: 1;
+            height: 40px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .btn-roster-parse:hover:not(:disabled) { background: var(--primary-blue-dark); }
+        }
+        .btn-roster-parse:disabled { opacity: 0.35; cursor: not-allowed; }
+        .roster-filename {
+            font-size: 13px;
+            color: var(--text-mid);
+            margin: 0 0 8px;
+            word-break: break-all;
         }
 
         /* Conflict banner */
@@ -2444,8 +2507,9 @@
 
                 <!-- Step 1: Upload controls -->
                 <div id="rosterUploadForm">
-                    <div class="roster-upload-row">
-                        <div class="roster-upload-field">
+                    <!-- Roster type + Week ending -->
+                    <div class="roster-fields-row">
+                        <div class="roster-field">
                             <label class="field-label" for="rosterType">Roster type</label>
                             <select id="rosterType" class="roster-select">
                                 <option value="cea">CEA / Bilingual</option>
@@ -2453,17 +2517,18 @@
                                 <option value="dispatcher">Dispatchers</option>
                             </select>
                         </div>
-                        <div class="roster-upload-field">
-                            <label class="field-label" for="rosterWeekEnding">Week ending</label>
+                        <div class="roster-field">
+                            <label class="field-label" for="rosterWeekEnding">Week ending <span class="field-label-hint">(Saturday)</span></label>
                             <input type="date" id="rosterWeekEnding" class="roster-date-input">
                         </div>
                     </div>
-                    <div class="roster-upload-row">
-                        <label for="rosterFileInput" class="huddle-file-label" id="rosterFileLabel">Choose PDF</label>
+                    <!-- File picker + parse button -->
+                    <div class="roster-file-row">
+                        <label for="rosterFileInput" class="btn-roster-file">📄 Choose PDF</label>
                         <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
-                        <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read Roster</button>
+                        <button id="rosterParseBtn" class="btn-roster-parse" disabled>Read Roster</button>
                     </div>
-                    <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                    <p id="rosterFileName" class="roster-filename" style="display:none" aria-live="polite"></p>
                     <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
@@ -2547,6 +2612,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.69"></script>
+<script type="module" src="./admin-app.js?v=5.70"></script>
 </body>
 </html>
