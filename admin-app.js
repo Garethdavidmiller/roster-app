@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.69';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.69';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.70';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.70';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2967,16 +2967,32 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
     let _parsedResult = null;      // response from parseRosterPDF Cloud Function
     let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
 
-    // ---- Week ending date defaults to next Sunday ----
+    // ---- Week ending defaults to next Saturday ----
+    // All roster PDFs end on a Saturday. If today is already Saturday, default
+    // to next Saturday (the upcoming week, not today).
     (function setDefaultWeekEnding() {
         const today = new Date();
-        const day   = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
-        // Days until next Sunday (0 = already Sunday → jump to next Sunday)
-        const daysUntilSunday = day === 0 ? 7 : 7 - day;
-        const nextSunday = new Date(today);
-        nextSunday.setDate(today.getDate() + daysUntilSunday);
-        weekEndingEl.value = formatISO(nextSunday);
+        const day   = today.getDay(); // 0=Sun … 6=Sat
+        const daysUntilNextSaturday = day === 6 ? 7 : 6 - day;
+        const nextSaturday = new Date(today);
+        nextSaturday.setDate(today.getDate() + daysUntilNextSaturday);
+        weekEndingEl.value = formatISO(nextSaturday);
     })();
+
+    // ---- Snap any non-Saturday selection to the nearest Saturday ----
+    // HTML date inputs have no built-in day-of-week restriction, so we enforce
+    // it here: if the user picks a date that isn't a Saturday, we move it forward
+    // to the next Saturday automatically.
+    weekEndingEl.addEventListener('change', () => {
+        if (!weekEndingEl.value) return;
+        const picked = new Date(weekEndingEl.value + 'T12:00:00');
+        const day    = picked.getDay(); // 0=Sun … 6=Sat
+        if (day !== 6) {
+            const daysToSaturday = day === 0 ? 6 : 6 - day;
+            picked.setDate(picked.getDate() + daysToSaturday);
+            weekEndingEl.value = formatISO(picked);
+        }
+    });
 
     // ---- Show chosen filename and enable parse button ----
     fileInput.addEventListener('change', () => {

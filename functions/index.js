@@ -322,8 +322,8 @@ exports.parseRosterPDF = onRequest(
             d.setUTCDate(d.getUTCDate() - i);
             dates.push(d.toISOString().slice(0, 10));
         }
-        // dates[0] = Monday, dates[6] = Sunday (= weekEnding)
-        const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        // dates[0] = Sunday, dates[6] = Saturday (= weekEnding)
+        const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
         // ---- Build the staff name list relevant to this roster type ----
         // Staff names come from the teamMembers array that is embedded in the prompt.
@@ -361,7 +361,7 @@ exports.parseRosterPDF = onRequest(
         const namesBlock      = relevantNames.map(n => `  - ${n}`).join('\n');
 
         const prompt = `You are reading a weekly staff roster for a UK rail company.
-The roster covers the week: ${dates[0]} (Monday) to ${dates[6]} (Sunday).
+The roster covers the week: ${dates[0]} (Sunday) to ${dates[6]} (Saturday).
 
 Your job is to find each staff member's shift for every day of that week and return it as structured JSON.
 
