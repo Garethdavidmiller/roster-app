@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.68';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.68';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.69';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.69';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1162,7 +1162,7 @@ async function executeSave(toSave, toDelete = []) {
             }
             const { existingId: _, ...data } = entry;
             const newRef = doc(collection(db, 'overrides'));
-            batch.set(newRef, { ...data, createdAt: serverTimestamp(), changedBy: currentUser });
+            batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: currentUser });
             // Capture the new ID so we can update allOverrides without a round-trip
             newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
         });
@@ -1929,11 +1929,12 @@ alSaveBtn.addEventListener('click', async () => {
                 type:      'annual_leave',
                 value:     'AL',
                 note:      '',
+                source:    'manual',
                 createdAt: serverTimestamp(),
                 changedBy: currentUser
             });
             // Capture the new ID so we can update allOverrides without a round-trip
-            alNewDocs.push({ id: newRef.id, memberName: member, date, type: 'annual_leave', value: 'AL', note: '', createdAt: new Date() });
+            alNewDocs.push({ id: newRef.id, memberName: member, date, type: 'annual_leave', value: 'AL', source: 'manual', note: '', createdAt: new Date() });
         });
         await alBatch.commit();
 
@@ -2110,10 +2111,11 @@ sickSaveBtn.addEventListener('click', async () => {
                 type:      'sick',
                 value:     'SICK',
                 note:      '',
+                source:    'manual',
                 createdAt: serverTimestamp(),
                 changedBy: currentUser
             });
-            sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'sick', value: 'SICK', note: '', createdAt: new Date() });
+            sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'sick', value: 'SICK', source: 'manual', note: '', createdAt: new Date() });
         });
         await sickBatch.commit();
 
@@ -2894,3 +2896,658 @@ if ('serviceWorker' in navigator) {
         });
     }
 }
+
+// ============================================
+// ROSTER UPLOAD — parse PDF and review shifts
+// ============================================
+//
+// HOW THIS WORKS (plain English):
+//
+// 1. Gareth chooses the roster type, week-ending date, and PDF file.
+// 2. The PDF is sent to the "parseRosterPDF" Cloud Function, which:
+//    a. Reads the text from the PDF.
+//    b. Asks Claude AI to identify each person's shifts.
+//    c. Returns a tidy list of shifts — does NOT write anything yet.
+// 3. The browser fetches any overrides already saved in Firestore for that week.
+// 4. For each cell (person + day) we decide one of four states:
+//    - MATCH:    PDF matches the base roster. Nothing to do.
+//    - DIFF:     PDF differs from base roster, no manual override exists.
+//                → Show in amber, ticked by default. Will save if approved.
+//    - CONFLICT: A manually entered override exists AND the PDF says something
+//                different. The manual entry wins automatically — but Gareth
+//                is told about it and can tap the cell to see both values.
+//    - COVERED:  A manual override already matches what the PDF says. Nothing to do.
+// 5. Gareth reviews, edits any cells he wants to correct, then clicks "Apply".
+// 6. The browser writes only the approved DIFF cells to Firestore as overrides
+//    with source: 'roster_import', in a single batch write.
+//
+// The "source" field on override documents:
+//   'manual'        — entered by a person on the admin page (sick leave, AL, etc.)
+//   'roster_import' — written by this roster upload feature
+// Existing documents without a source field are treated as 'manual' (safe default).
+//
+// ============================================
+
+// The Cloud Function URL for parsing rosters.
+// Replace with the actual deployed URL if it differs.
+const PARSE_ROSTER_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF';
+
+// This secret must match the ROSTER_SECRET value set in Firebase Secret Manager.
+// It is embedded here because the current app has no server-side auth (known limitation).
+const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
+
+(function initRosterUpload() {
+    if (!currentIsAdmin) return;
+
+    const card            = document.getElementById('rosterUploadCard');
+    const rosterTypeEl    = document.getElementById('rosterType');
+    const weekEndingEl    = document.getElementById('rosterWeekEnding');
+    const fileInput       = document.getElementById('rosterFileInput');
+    const fileNameEl      = document.getElementById('rosterFileName');
+    const parseBtn        = document.getElementById('rosterParseBtn');
+    const parseFeedback   = document.getElementById('rosterParseFeedback');
+    const reviewSection   = document.getElementById('rosterReviewSection');
+    const conflictBanner  = document.getElementById('rosterConflictBanner');
+    const conflictTitle   = document.getElementById('rosterConflictTitle');
+    const conflictDetail  = document.getElementById('rosterConflictDetail');
+    const reviewLabel     = document.getElementById('rosterReviewLabel');
+    const reviewHead      = document.getElementById('rosterReviewHead');
+    const reviewBody      = document.getElementById('rosterReviewBody');
+    const applyBtn        = document.getElementById('rosterApplyBtn');
+    const cancelBtn       = document.getElementById('rosterCancelBtn');
+    const applyFeedback   = document.getElementById('rosterApplyFeedback');
+
+    if (!card || !rosterTypeEl || !weekEndingEl || !fileInput || !parseBtn) return;
+
+    // Reveal the card for admin users
+    card.style.display = '';
+
+    // In-memory store for the parsed result and computed cell states.
+    // Cleared when "Start over" is clicked.
+    let _parsedResult = null;      // response from parseRosterPDF Cloud Function
+    let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
+
+    // ---- Week ending date defaults to next Sunday ----
+    (function setDefaultWeekEnding() {
+        const today = new Date();
+        const day   = today.getDay(); // 0=Sun, 1=Mon … 6=Sat
+        // Days until next Sunday (0 = already Sunday → jump to next Sunday)
+        const daysUntilSunday = day === 0 ? 7 : 7 - day;
+        const nextSunday = new Date(today);
+        nextSunday.setDate(today.getDate() + daysUntilSunday);
+        weekEndingEl.value = formatISO(nextSunday);
+    })();
+
+    // ---- Show chosen filename and enable parse button ----
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        parseFeedback.textContent = '';
+        parseFeedback.className   = 'huddle-feedback';
+        if (!file) {
+            fileNameEl.style.display = 'none';
+            parseBtn.disabled        = true;
+            return;
+        }
+        if (!file.name.toLowerCase().endsWith('.pdf')) {
+            fileNameEl.style.display = 'none';
+            parseBtn.disabled        = true;
+            parseFeedback.textContent = 'Please choose a PDF file';
+            parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
+            fileInput.value           = '';
+            return;
+        }
+        if (file.size > 20 * 1024 * 1024) {
+            fileNameEl.style.display = 'none';
+            parseBtn.disabled        = true;
+            parseFeedback.textContent = 'File too large — maximum 20 MB';
+            parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
+            fileInput.value           = '';
+            return;
+        }
+        fileNameEl.textContent   = file.name;
+        fileNameEl.style.display = '';
+        parseBtn.disabled        = false;
+    });
+
+    // ---- "Read Roster" button ----
+    parseBtn.addEventListener('click', async () => {
+        const file      = fileInput.files[0];
+        const weekEnding = weekEndingEl.value;
+        const rosterType = rosterTypeEl.value;
+
+        if (!file || !weekEnding) return;
+
+        // Reset UI
+        parseFeedback.textContent = '';
+        parseFeedback.className   = 'huddle-feedback';
+        reviewSection.style.display = 'none';
+        parseBtn.disabled           = true;
+        parseBtn.textContent        = 'Reading…';
+
+        try {
+            // Convert file to base64 — same technique as ingestHuddle
+            const base64 = await fileToBase64(file);
+
+            // Call the Cloud Function
+            parseFeedback.textContent = 'Sending to AI — this takes about 15 seconds…';
+            parseFeedback.className   = 'huddle-feedback';
+
+            const response = await fetch(PARSE_ROSTER_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization':  `Bearer ${ROSTER_SECRET_VALUE}`,
+                    'Content-Type':   'text/plain',
+                    'X-Week-Ending':  weekEnding,
+                    'X-Roster-Type':  rosterType,
+                },
+                body: base64,
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.error || `Server error (${response.status})`);
+            }
+
+            _parsedResult = await response.json();
+            parseFeedback.textContent = '';
+
+            // Fetch existing overrides for this week from Firestore so we can detect conflicts
+            parseFeedback.textContent = 'Checking for existing schedule changes…';
+            const existingOverrides = await fetchOverridesForWeek(_parsedResult.dates);
+            parseFeedback.textContent = '';
+
+            // Compute cell states and render the review table
+            _cellStates = computeCellStates(_parsedResult, existingOverrides);
+            renderReviewTable(_parsedResult, _cellStates);
+
+        } catch (err) {
+            console.error('[RosterUpload] Parse failed:', err);
+            parseFeedback.textContent = `Could not read the roster: ${err.message}`;
+            parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
+        } finally {
+            parseBtn.disabled    = false;
+            parseBtn.textContent = 'Read Roster';
+        }
+    });
+
+    // ---- "Start over" button ----
+    cancelBtn.addEventListener('click', () => {
+        reviewSection.style.display = 'none';
+        _parsedResult = null;
+        _cellStates   = null;
+        fileInput.value           = '';
+        fileNameEl.style.display  = 'none';
+        parseBtn.disabled         = true;
+        applyFeedback.textContent = '';
+        applyFeedback.className   = 'huddle-feedback';
+    });
+
+    // ---- "Apply approved changes" button ----
+    applyBtn.addEventListener('click', async () => {
+        if (!_parsedResult || !_cellStates) return;
+
+        // Collect all DIFF cells that are ticked (approved) + any CONFLICT cells
+        // where the admin chose "Use PDF"
+        const toWrite = [];
+
+        for (const [key, state] of _cellStates) {
+            const [memberName, date] = key.split('|');
+
+            if (state.state === 'DIFF' && state.chosen !== false) {
+                // Use the edited value if the admin changed it, otherwise the parsed value
+                toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift });
+            }
+            if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
+                toWrite.push({ memberName, date, value: state.parsedShift });
+            }
+        }
+
+        if (toWrite.length === 0) {
+            applyFeedback.textContent = 'Nothing to save — all changes are either skipped or already up to date.';
+            applyFeedback.className   = 'huddle-feedback';
+            return;
+        }
+
+        applyBtn.disabled    = true;
+        applyBtn.textContent = `Saving ${toWrite.length} change${toWrite.length !== 1 ? 's' : ''}…`;
+        applyFeedback.textContent = '';
+
+        try {
+            const batch = writeBatch(db);
+
+            for (const { memberName, date, value } of toWrite) {
+                // Map shift value to the override type field
+                const type = shiftValueToOverrideType(value);
+                const ref  = doc(collection(db, 'overrides'));
+                batch.set(ref, {
+                    memberName,
+                    date,
+                    type,
+                    value,
+                    note:       '',
+                    source:     'roster_import',   // marks this as auto-applied, not hand-entered
+                    createdAt:  serverTimestamp(),
+                    changedBy:  currentUser,
+                });
+            }
+
+            await batch.commit();
+
+            // Update the in-memory override cache so the week grid and table refresh
+            // without a round-trip to Firestore.  We don't know the new doc IDs but
+            // loadOverrides() will re-fetch cleanly.
+            await loadOverrides();
+
+            applyFeedback.textContent = `Done — ${toWrite.length} shift${toWrite.length !== 1 ? 's' : ''} saved to the roster.`;
+            applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
+
+            // Clear the review table so it can't be applied twice
+            reviewSection.style.display = 'none';
+            _parsedResult = null;
+            _cellStates   = null;
+            fileInput.value          = '';
+            fileNameEl.style.display = 'none';
+            parseBtn.disabled        = true;
+
+        } catch (err) {
+            console.error('[RosterUpload] Apply failed:', err);
+            applyFeedback.textContent = 'Could not save — check your connection and try again.';
+            applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
+            applyBtn.disabled    = false;
+            applyBtn.textContent = 'Apply approved changes';
+        }
+    });
+
+    // ------------------------------------------------------------------
+    // HELPERS
+    // ------------------------------------------------------------------
+
+    /**
+     * Read a File object and return its contents as a base64 string.
+     * @param {File} file
+     * @returns {Promise<string>}
+     */
+    function fileToBase64(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload  = () => {
+                // result is "data:application/pdf;base64,AAAA…" — strip the prefix
+                const base64 = reader.result.split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = () => reject(new Error('Could not read the file'));
+            reader.readAsDataURL(file);
+        });
+    }
+
+    /**
+     * Fetch all override documents for a specific set of dates from Firestore.
+     * We only fetch dates in the roster week — no need to load the full cache.
+     *
+     * @param {string[]} dates - Array of YYYY-MM-DD strings (the 7 days of the week)
+     * @returns {Promise<Array>} Array of override objects { id, memberName, date, value, source, ... }
+     */
+    async function fetchOverridesForWeek(dates) {
+        try {
+            const q    = query(collection(db, 'overrides'), where('date', 'in', dates));
+            const snap = await getDocs(q);
+            return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch (err) {
+            console.error('[RosterUpload] Could not fetch existing overrides:', err);
+            return [];   // Non-fatal — means we may miss conflicts, but won't crash
+        }
+    }
+
+    /**
+     * Compute the state of every (member, date) cell in the review table.
+     *
+     * Returns a Map keyed by "memberName|date" with values:
+     *   { state: 'MATCH'|'DIFF'|'CONFLICT'|'COVERED', parsedShift, baseShift,
+     *     manualValue?, manualId?, chosen }
+     *
+     * State meanings:
+     *   MATCH    — PDF matches base roster, no override → nothing to do
+     *   DIFF     — PDF differs from base roster, no manual override → propose change
+     *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
+     *   COVERED  — A manual override exists and already matches the PDF → nothing to do
+     *
+     * @param {object} parsedResult  - Response from parseRosterPDF
+     * @param {Array}  existingOverrides - Overrides already in Firestore for this week
+     * @returns {Map}
+     */
+    function computeCellStates(parsedResult, existingOverrides) {
+        const states = new Map();
+
+        // Build a quick lookup: "memberName|date" → override doc
+        const overrideMap = new Map();
+        for (const o of existingOverrides) {
+            overrideMap.set(`${o.memberName}|${o.date}`, o);
+        }
+
+        for (const entry of parsedResult.parsed) {
+            // Only process names that exist in teamMembers (not hidden)
+            const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
+            if (!member) continue;
+
+            for (const date of parsedResult.dates) {
+                const parsedShift  = entry.shifts[date] || 'RD';
+                const baseShift    = getBaseShift(member, new Date(date + 'T12:00:00'));
+                const key          = `${entry.memberName}|${date}`;
+                const existing     = overrideMap.get(key);
+
+                // Determine whether the existing override is manual or a previous import
+                const isManual = existing
+                    ? (existing.source !== 'roster_import')   // no source field → treat as manual
+                    : false;
+
+                let state;
+                if (!existing || !isManual) {
+                    // No override (or only a previous import) — compare PDF vs base roster
+                    if (parsedShift === baseShift) {
+                        state = 'MATCH';
+                    } else {
+                        state = 'DIFF';
+                    }
+                } else {
+                    // A manual override exists — check if it already matches the PDF
+                    if (existing.value === parsedShift) {
+                        state = 'COVERED';   // manual is already correct — nothing to do
+                    } else {
+                        state = 'CONFLICT';  // manual differs from PDF — flag it
+                    }
+                }
+
+                states.set(key, {
+                    state,
+                    parsedShift,
+                    baseShift,
+                    manualValue: existing?.value ?? null,
+                    manualId:    existing?.id    ?? null,
+                    editedValue: null,    // set if admin edits a DIFF cell
+                    chosen:      state === 'DIFF' ? true : null,
+                    // 'chosen' for DIFF = true (approved) or false (skipped)
+                    // 'chosen' for CONFLICT = 'manual' (default) or 'pdf'
+                });
+            }
+        }
+
+        return states;
+    }
+
+    /**
+     * Render the review table from the parsed result and computed cell states.
+     * Shows only rows that have at least one DIFF or CONFLICT cell.
+     *
+     * @param {object} parsedResult
+     * @param {Map}    cellStates
+     */
+    function renderReviewTable(parsedResult, cellStates) {
+        const { dates, parsed, weekEnding } = parsedResult;
+
+        // Column headers: Name + Mon 30 Mar … Sun 5 Apr + Skip column
+        const dayHeaders = dates.map(d => {
+            const dt  = new Date(d + 'T12:00:00');
+            const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+            return `${day} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
+        });
+
+        reviewHead.innerHTML = `<tr>
+            <th>Name</th>
+            ${dayHeaders.map(h => `<th>${esc(h)}</th>`).join('')}
+            <th></th>
+        </tr>`;
+
+        // Count diffs and conflicts
+        let diffCount     = 0;
+        let conflictCount = 0;
+        const conflictLines = [];
+
+        for (const [key, s] of cellStates) {
+            if (s.state === 'DIFF')     diffCount++;
+            if (s.state === 'CONFLICT') {
+                conflictCount++;
+                const [memberName, date] = key.split('|');
+                const dt  = new Date(date + 'T12:00:00');
+                const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+                conflictLines.push(
+                    `${esc(memberName)} / ${day} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
+                    `Manual saved as <strong>${esc(s.manualValue)}</strong> — PDF says <strong>${esc(s.parsedShift)}</strong>`
+                );
+            }
+        }
+
+        // Show / hide conflict banner
+        if (conflictCount > 0) {
+            conflictTitle.textContent  = `${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} — manually saved changes are protected`;
+            conflictDetail.innerHTML   = conflictLines.join('<br>');
+            conflictBanner.style.display = '';
+        } else {
+            conflictBanner.style.display = 'none';
+        }
+
+        // Build rows — only show rows that have at least one DIFF or CONFLICT cell
+        reviewBody.innerHTML = '';
+        let rowsShown = 0;
+
+        for (const entry of parsed) {
+            const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
+            if (!member) continue;
+
+            // Check if this row has any actionable cells
+            const hasDiff     = dates.some(d => (cellStates.get(`${entry.memberName}|${d}`)?.state === 'DIFF'));
+            const hasConflict = dates.some(d => (cellStates.get(`${entry.memberName}|${d}`)?.state === 'CONFLICT'));
+            if (!hasDiff && !hasConflict) continue;
+
+            const row = document.createElement('tr');
+            row.dataset.member = entry.memberName;
+
+            // Name cell + skip button
+            const nameCell = document.createElement('td');
+            nameCell.innerHTML = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                <span>${esc(entry.memberName)}</span>
+                <button class="roster-row-skip" data-member="${esc(entry.memberName)}">Skip row</button>
+            </div>`;
+            row.appendChild(nameCell);
+
+            // One cell per day
+            for (const date of dates) {
+                const key   = `${entry.memberName}|${date}`;
+                const state = cellStates.get(key);
+                const td    = document.createElement('td');
+                td.dataset.key = key;
+
+                renderCell(td, state, key);
+                row.appendChild(td);
+            }
+
+            // Empty trailing cell (aligns with the header's empty last column)
+            row.appendChild(document.createElement('td'));
+
+            // Skip-row button logic
+            nameCell.querySelector('.roster-row-skip').addEventListener('click', () => {
+                const isSkipped = row.classList.toggle('roster-row-skipped');
+                // Toggle all DIFF cells in this row
+                for (const date of dates) {
+                    const key   = `${entry.memberName}|${date}`;
+                    const s     = cellStates.get(key);
+                    if (!s || s.state !== 'DIFF') continue;
+                    s.chosen = !isSkipped;
+                    // Re-render the cell to update checkbox state
+                    const tdEl = row.querySelector(`td[data-key="${CSS.escape(key)}"]`);
+                    if (tdEl) renderCell(tdEl, s, key);
+                }
+            });
+
+            reviewBody.appendChild(row);
+            rowsShown++;
+        }
+
+        // If nothing to show (all matched), display a success message instead
+        if (rowsShown === 0) {
+            reviewBody.innerHTML = `<tr><td colspan="${dates.length + 2}" style="text-align:center;padding:20px;color:#2e7d32;font-weight:600">
+                ✓ The roster matches what's already in the app — no changes needed.
+            </td></tr>`;
+            applyBtn.disabled = true;
+        } else {
+            applyBtn.disabled    = false;
+            applyBtn.textContent = 'Apply approved changes';
+        }
+
+        // Summary label
+        const weekEndDate = new Date(weekEnding + 'T12:00:00');
+        const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+        reviewLabel.textContent = `Week ending ${formatted} — ${diffCount} proposed change${diffCount !== 1 ? 's' : ''}, ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''}`;
+
+        reviewSection.style.display = '';
+        applyFeedback.textContent   = '';
+        applyFeedback.className     = 'huddle-feedback';
+    }
+
+    /**
+     * Render a single review table cell according to its state.
+     * Called both on initial render and when the admin toggles a checkbox or
+     * resolves a conflict.
+     *
+     * @param {HTMLElement} td     - The <td> to populate
+     * @param {object}      state  - Cell state object from computeCellStates
+     * @param {string}      key    - "memberName|date"
+     */
+    function renderCell(td, state, key) {
+        td.innerHTML = '';
+
+        if (!state || state.state === 'MATCH' || state.state === 'COVERED') {
+            // Grey — nothing to do
+            const span = document.createElement('span');
+            span.className   = 'rcell-match';
+            span.textContent = state?.parsedShift ?? '—';
+            td.appendChild(span);
+            return;
+        }
+
+        if (state.state === 'DIFF') {
+            // Amber — proposed change with approve checkbox
+            const displayValue = state.editedValue ?? state.parsedShift;
+            const wrap = document.createElement('div');
+            wrap.className = 'rcell-diff-wrap';
+
+            // The shift value (editable on click)
+            const badge = document.createElement('span');
+            badge.className   = 'rcell-diff';
+            badge.textContent = displayValue;
+            badge.title       = `Base roster: ${state.baseShift} → PDF: ${displayValue}. Tap to edit.`;
+            badge.addEventListener('click', () => {
+                const edited = prompt(`Edit shift for this cell (current: ${displayValue}):`, displayValue);
+                if (edited === null) return;   // cancelled
+                const trimmed = edited.trim().toUpperCase();
+                if (!trimmed) return;
+                state.editedValue = trimmed;
+                renderCell(td, state, key);
+            });
+            wrap.appendChild(badge);
+
+            // Approve / skip checkbox
+            const approveRow = document.createElement('label');
+            approveRow.className = 'rcell-diff-approve';
+            const cb = document.createElement('input');
+            cb.type    = 'checkbox';
+            cb.checked = state.chosen !== false;
+            cb.addEventListener('change', () => {
+                state.chosen = cb.checked;
+            });
+            approveRow.appendChild(cb);
+            approveRow.appendChild(document.createTextNode('Save'));
+            wrap.appendChild(approveRow);
+
+            td.appendChild(wrap);
+            return;
+        }
+
+        if (state.state === 'CONFLICT') {
+            // Red — manual override is protected; admin can tap to see details
+            const wrap = document.createElement('div');
+            wrap.className = 'rcell-conflict-wrap';
+
+            const cell = document.createElement('span');
+            cell.className   = 'rcell-conflict';
+            cell.innerHTML   = `<span class="conflict-badge">⚠</span>${esc(state.manualValue)}`;
+            cell.title       = 'Manual entry saved — tap to compare with PDF';
+
+            const popover = document.createElement('div');
+            popover.className = 'conflict-popover';
+            popover.innerHTML = `
+                <p>Currently saved (manual)</p>
+                <strong>${esc(state.manualValue)}</strong>
+                <p style="margin-top:6px">PDF says</p>
+                <strong>${esc(state.parsedShift)}</strong>
+                <div class="conflict-btns">
+                    <button class="btn-keep-manual">Keep manual</button>
+                    <button class="btn-use-pdf">Use PDF</button>
+                </div>`;
+
+            // Toggle popover on cell click; close when clicking outside
+            cell.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Close any other open popovers first
+                document.querySelectorAll('.conflict-popover.open').forEach(p => {
+                    if (p !== popover) p.classList.remove('open');
+                });
+                popover.classList.toggle('open');
+            });
+            document.addEventListener('click', () => popover.classList.remove('open'), { capture: false });
+
+            popover.querySelector('.btn-keep-manual').addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.chosen = 'manual';
+                popover.classList.remove('open');
+                renderCell(td, state, key);
+            });
+            popover.querySelector('.btn-use-pdf').addEventListener('click', (e) => {
+                e.stopPropagation();
+                state.chosen = 'pdf';
+                popover.classList.remove('open');
+                renderCell(td, state, key);
+            });
+
+            // If admin already chose "Use PDF", show the cell amber instead of red
+            if (state.chosen === 'pdf') {
+                cell.className   = 'rcell-diff';
+                cell.innerHTML   = esc(state.parsedShift);
+                cell.title       = 'Will overwrite manual entry with PDF value. Tap to change.';
+            }
+
+            wrap.appendChild(cell);
+            wrap.appendChild(popover);
+            td.appendChild(wrap);
+        }
+    }
+
+    /**
+     * Map a shift value to the Firestore override `type` field.
+     * This mirrors the existing override type vocabulary.
+     *
+     * @param {string} value - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RDW", "RD"
+     * @returns {string}  override type
+     */
+    function shiftValueToOverrideType(value) {
+        if (value === 'AL')    return 'annual_leave';
+        if (value === 'SICK')  return 'sick';
+        if (value === 'RDW')   return 'rdw';
+        if (value === 'SPARE') return 'spare_shift';
+        if (value === 'RD')    return 'correction';
+        // Anything else is a shift time (e.g. "05:30-11:30") — treat as overtime/swap
+        return 'overtime';
+    }
+
+    // ---- Collapse / expand ----
+    (function initCollapse() {
+        const header  = document.getElementById('rosterUploadToggleHeader');
+        const body    = document.getElementById('rosterUploadBody');
+        const chevron = document.getElementById('rosterUploadChevron');
+        if (!header || !body || !chevron) return;
+        header.addEventListener('click', () => {
+            const isOpen = body.classList.toggle('open');
+            chevron.classList.toggle('open', isOpen);
+        });
+    })();
+
+})();

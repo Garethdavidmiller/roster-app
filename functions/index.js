@@ -1,32 +1,34 @@
 /**
  * functions/index.js — MYB Roster Firebase Cloud Functions
  *
- * ingestHuddle — HTTP endpoint called by Power Automate when the daily
- * Huddle email arrives. Accepts the file as a base64-encoded plain-text
- * body (avoiding JSON body-size limits), with date and filename passed
- * as custom headers. Stores the file in Firebase Storage and writes a
- * metadata document to the `huddles` Firestore collection.
+ * ingestHuddle     — Called by Power Automate when the daily Huddle email arrives.
+ *                    Stores the file in Firebase Storage and writes a metadata doc
+ *                    to the `huddles` Firestore collection.
+ *
+ * parseRosterPDF   — Called from the admin page when Gareth uploads a weekly roster PDF.
+ *                    Extracts the text, passes it to Claude AI, and returns a list of
+ *                    each person's shifts for that week. Does NOT write to Firestore —
+ *                    Gareth reviews and approves first, then the browser writes the changes.
+ *
+ * Secrets required (set once via Google Cloud Console → Secret Manager):
+ *   HUDDLE_SECRET       — Bearer token for Power Automate auth
+ *   ROSTER_SECRET       — Bearer token for the admin roster upload page
+ *   ANTHROPIC_API_KEY   — API key for the Claude AI service
  *
  * Deploy:
- *   npm install -g firebase-tools          # one-time
- *   firebase login                          # one-time
- *   firebase use myb-roster                 # one-time
- *   firebase functions:secrets:set HUDDLE_SECRET   # paste a strong random string when prompted
- *   cd functions && npm install             # one-time
- *   firebase deploy --only functions        # run this each time the function changes
- *
- * Generating a strong secret (run in any terminal):
- *   node -e "console.log(require('crypto').randomUUID())"
+ *   Push any change to functions/ on main — GitHub Actions deploys automatically.
  */
 
 const { onRequest } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
-const admin = require('firebase-admin');
+const admin  = require('firebase-admin');
 const crypto = require('crypto');
 
 admin.initializeApp();
 
-const HUDDLE_SECRET = defineSecret('HUDDLE_SECRET');
+const HUDDLE_SECRET     = defineSecret('HUDDLE_SECRET');
+const ROSTER_SECRET     = defineSecret('ROSTER_SECRET');
+const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
 
 /**
  * POST /ingestHuddle
@@ -173,3 +175,335 @@ exports.ingestHuddle = onRequest(
         }
     }
 );
+
+// ============================================================================
+// parseRosterPDF
+// ============================================================================
+/**
+ * POST /parseRosterPDF
+ *
+ * Called from admin.html when Gareth uploads a weekly roster PDF.
+ * Extracts the text from the PDF, sends it to Claude AI with a structured
+ * prompt, and returns each recognised staff member's shifts for the week.
+ *
+ * This function does NOT write anything to Firestore. It just reads and
+ * returns. The admin reviews the results in the browser, then approves them,
+ * at which point the browser writes the changes to Firestore directly.
+ *
+ * Request headers:
+ *   Authorization:    Bearer <ROSTER_SECRET>
+ *   Content-Type:     text/plain
+ *   X-Week-Ending:    YYYY-MM-DD  (Saturday or Sunday — the last day of the roster week)
+ *   X-Roster-Type:    cea | ces | dispatcher
+ *
+ * Request body:
+ *   Raw base64-encoded PDF content (same pattern as ingestHuddle — avoids JSON size limits).
+ *
+ * Success response (200):
+ *   {
+ *     weekEnding:  "2026-04-05",
+ *     rosterType:  "cea",
+ *     dates:       ["2026-03-30", ..., "2026-04-05"],   // Mon → Sun
+ *     parsed: [
+ *       { memberName: "L. Springer", shifts: { "2026-03-30": "05:30-11:30", ... } },
+ *       ...
+ *     ]
+ *   }
+ */
+exports.parseRosterPDF = onRequest(
+    {
+        secrets:        [ROSTER_SECRET, ANTHROPIC_API_KEY],
+        region:         'europe-west2',
+        cors:           true,           // called from the browser (admin.html)
+        timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
+        memory:         '512MiB',       // pdf-parse needs a little headroom
+    },
+    async (req, res) => {
+
+        // ---- Method check ----
+        if (req.method !== 'POST') {
+            res.status(405).send('Method not allowed');
+            return;
+        }
+
+        // ---- Auth ----
+        const authHeader = req.headers['authorization'] || '';
+        if (authHeader !== `Bearer ${ROSTER_SECRET.value()}`) {
+            res.status(401).send('Unauthorised');
+            return;
+        }
+
+        // ---- Headers ----
+        const weekEnding = (req.headers['x-week-ending']  || '').trim();
+        const rosterType = (req.headers['x-roster-type']  || '').trim().toLowerCase();
+
+        if (!weekEnding || !/^\d{4}-\d{2}-\d{2}$/.test(weekEnding)) {
+            res.status(400).json({ error: 'Missing or invalid X-Week-Ending header (expected YYYY-MM-DD)' });
+            return;
+        }
+        if (!['cea', 'ces', 'dispatcher'].includes(rosterType)) {
+            res.status(400).json({ error: 'X-Roster-Type must be cea, ces, or dispatcher' });
+            return;
+        }
+
+        // ---- Read raw body ----
+        let base64Content;
+        try {
+            if (req.rawBody) {
+                base64Content = req.rawBody.toString('utf8').trim();
+            } else {
+                const chunks = [];
+                await new Promise((resolve, reject) => {
+                    req.on('data', chunk => chunks.push(chunk));
+                    req.on('end', resolve);
+                    req.on('error', reject);
+                });
+                base64Content = Buffer.concat(chunks).toString('utf8').trim();
+            }
+        } catch (err) {
+            console.error('[parseRosterPDF] Failed to read body:', err.message);
+            res.status(400).json({ error: 'Could not read request body' });
+            return;
+        }
+
+        if (!base64Content) {
+            res.status(400).json({ error: 'Request body is empty' });
+            return;
+        }
+
+        // ---- Decode PDF ----
+        let pdfBuffer;
+        try {
+            pdfBuffer = Buffer.from(base64Content, 'base64');
+        } catch {
+            res.status(400).json({ error: 'Body must be valid base64' });
+            return;
+        }
+
+        if (pdfBuffer.length === 0) {
+            res.status(400).json({ error: 'Decoded PDF is empty' });
+            return;
+        }
+        if (pdfBuffer.length > 20 * 1024 * 1024) {
+            res.status(413).json({ error: 'File exceeds 20 MB limit' });
+            return;
+        }
+
+        // ---- Extract text from PDF ----
+        // pdf-parse reads the raw bytes and gives us the text content as a string.
+        // Column alignment is lost (PDFs don't preserve table structure as text),
+        // which is why we use Claude AI to interpret the result rather than
+        // trying to parse columns by character position.
+        let rawText;
+        try {
+            const pdfParse = require('pdf-parse');
+            const data = await pdfParse(pdfBuffer);
+            rawText = data.text;
+        } catch (err) {
+            console.error('[parseRosterPDF] pdf-parse failed:', err.message);
+            res.status(422).json({ error: 'Could not read the PDF — make sure it is a valid roster PDF and not password-protected' });
+            return;
+        }
+
+        if (!rawText || rawText.trim().length < 50) {
+            res.status(422).json({ error: 'PDF appears to be empty or image-only — text could not be extracted' });
+            return;
+        }
+
+        console.log(`[parseRosterPDF] Extracted ${rawText.length} chars from PDF`);
+
+        // ---- Build the 7 dates for this week (Mon → Sun) ----
+        // weekEnding is the Sunday (or Saturday for some rosters).
+        // We calculate Mon–Sun by working back 6 days from weekEnding.
+        const weekEndDate = new Date(weekEnding + 'T12:00:00Z');
+        const dates = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(weekEndDate);
+            d.setUTCDate(d.getUTCDate() - i);
+            dates.push(d.toISOString().slice(0, 10));
+        }
+        // dates[0] = Monday, dates[6] = Sunday (= weekEnding)
+        const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+        // ---- Build the staff name list relevant to this roster type ----
+        // Staff names come from the teamMembers array that is embedded in the prompt.
+        // We only include names relevant to the roster type being parsed, so the AI
+        // doesn't accidentally match a CES name in a CEA document (or vice versa).
+        //
+        // We embed the names directly — this function has no access to roster-data.js
+        // (that is a browser ES module). The names are therefore hardcoded here and
+        // must be kept in sync with roster-data.js. The AI is instructed to skip any
+        // name in the PDF that is NOT in this list (vacancies, agency staff, etc.).
+        const STAFF_NAMES = {
+            cea: [
+                'L. Springer', 'A. Hared', 'G. Miller', 'M. Robson', 'I. Cooper',
+                'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
+                'L. Atrakimaviciene', 'J. Haque', 'N. Tuck', 'R. Forrester-Blackstock',
+                'S. Langley', 'S. Silva', 'J. Sumaili', 'T. Bibi', 'T. Nsuala',
+                'D. Irvine', 'T. Gherbi', 'C. Reen',
+            ],
+            ces: [
+                'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru',
+                'L. Webster', 'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman',
+            ],
+            dispatcher: [
+                'D. Minto', 'A. Targanov', 'S. Warman', 'S. Faure', 'L. Szpejer',
+                'K. Porter', 'A. Murray', 'S. Clarke', 'A. Atkins', 'K. Yeboah',
+            ],
+        };
+
+        const relevantNames = STAFF_NAMES[rosterType];
+
+        // ---- Build the Claude prompt ----
+        // Plain language instructions work better than overly technical ones.
+        // We tell the AI exactly what each abbreviation means and what to output.
+        const dateTableHeader = dayLabels.map((d, i) => `${d} (${dates[i]})`).join(' | ');
+        const namesBlock      = relevantNames.map(n => `  - ${n}`).join('\n');
+
+        const prompt = `You are reading a weekly staff roster for a UK rail company.
+The roster covers the week: ${dates[0]} (Monday) to ${dates[6]} (Sunday).
+
+Your job is to find each staff member's shift for every day of that week and return it as structured JSON.
+
+---
+STAFF NAMES TO LOOK FOR (only these — skip anyone else):
+${namesBlock}
+
+---
+WHAT THE CODES MEAN:
+- A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
+- RD = Rest day
+- AL = Annual leave
+- SP or SPARE = Spare (on standby, no shift assigned yet)
+- RDW = Rest day worked (overtime)
+- SC or SN = SICK (the person was off sick — return the value "SICK")
+- NA or NS = Not available / not available Sunday — treat as RD
+- GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
+- If a cell is blank or unclear, use RD.
+- Ignore any diagram codes, location codes, or footnotes that are not shift times or the abbreviations above.
+
+---
+IMPORTANT RULES:
+1. Only include people from the STAFF NAMES list above. Skip rows for "Vacant", agency staff, or anyone not on that list.
+2. If a name appears slightly differently in the document (e.g. initials or spacing), match it to the closest name on the list.
+3. Every person must have exactly 7 shifts — one per day, Monday to Sunday.
+4. Return ONLY valid JSON — no explanation, no markdown code fences, nothing else.
+
+---
+OUTPUT FORMAT (return exactly this structure):
+{
+  "parsed": [
+    {
+      "memberName": "L. Springer",
+      "shifts": {
+        "${dates[0]}": "05:30-11:30",
+        "${dates[1]}": "RD",
+        "${dates[2]}": "05:30-11:30",
+        "${dates[3]}": "SPARE",
+        "${dates[4]}": "05:30-11:30",
+        "${dates[5]}": "RD",
+        "${dates[6]}": "RD"
+      }
+    }
+  ]
+}
+
+---
+ROSTER TEXT TO ANALYSE:
+${rawText}`;
+
+        // ---- Call Claude AI ----
+        let parsed;
+        try {
+            const Anthropic = require('@anthropic-ai/sdk');
+            const client    = new Anthropic.default({ apiKey: ANTHROPIC_API_KEY.value() });
+
+            const message = await client.messages.create({
+                model:      'claude-haiku-4-5-20251001',   // Fast and cheap — ideal for structured extraction
+                max_tokens: 4096,
+                messages: [{ role: 'user', content: prompt }],
+            });
+
+            const responseText = message.content[0]?.text || '';
+            console.log(`[parseRosterPDF] Claude response length: ${responseText.length}`);
+
+            // Strip any accidental markdown fences before parsing
+            const jsonText = responseText
+                .replace(/^```(?:json)?\s*/i, '')
+                .replace(/\s*```\s*$/, '')
+                .trim();
+
+            parsed = JSON.parse(jsonText);
+
+        } catch (err) {
+            console.error('[parseRosterPDF] Claude AI call failed:', err.message);
+            // Distinguish JSON parse errors (bad AI output) from API errors
+            if (err instanceof SyntaxError) {
+                res.status(502).json({ error: 'The AI returned an unreadable response — please try again' });
+            } else {
+                res.status(502).json({ error: 'Could not reach the AI service — please try again in a moment' });
+            }
+            return;
+        }
+
+        // ---- Validate the response shape ----
+        if (!parsed || !Array.isArray(parsed.parsed)) {
+            res.status(502).json({ error: 'The AI returned an unexpected format — please try again' });
+            return;
+        }
+
+        // Ensure every entry has a shifts object with exactly the 7 expected dates.
+        // Fill any missing days with RD so the review table always shows a complete week.
+        const safeEntries = parsed.parsed
+            .filter(entry => typeof entry.memberName === 'string' && entry.memberName.trim())
+            .map(entry => {
+                const safeShifts = {};
+                for (const date of dates) {
+                    const raw = (entry.shifts || {})[date] || 'RD';
+                    // Normalise time format: "0530-1130" → "05:30-11:30"
+                    safeShifts[date] = normaliseShift(raw);
+                }
+                return { memberName: entry.memberName.trim(), shifts: safeShifts };
+            });
+
+        console.log(`[parseRosterPDF] Returning ${safeEntries.length} parsed members for week ${weekEnding}`);
+
+        res.status(200).json({
+            weekEnding,
+            rosterType,
+            dates,
+            parsed: safeEntries,
+        });
+    }
+);
+
+/**
+ * Normalise a shift value returned by the AI into the canonical app format.
+ *
+ * Handles common variations:
+ *   "0530-1130"   → "05:30-11:30"
+ *   "05:30-11:30" → "05:30-11:30"  (already correct)
+ *   "05.30-11.30" → "05:30-11:30"
+ *   "RD", "AL", "SPARE", "SICK", "RDW" → unchanged (uppercase)
+ *
+ * @param {string} raw - Shift value from Claude AI
+ * @returns {string}   - Normalised shift value
+ */
+function normaliseShift(raw) {
+    if (typeof raw !== 'string') return 'RD';
+    const s = raw.trim().toUpperCase();
+
+    // Known keyword values — return as-is
+    if (['RD', 'AL', 'SPARE', 'RDW', 'SICK', 'OFF'].includes(s)) return s;
+
+    // Try to match a time range: four digits, separator, four digits
+    // Covers "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130"
+    const match = s.match(/^(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
+    if (match) {
+        return `${match[1]}:${match[2]}-${match[3]}:${match[4]}`;
+    }
+
+    // Unrecognised — default to RD rather than storing garbage
+    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
+    return 'RD';
+}
