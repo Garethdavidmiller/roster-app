@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.68 -->
+<!-- MYB Roster Admin v5.69 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.68">
+    <link rel="stylesheet" href="shared.css?v=5.69">
 
     <style>
         body {
@@ -1730,6 +1730,266 @@
         .huddle-feedback--ok  { color: #2e7d32; }
         .huddle-feedback--err { color: var(--error-red); }
 
+        /* ---- Roster upload card ---- */
+        .roster-upload-row {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .roster-upload-field {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .field-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-mid);
+        }
+        .roster-select, .roster-date-input {
+            padding: 8px 10px;
+            border: 1.5px solid #d0d7de;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            cursor: pointer;
+        }
+        .roster-select:focus, .roster-date-input:focus {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 1px;
+            border-color: var(--primary-blue);
+        }
+
+        /* Conflict banner */
+        .roster-conflict-banner {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: #fff8e1;
+            border: 1.5px solid #f9a825;
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            margin-bottom: 14px;
+        }
+        .roster-conflict-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+        .roster-conflict-text { font-size: 13px; line-height: 1.5; }
+        .roster-conflict-text strong { display: block; margin-bottom: 4px; color: #6d4000; }
+        .roster-conflict-text p { margin: 0; color: #7a5200; }
+
+        /* Review section header */
+        .roster-review-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .roster-review-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-mid);
+            margin: 0;
+        }
+        .roster-review-legend {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .roster-legend-item {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 9px;
+            border-radius: 20px;
+        }
+        .roster-legend-match    { background: #f0f0f0; color: #666; }
+        .roster-legend-diff     { background: #fff3cd; color: #6d4000; border: 1px solid #f9a825; }
+        .roster-legend-conflict { background: #fde8e8; color: #8b0000; border: 1px solid #e57373; }
+
+        /* Review table */
+        .roster-table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 14px;
+            border-radius: var(--radius-md);
+            border: 1px solid #e0e0e0;
+        }
+        .roster-review-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+            min-width: 680px;
+        }
+        .roster-review-table th {
+            background: var(--primary-blue);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 8px 10px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .roster-review-table th:first-child { text-align: left; min-width: 130px; }
+        .roster-review-table td {
+            padding: 7px 8px;
+            border-bottom: 1px solid #f0f0f0;
+            text-align: center;
+            vertical-align: middle;
+        }
+        .roster-review-table td:first-child { text-align: left; font-weight: 600; font-size: 12px; padding-left: 10px; }
+        .roster-review-table tr:last-child td { border-bottom: none; }
+        .roster-review-table tr:nth-child(even) td { background: #fafafa; }
+
+        /* Cell states */
+        .rcell-match    { color: #999; font-size: 12px; }
+        .rcell-diff     {
+            background: #fff8e1;
+            border-radius: 6px;
+            padding: 4px 6px;
+            font-weight: 700;
+            font-size: 12px;
+            color: #6d4000;
+            cursor: default;
+        }
+        .rcell-conflict {
+            background: #fde8e8;
+            border: 1.5px solid #e57373;
+            border-radius: 6px;
+            padding: 3px 5px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #8b0000;
+            cursor: pointer;
+            position: relative;
+        }
+        .rcell-conflict .conflict-badge {
+            display: inline-block;
+            margin-right: 3px;
+        }
+        /* Conflict tooltip / inline popover */
+        .rcell-conflict-wrap {
+            position: relative;
+            display: inline-block;
+        }
+        .conflict-popover {
+            display: none;
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            background: white;
+            border: 1.5px solid #e57373;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-2);
+            padding: 10px 12px;
+            min-width: 200px;
+            font-size: 12px;
+            text-align: left;
+        }
+        .conflict-popover.open { display: block; }
+        .conflict-popover p { margin: 0 0 4px; color: var(--text-mid); font-size: 11px; }
+        .conflict-popover strong { color: var(--text-dark); }
+        .conflict-popover .conflict-btns {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .conflict-btns button {
+            flex: 1;
+            padding: 5px 0;
+            font-size: 11px;
+            font-weight: 700;
+            border-radius: 6px;
+            border: 1.5px solid;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .btn-keep-manual {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+        .btn-use-pdf {
+            background: white;
+            color: var(--primary-blue);
+            border-color: var(--primary-blue);
+        }
+
+        /* Approve / skip checkbox on diff rows */
+        .rcell-diff-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 3px;
+        }
+        .rcell-diff-approve {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 10px;
+            color: #6d4000;
+        }
+        .rcell-diff-approve input[type="checkbox"] { width: 12px; height: 12px; cursor: pointer; }
+
+        /* Row skip button */
+        .roster-row-skip {
+            font-size: 10px;
+            color: var(--text-mid);
+            background: none;
+            border: 1px solid #d0d7de;
+            border-radius: 20px;
+            padding: 2px 8px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .roster-row-skip:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        .roster-row-skipped td { opacity: 0.35; }
+        .roster-row-skipped .roster-row-skip {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+
+        /* Apply / cancel row */
+        .roster-apply-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .roster-apply-btn {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            padding: 11px 22px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        .roster-apply-btn:hover:not(:disabled) { background: var(--primary-blue-dark); }
+        .roster-apply-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .roster-cancel-btn {
+            background: none;
+            border: 1.5px solid #d0d7de;
+            color: var(--text-mid);
+            padding: 10px 18px;
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+
         @media print {
             @page { margin: 1cm; size: A4 portrait; }
 
@@ -1754,7 +2014,8 @@
             .btn-signout,
             .btn-back,
             .list-feedback,
-            #huddleUploadCard { display: none !important; }
+            #huddleUploadCard,
+            #rosterUploadCard { display: none !important; }
 
             /* Reset backgrounds for print */
             html, body { background: white !important; color: black !important; padding: 0 !important; }
@@ -2170,6 +2431,82 @@
         </div>
     </div>
 
+    <!-- ==================== ROSTER UPLOAD ==================== -->
+    <!-- Shown by JS only when currentIsAdmin is true -->
+    <div class="card" id="rosterUploadCard" style="display:none">
+        <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
+            <h2>📂 Upload Weekly Roster</h2>
+            <span class="hint">Parse a PDF roster and review each person's shifts before saving</span>
+            <span class="collapse-chevron" id="rosterUploadChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="rosterUploadBody">
+            <div class="card-body">
+
+                <!-- Step 1: Upload controls -->
+                <div id="rosterUploadForm">
+                    <div class="roster-upload-row">
+                        <div class="roster-upload-field">
+                            <label class="field-label" for="rosterType">Roster type</label>
+                            <select id="rosterType" class="roster-select">
+                                <option value="cea">CEA / Bilingual</option>
+                                <option value="ces">CES</option>
+                                <option value="dispatcher">Dispatchers</option>
+                            </select>
+                        </div>
+                        <div class="roster-upload-field">
+                            <label class="field-label" for="rosterWeekEnding">Week ending</label>
+                            <input type="date" id="rosterWeekEnding" class="roster-date-input">
+                        </div>
+                    </div>
+                    <div class="roster-upload-row">
+                        <label for="rosterFileInput" class="huddle-file-label" id="rosterFileLabel">Choose PDF</label>
+                        <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
+                        <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read Roster</button>
+                    </div>
+                    <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                    <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+                </div>
+
+                <!-- Step 2: Review table (hidden until parsing completes) -->
+                <div id="rosterReviewSection" style="display:none">
+
+                    <!-- Conflict banner (hidden when there are no conflicts) -->
+                    <div id="rosterConflictBanner" class="roster-conflict-banner" style="display:none" role="alert" aria-live="polite">
+                        <span class="roster-conflict-icon">⚠</span>
+                        <div class="roster-conflict-text">
+                            <strong id="rosterConflictTitle"></strong>
+                            <p id="rosterConflictDetail"></p>
+                        </div>
+                    </div>
+
+                    <div class="roster-review-header">
+                        <p id="rosterReviewLabel" class="roster-review-label"></p>
+                        <div class="roster-review-legend">
+                            <span class="roster-legend-item roster-legend-match">No change</span>
+                            <span class="roster-legend-item roster-legend-diff">PDF differs — will save</span>
+                            <span class="roster-legend-item roster-legend-conflict">Manual override — protected</span>
+                        </div>
+                    </div>
+
+                    <!-- Scrollable table container -->
+                    <div class="roster-table-scroll">
+                        <table class="roster-review-table" id="rosterReviewTable">
+                            <thead id="rosterReviewHead"></thead>
+                            <tbody id="rosterReviewBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="roster-apply-row">
+                        <button id="rosterApplyBtn" class="btn-primary roster-apply-btn">Apply approved changes</button>
+                        <button id="rosterCancelBtn" class="btn-secondary roster-cancel-btn">Start over</button>
+                    </div>
+                    <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
@@ -2210,6 +2547,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.68"></script>
+<script type="module" src="./admin-app.js?v=5.69"></script>
 </body>
 </html>
