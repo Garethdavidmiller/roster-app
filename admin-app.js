@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.75';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.75';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.76';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.76';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3168,10 +3168,10 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
             if (state.state === 'DIFF' && state.chosen !== false) {
                 // Use the edited value if the admin changed it, otherwise the parsed value
-                toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift });
+                toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift, baseShift: state.baseShift });
             }
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
-                toWrite.push({ memberName, date, value: state.parsedShift });
+                toWrite.push({ memberName, date, value: state.parsedShift, baseShift: state.baseShift });
             }
         }
 
@@ -3188,9 +3188,10 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         try {
             const batch = writeBatch(db);
 
-            for (const { memberName, date, value } of toWrite) {
-                // Map shift value to the override type field
-                const type = shiftValueToOverrideType(value);
+            for (const { memberName, date, value, baseShift } of toWrite) {
+                // Map shift value to override type — pass baseShift so a time on a
+                // rest day is correctly saved as 'rdw' rather than 'overtime'
+                const type = shiftValueToOverrideType(value, baseShift);
                 const ref  = doc(collection(db, 'overrides'));
                 batch.set(ref, {
                     memberName,
@@ -3598,16 +3599,17 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
      * Map a shift value to the Firestore override `type` field.
      * This mirrors the existing override type vocabulary.
      *
-     * @param {string} value - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RDW", "RD"
+     * @param {string} value     - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RD"
+     * @param {string} baseShift - the base roster shift for that day (e.g. "RD", "06:00-12:00")
      * @returns {string}  override type
      */
-    function shiftValueToOverrideType(value) {
+    function shiftValueToOverrideType(value, baseShift) {
         if (value === 'AL')    return 'annual_leave';
         if (value === 'SICK')  return 'sick';
-        if (value === 'RDW')   return 'rdw';
         if (value === 'SPARE') return 'spare_shift';
         if (value === 'RD')    return 'correction';
-        // Anything else is a shift time (e.g. "05:30-11:30") — treat as overtime/swap
+        // A shift time on a rest day = RDW; on a working day = overtime/swap
+        if (baseShift === 'RD' || baseShift === 'OFF') return 'rdw';
         return 'overtime';
     }
 
