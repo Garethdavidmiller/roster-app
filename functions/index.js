@@ -23,7 +23,6 @@ const { onRequest }    = require('firebase-functions/v2/https');
 const { defineSecret }  = require('firebase-functions/params');
 const admin             = require('firebase-admin');
 const crypto            = require('crypto');
-const pdfParse          = require('pdf-parse');
 const { Anthropic }     = require('@anthropic-ai/sdk');
 
 admin.initializeApp();
@@ -278,7 +277,8 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Decode PDF ----
+        // ---- Validate the PDF ----
+        // Decode just enough to check the size — we pass the original base64 to the AI.
         let pdfBuffer;
         try {
             pdfBuffer = Buffer.from(base64Content, 'base64');
@@ -296,27 +296,10 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Extract text from PDF ----
-        // pdf-parse reads the raw bytes and gives us the text content as a string.
-        // Column alignment is lost (PDFs don't preserve table structure as text),
-        // which is why we use Claude AI to interpret the result rather than
-        // trying to parse columns by character position.
-        let rawText;
-        try {
-            const data = await pdfParse(pdfBuffer);
-            rawText = data.text;
-        } catch (err) {
-            console.error('[parseRosterPDF] pdf-parse failed:', err.message);
-            res.status(422).json({ error: 'Could not read the PDF — make sure it is a valid roster PDF and not password-protected' });
-            return;
-        }
+        // Strip any whitespace from base64 before sending to the API
+        const cleanBase64 = base64Content.replace(/\s/g, '');
 
-        if (!rawText || rawText.trim().length < 50) {
-            res.status(422).json({ error: 'PDF appears to be empty or image-only — text could not be extracted' });
-            return;
-        }
-
-        console.log(`[parseRosterPDF] Extracted ${rawText.length} chars from PDF`);
+        console.log(`[parseRosterPDF] PDF size: ${pdfBuffer.length} bytes`);
 
         // ---- Build the 7 dates for this week (Sun → Sat) ----
         // weekEnding is always a Saturday (validated above).
@@ -421,19 +404,37 @@ OUTPUT FORMAT (return exactly this structure):
   ]
 }
 
----
-ROSTER TEXT TO ANALYSE:
-${rawText}`;
+The roster PDF is attached. Return only the JSON.`;
 
         // ---- Call Claude AI ----
+        // We pass the PDF as a document content block so Claude reads the actual
+        // visual layout of the roster table — preserving column structure.
+        // This is far more reliable than extracting text first (which destroys
+        // the table structure and causes day-column misalignment).
         let parsed;
         try {
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
             const message = await client.messages.create({
-                model:      'claude-haiku-4-5-20251001',   // Fast and cheap — ideal for structured extraction
+                model:      'claude-haiku-4-5-20251001',
                 max_tokens: 8192,
-                messages: [{ role: 'user', content: prompt }],
+                messages: [{
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'document',
+                            source: {
+                                type:       'base64',
+                                media_type: 'application/pdf',
+                                data:       cleanBase64,
+                            },
+                        },
+                        {
+                            type: 'text',
+                            text: prompt,
+                        },
+                    ],
+                }],
             });
 
             const responseText = message.content[0]?.text || '';
