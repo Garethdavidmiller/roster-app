@@ -375,7 +375,7 @@ WHAT THE CODES MEAN:
 - SC or SN = SICK (the person was off sick — return the value "SICK")
 - NA or NS = Not available / not available Sunday — treat as RD, return "RD".
 - GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
-- If a cell is blank or unclear, use RD.
+- If a cell is blank, dashed, or has no entry, use RD.
 - Ignore any diagram codes, location codes, or footnotes that are not shift times or the abbreviations above.
 
 ---
@@ -383,7 +383,8 @@ IMPORTANT RULES:
 1. Only include people from the STAFF NAMES list above. Skip rows for "Vacant", agency staff, or anyone not on that list.
 2. If a name appears slightly differently in the document (e.g. initials or spacing), match it to the closest name on the list.
 3. Every person must have exactly 7 shifts — one for each date in the DAY-TO-DATE MAPPING above.
-4. Return ONLY valid JSON — no explanation, no markdown code fences, nothing else.
+4. Sunday is typically a non-working day. If the roster has no Sunday column, or Sunday is blank/absent/dashed for a person, return "RD" for that date. Do not copy a Monday shift into Sunday.
+5. Return ONLY valid JSON — no explanation, no markdown code fences, nothing else.
 
 ---
 OUTPUT FORMAT (return exactly this structure):
