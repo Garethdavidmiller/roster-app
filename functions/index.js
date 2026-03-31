@@ -374,10 +374,11 @@ WHAT THE CODES MEAN:
 - A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
 - RD = Rest day
 - AL = Annual leave
-- SP or SPARE = Spare (on standby, no shift assigned yet)
+- SP or SPARE = Spare (on standby, no shift assigned yet). Always return "SPARE" — never "SP".
+- OFF = Uncontracted rest day (used in CES and bilingual rosters). Treat exactly the same as RD — return "RD".
 - RDW = Rest day worked. The roster always shows a shift time alongside the RDW code (e.g. "RDW 06:00-12:00" or "11:00-19:30 RDW"). Extract the shift time and return it in HH:MM-HH:MM format. Never return the word "RDW" — always return just the time.
 - SC or SN = SICK (the person was off sick — return the value "SICK")
-- NA or NS = Not available / not available Sunday — treat as RD
+- NA or NS = Not available / not available Sunday — treat as RD, return "RD".
 - GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
 - If a cell is blank or unclear, use RD.
 - Ignore any diagram codes, location codes, or footnotes that are not shift times or the abbreviations above.
@@ -494,11 +495,14 @@ function normaliseShift(raw) {
     if (typeof raw !== 'string') return 'RD';
     const s = raw.trim().toUpperCase();
 
+    // Normalise "SP" → "SPARE" (prompt says both are valid in source PDFs)
+    if (s === 'SP') return 'SPARE';
+
     // Known keyword values — return as-is
-    // Note: 'RDW' should not appear here — the prompt instructs the AI to return
-    // the shift time instead. If it does appear, fall through to the unrecognised
-    // handler which defaults to RD and logs a warning.
-    if (['RD', 'AL', 'SPARE', 'SICK', 'OFF'].includes(s)) return s;
+    // OFF is treated as RD by the app; keeping both here so either passes through cleanly.
+    // RDW: prompt instructs AI to return the time instead, but kept here as a safe fallback
+    // so it doesn't silently become RD if the AI disobeys the instruction.
+    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK', 'RDW'].includes(s)) return s;
 
     // Try to match a time range: four digits, separator, four digits
     // Covers "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130"

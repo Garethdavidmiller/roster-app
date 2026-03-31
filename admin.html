@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.76 -->
+<!-- MYB Roster Admin v5.78 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.76">
+    <link rel="stylesheet" href="shared.css?v=5.78">
 
     <style>
         body {
@@ -1687,6 +1687,13 @@
         .huddle-row input[type="date"] {
             flex: 0 0 auto;
             width: auto;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            box-sizing: border-box;
         }
         .huddle-file-label {
             display: inline-block;
@@ -1731,10 +1738,10 @@
         .huddle-feedback--err { color: var(--error-red); }
 
         /* ---- Roster upload card ---- */
-        /* Roster type dropdown — full-width block above the huddle-row */
+        /* Roster type dropdown — inline, auto-width to fit content */
         .roster-type-select {
-            display: block;
-            width: 100%;
+            display: inline-block;
+            width: auto;
             padding: 8px 10px;
             margin-bottom: 10px;
             border: 1.5px solid var(--border-light);
@@ -2525,6 +2532,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.76"></script>
+<script type="module" src="./admin-app.js?v=5.78"></script>
 </body>
 </html>
