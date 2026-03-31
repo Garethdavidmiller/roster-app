@@ -18,7 +18,7 @@ import {
     getDocs, getDoc, addDoc, setDoc, deleteDoc,
     doc, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
+import { getStorage, ref, uploadBytes, getDownloadURL, getBytes } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
 
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
@@ -74,6 +74,23 @@ export async function uploadHuddle(date, file, uploadedBy) {
         uploadedBy,
     });
     return storageUrl;
+}
+
+/**
+ * Download a Huddle file from Firebase Storage and return its bytes as an ArrayBuffer.
+ *
+ * Uses the Firebase Storage SDK (getBytes) rather than a plain fetch() call.
+ * Plain fetch() triggers a CORS preflight that Firebase Storage rejects by default;
+ * the SDK uses its own request mechanism that handles this correctly.
+ *
+ * @param {string} date     - ISO date string, e.g. "2026-03-18"
+ * @param {string} fileType - "pdf" | "docx"
+ * @returns {Promise<ArrayBuffer>}
+ */
+export async function downloadHuddleBytes(date, fileType) {
+    const storageRef = ref(storage, `huddles/${date}.${fileType}`);
+    const uint8      = await getBytes(storageRef);
+    return uint8.buffer;
 }
 
 /**
