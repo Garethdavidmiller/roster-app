@@ -19,10 +19,12 @@
  *   Push any change to functions/ on main — GitHub Actions deploys automatically.
  */
 
-const { onRequest } = require('firebase-functions/v2/https');
-const { defineSecret } = require('firebase-functions/params');
-const admin  = require('firebase-admin');
-const crypto = require('crypto');
+const { onRequest }    = require('firebase-functions/v2/https');
+const { defineSecret }  = require('firebase-functions/params');
+const admin             = require('firebase-admin');
+const crypto            = require('crypto');
+const pdfParse          = require('pdf-parse');
+const { Anthropic }     = require('@anthropic-ai/sdk');
 
 admin.initializeApp();
 
@@ -193,7 +195,7 @@ exports.ingestHuddle = onRequest(
  * Request headers:
  *   Authorization:    Bearer <ROSTER_SECRET>
  *   Content-Type:     text/plain
- *   X-Week-Ending:    YYYY-MM-DD  (Saturday or Sunday — the last day of the roster week)
+ *   X-Week-Ending:    YYYY-MM-DD  (must be a Saturday — the last day of the roster week)
  *   X-Roster-Type:    cea | ces | dispatcher
  *
  * Request body:
@@ -203,7 +205,7 @@ exports.ingestHuddle = onRequest(
  *   {
  *     weekEnding:  "2026-04-05",
  *     rosterType:  "cea",
- *     dates:       ["2026-03-30", ..., "2026-04-05"],   // Mon → Sun
+ *     dates:       ["2026-03-30", ..., "2026-04-05"],   // Sun → Sat
  *     parsed: [
  *       { memberName: "L. Springer", shifts: { "2026-03-30": "05:30-11:30", ... } },
  *       ...
@@ -214,7 +216,7 @@ exports.parseRosterPDF = onRequest(
     {
         secrets:        [ROSTER_SECRET, ANTHROPIC_API_KEY],
         region:         'europe-west2',
-        cors:           true,           // called from the browser (admin.html)
+        cors:           ['https://myb-roster.web.app', 'https://myb-roster.firebaseapp.com'],
         timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
@@ -239,6 +241,11 @@ exports.parseRosterPDF = onRequest(
 
         if (!weekEnding || !/^\d{4}-\d{2}-\d{2}$/.test(weekEnding)) {
             res.status(400).json({ error: 'Missing or invalid X-Week-Ending header (expected YYYY-MM-DD)' });
+            return;
+        }
+        // Roster weeks always end on Saturday — validate so the day-date mapping is correct
+        if (new Date(weekEnding + 'T12:00:00Z').getUTCDay() !== 6) {
+            res.status(400).json({ error: 'X-Week-Ending must be a Saturday' });
             return;
         }
         if (!['cea', 'ces', 'dispatcher'].includes(rosterType)) {
@@ -296,7 +303,6 @@ exports.parseRosterPDF = onRequest(
         // trying to parse columns by character position.
         let rawText;
         try {
-            const pdfParse = require('pdf-parse');
             const data = await pdfParse(pdfBuffer);
             rawText = data.text;
         } catch (err) {
@@ -312,9 +318,9 @@ exports.parseRosterPDF = onRequest(
 
         console.log(`[parseRosterPDF] Extracted ${rawText.length} chars from PDF`);
 
-        // ---- Build the 7 dates for this week (Mon → Sun) ----
-        // weekEnding is the Sunday (or Saturday for some rosters).
-        // We calculate Mon–Sun by working back 6 days from weekEnding.
+        // ---- Build the 7 dates for this week (Sun → Sat) ----
+        // weekEnding is always a Saturday (validated above).
+        // Subtract 6 days to get Sunday, then work forward to Saturday.
         const weekEndDate = new Date(weekEnding + 'T12:00:00Z');
         const dates = [];
         for (let i = 6; i >= 0; i--) {
@@ -323,7 +329,6 @@ exports.parseRosterPDF = onRequest(
             dates.push(d.toISOString().slice(0, 10));
         }
         // dates[0] = Sunday, dates[6] = Saturday (= weekEnding)
-        const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
         // ---- Build the staff name list relevant to this roster type ----
         // Staff names come from the teamMembers array that is embedded in the prompt.
@@ -355,10 +360,7 @@ exports.parseRosterPDF = onRequest(
         const relevantNames = STAFF_NAMES[rosterType];
 
         // ---- Build the Claude prompt ----
-        // Plain language instructions work better than overly technical ones.
-        // We tell the AI exactly what each abbreviation means and what to output.
-        const dateTableHeader = dayLabels.map((d, i) => `${d} (${dates[i]})`).join(' | ');
-        const namesBlock      = relevantNames.map(n => `  - ${n}`).join('\n');
+        const namesBlock = relevantNames.map(n => `  - ${n}`).join('\n');
 
         const prompt = `You are reading a weekly staff roster for a UK rail company.
 Your job is to find each staff member's shift for every day of the week and return it as structured JSON.
@@ -426,25 +428,25 @@ ${rawText}`;
         // ---- Call Claude AI ----
         let parsed;
         try {
-            const Anthropic = require('@anthropic-ai/sdk');
-            const client    = new Anthropic.default({ apiKey: ANTHROPIC_API_KEY.value() });
+            const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
             const message = await client.messages.create({
                 model:      'claude-haiku-4-5-20251001',   // Fast and cheap — ideal for structured extraction
-                max_tokens: 4096,
+                max_tokens: 8192,
                 messages: [{ role: 'user', content: prompt }],
             });
 
             const responseText = message.content[0]?.text || '';
             console.log(`[parseRosterPDF] Claude response length: ${responseText.length}`);
 
-            // Strip any accidental markdown fences before parsing
-            const jsonText = responseText
-                .replace(/^```(?:json)?\s*/i, '')
-                .replace(/\s*```\s*$/, '')
-                .trim();
-
-            parsed = JSON.parse(jsonText);
+            // Extract the JSON object robustly — find the first { and last } so any
+            // preamble, markdown fences, or trailing text is safely stripped.
+            const start = responseText.indexOf('{');
+            const end   = responseText.lastIndexOf('}');
+            if (start === -1 || end === -1 || end <= start) {
+                throw new SyntaxError('No JSON object found in AI response');
+            }
+            parsed = JSON.parse(responseText.slice(start, end + 1));
 
         } catch (err) {
             console.error('[parseRosterPDF] Claude AI call failed:', err.message);
@@ -476,6 +478,11 @@ ${rawText}`;
                 }
                 return { memberName: entry.memberName.trim(), shifts: safeShifts };
             });
+
+        if (safeEntries.length === 0) {
+            res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });
+            return;
+        }
 
         console.log(`[parseRosterPDF] Returning ${safeEntries.length} parsed members for week ${weekEnding}`);
 
