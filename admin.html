@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.78 -->
+<!-- MYB Roster Admin v5.79 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.78">
+    <link rel="stylesheet" href="shared.css?v=5.79">
 
     <style>
         body {
@@ -1685,8 +1685,8 @@
             margin-bottom: 10px;
         }
         .huddle-row input[type="date"] {
-            flex: 0 0 auto;
-            width: auto;
+            flex: 1;
+            min-width: 0;
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
             border-radius: var(--radius-sm);
@@ -1738,12 +1738,10 @@
         .huddle-feedback--err { color: var(--error-red); }
 
         /* ---- Roster upload card ---- */
-        /* Roster type dropdown — inline, auto-width to fit content */
+        /* Roster type dropdown — sits inside huddle-row, shrinks to content */
         .roster-type-select {
-            display: inline-block;
-            width: auto;
+            flex: 0 0 auto;
             padding: 8px 10px;
-            margin-bottom: 10px;
             border: 1.5px solid var(--border-light);
             border-radius: var(--radius-sm);
             font-size: 14px;
@@ -2437,12 +2435,12 @@
 
                 <!-- Step 1: Upload controls -->
                 <div id="rosterUploadForm">
-                    <select id="rosterType" class="roster-type-select" aria-label="Roster type">
-                        <option value="cea">CEA / Bilingual</option>
-                        <option value="ces">CES</option>
-                        <option value="dispatcher">Dispatchers</option>
-                    </select>
                     <div class="huddle-row">
+                        <select id="rosterType" class="roster-type-select" aria-label="Roster type">
+                            <option value="cea">CEA / Bilingual</option>
+                            <option value="ces">CES</option>
+                            <option value="dispatcher">Dispatchers</option>
+                        </select>
                         <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
                         <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
                         <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
@@ -2532,6 +2530,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.78"></script>
+<script type="module" src="./admin-app.js?v=5.79"></script>
 </body>
 </html>
