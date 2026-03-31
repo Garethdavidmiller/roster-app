@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.85';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.85';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.86';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.86';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3365,9 +3365,12 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
         // Returns badge HTML + the raw time for worked shifts so the user sees
         // both the shift type (Early/Late/Night/RDW etc.) and the actual times.
-        function shiftDisplay(shiftStr) {
-            const badge = getShiftBadge(shiftStr, ' ');
+        // baseShift is optional — when provided and is 'RD'/'OFF', a time value is
+        // treated as RDW (rest day worked) so the badge shows 💼 RDW, not ☀️/🌙.
+        function shiftDisplay(shiftStr, baseShift = null) {
             const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
+            const isRDW  = isTime && (baseShift === 'RD' || baseShift === 'OFF');
+            const badge  = getShiftBadge(isRDW ? 'RDW' : shiftStr, ' ');
             return isTime
                 ? `${badge}<span class="review-shift-time">${esc(shiftStr)}</span>`
                 : badge;
@@ -3446,7 +3449,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
                             <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.parsedShift)}</span>
+                            <span class="roster-to-val">${shiftDisplay(s.parsedShift, s.baseShift)}</span>
                         </div>
                         <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}">
                             ${approved ? 'Save' : 'Skip'}
@@ -3463,7 +3466,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                             <span class="roster-conflict-icon-sm">⚠</span>
                             <span class="roster-manual-val ${usesPDF ? 'val-dim' : 'val-active'}">${shiftDisplay(s.manualValue)}</span>
                             <span class="roster-vs-sep">vs</span>
-                            <span class="roster-manual-val ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift)}</span>
+                            <span class="roster-manual-val ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift, s.baseShift)}</span>
                         </div>
                         <div class="roster-conflict-choice">
                             <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual">Manual</button>

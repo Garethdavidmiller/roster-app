@@ -368,7 +368,7 @@ IMPORTANT: Match each column in the roster to its day name (Sunday, Monday, etc.
 WHAT THE CODES MEAN:
 - A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
 - RD = Rest day
-- AL = Annual leave
+- AL or A/L or A.L. = Annual leave. Always return "AL".
 - SP or SPARE = Spare (on standby, no shift assigned yet). Always return "SPARE" — never "SP".
 - OFF = Uncontracted rest day (used in CES and bilingual rosters). Treat exactly the same as RD — return "RD".
 - RDW = Rest day worked. The roster always shows a shift time alongside the RDW code (e.g. "RDW 06:00-12:00" or "11:00-19:30 RDW"). Extract the shift time and return it in HH:MM-HH:MM format. Never return the word "RDW" — always return just the time.
