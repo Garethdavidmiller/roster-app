@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.91';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.91';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.92';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.92';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3188,9 +3188,9 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             const batch = writeBatch(db);
 
             for (const { memberName, date, value, baseShift } of toWrite) {
-                // Map shift value to override type — pass baseShift so a plain time on a
-                // rest day is correctly saved as 'rdw' rather than 'overtime'
-                const type = shiftValueToOverrideType(value, baseShift);
+                // Map shift value to override type — pass date so Sunday shifts are
+                // correctly saved as 'rdw' and explicit RDW| prefix is honoured
+                const type = shiftValueToOverrideType(value, baseShift, date);
                 // Strip the internal "RDW|" encoding before saving — Firestore stores
                 // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
                 const savedValue = value.startsWith('RDW|') ? value.slice(4) : value;
@@ -3375,8 +3375,9 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         //
         // The AI now returns "RDW|HH:MM-HH:MM" (pipe-encoded) for cells explicitly
         // marked RDW in the PDF — this works on any base shift including SPARE weeks.
-        // baseShift fallback is kept for plain time strings on RD/OFF base shifts.
-        function shiftDisplay(shiftStr, baseShift = null) {
+        // RDW is only inferred (without the prefix) for Sunday shifts, which are always
+        // uncontracted — any Sunday shift is by definition an RDW.
+        function shiftDisplay(shiftStr, baseShift = null, date = null) {
             // Pipe-encoded RDW: "RDW|14:30-22:00" — explicit flag from AI
             if (typeof shiftStr === 'string' && shiftStr.startsWith('RDW|')) {
                 const time  = shiftStr.slice(4);
@@ -3384,8 +3385,9 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                 return `${badge}<span class="review-shift-time">${esc(time)}</span>`;
             }
             const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
-            const isRDW  = isTime && (baseShift === 'RD' || baseShift === 'OFF');
-            const badge  = getShiftBadge(isRDW ? 'RDW' : shiftStr, ' ');
+            // Sunday is always uncontracted — any shift worked on a Sunday is an RDW
+            const isSunday = isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+            const badge  = getShiftBadge(isSunday ? 'RDW' : shiftStr, ' ');
             return isTime
                 ? `${badge}<span class="review-shift-time">${esc(shiftStr)}</span>`
                 : badge;
@@ -3464,7 +3466,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                         <div class="roster-chg-vals">
                             <span class="roster-from-val">${shiftDisplay(s.baseShift)}</span>
                             <span class="roster-arrow">→</span>
-                            <span class="roster-to-val">${shiftDisplay(s.parsedShift, s.baseShift)}</span>
+                            <span class="roster-to-val">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
                         </div>
                         <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}">
                             ${approved ? 'Save' : 'Skip'}
@@ -3481,7 +3483,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                             <span class="roster-conflict-icon-sm">⚠</span>
                             <span class="roster-manual-val ${usesPDF ? 'val-dim' : 'val-active'}">${shiftDisplay(s.manualValue)}</span>
                             <span class="roster-vs-sep">vs</span>
-                            <span class="roster-manual-val ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift, s.baseShift)}</span>
+                            <span class="roster-manual-val ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
                         </div>
                         <div class="roster-conflict-choice">
                             <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual">Manual</button>
@@ -3579,19 +3581,21 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
      *
      * @param {string} value     - e.g. "05:30-11:30", "SPARE", "AL", "SICK", "RD"
      * @param {string} baseShift - the base roster shift for that day (e.g. "RD", "06:00-12:00")
+     * @param {string|null} date - ISO date string "YYYY-MM-DD" — used to detect Sunday
      * @returns {string}  override type
      */
-    function shiftValueToOverrideType(value, baseShift) {
+    function shiftValueToOverrideType(value, baseShift, date = null) {
         if (value === 'AL')    return 'annual_leave';
         if (value === 'SICK')  return 'sick';
         if (value === 'SPARE') return 'spare_shift';
         if (value === 'RD' || value === 'OFF') return 'correction';
         // Pipe-encoded RDW from AI: "RDW|14:30-22:00" — explicit flag regardless of base shift
-        if (value.startsWith('RDW|')) return 'rdw';
-        // Plain RDW keyword fallback (AI did not include time)
-        if (value === 'RDW')   return 'rdw';
-        // A plain time string on a rest day = RDW; on a working day = overtime/swap
-        if (baseShift === 'RD' || baseShift === 'OFF') return 'rdw';
+        if (value.startsWith('RDW|') || value === 'RDW') return 'rdw';
+        // Sunday is always uncontracted — any shift worked on a Sunday is an RDW.
+        // For all other days, only classify as RDW when the AI explicitly flagged it above.
+        // Staff may swap rest/working days with permission without it being an RDW.
+        const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(value);
+        if (isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0) return 'rdw';
         return 'overtime';
     }
 

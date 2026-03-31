@@ -385,10 +385,19 @@ IMPORTANT RULES:
 3. Every person must have exactly 7 shifts — one for each date in the DAY-TO-DATE MAPPING above.
 4. Sunday is typically a non-working day. If the roster has no Sunday column, or Sunday is blank/absent/dashed for a person, return "RD" for that date. Do not copy a Monday shift into Sunday.
 5. Return ONLY valid JSON — no explanation, no markdown code fences, nothing else.
+6. COLUMN MAPPING: Before reading any shifts, scan the column headers in the roster PDF. For each day name you can see as a column header (Sunday, Monday, Tuesday, etc.), record it in the "columnMapping" field using the date string from the DAY-TO-DATE MAPPING above. If a column header is absent (e.g. no Sunday column), omit that date from columnMapping. This is how your column identification is verified — get it right.
 
 ---
 OUTPUT FORMAT (return exactly this structure):
 {
+  "columnMapping": {
+    "${dates[1]}": "Monday",
+    "${dates[2]}": "Tuesday",
+    "${dates[3]}": "Wednesday",
+    "${dates[4]}": "Thursday",
+    "${dates[5]}": "Friday",
+    "${dates[6]}": "Saturday"
+  },
   "parsed": [
     {
       "memberName": "L. Springer",
@@ -465,6 +474,40 @@ The roster PDF is attached. Return only the JSON.`;
         if (!parsed || !Array.isArray(parsed.parsed)) {
             res.status(502).json({ error: 'The AI returned an unexpected format — please try again' });
             return;
+        }
+
+        // ---- Validate columnMapping — catches day-column misalignment before it causes bad saves ----
+        // The AI is asked to record the day-label it saw in each column header.
+        // We independently compute the expected day name from the date itself and compare.
+        // If the AI identified a column incorrectly (e.g. called Wednesday "Thursday") we
+        // reject the whole parse rather than silently storing shifts in the wrong slot.
+        const DAY_NAMES_MAP = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        if (parsed.columnMapping && typeof parsed.columnMapping === 'object') {
+            let mismatches = 0;
+            const mismatchDetails = [];
+            for (const [dateStr, statedDay] of Object.entries(parsed.columnMapping)) {
+                const d = new Date(dateStr + 'T12:00:00Z');
+                const expectedDay = DAY_NAMES_MAP[d.getUTCDay()];
+                // Compare first 3 chars case-insensitively ("Mon" === "Monday".slice(0,3))
+                const statedNorm   = String(statedDay).trim().slice(0, 3).toLowerCase();
+                const expectedNorm = expectedDay.slice(0, 3).toLowerCase();
+                if (statedNorm !== expectedNorm) {
+                    mismatches++;
+                    mismatchDetails.push(`${dateStr}: expected ${expectedDay}, AI said ${statedDay}`);
+                }
+            }
+            if (mismatches > 0) {
+                console.error(`[parseRosterPDF] Column mapping mismatch — ${mismatches} wrong: ${mismatchDetails.join('; ')}`);
+                res.status(502).json({
+                    error: `The AI misread ${mismatches} day column${mismatches !== 1 ? 's' : ''} (${mismatchDetails.join('; ')}). Please try uploading again — if the problem persists the PDF layout may be unusual.`,
+                });
+                return;
+            }
+            console.log(`[parseRosterPDF] Column mapping validated OK (${Object.keys(parsed.columnMapping).length} columns)`);
+        } else {
+            // columnMapping absent — AI didn't include it. Log a warning but don't block.
+            // This keeps the feature non-breaking if an older or stubborn model omits it.
+            console.warn('[parseRosterPDF] AI did not return columnMapping — skipping column validation');
         }
 
         // Ensure every entry has a shifts object with exactly the 7 expected dates.
