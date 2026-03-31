@@ -7,9 +7,10 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `5.66` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `5.91` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
-| Cloud Function URL | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
+| Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
+| | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **GitHub Actions secrets required** (Settings → Secrets and variables → Actions):
@@ -17,7 +18,9 @@
 | Secret name | What it is |
 |-------------|-----------|
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON of a Firebase service account key with Functions deploy permissions |
-| `HUDDLE_SECRET` | The Bearer token that Power Automate sends to authenticate with `ingestHuddle` — must also be set in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
+| `HUDDLE_SECRET` | Bearer token Power Automate sends to `ingestHuddle` — must also be in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
+| `ROSTER_SECRET` | Bearer token the admin page sends to `parseRosterPDF` — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET` |
+| `ANTHROPIC_API_KEY` | API key for Claude AI (used by `parseRosterPDF` to read the roster PDF) — Firebase Secret Manager only, not needed in GitHub Actions: `firebase functions:secrets:set ANTHROPIC_API_KEY` |
 
 **GitHub Actions workflows:**
 - `.github/workflows/deploy-functions.yml` — triggers on push to `main` when any file under `functions/` changes, or manually via `workflow_dispatch`. Deploys Cloud Functions only (not the PWA). Exit code from Firebase CLI is treated as success if the only error text is "cleanup policy" (a benign GCP Artifact Registry warning).
@@ -81,8 +84,8 @@ roster-app/
 ├── manifest.json       ← PWA manifest
 ├── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
 └── functions/
-    ├── index.js        ← Firebase Cloud Functions (ingestHuddle endpoint)
-    └── package.json    ← Node 20, firebase-admin + firebase-functions only
+    ├── index.js        ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF
+    └── package.json    ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
 ```
 
 **Service worker caching strategy:**
@@ -535,6 +538,116 @@ When building the viewer in admin.html:
 - The `storageUrl` already contains the access token — open directly in a new tab
 - Admin-only section (check `CONFIG.ADMIN_NAMES.includes(currentUser)`)
 - Follow the existing file pattern — JS stays in `admin-app.js`, HTML/CSS in `admin.html`
+
+---
+
+## Weekly Roster Upload
+
+### What it does
+
+Admin uploads the weekly PDF roster. A Cloud Function (`parseRosterPDF`) passes the PDF directly to Claude AI, which reads the table and returns each person's shifts as JSON. The app then compares those shifts against the base roster and any existing Firestore overrides, shows a per-person review UI, and saves only the changes the admin approves.
+
+### Files
+
+| File | Role |
+|------|------|
+| `functions/index.js` | `parseRosterPDF` Cloud Function — receives PDF, calls Claude AI, returns parsed shifts |
+| `admin-app.js` | Upload form, `computeCellStates()`, `renderReviewTable()`, `shiftDisplay()`, `shiftValueToOverrideType()` |
+| `admin.html` | Weekly Roster card (admin-only, collapsible) |
+
+### Cloud Function — `parseRosterPDF`
+
+- **Region:** `europe-west2` (London)
+- **Auth:** `Authorization: Bearer <ROSTER_SECRET>`
+- **Method:** POST only
+- **AI model:** `claude-haiku-4-5-20251001`, `max_tokens: 8192`
+- **Why direct PDF input:** The PDF is passed as a `type: 'document'` content block, not extracted text. Text extraction (pdf-parse) destroys the table column structure and causes day-column misalignment. Claude reads the visual layout directly.
+
+**Request format:**
+
+```
+Headers:
+  Authorization:   Bearer <ROSTER_SECRET>
+  Content-Type:    text/plain
+  X-Week-Ending:   YYYY-MM-DD  (must be a Saturday — validated server-side)
+  X-Roster-Type:   cea | ces | dispatcher
+
+Body:
+  Raw base64-encoded PDF content (same pattern as ingestHuddle)
+```
+
+**Response format:**
+
+```json
+{
+  "weekEnding": "2026-04-05",
+  "rosterType": "cea",
+  "dates": ["2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05"],
+  "parsed": [
+    {
+      "memberName": "G. Miller",
+      "shifts": {
+        "2026-03-30": "RD",
+        "2026-03-31": "06:00-14:00",
+        "2026-04-01": "RDW|14:30-22:00",
+        ...
+      }
+    }
+  ]
+}
+```
+
+### Critical encoding convention — `RDW|HH:MM-HH:MM`
+
+The roster PDF marks RDW cells as e.g. `"14:30-22:00 RDW"`. The AI is instructed to return `"RDW HH:MM-HH:MM"`. `normaliseShift()` in `functions/index.js` converts this to `"RDW|HH:MM-HH:MM"` — the pipe-encoded internal format.
+
+**Why this matters:** The previous approach stripped the RDW keyword and inferred it from `baseShift === 'RD'`. That failed on SPARE weeks (`baseShift = 'SPARE'`). The pipe encoding carries the RDW flag explicitly regardless of base shift.
+
+The `|` prefix is stripped before saving to Firestore — the stored value is always the plain time string (`"14:30-22:00"`), with `type: 'rdw'` carrying the meaning. The encoding only exists inside the review pipeline.
+
+### AI prompt key rules (do not weaken these without testing)
+
+- RDW cells: AI returns `"RDW HH:MM-HH:MM"` — **never strip RDW from the return value**
+- Blank/absent Sunday cells: return `"RD"` — do not copy Monday's shift
+- Duty/diagram codes on a second line in the same cell (e.g. `"CEA 16"`, `"CEA 18"`) — **ignore entirely**, only the first line contains the shift value
+- `"N/A"`, `"NA"`, `"NS"` all mean RD on any day
+- `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
+
+### Review pipeline (admin-app.js)
+
+```
+parsedResult (from Cloud Function)
+        ↓
+computeCellStates(parsedResult, existingOverrides)
+  — classifies each day:
+    MATCH    = PDF matches base roster, nothing to do
+    DIFF     = PDF differs from base roster, needs saving
+    CONFLICT = manual override already exists but differs from PDF
+    COVERED  = manual override already matches PDF, nothing to do
+        ↓
+renderReviewTable() — per-person card list
+  shiftDisplay(shiftStr, baseShift)
+    — detects "RDW|" prefix → shows 💼 RDW badge + time
+    — falls back to baseShift==='RD' detection for plain times
+        ↓
+Apply approved changes:
+  shiftValueToOverrideType(value, baseShift) → Firestore type field
+  Strip "RDW|" prefix → save plain time as value
+  source: 'roster_import' on all saved docs
+    (distinguishes auto-applied from hand-entered overrides)
+```
+
+### Cell state — `source` field
+
+Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is treated the same as no override — the new PDF result replaces it without conflict. Only overrides with no `source` field (or any other value) are treated as manual and trigger the CONFLICT state.
+
+### Current status (as of v5.91)
+
+- ✅ Cloud Function deployed and live
+- ✅ PDF parsing via Claude AI — working end to end for CEA/Bilingual, CES, Dispatcher rosters
+- ✅ Review UI — per-person card list with approve/skip per day, conflict detection
+- ✅ RDW detection on both RD and SPARE base shifts
+- ✅ AL, Sick, Spare, RD correction all correctly mapped to override types
 
 ---
 

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: March 2026 — v5.60 (Huddle Phase 1 complete; Phase 2 Cloud Function built, Power Automate pending)*
+*Last updated: March 2026 — v5.91 (Huddle Phase 1 + Phase 2 complete; Weekly Roster Upload complete)*
 
 ---
 
@@ -78,15 +78,22 @@ App calls getLatestHuddle() on load
 
 ---
 
-#### Phase 2 — Automated upload ⚙️ In progress
+#### Phase 2 — Automated upload ✓ Complete (v5.66)
 
-**Goal:** Remove the daily manual step. The PDF should appear in the app automatically when the Huddle email arrives, with no admin action required.
+**Goal:** Remove the daily manual step. The PDF appears in the app automatically when the Huddle email arrives, with no admin action required.
 
-**Status:** Cloud Function built (`functions/index.js`). Power Automate flow to be configured once the Huddle email sender address and subject pattern are confirmed.
+**What was built:** Cloud Function `ingestHuddle` in `functions/index.js`. Power Automate flow triggers on the Huddle email, filters attachments by type, and POSTs the file (base64-encoded) to the Cloud Function with metadata in custom headers.
 
-**Note:** The Huddle email often arrives with both PDF and DOCX attached. The Power Automate flow can use the PDF directly — no conversion step needed, unlike what was originally anticipated.
+**How it works:**
+- Yes branch (afternoon email): filters for PDF attachment, posts to `ingestHuddle`
+- No branch (morning email): filters for DOCX attachment, posts to `ingestHuddle`
+- Cloud Function stores the file in Firebase Storage and writes a Firestore `huddles` doc
+- The `📋 Huddle` button in index.html picks up the latest doc automatically
 
-**Trigger for building this:** Phase 1 has been running reliably for a few weeks and the manual upload is confirmed as the only friction point. Do not automate until the end-to-end flow is understood from real use.
+**Key design decisions:**
+- Raw base64 body with metadata in headers — Power Automate silently truncates large strings in JSON bodies; raw body bypasses this
+- Both PDF and DOCX handled natively by Power Automate — no conversion service needed (see note below re: conversion problem)
+- `uploadedBy: "power-automate"` on all automated uploads
 
 ---
 
@@ -99,7 +106,9 @@ Confirmed:
 
 ---
 
-##### The conversion problem
+##### The conversion problem — RESOLVED
+
+> **Note (v5.66):** This section was written before Phase 2 was built. The conversion problem was solved differently from what was anticipated here. Power Automate handles both PDF and DOCX natively — both file types are stored as-is in Firebase Storage (DOCX as `.docx`, PDF as `.pdf`). The app displays whichever was uploaded. No conversion step was needed. The Apps Script option below was never implemented.
 
 The Huddle arrives as a **.docx (Word) attachment**, not a PDF. During Phase 1, the admin converts it manually before uploading. Phase 2 must handle this conversion automatically — the app stores and serves PDFs, so the automation needs to convert the Word document as part of the pipeline.
 
@@ -214,7 +223,7 @@ Collection: `huddles` — one document per date, document ID = `"YYYY-MM-DD"`:
 date        string     "2026-03-18"
 storageUrl  string     Firebase Storage download URL
 uploadedAt  timestamp  Firestore server timestamp
-uploadedBy  string     memberName of uploader (admin); "apps-script" for automated uploads
+uploadedBy  string     memberName of uploader (admin); "power-automate" for automated uploads
 ```
 
 #### Firebase Storage path (unchanged from Phase 1)
@@ -232,6 +241,32 @@ One file per calendar day. Same-day re-upload overwrites (latest version wins).
 The Phase 1 Firestore rules allow any valid write. For Phase 2, the Apps Script uses a service account — consider restricting Firestore `huddles` writes to require a valid Firebase Auth token (service account JWT) rather than open writes. This is optional if the Firestore rules already validate the document shape.
 
 Storage rules remain unchanged: authenticated write, open read.
+
+---
+
+### Weekly Roster Upload ✓ Complete (v5.77–v5.91)
+
+**What:** Admin uploads the weekly PDF roster. Claude AI reads the table and extracts each person's shifts. The app compares against the base roster and existing overrides, shows a per-person review UI, and saves only the changes the admin approves.
+
+**What was built:**
+
+| Component | Detail |
+|-----------|--------|
+| `parseRosterPDF` Cloud Function | Receives base64 PDF, calls Claude AI (claude-haiku) with the PDF as a document content block (preserves table structure), returns parsed shifts as JSON |
+| AI prompt | Day-to-date mapping, shift code glossary, RDW/AL/NA format variants, duty code ignore rules, Sunday=RD rule |
+| `normaliseShift()` | Canonicalises AI output: `"RDW HH:MM-HH:MM"` → `"RDW|HH:MM-HH:MM"` (pipe-encoded, stripped before Firestore save) |
+| `computeCellStates()` | Classifies each parsed day as MATCH / DIFF / CONFLICT / COVERED against base roster and existing overrides |
+| Review UI | Per-person card list — approve/skip per day, conflict detection with manual-vs-PDF toggle |
+| `shiftValueToOverrideType()` | Maps parsed value to Firestore override type (`rdw`, `annual_leave`, `spare_shift`, `correction`, `overtime`, `sick`) |
+| `source: 'roster_import'` | All auto-applied overrides tagged so a later upload doesn't treat them as manual conflicts |
+
+**Key design decisions:**
+
+- **Direct PDF input to Claude** rather than text extraction — pdf-parse destroys table column structure; Claude reads the visual layout and correctly maps day columns
+- **`RDW|HH:MM-HH:MM` internal encoding** — preserves the RDW flag through the review pipeline so RDW is identified correctly even on SPARE weeks (where `baseShift` is not `'RD'`)
+- **`source: 'roster_import'`** on saved docs — distinguishes auto-applied from hand-entered overrides; previous imports are always replaced cleanly by a new upload
+
+**Auth:** `Authorization: Bearer <ROSTER_SECRET>` — same pattern as Huddle ingest. See CLAUDE.md for full request format.
 
 ---
 
