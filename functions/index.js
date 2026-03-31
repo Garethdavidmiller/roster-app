@@ -375,7 +375,7 @@ WHAT THE CODES MEAN:
 - RD = Rest day
 - AL = Annual leave
 - SP or SPARE = Spare (on standby, no shift assigned yet)
-- RDW = Rest day worked (overtime)
+- RDW = Rest day worked. The roster always shows a shift time alongside the RDW code (e.g. "RDW 06:00-12:00" or "11:00-19:30 RDW"). Extract the shift time and return it in HH:MM-HH:MM format. Never return the word "RDW" — always return just the time.
 - SC or SN = SICK (the person was off sick — return the value "SICK")
 - NA or NS = Not available / not available Sunday — treat as RD
 - GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
@@ -484,7 +484,8 @@ ${rawText}`;
  *   "0530-1130"   → "05:30-11:30"
  *   "05:30-11:30" → "05:30-11:30"  (already correct)
  *   "05.30-11.30" → "05:30-11:30"
- *   "RD", "AL", "SPARE", "SICK", "RDW" → unchanged (uppercase)
+ *   "RD", "AL", "SPARE", "SICK" → unchanged (uppercase)
+ *   "RDW" → should not appear (prompt instructs AI to return the time instead)
  *
  * @param {string} raw - Shift value from Claude AI
  * @returns {string}   - Normalised shift value
@@ -494,7 +495,10 @@ function normaliseShift(raw) {
     const s = raw.trim().toUpperCase();
 
     // Known keyword values — return as-is
-    if (['RD', 'AL', 'SPARE', 'RDW', 'SICK', 'OFF'].includes(s)) return s;
+    // Note: 'RDW' should not appear here — the prompt instructs the AI to return
+    // the shift time instead. If it does appear, fall through to the unrecognised
+    // handler which defaults to RD and logs a warning.
+    if (['RD', 'AL', 'SPARE', 'SICK', 'OFF'].includes(s)) return s;
 
     // Try to match a time range: four digits, separator, four digits
     // Covers "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130"
