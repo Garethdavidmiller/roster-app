@@ -215,7 +215,7 @@ exports.parseRosterPDF = onRequest(
     {
         secrets:        [ROSTER_SECRET, ANTHROPIC_API_KEY],
         region:         'europe-west2',
-        cors:           ['https://myb-roster.web.app', 'https://myb-roster.firebaseapp.com'],
+        cors:           true,           // auth is handled by Bearer token — CORS origin restriction adds nothing
         timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
