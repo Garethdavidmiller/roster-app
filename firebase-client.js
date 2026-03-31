@@ -57,8 +57,14 @@ const storage = getStorage(app);
  */
 export async function uploadHuddle(date, file, uploadedBy) {
     const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+    // Explicitly set the content type rather than relying on the browser to report it.
+    // On Android, .docx files sometimes arrive as 'application/zip' or 'application/octet-stream'
+    // because DOCX is a ZIP archive — which can cause Firebase Storage rule mismatches.
+    const mimeType   = fileType === 'docx'
+        ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        : 'application/pdf';
     const storageRef = ref(storage, `huddles/${date}.${fileType}`);
-    await uploadBytes(storageRef, file);
+    await uploadBytes(storageRef, file, { contentType: mimeType });
     const storageUrl = await getDownloadURL(storageRef);
     await setDoc(doc(db, 'huddles', date), {
         date,
