@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.84 -->
+<!-- MYB Roster Admin v5.85 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.84">
+    <link rel="stylesheet" href="shared.css?v=5.85">
 
     <style>
         body {
@@ -1863,19 +1863,20 @@
             font-size: 12px;
         }
         .roster-from-val {
-            color: var(--text-light);
-            text-decoration: line-through;
+            opacity: 0.5;
             font-size: 11px;
         }
+        .roster-from-val .shift-badge { font-size: 10px; padding: 1px 5px; }
         .roster-arrow { color: var(--text-light); font-size: 11px; }
-        .roster-to-val {
-            font-weight: 700;
-            color: #6d4000;
-            background: #fff8e1;
-            border-radius: 4px;
-            padding: 2px 6px;
-            font-size: 12px;
+        .roster-to-val { font-size: 12px; }
+        .review-shift-time {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-mid);
+            margin-left: 4px;
         }
+        /* Inside a val-active highlight, time text should also be white */
+        .val-active .review-shift-time { color: rgba(255,255,255,0.85); }
         /* Conflict variant */
         .roster-conflict-icon-sm { font-size: 13px; flex-shrink: 0; }
         .roster-manual-val {
@@ -2510,6 +2511,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.84"></script>
+<script type="module" src="./admin-app.js?v=5.85"></script>
 </body>
 </html>
