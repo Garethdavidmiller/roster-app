@@ -361,13 +361,23 @@ exports.parseRosterPDF = onRequest(
         const namesBlock      = relevantNames.map(n => `  - ${n}`).join('\n');
 
         const prompt = `You are reading a weekly staff roster for a UK rail company.
-The roster covers the week: ${dates[0]} (Sunday) to ${dates[6]} (Saturday).
-
-Your job is to find each staff member's shift for every day of that week and return it as structured JSON.
+Your job is to find each staff member's shift for every day of the week and return it as structured JSON.
 
 ---
 STAFF NAMES TO LOOK FOR (only these — skip anyone else):
 ${namesBlock}
+
+---
+DAY-TO-DATE MAPPING — use these exact strings as the JSON keys:
+  Sunday    = ${dates[0]}
+  Monday    = ${dates[1]}
+  Tuesday   = ${dates[2]}
+  Wednesday = ${dates[3]}
+  Thursday  = ${dates[4]}
+  Friday    = ${dates[5]}
+  Saturday  = ${dates[6]}
+
+IMPORTANT: Match each column in the roster to its day name (Sunday, Monday, etc.), then use the date shown above for that day. Do not use column position — use the day name label.
 
 ---
 WHAT THE CODES MEAN:
@@ -387,7 +397,7 @@ WHAT THE CODES MEAN:
 IMPORTANT RULES:
 1. Only include people from the STAFF NAMES list above. Skip rows for "Vacant", agency staff, or anyone not on that list.
 2. If a name appears slightly differently in the document (e.g. initials or spacing), match it to the closest name on the list.
-3. Every person must have exactly 7 shifts — one per day, Monday to Sunday.
+3. Every person must have exactly 7 shifts — one for each date in the DAY-TO-DATE MAPPING above.
 4. Return ONLY valid JSON — no explanation, no markdown code fences, nothing else.
 
 ---
@@ -397,8 +407,8 @@ OUTPUT FORMAT (return exactly this structure):
     {
       "memberName": "L. Springer",
       "shifts": {
-        "${dates[0]}": "05:30-11:30",
-        "${dates[1]}": "RD",
+        "${dates[0]}": "RD",
+        "${dates[1]}": "05:30-11:30",
         "${dates[2]}": "05:30-11:30",
         "${dates[3]}": "SPARE",
         "${dates[4]}": "05:30-11:30",
