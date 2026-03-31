@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.82';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.82';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.83';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.83';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3008,8 +3008,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
     const conflictTitle   = document.getElementById('rosterConflictTitle');
     const conflictDetail  = document.getElementById('rosterConflictDetail');
     const reviewLabel     = document.getElementById('rosterReviewLabel');
-    const reviewHead      = document.getElementById('rosterReviewHead');
-    const reviewBody      = document.getElementById('rosterReviewBody');
+    let   changeList      = document.getElementById('rosterChangeList');
     const applyBtn        = document.getElementById('rosterApplyBtn');
     const cancelBtn       = document.getElementById('rosterCancelBtn');
     const applyFeedback   = document.getElementById('rosterApplyFeedback');
@@ -3355,244 +3354,195 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
      * @param {object} parsedResult
      * @param {Map}    cellStates
      */
+    /**
+     * Render the post-parse review UI as a list of per-person cards.
+     * Only people with at least one DIFF or CONFLICT are shown.
+     * Uses event delegation on changeList so no listener accumulation on re-render.
+     */
     function renderReviewTable(parsedResult, cellStates) {
         const { dates, parsed, weekEnding } = parsedResult;
+        const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-        // Column headers: Name + Mon 30 Mar … Sun 5 Apr + Skip column
-        const dayHeaders = dates.map(d => {
-            const dt  = new Date(d + 'T12:00:00');
-            const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
-            return `${day} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-        });
-
-        reviewHead.innerHTML = `<tr>
-            <th>Name</th>
-            ${dayHeaders.map(h => `<th>${esc(h)}</th>`).join('')}
-            <th></th>
-        </tr>`;
-
-        // Count diffs and conflicts
-        let diffCount     = 0;
-        let conflictCount = 0;
+        // ---- Count totals for banner + label ----
+        let diffCount = 0, conflictCount = 0;
         const conflictLines = [];
-
         for (const [key, s] of cellStates) {
-            if (s.state === 'DIFF')     diffCount++;
+            if (s.state === 'DIFF') diffCount++;
             if (s.state === 'CONFLICT') {
                 conflictCount++;
                 const [memberName, date] = key.split('|');
-                const dt  = new Date(date + 'T12:00:00');
-                const day = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dt.getDay()];
+                const dt = new Date(date + 'T12:00:00');
                 conflictLines.push(
-                    `${esc(memberName)} / ${day} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
-                    `Manual saved as <strong>${esc(s.manualValue)}</strong> — PDF says <strong>${esc(s.parsedShift)}</strong>`
+                    `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
+                    `saved <strong>${esc(s.manualValue)}</strong>, PDF says <strong>${esc(s.parsedShift)}</strong>`
                 );
             }
         }
 
-        // Show / hide conflict banner
+        // ---- Conflict banner ----
         if (conflictCount > 0) {
-            conflictTitle.textContent  = `${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} — manually saved changes are protected`;
-            conflictDetail.innerHTML   = conflictLines.join('<br>');
+            conflictTitle.textContent    = `${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} — manually saved entries are protected`;
+            conflictDetail.innerHTML     = conflictLines.join('<br>');
             conflictBanner.style.display = '';
         } else {
             conflictBanner.style.display = 'none';
         }
 
-        // Build rows — only show rows that have at least one DIFF or CONFLICT cell
-        reviewBody.innerHTML = '';
-        let rowsShown = 0;
+        // ---- Build per-person sections ----
+        changeList.innerHTML = '';
+        let sectionsShown = 0;
 
         for (const entry of parsed) {
             const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
             if (!member) continue;
 
-            // Check if this row has any actionable cells
-            const hasDiff     = dates.some(d => (cellStates.get(`${entry.memberName}|${d}`)?.state === 'DIFF'));
-            const hasConflict = dates.some(d => (cellStates.get(`${entry.memberName}|${d}`)?.state === 'CONFLICT'));
-            if (!hasDiff && !hasConflict) continue;
+            const changedDates = dates.filter(d => {
+                const s = cellStates.get(`${entry.memberName}|${d}`);
+                return s && (s.state === 'DIFF' || s.state === 'CONFLICT');
+            });
+            if (changedDates.length === 0) continue;
 
-            const row = document.createElement('tr');
-            row.dataset.member = entry.memberName;
+            const section = document.createElement('div');
+            section.className = 'roster-person-section';
+            section.dataset.member = entry.memberName;
 
-            // Name cell + skip button
-            const nameCell = document.createElement('td');
-            nameCell.innerHTML = `<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-                <span>${esc(entry.memberName)}</span>
-                <button class="roster-row-skip" data-member="${esc(entry.memberName)}">Skip row</button>
-            </div>`;
-            row.appendChild(nameCell);
+            // Person header
+            section.innerHTML = `
+                <div class="roster-person-header">
+                    <span class="roster-person-name">${esc(entry.memberName)}</span>
+                    <span class="roster-change-badge">${changedDates.length}</span>
+                    <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}">Skip all</button>
+                </div>`;
 
-            // One cell per day
-            for (const date of dates) {
-                const key   = `${entry.memberName}|${date}`;
-                const state = cellStates.get(key);
-                const td    = document.createElement('td');
-                td.dataset.key = key;
+            // One row per changed day
+            for (const date of changedDates) {
+                const key = `${entry.memberName}|${date}`;
+                const s   = cellStates.get(key);
+                const dt  = new Date(date + 'T12:00:00');
+                const dayName = DAY_NAMES[dt.getDay()];
+                const dateStr = `${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
 
-                renderCell(td, state, key);
-                row.appendChild(td);
+                const row = document.createElement('div');
+                row.className  = `roster-change-row${s.state === 'CONFLICT' ? ' roster-change-conflict' : ''}`;
+                row.dataset.key = key;
+
+                if (s.state === 'DIFF') {
+                    const approved = s.chosen !== false;
+                    row.innerHTML = `
+                        <div class="roster-chg-day">
+                            <span class="roster-day-abbr">${dayName}</span>
+                            <span class="roster-day-date">${dateStr}</span>
+                        </div>
+                        <div class="roster-chg-vals">
+                            <span class="roster-from-val">${esc(s.baseShift)}</span>
+                            <span class="roster-arrow">→</span>
+                            <span class="roster-to-val">${esc(s.parsedShift)}</span>
+                        </div>
+                        <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}">
+                            ${approved ? 'Save' : 'Skip'}
+                        </button>`;
+                } else {
+                    // CONFLICT — show Manual vs PDF toggle, defaulting to Manual
+                    const usesPDF = s.chosen === 'pdf';
+                    row.innerHTML = `
+                        <div class="roster-chg-day">
+                            <span class="roster-day-abbr">${dayName}</span>
+                            <span class="roster-day-date">${dateStr}</span>
+                        </div>
+                        <div class="roster-chg-vals">
+                            <span class="roster-conflict-icon-sm">⚠</span>
+                            <span class="roster-manual-val ${usesPDF ? 'val-dim' : 'val-active'}">${esc(s.manualValue)}</span>
+                            <span class="roster-vs-sep">vs</span>
+                            <span class="roster-to-val ${usesPDF ? 'val-active' : 'val-dim'}" style="background:none;color:${usesPDF ? 'white' : '#6d4000'};${usesPDF ? 'background:var(--primary-blue);border-radius:4px;padding:2px 6px' : ''}">${esc(s.parsedShift)}</span>
+                        </div>
+                        <div class="roster-conflict-choice">
+                            <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual">Manual</button>
+                            <button class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf">PDF</button>
+                        </div>`;
+                }
+                section.appendChild(row);
             }
 
-            // Empty trailing cell (aligns with the header's empty last column)
-            row.appendChild(document.createElement('td'));
-
-            // Skip-row button logic
-            nameCell.querySelector('.roster-row-skip').addEventListener('click', () => {
-                const isSkipped = row.classList.toggle('roster-row-skipped');
-                // Toggle all DIFF cells in this row
-                for (const date of dates) {
-                    const key   = `${entry.memberName}|${date}`;
-                    const s     = cellStates.get(key);
-                    if (!s || s.state !== 'DIFF') continue;
-                    s.chosen = !isSkipped;
-                    // Re-render the cell to update checkbox state
-                    const tdEl = row.querySelector(`td[data-key="${CSS.escape(key)}"]`);
-                    if (tdEl) renderCell(tdEl, s, key);
-                }
-            });
-
-            reviewBody.appendChild(row);
-            rowsShown++;
+            changeList.appendChild(section);
+            sectionsShown++;
         }
 
-        // If nothing to show (all matched), display a success message instead
-        if (rowsShown === 0) {
-            reviewBody.innerHTML = `<tr><td colspan="${dates.length + 2}" style="text-align:center;padding:20px;color:#2e7d32;font-weight:600">
-                ✓ The roster matches what's already in the app — no changes needed.
-            </td></tr>`;
+        // ---- Event delegation (replace old listener to avoid accumulation) ----
+        const newList = changeList.cloneNode(true);
+        changeList.parentNode.replaceChild(newList, changeList);
+        changeList = newList;
+
+        changeList.addEventListener('click', e => {
+            // Save / Skip toggle on DIFF rows
+            const approveBtn = e.target.closest('.roster-approve-btn');
+            if (approveBtn) {
+                const s = cellStates.get(approveBtn.dataset.key);
+                if (!s) return;
+                s.chosen = !s.chosen;
+                approveBtn.classList.toggle('is-approved', s.chosen !== false);
+                approveBtn.classList.toggle('is-skipped',  s.chosen === false);
+                approveBtn.textContent = (s.chosen !== false) ? 'Save' : 'Skip';
+                approveBtn.closest('.roster-change-row').classList.toggle('is-skipped', s.chosen === false);
+                return;
+            }
+
+            // Skip all / Restore for a person
+            const skipAllBtn = e.target.closest('.roster-skip-all-btn');
+            if (skipAllBtn) {
+                const memberName = skipAllBtn.dataset.member;
+                const sec = changeList.querySelector(`.roster-person-section[data-member="${CSS.escape(memberName)}"]`);
+                if (!sec) return;
+                const nowSkipped = !sec.classList.contains('section-skipped');
+                sec.classList.toggle('section-skipped', nowSkipped);
+                skipAllBtn.textContent = nowSkipped ? 'Restore' : 'Skip all';
+                sec.querySelectorAll('.roster-approve-btn').forEach(btn => {
+                    const s = cellStates.get(btn.dataset.key);
+                    if (!s) return;
+                    s.chosen = !nowSkipped;
+                    btn.classList.toggle('is-approved', !nowSkipped);
+                    btn.classList.toggle('is-skipped',  nowSkipped);
+                    btn.textContent = nowSkipped ? 'Skip' : 'Save';
+                });
+                return;
+            }
+
+            // Manual / PDF choice on CONFLICT rows
+            const choiceBtn = e.target.closest('.roster-choice-btn');
+            if (choiceBtn) {
+                const s = cellStates.get(choiceBtn.dataset.key);
+                if (!s) return;
+                s.chosen = choiceBtn.dataset.pick;
+                choiceBtn.closest('.roster-conflict-choice').querySelectorAll('.roster-choice-btn').forEach(b => {
+                    b.classList.toggle('is-chosen', b.dataset.pick === s.chosen);
+                });
+                // Update the value pills to show which is active
+                const row = choiceBtn.closest('.roster-change-row');
+                const manualPill = row.querySelector('.roster-manual-val');
+                const pdfVal     = row.querySelector('.roster-to-val');
+                if (manualPill) manualPill.classList.toggle('val-active', s.chosen === 'manual');
+                if (manualPill) manualPill.classList.toggle('val-dim',    s.chosen === 'pdf');
+                if (pdfVal)     pdfVal.classList.toggle('val-active', s.chosen === 'pdf');
+                if (pdfVal)     pdfVal.classList.toggle('val-dim',    s.chosen === 'manual');
+            }
+        });
+
+        // ---- Empty state ----
+        if (sectionsShown === 0) {
+            changeList.innerHTML = `<div class="roster-no-changes">✓ The roster matches what's already saved — no changes needed.</div>`;
             applyBtn.disabled = true;
         } else {
             applyBtn.disabled    = false;
             applyBtn.textContent = 'Apply approved changes';
         }
 
-        // Summary label
+        // ---- Summary label ----
         const weekEndDate = new Date(weekEnding + 'T12:00:00');
         const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-        reviewLabel.textContent = `Week ending ${formatted} — ${diffCount} proposed change${diffCount !== 1 ? 's' : ''}, ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''}`;
+        reviewLabel.textContent = `Week ending ${formatted} — ${diffCount} change${diffCount !== 1 ? 's' : ''}, ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''}`;
 
         reviewSection.style.display = '';
         applyFeedback.textContent   = '';
         applyFeedback.className     = 'huddle-feedback';
-    }
-
-    /**
-     * Render a single review table cell according to its state.
-     * Called both on initial render and when the admin toggles a checkbox or
-     * resolves a conflict.
-     *
-     * @param {HTMLElement} td     - The <td> to populate
-     * @param {object}      state  - Cell state object from computeCellStates
-     * @param {string}      key    - "memberName|date"
-     */
-    function renderCell(td, state, key) {
-        td.innerHTML = '';
-
-        if (!state || state.state === 'MATCH' || state.state === 'COVERED') {
-            // Grey — nothing to do
-            const span = document.createElement('span');
-            span.className   = 'rcell-match';
-            span.textContent = state?.parsedShift ?? '—';
-            td.appendChild(span);
-            return;
-        }
-
-        if (state.state === 'DIFF') {
-            // Amber — proposed change with approve checkbox
-            const displayValue = state.editedValue ?? state.parsedShift;
-            const wrap = document.createElement('div');
-            wrap.className = 'rcell-diff-wrap';
-
-            // The shift value (editable on click)
-            const badge = document.createElement('span');
-            badge.className   = 'rcell-diff';
-            badge.textContent = displayValue;
-            badge.title       = `Base roster: ${state.baseShift} → PDF: ${displayValue}. Tap to edit.`;
-            badge.addEventListener('click', () => {
-                const edited = prompt(`Edit shift for this cell (current: ${displayValue}):`, displayValue);
-                if (edited === null) return;   // cancelled
-                const trimmed = edited.trim().toUpperCase();
-                if (!trimmed) return;
-                state.editedValue = trimmed;
-                renderCell(td, state, key);
-            });
-            wrap.appendChild(badge);
-
-            // Approve / skip checkbox
-            const approveRow = document.createElement('label');
-            approveRow.className = 'rcell-diff-approve';
-            const cb = document.createElement('input');
-            cb.type    = 'checkbox';
-            cb.checked = state.chosen !== false;
-            cb.addEventListener('change', () => {
-                state.chosen = cb.checked;
-            });
-            approveRow.appendChild(cb);
-            approveRow.appendChild(document.createTextNode('Save'));
-            wrap.appendChild(approveRow);
-
-            td.appendChild(wrap);
-            return;
-        }
-
-        if (state.state === 'CONFLICT') {
-            // Red — manual override is protected; admin can tap to see details
-            const wrap = document.createElement('div');
-            wrap.className = 'rcell-conflict-wrap';
-
-            const cell = document.createElement('span');
-            cell.className   = 'rcell-conflict';
-            cell.innerHTML   = `<span class="conflict-badge">⚠</span>${esc(state.manualValue)}`;
-            cell.title       = 'Manual entry saved — tap to compare with PDF';
-
-            const popover = document.createElement('div');
-            popover.className = 'conflict-popover';
-            popover.innerHTML = `
-                <p>Currently saved (manual)</p>
-                <strong>${esc(state.manualValue)}</strong>
-                <p style="margin-top:6px">PDF says</p>
-                <strong>${esc(state.parsedShift)}</strong>
-                <div class="conflict-btns">
-                    <button class="btn-keep-manual">Keep manual</button>
-                    <button class="btn-use-pdf">Use PDF</button>
-                </div>`;
-
-            // Toggle popover on cell click; close when clicking outside
-            cell.addEventListener('click', (e) => {
-                e.stopPropagation();
-                // Close any other open popovers first
-                document.querySelectorAll('.conflict-popover.open').forEach(p => {
-                    if (p !== popover) p.classList.remove('open');
-                });
-                popover.classList.toggle('open');
-            });
-            document.addEventListener('click', () => popover.classList.remove('open'), { capture: false });
-
-            popover.querySelector('.btn-keep-manual').addEventListener('click', (e) => {
-                e.stopPropagation();
-                state.chosen = 'manual';
-                popover.classList.remove('open');
-                renderCell(td, state, key);
-            });
-            popover.querySelector('.btn-use-pdf').addEventListener('click', (e) => {
-                e.stopPropagation();
-                state.chosen = 'pdf';
-                popover.classList.remove('open');
-                renderCell(td, state, key);
-            });
-
-            // If admin already chose "Use PDF", show the cell amber instead of red
-            if (state.chosen === 'pdf') {
-                cell.className   = 'rcell-diff';
-                cell.innerHTML   = esc(state.parsedShift);
-                cell.title       = 'Will overwrite manual entry with PDF value. Tap to change.';
-            }
-
-            wrap.appendChild(cell);
-            wrap.appendChild(popover);
-            td.appendChild(wrap);
-        }
     }
 
     /**

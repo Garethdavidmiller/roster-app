@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.82 -->
+<!-- MYB Roster Admin v5.83 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.82">
+    <link rel="stylesheet" href="shared.css?v=5.83">
 
     <style>
         body {
@@ -1756,7 +1756,7 @@
             outline-offset: 1px;
         }
 
-        /* Conflict banner */
+        /* ---- Roster review — conflict banner ---- */
         .roster-conflict-banner {
             display: flex;
             gap: 10px;
@@ -1765,188 +1765,189 @@
             border: 1.5px solid #f9a825;
             border-radius: var(--radius-md);
             padding: 12px 14px;
-            margin-bottom: 14px;
+            margin-bottom: 12px;
         }
-        .roster-conflict-icon { font-size: 20px; line-height: 1; flex-shrink: 0; }
+        .roster-conflict-icon { font-size: 18px; line-height: 1.2; flex-shrink: 0; }
         .roster-conflict-text { font-size: 13px; line-height: 1.5; }
-        .roster-conflict-text strong { display: block; margin-bottom: 4px; color: #6d4000; }
+        .roster-conflict-text strong { display: block; margin-bottom: 2px; color: #6d4000; }
         .roster-conflict-text p { margin: 0; color: #7a5200; }
 
-        /* Review section header */
-        .roster-review-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 8px;
+        /* Summary label */
+        .roster-review-label {
+            font-size: 12px;
+            color: var(--text-mid);
+            margin: 0 0 12px;
+        }
+
+        /* ---- Per-person change cards ---- */
+        #rosterChangeList { margin-bottom: 14px; }
+
+        .roster-person-section {
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            overflow: hidden;
             margin-bottom: 10px;
         }
-        .roster-review-label {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-mid);
-            margin: 0;
-        }
-        .roster-review-legend {
+        .roster-person-header {
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border-light);
         }
-        .roster-legend-item {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 3px 9px;
-            border-radius: 20px;
-        }
-        .roster-legend-match    { background: #f0f0f0; color: #666; }
-        .roster-legend-diff     { background: #fff3cd; color: #6d4000; border: 1px solid #f9a825; }
-        .roster-legend-conflict { background: #fde8e8; color: #8b0000; border: 1px solid #e57373; }
-
-        /* Review table */
-        .roster-table-scroll {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            margin-bottom: 14px;
-            border-radius: var(--radius-md);
-            border: 1px solid #e0e0e0;
-        }
-        .roster-review-table {
-            width: 100%;
-            border-collapse: collapse;
+        .roster-person-name {
             font-size: 13px;
-            min-width: 680px;
-        }
-        .roster-review-table th {
-            background: var(--primary-blue);
-            color: white;
-            font-size: 11px;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 8px 10px;
-            text-align: center;
-            white-space: nowrap;
-        }
-        .roster-review-table th:first-child { text-align: left; min-width: 130px; }
-        .roster-review-table td {
-            padding: 7px 8px;
-            border-bottom: 1px solid #f0f0f0;
-            text-align: center;
-            vertical-align: middle;
-        }
-        .roster-review-table td:first-child { text-align: left; font-weight: 600; font-size: 12px; padding-left: 10px; }
-        .roster-review-table tr:last-child td { border-bottom: none; }
-        .roster-review-table tr:nth-child(even) td { background: #fafafa; }
-
-        /* Cell states */
-        .rcell-match    { color: #999; font-size: 12px; }
-        .rcell-diff     {
-            background: #fff8e1;
-            border-radius: 6px;
-            padding: 4px 6px;
-            font-weight: 700;
-            font-size: 12px;
-            color: #6d4000;
-            cursor: default;
-        }
-        .rcell-conflict {
-            background: #fde8e8;
-            border: 1.5px solid #e57373;
-            border-radius: 6px;
-            padding: 3px 5px;
-            font-size: 11px;
-            font-weight: 700;
-            color: #8b0000;
-            cursor: pointer;
-            position: relative;
-        }
-        .rcell-conflict .conflict-badge {
-            display: inline-block;
-            margin-right: 3px;
-        }
-        /* Conflict tooltip / inline popover */
-        .rcell-conflict-wrap {
-            position: relative;
-            display: inline-block;
-        }
-        .conflict-popover {
-            display: none;
-            position: absolute;
-            top: calc(100% + 6px);
-            left: 50%;
-            transform: translateX(-50%);
-            z-index: 200;
-            background: white;
-            border: 1.5px solid #e57373;
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-2);
-            padding: 10px 12px;
-            min-width: 200px;
-            font-size: 12px;
-            text-align: left;
-        }
-        .conflict-popover.open { display: block; }
-        .conflict-popover p { margin: 0 0 4px; color: var(--text-mid); font-size: 11px; }
-        .conflict-popover strong { color: var(--text-dark); }
-        .conflict-popover .conflict-btns {
-            display: flex;
-            gap: 6px;
-            margin-top: 8px;
-        }
-        .conflict-btns button {
-            flex: 1;
-            padding: 5px 0;
-            font-size: 11px;
-            font-weight: 700;
-            border-radius: 6px;
-            border: 1.5px solid;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .btn-keep-manual {
-            background: var(--primary-blue);
-            color: white;
-            border-color: var(--primary-blue);
-        }
-        .btn-use-pdf {
-            background: white;
             color: var(--primary-blue);
-            border-color: var(--primary-blue);
+            flex: 1;
         }
-
-        /* Approve / skip checkbox on diff rows */
-        .rcell-diff-wrap {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 3px;
-        }
-        .rcell-diff-approve {
-            display: flex;
-            align-items: center;
-            gap: 3px;
+        .roster-change-badge {
             font-size: 10px;
-            color: #6d4000;
+            font-weight: 700;
+            background: var(--primary-blue);
+            color: white;
+            border-radius: 20px;
+            padding: 2px 7px;
         }
-        .rcell-diff-approve input[type="checkbox"] { width: 12px; height: 12px; cursor: pointer; }
-
-        /* Row skip button */
-        .roster-row-skip {
-            font-size: 10px;
+        .roster-skip-all-btn {
+            font-size: 11px;
+            font-weight: 600;
             color: var(--text-mid);
             background: none;
-            border: 1px solid #d0d7de;
+            border: 1px solid var(--border-light);
             border-radius: 20px;
-            padding: 2px 8px;
+            padding: 3px 10px;
             cursor: pointer;
             white-space: nowrap;
+            transition: border-color 0.15s, color 0.15s;
         }
-        .roster-row-skip:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
-        .roster-row-skipped td { opacity: 0.35; }
-        .roster-row-skipped .roster-row-skip {
+        @media (hover: hover) and (pointer: fine) {
+            .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
+
+        /* Change rows */
+        .roster-change-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .roster-change-row:last-child { border-bottom: none; }
+        .roster-change-row.is-skipped { opacity: 0.4; }
+        .roster-change-row.roster-change-conflict { background: #fff9f9; }
+
+        .roster-chg-day {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            min-width: 44px;
+        }
+        .roster-day-abbr {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        .roster-day-date {
+            font-size: 11px;
+            color: var(--text-light);
+        }
+
+        .roster-chg-vals {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+        .roster-from-val {
+            color: var(--text-light);
+            text-decoration: line-through;
+            font-size: 11px;
+        }
+        .roster-arrow { color: var(--text-light); font-size: 11px; }
+        .roster-to-val {
+            font-weight: 700;
+            color: #6d4000;
+            background: #fff8e1;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 12px;
+        }
+        /* Conflict variant */
+        .roster-conflict-icon-sm { font-size: 13px; flex-shrink: 0; }
+        .roster-manual-val {
+            font-weight: 700;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .roster-vs-sep { font-size: 11px; color: var(--text-light); }
+        .val-active { background: var(--primary-blue); color: white; }
+        .val-dim    { background: #f0f0f0; color: #999; text-decoration: line-through; }
+
+        /* Save/Skip toggle button on DIFF rows */
+        .roster-approve-btn {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1.5px solid;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+        }
+        .roster-approve-btn.is-approved {
             background: var(--primary-blue);
             color: white;
             border-color: var(--primary-blue);
+        }
+        .roster-approve-btn.is-skipped {
+            background: none;
+            color: var(--text-light);
+            border-color: var(--border-light);
+        }
+
+        /* Manual / PDF toggle on CONFLICT rows */
+        .roster-conflict-choice { display: flex; gap: 4px; }
+        .roster-choice-btn {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border-light);
+            background: none;
+            color: var(--text-mid);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .roster-choice-btn.is-chosen {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+
+        /* Section skipped state */
+        .section-skipped .roster-change-row { opacity: 0.35; pointer-events: none; }
+        .section-skipped .roster-skip-all-btn {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+
+        /* Empty / all-match state */
+        .roster-no-changes {
+            padding: 18px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: #2e7d32;
+            background: #f1f8e9;
+            border-radius: var(--radius-md);
+            border: 1px solid #a5d6a7;
+            margin-bottom: 14px;
         }
 
         /* Apply / cancel row */
@@ -1955,31 +1956,22 @@
             gap: 10px;
             align-items: center;
             flex-wrap: wrap;
+            margin-top: 4px;
         }
-        .roster-apply-btn {
-            background: var(--primary-blue);
-            color: white;
-            border: none;
-            padding: 11px 22px;
-            border-radius: var(--radius-md);
-            font-size: 14px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        .roster-apply-btn:hover:not(:disabled) { background: var(--primary-blue-dark); }
-        .roster-apply-btn:disabled { opacity: 0.35; cursor: not-allowed; }
         .roster-cancel-btn {
             background: none;
-            border: 1.5px solid #d0d7de;
+            border: 1.5px solid var(--border-light);
             color: var(--text-mid);
             padding: 10px 18px;
             border-radius: var(--radius-md);
             font-size: 14px;
             font-weight: 600;
             cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
         }
-        .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
 
         @media print {
             @page { margin: 1cm; size: A4 portrait; }
@@ -2450,7 +2442,7 @@
                     <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
-                <!-- Step 2: Review table (hidden until parsing completes) -->
+                <!-- Step 2: Review (hidden until parsing completes) -->
                 <div id="rosterReviewSection" style="display:none">
 
                     <!-- Conflict banner (hidden when there are no conflicts) -->
@@ -2462,26 +2454,14 @@
                         </div>
                     </div>
 
-                    <div class="roster-review-header">
-                        <p id="rosterReviewLabel" class="roster-review-label"></p>
-                        <div class="roster-review-legend">
-                            <span class="roster-legend-item roster-legend-match">No change</span>
-                            <span class="roster-legend-item roster-legend-diff">PDF differs — will save</span>
-                            <span class="roster-legend-item roster-legend-conflict">Manual override — protected</span>
-                        </div>
-                    </div>
+                    <p id="rosterReviewLabel" class="roster-review-label"></p>
 
-                    <!-- Scrollable table container -->
-                    <div class="roster-table-scroll">
-                        <table class="roster-review-table" id="rosterReviewTable">
-                            <thead id="rosterReviewHead"></thead>
-                            <tbody id="rosterReviewBody"></tbody>
-                        </table>
-                    </div>
+                    <!-- Per-person change cards -->
+                    <div id="rosterChangeList"></div>
 
                     <div class="roster-apply-row">
-                        <button id="rosterApplyBtn" class="btn-primary roster-apply-btn">Apply approved changes</button>
-                        <button id="rosterCancelBtn" class="btn-secondary roster-cancel-btn">Start over</button>
+                        <button id="rosterApplyBtn" class="huddle-upload-btn" style="width:auto">Apply approved changes</button>
+                        <button id="rosterCancelBtn" class="roster-cancel-btn">Start over</button>
                     </div>
                     <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
@@ -2530,6 +2510,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.82"></script>
+<script type="module" src="./admin-app.js?v=5.83"></script>
 </body>
 </html>
