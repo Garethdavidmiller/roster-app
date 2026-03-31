@@ -371,12 +371,12 @@ WHAT THE CODES MEAN:
 - AL or A/L or A.L. = Annual leave. Always return "AL".
 - SP or SPARE = Spare (on standby, no shift assigned yet). Always return "SPARE" — never "SP".
 - OFF = Uncontracted rest day (used in CES and bilingual rosters). Treat exactly the same as RD — return "RD".
-- RDW = Rest day worked. The roster always shows a shift time alongside the RDW code (e.g. "RDW 06:00-12:00" or "11:00-19:30 RDW"). Extract the shift time and return it in HH:MM-HH:MM format. Never return the word "RDW" — always return just the time.
+- RDW = Rest day worked. A cell containing RDW always shows a shift time AND the word RDW together, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Extract the shift time and return it in HH:MM-HH:MM format. Never return the word "RDW" — always return just the time.
 - SC or SN = SICK (the person was off sick — return the value "SICK")
-- NA or NS = Not available / not available Sunday — treat as RD, return "RD".
+- NA or N/A or NS = Not available — treat as RD, return "RD". This applies on any day of the week, not just Sunday.
 - GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
 - If a cell is blank, dashed, or has no entry, use RD.
-- Ignore any diagram codes, location codes, or footnotes that are not shift times or the abbreviations above.
+- Many cells contain a duty/diagram code on a second line (e.g. "CEA 16", "CEA 18", "D123"). These are train duty numbers — always ignore them. Only the first line of each cell contains the shift value.
 
 ---
 IMPORTANT RULES:
