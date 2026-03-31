@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.73';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.73';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.74';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.74';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2823,6 +2823,46 @@ window.addEventListener('beforeprint', () => {
     if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster \u2014 ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} \u00b7 Printed: ${esc(now)}</span>`;
 });
 
+/**
+ * One-time cleanup: finds and deletes any annual_leave overrides that fall on
+ * a Sunday. These can't be created any more but may exist from before v5.73.
+ * Runs silently on admin page load — logs a summary to the console only.
+ * Safe to leave in permanently; once all Sunday AL records are gone it will
+ * find nothing and do nothing.
+ */
+async function purgeSundayAL() {
+    try {
+        const snap = await getDocs(query(
+            collection(db, 'overrides'),
+            where('type', '==', 'annual_leave')
+        ));
+
+        const toDelete = snap.docs.filter(d => isSunday(d.data().date));
+
+        if (toDelete.length === 0) {
+            console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
+            return;
+        }
+
+        const batch = writeBatch(db);
+        toDelete.forEach(d => batch.delete(doc(db, 'overrides', d.id)));
+        await batch.commit();
+
+        console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,
+            toDelete.map(d => `${d.data().memberName} ${d.data().date}`));
+
+        // Refresh the in-memory cache so Saved Changes reflects the cleanup
+        const removedIds = new Set(toDelete.map(d => d.id));
+        allOverrides = allOverrides.filter(o => !removedIds.has(o.id));
+        renderTable();
+        updateALBanner();
+        updateALBookedBox();
+
+    } catch (err) {
+        console.error('[purgeSundayAL] Cleanup failed:', err);
+    }
+}
+
 if (!isAuthenticated) {
     // Show login overlay; do not load any Firestore data
     initLoginOverlay();
@@ -2831,6 +2871,7 @@ if (!isAuthenticated) {
     document.body.classList.add('auth-ready');
     applyPermissions();
     loadOverrides(); // internally calls renderWeekGrid() after data loads
+    if (currentIsAdmin) purgeSundayAL();
     if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value || currentUser);
 
     // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
