@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.89';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.89';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.90';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.90';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3138,7 +3138,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
         } finally {
             parseBtn.disabled    = false;
-            parseBtn.textContent = 'Read Roster';
+            parseBtn.textContent = 'Read roster';
         }
     });
 
@@ -3230,7 +3230,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             applyFeedback.textContent = 'Could not save — check your connection and try again.';
             applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
             applyBtn.disabled    = false;
-            applyBtn.textContent = 'Apply approved changes';
+            applyBtn.textContent = 'Save changes';
         }
     });
 
@@ -3560,7 +3560,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             applyBtn.disabled = true;
         } else {
             applyBtn.disabled    = false;
-            applyBtn.textContent = 'Apply approved changes';
+            applyBtn.textContent = 'Save changes';
         }
 
         // ---- Summary label ----
