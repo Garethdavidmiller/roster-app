@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.72';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.72';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.73';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.73';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -741,6 +741,15 @@ function buildWeekGridInto(container, dateStr) {
 
         container.appendChild(row);
 
+        // Sundays are uncontracted — disable the AL pill so it can't be selected
+        if (date.getDay() === 0) {
+            const alPill = row.querySelector('.pill-annual_leave');
+            if (alPill) {
+                alPill.disabled = true;
+                alPill.title    = 'Annual leave cannot be recorded on a Sunday — Sundays are not contracted days';
+            }
+        }
+
         // Refs
         const checkbox = row.querySelector('.day-cb');
         const pills    = row.querySelectorAll('.type-pill-btn');
@@ -1058,6 +1067,13 @@ saveBtn.addEventListener('click', async () => {
 
         const date    = row.dataset.date;
         const type    = row.dataset.type;
+
+        // Sundays are uncontracted — AL cannot be saved on a Sunday regardless of how it was set
+        if (type === 'annual_leave' && isSunday(date)) {
+            row.classList.add('row-error');
+            errors.push(`${formatDisplay(date)}: annual leave cannot be recorded on a Sunday`);
+            return;
+        }
         const typeMeta    = TYPES[type];
         const startEl = row.querySelector('.day-start');
         const endEl   = row.querySelector('.day-end');
