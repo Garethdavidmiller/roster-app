@@ -371,7 +371,7 @@ WHAT THE CODES MEAN:
 - AL or A/L or A.L. = Annual leave. Always return "AL".
 - SP or SPARE = Spare (on standby, no shift assigned yet). Always return "SPARE" — never "SP".
 - OFF = Uncontracted rest day (used in CES and bilingual rosters). Treat exactly the same as RD — return "RD".
-- RDW = Rest day worked. A cell containing RDW always shows a shift time AND the word RDW together, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Extract the shift time and return it in HH:MM-HH:MM format. Never return the word "RDW" — always return just the time.
+- RDW = Rest day worked. A cell containing RDW always shows a shift time AND the word RDW together, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Return it as "RDW HH:MM-HH:MM" (e.g. "RDW 14:30-22:00"). Always preserve the RDW keyword — never strip it and return just the time.
 - SC or SN = SICK (the person was off sick — return the value "SICK")
 - NA or N/A or NS = Not available — treat as RD, return "RD". This applies on any day of the week, not just Sunday.
 - GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
@@ -517,13 +517,19 @@ function normaliseShift(raw) {
     // Normalise "SP" → "SPARE" (prompt says both are valid in source PDFs)
     if (s === 'SP') return 'SPARE';
 
+    // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00"
+    // The pipe-separated format carries both the RDW flag and the time through the
+    // review pipeline so RDW is identified correctly regardless of the base shift
+    // (e.g. a SPARE week where baseShift is not 'RD').
+    const rdwMatch = s.match(/^RDW\s+(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
+    if (rdwMatch) return `RDW|${rdwMatch[1]}:${rdwMatch[2]}-${rdwMatch[3]}:${rdwMatch[4]}`;
+
     // Known keyword values — return as-is
     // OFF is treated as RD by the app; keeping both here so either passes through cleanly.
-    // RDW: prompt instructs AI to return the time instead, but kept here as a safe fallback
-    // so it doesn't silently become RD if the AI disobeys the instruction.
+    // Plain "RDW" (no time) is kept as sentinel in case the AI ignores the format instruction.
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK', 'RDW'].includes(s)) return s;
 
-    // Try to match a time range: four digits, separator, four digits
+    // Try to match a plain time range: four digits, separator, four digits
     // Covers "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130"
     const match = s.match(/^(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
     if (match) {

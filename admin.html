@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.88 -->
+<!-- MYB Roster Admin v5.90 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.88">
+    <link rel="stylesheet" href="shared.css?v=5.90">
 
     <style>
         body {
@@ -1738,22 +1738,36 @@
         .huddle-feedback--err { color: var(--error-red); }
 
         /* ---- Roster upload card ---- */
-        /* Roster type dropdown — sits inside huddle-row, shrinks to content */
-        .roster-type-select {
-            flex: 0 0 auto;
+        /* File picker — styled identically to a text input, acts as the <label> trigger */
+        .roster-file-btn {
+            display: block;
+            width: 100%;
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
-            border-radius: var(--radius-sm);
-            font-size: 14px;
+            border-radius: 8px;
+            font-size: 16px;
             font-weight: 600;
-            background: var(--bg-light);
-            color: var(--text-dark);
+            color: var(--primary-blue);
+            background: white;
             cursor: pointer;
             box-sizing: border-box;
+            -webkit-appearance: none;
         }
-        .roster-type-select:focus {
-            outline: 2px solid var(--primary-blue);
-            outline-offset: 1px;
+        @media (hover: hover) and (pointer: fine) {
+            .roster-file-btn:hover { border-color: var(--primary-blue); }
+        }
+        .roster-file-name {
+            font-size: 12px;
+            color: var(--text-mid);
+            margin-top: 4px;
+            word-break: break-all;
+        }
+        /* Subtle label inside field-group for notes like "(must be a Saturday)" */
+        .field-note {
+            font-weight: 400;
+            text-transform: none;
+            letter-spacing: 0;
+            color: var(--text-light);
         }
 
         /* ---- Roster review — conflict banner ---- */
@@ -1952,22 +1966,19 @@
         }
 
         /* Apply / cancel row */
-        .roster-apply-row {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: wrap;
-            margin-top: 4px;
-        }
         .roster-cancel-btn {
+            display: block;
+            width: 100%;
             background: none;
             border: 1.5px solid var(--border-light);
             color: var(--text-mid);
-            padding: 10px 18px;
-            border-radius: var(--radius-md);
-            font-size: 14px;
+            padding: 11px;
+            border-radius: 10px;
+            font-size: 15px;
             font-weight: 600;
             cursor: pointer;
+            margin-top: 10px;
+            font-family: inherit;
             transition: border-color 0.15s, color 0.15s;
         }
         @media (hover: hover) and (pointer: fine) {
@@ -2420,7 +2431,7 @@
     <div class="card" id="rosterUploadCard" style="display:none">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
             <h2>🗓️ Weekly Roster</h2>
-            <span class="hint">Parse a PDF roster and review each person's shifts before saving</span>
+            <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
             <span class="collapse-chevron" id="rosterUploadChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="rosterUploadBody">
@@ -2428,18 +2439,28 @@
 
                 <!-- Step 1: Upload controls -->
                 <div id="rosterUploadForm">
-                    <div class="huddle-row">
-                        <select id="rosterType" class="roster-type-select" aria-label="Roster type">
-                            <option value="cea">CEA / Bilingual</option>
-                            <option value="ces">CES</option>
-                            <option value="dispatcher">Dispatchers</option>
-                        </select>
-                        <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
-                        <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
-                        <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
+                    <div class="selectors">
+                        <div class="field-group">
+                            <label for="rosterType">Roster type</label>
+                            <select id="rosterType">
+                                <option value="cea">CEA / Bilingual</option>
+                                <option value="ces">CES</option>
+                                <option value="dispatcher">Dispatchers</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <label for="rosterWeekEnding">Week ending <span class="field-note">(must be a Saturday)</span></label>
+                            <input type="date" id="rosterWeekEnding">
+                        </div>
+                        <div class="field-group">
+                            <label>PDF file</label>
+                            <label for="rosterFileInput" class="roster-file-btn">Choose PDF file</label>
+                            <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
+                            <p id="rosterFileName" class="roster-file-name" style="display:none" aria-live="polite"></p>
+                        </div>
                     </div>
-                    <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
-                    <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read Roster</button>
+                    <button id="rosterParseBtn" class="btn-save" disabled>Read roster</button>
+                    <p class="save-hint">Choose a roster type, week ending, and PDF file first</p>
                     <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
@@ -2460,10 +2481,9 @@
                     <!-- Per-person change cards -->
                     <div id="rosterChangeList"></div>
 
-                    <div class="roster-apply-row">
-                        <button id="rosterApplyBtn" class="huddle-upload-btn" style="width:auto">Apply approved changes</button>
-                        <button id="rosterCancelBtn" class="roster-cancel-btn">Start over</button>
-                    </div>
+                    <button id="rosterApplyBtn" class="btn-save">Save changes</button>
+                    <p class="save-hint">Tick the days you want to keep, then tap Save changes</p>
+                    <button id="rosterCancelBtn" class="roster-cancel-btn">Start over</button>
                     <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
@@ -2511,6 +2531,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.88"></script>
+<script type="module" src="./admin-app.js?v=5.90"></script>
 </body>
 </html>
