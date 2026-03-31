@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.88';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.88';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.89';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.89';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3188,15 +3188,18 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             const batch = writeBatch(db);
 
             for (const { memberName, date, value, baseShift } of toWrite) {
-                // Map shift value to override type — pass baseShift so a time on a
+                // Map shift value to override type — pass baseShift so a plain time on a
                 // rest day is correctly saved as 'rdw' rather than 'overtime'
                 const type = shiftValueToOverrideType(value, baseShift);
+                // Strip the internal "RDW|" encoding before saving — Firestore stores
+                // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
+                const savedValue = value.startsWith('RDW|') ? value.slice(4) : value;
                 const ref  = doc(collection(db, 'overrides'));
                 batch.set(ref, {
                     memberName,
                     date,
                     type,
-                    value,
+                    value: savedValue,
                     note:       '',
                     source:     'roster_import',   // marks this as auto-applied, not hand-entered
                     createdAt:  serverTimestamp(),
@@ -3313,17 +3316,21 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                     ? (existing.source !== 'roster_import')   // no source field → treat as manual
                     : false;
 
+                // Normalise parsedShift for comparisons — strip the "RDW|" encoding so
+                // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
+                const parsedValue = parsedShift.startsWith('RDW|') ? parsedShift.slice(4) : parsedShift;
+
                 let state;
                 if (!existing || !isManual) {
                     // No override (or only a previous import) — compare PDF vs base roster
-                    if (parsedShift === baseShift) {
+                    if (parsedShift === baseShift || parsedValue === baseShift) {
                         state = 'MATCH';
                     } else {
                         state = 'DIFF';
                     }
                 } else {
                     // A manual override exists — check if it already matches the PDF
-                    if (existing.value === parsedShift) {
+                    if (existing.value === parsedShift || existing.value === parsedValue) {
                         state = 'COVERED';   // manual is already correct — nothing to do
                     } else {
                         state = 'CONFLICT';  // manual differs from PDF — flag it
@@ -3365,9 +3372,17 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
         // Returns badge HTML + the raw time for worked shifts so the user sees
         // both the shift type (Early/Late/Night/RDW etc.) and the actual times.
-        // baseShift is optional — when provided and is 'RD'/'OFF', a time value is
-        // treated as RDW (rest day worked) so the badge shows 💼 RDW, not ☀️/🌙.
+        //
+        // The AI now returns "RDW|HH:MM-HH:MM" (pipe-encoded) for cells explicitly
+        // marked RDW in the PDF — this works on any base shift including SPARE weeks.
+        // baseShift fallback is kept for plain time strings on RD/OFF base shifts.
         function shiftDisplay(shiftStr, baseShift = null) {
+            // Pipe-encoded RDW: "RDW|14:30-22:00" — explicit flag from AI
+            if (typeof shiftStr === 'string' && shiftStr.startsWith('RDW|')) {
+                const time  = shiftStr.slice(4);
+                const badge = getShiftBadge('RDW', ' ');
+                return `${badge}<span class="review-shift-time">${esc(time)}</span>`;
+            }
             const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
             const isRDW  = isTime && (baseShift === 'RD' || baseShift === 'OFF');
             const badge  = getShiftBadge(isRDW ? 'RDW' : shiftStr, ' ');
@@ -3387,7 +3402,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                 const dt = new Date(date + 'T12:00:00');
                 conflictLines.push(
                     `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
-                    `saved <strong>${esc(s.manualValue)}</strong>, PDF says <strong>${esc(s.parsedShift)}</strong>`
+                    `saved <strong>${esc(s.manualValue)}</strong>, PDF says <strong>${esc(s.parsedShift.startsWith('RDW|') ? 'RDW ' + s.parsedShift.slice(4) : s.parsedShift)}</strong>`
                 );
             }
         }
@@ -3571,9 +3586,11 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         if (value === 'SICK')  return 'sick';
         if (value === 'SPARE') return 'spare_shift';
         if (value === 'RD' || value === 'OFF') return 'correction';
-        // RDW keyword — AI should return a time instead, but handle it safely if it doesn't
+        // Pipe-encoded RDW from AI: "RDW|14:30-22:00" — explicit flag regardless of base shift
+        if (value.startsWith('RDW|')) return 'rdw';
+        // Plain RDW keyword fallback (AI did not include time)
         if (value === 'RDW')   return 'rdw';
-        // A shift time on a rest day = RDW; on a working day = overtime/swap
+        // A plain time string on a rest day = RDW; on a working day = overtime/swap
         if (baseShift === 'RD' || baseShift === 'OFF') return 'rdw';
         return 'overtime';
     }
