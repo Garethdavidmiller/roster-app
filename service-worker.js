@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v5.70
+// MYB Roster — Service Worker v5.71
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '5.70';
+const APP_VERSION = '5.71';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).

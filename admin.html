@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.70 -->
+<!-- MYB Roster Admin v5.71 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.70">
+    <link rel="stylesheet" href="shared.css?v=5.71">
 
     <style>
         body {
@@ -1777,55 +1777,9 @@
             border-color: var(--primary-blue);
         }
 
-        /* File row: "Choose PDF" (auto width) + "Read Roster" (fills remaining space) */
+        /* File row: "Choose PDF" sits inline, same pattern as Huddle card */
         .roster-file-row {
-            display: flex;
-            gap: 8px;
-            align-items: stretch;
-            margin-bottom: 8px;
-        }
-        .btn-roster-file {
-            flex: 0 0 auto;
-            display: inline-flex;
-            align-items: center;
-            height: 40px;
-            padding: 0 14px;
-            border: 1.5px solid var(--primary-blue);
-            border-radius: var(--radius-md);
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--primary-blue);
-            background: white;
-            cursor: pointer;
-            user-select: none;
-            white-space: nowrap;
-            box-sizing: border-box;
-            transition: background 0.15s, color 0.15s;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .btn-roster-file:hover { background: var(--primary-blue); color: white; }
-        }
-        .btn-roster-parse {
-            flex: 1;
-            height: 40px;
-            background: var(--primary-blue);
-            color: white;
-            border: none;
-            border-radius: var(--radius-md);
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            transition: background 0.15s;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .btn-roster-parse:hover:not(:disabled) { background: var(--primary-blue-dark); }
-        }
-        .btn-roster-parse:disabled { opacity: 0.35; cursor: not-allowed; }
-        .roster-filename {
-            font-size: 13px;
-            color: var(--text-mid);
-            margin: 0 0 8px;
-            word-break: break-all;
+            margin-bottom: 10px;
         }
 
         /* Conflict banner */
@@ -2498,7 +2452,7 @@
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="rosterUploadCard" style="display:none">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
-            <h2>📂 Upload Weekly Roster</h2>
+            <h2>🗓️ Weekly Roster</h2>
             <span class="hint">Parse a PDF roster and review each person's shifts before saving</span>
             <span class="collapse-chevron" id="rosterUploadChevron">▾</span>
         </div>
@@ -2522,13 +2476,14 @@
                             <input type="date" id="rosterWeekEnding" class="roster-date-input">
                         </div>
                     </div>
-                    <!-- File picker + parse button -->
+                    <!-- File picker -->
                     <div class="roster-file-row">
-                        <label for="rosterFileInput" class="btn-roster-file">📄 Choose PDF</label>
+                        <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
                         <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
-                        <button id="rosterParseBtn" class="btn-roster-parse" disabled>Read Roster</button>
                     </div>
-                    <p id="rosterFileName" class="roster-filename" style="display:none" aria-live="polite"></p>
+                    <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                    <!-- Full-width action button — matches Huddle card pattern -->
+                    <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read Roster</button>
                     <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
@@ -2612,6 +2567,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.70"></script>
+<script type="module" src="./admin-app.js?v=5.71"></script>
 </body>
 </html>
