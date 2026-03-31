@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.95';
-import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.95';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.96';
+import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.96';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1680,32 +1680,79 @@ if ('serviceWorker' in navigator) {
 // ============================================
 // TODAY'S HUDDLE BANNER
 // ============================================
-// Checks Firestore for a Huddle PDF uploaded for today's date.
-// If one exists, reveals the banner and wires up the open button.
-// Degrades silently — banner stays hidden if Firestore is unavailable.
+// HUDDLE VIEWER — in-app full-screen panel for PDF and DOCX
+// ============================================
+// PDF: opens in a new tab (Chrome renders natively).
+// DOCX: rendered inside the app using mammoth.js (loaded lazily from CDN).
+//   mammoth converts the Word file to HTML which we display in a styled
+//   full-screen panel — proper mobile layout with correct zoom level.
 (async function initHuddleButton() {
-    const btn = document.getElementById('huddleBtn');
+    const btn    = document.getElementById('huddleBtn');
+    const viewer = document.getElementById('huddleViewer');
+    const body   = document.getElementById('huddleViewerBody');
+    const close  = document.getElementById('huddleViewerClose');
     if (!btn) return;
+
+    // ---- Viewer open / close ----
+    function openViewer() {
+        viewer.classList.add('visible');
+        requestAnimationFrame(() => viewer.classList.add('open'));
+        document.addEventListener('keydown', onKey);
+    }
+    function closeViewer() {
+        viewer.classList.remove('open');
+        viewer.addEventListener('transitionend', () => viewer.classList.remove('visible'), { once: true });
+        document.removeEventListener('keydown', onKey);
+    }
+    function onKey(e) { if (e.key === 'Escape') closeViewer(); }
+    if (close) close.addEventListener('click', closeViewer);
+
+    // ---- Lazy-load mammoth.js from CDN (only for DOCX) ----
+    function loadMammoth() {
+        return new Promise((resolve, reject) => {
+            if (window.mammoth) { resolve(); return; }
+            const s = document.createElement('script');
+            s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js';
+            s.onload  = resolve;
+            s.onerror = () => reject(new Error('Could not load document renderer'));
+            document.head.appendChild(s);
+        });
+    }
+
     try {
         const huddle = await getLatestHuddle();
-        if (huddle) {
-            btn.addEventListener('click', () => {
-                // PDF: Chrome renders natively — open URL directly.
-                // DOCX: Chrome on Android cannot render Word files inline — it downloads them.
-                // Google Docs Viewer renders DOCX in the browser tab without downloading.
-                // Being a Google service it can access Firebase Storage URLs (googleapis.com)
-                // without the "not publicly accessible" error that Office Online gives.
-                const url = huddle.fileType === 'docx'
-                    ? `https://docs.google.com/viewer?url=${encodeURIComponent(huddle.storageUrl)}`
-                    : huddle.storageUrl;
-                window.open(url, '_blank', 'noopener');
-            });
-        } else {
-            // No huddle uploaded yet — keep button visible but disabled
+        if (!huddle) {
             btn.disabled = true;
+            return;
         }
+
+        btn.addEventListener('click', async () => {
+            if (huddle.fileType !== 'docx') {
+                // PDF — open directly in a new tab; Chrome renders it natively
+                window.open(huddle.storageUrl, '_blank', 'noopener');
+                return;
+            }
+
+            // DOCX — render in-app
+            body.innerHTML = '<p id="huddleViewerLoading">Loading…</p>';
+            openViewer();
+            close.focus();
+
+            try {
+                await loadMammoth();
+                const response = await fetch(huddle.storageUrl);
+                if (!response.ok) throw new Error(`Download failed (${response.status})`);
+                const arrayBuffer = await response.arrayBuffer();
+                const result      = await mammoth.convertToHtml({ arrayBuffer });
+                body.innerHTML    = result.value || '<p>Document is empty.</p>';
+            } catch (err) {
+                console.error('[Huddle] DOCX render failed:', err);
+                body.innerHTML = `<p style="color:#c00">Could not display the document.<br>
+                    <a href="${huddle.storageUrl}" target="_blank" rel="noopener"
+                       style="color:var(--primary-blue)">Download instead</a></p>`;
+            }
+        });
     } catch (err) {
-        // Silently degrade — disable the button rather than hiding it
         btn.disabled = true;
         console.warn('[Huddle] Could not fetch latest huddle:', err);
     }
