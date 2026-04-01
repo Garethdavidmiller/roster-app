@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.99';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.99';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.00';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.00';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -248,6 +248,23 @@ function initLoginOverlay() {
                 { heading: 'Conflicts', items: [
                     { icon: '⚠️', html: 'If a day already has a <strong>manual override</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
                     { icon: '🔄', html: 'Previous roster imports are silently replaced — only hand-entered overrides trigger a conflict warning' },
+                ]},
+            ],
+        },
+        'saved-changes': {
+            title: 'Saved Changes',
+            sections: [
+                { heading: 'Viewing', items: [
+                    { icon: '🔍', html: 'Use the <strong>member dropdown</strong> to see one person\'s changes, or leave it on All to see everyone\'s' },
+                    { icon: '📅', html: 'Use the <strong>month filter</strong> to narrow down to a specific month — defaults to the current month' },
+                ]},
+                { heading: 'Editing and deleting', items: [
+                    { icon: '✏️', html: 'Tap any row to open it for editing — change the shift type, time, or note, then tap <strong>Save changes</strong>' },
+                    { icon: '🗑️', html: 'To remove an override, open it and tap <strong>Delete</strong> — the day returns to its base roster shift' },
+                ]},
+                { heading: 'Sources', items: [
+                    { icon: '📋', html: '<strong>Roster import</strong> entries were applied from a PDF upload — they can be overwritten by a new import without a conflict warning' },
+                    { icon: '✍️', html: 'All other entries were entered manually and will trigger a conflict warning if a roster import disagrees' },
                 ]},
             ],
         },
@@ -1333,7 +1350,11 @@ function renderTable() {
         const months     = [...new Set(memberRows.map(o => (o.date || '').substring(0, 7)))]
             .filter(Boolean)
             .sort((a, b) => b.localeCompare(a));
-        const prevValue  = overridesMonthFilter.value;
+        const isFirstRender = !overridesMonthFilter.dataset.initialized;
+        const today         = new Date();
+        const currentMonth  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+        const prevValue     = isFirstRender ? currentMonth : overridesMonthFilter.value;
+        overridesMonthFilter.dataset.initialized = '1';
         overridesMonthFilter.innerHTML = '<option value="">All months</option>';
         months.forEach(ym => {
             const [y, m] = ym.split('-');
