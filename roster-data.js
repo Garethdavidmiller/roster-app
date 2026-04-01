@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '6.00';
+export const APP_VERSION = '6.01';
 
 // ============================================
 // CONFIGURATION
@@ -1153,7 +1153,7 @@ export function getShiftBadge(timeStr, sep = '<br>') {
     if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare">📋${sep}Spare</span>`;
     if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw">💼${sep}RDW</span>`;
     if (timeStr === 'AL')    return `<span class="shift-badge badge-al">🏖️${sep}AL</span>`;
-    if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick">🤒${sep}Sick</span>`;
+    if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick">🪑${sep}Absence</span>`;
     if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-other">❓${sep}Unknown</span>`;
     if (isNightShift(timeStr)) return `<span class="shift-badge badge-night">🦉${sep}Night</span>`;
     return isEarlyShift(timeStr)
