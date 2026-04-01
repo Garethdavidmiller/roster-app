@@ -18,7 +18,7 @@ import {
     getDocs, getDoc, addDoc, setDoc, deleteDoc,
     doc, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL, getBytes } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
 
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
@@ -50,12 +50,13 @@ const storage = getStorage(app);
  * it (latest wins). The `fileType` field in Firestore tells the app whether
  * to open the file directly (PDF) or via Office Online viewer (docx).
  *
- * @param {string} date       - ISO date string, e.g. "2026-03-18"
- * @param {File}   file       - PDF or .docx file chosen by the admin
- * @param {string} uploadedBy - memberName of the uploading admin
+ * @param {string}      date        - ISO date string, e.g. "2026-03-18"
+ * @param {File}        file        - PDF or .docx file chosen by the admin
+ * @param {string}      uploadedBy  - memberName of the uploading admin
+ * @param {string|null} htmlContent - Pre-converted HTML string for DOCX files; null for PDF
  * @returns {Promise<string>} Publicly accessible download URL of the stored file
  */
-export async function uploadHuddle(date, file, uploadedBy) {
+export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
     // Explicitly set the content type rather than relying on the browser to report it.
     // On Android, .docx files sometimes arrive as 'application/zip' or 'application/octet-stream'
@@ -66,31 +67,10 @@ export async function uploadHuddle(date, file, uploadedBy) {
     const storageRef = ref(storage, `huddles/${date}.${fileType}`);
     await uploadBytes(storageRef, file, { contentType: mimeType });
     const storageUrl = await getDownloadURL(storageRef);
-    await setDoc(doc(db, 'huddles', date), {
-        date,
-        storageUrl,
-        fileType,
-        uploadedAt: serverTimestamp(),
-        uploadedBy,
-    });
+    const firestoreDoc = { date, storageUrl, fileType, uploadedAt: serverTimestamp(), uploadedBy };
+    if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
+    await setDoc(doc(db, 'huddles', date), firestoreDoc);
     return storageUrl;
-}
-
-/**
- * Download a Huddle file from Firebase Storage and return its bytes as an ArrayBuffer.
- *
- * Uses the Firebase Storage SDK (getBytes) rather than a plain fetch() call.
- * Plain fetch() triggers a CORS preflight that Firebase Storage rejects by default;
- * the SDK uses its own request mechanism that handles this correctly.
- *
- * @param {string} date     - ISO date string, e.g. "2026-03-18"
- * @param {string} fileType - "pdf" | "docx"
- * @returns {Promise<ArrayBuffer>}
- */
-export async function downloadHuddleBytes(date, fileType) {
-    const storageRef = ref(storage, `huddles/${date}.${fileType}`);
-    const uint8      = await getBytes(storageRef);
-    return uint8.buffer;
 }
 
 /**

@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.97';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.97';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.98';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.98';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2776,12 +2776,33 @@ if (overridesMonthFilter) {
         if (!date || !file) return;
 
         uploadBtn.disabled = true;
-        uploadBtn.textContent = 'Uploading…';
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
 
+        // For DOCX files, convert to HTML in the browser before uploading.
+        // The HTML is stored in Firestore alongside the file URL so the viewer
+        // can display it directly — no CORS fetch or external viewer needed.
+        let htmlContent = null;
+        const isDocx = file.name.toLowerCase().endsWith('.docx');
+        if (isDocx) {
+            uploadBtn.textContent = 'Converting…';
+            await new Promise((resolve, reject) => {
+                if (window.mammoth) { resolve(); return; }
+                const s = document.createElement('script');
+                s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js';
+                s.onload  = resolve;
+                s.onerror = () => reject(new Error('Could not load converter'));
+                document.head.appendChild(s);
+            });
+            const arrayBuffer = await file.arrayBuffer();
+            const result      = await mammoth.convertToHtml({ arrayBuffer });
+            htmlContent       = result.value || null;
+        }
+
+        uploadBtn.textContent = 'Uploading…';
+
         try {
-            await uploadHuddle(date, file, currentUser);
+            await uploadHuddle(date, file, currentUser, htmlContent);
             feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
             feedback.className = 'huddle-feedback huddle-feedback--ok';
             fileInput.value = '';
