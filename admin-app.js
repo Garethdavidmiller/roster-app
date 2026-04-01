@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.00';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.00';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.02';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.02';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -208,10 +208,16 @@ function initLoginOverlay() {
             ],
         },
         'sick-days': {
-            title: 'Sick days',
+            title: 'Record Absence',
             sections: [
-                { items: [
-                    { icon: '🤒', html: 'Select a staff member and date range — rest days and Sundays are skipped automatically' },
+                { heading: 'What to use it for', items: [
+                    { icon: '🤧', html: '<strong>Sickness</strong> — any number of days' },
+                    { icon: '👨‍👩‍👧', html: '<strong>Family or domestic emergency</strong> — e.g. child ill, caring for a relative' },
+                    { icon: '🪑', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
+                ]},
+                { heading: 'Good to know', items: [
+                    { icon: '📅', html: 'Rest days and Sundays in the range are ignored automatically — you only need to pick the start and end date' },
+                    { icon: '👁️', html: 'The absence badge shows on the calendar for <strong>everyone</strong> — make sure the team member knows before you save' },
                 ]},
             ],
         },
@@ -316,7 +322,7 @@ const TYPES = {
     swap:         { label: 'Swap',               fixed: false },
     annual_leave: { label: 'Annual Leave',       fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Make Rest Day',      fixed: true,  fixedValue: 'RD' },
-    sick:         { label: 'Sick',               fixed: true,  fixedValue: 'SICK' },
+    sick:         { label: 'Absence',             fixed: true,  fixedValue: 'SICK' },
 };
 
 // ============================================
@@ -770,7 +776,7 @@ function buildWeekGridInto(container, dateStr) {
                 <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
-                <button class="type-pill-btn pill-sick"         data-type="sick">Sick</button>
+                <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
                 <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
             </div>
             <div class="col-time">
@@ -2093,7 +2099,7 @@ function updateSickPreview() {
 
     if (dates === null) {
         sickPreview.className = 'al-preview sick-preview error';
-        sickPreview.textContent = '"Last sick day" must be on or after "First sick day".';
+        sickPreview.textContent = '"Last absence day" must be on or after "First absence day".';
         sickSaveBtn.disabled = true;
         return;
     }
@@ -2122,11 +2128,11 @@ function updateSickPreview() {
         });
     }
     const workDays = dates.length - restCount;
-    const label    = workDays === 1 ? '1 sick day' : `${workDays} sick days`;
+    const label    = workDays === 1 ? '1 absence day' : `${workDays} absence days`;
     const restNote = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
 
     sickPreview.className = 'al-preview sick-preview ready';
-    sickPreview.innerHTML = `🤒 <strong>${label}</strong> for ${esc(member)}: ${rangeStr}${restNote}`;
+    sickPreview.innerHTML = `🪑 <strong>${label}</strong> for ${esc(member)}: ${rangeStr}${restNote}`;
     sickSaveBtn.disabled = workDays === 0;
 }
 
@@ -2183,7 +2189,7 @@ sickSaveBtn.addEventListener('click', async () => {
         await sickBatch.commit();
 
         sickFeedback.className = 'feedback success';
-        sickFeedback.textContent = `✓ Recorded ${workingDates.length} sick day${workingDates.length > 1 ? 's' : ''} for ${member}`;
+        sickFeedback.textContent = `✓ Recorded ${workingDates.length} absence day${workingDates.length > 1 ? 's' : ''} for ${member}`;
         setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
 
         sickFrom.value = sickTo.value = '';
@@ -2202,7 +2208,7 @@ sickSaveBtn.addEventListener('click', async () => {
         sickFeedback.textContent = '⚠ Could not save — check your connection and try again.';
     } finally {
         sickSaveBtn.disabled    = false;
-        sickSaveBtn.textContent = 'Record sick days';
+        sickSaveBtn.textContent = 'Record absence';
     }
 });
 
@@ -2243,7 +2249,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
         updateSickBookedBox();
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         if (feedbackEl) {
-            const noun = type === 'annual_leave' ? 'AL day' : 'sick day';
+            const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
             feedbackEl.textContent = `✓ Deleted ${toDelete.length} ${noun}${toDelete.length !== 1 ? 's' : ''} for ${memberName}`;
             feedbackEl.className = 'feedback success';
             setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
@@ -2349,7 +2355,7 @@ function updateSickBookedBox() {
         monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
             const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
-            const countStr = `${p.count} sick day${p.count !== 1 ? 's' : ''}`;
+            const countStr = `${p.count} absence day${p.count !== 1 ? 's' : ''}`;
             const row = document.createElement('div');
             row.className = 'al-period-row';
             row.innerHTML = `<span class="al-period-dates">${dateStr}</span>`;

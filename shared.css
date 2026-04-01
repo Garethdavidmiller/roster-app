@@ -32,8 +32,9 @@
     --rdw-light:         #fce4ec;   /* RDW cell background — light pink */
     --al:                #00897b;
     --al-light:          #e0f2f1;
-    --sick:              #e53935;   /* sick day — red */
-    --sick-light:        #ffebee;   /* sick day cell background */
+    --absence:           #616161;   /* absence day — neutral grey */
+    --absence-light:     #f5f5f5;   /* absence day cell background */
+    --absence-text:      #212121;   /* absence text on light bg — 15.8:1 */
     --rest-day-bg:       #f9f9fb;   /* rest day cell — off-white so it doesn't vanish on page */
     --charcoal:          #2d2d2d;   /* rest badge background */
     --night:             #1a1a2e;   /* night shift badge */
