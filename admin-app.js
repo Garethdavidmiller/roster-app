@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.04';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.04';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.05';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.05';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -181,8 +181,9 @@ function initLoginOverlay() {
             title: 'Changing shifts',
             sections: [
                 { heading: 'One shift', items: [
-                    { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top' },
-                    { icon: '2️⃣', html: 'Tap a type button on any day — <strong>AL, Spare, Sick, RDW</strong> etc.' },
+                    { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top', adminOnly: true },
+                    { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top using the arrows or date picker', staffOnly: true },
+                    { icon: '2️⃣', html: 'Tap a type button on any day — <strong>AL, Spare, Absence, RDW</strong> etc.' },
                     { icon: '💾', html: 'Tap <strong>Save changes</strong> — changed days show in amber until saved' },
                     { icon: '👆', html: 'Swipe left or right to move between weeks' },
                 ]},
@@ -202,8 +203,9 @@ function initLoginOverlay() {
             title: 'Annual leave',
             sections: [
                 { items: [
-                    { icon: '🏖️', html: 'Select a staff member and date range — rest days and Sundays are skipped automatically' },
-                    { icon: '⚠️', html: 'A warning appears if leave would exceed the entitlement — you can still save' },
+                    { icon: '🏖️', html: 'Select a <strong>staff member</strong> and date range — rest days and Sundays are skipped automatically', adminOnly: true },
+                    { icon: '🏖️', html: 'Select a date range — rest days and Sundays are skipped automatically', staffOnly: true },
+                    { icon: '⚠️', html: 'A warning appears if leave would exceed the annual limit — you can still save' },
                 ]},
             ],
         },
@@ -261,14 +263,15 @@ function initLoginOverlay() {
             title: 'Saved Changes',
             sections: [
                 { heading: 'Viewing', items: [
-                    { icon: '🔍', html: 'Use the <strong>member dropdown</strong> to see one person\'s changes, or leave it on All to see everyone\'s' },
+                    { icon: '🔍', html: 'Use the <strong>member dropdown</strong> to see one person\'s changes, or leave it on All to see everyone\'s', adminOnly: true },
+                    { icon: '🔍', html: 'This list shows your own saved changes only', staffOnly: true },
                     { icon: '📅', html: 'Use the <strong>month filter</strong> to narrow down to a specific month — defaults to the current month' },
                 ]},
                 { heading: 'Editing and deleting', items: [
                     { icon: '✏️', html: 'Tap any row to open it for editing — change the shift type, time, or note, then tap <strong>Save changes</strong>' },
                     { icon: '🗑️', html: 'To remove a change, open it and tap <strong>Delete</strong> — the day goes back to the original scheduled shift' },
                 ]},
-                { heading: 'Sources', items: [
+                { heading: 'Sources', adminOnly: true, items: [
                     { icon: '📋', html: '<strong>Roster import</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },
                     { icon: '✍️', html: 'All other entries were added manually — a new PDF upload will flag them if it disagrees, so you can choose which to keep' },
                 ]},
@@ -283,8 +286,12 @@ function initLoginOverlay() {
         titleEl.textContent = tips.title;
         let html = '';
         for (const section of tips.sections) {
+            if (section.adminOnly && !currentIsAdmin) continue;
+            if (section.staffOnly &&  currentIsAdmin) continue;
             if (section.heading) html += `<div class="tips-lb-section">${section.heading}</div>`;
-            for (const { icon, html: content } of section.items) {
+            for (const { icon, html: content, adminOnly, staffOnly } of section.items) {
+                if (adminOnly && !currentIsAdmin) continue;
+                if (staffOnly &&  currentIsAdmin) continue;
                 html += `<div class="tips-lb-item"><span class="tips-lb-icon">${icon}</span><span>${content}</span></div>`;
             }
         }
