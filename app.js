@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.97';
-import { db, collection, query, where, getDocs, getLatestHuddle, downloadHuddleBytes } from './firebase-client.js?v=5.97';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.98';
+import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=5.98';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1683,9 +1683,9 @@ if ('serviceWorker' in navigator) {
 // HUDDLE VIEWER — in-app full-screen panel for PDF and DOCX
 // ============================================
 // PDF: opens in a new tab (Chrome renders natively).
-// DOCX: rendered inside the app using mammoth.js (loaded lazily from CDN).
-//   mammoth converts the Word file to HTML which we display in a styled
-//   full-screen panel — proper mobile layout with correct zoom level.
+// DOCX: htmlContent is pre-converted at upload time (by mammoth in the Cloud
+//   Function or the admin upload page) and stored in the Firestore document.
+//   The viewer just displays that HTML — no CORS fetch, no CDN dependency.
 (async function initHuddleButton() {
     const btn    = document.getElementById('huddleBtn');
     const viewer = document.getElementById('huddleViewer');
@@ -1707,18 +1707,6 @@ if ('serviceWorker' in navigator) {
     function onKey(e) { if (e.key === 'Escape') closeViewer(); }
     if (close) close.addEventListener('click', closeViewer);
 
-    // ---- Lazy-load mammoth.js from CDN (only for DOCX) ----
-    function loadMammoth() {
-        return new Promise((resolve, reject) => {
-            if (window.mammoth) { resolve(); return; }
-            const s = document.createElement('script');
-            s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js';
-            s.onload  = resolve;
-            s.onerror = () => reject(new Error('Could not load document renderer'));
-            document.head.appendChild(s);
-        });
-    }
-
     try {
         const huddle = await getLatestHuddle();
         if (!huddle) {
@@ -1726,31 +1714,15 @@ if ('serviceWorker' in navigator) {
             return;
         }
 
-        btn.addEventListener('click', async () => {
-            if (huddle.fileType !== 'docx') {
-                // PDF — open directly in a new tab; Chrome renders it natively
+        btn.addEventListener('click', () => {
+            if (huddle.htmlContent) {
+                // DOCX with pre-converted HTML — display in the in-app viewer
+                body.innerHTML = huddle.htmlContent;
+                openViewer();
+                close.focus();
+            } else {
+                // PDF (or a DOCX uploaded before conversion was added) — open in new tab
                 window.open(huddle.storageUrl, '_blank', 'noopener');
-                return;
-            }
-
-            // DOCX — render in-app
-            body.innerHTML = '<p id="huddleViewerLoading">Loading…</p>';
-            openViewer();
-            close.focus();
-
-            try {
-                await loadMammoth();
-                // Use Firebase Storage SDK (getBytes) rather than plain fetch().
-                // fetch() triggers a CORS preflight that Firebase Storage blocks by default;
-                // the SDK handles downloads correctly without that restriction.
-                const arrayBuffer = await downloadHuddleBytes(huddle.date, huddle.fileType);
-                const result      = await mammoth.convertToHtml({ arrayBuffer });
-                body.innerHTML    = result.value || '<p>Document is empty.</p>';
-            } catch (err) {
-                console.error('[Huddle] DOCX render failed:', err);
-                body.innerHTML = `<p style="color:#c00">Could not display the document.<br>
-                    <a href="${huddle.storageUrl}" target="_blank" rel="noopener"
-                       style="color:var(--primary-blue)">Download instead</a></p>`;
             }
         });
     } catch (err) {

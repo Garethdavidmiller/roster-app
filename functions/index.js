@@ -24,6 +24,7 @@ const { defineSecret }  = require('firebase-functions/params');
 const admin             = require('firebase-admin');
 const crypto            = require('crypto');
 const { Anthropic }     = require('@anthropic-ai/sdk');
+const mammoth           = require('mammoth');
 
 admin.initializeApp();
 
@@ -158,14 +159,33 @@ exports.ingestHuddle = onRequest(
             const encodedPath = encodeURIComponent(storagePath);
             const storageUrl  = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
 
+            // ---- Convert DOCX to HTML for in-app viewing ----
+            // mammoth converts the Word document to clean HTML at upload time so the
+            // client never needs to download the raw DOCX or rely on an external viewer.
+            // The HTML is stored in Firestore alongside the storage URL.
+            // PDF files are opened natively by Chrome — no conversion needed.
+            let htmlContent = null;
+            if (isDocx) {
+                try {
+                    const result = await mammoth.convertToHtml({ buffer: fileBuffer });
+                    htmlContent  = result.value || null;
+                    console.log(`[ingestHuddle] DOCX converted to HTML (${htmlContent ? htmlContent.length : 0} chars)`);
+                } catch (mammothErr) {
+                    // Conversion failure is non-fatal — file still saved to Storage
+                    console.warn('[ingestHuddle] mammoth conversion failed:', mammothErr.message);
+                }
+            }
+
             // ---- Write Firestore metadata document ----
-            await admin.firestore().collection('huddles').doc(date).set({
+            const firestoreDoc = {
                 date,
                 storageUrl,
                 fileType,
                 uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
                 uploadedBy: 'power-automate',
-            });
+            };
+            if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
+            await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
             res.status(200).json({ success: true, date, storageUrl });
