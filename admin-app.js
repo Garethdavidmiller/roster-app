@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.98';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.98';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=5.99';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=5.99';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -222,6 +222,32 @@ function initLoginOverlay() {
                     { icon: '🌍', html: 'Shows key dates for the chosen tradition in the corner of matching days' },
                     { icon: '👁️', html: 'Visible to anyone who views that person\'s roster' },
                     { icon: 'ℹ️', html: 'Only one calendar can be active per person at a time' },
+                ]},
+            ],
+        },
+        'daily-huddle': {
+            title: 'Daily Huddle',
+            sections: [
+                { items: [
+                    { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff see an orange <strong>Huddle</strong> button on the main app' },
+                    { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
+                    { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
+                    { icon: '🤖', html: 'Power Automate uploads automatically when the Huddle email arrives — manual upload is a backup' },
+                ]},
+            ],
+        },
+        'weekly-roster': {
+            title: 'Weekly Roster upload',
+            sections: [
+                { heading: 'How it works', items: [
+                    { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> (always a Saturday)' },
+                    { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — AI reads the shifts (takes ~15 seconds)' },
+                    { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
+                    { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
+                ]},
+                { heading: 'Conflicts', items: [
+                    { icon: '⚠️', html: 'If a day already has a <strong>manual override</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
+                    { icon: '🔄', html: 'Previous roster imports are silently replaced — only hand-entered overrides trigger a conflict warning' },
                 ]},
             ],
         },
