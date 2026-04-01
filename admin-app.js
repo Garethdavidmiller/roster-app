@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.03';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.03';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.04';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.04';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -238,7 +238,7 @@ function initLoginOverlay() {
                     { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff see an orange <strong>Huddle</strong> button on the main app' },
                     { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
-                    { icon: '🤖', html: 'Power Automate uploads automatically when the Huddle email arrives — manual upload is a backup' },
+                    { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
                 ]},
             ],
         },
@@ -247,13 +247,13 @@ function initLoginOverlay() {
             sections: [
                 { heading: 'How it works', items: [
                     { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> (always a Saturday)' },
-                    { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — AI reads the shifts (takes ~15 seconds)' },
+                    { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — the app reads the shifts (takes ~15 seconds)' },
                     { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
                     { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
                 ]},
                 { heading: 'Conflicts', items: [
                     { icon: '⚠️', html: 'If a day already has a <strong>manual override</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
-                    { icon: '🔄', html: 'Previous roster imports are silently replaced — only hand-entered overrides trigger a conflict warning' },
+                    { icon: '🔄', html: 'Old roster uploads are replaced automatically — only your manual changes show a warning if the new PDF disagrees' },
                 ]},
             ],
         },
@@ -266,11 +266,11 @@ function initLoginOverlay() {
                 ]},
                 { heading: 'Editing and deleting', items: [
                     { icon: '✏️', html: 'Tap any row to open it for editing — change the shift type, time, or note, then tap <strong>Save changes</strong>' },
-                    { icon: '🗑️', html: 'To remove an override, open it and tap <strong>Delete</strong> — the day returns to its base roster shift' },
+                    { icon: '🗑️', html: 'To remove a change, open it and tap <strong>Delete</strong> — the day goes back to the original scheduled shift' },
                 ]},
                 { heading: 'Sources', items: [
-                    { icon: '📋', html: '<strong>Roster import</strong> entries were applied from a PDF upload — they can be overwritten by a new import without a conflict warning' },
-                    { icon: '✍️', html: 'All other entries were entered manually and will trigger a conflict warning if a roster import disagrees' },
+                    { icon: '📋', html: '<strong>Roster import</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },
+                    { icon: '✍️', html: 'All other entries were added manually — a new PDF upload will flag them if it disagrees, so you can choose which to keep' },
                 ]},
             ],
         },
@@ -1333,7 +1333,7 @@ async function loadOverrides() {
         updateSickBookedBox();
     } catch (err) {
         console.error('[Admin] Load failed:', err);
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">Failed to load overrides.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
+        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
         document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
         listCount.textContent = 'Error';
     }
@@ -1380,7 +1380,7 @@ function renderTable() {
     listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
 
     if (!rows.length) {
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">No overrides found.</td></tr>';
+        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">No saved changes.</td></tr>';
         return;
     }
 
@@ -1448,7 +1448,7 @@ if (bulkDeleteBtn) {
             updateSickBookedBox();
             if (fieldMember.value && fieldDate.value) renderWeekGrid();
             if (listFeedback) {
-                listFeedback.textContent = `✓ Deleted ${ids.length} override${ids.length !== 1 ? 's' : ''}`;
+                listFeedback.textContent = `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`;
                 listFeedback.className = 'list-feedback success';
                 setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
             }
