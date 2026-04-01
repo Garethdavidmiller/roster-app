@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.01';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.01';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.02';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.02';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -210,12 +210,14 @@ function initLoginOverlay() {
         'sick-days': {
             title: 'Record Absence',
             sections: [
-                { heading: 'What counts as absence', items: [
-                    { icon: '🪑', html: 'Use this for <strong>sickness, family emergencies, domestic emergencies</strong>, or any other unplanned absence — the type is not recorded, only the dates' },
+                { heading: 'What to use it for', items: [
+                    { icon: '🤧', html: '<strong>Sickness</strong> — any number of days' },
+                    { icon: '👨‍👩‍👧', html: '<strong>Family or domestic emergency</strong> — e.g. child ill, caring for a relative' },
+                    { icon: '🪑', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
                 ]},
-                { heading: 'How it works', items: [
-                    { icon: '📅', html: 'Select a date range — rest days and Sundays are skipped automatically' },
-                    { icon: '🔒', html: 'Absence days are <strong>visible to all staff</strong> who view this person\'s calendar — only record with the member\'s knowledge or under your workplace absence procedures' },
+                { heading: 'Good to know', items: [
+                    { icon: '📅', html: 'Rest days and Sundays in the range are ignored automatically — you only need to pick the start and end date' },
+                    { icon: '👁️', html: 'The absence badge shows on the calendar for <strong>everyone</strong> — make sure the team member knows before you save' },
                 ]},
             ],
         },

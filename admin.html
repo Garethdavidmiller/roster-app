@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.01 -->
+<!-- MYB Roster Admin v6.02 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.01">
+    <link rel="stylesheet" href="shared.css?v=6.02">
 
     <style>
         body {
@@ -2286,7 +2286,7 @@
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
             <h2>🪑 Record Absence <button class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence">?</button></h2>
-            <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
+            <span class="hint">Mark days when a team member isn't in — sickness, family, or any other reason</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="sickBody">
@@ -2310,7 +2310,7 @@
                     </div>
                 </div>
             </div>
-            <p class="absence-visibility-note">🔒 Absence days are visible to all staff who view this person's calendar.</p>
+            <p class="absence-visibility-note">👁️ This will show on the calendar for all staff — check the team member is happy before saving.</p>
             <div class="al-preview sick-preview" id="sickPreview"></div>
             <button class="btn-save" id="sickSaveBtn" disabled>Record absence</button>
             <div class="feedback" id="sickFeedback"></div>
@@ -2514,6 +2514,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.01"></script>
+<script type="module" src="./admin-app.js?v=6.02"></script>
 </body>
 </html>
