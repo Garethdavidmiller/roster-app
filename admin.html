@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v5.98 -->
+<!-- MYB Roster Admin v5.99 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=5.98">
+    <link rel="stylesheet" href="shared.css?v=5.99">
 
     <style>
         body {
@@ -2394,7 +2394,7 @@
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="huddleUploadCard" style="display:none">
         <div class="card-header card-collapsible-header" id="huddleToggleHeader">
-            <h2>📋 Daily Huddle</h2>
+            <h2>📋 Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle">?</button></h2>
             <span class="hint">Upload today's Huddle PDF — staff will see a button in the main app</span>
             <span class="collapse-chevron" id="huddleChevron">▾</span>
         </div>
@@ -2416,7 +2416,7 @@
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="rosterUploadCard" style="display:none">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
-            <h2>🗓️ Weekly Roster</h2>
+            <h2>🗓️ Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload">?</button></h2>
             <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
             <span class="collapse-chevron" id="rosterUploadChevron">▾</span>
         </div>
@@ -2507,6 +2507,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=5.98"></script>
+<script type="module" src="./admin-app.js?v=5.99"></script>
 </body>
 </html>
