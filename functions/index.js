@@ -365,76 +365,68 @@ exports.parseRosterPDF = onRequest(
         // ---- Build the Claude prompt ----
         const namesBlock = relevantNames.map(n => `  - ${n}`).join('\n');
 
-        const prompt = `You are reading a weekly staff roster for a UK rail company.
-Your job is to find each staff member's shift for every day of the week and return it as structured JSON.
+        const prompt = `You are reading a weekly staff roster PDF for a UK rail company.
+Your job is to extract each staff member's shift for each day of the week.
 
 ---
 STAFF NAMES TO LOOK FOR (only these — skip anyone else):
 ${namesBlock}
 
 ---
-DAY-TO-DATE MAPPING — use these exact strings as the JSON keys:
-  Sunday    = ${dates[0]}
-  Monday    = ${dates[1]}
-  Tuesday   = ${dates[2]}
-  Wednesday = ${dates[3]}
-  Thursday  = ${dates[4]}
-  Friday    = ${dates[5]}
-  Saturday  = ${dates[6]}
+HOW TO READ THE TABLE — follow these two steps exactly:
 
-IMPORTANT: Match each column in the roster to its day name (Sunday, Monday, etc.), then use the date shown above for that day. Do not use column position — use the day name label.
+STEP 1 — Read the column headers from left to right.
+Write down each day abbreviation in order (e.g. "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").
+Only include days that actually appear as column headers. Some rosters start on Monday (no Sunday column). Some have a Sunday column where every cell is blank — if you can see a "Sun" or "Sunday" column header, include it.
+
+STEP 2 — For each staff member, read their row from left to right.
+Write down one value per column — the same number of values as column headers, no more, no fewer.
+If a cell is blank, dashed, or empty, write "RD". NEVER skip a blank cell.
+
+---
+BLANK CELLS — THIS IS THE MOST IMPORTANT RULE:
+A blank cell is still a cell. It takes up a column position.
+If Sunday is blank for everyone, it still counts as column 1. Write "RD" for it.
+Do NOT jump to the next non-blank cell and start from there.
+
+CHECK BEFORE YOU OUTPUT: count your columnHeaders. Every staff member's rowValues must have exactly that many entries. If anyone has fewer, you skipped a blank cell — go back and add "RD" for it.
 
 ---
 WHAT THE CODES MEAN:
 - A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
 - RD = Rest day
 - AL or A/L or A.L. = Annual leave. Always return "AL".
-- SP or SPARE = Spare (on standby, no shift assigned yet). Always return "SPARE" — never "SP".
-- OFF = Uncontracted rest day (used in CES and bilingual rosters). Treat exactly the same as RD — return "RD".
-- RDW = Rest day worked. A cell containing RDW always shows a shift time AND the word RDW together, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Return it as "RDW HH:MM-HH:MM" (e.g. "RDW 14:30-22:00"). Always preserve the RDW keyword — never strip it and return just the time.
-- SC or SN = SICK (the person was off sick — return the value "SICK")
-- NA or N/A or NS = Not available — treat as RD, return "RD". This applies on any day of the week, not just Sunday.
-- GER = The person was placed at Gerrards Cross station. Extract the shift TIME next to it and use that as the shift (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time is shown, use RD.
-- If a cell is blank, dashed, or has no entry, use RD.
-- Many cells contain a duty/diagram code on a second line (e.g. "CEA 16", "CEA 18", "D123"). These are train duty numbers — always ignore them. Only the first line of each cell contains the shift value.
+- SP or SPARE = Spare (on standby). Always return "SPARE" — never "SP".
+- OFF = Uncontracted rest day (used in CES and bilingual rosters). Return "RD".
+- RDW = Rest day worked. A cell with RDW always shows a time too, e.g. "14:30-22:00 RDW" or "RDW 06:00-12:00". Return as "RDW HH:MM-HH:MM". Always keep the RDW — never strip it.
+- SC or SN = Sick. Return "SICK".
+- NA or N/A or NS = Not available. Return "RD".
+- GER = Gerrards Cross station. Extract the shift time next to it (e.g. "GER 06:00-12:00" → "06:00-12:00"). If no time, return "RD".
+- Blank, dashed, or no entry = "RD".
+- Duty/diagram codes on a second line (e.g. "CEA 16", "D123") are train duty numbers — ignore them. Only the first line of each cell is the shift value.
 
 ---
-IMPORTANT RULES:
-1. Only include people from the STAFF NAMES list above. Skip rows for "Vacant", agency staff, or anyone not on that list.
-2. If a name appears slightly differently in the document (e.g. initials or spacing), match it to the closest name on the list.
-3. Every person must have exactly 7 shifts — one for each date in the DAY-TO-DATE MAPPING above.
-4. Sunday is typically a non-working day. If the roster has no Sunday column, or Sunday is blank/absent/dashed for a person, return "RD" for that date. Do not copy a Monday shift into Sunday.
-5. Return ONLY valid JSON — no explanation, no markdown code fences, nothing else.
-6. COLUMN MAPPING: Before reading any shifts, scan the column headers in the roster PDF. For each day name you can see as a column header (Sunday, Monday, Tuesday, etc.), record it in the "columnMapping" field using the date string from the DAY-TO-DATE MAPPING above. If a column header is absent (e.g. no Sunday column), omit that date from columnMapping. This is how your column identification is verified — get it right.
+RULES:
+1. Only include people from the STAFF NAMES list. Skip "Vacant", agency staff, or anyone not on the list.
+2. If a name in the document differs slightly (initials, spacing), match it to the closest name on the list.
+3. rowValues must have EXACTLY the same number of entries as columnHeaders — never more, never fewer.
+4. Blank/dashed cells = "RD" — always include them, never skip.
+5. Return ONLY valid JSON — no explanation, no markdown fences, nothing else.
 
 ---
-OUTPUT FORMAT (return exactly this structure):
+OUTPUT FORMAT — return exactly this structure:
 {
-  "columnMapping": {
-    "${dates[1]}": "Monday",
-    "${dates[2]}": "Tuesday",
-    "${dates[3]}": "Wednesday",
-    "${dates[4]}": "Thursday",
-    "${dates[5]}": "Friday",
-    "${dates[6]}": "Saturday"
-  },
+  "columnHeaders": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   "parsed": [
     {
       "memberName": "L. Springer",
-      "shifts": {
-        "${dates[0]}": "RD",
-        "${dates[1]}": "05:30-11:30",
-        "${dates[2]}": "05:30-11:30",
-        "${dates[3]}": "SPARE",
-        "${dates[4]}": "05:30-11:30",
-        "${dates[5]}": "RD",
-        "${dates[6]}": "RD"
-      }
+      "rowValues": ["05:30-11:30", "05:30-11:30", "SPARE", "05:30-11:30", "RD", "RD"]
     }
   ]
 }
 
-The roster PDF is attached. Return only the JSON.`;
+columnHeaders: day abbreviations from the column headers, left to right.
+rowValues: each person's shift values, left to right, one per column, never fewer than columnHeaders.`;
 
         // ---- Call Claude AI ----
         // We pass the PDF as a document content block so Claude reads the actual
@@ -446,7 +438,7 @@ The roster PDF is attached. Return only the JSON.`;
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
             const message = await client.messages.create({
-                model:      'claude-haiku-4-5-20251001',
+                model:      'claude-sonnet-4-6',
                 max_tokens: 8192,
                 messages: [{
                     role: 'user',
@@ -491,58 +483,78 @@ The roster PDF is attached. Return only the JSON.`;
         }
 
         // ---- Validate the response shape ----
-        if (!parsed || !Array.isArray(parsed.parsed)) {
+        if (!parsed || !Array.isArray(parsed.parsed) || !Array.isArray(parsed.columnHeaders)) {
             res.status(502).json({ error: 'The AI returned an unexpected format — please try again' });
             return;
         }
 
-        // ---- Validate columnMapping — catches day-column misalignment before it causes bad saves ----
-        // The AI is asked to record the day-label it saw in each column header.
-        // We independently compute the expected day name from the date itself and compare.
-        // If the AI identified a column incorrectly (e.g. called Wednesday "Thursday") we
-        // reject the whole parse rather than silently storing shifts in the wrong slot.
-        const DAY_NAMES_MAP = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        if (parsed.columnMapping && typeof parsed.columnMapping === 'object') {
-            let mismatches = 0;
-            const mismatchDetails = [];
-            for (const [dateStr, statedDay] of Object.entries(parsed.columnMapping)) {
-                const d = new Date(dateStr + 'T12:00:00Z');
-                const expectedDay = DAY_NAMES_MAP[d.getUTCDay()];
-                // Compare first 3 chars case-insensitively ("Mon" === "Monday".slice(0,3))
-                const statedNorm   = String(statedDay).trim().slice(0, 3).toLowerCase();
-                const expectedNorm = expectedDay.slice(0, 3).toLowerCase();
-                if (statedNorm !== expectedNorm) {
-                    mismatches++;
-                    mismatchDetails.push(`${dateStr}: expected ${expectedDay}, AI said ${statedDay}`);
-                }
+        // ---- Map columnHeaders to dates (server owns all date assignment) ----
+        // The AI only reads column headers left-to-right and cell values left-to-right.
+        // The server maps "Mon" → dates[1], "Sun" → dates[0], etc.
+        // This removes date assignment from the AI entirely, closing the root cause of
+        // day-column misalignment bugs.
+        const HEADER_TO_INDEX = {
+            'sun': 0, 'sunday': 0,
+            'mon': 1, 'monday': 1,
+            'tue': 2, 'tues': 2, 'tuesday': 2,
+            'wed': 3, 'weds': 3, 'wednesday': 3,
+            'thu': 4, 'thur': 4, 'thurs': 4, 'thursday': 4,
+            'fri': 5, 'friday': 5,
+            'sat': 6, 'saturday': 6,
+        };
+
+        const columnDates = [];
+        for (const header of parsed.columnHeaders) {
+            const key = String(header).trim().toLowerCase();
+            // Try full key first, then first-3-chars abbreviation
+            const dayIndex = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+            if (dayIndex === undefined) {
+                console.error(`[parseRosterPDF] Unrecognised column header: "${header}"`);
+                res.status(502).json({ error: `The AI returned an unrecognised column header: "${header}". Please try again.` });
+                return;
             }
-            if (mismatches > 0) {
-                console.error(`[parseRosterPDF] Column mapping mismatch — ${mismatches} wrong: ${mismatchDetails.join('; ')}`);
+            columnDates.push(dates[dayIndex]);
+        }
+
+        // Reject duplicate day columns (e.g. two "Mon" headers)
+        if (new Set(columnDates).size !== columnDates.length) {
+            console.error('[parseRosterPDF] Duplicate day columns in columnHeaders');
+            res.status(502).json({ error: 'The AI returned duplicate day columns — please try again.' });
+            return;
+        }
+
+        console.log(`[parseRosterPDF] Columns: ${parsed.columnHeaders.join(', ')} → ${columnDates.join(', ')}`);
+
+        // ---- Build safe entries — validate and map rowValues to dated shifts ----
+        // Key validation: rowValues.length must equal columnDates.length.
+        // If the AI skipped a blank Sunday cell, rowValues will be short by 1 and we
+        // catch it here with a clear error rather than silently misaligning all shifts.
+        const safeEntries = [];
+        for (const entry of parsed.parsed) {
+            if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
+
+            if (!Array.isArray(entry.rowValues)) {
+                console.warn(`[parseRosterPDF] ${entry.memberName}: missing rowValues — skipping`);
+                continue;
+            }
+
+            if (entry.rowValues.length !== columnDates.length) {
+                console.error(`[parseRosterPDF] ${entry.memberName}: ${entry.rowValues.length} values for ${columnDates.length} columns`);
                 res.status(502).json({
-                    error: `The AI misread ${mismatches} day column${mismatches !== 1 ? 's' : ''} (${mismatchDetails.join('; ')}). Please try uploading again — if the problem persists the PDF layout may be unusual.`,
+                    error: `The AI returned ${entry.rowValues.length} shift values for "${entry.memberName}" but there are ${columnDates.length} column headers — a blank cell was likely skipped. Please try uploading again.`,
                 });
                 return;
             }
-            console.log(`[parseRosterPDF] Column mapping validated OK (${Object.keys(parsed.columnMapping).length} columns)`);
-        } else {
-            // columnMapping absent — AI didn't include it. Log a warning but don't block.
-            // This keeps the feature non-breaking if an older or stubborn model omits it.
-            console.warn('[parseRosterPDF] AI did not return columnMapping — skipping column validation');
-        }
 
-        // Ensure every entry has a shifts object with exactly the 7 expected dates.
-        // Fill any missing days with RD so the review table always shows a complete week.
-        const safeEntries = parsed.parsed
-            .filter(entry => typeof entry.memberName === 'string' && entry.memberName.trim())
-            .map(entry => {
-                const safeShifts = {};
-                for (const date of dates) {
-                    const raw = (entry.shifts || {})[date] || 'RD';
-                    // Normalise time format: "0530-1130" → "05:30-11:30"
-                    safeShifts[date] = normaliseShift(raw);
-                }
-                return { memberName: entry.memberName.trim(), shifts: safeShifts };
-            });
+            // All dates default to RD; then fill in what the AI returned
+            const shifts = {};
+            for (const date of dates) shifts[date] = 'RD';
+            for (let i = 0; i < columnDates.length; i++) {
+                shifts[columnDates[i]] = normaliseShift(entry.rowValues[i]);
+            }
+
+            safeEntries.push({ memberName: entry.memberName.trim(), shifts });
+        }
 
         if (safeEntries.length === 0) {
             res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });
