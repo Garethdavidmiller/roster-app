@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.10 -->
+<!-- MYB Roster Calendar - Version 6.11 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.10">
+    <link rel="stylesheet" href="shared.css?v=6.11">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1074,6 +1074,77 @@
             }
         }
 
+        /* ---- Notification prompt ---- */
+        #notifPrompt {
+            background: var(--primary-blue);
+            border-radius: 10px;
+            margin: 0 0 10px;
+            overflow: hidden;
+        }
+        .notif-prompt-inner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+        }
+        .notif-prompt-icon { font-size: 20px; flex-shrink: 0; }
+        .notif-prompt-text {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            min-width: 0;
+        }
+        .notif-prompt-text strong {
+            font-size: var(--type-small);
+            font-weight: 700;
+            color: #fff;
+        }
+        .notif-prompt-text span {
+            font-size: var(--type-micro);
+            color: rgba(255,255,255,0.65);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .notif-enable-btn {
+            flex-shrink: 0;
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            font-size: var(--type-small);
+            font-weight: 700;
+            cursor: pointer;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .notif-enable-btn:hover { background: var(--accent-gold-dark); }
+        }
+        .notif-dismiss-btn {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: rgba(255,255,255,0.5);
+            font-size: 14px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .notif-dismiss-btn:hover { color: #fff; }
+        }
+        .notif-denied-msg {
+            font-size: var(--type-small);
+            color: var(--text-mid);
+            text-align: center;
+            padding: 8px 12px;
+            margin: 0 0 10px;
+            background: var(--bg-light);
+            border-radius: 8px;
+        }
+        @media print { #notifPrompt, #notifDenied { display: none !important; } }
+
         /* Print styles */
         @media print {
             @page {
@@ -2092,6 +2163,24 @@
             </div>
         </nav>
 
+        <!-- Notification prompt — shown when permission not yet granted, hidden once
+             subscribed or dismissed. Managed entirely by initNotifications() in app.js. -->
+        <div id="notifPrompt" role="status" aria-live="polite" style="display:none">
+            <div class="notif-prompt-inner">
+                <span class="notif-prompt-icon" aria-hidden="true">🔔</span>
+                <div class="notif-prompt-text">
+                    <strong>Huddle notifications</strong>
+                    <span>Get notified when each day's Huddle is uploaded</span>
+                </div>
+                <button id="notifEnableBtn" class="notif-enable-btn">Enable</button>
+                <button id="notifDismissBtn" class="notif-dismiss-btn" aria-label="Dismiss">✕</button>
+            </div>
+        </div>
+        <!-- Shown in place of the prompt when the browser has blocked notifications -->
+        <div id="notifDenied" style="display:none">
+            <p class="notif-denied-msg">🔕 Notifications blocked — to enable them, tap the lock icon in your browser's address bar and allow notifications for this site.</p>
+        </div>
+
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
         <div class="legend" role="group" aria-label="Colour legend">
@@ -2154,7 +2243,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.10"></script>
+    <script type="module" src="./app.js?v=6.11"></script>
 
 </body>
 </html>

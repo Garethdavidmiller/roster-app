@@ -25,12 +25,18 @@ const admin             = require('firebase-admin');
 const crypto            = require('crypto');
 const { Anthropic }     = require('@anthropic-ai/sdk');
 const mammoth           = require('mammoth');
+const webpush           = require('web-push');
 
 admin.initializeApp();
 
-const HUDDLE_SECRET     = defineSecret('HUDDLE_SECRET');
-const ROSTER_SECRET     = defineSecret('ROSTER_SECRET');
-const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
+const HUDDLE_SECRET      = defineSecret('HUDDLE_SECRET');
+const ROSTER_SECRET      = defineSecret('ROSTER_SECRET');
+const ANTHROPIC_API_KEY  = defineSecret('ANTHROPIC_API_KEY');
+const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
+
+// VAPID public key — safe to expose, matches the private key stored in Secret Manager.
+// Staff browsers use this to encrypt push payloads so only this server can read them.
+const VAPID_PUBLIC_KEY = 'BLX8DG2Yot8lOwmQpSWwVOIW6ymhVDpK4eSuh0J911R2svlkE9RTRLTSz4f7NThtyPuhYeP1NuVbADKacjNQhGw';
 
 /**
  * POST /ingestHuddle
@@ -52,7 +58,7 @@ const ANTHROPIC_API_KEY = defineSecret('ANTHROPIC_API_KEY');
  */
 exports.ingestHuddle = onRequest(
     {
-        secrets:       [HUDDLE_SECRET],
+        secrets:       [HUDDLE_SECRET, VAPID_PRIVATE_KEY],
         region:        'europe-west2',
         cors:          false,
         timeoutSeconds: 60,
@@ -190,12 +196,90 @@ exports.ingestHuddle = onRequest(
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
             res.status(200).json({ success: true, date, storageUrl });
 
+            // Fan out push notifications — fire after response so upload latency is unaffected.
+            // Errors here are non-fatal: the upload already succeeded.
+            try {
+                await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
+            } catch (pushErr) {
+                console.warn('[ingestHuddle] Push fan-out error (non-fatal):', pushErr.message);
+            }
+
         } catch (err) {
             console.error('[ingestHuddle] Upload failed:', err);
             res.status(500).json({ error: 'Upload failed — check function logs' });
         }
     }
 );
+
+// ============================================================================
+// sendHuddlePushNotifications
+// ============================================================================
+/**
+ * Fan out Web Push notifications to all subscribed devices.
+ * Called after a successful huddle upload — fire-and-forget from ingestHuddle.
+ *
+ * Builds a smart day label in London time:
+ *   Same day as huddleDate  → "Today's Huddle is ready"
+ *   Day after huddleDate    → "Tomorrow's Huddle is ready"
+ *   Any other day           → "Thursday's Huddle is ready" (weekday name)
+ *
+ * Dead subscriptions (HTTP 410 Gone) are silently deleted from Firestore.
+ *
+ * @param {string}       huddleDate    YYYY-MM-DD — the date the huddle is FOR
+ * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
+ */
+async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
+    webpush.setVapidDetails(
+        'mailto:noreply@myb-roster.web.app',
+        VAPID_PUBLIC_KEY,
+        vapidPrivate.value(),
+    );
+
+    // Build smart day label — compare huddle date to today in London timezone
+    const nowLondon   = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    const todayMs     = Date.UTC(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
+    const parts       = huddleDate.split('-').map(Number); // [YYYY, MM, DD]
+    const huddleMs    = Date.UTC(parts[0], parts[1] - 1, parts[2]);
+    const diffDays    = Math.round((huddleMs - todayMs) / 86_400_000);
+
+    let dayLabel;
+    if (diffDays === 0)      dayLabel = "Today's";
+    else if (diffDays === 1) dayLabel = "Tomorrow's";
+    else {
+        const dayName = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'Europe/London' })
+            .format(new Date(huddleDate + 'T12:00:00Z'));
+        dayLabel = `${dayName}'s`;
+    }
+
+    const payload = JSON.stringify({
+        title: 'Marylebone Roster',
+        body:  `${dayLabel} Huddle is ready`,
+    });
+
+    const snapshot = await admin.firestore().collection('pushSubscriptions').get();
+    if (snapshot.empty) {
+        console.log('[push] No subscriptions — skipping');
+        return;
+    }
+
+    const sends = snapshot.docs.map(async docSnap => {
+        const { endpoint, keys } = docSnap.data();
+        try {
+            await webpush.sendNotification({ endpoint, keys }, payload);
+        } catch (err) {
+            if (err.statusCode === 410 || err.statusCode === 404) {
+                // Subscription expired or was revoked — clean it up silently
+                await docSnap.ref.delete();
+                console.log(`[push] Removed dead subscription ${docSnap.id}`);
+            } else {
+                console.warn(`[push] Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
+            }
+        }
+    });
+
+    await Promise.allSettled(sends);
+    console.log(`[push] Notified ${snapshot.size} device(s) — "${dayLabel} Huddle is ready"`);
+}
 
 // ============================================================================
 // parseRosterPDF

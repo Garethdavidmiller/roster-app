@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v6.10
+// MYB Roster — Service Worker v6.11
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '6.10';
+const APP_VERSION = '6.11';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -154,4 +154,44 @@ self.addEventListener("message", event => {
         console.log(`[SW ${APP_VERSION}] SKIP_WAITING received — activating`);
         self.skipWaiting();
     }
+});
+
+// ============================================
+// PUSH — Huddle upload notifications
+// ============================================
+// The ingestHuddle Cloud Function fans out a Web Push to every subscribed
+// device when a new Huddle is uploaded. The payload is JSON with:
+//   { title: "Marylebone Roster", body: "Tomorrow's Huddle is ready" }
+// The notification tag "huddle" replaces any previous unread huddle
+// notification rather than stacking them.
+self.addEventListener("push", event => {
+    let data = { title: "Marylebone Roster", body: "Huddle is ready" };
+    try { if (event.data) data = event.data.json(); } catch (_) {}
+
+    event.waitUntil(
+        self.registration.showNotification(data.title, {
+            body:     data.body,
+            icon:     "./icon-192.png",
+            badge:    "./icon-192.png",
+            tag:      "huddle",       // replaces the previous notification rather than stacking
+            renotify: true,           // still vibrates/sounds even if replacing
+            data:     { url: "./" },
+        })
+    );
+});
+
+// When staff tap the notification, focus the app if it's already open,
+// otherwise open it in a new tab.
+self.addEventListener("notificationclick", event => {
+    event.notification.close();
+    event.waitUntil(
+        clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+            for (const client of list) {
+                if (client.url.startsWith(self.location.origin) && "focus" in client) {
+                    return client.focus();
+                }
+            }
+            return clients.openWindow("./");
+        })
+    );
 });

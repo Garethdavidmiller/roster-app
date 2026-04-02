@@ -102,3 +102,50 @@ export async function getLatestHuddle() {
     // Guard against a document that somehow has no storageUrl — opening undefined would fail silently
     return data.storageUrl ? data : null;
 }
+
+// ---- Push Notification Subscriptions ----
+
+/**
+ * Derive a short stable Firestore document ID from a push endpoint URL.
+ * Uses SHA-256 so the endpoint URL (which can be very long) becomes a
+ * fixed-length 20-char hex string safe to use as a document ID.
+ * @param {string} endpoint
+ * @returns {Promise<string>}
+ */
+async function endpointId(endpoint) {
+    const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(endpoint));
+    return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 20);
+}
+
+/** Converts an ArrayBuffer from getKey() into a URL-safe base64 string for Firestore. */
+function keyToBase64(buffer) {
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+/**
+ * Save a browser PushSubscription to Firestore so the Cloud Function can
+ * fan out notifications when a new Huddle is uploaded.
+ * Overwrites any previous subscription for this device (same endpoint).
+ * @param {PushSubscription} subscription
+ */
+export async function savePushSubscription(subscription) {
+    const id = await endpointId(subscription.endpoint);
+    await setDoc(doc(db, 'pushSubscriptions', id), {
+        endpoint:     subscription.endpoint,
+        keys: {
+            p256dh: keyToBase64(subscription.getKey('p256dh')),
+            auth:   keyToBase64(subscription.getKey('auth')),
+        },
+        subscribedAt: serverTimestamp(),
+    });
+}
+
+/**
+ * Remove a push subscription from Firestore (user unsubscribed or revoked permission).
+ * @param {string} endpoint
+ */
+export async function deletePushSubscription(endpoint) {
+    const id = await endpointId(endpoint);
+    await deleteDoc(doc(db, 'pushSubscriptions', id));
+}
