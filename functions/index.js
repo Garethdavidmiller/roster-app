@@ -457,23 +457,42 @@ STAFF NAMES TO LOOK FOR (only these — skip anyone else):
 ${namesBlock}
 
 ---
-HOW TO READ THE TABLE — follow these two steps exactly:
+HOW TO READ THE TABLE:
 
 STEP 1 — Read the column headers from left to right.
-Write down each day abbreviation in order (e.g. "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat").
-Only include days that actually appear as column headers. Some rosters start on Monday (no Sunday column). Some have a Sunday column where every cell is blank — if you can see a "Sun" or "Sunday" column header, include it.
+List each day abbreviation in order, e.g. ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].
+Only include days that appear as column headers. Some rosters start on Monday (no Sunday column).
+If you can see a "Sun" or "Sunday" column header, include it even if every cell in that column is blank.
 
-STEP 2 — For each staff member, read their row from left to right.
-Write down one value per column — the same number of values as column headers, no more, no fewer.
-If a cell is blank, dashed, or empty, write "RD". NEVER skip a blank cell.
+STEP 2 — For each staff member, write a JSON object where each key is a column header and each value is the shift.
+You MUST include a key for EVERY column header — even if the cell is blank.
+A blank cell = "RD". Write the key, then write "RD". Do not skip it.
 
 ---
-BLANK CELLS — THIS IS THE MOST IMPORTANT RULE:
-A blank cell is still a cell. It takes up a column position.
-If Sunday is blank for everyone, it still counts as column 1. Write "RD" for it.
-Do NOT jump to the next non-blank cell and start from there.
+THE BLANK SUNDAY RULE — THE MOST IMPORTANT RULE IN THIS PROMPT:
+Sunday cells are very often blank on this roster. Blank does not mean absent from the output.
+A blank Sunday cell means the person is on a rest day. You MUST write "Sun": "RD" for it.
 
-CHECK BEFORE YOU OUTPUT: count your columnHeaders. Every staff member's rowValues must have exactly that many entries. If anyone has fewer, you skipped a blank cell — go back and add "RD" for it.
+CORRECT example (Sunday column exists, Sunday cell is blank):
+  Table row: G. Miller | [blank] | 06:00-14:00 | 06:00-14:00 | RD | 06:00-14:00 | RD | RD
+  Correct output:
+  {
+    "memberName": "G. Miller",
+    "Sun": "RD",
+    "Mon": "06:00-14:00",
+    "Tue": "06:00-14:00",
+    "Wed": "RD",
+    "Thu": "06:00-14:00",
+    "Fri": "RD",
+    "Sat": "RD"
+  }
+
+WRONG example (do not do this — Sun key is missing):
+  {
+    "memberName": "G. Miller",
+    "Mon": "06:00-14:00",
+    ...
+  }
 
 ---
 WHAT THE CODES MEAN:
@@ -493,24 +512,31 @@ WHAT THE CODES MEAN:
 RULES:
 1. Only include people from the STAFF NAMES list. Skip "Vacant", agency staff, or anyone not on the list.
 2. If a name in the document differs slightly (initials, spacing), match it to the closest name on the list.
-3. rowValues must have EXACTLY the same number of entries as columnHeaders — never more, never fewer.
-4. Blank/dashed cells = "RD" — always include them, never skip.
+3. Every member object MUST contain a key for every column header — never omit a key, even for blank cells.
+4. Blank/dashed/empty cells = "RD" — always include them as a named key, never skip.
 5. Return ONLY valid JSON — no explanation, no markdown fences, nothing else.
 
 ---
 OUTPUT FORMAT — return exactly this structure:
 {
-  "columnHeaders": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
+  "columnHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   "parsed": [
     {
       "memberName": "L. Springer",
-      "rowValues": ["05:30-11:30", "05:30-11:30", "SPARE", "05:30-11:30", "RD", "RD"]
+      "Sun": "RD",
+      "Mon": "05:30-11:30",
+      "Tue": "05:30-11:30",
+      "Wed": "SPARE",
+      "Thu": "05:30-11:30",
+      "Fri": "RD",
+      "Sat": "RD"
     }
   ]
 }
 
-columnHeaders: day abbreviations from the column headers, left to right.
-rowValues: each person's shift values, left to right, one per column, never fewer than columnHeaders.`;
+columnHeaders: the day abbreviations from the column headers, left to right.
+Each member object: "memberName" plus one key per column header, in any order.
+Every column header must appear as a key in every member object.`;
 
         // ---- Call Claude AI ----
         // We pass the PDF as a document content block so Claude reads the actual
@@ -567,6 +593,8 @@ rowValues: each person's shift values, left to right, one per column, never fewe
         }
 
         // ---- Validate the response shape ----
+        // Each member is now an object with day-name keys rather than a rowValues array.
+        // We only require parsed[] and columnHeaders[] to be present at the top level.
         if (!parsed || !Array.isArray(parsed.parsed) || !Array.isArray(parsed.columnHeaders)) {
             res.status(502).json({ error: 'The AI returned an unexpected format — please try again' });
             return;
@@ -609,32 +637,44 @@ rowValues: each person's shift values, left to right, one per column, never fewe
 
         console.log(`[parseRosterPDF] Columns: ${parsed.columnHeaders.join(', ')} → ${columnDates.join(', ')}`);
 
-        // ---- Build safe entries — validate and map rowValues to dated shifts ----
-        // Key validation: rowValues.length must equal columnDates.length.
-        // If the AI skipped a blank Sunday cell, rowValues will be short by 1 and we
-        // catch it here with a clear error rather than silently misaligning all shifts.
+        // ---- Build safe entries — map named day keys to dated shifts ----
+        // The AI returns each member as an object with day-name keys (e.g. "Sun": "RD")
+        // rather than a position-indexed array. This makes blank-cell omission structurally
+        // much harder: the AI must write "Sun": before deciding the value, which forces it
+        // to acknowledge the column. Any key the AI still omits is filled with "RD" here
+        // (blank = RD by definition), so a missing key is corrected rather than fatal.
         const safeEntries = [];
         for (const entry of parsed.parsed) {
             if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
 
-            if (!Array.isArray(entry.rowValues)) {
-                console.warn(`[parseRosterPDF] ${entry.memberName}: missing rowValues — skipping`);
-                continue;
-            }
-
-            if (entry.rowValues.length !== columnDates.length) {
-                console.error(`[parseRosterPDF] ${entry.memberName}: ${entry.rowValues.length} values for ${columnDates.length} columns`);
-                res.status(502).json({
-                    error: `The AI returned ${entry.rowValues.length} shift values for "${entry.memberName}" but there are ${columnDates.length} column headers — a blank cell was likely skipped. Please try uploading again.`,
-                });
-                return;
-            }
-
-            // All dates default to RD; then fill in what the AI returned
+            // All dates default to RD first — covers any day not mentioned by the AI
             const shifts = {};
             for (const date of dates) shifts[date] = 'RD';
-            for (let i = 0; i < columnDates.length; i++) {
-                shifts[columnDates[i]] = normaliseShift(entry.rowValues[i]);
+
+            const missingKeys = [];
+            for (let i = 0; i < parsed.columnHeaders.length; i++) {
+                const header    = parsed.columnHeaders[i];
+                const key       = String(header).trim().toLowerCase();
+                const dayIndex  = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
+                if (dayIndex === undefined) continue; // unrecognised header already caught above
+
+                const date  = dates[dayIndex];
+                const raw   = entry[header];              // named key lookup
+                const value = (raw !== undefined && raw !== null && String(raw).trim() !== '')
+                    ? String(raw).trim()
+                    : 'RD';
+
+                if (raw === undefined || raw === null || String(raw).trim() === '') {
+                    missingKeys.push(header);
+                }
+
+                shifts[date] = normaliseShift(value);
+            }
+
+            if (missingKeys.length > 0) {
+                // Log the gap but continue — filling with RD is always safe because
+                // blank cells on this roster always mean rest day.
+                console.warn(`[parseRosterPDF] ${entry.memberName}: AI omitted key(s) [${missingKeys.join(', ')}] — filled with RD`);
             }
 
             safeEntries.push({ memberName: entry.memberName.trim(), shifts });
