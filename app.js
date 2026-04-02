@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.10';
-import { db, collection, query, where, getDocs, getLatestHuddle } from './firebase-client.js?v=6.10';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.11';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.11';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1729,4 +1729,112 @@ if ('serviceWorker' in navigator) {
         btn.disabled = true;
         console.warn('[Huddle] Could not fetch latest huddle:', err);
     }
+})();
+
+// ============================================
+// PUSH NOTIFICATIONS — Huddle alerts
+// ============================================
+// Checks notification permission and shows a prompt if not yet decided.
+// Subscribes/unsubscribes via the Web Push API and saves the subscription
+// to Firestore so the ingestHuddle Cloud Function can fan out notifications.
+//
+// States handled:
+//   'default'  — permission not yet asked → show the Enable prompt
+//   'granted'  — already subscribed → silently renew subscription if needed
+//   'denied'   — blocked by user → show a brief re-enable instruction
+//
+// localStorage key 'notifDismissed' stores '1' if the user dismissed the
+// prompt — it stays hidden until they clear it or grant permission.
+(function initNotifications() {
+    // VAPID public key — must match the private key stored in Firebase Secret Manager.
+    // Used by the browser to encrypt push payloads for this server only.
+    const VAPID_PUBLIC_KEY = 'BLX8DG2Yot8lOwmQpSWwVOIW6ymhVDpK4eSuh0J911R2svlkE9RTRLTSz4f7NThtyPuhYeP1NuVbADKacjNQhGw';
+
+    const prompt     = document.getElementById('notifPrompt');
+    const enableBtn  = document.getElementById('notifEnableBtn');
+    const dismissBtn = document.getElementById('notifDismissBtn');
+    const deniedEl   = document.getElementById('notifDenied');
+
+    // Push notifications require HTTPS + service worker + PushManager support.
+    // This silently exits on any unsupported environment (e.g. old browsers, HTTP).
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    if (!prompt || !enableBtn || !dismissBtn || !deniedEl) return;
+
+    /** Convert a VAPID URL-safe base64 public key to the Uint8Array that subscribe() expects. */
+    function vapidKey() {
+        const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+        return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+    }
+
+    /** Subscribe the browser to push and save the subscription to Firestore. */
+    async function subscribe() {
+        const reg          = await navigator.serviceWorker.ready;
+        const subscription = await reg.pushManager.subscribe({
+            userVisibleOnly:      true,
+            applicationServerKey: vapidKey(),
+        });
+        await savePushSubscription(subscription);
+        console.log('[Notifications] Subscribed');
+    }
+
+    /** Unsubscribe and remove the subscription from Firestore. */
+    async function unsubscribe(reg) {
+        const existing = await reg.pushManager.getSubscription();
+        if (!existing) return;
+        const endpoint = existing.endpoint;
+        await existing.unsubscribe();
+        await deletePushSubscription(endpoint).catch(() => {});
+        console.log('[Notifications] Unsubscribed');
+    }
+
+    async function init() {
+        const perm = Notification.permission;
+
+        if (perm === 'granted') {
+            // Silently ensure the subscription is current — it can expire or be
+            // cleared when the browser reinstalls the service worker.
+            try { await subscribe(); } catch (_) {}
+            return;
+        }
+
+        if (perm === 'denied') {
+            // Show the re-enable instructions unless already dismissed
+            if (!localStorage.getItem('notifDismissed')) {
+                deniedEl.style.display = 'block';
+            }
+            return;
+        }
+
+        // 'default' — not yet asked. Show the prompt unless dismissed.
+        if (!localStorage.getItem('notifDismissed')) {
+            prompt.style.display = 'block';
+        }
+    }
+
+    enableBtn.addEventListener('click', async () => {
+        prompt.style.display = 'none';
+        try {
+            const perm = await Notification.requestPermission();
+            if (perm === 'granted') {
+                await subscribe();
+            } else if (perm === 'denied') {
+                if (!localStorage.getItem('notifDismissed')) {
+                    deniedEl.style.display = 'block';
+                }
+            }
+            // 'default' means the user dismissed the browser dialog without choosing —
+            // show the prompt again next time (don't set notifDismissed)
+        } catch (err) {
+            console.warn('[Notifications] Permission request failed:', err);
+        }
+    });
+
+    dismissBtn.addEventListener('click', () => {
+        prompt.style.display   = 'none';
+        deniedEl.style.display = 'none';
+        localStorage.setItem('notifDismissed', '1');
+    });
+
+    init().catch(err => console.warn('[Notifications] Init error:', err));
 })();
