@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.14 -->
+<!-- MYB Roster Calendar - Version 6.15 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.14">
+    <link rel="stylesheet" href="shared.css?v=6.15">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -268,6 +268,23 @@
             border-color: var(--accent-gold);
             border-width: 2px;
             font-weight: 700;
+            width: 100%;               /* overrides .controls button { width: auto } */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .pay-btn-badge {
+            font-size: 10px;
+            font-weight: 800;
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            padding: 2px 8px;
+            border-radius: 50px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            flex-shrink: 0;
         }
 
         .controls button.al-btn {
@@ -2184,7 +2201,7 @@
             </div>
             <div class="lightbox-print-wrap">
                 <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
-                <span class="lightbox-print-hint">Saves as PDF on most phones</span>
+                <span class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
             <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
         </div>
@@ -2284,7 +2301,12 @@
                     <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
                     <button id="huddleBtn" class="huddle-btn" aria-label="Open latest Huddle PDF">📋 Huddle</button>
                     <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
-                    <button id="payBtn"    class="pay-btn"    aria-label="Pay Calculator — coming soon">💷 Pay</button>
+                </div>
+            </div>
+            <div class="controls-row">
+                <button id="payBtn" class="pay-btn" aria-label="Pay Calculator — coming soon">
+                    💷 Pay Calculator <span class="pay-btn-badge">Coming soon</span>
+                </button>
                 </div>
             </div>
         </nav>
@@ -2369,7 +2391,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.14"></script>
+    <script type="module" src="./app.js?v=6.15"></script>
 
 </body>
 </html>
