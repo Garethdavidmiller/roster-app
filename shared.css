@@ -239,6 +239,19 @@ body {
     .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
 }
 
+/* Privacy note — shown in lightboxes that handle personal data (Pay Calculator etc.)
+   Sits below the main content, separated by a faint rule. */
+.lightbox-privacy {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    width: 100%;
+    font-size: 11px;
+    line-height: 1.5;
+    color: rgba(255,255,255,0.38);
+    text-align: center;
+}
+
 /* Close button — positioned absolute over the overlay */
 #iconLightboxClose {
     position: absolute;
