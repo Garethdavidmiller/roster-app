@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.13 -->
+<!-- MYB Roster Calendar - Version 6.14 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.13">
+    <link rel="stylesheet" href="shared.css?v=6.14">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -238,9 +238,9 @@
                 border-color: var(--accent-gold-dark);
             }
 
-            .controls button.print-btn:hover {
-                background: var(--bg-light, #f4f6f8);
-                border-color: var(--text-mid, #6b7a90);
+            .controls button.pay-btn:hover {
+                background: var(--today-print);
+                border-color: var(--accent-gold-dark);
             }
 
             .controls button.al-btn:hover {
@@ -262,11 +262,12 @@
             font-weight: 700;
         }
 
-        .controls button.print-btn {
+        .controls button.pay-btn {
             background: white;
             color: var(--primary-blue);
-            border-color: var(--border-mid, #c0c8d0);
-            font-weight: 600;
+            border-color: var(--accent-gold);
+            border-width: 2px;
+            font-weight: 700;
         }
 
         .controls button.al-btn {
@@ -1072,6 +1073,115 @@
                 background: var(--accent-gold-dark);
                 border-color: var(--accent-gold-dark);
             }
+        }
+
+        /* ---- Pay lightbox — coming-soon panel ---- */
+        #payLightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 10, 20, 0.82);
+            z-index: 8000;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+        }
+        #payLightbox.visible { display: flex; }
+        #payLightbox.open    { opacity: 1; }
+
+        #payLightboxContent {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 24px;
+            padding: 36px 40px 32px;
+            cursor: default;
+            transform: scale(0.85);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            min-width: 240px;
+            text-align: center;
+        }
+        #payLightbox.open #payLightboxContent { transform: scale(1); }
+
+        .pay-lightbox-emoji {
+            font-size: 64px;
+            line-height: 1;
+            margin-bottom: 4px;
+        }
+
+        .pay-coming-badge {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 12px;
+            border-radius: 50px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin: 4px 0 8px;
+        }
+
+        .pay-lightbox-desc {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.6);
+            line-height: 1.55;
+            max-width: 220px;
+        }
+
+        #payLightboxClose {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 26px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 8px;
+            transition: color 0.15s ease;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            #payLightboxClose:hover { color: white; }
+        }
+
+        /* ---- Print button inside about lightbox ---- */
+        .lightbox-print-wrap {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .lightbox-print-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-family: inherit;
+            font-size: 13px;
+            font-weight: 600;
+            padding: 8px 20px;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: background 0.15s;
+            width: 100%;
+        }
+        .lightbox-print-btn:active { background: rgba(255, 255, 255, 0.2); }
+        @media (hover: hover) and (pointer: fine) {
+            .lightbox-print-btn:hover { background: rgba(255, 255, 255, 0.18); }
+        }
+        .lightbox-print-hint {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.35);
         }
 
         /* ---- Notification prompt ---- */
@@ -2072,7 +2182,22 @@
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
+            <div class="lightbox-print-wrap">
+                <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
+                <span class="lightbox-print-hint">Saves as PDF on most phones</span>
+            </div>
             <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+        </div>
+    </div>
+
+    <!-- Pay Calculator lightbox — coming-soon panel, opened by the 💷 Pay button -->
+    <div id="payLightbox" role="dialog" aria-label="Pay Calculator — coming soon" aria-modal="true">
+        <span id="payLightboxClose" aria-label="Close">✕</span>
+        <div id="payLightboxContent">
+            <div class="pay-lightbox-emoji">💷</div>
+            <div class="lightbox-app-name">Pay Calculator</div>
+            <div class="pay-coming-badge">Coming soon</div>
+            <p class="pay-lightbox-desc">Enter your Saturday hours, overtime, rest day working, Sundays and more to get an instant pay estimate for any period.</p>
         </div>
     </div>
 
@@ -2159,7 +2284,7 @@
                     <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
                     <button id="huddleBtn" class="huddle-btn" aria-label="Open latest Huddle PDF">📋 Huddle</button>
                     <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
-                    <button id="printBtn"  class="print-btn"  aria-label="Print calendar" title="Print calendar">🖨️</button>
+                    <button id="payBtn"    class="pay-btn"    aria-label="Pay Calculator — coming soon">💷 Pay</button>
                 </div>
             </div>
         </nav>
@@ -2244,7 +2369,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.13"></script>
+    <script type="module" src="./app.js?v=6.14"></script>
 
 </body>
 </html>
