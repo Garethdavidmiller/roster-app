@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.15 -->
+<!-- MYB Roster Calendar - Version 6.16 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.15">
+    <link rel="stylesheet" href="shared.css?v=6.16">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -268,23 +268,6 @@
             border-color: var(--accent-gold);
             border-width: 2px;
             font-weight: 700;
-            width: 100%;               /* overrides .controls button { width: auto } */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .pay-btn-badge {
-            font-size: 10px;
-            font-weight: 800;
-            background: var(--accent-gold);
-            color: var(--primary-blue);
-            padding: 2px 8px;
-            border-radius: 50px;
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            flex-shrink: 0;
         }
 
         .controls button.al-btn {
@@ -2215,6 +2198,7 @@
             <div class="lightbox-app-name">Pay Calculator</div>
             <div class="pay-coming-badge">Coming soon</div>
             <p class="pay-lightbox-desc">Enter your Saturday hours, overtime, rest day working, Sundays and more to get an instant pay estimate for any period.</p>
+            <div class="lightbox-privacy">🔒 Your pay data stays on this device only — never uploaded to any server or visible to anyone else.</div>
         </div>
     </div>
 
@@ -2297,16 +2281,11 @@
             </div>
             <div class="controls-row">
                 <div class="control-group">
-                    <button id="todayBtn"  class="today-btn"  aria-label="Go to today">📍 Today</button>
-                    <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
+                    <button id="todayBtn"  class="today-btn"  aria-label="Go to today">📍</button>
                     <button id="huddleBtn" class="huddle-btn" aria-label="Open latest Huddle PDF">📋 Huddle</button>
+                    <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
+                    <button id="payBtn"    class="pay-btn"    aria-label="Pay Calculator — coming soon">💷 Pay</button>
                     <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
-                </div>
-            </div>
-            <div class="controls-row">
-                <button id="payBtn" class="pay-btn" aria-label="Pay Calculator — coming soon">
-                    💷 Pay Calculator <span class="pay-btn-badge">Coming soon</span>
-                </button>
                 </div>
             </div>
         </nav>
@@ -2391,7 +2370,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.15"></script>
+    <script type="module" src="./app.js?v=6.16"></script>
 
 </body>
 </html>
