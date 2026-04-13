@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.18';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.18';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.19';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.19';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -324,6 +324,7 @@ function initLoginOverlay() {
 // Override type typeMetadata
 const TYPES = {
     spare_shift:  { label: 'Spare shift',       fixed: true,  fixedValue: 'SPARE' },
+    allocated:    { label: 'Allocated shift',   fixed: false },
     overtime:     { label: 'Overtime',           fixed: false },
     rdw:          { label: 'Rest Day Working',   fixed: false },
     swap:         { label: 'Swap',               fixed: false },
@@ -3685,6 +3686,8 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         // Staff may swap rest/working days with permission without it being an RDW.
         const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(value);
         if (isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0) return 'rdw';
+        // Spare week receiving its actual allocation — semantically distinct from overtime
+        if (isTime && baseShift === 'SPARE') return 'allocated';
         return 'overtime';
     }
 
