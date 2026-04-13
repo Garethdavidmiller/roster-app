@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.18 -->
+<!-- MYB Roster Admin v6.19 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.18">
+    <link rel="stylesheet" href="shared.css?v=6.19">
 
     <style>
         body {
@@ -515,6 +515,7 @@
         .type-pill-btn.active { color: white !important; }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
+        .pill-allocated    { color: var(--green);    } .pill-allocated.active    { background: var(--green);    border-color: var(--green);    }
         .pill-overtime     { color: var(--ot);         } .pill-overtime.active     { background: var(--ot);         border-color: var(--ot);         }
         .pill-rdw          { color: var(--rdw-text); } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
         .pill-swap         { color: var(--blue-sky); } .pill-swap.active         { background: var(--blue-sky); border-color: var(--blue-sky); }
@@ -1168,6 +1169,7 @@
         }
 
         .lpill-spare_shift  { background: var(--purple-light); color: var(--purple);   }
+        .lpill-allocated    { background: var(--green-light);  color: var(--green);    }
         .lpill-overtime     { background: var(--ot-light);       color: var(--ot);         }
         .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw-text); }
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
@@ -2178,6 +2180,7 @@
                         <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
                         <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
                         <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
+                        <button class="type-pill-btn pill-allocated"    data-type="allocated">Allocated</button>
                         <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                         <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
                         <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -2513,6 +2516,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.18"></script>
+<script type="module" src="./admin-app.js?v=6.19"></script>
 </body>
 </html>
