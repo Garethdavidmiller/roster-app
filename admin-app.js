@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.22';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.22';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.23';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.23';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -183,8 +183,7 @@ function initLoginOverlay() {
                 { heading: 'One shift', items: [
                     { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top', adminOnly: true },
                     { icon: '1️⃣', html: 'Select the <strong>week</strong> at the top using the arrows or date picker', staffOnly: true },
-                    { icon: '2️⃣', html: 'Tap a type button on any day — <strong>AL, Spare, Absence, RDW</strong> etc.' },
-                    { icon: '💾', html: 'Tap <strong>Save changes</strong> — changed days show in amber until saved' },
+                    { icon: '2️⃣', html: 'Tap a type on any day — it turns amber. Tap <strong>Save changes</strong> when done' },
                     { icon: '👆', html: 'Swipe left or right to move between weeks' },
                 ]},
                 { heading: 'Multiple shifts', items: [
