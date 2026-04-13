@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.19';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.19';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.20';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.20';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -193,6 +193,7 @@ function initLoginOverlay() {
                     { icon: '3️⃣', html: 'Tap <strong>3. Apply to selected days</strong>' },
                 ]},
                 { heading: 'Type meanings', items: [
+                    { icon: '📋', html: '<strong>Allocated</strong> — assigns an actual shift to a spare week' },
                     { icon: '🔄', html: '<strong>Swap</strong> — a shift swapped with a colleague' },
                     { icon: '💼', html: '<strong>RDW</strong> — rest day worked (overtime on a rest day)' },
                     { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day to a rest day' },
