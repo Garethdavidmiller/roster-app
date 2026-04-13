@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.17';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.17';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.18';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.18';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2443,6 +2443,14 @@ function applyPermissions() {
     sickMember.disabled   = true;
     localStorage.setItem('adminLastMember', currentUser);
     localStorage.setItem('myb_roster_selected_member', currentUser);
+
+    // Reword card hints to use first-person language for self-service users
+    const alHint   = document.querySelector('#alToggleHeader .hint');
+    const sickHint = document.querySelector('#sickToggleHeader .hint');
+    const savedHint = document.querySelector('#overridesToggleHeader .hint');
+    if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
+    if (sickHint)  sickHint.textContent = 'Record your own absence days — sickness, family, or any other reason';
+    if (savedHint) savedHint.textContent = 'Your schedule changes — tap any row to edit or delete';
 }
 
 // ============================================
