@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.21 -->
+<!-- MYB Roster Admin v6.22 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.21">
+    <link rel="stylesheet" href="shared.css?v=6.22">
 
     <style>
         body {
@@ -441,6 +441,8 @@
             text-transform: uppercase;
             letter-spacing: 0.4px;
             margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-light);
         }
 
         /* Numbered-step rows inside the bulk bar */
@@ -2161,7 +2163,7 @@
 
             <!-- Bulk bar — shown once member+date are chosen -->
             <div class="bulk-bar" id="bulkBar">
-                <div class="bulk-bar-label">Apply to multiple days</div>
+                <div class="bulk-bar-label">Apply to selected days</div>
                 <!-- Step 1: select days -->
                 <div class="bulk-step">
                     <span class="bulk-step-label">1. Select</span>
@@ -2177,10 +2179,10 @@
                     <span class="bulk-step-label">2. Type</span>
                     <div class="bulk-type-group" id="bulkTypePills">
                         <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
-                        <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                        <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
                         <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                         <button class="type-pill-btn pill-allocated"    data-type="allocated">Allocated</button>
+                        <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
+                        <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
                         <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                         <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
                         <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -2516,6 +2518,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.21"></script>
+<script type="module" src="./admin-app.js?v=6.22"></script>
 </body>
 </html>
