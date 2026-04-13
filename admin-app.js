@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.21';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.21';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.22';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.22';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -193,8 +193,9 @@ function initLoginOverlay() {
                     { icon: '3️⃣', html: 'Tap <strong>3. Apply to selected days</strong>' },
                 ]},
                 { heading: 'Type meanings', items: [
-                    { icon: '📋', html: '<strong>Allocated</strong> — assigns an actual shift to a spare week' },
-                    { icon: '🔄', html: '<strong>Swap</strong> — a shift swapped with a colleague' },
+                    { icon: '📋', html: '<strong>Spare</strong> — on standby; actual shift not yet allocated' },
+                    { icon: '✅', html: '<strong>Allocated</strong> — actual shift assigned to a spare week' },
+                    { icon: '🔄', html: '<strong>Swap</strong> — shift swapped with a colleague' },
                     { icon: '💼', html: '<strong>RDW</strong> — rest day worked (overtime on a rest day)' },
                     { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day to a rest day' },
                 ]},
@@ -781,10 +782,10 @@ function buildWeekGridInto(container, dateStr) {
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
                 <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
-                <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-allocated"    data-type="allocated">Allocated</button>
+                <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
+                <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
                 <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                 <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
                 <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -884,7 +885,7 @@ function renderWeekGrid() {
     updateWeekNavLabel(dateStr);
 
     if (!memberName || !dateStr) {
-        weekGrid.innerHTML = '<div class="week-empty">Select a staff member and date above to load the week.</div>';
+        weekGrid.innerHTML = `<div class="week-empty">${currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
         bulkBar.style.display = 'none';
         saveBtn.disabled = true;
         if (shiftNote) shiftNote.value = '';
