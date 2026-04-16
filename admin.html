@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.32 -->
+<!-- MYB Roster Admin v6.33 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.32">
+    <link rel="stylesheet" href="shared.css?v=6.33">
 
     <style>
         body {
@@ -141,14 +141,19 @@
         }
         .tips-lb-item:last-child { border-bottom: none; }
         .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
-        .tips-lb-close {
-            display: block;
-            margin-top: 18px;
-            text-align: center;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--primary-blue);
+        /* ✕ positioned in the overlay corner — matches iconLightboxClose pattern */
+        #tipsLightboxClose {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: rgba(255,255,255,0.5);
+            font-size: 26px;
             cursor: pointer;
+            padding: 8px;
+            transition: color 0.15s ease;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            #tipsLightboxClose:hover { color: white; }
         }
 
         /* ---- Cards ---- */
@@ -2099,10 +2104,10 @@
 
 <!-- Lightbox — tap the header icon to open -->
 <div id="tipsLightbox" role="dialog" aria-label="Tips" aria-modal="true">
+    <span id="tipsLightboxClose" aria-label="Close">✕</span>
     <div id="tipsLightboxContent">
         <div class="tips-lb-title" id="tipsLbTitle"></div>
         <div id="tipsLbBody"></div>
-        <span class="tips-lb-close" id="tipsLightboxClose">Close</span>
     </div>
 </div>
 
@@ -2535,6 +2540,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.32"></script>
+<script type="module" src="./admin-app.js?v=6.33"></script>
 </body>
 </html>
