@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.38 -->
+<!-- MYB Roster Admin v6.39 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.38">
+    <link rel="stylesheet" href="shared.css?v=6.39">
 
     <style>
         body {
@@ -525,13 +525,15 @@
         .type-pill-btn.active { color: white !important; }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
-        .pill-allocated    { color: var(--green);    } .pill-allocated.active    { background: var(--green);    border-color: var(--green);    }
-        .pill-overtime     { color: var(--ot);         } .pill-overtime.active     { background: var(--ot);         border-color: var(--ot);         }
+        .pill-shift        { color: var(--ot);       } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
         .pill-rdw          { color: var(--rdw-text); } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
-        .pill-swap         { color: var(--blue-sky); } .pill-swap.active         { background: var(--blue-sky); border-color: var(--blue-sky); }
         .pill-annual_leave { color: var(--al);       } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
-        .pill-sick         { color: var(--absence);     } .pill-sick.active         { background: var(--absence);     border-color: var(--absence);     }
+        .pill-sick         { color: var(--absence);  } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
         .pill-correction   { color: var(--orange);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
+        /* Legacy pill colours — used for old Saved Changes records only, no active buttons */
+        .pill-allocated    { color: var(--green);    }
+        .pill-overtime     { color: var(--ot);       }
+        .pill-swap         { color: var(--blue-sky); }
 
         .bulk-time-group {
             display: flex;
@@ -1179,13 +1181,15 @@
         }
 
         .lpill-spare_shift  { background: var(--purple-light); color: var(--purple);   }
-        .lpill-allocated    { background: var(--green-light);  color: var(--green);    }
-        .lpill-overtime     { background: var(--ot-light);       color: var(--ot);         }
+        .lpill-shift        { background: var(--ot-light);     color: var(--ot);       }
         .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw-text); }
+        .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);  }
+        .lpill-sick         { background: var(--absence-light); color: var(--absence); }
+        .lpill-correction   { background: var(--orange-light); color: var(--correction-text); }
+        /* Legacy list-pill colours — old Saved Changes records keep their original styling */
+        .lpill-allocated    { background: var(--green-light);  color: var(--green);    }
+        .lpill-overtime     { background: var(--ot-light);     color: var(--ot);       }
         .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
-        .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);          }
-        .lpill-sick         { background: var(--absence-light);   color: var(--absence);             }
-        .lpill-correction   { background: var(--orange-light); color: var(--correction-text);  }
 
         /* Small tag shown on overrides written by the weekly PDF upload */
         .source-pill {
@@ -2210,10 +2214,8 @@
                     <div class="bulk-type-group" id="bulkTypePills">
                         <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                         <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
-                        <button class="type-pill-btn pill-allocated"    data-type="allocated">Allocated</button>
+                        <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
                         <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                        <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
-                        <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                         <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
                         <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
                     </div>
@@ -2548,6 +2550,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.38"></script>
+<script type="module" src="./admin-app.js?v=6.39"></script>
 </body>
 </html>
