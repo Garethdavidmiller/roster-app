@@ -1,0 +1,66 @@
+rules_version = '2';
+// MYB Roster — Firestore Security Rules
+// Reconstructed from CLAUDE.md documentation and live collection schemas.
+// Deploy: firebase deploy --only firestore:rules
+// Or via Firebase Console → Firestore → Rules tab.
+//
+// Last updated: v6.39 — added 'shift' type (replaces 'overtime', 'swap', 'allocated').
+// Legacy types retained in the allow list so existing records can still be overwritten.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── huddles ────────────────────────────────────────────────────────────────
+    // Written only by the ingestHuddle Cloud Function (Admin SDK bypasses rules).
+    // All staff and admin clients can read huddle metadata to build the button.
+    match /huddles/{docId} {
+      allow read:  if true;
+      allow write: if false;
+    }
+
+    // ── overrides ──────────────────────────────────────────────────────────────
+    // Written by admin.html. Require all mandatory fields and a valid type value.
+    // 'shift' is the current unified type. Legacy types (overtime/swap/allocated)
+    // are kept in the allow list so old records can still be saved/edited.
+    match /overrides/{docId} {
+      allow read: if true;
+      allow write: if
+        request.resource.data.keys().hasAll(['date', 'memberName', 'type', 'value', 'note', 'createdAt']) &&
+        request.resource.data.type in [
+          'spare_shift',
+          'shift',
+          'rdw',
+          'annual_leave',
+          'correction',
+          'sick',
+          // Legacy types — kept for backwards compatibility
+          'allocated',
+          'overtime',
+          'swap'
+        ] &&
+        request.resource.data.date is string;
+    }
+
+    // ── memberSettings ─────────────────────────────────────────────────────────
+    // Written by admin.html when staff set their cultural calendar preference.
+    match /memberSettings/{docId} {
+      allow read: if true;
+      allow write: if
+        request.resource.data.keys().hasAll(['memberName', 'faithCalendar']) &&
+        request.resource.data.faithCalendar in [
+          'islamic', 'hindu', 'chinese', 'jamaican',
+          'congolese', 'portuguese', 'none'
+        ];
+    }
+
+    // ── pushSubscriptions ──────────────────────────────────────────────────────
+    // Written by browser clients when staff subscribe/unsubscribe from push
+    // notifications (savePushSubscription / deletePushSubscription in firebase-client.js).
+    // Read only by the sendHuddlePushNotifications Cloud Function (Admin SDK).
+    match /pushSubscriptions/{docId} {
+      allow read:  if false;
+      allow write: if true;
+    }
+
+  }
+}

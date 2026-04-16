@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.38';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.38';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.39';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.39';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -195,11 +195,10 @@ function initLoginOverlay() {
                     { icon: '3️⃣', html: 'Tap <strong>3. Apply to selected days</strong>' },
                 ]},
                 { heading: 'Type meanings', items: [
-                    { icon: '📋', html: '<strong>Spare</strong> — on standby; actual shift not yet allocated' },
-                    { icon: '✅', html: '<strong>Allocated</strong> — actual shift assigned to a spare week' },
-                    { icon: '🔄', html: '<strong>Swap</strong> — shift swapped with a colleague' },
-                    { icon: '💼', html: '<strong>RDW</strong> — rest day worked (overtime on a rest day)' },
-                    { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day to a rest day' },
+                    { icon: '📋', html: '<strong>Spare</strong> — on standby; actual shift not yet known' },
+                    { icon: '📅', html: '<strong>Shift</strong> — a confirmed working shift; use for spare-week confirmations, changed shift times, and swaps with colleagues' },
+                    { icon: '💼', html: '<strong>RDW</strong> — rest day worked; use when someone works a full shift on their rest day' },
+                    { icon: '✏️', html: '<strong>Rest Day</strong> — corrects a working day back to a rest day' },
                 ]},
             ],
         },
@@ -325,16 +324,18 @@ function initLoginOverlay() {
     lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
 })();
 
-// Override type typeMetadata
+// Override type metadata
 const TYPES = {
-    spare_shift:  { label: 'Spare shift',       fixed: true,  fixedValue: 'SPARE' },
-    allocated:    { label: 'Allocated shift',   fixed: false },
-    overtime:     { label: 'Overtime',           fixed: false },
-    rdw:          { label: 'Rest Day Working',   fixed: false },
-    swap:         { label: 'Swap',               fixed: false },
-    annual_leave: { label: 'Annual Leave',       fixed: true,  fixedValue: 'AL' },
-    correction:   { label: 'Make Rest Day',      fixed: true,  fixedValue: 'RD' },
-    sick:         { label: 'Absence',             fixed: true,  fixedValue: 'SICK' },
+    spare_shift:  { label: 'Spare shift',    fixed: true,  fixedValue: 'SPARE' },
+    shift:        { label: 'Shift',          fixed: false },
+    rdw:          { label: 'Rest Day Working', fixed: false },
+    annual_leave: { label: 'Annual Leave',   fixed: true,  fixedValue: 'AL' },
+    correction:   { label: 'Make Rest Day',  fixed: true,  fixedValue: 'RD' },
+    sick:         { label: 'Absence',        fixed: true,  fixedValue: 'SICK' },
+    // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
+    allocated:    { label: 'Allocated shift', fixed: false },
+    overtime:     { label: 'Overtime',        fixed: false },
+    swap:         { label: 'Swap',            fixed: false },
 };
 
 // ============================================
@@ -785,10 +786,8 @@ function buildWeekGridInto(container, dateStr) {
             <div class="col-pills">
                 <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
-                <button class="type-pill-btn pill-allocated"    data-type="allocated">Allocated</button>
+                <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
                 <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                <button class="type-pill-btn pill-overtime"     data-type="overtime">Overtime</button>
-                <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                 <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
                 <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
             </div>
@@ -822,8 +821,12 @@ function buildWeekGridInto(container, dateStr) {
         // Mark as prefilled-existing so the save button doesn't light up until
         // the user explicitly changes something — and so deactivation can trigger deletion.
         if (existing) {
-            const typeMeta = TYPES[existing.type];
-            activateRow(row, checkbox, pills, startEl, endEl, existing.type);
+            // Map legacy types to the new unified 'shift' type so the Shift pill
+            // highlights correctly and re-saving migrates the record to the new type.
+            const legacyToShift = { overtime: 'shift', swap: 'shift', allocated: 'shift' };
+            const prefillType = legacyToShift[existing.type] ?? existing.type;
+            const typeMeta = TYPES[prefillType];
+            activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
             if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
                 const [s, e] = existing.value.split('-');
@@ -3695,8 +3698,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(value);
         if (isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0) return 'rdw';
         // Spare week receiving its actual allocation — semantically distinct from overtime
-        if (isTime && baseShift === 'SPARE') return 'allocated';
-        return 'overtime';
+        return 'shift';
     }
 
     // ---- Collapse / expand ----
