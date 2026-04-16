@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.29';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.29';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.31';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.31';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1406,7 +1406,7 @@ function renderTable() {
             <td>${esc(o.memberName)}</td>
             <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : esc(o.type)}</span></td>
             <td style="font-family:monospace;font-size:12px">${esc(o.value)}</td>
-            <td style="color:var(--text-light);font-style:italic">${esc(o.note)}</td>
+            <td style="color:var(--text-light);font-style:italic">${esc(o.note)}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
             <td>
                 <button class="btn-edit" data-member="${esc(o.memberName)}" data-date="${o.date}" aria-label="Edit ${esc(o.memberName)} ${o.date}">Edit</button>
             </td>

@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.28` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `6.31` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -297,6 +297,10 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 
 #### 🟠 High
 - **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
+
+#### 🟢 Low — UX improvements deferred at v6.30 (needs discussion before implementing)
+- **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming to something less exclusive (e.g. "My Shifts" or splitting into two entry points: a staff self-service button and a separate admin route). Requires discussion about branding and URL structure before changing.
+- **Shift type count** — The admin type selector has 8 types. RDW / Overtime / Swap / Allocated are subtly different and create cognitive load for infrequent users. Consider whether any can be merged or renamed for clarity (e.g. Overtime and Swap may rarely be distinguished in practice). Requires discussion about operational use before changing.
 
 ### Fixed after v5.19
 

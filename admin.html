@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.29 -->
+<!-- MYB Roster Admin v6.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.29">
+    <link rel="stylesheet" href="shared.css?v=6.31">
 
     <style>
         body {
@@ -1181,6 +1181,20 @@
         .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);          }
         .lpill-sick         { background: var(--absence-light);   color: var(--absence);             }
         .lpill-correction   { background: var(--orange-light); color: var(--correction-text);  }
+
+        /* Small tag shown on overrides written by the weekly PDF upload */
+        .source-pill {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: #e3f2fd;
+            color: #1565c0;
+            margin-left: 5px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
 
         .btn-edit {
             background: transparent;
@@ -2521,6 +2535,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.29"></script>
+<script type="module" src="./admin-app.js?v=6.31"></script>
 </body>
 </html>
