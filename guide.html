@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Quick Guide  |  Update this file whenever the major version increments (v7, v8, v9 …) -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYB Roster — Quick Guide</title>
+    <style>
+        /* ── Print setup ─────────────────────────────────────── */
+        @page { size: A4; margin: 16mm 14mm; }
+        @media print {
+            body  { background: white; padding: 0; font-size: 11px; }
+            .page { max-width: 100%; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; break-before: page; }
+            a { color: inherit; text-decoration: none; }
+        }
+
+        /* ── Variables ───────────────────────────────────────── */
+        :root {
+            --navy:       #001e3c;
+            --navy-mid:   #0a2d52;
+            --gold:       #f5c800;
+            --text:       #1a1a2e;
+            --mid:        #555;
+            --light:      #888;
+            --border:     #dde1e8;
+            --bg:         #f8f9fb;
+        }
+
+        /* ── Base ────────────────────────────────────────────── */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text);
+            background: #e8ecf2;
+            padding: 24px 16px;
+        }
+
+        .page {
+            background: white;
+            max-width: 760px;
+            margin: 0 auto 28px;
+            padding: 28px 28px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.14);
+        }
+
+        /* ── Print / action bar ──────────────────────────────── */
+        .action-bar {
+            max-width: 760px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-print {
+            background: var(--navy);
+            color: white;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-print:hover { background: #00152a; }
+        .action-hint { font-size: 12px; color: var(--mid); }
+
+        /* ── Page header ─────────────────────────────────────── */
+        .guide-header {
+            background: var(--navy);
+            color: white;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .guide-header-left { display: flex; align-items: center; gap: 12px; }
+        .guide-header-icon { font-size: 30px; line-height: 1; }
+        .guide-header h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; }
+        .guide-header .sub { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+        .version-pill {
+            background: var(--gold);
+            color: var(--navy);
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 9px;
+            border-radius: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* ── Section headings ────────────────────────────────── */
+        h2 {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: var(--navy);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 3px;
+            margin: 16px 0 8px;
+        }
+        h2:first-of-type { margin-top: 0; }
+
+        /* ── Two-column layout ───────────────────────────────── */
+        .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        /* ── Badge grid ──────────────────────────────────────── */
+        .badge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .badge-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 7px;
+            padding: 5px 7px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg);
+        }
+        .badge-emoji { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+        .badge-name  { font-size: 10.5px; font-weight: 700; color: var(--navy); display: block; }
+        .badge-desc  { font-size: 10px; color: var(--light); display: block; line-height: 1.3; }
+
+        /* ── Marker chips ────────────────────────────────────── */
+        .markers { display: flex; flex-wrap: wrap; gap: 5px; }
+        .marker {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            font-size: 10.5px;
+            color: var(--mid);
+        }
+
+        /* ── Nav tips ────────────────────────────────────────── */
+        .nav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .nav-tip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 7px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 10.5px;
+            color: var(--mid);
+        }
+        .nav-tip-icon { font-size: 13px; flex-shrink: 0; }
+
+        /* ── Feature cards (AL / Huddle / Pay) ───────────────── */
+        .feature-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+        .feature-card {
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            padding: 7px 9px;
+            background: var(--bg);
+        }
+        .feature-label {
+            display: inline-block;
+            background: var(--navy);
+            color: white;
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 10px;
+            margin-bottom: 5px;
+            white-space: nowrap;
+        }
+        .feature-desc { font-size: 10px; color: var(--mid); line-height: 1.4; }
+
+        /* ── Install grid ────────────────────────────────────── */
+        .install-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+        .install-card { border: 1px solid var(--border); border-radius: 7px; padding: 7px 9px; }
+        .install-os   { font-size: 10px; font-weight: 700; color: var(--navy); margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .install-steps { font-size: 10px; color: var(--mid); line-height: 1.5; }
+
+        /* ── Info box ────────────────────────────────────────── */
+        .info {
+            background: #eef4ff;
+            border-left: 3px solid var(--navy);
+            padding: 6px 9px;
+            border-radius: 0 5px 5px 0;
+            font-size: 10.5px;
+            color: var(--mid);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+        .info strong { color: var(--navy); }
+
+        /* ── Numbered steps ──────────────────────────────────── */
+        .steps { list-style: none; counter-reset: s; }
+        .steps li {
+            counter-increment: s;
+            display: flex;
+            align-items: flex-start;
+            gap: 7px;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        .steps li::before {
+            content: counter(s);
+            background: var(--navy);
+            color: white;
+            font-size: 9px;
+            font-weight: 800;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        /* ── Table ───────────────────────────────────────────── */
+        table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+        thead th {
+            background: var(--navy);
+            color: white;
+            padding: 5px 7px;
+            text-align: left;
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        tbody td { padding: 4px 7px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:nth-child(even) td { background: var(--bg); }
+        td strong { color: var(--navy); }
+
+        /* ── Footer ──────────────────────────────────────────── */
+        .guide-footer {
+            text-align: center;
+            font-size: 9.5px;
+            color: var(--light);
+            margin-top: 16px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── Body copy ───────────────────────────────────────── */
+        p { font-size: 11px; color: var(--mid); margin-bottom: 6px; line-height: 1.45; }
+        code { background: var(--bg); padding: 1px 4px; border-radius: 3px; font-size: 10.5px; border: 1px solid var(--border); font-family: monospace; }
+    </style>
+</head>
+<body>
+
+<!-- ── Action bar (screen only) ───────────────────────────────── -->
+<div class="action-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨 Save as PDF / Print</button>
+    <span class="action-hint">In your browser: File → Print → Save as PDF &nbsp;·&nbsp; Two pages (staff + admin)</span>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PAGE 1 — STAFF GUIDE
+     ══════════════════════════════════════════════════════════════ -->
+<div class="page">
+    <div class="guide-header">
+        <div class="guide-header-left">
+            <span class="guide-header-icon">🚂</span>
+            <div>
+                <h1>Marylebone Roster — Staff Guide</h1>
+                <div class="sub">Chiltern Railways · MYB Station · For all staff</div>
+            </div>
+        </div>
+        <span class="version-pill">v6.x</span>
+    </div>
+
+    <div class="cols">
+        <!-- ── LEFT COLUMN ── -->
+        <div>
+            <h2>Getting Started</h2>
+            <p>Open the app or tap its icon on your home screen. Select <strong>your name</strong> from the dropdown at the top — your calendar appears immediately.</p>
+
+            <h2>Shift Badges</h2>
+            <div class="badge-grid">
+                <div class="badge-item">
+                    <span class="badge-emoji">☀️</span>
+                    <div><span class="badge-name">EARLY</span><span class="badge-desc">Starts before 11:00</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">🌙</span>
+                    <div><span class="badge-name">LATE</span><span class="badge-desc">Starts 11:00 or later</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">🌃</span>
+                    <div><span class="badge-name">NIGHT</span><span class="badge-desc">Starts 21:00 or later</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">🏠</span>
+                    <div><span class="badge-name">REST</span><span class="badge-desc">Rest or off day</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">📋</span>
+                    <div><span class="badge-name">SPARE</span><span class="badge-desc">On standby — shift not yet assigned</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">✅</span>
+                    <div><span class="badge-name">ALLOCATED</span><span class="badge-desc">Spare week shift now assigned</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">🏖️</span>
+                    <div><span class="badge-name">AL</span><span class="badge-desc">Annual leave</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">💼</span>
+                    <div><span class="badge-name">RDW</span><span class="badge-desc">Rest day worked (overtime)</span></div>
+                </div>
+                <div class="badge-item">
+                    <span class="badge-emoji">🤒</span>
+                    <div><span class="badge-name">SICK</span><span class="badge-desc">Absence recorded</span></div>
+                </div>
+            </div>
+
+            <h2>Calendar Markers</h2>
+            <div class="markers">
+                <div class="marker">⭐ Bank holiday</div>
+                <div class="marker">💷 Payday</div>
+                <div class="marker">✂️ Pay cut-off</div>
+                <div class="marker">🐣 Easter Sunday</div>
+                <div class="marker">🎄 Christmas (always REST)</div>
+            </div>
+        </div>
+
+        <!-- ── RIGHT COLUMN ── -->
+        <div>
+            <h2>Navigating</h2>
+            <div class="nav-grid">
+                <div class="nav-tip"><span class="nav-tip-icon">👆</span> Swipe left/right to change month</div>
+                <div class="nav-tip"><span class="nav-tip-icon">◀▶</span> Prev / Next buttons</div>
+                <div class="nav-tip"><span class="nav-tip-icon">📅</span> Tap the month heading to jump</div>
+                <div class="nav-tip"><span class="nav-tip-icon">🎯</span> Today button returns to now</div>
+            </div>
+
+            <h2>The Buttons</h2>
+            <div class="feature-row">
+                <div class="feature-card">
+                    <span class="feature-label">🏖️ AL</span>
+                    <div class="feature-desc">Your annual leave balance — <strong>Taken · Booked · Remaining · Entitlement</strong>. Tap "Record leave in Admin" to book leave.</div>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-label">📋 Huddle</span>
+                    <div class="feature-desc">Opens the latest daily briefing. Updated automatically each day. Tap to open in your PDF viewer.</div>
+                </div>
+                <div class="feature-card">
+                    <span class="feature-label">💳 Pay</span>
+                    <div class="feature-desc">💷 = payday (every 4 weeks, Friday). ✂️ = expenses cut-off (Saturday before payday).</div>
+                </div>
+            </div>
+
+            <h2>Install as an App</h2>
+            <div class="install-grid">
+                <div class="install-card">
+                    <div class="install-os">Android (Chrome)</div>
+                    <div class="install-steps">Tap the browser menu (⋮)<br>→ Add to Home Screen</div>
+                </div>
+                <div class="install-card">
+                    <div class="install-os">iPhone / iPad (Safari)</div>
+                    <div class="install-steps">Tap the Share button (□↑)<br>→ Add to Home Screen</div>
+                </div>
+            </div>
+            <div class="info">
+                <strong>Push notifications</strong> — once installed, you'll get a notification whenever a new Huddle is uploaded. On iPhone, you must use Safari and the app must be on your Home Screen first.
+            </div>
+
+            <h2>Works Offline</h2>
+            <p>Your base roster is stored on your device after first load — the calendar always works without signal. Firestore overrides (changes recorded by admin) and the Huddle link need internet to load.</p>
+        </div>
+    </div>
+
+    <div class="guide-footer">
+        Marylebone Roster · Chiltern Railways · Staff Guide · v6.x · Update this guide at each major version (v7, v8 …)
+    </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     PAGE 2 — ADMIN GUIDE
+     ══════════════════════════════════════════════════════════════ -->
+<div class="page page-break">
+    <div class="guide-header">
+        <div class="guide-header-left">
+            <span class="guide-header-icon">🔒</span>
+            <div>
+                <h1>Marylebone Roster — Admin Guide</h1>
+                <div class="sub">Chiltern Railways · MYB Station · Admin and self-service users</div>
+            </div>
+        </div>
+        <span class="version-pill">v6.x</span>
+    </div>
+
+    <div class="cols">
+        <!-- ── LEFT COLUMN ── -->
+        <div>
+            <h2>Logging In</h2>
+            <ol class="steps">
+                <li>Tap the <strong>🔒 Admin</strong> button on the main screen</li>
+                <li>Select <strong>your name</strong> from the dropdown</li>
+                <li>Enter your <strong>surname as the password</strong> — lowercase, no spaces or punctuation</li>
+                <li>Tap <strong>Log In</strong> — sessions last 30 days</li>
+            </ol>
+            <div class="info"><strong>Example:</strong> "G. Miller" → password is <code>miller</code></div>
+
+            <h2>Recording a Shift Change</h2>
+            <ol class="steps">
+                <li>Select the <strong>staff member</strong> from the top dropdown</li>
+                <li>Enter or navigate to the <strong>week</strong> containing the day</li>
+                <li>Tick the <strong>checkbox</strong> beside the day(s) to select them</li>
+                <li>Tap a <strong>shift type</strong> button to choose the type</li>
+                <li>Enter <strong>Start and End time</strong> if the type requires one</li>
+                <li>Add an optional <strong>note</strong> for context</li>
+                <li>Tap <strong>Save Changes</strong></li>
+            </ol>
+
+            <h2>Apply to Multiple Days</h2>
+            <p>Tick several days in the week grid. The <strong>Apply to selected days</strong> bar appears below. Choose the type and time, then tap <strong>Apply</strong> — all selected days get the same entry.</p>
+
+            <h2>Saved Changes</h2>
+            <p>Scroll to the <strong>Saved Changes</strong> card. Filter by member and month using the dropdowns. Tap the <strong>bin icon</strong> to remove an entry. Entries labelled <em>roster_import</em> were saved automatically by the weekly PDF upload.</p>
+        </div>
+
+        <!-- ── RIGHT COLUMN ── -->
+        <div>
+            <h2>Shift Types</h2>
+            <table>
+                <thead>
+                    <tr><th>Type</th><th>When to use</th><th>Time?</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>📋 <strong>Spare</strong></td><td>Standby week — actual shift not yet known</td><td>No</td></tr>
+                    <tr><td>✅ <strong>Allocated</strong></td><td>Spare week — shift has now been assigned</td><td>Yes</td></tr>
+                    <tr><td>💼 <strong>RDW</strong></td><td>Rest day worked — overtime on a rest day</td><td>Yes</td></tr>
+                    <tr><td>⏰ <strong>Overtime</strong></td><td>Extra time on top of a normal working day</td><td>Yes</td></tr>
+                    <tr><td>🔄 <strong>Swap</strong></td><td>Shift swapped with a colleague</td><td>Yes</td></tr>
+                    <tr><td>🏖️ <strong>AL</strong></td><td>Annual leave</td><td>No</td></tr>
+                    <tr><td>🤒 <strong>Absence</strong></td><td>Sick day or other absence</td><td>No</td></tr>
+                    <tr><td>🏠 <strong>Rest Day</strong></td><td>Corrects a working day back to a rest day</td><td>No</td></tr>
+                </tbody>
+            </table>
+
+            <h2>Weekly Roster Upload <span style="font-size:9px;font-weight:400;color:var(--light);text-transform:none;letter-spacing:0">(admin only)</span></h2>
+            <ol class="steps">
+                <li>Open the <strong>Weekly Roster</strong> card in admin</li>
+                <li>Select the <strong>roster type</strong> — CEA, CES, or Dispatcher</li>
+                <li>Set the <strong>week-ending date</strong> (always the Saturday of that week)</li>
+                <li>Select the <strong>PDF file</strong> from your device</li>
+                <li>Tap <strong>Read Roster</strong> — AI reads the PDF (takes ~15 seconds)</li>
+                <li>A per-person review appears — <strong>approve or skip</strong> each day's change</li>
+                <li>Tap <strong>Apply X changes</strong> to save approved changes to Firestore</li>
+            </ol>
+            <div class="info">
+                <strong>Note:</strong> The file must be a PDF. The week-ending date must be a <strong>Saturday</strong>. If the AI misreads a shift, use <em>Skip</em> on that day and record it manually via Change a Shift.
+            </div>
+        </div>
+    </div>
+
+    <div class="guide-footer">
+        Marylebone Roster · Chiltern Railways · Admin Guide · v6.x · For questions contact G. Miller
+    </div>
+</div>
+
+</body>
+</html>

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: March 2026 — v5.91 (Huddle Phase 1 + Phase 2 complete; Weekly Roster Upload complete)*
+*Last updated: April 2026 — v6.28 (Push notifications live; Allocated shift type; startDate/proRatedAL member fields; guide.html added)*
 
 ---
 
@@ -84,9 +84,10 @@ App calls getLatestHuddle() on load
 
 **What was built:** Cloud Function `ingestHuddle` in `functions/index.js`. Power Automate flow triggers on the Huddle email, filters attachments by type, and POSTs the file (base64-encoded) to the Cloud Function with metadata in custom headers.
 
-**How it works:**
-- Yes branch (afternoon email): filters for PDF attachment, posts to `ingestHuddle`
-- No branch (morning email): filters for DOCX attachment, posts to `ingestHuddle`
+**How it works (redesigned in v6.x):**
+- Condition sets only `huddleDate`: afternoon emails (after noon) → tomorrow's date; morning emails → today's date.
+- After the condition, a single Filter Array accepts both `.pdf` and `.docx` using an OR expression on file extension: `or(endsWith(toLower(item()?['name']), '.pdf'), endsWith(toLower(item()?['name']), '.docx'))`
+- One HTTP action sends the matched attachment — no time-based PDF/DOCX branching (previous approach failed when DOCX arrived after noon)
 - Cloud Function stores the file in Firebase Storage and writes a Firestore `huddles` doc
 - The `📋 Huddle` button in index.html picks up the latest doc automatically
 
@@ -308,14 +309,20 @@ Storage rules remain unchanged: authenticated write, open read.
 
 ---
 
-### Notifications
+### Huddle push notifications ✓ Complete (v6.11)
+
+**What was built:** Web Push notifications via Firebase Cloud Functions. When `ingestHuddle` stores a new Huddle, it fans out a push to every subscribed device. Staff subscribe via admin.html (a "Subscribe to Huddle notifications" toggle). VAPID keys stored in Firebase Secret Manager.
+
+**iOS note:** Requires Safari and the app installed to the Home Screen. Android Chrome works via the browser.
+
+**Still to assess:** Notification reliability in real daily use. If iOS delivery proves unreliable, consider native app (see below).
+
+---
+
+### Notifications — approval/assignment events
 **What:** Staff notified when a spare is assigned or a request is approved. Supervisor notified when requests arrive.
 
-**Depends on:** Firebase Cloud Functions — requires upgrading to Blaze (pay-as-you-go) plan. Small cost but billing must be enabled. Approval workflows should exist first.
-
-**iOS note:** PWA push notification reliability on iOS should be assessed in real use. Poor iOS delivery is a trigger to consider native app conversion (see below).
-
-**Alternative:** In-app status checking may be sufficient. Many teams operate without push notifications.
+**Depends on:** Approval workflows (below). The Cloud Function infrastructure for push is already in place — extending it to cover other event types is a smaller lift now that the foundation exists.
 
 ---
 
