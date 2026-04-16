@@ -91,7 +91,7 @@
             gap: 12px;
         }
         .guide-header-left { display: flex; align-items: center; gap: 12px; }
-        .guide-header-icon { font-size: 30px; line-height: 1; }
+        .guide-header-icon { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
         .guide-header h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; }
         .guide-header .sub { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
         .version-pill {
@@ -129,7 +129,7 @@
             .feature-row { grid-template-columns: 1fr; }
             .guide-header { padding: 10px 12px; margin-bottom: 14px; }
             .guide-header h1 { font-size: 14px; }
-            .guide-header-icon { font-size: 24px; }
+            .guide-header-icon { width: 32px; height: 32px; border-radius: 8px; }
             h2 { margin-top: 14px; }
         }
 
@@ -287,7 +287,7 @@
 <div class="page">
     <div class="guide-header">
         <div class="guide-header-left">
-            <span class="guide-header-icon">🚂</span>
+            <img class="guide-header-icon" src="./icon-192.png" alt="MYB Roster app icon">
             <div>
                 <h1>Marylebone Roster — Staff Guide</h1>
                 <div class="sub">Chiltern Railways · MYB Station · For all staff</div>
@@ -410,7 +410,7 @@
 <div class="page page-break">
     <div class="guide-header">
         <div class="guide-header-left">
-            <span class="guide-header-icon">🔒</span>
+            <img class="guide-header-icon" src="./icon-192.png" alt="MYB Roster app icon">
             <div>
                 <h1>Marylebone Roster — Admin Guide</h1>
                 <div class="sub">Chiltern Railways · MYB Station · Admin and self-service users</div>
@@ -467,20 +467,6 @@
                     <tr><td>🏠 <strong>Rest Day</strong></td><td>Corrects a working day back to a rest day</td><td>No</td></tr>
                 </tbody>
             </table>
-
-            <h2>Weekly Roster Upload <span style="font-size:9px;font-weight:400;color:var(--light);text-transform:none;letter-spacing:0">(admin only)</span></h2>
-            <ol class="steps">
-                <li>Open the <strong>Weekly Roster</strong> card in admin</li>
-                <li>Select the <strong>roster type</strong> — CEA, CES, or Dispatcher</li>
-                <li>Set the <strong>week-ending date</strong> (always the Saturday of that week)</li>
-                <li>Select the <strong>PDF file</strong> from your device</li>
-                <li>Tap <strong>Read Roster</strong> — AI reads the PDF (takes ~15 seconds)</li>
-                <li>A per-person review appears — <strong>approve or skip</strong> each day's change</li>
-                <li>Tap <strong>Apply X changes</strong> to save the approved changes</li>
-            </ol>
-            <div class="info">
-                <strong>Note:</strong> The file must be a PDF. The week-ending date must be a <strong>Saturday</strong>. If the AI misreads a shift, use <em>Skip</em> on that day and record it manually via Change a Shift.
-            </div>
         </div>
     </div>
 
