@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.34 -->
+<!-- MYB Roster Admin v6.35 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.34">
+    <link rel="stylesheet" href="shared.css?v=6.35">
 
     <style>
         body {
@@ -1662,8 +1662,7 @@
         @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
 
         /* ---- Lightbox — admin.html additions ----
-           Base overlay, content card, and close button are in shared.css.
-           Only the admin role badge is defined here. */
+           Base overlay, content card, and close button are in shared.css. */
         .lightbox-badge {
             margin-top: 10px;
             padding: 5px 14px;
@@ -1675,6 +1674,12 @@
             font-weight: 800;
             text-transform: uppercase;
             letter-spacing: 0.6px;
+        }
+        /* "Signed in as …" shown below the Admin panel badge */
+        .lightbox-signed-in {
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+            margin-top: 4px;
         }
 
         /* ---- Save hint (shown when button is disabled) ---- */
@@ -2118,6 +2123,9 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Admin v<span id="lightboxVersion"></span></div>
         <div class="lightbox-badge">Admin panel</div>
+        <div id="lightboxCurrentUser" class="lightbox-signed-in"></div>
+        <a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:14px">📖 View quick guide</a>
+        <a href="./index.html" class="lightbox-bug-link">📅 View staff roster</a>
         <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     </div>
 </div>
@@ -2540,6 +2548,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.34"></script>
+<script type="module" src="./admin-app.js?v=6.35"></script>
 </body>
 </html>
