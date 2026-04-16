@@ -7,13 +7,20 @@
     <title>MYB Roster — Quick Guide</title>
     <style>
         /* ── Print setup ─────────────────────────────────────── */
-        @page { size: A4; margin: 16mm 14mm; }
+        @page { size: A4; margin: 14mm 13mm; }
         @media print {
             body  { background: white; padding: 0; font-size: 11px; }
-            .page { max-width: 100%; margin: 0; padding: 0; box-shadow: none; border-radius: 0; }
+            .page { max-width: 100%; margin: 0; padding: 18px 18px 14px; box-shadow: none; border-radius: 0; }
             .no-print { display: none !important; }
             .page-break { page-break-before: always; break-before: page; }
             a { color: inherit; text-decoration: none; }
+            h2 { margin: 10px 0 5px; }
+            h2:first-of-type { margin-top: 0; }
+            .steps li { margin-bottom: 3px; }
+            .info { margin-top: 4px; padding: 4px 8px; }
+            .guide-header { padding: 10px 14px; margin-bottom: 14px; }
+            .guide-footer { margin-top: 10px; padding-top: 7px; }
+            .cols { gap: 16px; }
         }
 
         /* ── Variables ───────────────────────────────────────── */
@@ -371,7 +378,7 @@
                 </div>
             </div>
             <div class="info">
-                <strong>Push notifications</strong> — to enable them: open Admin, scroll to <strong>Notifications</strong>, and tap <strong>Subscribe</strong>. After that you'll get a notification whenever a new Huddle is uploaded. On iPhone, you must use Safari and add the app to your Home Screen before the Subscribe button appears.
+                <strong>Push notifications</strong> — open Admin → scroll to Notifications → tap <strong>Subscribe</strong>. You'll then be notified when each day's Huddle is uploaded. iPhone: must use Safari with the app added to Home Screen first.
             </div>
 
             <h2>Works Offline</h2>
@@ -424,10 +431,7 @@
             </ol>
 
             <h2>Apply to Multiple Days</h2>
-            <p>Tick several days in the week grid. The <strong>Apply to selected days</strong> bar appears below. Choose the type and time, then tap <strong>Apply</strong> — all selected days get the same entry.</p>
-
-            <h2>Annual Leave — date range</h2>
-            <p>To book multiple AL days at once (e.g. a week's holiday), use the <strong>Record Annual Leave</strong> card below the week grid — pick a start and end date and tap Record. For a single day, ticking AL in the week grid also works.</p>
+            <p>Tick several days in the week grid — the <strong>Apply to selected days</strong> bar appears. For a holiday spanning several days, use the <strong>Record Annual Leave</strong> card instead — pick a date range and tap Record.</p>
 
             <h2>Saved Changes</h2>
             <p>Scroll to the <strong>Saved Changes</strong> card. Filter by member and month using the dropdowns. Tap the <strong>bin icon</strong> to remove an entry. Entries tagged <strong>PDF upload</strong> were saved automatically by the weekly roster upload — you can still delete or edit them if needed.</p>
@@ -460,7 +464,7 @@
                 <li>Select the <strong>PDF file</strong> from your device</li>
                 <li>Tap <strong>Read Roster</strong> — AI reads the PDF (takes ~15 seconds)</li>
                 <li>A per-person review appears — <strong>approve or skip</strong> each day's change</li>
-                <li>Tap <strong>Apply X changes</strong> to save approved changes to Firestore</li>
+                <li>Tap <strong>Apply X changes</strong> to save the approved changes</li>
             </ol>
             <div class="info">
                 <strong>Note:</strong> The file must be a PDF. The week-ending date must be a <strong>Saturday</strong>. If the AI misreads a shift, use <em>Skip</em> on that day and record it manually via Change a Shift.
