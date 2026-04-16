@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.26 -->
+<!-- MYB Roster Calendar - Version 6.27 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.26">
+    <link rel="stylesheet" href="shared.css?v=6.27">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1825,11 +1825,11 @@
             background: rgba(255,255,255,0.08);
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 24px;
-            padding: 36px 40px 32px;
+            padding: 32px 20px 28px;
             cursor: default;
             transform: scale(0.85);
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-            width: min(300px, 85vw);
+            width: min(340px, 92vw);
             text-align: center;
         }
         #alLightbox.open #alLightboxContent { transform: scale(1); }
@@ -1857,6 +1857,7 @@
             display: flex;
             gap: 0;
             align-items: stretch;
+            width: 100%;
             margin: 12px 0 6px;
             background: rgba(255,255,255,0.06);
             border: 1px solid rgba(255,255,255,0.12);
@@ -1867,7 +1868,9 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 16px 16px;
+            flex: 1;
+            min-width: 0;
+            padding: 12px 6px;
             gap: 4px;
         }
         .al-lb-stat + .al-lb-stat {
@@ -1882,11 +1885,11 @@
         .al-lb-val.low   { color: var(--al-lb-low); }
         .al-lb-val.empty { color: var(--al-lb-empty); }
         .al-lb-lbl {
-            font-size: 10px;
+            font-size: 9px;
             font-weight: 600;
             color: rgba(255,255,255,0.45);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
         }
         .al-lb-breakdown {
             font-size: 9px;
@@ -2369,7 +2372,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.26"></script>
+    <script type="module" src="./app.js?v=6.27"></script>
 
 </body>
 </html>
