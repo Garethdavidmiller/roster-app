@@ -121,6 +121,18 @@
         /* ── Two-column layout ───────────────────────────────── */
         .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 
+        /* ── Mobile: single column (screen only — print keeps two cols) ── */
+        @media screen and (max-width: 640px) {
+            body  { padding: 12px 10px; }
+            .page { padding: 16px 14px 14px; }
+            .cols { grid-template-columns: 1fr; gap: 0; }
+            .feature-row { grid-template-columns: 1fr; }
+            .guide-header { padding: 10px 12px; margin-bottom: 14px; }
+            .guide-header h1 { font-size: 14px; }
+            .guide-header-icon { font-size: 24px; }
+            h2 { margin-top: 14px; }
+        }
+
         /* ── Badge grid ──────────────────────────────────────── */
         .badge-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
         .badge-item {
