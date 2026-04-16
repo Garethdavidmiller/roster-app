@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '6.25';
+export const APP_VERSION = '6.26';
 
 // ============================================
 // CONFIGURATION
@@ -70,6 +70,7 @@ export const teamMembers = [
     { name: 'T. Bibi',                 currentWeek: 19, rosterType: 'main',       role: 'CEA' },
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA' },
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA' },
+    { name: 'M. Okeke',                currentWeek: 4,  rosterType: 'bilingual',  role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 } },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA' },
     { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },  // Fixed Mon-Fri 12:00-19:00 (reasonable adjustments)
 
@@ -170,6 +171,8 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
     if (member.rosterType === 'fixed') return 34; // C. Reen — reasonable adjustments
+    // Pro-rated entitlement for members who joined part-way through the year
+    if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     return 32;
 }
 
@@ -1226,6 +1229,13 @@ export function getRosterForMember(member) {
  */
 export function getBaseShift(member, date) {
     if (isChristmasRD(date)) return 'RD';
+    // Members with a startDate show RD for all dates before they join
+    if (member.startDate) {
+        const s = member.startDate;
+        const startMidnight = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+        const dateMidnight  = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        if (dateMidnight < startMidnight) return 'RD';
+    }
     const weekNum = getWeekNumberForDate(date, member);
     const dayKey  = DAY_KEYS[date.getDay()];
     const data    = getRosterForMember(member).data;
