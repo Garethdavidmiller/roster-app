@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.39';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.39';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.40';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.40';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -330,7 +330,7 @@ const TYPES = {
     shift:        { label: 'Shift',          fixed: false },
     rdw:          { label: 'Rest Day Working', fixed: false },
     annual_leave: { label: 'Annual Leave',   fixed: true,  fixedValue: 'AL' },
-    correction:   { label: 'Make Rest Day',  fixed: true,  fixedValue: 'RD' },
+    correction:   { label: 'Set as Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absence',        fixed: true,  fixedValue: 'SICK' },
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift', fixed: false },
@@ -780,7 +780,7 @@ function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ' <span class="overwrite-badge">⚠ has override</span>' : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ' <span class="overwrite-badge">⚠ change saved</span>' : ''}</span>
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
@@ -1515,7 +1515,7 @@ async function handleDelete(e) {
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
-        // Re-render week grid to clear the "has override" badge if this date is visible
+        // Re-render week grid to clear the "change saved" badge if this date is visible
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         // Brief confirmation of what was removed
         if (deleted && listFeedback) {
@@ -2779,9 +2779,15 @@ if (overridesMonthFilter) {
             saved.classList.add('visible');
             saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
             renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
-            // Fire-and-forget Firestore sync for cross-device persistence.
+            // Firestore sync for cross-device persistence. localStorage save above is the primary;
+            // this is a bonus sync. If it fails, the setting still works on this device.
             setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true })
-                .catch(e => console.warn('[Firestore] memberSettings sync failed:', e));
+                .catch(e => {
+                    console.warn('[Firestore] memberSettings sync failed:', e);
+                    clearTimeout(saveTimer);
+                    saved.textContent = '✓ Saved on this device (couldn\'t sync to cloud)';
+                    saveTimer = setTimeout(() => saved.classList.remove('visible'), 4000);
+                });
         });
     });
 
@@ -3013,10 +3019,10 @@ if ('serviceWorker' in navigator) {
 
             // A new SW starts downloading — watch for it to finish installing
             registration.addEventListener('updatefound', () => {
-                const neswipePanelWidthorker = registration.installing;
-                if (!neswipePanelWidthorker) return;
-                neswipePanelWidthorker.addEventListener('statechange', () => {
-                    if (neswipePanelWidthorker.state === 'installed' && navigator.serviceWorker.controller) {
+                const newWorker = registration.installing;
+                if (!newWorker) return;
+                newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                         showUpdateToast();
                     }
                 });
@@ -3087,8 +3093,11 @@ if ('serviceWorker' in navigator) {
 // Replace with the actual deployed URL if it differs.
 const PARSE_ROSTER_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF';
 
-// This secret must match the ROSTER_SECRET value set in Firebase Secret Manager.
-// It is embedded here because the current app has no server-side auth (known limitation).
+// ⚠ SECURITY NOTE: This secret is visible to anyone who views the page source.
+// It is embedded here because the current app has no server-side authentication (see CLAUDE.md #14).
+// If this value is ever leaked or the function is abused, rotate it immediately:
+//   firebase functions:secrets:set ROSTER_SECRET   (paste a new UUID when prompted)
+// Then update this constant to match the new value.
 const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
 (function initRosterUpload() {
@@ -3199,7 +3208,7 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             const base64 = await fileToBase64(file);
 
             // Call the Cloud Function
-            parseFeedback.textContent = 'Sending to AI — this takes about 15 seconds…';
+            parseFeedback.textContent = 'Reading the PDF — this takes about 15 seconds…';
             parseFeedback.className   = 'huddle-feedback';
 
             const response = await fetch(PARSE_ROSTER_URL, {
