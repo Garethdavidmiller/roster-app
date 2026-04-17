@@ -495,6 +495,21 @@ WRONG example (do not do this — Sun key is missing):
   }
 
 ---
+SUNDAY SCAN — REQUIRED IF THE ROSTER HAS A SUNDAY COLUMN:
+Before producing the main parsed data, scan ONLY the Sunday column.
+Add a "sundayScan" object to your output where each key is a staff member name and
+the value is exactly what you see in their Sunday cell:
+  - Blank, dash, or empty cell → "blank"
+  - Worked shift with RDW (e.g. "06:00-14:00 RDW") → "RDW 06:00-14:00"
+  - SPARE, AL, SICK, or any keyword → the keyword as-is
+  - If there is no Sunday column → omit sundayScan from the output entirely
+
+Your "Sun" value for each person in "parsed" MUST match their sundayScan entry:
+  "blank"            → "Sun": "RD"
+  "RDW HH:MM-HH:MM" → "Sun": "RDW HH:MM-HH:MM"   ← keep the RDW, never strip it
+  anything else      → "Sun": that value (normalised per the codes above)
+
+---
 WHAT THE CODES MEAN:
 - A time like "05:30-11:30" or "0530-1130" = a worked shift. Always format as HH:MM-HH:MM.
 - RD = Rest day
@@ -519,6 +534,10 @@ RULES:
 ---
 OUTPUT FORMAT — return exactly this structure:
 {
+  "sundayScan": {
+    "L. Springer": "blank",
+    "G. Miller": "RDW 06:00-14:00"
+  },
   "columnHeaders": ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
   "parsed": [
     {
@@ -534,6 +553,7 @@ OUTPUT FORMAT — return exactly this structure:
   ]
 }
 
+sundayScan: one key per staff member — what you see in their Sunday cell before reading shifts.
 columnHeaders: the day abbreviations from the column headers, left to right.
 Each member object: "memberName" plus one key per column header, in any order.
 Every column header must appear as a key in every member object.`;
@@ -685,23 +705,39 @@ Every column header must appear as a key in every member object.`;
             return;
         }
 
-        // ---- Post-processing: correct Sunday=Monday misread ----
-        // When the Sunday column is blank the AI occasionally copies Monday's shift into
-        // the Sunday key instead of returning "RD". Detect this by checking whether Sunday's
-        // parsed value is an identical plain time string to Monday's — if so, it is almost
-        // certainly a misread (a genuine worked Sunday would be marked "RDW HH:MM-HH:MM"
-        // in the PDF, so the AI would return "RDW HH:MM-HH:MM" rather than a bare time).
+        // ---- Post-processing: validate Sunday values using sundayScan ----
+        // The AI commits to what it sees in each Sunday cell via the sundayScan field
+        // before producing the full parsed output. This lets the server catch two failure
+        // modes that are otherwise indistinguishable:
+        //   A) Blank Sunday misread as Monday — sundayScan says "blank" but parsed has a time
+        //   B) Worked Sunday with RDW stripped — sundayScan says "RDW HH:MM" but parsed has plain time
+        //
+        // Both are corrected here. Without sundayScan, these cases look identical (Sun = Mon value)
+        // so any heuristic that uses Sun=Mon equality causes false positives on genuine Sunday shifts.
         const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
-        if (hasSundayColumn && dates.length >= 2) {
-            const sunDate = dates[0]; // Sunday is always index 0
-            const monDate = dates[1]; // Monday is always index 1
+        if (parsed.sundayScan && typeof parsed.sundayScan === 'object' && hasSundayColumn && dates.length >= 2) {
+            const sunDate    = dates[0]; // Sunday is always index 0
             const isPlainTime = v => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
+
             for (const entry of safeEntries) {
-                const sunVal = entry.shifts[sunDate];
-                const monVal = entry.shifts[monDate];
-                if (isPlainTime(sunVal) && sunVal === monVal) {
-                    console.warn(`[parseRosterPDF] ${entry.memberName}: Sunday "${sunVal}" matches Monday — correcting to RD (blank Sunday misread)`);
+                const scanRaw = parsed.sundayScan[entry.memberName];
+                if (scanRaw === undefined || scanRaw === null) continue;
+
+                const scanStr  = String(scanRaw).trim().toUpperCase();
+                const sunShift = entry.shifts[sunDate];
+
+                // Case A: scan says this Sunday was blank but parsed has a plain time → blank misread
+                const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA'].includes(scanStr);
+                if (isBlank && isPlainTime(sunShift)) {
+                    console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" — correcting to RD`);
                     entry.shifts[sunDate] = 'RD';
+                    continue;
+                }
+
+                // Case B: scan says this Sunday was an RDW shift but AI stripped the RDW prefix
+                if (scanStr.includes('RDW') && isPlainTime(sunShift)) {
+                    console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (RDW) but parsed Sunday="${sunShift}" (plain time) — adding RDW prefix`);
+                    entry.shifts[sunDate] = `RDW|${sunShift}`;
                 }
             }
         }
