@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.44';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.44';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.45';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.45';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -277,7 +277,7 @@ function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwT
         <div class="day-number">${date.getDate()}</div>
         ${badge}
         ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
-        ${faithMarker ? `<span class="day-faith" aria-label="${faithMarker.label}" title="${faithMarker.label}">${faithMarker.icon}</span>` : ''}
+        ${faithMarker ? `<span class="day-faith" aria-label="${escapeHtml(faithMarker.label)}" title="${escapeHtml(faithMarker.label)}">${faithMarker.icon}</span>` : ''}
     `;
 }
 
@@ -924,15 +924,14 @@ try {
         renderCalendar();
         updateFaithHint();
 
-        // Dismiss splash screen after first render
-        // Small timeout ensures the calendar is painted before fading
+        // Dismiss splash screen after first render — rAF ensures the calendar
+        // is painted before the fade starts (setTimeout(300) was arbitrary).
         const splash = document.getElementById('splash');
         if (splash) {
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 splash.classList.add('hidden');
-                // Remove from DOM after transition to free memory
                 splash.addEventListener('transitionend', () => splash.remove(), { once: true });
-            }, 300);
+            });
         }
 
         // Handle manifest shortcuts — ?shortcut=today jumps to current month
@@ -1158,7 +1157,7 @@ try {
                 try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
 
                 const current = gestureCurrentPanel;
-                if (!current) { discardPanels(); return; }
+                if (!current) { discardPanels(); swipeCooldown = false; return; }
 
                 const direction = getSwipeDirection(touchStartX, touchStartY, e.clientX, e.clientY, Date.now() - touchStartTime);
                 const w = gestureW;
@@ -1545,10 +1544,9 @@ async function fetchOverridesForRange(startStr, endStr) {
         where('date', '<=', endStr)
     );
     const snapshot = await getDocs(q);
-    console.log(`[Firestore] fetchOverridesForRange ${startStr}→${endStr}: ${snapshot.size} doc(s)`);
+    if (snapshot.size >= 1900) console.warn('[Firestore] Override query returned', snapshot.size, 'docs — approaching practical limit. Consider archiving old overrides.');
     snapshot.forEach(doc => {
         const data = doc.data();
-        console.log('[Firestore] override doc:', JSON.stringify({ id: doc.id, memberName: data.memberName, date: data.date, type: data.type, value: data.value }));
         if (!data.memberName || !data.date || !data.value) {
             console.error('[Firestore] Skipping malformed override document:', doc.id, data);
             return;
@@ -1699,6 +1697,25 @@ if ('serviceWorker' in navigator) {
 // DOCX: htmlContent is pre-converted at upload time (by mammoth in the Cloud
 //   Function or the admin upload page) and stored in the Firestore document.
 //   The viewer just displays that HTML — no CORS fetch, no CDN dependency.
+
+/**
+ * Strip dangerous elements and event handlers from HTML before rendering.
+ * mammoth produces safe HTML (headings, paragraphs, lists) but Firestore data
+ * is externally controlled, so we sanitise as a defence-in-depth measure.
+ * @param {string} html
+ * @returns {string}
+ */
+function sanitiseHtml(html) {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, link').forEach(el => el.remove());
+    doc.querySelectorAll('*').forEach(el => {
+        [...el.attributes]
+            .filter(a => a.name.startsWith('on') || a.name === 'href' && el.tagName === 'LINK')
+            .forEach(a => el.removeAttribute(a.name));
+    });
+    return doc.body.innerHTML;
+}
+
 (async function initHuddleButton() {
     const btn    = document.getElementById('huddleBtn');
     const viewer = document.getElementById('huddleViewer');
@@ -1729,8 +1746,8 @@ if ('serviceWorker' in navigator) {
 
         btn.addEventListener('click', () => {
             if (huddle.htmlContent) {
-                // DOCX with pre-converted HTML — display in the in-app viewer
-                body.innerHTML = huddle.htmlContent;
+                // DOCX with pre-converted HTML — sanitise then display in the in-app viewer
+                body.innerHTML = sanitiseHtml(huddle.htmlContent);
                 openViewer();
                 close.focus();
             } else {
