@@ -1,84 +1,22 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.46 -->
+<!-- MYB Roster — Pay Calculator v6.47 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.46">
+  <link rel="stylesheet" href="./shared.css?v=6.47">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
-  <title>Marylebone Pay Calculator</title>
+  <title>MYB Roster — Pay Calculator</title>
   <style>
-    /* ── DESIGN TOKENS — matching MYB Roster shared.css ── */
+    /* ── Pay-calculator-specific design tokens (all shared tokens come from shared.css) ── */
     :root {
-      /* Brand */
-      --primary-blue:      #001e3c;
-      --primary-blue-dark: #00152a;
-      --accent-gold:       #f5c800;
-      --accent-gold-dark:  #e6bb00;
-      /* Shift type colours — matches shared.css / roster calendar */
-      --orange:            #ff9800;   /* Saturday / early-shift accent */
-      --orange-light:      #fff3e0;
-      --blue-sky:          #1565c0;   /* Late shift */
-      --blue-light:        #e3f2fd;
-      --rdw:               #c2185b;   /* Rest day worked — magenta */
-      --rdw-light:         #fce4ec;
-      --rdw-text:          #880e4f;
-      --ot:                #5c6bc0;   /* Overtime */
-      --ot-light:          #ede7f6;
-      --green:             #43a047;   /* Training / early */
-      --green-light:       #e8f5e9;
-      --al:                #00897b;   /* Annual leave */
-      --al-light:          #e0f2f1;
-      /* Text */
-      --text-dark:         #333;
-      --text-mid:          #555;
-      --text-light:        #999;
-      --text-faint:        #aaa;
-      /* Borders */
-      --border-light:      #e8e8e8;
-      --border-mid:        #cccccc;
-      /* Backgrounds */
-      --bg-light:          #f8f8f8;
-      --bg-faint:          #f5f5f5;
-      /* Semantic */
-      --error-red:         #d32f2f;
-      --success-text:      #1b5e20;
-      /* Radius */
-      --radius-lg:         14px;
-      --radius-md:         12px;
-      --radius-sm:         8px;
-      /* Elevation */
-      --shadow-1:          0 1px 4px rgba(0,0,0,0.10);
-      --shadow-2:          0 2px 12px rgba(0,30,60,0.12);
-      --shadow-3:          0 8px 32px rgba(0,0,0,0.18);
-      /* Typography scale */
-      --type-micro:        10px;
-      --type-small:        12px;
-      --type-body:         14px;
-      --type-medium:       16px;
-      --type-large:        18px;
-      --type-xl:           24px;
-      /* Status / system colours — SW update pill, lightbox */
-      --status-ok:         #4caf50;
-      --status-ok-bg:      rgba(76, 175, 80, 0.15);
-      --status-update:     #64b5f6;
-      --status-update-bg:  rgba(100, 181, 246, 0.15);
-      --update-btn:        #1976d2;
-      --update-btn-active: #1565c0;
-      /* Boxing Day badge */
-      --boxing-day-bg:     #fff8e1;
-      --boxing-day-text:   #bf6000;
-      /* Gold notice panels (settings new-year notice, etc.) */
-      --notice-text:       #5a4000;
-    }
-
-    *, *::before, *::after {
-      margin: 0; padding: 0; box-sizing: border-box;
-      -webkit-tap-highlight-color: transparent;
+      --boxing-day-bg:   #fff8e1;
+      --boxing-day-text: #bf6000;
+      --notice-text:     #5a4000;
     }
 
     body {
@@ -108,6 +46,17 @@
     .app-header h1 {
       color: var(--primary-blue); font-size: 20px; font-weight: 800;
       letter-spacing: -0.5px; margin: 0; line-height: 1.2;
+    }
+    .back-link {
+      margin-left: auto; flex-shrink: 0;
+      color: var(--primary-blue); text-decoration: none;
+      font-size: var(--type-small); font-weight: 600;
+      padding: 5px 10px; border-radius: var(--radius-sm);
+      border: 1px solid var(--border-mid);
+      white-space: nowrap; touch-action: manipulation;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .back-link:hover { background: var(--bg-faint); }
     }
     .app-icon {
       height: 36px; width: 36px; border-radius: var(--radius-sm);
@@ -904,7 +853,7 @@
      Dismissed ~280ms after first render with a 0.4s fade. -->
 <div id="splash" role="presentation" aria-hidden="true">
   <img id="splash-icon" src="icon-192.png" alt="" loading="eager">
-  <div id="splash-title">Marylebone Pay Calculator</div>
+  <div id="splash-title">Pay Calculator</div>
 </div>
 <div class="app">
 
@@ -912,8 +861,9 @@
   <header class="app-header">
     <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
     <div>
-      <h1>Marylebone Pay Calculator</h1>
+      <h1>Pay Calculator</h1>
     </div>
+    <a href="./index.html" class="back-link" aria-label="Back to roster">← Roster</a>
   </header>
 
   <main>
@@ -1476,6 +1426,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.46"></script>
+<script type="module" src="./paycalc.js?v=6.47"></script>
 </body>
 </html>
