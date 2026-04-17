@@ -432,7 +432,7 @@ exports.parseRosterPDF = onRequest(
                 'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
                 'L. Atrakimaviciene', 'J. Haque', 'N. Tuck', 'R. Forrester-Blackstock',
                 'S. Langley', 'S. Silva', 'J. Sumaili', 'T. Bibi', 'T. Nsuala',
-                'D. Irvine', 'T. Gherbi', 'C. Reen',
+                'D. Irvine', 'T. Gherbi', 'C. Reen', 'M. Okeke',
             ],
             ces: [
                 'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru',
@@ -683,6 +683,27 @@ Every column header must appear as a key in every member object.`;
         if (safeEntries.length === 0) {
             res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });
             return;
+        }
+
+        // ---- Post-processing: correct Sunday=Monday misread ----
+        // When the Sunday column is blank the AI occasionally copies Monday's shift into
+        // the Sunday key instead of returning "RD". Detect this by checking whether Sunday's
+        // parsed value is an identical plain time string to Monday's — if so, it is almost
+        // certainly a misread (a genuine worked Sunday would be marked "RDW HH:MM-HH:MM"
+        // in the PDF, so the AI would return "RDW HH:MM-HH:MM" rather than a bare time).
+        const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
+        if (hasSundayColumn && dates.length >= 2) {
+            const sunDate = dates[0]; // Sunday is always index 0
+            const monDate = dates[1]; // Monday is always index 1
+            const isPlainTime = v => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
+            for (const entry of safeEntries) {
+                const sunVal = entry.shifts[sunDate];
+                const monVal = entry.shifts[monDate];
+                if (isPlainTime(sunVal) && sunVal === monVal) {
+                    console.warn(`[parseRosterPDF] ${entry.memberName}: Sunday "${sunVal}" matches Monday — correcting to RD (blank Sunday misread)`);
+                    entry.shifts[sunDate] = 'RD';
+                }
+            }
         }
 
         console.log(`[parseRosterPDF] Returning ${safeEntries.length} parsed members for week ${weekEnding}`);

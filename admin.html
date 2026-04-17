@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.41 -->
+<!-- MYB Roster Admin v6.42 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.41">
+    <link rel="stylesheet" href="shared.css?v=6.42">
 
     <style>
         body {
@@ -2503,8 +2503,10 @@
                     <button id="rosterApplyBtn" class="btn-save">Save changes</button>
                     <p class="save-hint">Tick the days you want to keep, then tap Save changes</p>
                     <button id="rosterCancelBtn" class="roster-cancel-btn">Upload different file</button>
-                    <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
+
+                <!-- Feedback lives outside the review section so it persists after the section is hidden -->
+                <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
 
             </div>
         </div>
@@ -2550,6 +2552,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.41"></script>
+<script type="module" src="./admin-app.js?v=6.42"></script>
 </body>
 </html>
