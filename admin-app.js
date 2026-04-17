@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.44';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.44';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.45';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.45';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2872,7 +2872,7 @@ if (overridesMonthFilter) {
             await new Promise((resolve, reject) => {
                 if (window.mammoth) { resolve(); return; }
                 const s = document.createElement('script');
-                s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1/mammoth.browser.min.js';
+                s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
                 s.onload  = resolve;
                 s.onerror = () => reject(new Error('Could not load converter'));
                 document.head.appendChild(s);
@@ -2931,10 +2931,11 @@ window.addEventListener('beforeprint', () => {
  * One-time cleanup: finds and deletes any annual_leave overrides that fall on
  * a Sunday. These can't be created any more but may exist from before v5.73.
  * Runs silently on admin page load — logs a summary to the console only.
- * Safe to leave in permanently; once all Sunday AL records are gone it will
- * find nothing and do nothing.
+ * Skipped after the first clean run via localStorage flag to avoid a full
+ * Firestore scan on every subsequent page load.
  */
 async function purgeSundayAL() {
+    if (localStorage.getItem('purgeSundayAL_done') === '1') return;
     try {
         const snap = await getDocs(query(
             collection(db, 'overrides'),
@@ -2945,6 +2946,7 @@ async function purgeSundayAL() {
 
         if (toDelete.length === 0) {
             console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
+            localStorage.setItem('purgeSundayAL_done', '1');
             return;
         }
 
@@ -2954,6 +2956,7 @@ async function purgeSundayAL() {
 
         console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,
             toDelete.map(d => `${d.data().memberName} ${d.data().date}`));
+        localStorage.setItem('purgeSundayAL_done', '1');
 
         // Refresh the in-memory cache so Saved Changes reflects the cleanup
         const removedIds = new Set(toDelete.map(d => d.id));
@@ -3029,10 +3032,15 @@ if ('serviceWorker' in navigator) {
             });
 
             // Poll for updates every 60 minutes (catches long-lived sessions).
-            // Paused when the page is hidden to avoid unnecessary background network traffic.
-            const updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+            // Cleared on hidden and restarted on visible to avoid background network traffic.
+            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
             document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') clearInterval(updateInterval);
+                if (document.visibilityState === 'hidden') {
+                    clearInterval(updateInterval);
+                } else {
+                    clearInterval(updateInterval);
+                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+                }
             });
         })
         .catch(e => console.warn('[SW] Registration failed:', e));
