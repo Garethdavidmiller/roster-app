@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.39 -->
+<!-- MYB Roster Admin v6.40 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,7 +9,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.39">
+    <link rel="stylesheet" href="shared.css?v=6.40">
 
     <style>
         body {
@@ -778,7 +778,7 @@
 
         /* Hide time area when row is not active */
         .day-row:not(.active) .col-time { visibility: hidden; }
-        /* Fixed types (AL, Make Rest Day): hide inputs, show note instead */
+        /* Fixed types (AL, Set as Rest Day): hide inputs, show note instead */
         .day-row.active.fixed-type .col-time .time-input,
         .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
         .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
@@ -2550,6 +2550,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.39"></script>
+<script type="module" src="./admin-app.js?v=6.40"></script>
 </body>
 </html>

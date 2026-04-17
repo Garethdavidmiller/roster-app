@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.39` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `6.40` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -19,7 +19,7 @@
 |-------------|-----------|
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON of a Firebase service account key with Functions deploy permissions |
 | `HUDDLE_SECRET` | Bearer token Power Automate sends to `ingestHuddle` — must also be in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
-| `ROSTER_SECRET` | Bearer token the admin page sends to `parseRosterPDF` — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET` |
+| `ROSTER_SECRET` | Bearer token the admin page sends to `parseRosterPDF` — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET`. **⚠ The current value is hardcoded in `admin-app.js` (visible in page source — known limitation, see issue #14). Rotate it if the function is ever abused.** |
 | `ANTHROPIC_API_KEY` | API key for Claude AI (used by `parseRosterPDF` to read the roster PDF) — Firebase Secret Manager only, not needed in GitHub Actions: `firebase functions:secrets:set ANTHROPIC_API_KEY` |
 
 **GitHub Actions workflows:**
