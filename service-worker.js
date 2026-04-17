@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v6.45
+// MYB Roster — Service Worker v6.46
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,11 +15,11 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '6.45';
+const APP_VERSION = '6.46';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
-const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'app.js', 'admin-app.js', 'roster-data.js', 'firebase-client.js', 'shared.css'];
+const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'app.js', 'admin-app.js', 'roster-data.js', 'firebase-client.js', 'shared.css', 'paycalc.html', 'paycalc.js'];
 
 // Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
 const CORE_ASSETS = [
@@ -30,7 +30,9 @@ const CORE_ASSETS = [
     "./roster-data.js",
     "./firebase-client.js",
     "./shared.css",
-    "./manifest.json"
+    "./manifest.json",
+    "./paycalc.html",
+    "./paycalc.js"
 ];
 
 // Icons — cached individually so a transient network error on one icon does not

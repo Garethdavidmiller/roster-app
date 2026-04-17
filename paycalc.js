@@ -1,0 +1,1670 @@
+'use strict';
+
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+// Single source of truth for all app constants — matches MYB Roster pattern.
+// ⚠️  TAX YEAR ROLLOVER: Each April, update the following:
+//     APP_VERSION, ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET,
+//     and the TAX / NI / SL threshold values below.
+//     P48 anchor (13 Feb 2026) stays fixed as the offset reference point.
+const CONFIG = {
+  APP_VERSION:    '1.21',
+  // Period arithmetic
+  ANCHOR_DATE:    new Date(2026, 1, 13), // P48 payday: 13 Feb 2026 (fixed reference)
+  PERIOD_DAYS:    28,
+  PERIODS_PER_YR: 13,
+  // Contractual — CEA grade, Marylebone
+  // Grade — CEA only for now. CES and Dispatch planned; do not add yet.
+  GRADE:          'CEA',
+  CONTRACTED_HRS: 140,                   // hours per 28-day period
+  LONDON_ALLOW:   276.16,               // London Allowance per period (£3,590.08/yr)
+  FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
+  LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
+  // ── Tax year definitions ────────────────────────────────────────────────────
+  // "Tax year" here means: payday falls in that Apr→Mar window.
+  // 2025/26: P37 (paid ~11 Apr 2025) → P49 (paid ~13 Mar 2026)  offsets -11 to +1
+  // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
+  // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
+  TAX_YEARS: [
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.08 }, // pre-award £267.08 (P8–P28); new £276.16 from P36 (Oct award)
+    { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
+  ],
+};
+
+// Convenience aliases (keeps calculation code readable)
+const P_YR   = CONFIG.PERIODS_PER_YR;
+const CONTR  = CONFIG.CONTRACTED_HRS;
+
+// ── TAX & NI THRESHOLDS BY TAX YEAR ──────────────────────────────────────────
+// All annual figures ÷ 13 to give 4-weekly amounts.
+// Both years confirmed: personal allowance and band thresholds frozen at 2025/26 levels
+// until April 2028 (Autumn Budget 2024). NI rates and thresholds unchanged for 2026/27.
+// ⚠️  Review after each Autumn Budget and Spring Statement.
+const TAX_BY_YEAR = {
+  '2025/26': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 },
+  '2026/27': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 }, // confirmed frozen
+};
+const NI_BY_YEAR = {
+  '2025/26': { pt: 12570/P_YR, uel: 50270/P_YR, r8:0.08, r2:0.02 },
+  '2026/27': { pt: 12570/P_YR, uel: 50270/P_YR, r8:0.08, r2:0.02 }, // confirmed unchanged
+};
+// Student loan thresholds by tax year — HMRC publishes these each April.
+// ⚠️ Review after each Autumn Budget and update next tax year's values.
+const SL_BY_YEAR = {
+  '2025/26': {
+    plan1:   { t: 24990/P_YR, r: 0.09 },
+    plan2:   { t: 27295/P_YR, r: 0.09 },
+    plan4:   { t: 31395/P_YR, r: 0.09 }, // Scotland
+    plan5:   { t: 25000/P_YR, r: 0.09 },
+    postgrad:{ t: 21000/P_YR, r: 0.06 },
+  },
+  '2026/27': {
+    plan1:   { t: 26900/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026
+    plan2:   { t: 29385/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026
+    plan4:   { t: 33795/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026 (Scotland)
+    plan5:   { t: 25000/P_YR, r: 0.09 }, // unchanged
+    postgrad:{ t: 21000/P_YR, r: 0.06 }, // unchanged
+  },
+};
+
+// Scottish income tax bands (Holyrood-set). Bands are stored as per-period
+// TAXABLE income tops (i.e. total income threshold minus PA, divided by P_YR).
+// PA is still set by Westminster (£12,570 both years).
+// Source: gov.scot Scottish Income Tax factsheets 2025/26 and 2026/27.
+// ⚠️ Update each year — especially starter and basic tops which Holyrood adjusts annually.
+const SCOTTISH_TAX_BY_YEAR = {
+  '2025/26': { pa: 12570/P_YR, bands: [
+    { top:  2827/P_YR, rate: 0.19 }, // Starter  19%  £12,571–£15,397
+    { top: 14921/P_YR, rate: 0.20 }, // Basic    20%  £15,397–£27,491
+    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £27,491–£43,662
+    { top: 62430/P_YR, rate: 0.42 }, // Higher   42%  £43,662–£75,000
+    { top: 112570/P_YR, rate: 0.45 }, // Advanced 45%  £75,000–£125,140
+    { top: Infinity,   rate: 0.48 }, // Top      48%  over £125,140
+  ]},
+  '2026/27': { pa: 12570/P_YR, bands: [
+    { top:  3967/P_YR, rate: 0.19 }, // Starter  19%  £12,571–£16,537
+    { top: 16956/P_YR, rate: 0.20 }, // Basic    20%  £16,537–£29,526
+    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £29,526–£43,662
+    { top: 62430/P_YR, rate: 0.42 }, // Higher   42%  £43,662–£75,000
+    { top: 112570/P_YR, rate: 0.45 }, // Advanced 45%  £75,000–£125,140
+    { top: Infinity,   rate: 0.48 }, // Top      48%  over £125,140
+  ]},
+};
+
+// HPP: (Gross − Basic) × 4/52 — confirmed by Marie Firby, Chiltern payroll
+const HPP_FRACTION = 4 / 52;
+
+// ── GRADES — contractual data per grade ───────────────────────────────────────
+// Only CEA is active. CES and Dispatch will be added here when rates are confirmed.
+// Each grade entry drives contracted hours, default rate, and default pension.
+const GRADES = {
+  cea: { label: 'CEA', rate: 20.74, contr: 140, pension: 154.77 },
+  // ces:      { label: 'CES',      rate: 0, contr: 0, pension: 0 }, // add when confirmed
+  // dispatch: { label: 'Dispatch', rate: 0, contr: 0, pension: 0 }, // add when confirmed
+};
+
+// ── STORAGE KEYS ──────────────────────────────────────────────────────────────
+const SK = { rate:'cea_rate', rates:'cea_rates', code:'cea_code', sl:'cea_sl', pension:'cea_pension', setup:'cea_setup_done', ytdPay:'cea_ytd_pay', ytdTax:'cea_ytd_tax', grade:'cea_grade' };
+// cea_rates is a JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
+// Separate rate per tax year so updating for a pay award doesn't distort historical periods.
+
+// Per-tax-year HPP storage — keyed by tax year label so prior-year data survives TY rollover.
+// cea_hpp_est_2025_26  — running/final estimate, written on every calcHPP() call
+// cea_hpp_actual_2025_26 — confirmed amount from January payslip, written by user
+function hppEstKey(ty)    { return `cea_hpp_est_${ty.label.replace('/', '_')}`; }
+function hppActualKey(ty) { return `cea_hpp_actual_${ty.label.replace('/', '_')}`; }
+// YTD (Year to Date) figures are specific to each tax year — storing them per-year
+// prevents 2025/26 YTD values from corrupting the cumulative tax calculation in 2026/27.
+function ytdPayKey(ty)    { return `cea_ytd_pay_${ty.label.replace('/', '_')}`; }
+function ytdTaxKey(ty)    { return `cea_ytd_tax_${ty.label.replace('/', '_')}`; }
+
+// Session-level tracker — prevents Settings card from auto-opening more than once per tax year
+// per browser session. Cleared on page reload. Uses tax year label as the key.
+const _settingsPrompted = new Set();
+
+// ── HELP CONTENT — per-card tip text ─────────────────────────────────────────
+// Keys match the data-help attribute on each .help-btn.
+// Tips support <strong> for emphasis — rendered via innerHTML in the lightbox.
+const HELP_CONTENT = {
+  hours: {
+    title: 'Your Hours — how it works',
+    tips: [
+      'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
+      'Only enter hours at a <strong>different rate</strong>: Saturdays (1.25×), overtime (1.25×), rest days (1.25×), Sundays (1.5×), Boxing Day (3×).',
+      '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
+      'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time.',
+      'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
+      'Each entry updates the estimate instantly — no need to tap a calculate button.',
+    ],
+  },
+  settings: {
+    title: 'Settings — where to find things',
+    tips: [
+      '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. The CEA rate is currently £20.74. It changes each April with the pay award.',
+      '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). Most CEA staff are on 1257L. A code starting with S means you pay Scottish income tax rates.',
+      '<strong>Pension:</strong> the amount shown as "Smart RPS CR Scheme" on your payslip. It can vary slightly period to period — update it if your payslip shows a different figure.',
+      '<strong>Student loan:</strong> only select a plan if a student loan deduction appears on your payslip. If you repay by direct debit, leave this as None.',
+      'Settings are saved per tax year — updating your rate for 2026/27 won\'t affect your 2025/26 figures.',
+    ],
+  },
+  accuracy: {
+    title: 'Improve Accuracy — why it helps',
+    tips: [
+      'By default, the app estimates your tax each period as 1/13 of your annual allowance. This is usually close, but can drift if you had an unusual period earlier in the year.',
+      'Entering <strong>Year to Date figures</strong> switches to the same calculation method your employer uses — significantly more accurate.',
+      'Find <strong>"Total taxable pay"</strong> and <strong>"Total tax deducted"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
+      'Once your January payslip arrives with the confirmed Holiday Pay Premium amount, enter it in the <strong>Holiday Pay Premium</strong> card below to replace the running estimate.',
+    ],
+  },
+  hpp: {
+    title: 'Holiday Pay Premium (HPP)',
+    tips: [
+      'When you take annual leave, Chiltern only pay your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay, and Sunday pay for those days.',
+      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your variable pay (overtime, RDW, Sundays, London Allowance) across the whole tax year.',
+      'This is paid as a <strong>single lump sum in your January payslip</strong> every year — it doesn\'t appear on any other payslip.',
+      'The estimate builds across all periods you\'ve entered in the current tax year. When you move into the next tax year, the prior year\'s estimate carries forward into this card — enter the confirmed January payslip figure there to replace it.',
+    ],
+  },
+  backpay: {
+    title: 'Pay Rise Back Pay — when to use it',
+    tips: [
+      'Use this when a pay award is <strong>backdated to 1 April</strong>. Chiltern calculate the rate difference across every period since April, then pay the total on one payslip.',
+      'Enter your <strong>old and new hourly rates</strong> and London Allowance figures. The calculator uses the hours you\'ve already entered for each period.',
+      'The lump sum is taxed in the period it lands — if it pushes your income over a higher tax band that month, you may receive less than the gross figure shown.',
+      'Tap <strong>"Apply new rate"</strong> to update Settings with the new rate so all future estimates use the correct figure.',
+    ],
+  },
+};
+function periodKey(pNum) { return `cea_p${pNum}`; }
+
+// Period data schema — all fields that get saved per period
+function emptyPeriodData() {
+  return { satH:0, satM:0, bhH:0, bhM:0, bhOtH:0, bhOtM:0, otH:0, otM:0, rdwH:0, rdwM:0, sunH:0, sunM:0, boxH:0, boxM:0, peer:0, slSkip:false, otherAdj:0 };
+}
+
+// ── DATE HELPERS ──────────────────────────────────────────────────────────────
+const fd = d => d.toLocaleDateString('en-GB', {
+  day:'numeric', month:'short', year:'2-digit', timeZone:'Europe/London'
+});
+const fdShort = d => d.toLocaleDateString('en-GB', {
+  day:'numeric', month:'short', timeZone:'Europe/London'
+});
+const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+// ── INPUT HELPERS ─────────────────────────────────────────────────────────────
+function numVal(id)    { return parseFloat(document.getElementById(id).value) || 0; }
+function intVal(id)    { return parseInt(document.getElementById(id).value)   || 0; }
+function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
+
+function clampMins(mId) {
+  const el = document.getElementById(mId);
+  const v  = parseInt(el.value);
+  if (!isNaN(v)) { if (v > 59) el.value = 59; if (v < 0) el.value = 0; }
+}
+
+function onHhMm(hId, mId, warnId) {
+  // Validate Saturday hours don't exceed 140
+  if (warnId) {
+    const hrs = hhmmDec(hId, mId);
+    const warn = document.getElementById(warnId);
+    warn.classList.toggle('show', hrs > CONTR);
+    if (hrs > CONTR) {
+      document.getElementById(hId).value = CONTR;
+      document.getElementById(mId).value = 0;
+    }
+  }
+  calculate();
+}
+
+// ── PAY PERIODS ───────────────────────────────────────────────────────────────
+// Structure of each period:
+//   cutoff  = Saturday (last day shifts count; also the hours-submission deadline)
+//   start   = Sunday after the previous period's cutoff (first day shifts count)
+//   payday  = Friday 6 days after cutoff (the day Chiltern pay into your account)
+function getPeriods() {
+  const out = [];
+  for (let offset = CONFIG.FIRST_OFFSET; offset <= CONFIG.LAST_OFFSET; offset++) {
+    const payday = new Date(CONFIG.ANCHOR_DATE);
+    payday.setDate(payday.getDate() + offset * CONFIG.PERIOD_DAYS);
+    const cutoff = new Date(payday); cutoff.setDate(cutoff.getDate() - 6);
+    // start = day after previous cutoff = cutoff - 27 days (not payday - 27)
+    const start  = new Date(cutoff); start.setDate(start.getDate() - CONFIG.PERIOD_DAYS + 1);
+    out.push({ payday, start, cutoff, num: 48 + offset });
+  }
+  return out;
+}
+
+function hasBoxingDay(p) {
+  // Check whether 26 Dec falls within the shift window (start → cutoff)
+  for (let y = p.start.getFullYear(); y <= p.cutoff.getFullYear(); y++) {
+    const bd = new Date(y, 11, 26);
+    if (bd >= p.start && bd <= p.cutoff) return true;
+  }
+  return false;
+}
+
+// ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
+// England & Wales bank holidays for the covered period range (P37–P62, Apr 2025–Mar 2027).
+// Boxing Day (26 Dec) is handled separately by hasBoxingDay() at 3× rate.
+// ⚠️ Update each year with confirmed dates from gov.uk/bank-holidays
+const BANK_HOLIDAYS_EW = [
+  new Date(2025,  3, 18), // Good Friday 2025
+  new Date(2025,  3, 21), // Easter Monday 2025
+  new Date(2025,  4,  5), // Early May BH 2025
+  new Date(2025,  4, 26), // Spring BH 2025
+  new Date(2025,  7, 25), // Summer BH 2025
+  new Date(2025, 11, 25), // Christmas Day 2025
+  new Date(2026,  0,  1), // New Year's Day 2026
+  new Date(2026,  3,  3), // Good Friday 2026
+  new Date(2026,  3,  6), // Easter Monday 2026
+  new Date(2026,  4,  4), // Early May BH 2026
+  new Date(2026,  4, 25), // Spring BH 2026
+  new Date(2026,  7, 31), // Summer BH 2026
+  new Date(2026, 11, 25), // Christmas Day 2026
+  new Date(2026, 11, 28), // Boxing Day substitute 2026 (26 Dec is a Saturday → Mon 28 Dec)
+  new Date(2027,  0,  1), // New Year's Day 2027
+];
+
+function hasBankHoliday(p) {
+  // Returns true if any E&W bank holiday (other than 26 Dec) falls in the period window
+  return BANK_HOLIDAYS_EW.some(bh => bh >= p.start && bh <= p.cutoff);
+}
+
+function updateBhRows(p) {
+  const hasBH = hasBankHoliday(p);
+  document.getElementById('bhRow').classList.toggle('hidden', !hasBH);
+  document.getElementById('bhOtRow').classList.toggle('hidden', !hasBH);
+  if (!hasBH) {
+    document.getElementById('bhH').value  = '';
+    document.getElementById('bhM').value  = '';
+    document.getElementById('bhOtH').value = '';
+    document.getElementById('bhOtM').value = '';
+  }
+}
+
+// ── TAX YEAR HELPERS ──────────────────────────────────────────────────────────
+function getTaxYearForOffset(offset) {
+  return CONFIG.TAX_YEARS.find(ty => offset >= ty.first && offset <= ty.last) || CONFIG.TAX_YEARS[0];
+}
+function getThresholds(yearLabel) {
+  const ty = CONFIG.TAX_YEARS.find(t => t.label === yearLabel) || CONFIG.TAX_YEARS[0];
+  return {
+    tax:         TAX_BY_YEAR[yearLabel]          || TAX_BY_YEAR['2025/26'],
+    scottishTax: SCOTTISH_TAX_BY_YEAR[yearLabel] || SCOTTISH_TAX_BY_YEAR['2025/26'],
+    ni:          NI_BY_YEAR[yearLabel]           || NI_BY_YEAR['2025/26'],
+    sl:          SL_BY_YEAR[yearLabel]           || SL_BY_YEAR['2025/26'],
+    londonAllow: ty.londonAllow,
+  };
+}
+
+/**
+ * Apply progressive tax bands to a taxable amount.
+ * @param {number} taxable - Taxable income (already after personal allowance).
+ * @param {Array<{top: number, rate: number}>} bands - Bands with cumulative taxable tops.
+ * @param {number} [scale=1] - Multiply all tops by this factor (for cumulative PAYE with N periods).
+ * @returns {number} Tax due.
+ */
+function calcBandedTax(taxable, bands, scale = 1) {
+  let tax = 0, prev = 0;
+  for (const band of bands) {
+    if (taxable <= prev) break;
+    const top   = band.top === Infinity ? Infinity : band.top * scale;
+    const slice = Math.min(taxable, top) - prev;
+    tax += slice * band.rate;
+    prev = top;
+  }
+  return tax;
+}
+
+// ── PERIOD SELECT ─────────────────────────────────────────────────────────────
+function buildPeriodSelect() {
+  const sel     = document.getElementById('periodSelect');
+  const periods = getPeriods();
+  const today   = new Date();
+
+  // Default to the first period whose payday is still in the future — this is a pay predictor,
+  // so staff want to see what they're about to be paid, not what they already received.
+  // If all paydays have passed (end of supported range), fall back to the last period.
+  const upcoming = periods.find(p => p.payday > today);
+  const defPNum  = upcoming ? upcoming.num : periods[periods.length - 1].num;
+
+  sel.innerHTML = '';
+  let currentGroup    = null;
+  let currentTyLabel  = null;
+
+  periods.forEach(p => {
+    // Start a new <optgroup> when the tax year changes
+    const ty = getTaxYearForOffset(p.num - 48);
+    if (ty.label !== currentTyLabel) {
+      currentGroup = document.createElement('optgroup');
+      currentGroup.label = `Tax year ${ty.label}`;
+      sel.appendChild(currentGroup);
+      currentTyLabel = ty.label;
+    }
+
+    const o = document.createElement('option');
+    o.value = p.num;
+    // Plain-language label — "Paid 13 Feb 2026" — makes the date unambiguous
+    const payStr = p.payday.toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+    });
+    o.textContent = `Paid ${payStr}`;
+    currentGroup.appendChild(o);
+  });
+
+  sel.value = defPNum;
+  onPeriodChange();
+  buildBackPayPeriodSelect();
+}
+
+function buildBackPayPeriodSelect() {
+  const sel     = document.getElementById('backPayPeriod');
+  const fromSel = document.getElementById('backPayFrom');
+  if (!sel && !fromSel) return;
+
+  const periods = getPeriods();
+
+  function populate(el, placeholder) {
+    if (!el) return;
+    el.innerHTML = `<option value="">${placeholder}</option>`;
+    let currentGroup = null, currentTyLabel = null;
+    periods.forEach(p => {
+      const ty = getTaxYearForOffset(p.num - 48);
+      if (ty.label !== currentTyLabel) {
+        currentGroup = document.createElement('optgroup');
+        currentGroup.label = `Tax year ${ty.label}`;
+        el.appendChild(currentGroup);
+        currentTyLabel = ty.label;
+      }
+      const o = document.createElement('option');
+      o.value = p.num;
+      const payStr = p.payday.toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+      });
+      o.textContent = `P${p.num} · Paid ${payStr}`;
+      currentGroup.appendChild(o);
+    });
+  }
+
+  populate(sel,     '— select when the lump sum will land —');
+  populate(fromSel, '— all periods with saved data —');
+}
+
+// ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
+// Loads the stored rate for the given tax year into the hourly rate field.
+// Falls back to the legacy single rate, then to the CEA default.
+function updateRateForPeriod(ty) {
+  const rates = JSON.parse(localStorage.getItem(SK.rates) || '{}');
+  const rate  = rates[ty.label]
+             || parseFloat(localStorage.getItem(SK.rate))
+             || GRADES.cea.rate;
+  document.getElementById('hourlyRate').value = rate.toFixed(2);
+  // Update label to show which tax year this rate applies to
+  const lbl = document.getElementById('rateYearLabel');
+  if (lbl) lbl.textContent = `for ${ty.label}`;
+}
+
+// Loads the stored Year to Date figures for this tax year into the Improve Accuracy fields.
+// Called from onPeriodChange() so values reset correctly when switching between tax years.
+function updateYtdForTaxYear(ty) {
+  const payEl = document.getElementById('ytdPay');
+  const taxEl = document.getElementById('ytdTax');
+  if (!payEl || !taxEl) return;
+  if (document.activeElement !== payEl) payEl.value = localStorage.getItem(ytdPayKey(ty)) || '';
+  if (document.activeElement !== taxEl) taxEl.value = localStorage.getItem(ytdTaxKey(ty)) || '';
+}
+
+// ── TAX YEAR TABS ─────────────────────────────────────────────────────────────
+function updateTyTabs() {
+  const pNum = currentPeriodNum();
+  const offset = pNum - 48;
+  CONFIG.TAX_YEARS.forEach((ty, i) => {
+    const tab = document.getElementById(`tyTab${i}`);
+    if (tab) tab.classList.toggle('active', offset >= ty.first && offset <= ty.last);
+  });
+}
+
+function jumpToTaxYear(tyIndex) {
+  const ty      = CONFIG.TAX_YEARS[tyIndex];
+  if (!ty) return;
+  const periods = getPeriods();
+  // Find first period of that tax year
+  const first   = periods.find(p => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
+  if (!first) return;
+  document.getElementById('periodSelect').value = first.num;
+  onPeriodChange();
+}
+
+function prevPeriod() {
+  const sel     = document.getElementById('periodSelect');
+  const periods = getPeriods();
+  const idx     = periods.findIndex(x => x.num === +sel.value);
+  if (idx > 0) { sel.value = periods[idx - 1].num; onPeriodChange(); }
+}
+
+function nextPeriod() {
+  const sel     = document.getElementById('periodSelect');
+  const periods = getPeriods();
+  const idx     = periods.findIndex(x => x.num === +sel.value);
+  if (idx < periods.length - 1) { sel.value = periods[idx + 1].num; onPeriodChange(); }
+}
+
+function onPeriodChange() {
+  const pNum    = +document.getElementById('periodSelect').value;
+  const periods = getPeriods();
+  const p       = periods.find(x => x.num === pNum);
+  if (!p) return;
+  const cutStr  = fdShort(p.cutoff);
+
+  // Prev / Next button states
+  const idx = periods.findIndex(x => x.num === pNum);
+  document.getElementById('prevBtn').disabled = (idx <= 0);
+  document.getElementById('nextBtn').disabled = (idx >= periods.length - 1);
+
+  // Meta row — two lines
+  // Row 1: the shift dates (start → cutoff, not start → payday)
+  // Row 2: payday + tax year (payday is already in the dropdown label, but useful as context)
+  const ty = getTaxYearForOffset(p.num - 48);
+  const startStr = p.start.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', timeZone: 'Europe/London'
+  });
+  const cutLongStr = p.cutoff.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+  });
+  const payStr = p.payday.toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'short', timeZone: 'Europe/London'
+  });
+  document.getElementById('pmRange').textContent   = `${startStr} – ${cutLongStr}`;
+  document.getElementById('pmSub').textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
+  document.getElementById('periodBadge').textContent = `P${p.num}`;
+  document.getElementById('netPeriod').textContent   = `Paid ${fd(p.payday)}`;
+
+  // Update cut-off date in sub descriptions
+  document.getElementById('overtimeSub').textContent =
+    `Hours beyond your roster this period (cut-off: ${cutStr}). Shows as "Overtime 1.25" on your payslip.`;
+  document.getElementById('rdwSub').textContent =
+    `Shifts worked on your normal rest day (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
+  document.getElementById('sundaySub').textContent =
+    `All Sunday hours are at 1.5× (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
+
+  // Boxing Day
+  const boxing = hasBoxingDay(p);
+  document.getElementById('boxingBanner').classList.toggle('visible', boxing);
+  document.getElementById('boxingRow').classList.toggle('hidden', !boxing);
+  if (!boxing) {
+    document.getElementById('boxH').value = '';
+    document.getElementById('boxM').value = '';
+  }
+
+  // Update tax year tab active state
+  updateTyTabs();
+
+  // Load the rate and Year to Date figures for this period's tax year
+  updateRateForPeriod(ty);
+  updateYtdForTaxYear(ty);
+
+  // Settings confirmation check for this tax year.
+  const tyConfirmed = localStorage.getItem(settingsKey(ty));
+  if (tyConfirmed) {
+    // Confirmed — hide banner, update card header hint with saved values.
+    document.getElementById('setupBanner').classList.add('hidden');
+    const rate = parseFloat(document.getElementById('hourlyRate').value || '20.74').toFixed(2);
+    const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
+    document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
+  } else {
+    // Not yet confirmed — show banner with the current tax year label.
+    document.getElementById('setupBannerTitle').textContent = `👋 Set up for ${ty.label}`;
+    document.getElementById('setupBannerBody').innerHTML =
+      `Enter your <strong>hourly rate</strong> and <strong>tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
+    document.getElementById('setupBanner').classList.remove('hidden');
+    // Auto-open settings once per session per TY — only for returning users (new users
+    // already see the settings card open). Show the in-card notice for returning users.
+    if (!_settingsPrompted.has(ty.label)) {
+      _settingsPrompted.add(ty.label);
+      if (localStorage.getItem(SK.setup)) {
+        document.getElementById('settingsToggle').classList.add('open');
+        document.getElementById('settingsBody').classList.add('open');
+        const notice = document.getElementById('settingsNewYearNotice');
+        notice.textContent = `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
+        notice.classList.remove('hidden');
+      }
+    }
+  }
+
+  // Show/hide bank holiday rows based on whether this period has any
+  updateBhRows(p);
+
+  // Load saved data for this period
+  loadPeriodData(p.num);
+
+  // Set data attribute for print header annotation
+  const hdr = document.querySelector('.app-header');
+  if (hdr) {
+    const now = new Date().toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric'
+    });
+    hdr.setAttribute('data-print-line',
+      `Period P${p.num} · Paid ${fdShort(p.payday)}  ·  Printed ${now}`
+    );
+  }
+}
+
+// ── PERIOD DATA SAVE / LOAD ───────────────────────────────────────────────────
+function currentPeriodNum() {
+  return +document.getElementById('periodSelect').value;
+}
+
+function readFormData() {
+  return {
+    satH: intVal('satH'), satM: intVal('satM'),
+    bhH:  intVal('bhH'),  bhM:  intVal('bhM'),
+    bhOtH:intVal('bhOtH'),bhOtM:intVal('bhOtM'),
+    otH:  intVal('otH'),  otM:  intVal('otM'),
+    rdwH: intVal('rdwH'), rdwM: intVal('rdwM'),
+    sunH: intVal('sunH'), sunM: intVal('sunM'),
+    boxH: intVal('boxH'), boxM: intVal('boxM'),
+    peer: +document.getElementById('peerVal').textContent,
+    slSkip:   document.getElementById('slSkipCheck').checked,
+    otherAdj: parseFloat(document.getElementById('otherAdj').value) || 0,
+  };
+}
+
+function writeFormData(d) {
+  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  set('satH', d.satH || ''); set('satM', d.satM || '');
+  set('bhH',   d.bhH   || ''); set('bhM',   d.bhM   || '');
+  set('bhOtH', d.bhOtH || ''); set('bhOtM', d.bhOtM || '');
+  set('otH',   d.otH   || ''); set('otM',   d.otM   || '');
+  set('rdwH', d.rdwH || ''); set('rdwM', d.rdwM || '');
+  set('sunH', d.sunH || ''); set('sunM', d.sunM || '');
+  set('boxH', d.boxH || ''); set('boxM', d.boxM || '');
+  document.getElementById('peerVal').textContent  = d.peer || 0;
+  document.getElementById('slSkipCheck').checked  = d.slSkip || false;
+  document.getElementById('otherAdj').value        = d.otherAdj || '';
+}
+
+function isDataEmpty(d) {
+  return !d.satH && !d.satM &&
+         !d.bhH  && !d.bhM  &&
+         !d.bhOtH && !d.bhOtM &&
+         !d.otH  && !d.otM  &&
+         !d.rdwH && !d.rdwM &&
+         !d.sunH && !d.sunM &&
+         !d.boxH && !d.boxM && !d.peer &&
+         !d.slSkip && !d.otherAdj;
+}
+
+function autosave() {
+  calculate(); // no-op double-call is harmless but kept here for standalone inputs
+  const pNum = currentPeriodNum();
+  const d    = readFormData();
+  try {
+    localStorage.setItem(periodKey(pNum), JSON.stringify(d));
+    updateSaveStatus(pNum);
+  } catch(e) { /* storage unavailable */ }
+}
+
+function loadPeriodData(pNum) {
+  let d = emptyPeriodData();
+  try {
+    const raw = localStorage.getItem(periodKey(pNum));
+    if (raw) d = JSON.parse(raw);
+  } catch(e) { /* use empty */ }
+  writeFormData(d);
+  // Auto-expand "more options" if this period has extras saved
+  const hasExtras = d.slSkip || d.otherAdj;
+  const extraBody = document.getElementById('hoursExtra');
+  const extraBtn  = document.getElementById('hoursShowMore');
+  if (hasExtras && !extraBody.classList.contains('open')) {
+    extraBody.classList.add('open');
+    extraBtn.classList.add('open');
+    extraBtn.querySelector('.show-more-arrow').textContent = '▲';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Fewer options ';
+  } else if (!hasExtras && extraBody.classList.contains('open')) {
+    extraBody.classList.remove('open');
+    extraBtn.classList.remove('open');
+    extraBtn.querySelector('.show-more-arrow').textContent = '▼';
+    document.getElementById('hoursShowMoreLabel').textContent = 'More options (period adjustments) ';
+  }
+  updateSaveStatus(pNum);
+  calculate();
+}
+
+function updateSaveStatus(pNum) {
+  const el  = document.getElementById('saveStatus');
+  const raw = localStorage.getItem(periodKey(pNum));
+  if (raw) {
+    const d = JSON.parse(raw);
+    if (!isDataEmpty(d)) {
+      el.textContent = '✓ Entries saved for this period';
+      el.className   = 'save-status saved';
+      return;
+    }
+  }
+  el.textContent = 'No entries saved for this period';
+  el.className   = 'save-status unsaved';
+}
+
+let _clearPending = false;
+let _clearTimer   = null;
+
+function clearPeriod() {
+  const btn = document.getElementById('clearBtn');
+  if (!_clearPending) {
+    _clearPending = true;
+    btn.textContent = 'Tap again to confirm';
+    btn.classList.add('confirming');
+    _clearTimer = setTimeout(() => {
+      _clearPending   = false;
+      btn.textContent = 'Clear all entries';
+      btn.classList.remove('confirming');
+    }, 3000);
+    return;
+  }
+  clearTimeout(_clearTimer);
+  _clearPending   = false;
+  btn.textContent = 'Clear all entries';
+  btn.classList.remove('confirming');
+  const pNum = currentPeriodNum();
+  localStorage.removeItem(periodKey(pNum));
+  writeFormData(emptyPeriodData());
+  updateSaveStatus(pNum);
+  calculate();
+}
+
+// ── SETTINGS SAVE / LOAD ──────────────────────────────────────────────────────
+// settingsKey: per-tax-year "confirmed" flag, separate from the raw saved values.
+function settingsKey(ty) { return `cea_setup_${ty.label.replace('/', '_')}`; }
+
+// saveSettings: persists all field values. Called on every input change (auto-save).
+// Does NOT set the confirmed flag or collapse the card — that's confirmSettings().
+function saveSettings() {
+  const rateVal = document.getElementById('hourlyRate').value;
+  const pNum    = currentPeriodNum();
+  const curP    = getPeriods().find(x => x.num === pNum);
+  const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const rates   = JSON.parse(localStorage.getItem(SK.rates) || '{}');
+  rates[curTy.label] = parseFloat(rateVal) || 20.74;
+  localStorage.setItem(SK.rates,     JSON.stringify(rates));
+  localStorage.setItem(SK.rate,      rateVal);
+  localStorage.setItem(SK.code,      document.getElementById('taxCode').value);
+  localStorage.setItem(SK.sl,        document.getElementById('studentLoan').value);
+  localStorage.setItem(SK.pension,   document.getElementById('pensionAmt').value);
+  localStorage.setItem(ytdPayKey(curTy), document.getElementById('ytdPay').value);
+  localStorage.setItem(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
+  localStorage.setItem(SK.grade,         document.getElementById('gradeSelect').value);
+}
+
+// confirmSettings: called by the Save button. Saves, marks this tax year as confirmed,
+// updates the card header hint, collapses the card.
+function confirmSettings() {
+  saveSettings();
+  const pNum  = currentPeriodNum();
+  const curP  = getPeriods().find(x => x.num === pNum);
+  const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  localStorage.setItem(settingsKey(curTy), '1');
+  localStorage.setItem(SK.setup, '1');
+  document.getElementById('setupBanner').classList.add('hidden');
+  document.getElementById('settingsNewYearNotice').classList.add('hidden');
+  // Update header hint to show confirmed summary
+  const rate = parseFloat(document.getElementById('hourlyRate').value).toFixed(2);
+  const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
+  document.getElementById('settingsHint').textContent =
+    `✓ ${curTy.label} — £${rate}/hr · ${code}`;
+  // Brief "saved" confirmation then collapse
+  const fb = document.getElementById('settingsSaveFeedback');
+  fb.textContent = '✓ Settings saved';
+  setTimeout(() => {
+    fb.textContent = '';
+    document.getElementById('settingsToggle').classList.remove('open');
+    document.getElementById('settingsBody').classList.remove('open');
+  }, 900);
+  calculate();
+}
+
+function loadSettings() {
+  // Migrate legacy single rate to per-tax-year rates if not already done
+  if (!localStorage.getItem(SK.rates)) {
+    const legacyRate = localStorage.getItem(SK.rate);
+    if (legacyRate) {
+      const rates = {};
+      CONFIG.TAX_YEARS.forEach(ty => { rates[ty.label] = parseFloat(legacyRate); });
+      localStorage.setItem(SK.rates, JSON.stringify(rates));
+    }
+  }
+  // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
+  // no need to set it here; the field will update when buildPeriodSelect fires.
+  const code    = localStorage.getItem(SK.code);
+  const sl      = localStorage.getItem(SK.sl);
+  const pension = localStorage.getItem(SK.pension);
+  const done    = localStorage.getItem(SK.setup);
+  if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
+  if (sl)      document.getElementById('studentLoan').value = sl;
+  if (pension) document.getElementById('pensionAmt').value  = pension;
+  // YTD values are loaded per-tax-year in updateYtdForTaxYear(), called from onPeriodChange().
+  const grade = localStorage.getItem(SK.grade);
+  if (grade) document.getElementById('gradeSelect').value = grade;
+  // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
+  const legacyYtdPay = localStorage.getItem(SK.ytdPay);
+  const legacyYtdTax = localStorage.getItem(SK.ytdTax);
+  if (legacyYtdPay || legacyYtdTax) {
+    const firstTy = CONFIG.TAX_YEARS[0];
+    if (!localStorage.getItem(ytdPayKey(firstTy))) localStorage.setItem(ytdPayKey(firstTy), legacyYtdPay || '');
+    if (!localStorage.getItem(ytdTaxKey(firstTy))) localStorage.setItem(ytdTaxKey(firstTy), legacyYtdTax || '');
+    localStorage.removeItem(SK.ytdPay);
+    localStorage.removeItem(SK.ytdTax);
+  }
+  // On repeat visits: hide banner and collapse Settings
+  if (done) {
+    // Migration: mark all tax years confirmed if global setup flag already set (v1.13+)
+    CONFIG.TAX_YEARS.forEach(ty => {
+      if (!localStorage.getItem(settingsKey(ty))) {
+        localStorage.setItem(settingsKey(ty), '1');
+      }
+    });
+    document.getElementById('settingsToggle').classList.remove('open');
+    document.getElementById('settingsBody').classList.remove('open');
+  }
+  // Migration: copy legacy global hppActual (cea_hpp_actual) to per-year key if needed
+  const legacyHppActual = localStorage.getItem('cea_hpp_actual');
+  if (legacyHppActual) {
+    const firstTy = CONFIG.TAX_YEARS[0];
+    if (!localStorage.getItem(hppActualKey(firstTy))) {
+      localStorage.setItem(hppActualKey(firstTy), legacyHppActual);
+    }
+    localStorage.removeItem('cea_hpp_actual');
+  }
+}
+
+// ── CALCULATION ENGINE ────────────────────────────────────────────────────────
+function updateBadges(rate) {
+  const f = (r, mult) => `${mult}×  ·  £${(rate * r).toFixed(2)}/hr`;
+  document.getElementById('badge-sat').textContent = f(1.25, '1.25');
+  document.getElementById('badge-bh').textContent   = f(1.25, '1.25');
+  document.getElementById('badge-bhot').textContent = f(1.25, '1.25');
+  document.getElementById('badge-ot').textContent   = f(1.25, '1.25');
+  document.getElementById('badge-rdw').textContent = f(1.25, '1.25');
+  document.getElementById('badge-sun').textContent = f(1.50, '1.5');
+  document.getElementById('badge-box').textContent = f(3.00, '3');
+}
+
+function calculate() {
+  // Resolve thresholds for the selected period's tax year
+  const _pNum   = currentPeriodNum();
+  const _curP   = getPeriods().find(x => x.num === _pNum);
+  const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL, londonAllow: LONDON } = getThresholds(_ty.label);
+
+  const rate = numVal('hourlyRate') || 20.74;
+  updateBadges(rate);
+  const r125 = rate * 1.25;
+  const r150 = rate * 1.50;
+  const r300 = rate * 3.00;
+  const peer = +document.getElementById('peerVal').textContent;
+
+  const satHrs  = hhmmDec('satH',  'satM');
+  const bhHrs   = hhmmDec('bhH',   'bhM');
+  const bhOtHrs = hhmmDec('bhOtH', 'bhOtM');
+  const oHrs    = hhmmDec('otH',   'otM');
+  const rHrs    = hhmmDec('rdwH',  'rdwM');
+  const sHrs    = hhmmDec('sunH',  'sunM');
+  const bHrs    = hhmmDec('boxH',  'boxM');
+
+  const satCapped  = Math.min(satHrs, CONTR);
+  const normHrs    = CONTR - satCapped;     // non-Saturday contracted hours
+  const bhCapped   = Math.min(bhHrs, normHrs); // clamp to available non-Sat hours
+  const nonBhNorm  = normHrs - bhCapped;    // weekday non-BH contracted hours
+
+  const gBasicNorm = nonBhNorm  * rate;   // weekday non-BH pay at 1.0×
+  const gBasicSat  = satCapped  * r125;   // Saturday contracted pay at 1.25×
+  // Bank Holiday Rostered: full 1.25× pay for contracted shifts on bank holidays.
+  // Matches payslip line "Bank Holiday Rostered 1.25" exactly.
+  const gBankHol   = bhCapped   * r125;
+  const gBhOt      = bhOtHrs   * r125;
+  const gOvertime  = oHrs      * r125;
+  const gRdw       = rHrs      * r125;
+  const gSunday    = sHrs      * r150;
+  const gBoxing    = bHrs      * r300;
+  const gPeer      = peer * 2  * rate;
+  const otherAdj   = parseFloat(document.getElementById('otherAdj').value) || 0;
+  const gross      = gBasicNorm + gBasicSat + gBankHol + gBhOt + gOvertime + gRdw + gSunday + gBoxing + gPeer + LONDON + otherAdj;
+
+  // Pension — salary sacrifice: deducted from gross before tax and NI are calculated.
+  // This reduces taxable pay and NI-able pay, saving the employee on both.
+  const pension    = numVal('pensionAmt');
+  const pensionWarn = document.getElementById('pensionWarn');
+  if (pensionWarn) pensionWarn.classList.toggle('show', pension > gross && pension > 0);
+  const sacGross   = Math.max(0, gross - pension); // clamped — pension cannot exceed gross
+
+  // Income Tax (on sacGross, not gross)
+  // Supports: nL, BR, D0, D1, NT, 0T, Kn, W1/M1/X suffix, S prefix (Scottish)
+  const rawCode   = (document.getElementById('taxCode').value || '1257L').toUpperCase().replace(/\s+/g, '');
+  const isNonCum  = /[WM]1$|X$/.test(rawCode);
+  const baseCode  = rawCode.replace(/[WM]1$|X$/, '');
+  const isScottish = /^S/.test(baseCode); // S-prefix → apply Holyrood bands
+  let tax = 0;
+  if (baseCode === 'NT') {
+    tax = 0;
+  } else if (baseCode === 'BR' || baseCode === 'SBR') {
+    tax = sacGross * (isScottish ? SCOT.bands[1].rate : TAX.r20); // basic rate (20% both)
+  } else if (baseCode === 'D0' || baseCode === 'SD0') {
+    tax = sacGross * (isScottish ? 0.42 : TAX.r40); // higher rate (42% Scotland, 40% rUK)
+  } else if (baseCode === 'D1' || baseCode === 'SD1') {
+    tax = sacGross * (isScottish ? 0.48 : TAX.r45); // top/additional rate (48% Scotland, 45% rUK)
+  } else {
+    // Banded calculation — resolve personal allowance first
+    let pa = (isScottish ? SCOT : TAX).pa; // standard allowance per period
+    if (baseCode === '0T' || baseCode === 'S0T') {
+      pa = 0;
+    } else {
+      const km = baseCode.match(/^[SC]?K(\d+)$/);
+      if (km) {
+        pa = -(parseInt(km[1]) * 10 / P_YR); // K code: negative allowance
+      } else {
+        const nm = baseCode.match(/^[SC]?(\d+)L$/);
+        if (nm) pa = parseInt(nm[1]) * 10 / P_YR;
+        // else: unrecognised code — falls back to standard allowance
+      }
+    }
+    // taxable = sacGross minus allowance (K codes: pa is negative, so taxable grows)
+    const taxable = Math.max(0, sacGross - pa);
+    if (isScottish) {
+      tax = calcBandedTax(taxable, SCOT.bands);
+    } else {
+      const basicBand = Math.max(0, TAX.b - Math.max(0, pa));
+      const highBand  = Math.max(0, TAX.h - TAX.b);
+      if      (taxable <= basicBand)            tax = taxable * TAX.r20;
+      else if (taxable <= basicBand + highBand) tax = basicBand * TAX.r20 + (taxable - basicBand) * TAX.r40;
+      else                                      tax = basicBand * TAX.r20 + highBand * TAX.r40 + (taxable - basicBand - highBand) * TAX.r45;
+    }
+  }
+
+  // ── CUMULATIVE PAYE ───────────────────────────────────────────────────────────
+  // When the user provides YTD figures from their last payslip, the app switches
+  // to HMRC's cumulative method: calculate total tax owed on all income since 6 April,
+  // then subtract what's already been collected. This corrects for overtime swings,
+  // back pay, and mid-year code changes. W1/M1/X (non-cumulative) codes are excluded.
+  const ytdP = numVal('ytdPay');
+  const ytdT = numVal('ytdTax');
+  let usingCumulative = false;
+
+  if ((ytdP > 0 || ytdT > 0) && !isNonCum && _curP) {
+    const N = (_curP.num - 48) - _ty.first + 1; // HMRC 4-weekly period number (1–13)
+    const cumGross = ytdP + sacGross;
+
+    // Resolve per-period PA — same logic as above, then scale to N periods
+    let paPerPeriod = (isScottish ? SCOT : TAX).pa;
+    if (baseCode === '0T' || baseCode === 'S0T') {
+      paPerPeriod = 0;
+    } else {
+      const km = baseCode.match(/^[SC]?K(\d+)$/);
+      if (km) {
+        paPerPeriod = -(parseInt(km[1]) * 10 / P_YR);
+      } else {
+        const nm = baseCode.match(/^[SC]?(\d+)L$/);
+        if (nm) paPerPeriod = parseInt(nm[1]) * 10 / P_YR;
+      }
+    }
+    const cumPa      = paPerPeriod * N;
+    const cumTaxable = Math.max(0, cumGross - cumPa);
+
+    let cumTaxDue = 0;
+    if (baseCode === 'NT') {
+      cumTaxDue = 0;
+    } else if (baseCode === 'BR' || baseCode === 'SBR') {
+      cumTaxDue = cumGross * (isScottish ? SCOT.bands[1].rate : TAX.r20);
+    } else if (baseCode === 'D0' || baseCode === 'SD0') {
+      cumTaxDue = cumGross * (isScottish ? 0.42 : TAX.r40);
+    } else if (baseCode === 'D1' || baseCode === 'SD1') {
+      cumTaxDue = cumGross * (isScottish ? 0.48 : TAX.r45);
+    } else if (isScottish) {
+      // Scottish cumulative: scale each band top by N periods
+      cumTaxDue = calcBandedTax(cumTaxable, SCOT.bands, N);
+    } else {
+      const cumBasicTop = TAX.b * N;
+      const cumHighTop  = TAX.h * N;
+      const cumBasicBnd = Math.max(0, cumBasicTop - Math.max(0, cumPa));
+      const cumHighBnd  = Math.max(0, cumHighTop - cumBasicTop);
+      if (cumTaxable <= cumBasicBnd) {
+        cumTaxDue = cumTaxable * TAX.r20;
+      } else if (cumTaxable <= cumBasicBnd + cumHighBnd) {
+        cumTaxDue = cumBasicBnd * TAX.r20 + (cumTaxable - cumBasicBnd) * TAX.r40;
+      } else {
+        cumTaxDue = cumBasicBnd * TAX.r20 + cumHighBnd * TAX.r40 + (cumTaxable - cumBasicBnd - cumHighBnd) * TAX.r45;
+      }
+    }
+    tax = Math.max(0, cumTaxDue - ytdT);
+    usingCumulative = true;
+  }
+
+  // NI (on sacGross)
+  const ni = sacGross <= NI.pt ? 0
+    : (Math.min(sacGross, NI.uel) - NI.pt) * NI.r8 + Math.max(0, sacGross - NI.uel) * NI.r2;
+
+  // Student Loan (on sacGross — HMRC applies SL on post-sacrifice earnings)
+  // Thresholds are looked up per tax year (they rise each April).
+  const plan    = document.getElementById('studentLoan').value;
+  const SL_PLAN = (SL || {})[plan];
+  const slSkip  = document.getElementById('slSkipCheck').checked;
+  // Show the "not deducted this period" toggle only when a plan is selected
+  document.getElementById('slSkipRow').classList.toggle('hidden', plan === 'none');
+  const sl      = (SL_PLAN && !slSkip) ? Math.max(0, (sacGross - SL_PLAN.t) * SL_PLAN.r) : 0;
+
+  const net = sacGross - tax - ni - sl; // same as gross - pension - tax - ni - sl
+
+  // UI
+  document.getElementById('netDisplay').textContent = fmt(net);
+  document.getElementById('pensionRef').textContent = pension.toFixed(2);
+  document.getElementById('payslipNote').style.display = 'block';
+  document.getElementById('absenceCaveat').style.display = 'block';
+
+  document.getElementById('summary').innerHTML = `
+    <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>
+    ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension (Smart RPS CR Scheme)</span><span class="val">−${fmt(pension)}</span></div>` : ''}
+    ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
+    <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:10px;font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
+    <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
+    ${sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>` : ''}
+    <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay</span><span class="val">${fmt(net)}</span></div>
+  `;
+
+  const fh = h => {
+    const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+    return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
+  };
+  let bd = '';
+  bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Mon–Fri (${fh(nonBhNorm)} × ${fmt(rate)})</span><span class="b-val">${fmt(gBasicNorm)}</span></div>`;
+  if (satCapped > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Basic pay — Saturday (${fh(satCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBasicSat)}</span></div>`;
+  if (bhCapped > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Rostered (${fh(bhCapped)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBankHol)}</span></div>`;
+  if (bhOtHrs > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Bank Holiday Overtime (${fh(bhOtHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gBhOt)}</span></div>`;
+  if (oHrs > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Overtime (${fh(oHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gOvertime)}</span></div>`;
+  if (rHrs > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Rest Day Working (${fh(rHrs)} × ${fmt(r125)})</span><span class="b-val">${fmt(gRdw)}</span></div>`;
+  if (sHrs > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Sunday Working (${fh(sHrs)} × ${fmt(r150)})</span><span class="b-val">${fmt(gSunday)}</span></div>`;
+  if (bHrs > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Boxing Day Working (${fh(bHrs)} × ${fmt(r300)})</span><span class="b-val">${fmt(gBoxing)}</span></div>`;
+  if (peer > 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Training Days (${peer} day${peer>1?'s':''} × 2h × ${fmt(rate)})</span><span class="b-val">${fmt(gPeer)}</span></div>`;
+  bd += `<div class="bd-row"><span class="b-lbl">London Allowance</span><span class="b-val">${fmt(LONDON)}</span></div>`;
+  if (otherAdj !== 0)
+    bd += `<div class="bd-row"><span class="b-lbl">Other payroll adjustment</span><span class="b-val">${otherAdj >= 0 ? '+' : ''}${fmt(otherAdj)}</span></div>`;
+  if (slSkip && plan !== 'none')
+    bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Student loan not deducted this period</span><span class="b-val"></span></div>`;
+  if (usingCumulative)
+    bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
+  document.getElementById('bdBody').innerHTML = bd;
+
+  calcHPP();
+}
+
+// ── HPP ESTIMATOR ─────────────────────────────────────────────────────────────
+// Formula from Chiltern payroll (Marie Firby):
+// (Gross - Basic) × 4/52 = HPP
+// Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance
+// Does NOT include: peer training, basic pay, expenses, bonuses
+function calcHPP() {
+  const rate       = numVal('hourlyRate') || 20.74;
+  const allPeriods = getPeriods();
+
+  // HPP accumulates only within the selected period's tax year
+  const pNum    = currentPeriodNum();
+  const curP    = allPeriods.find(x => x.num === pNum);
+  const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const periods = allPeriods.filter(p => {
+    const o = p.num - 48;
+    return o >= ty.first && o <= ty.last;
+  });
+
+  let totalVar  = 0;
+  let pCount    = 0;
+
+  periods.forEach(p => {
+    try {
+      const raw = localStorage.getItem(periodKey(p.num));
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (isDataEmpty(d)) return;
+      pCount++;
+
+      const r125 = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
+      const satHrs = (d.satH || 0) + (d.satM || 0) / 60;
+      const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
+      const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
+      const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
+      const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
+      const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
+      const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
+
+      // Variable pay = Gross minus Basic:
+      // Saturday uplift (0.25× extra on sat hours)
+      // Bank Holiday premium (0.25× extra on rostered BH hours)
+      // Full BH overtime, OT, RDW, Sunday, Boxing pay
+      // London Allowance (explicitly included per Chiltern payroll)
+      // NOT peer training (extra basic, not variable)
+      const { londonAllow: pLondon } = getThresholds(getTaxYearForOffset(p.num - 48).label);
+      const varPay =
+        satHrs  * (rate * 0.25) +  // sat uplift above base rate
+        bhHrs   * (rate * 0.25) +  // bank holiday rostered premium above base rate
+        bhOtHrs * r125           +  // full BH overtime pay
+        otHrs   * r125           +  // full OT pay
+        rdwHrs  * r125           +  // full RDW pay
+        sunHrs  * r150           +  // full Sunday pay
+        boxHrs  * r300           +  // full Boxing Day pay
+        pLondon;                    // London Allowance per period (year-specific)
+
+      totalVar += varPay;
+    } catch(e) {}
+  });
+
+  const hpp      = totalVar * HPP_FRACTION;
+  const amountEl = document.getElementById('hppAmount');
+  const basisEl  = document.getElementById('hppBasis');
+  const labelEl  = document.getElementById('hppLabel');
+
+  // Persist the running estimate so it survives when the user moves to the next tax year.
+  // The prior year section reads this key to show the carry-forward amount.
+  if (hpp > 0) localStorage.setItem(hppEstKey(ty), hpp.toFixed(2));
+
+  // Current year always shows the estimate (the confirmed actual lives in the prior year section
+  // once the user has moved to the following tax year).
+  if (pCount === 0) {
+    if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
+    amountEl.textContent = '£–';
+    basisEl.textContent  = 'Enter hours across your periods above to calculate';
+  } else {
+    if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
+    amountEl.textContent = fmt(hpp);
+    basisEl.textContent  = `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} variable pay × 7.69% · due January ${ty.hppPaidJan}`;
+  }
+
+  // Dynamic formula note
+  const noteEl = document.getElementById('hppNote');
+  if (noteEl) {
+    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All variable pay (overtime + rest day hours + London Allowance) × 4/52 = 7.69%. Basic pay, peer training, expenses and bonuses are excluded. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's pro-rated if you were not employed for the full year.`;
+  }
+
+  // Update the prior year section (shows the previous tax year's HPP carry-forward)
+  updatePriorHpp(ty);
+}
+
+// ── PRIOR YEAR HPP SECTION ───────────────────────────────────────────────────
+// Shows the previous tax year's HPP estimate (or confirmed actual) in the HPP card.
+// Called at the end of calcHPP() so it refreshes whenever the main calculation runs.
+function updatePriorHpp(ty) {
+  const section = document.getElementById('priorHppSection');
+  if (!section) return;
+
+  const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
+  if (tyIdx <= 0) {
+    section.classList.add('hidden');
+    return;
+  }
+
+  const priorTy   = CONFIG.TAX_YEARS[tyIdx - 1];
+  const estRaw    = localStorage.getItem(hppEstKey(priorTy));
+  const actualRaw = localStorage.getItem(hppActualKey(priorTy));
+  const est       = estRaw    ? parseFloat(estRaw)    : 0;
+  const actual    = actualRaw ? parseFloat(actualRaw) : 0;
+
+  // Is the current period's payday in the January when prior-year HPP is paid?
+  const pNum = currentPeriodNum();
+  const curP = getPeriods().find(x => x.num === pNum);
+  const isJanPayday = curP &&
+    curP.payday.getFullYear() === priorTy.hppPaidJan &&
+    curP.payday.getMonth() === 0;
+
+  document.getElementById('priorHppTitle').textContent      = `${priorTy.label} Holiday Pay Premium`;
+  document.getElementById('currentHppTitle').textContent    = `This year (${ty.label})`;
+
+  const dueBadge = document.getElementById('priorHppDueBadge');
+  dueBadge.classList.toggle('hidden', !isJanPayday || actual > 0);
+
+  const amtLabel = document.getElementById('priorHppAmtLabel');
+  const amtEl    = document.getElementById('priorHppAmt');
+  const basisEl  = document.getElementById('priorHppBasis');
+
+  if (actual > 0) {
+    amtLabel.innerHTML  = `${priorTy.label} HPP <span class="actual-badge">✓ Confirmed</span>`;
+    amtEl.textContent   = fmt(actual);
+    basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
+  } else if (est > 0) {
+    amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : 'Estimated';
+    amtEl.textContent    = fmt(est);
+    basisEl.textContent  = isJanPayday
+      ? `Check your January ${priorTy.hppPaidJan} payslip and enter the confirmed amount below`
+      : `Estimated from your ${priorTy.label} periods · due January ${priorTy.hppPaidJan}`;
+  } else {
+    amtLabel.textContent = 'Estimated';
+    amtEl.textContent    = '£–';
+    basisEl.textContent  = `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
+  }
+
+  // Load stored actual into the input — only update if it differs to avoid disrupting typing
+  const input = document.getElementById('priorHppActualInput');
+  if (input) {
+    const stored = actualRaw || '';
+    if (document.activeElement !== input) input.value = stored;
+  }
+
+  section.classList.remove('hidden');
+}
+
+// ── CARD COLLAPSE TOGGLES ─────────────────────────────────────────────────────
+function toggleSettingsCard() {
+  document.getElementById('settingsToggle').classList.toggle('open');
+  document.getElementById('settingsBody').classList.toggle('open');
+}
+
+function togglePayslipCard() {
+  document.getElementById('payslipCardToggle').classList.toggle('open');
+  document.getElementById('payslipCardBody').classList.toggle('open');
+}
+
+function toggleHppCard() {
+  document.getElementById('hppCardToggle').classList.toggle('open');
+  document.getElementById('hppCardBody').classList.toggle('open');
+}
+
+function toggleBackPayCard() {
+  const toggle = document.getElementById('backPayCardToggle');
+  const body   = document.getElementById('backPayBody');
+  const opening = !body.classList.contains('open');
+  toggle.classList.toggle('open');
+  body.classList.toggle('open');
+  if (opening) {
+    // Pre-fill London Allowance — old = pre-award rate, new = current rate
+    const pNum = currentPeriodNum();
+    const curP = getPeriods().find(x => x.num === pNum);
+    const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+    const oldLondonEl = document.getElementById('oldLondon');
+    const newLondonEl = document.getElementById('newLondon');
+    if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
+    if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
+    // Auto-select April — Chiltern's pay anniversary is always 1 April
+    const fromSel = document.getElementById('backPayFrom');
+    if (fromSel && !fromSel.value) fromSel.value = 48 + ty.first;
+    calcBackPay();
+  }
+}
+
+// ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
+
+function calcBackPay() {
+  const oldRate   = parseFloat(document.getElementById('oldRate').value);
+  const newRate   = parseFloat(document.getElementById('newRateInput').value);
+  const oldLondon = parseFloat(document.getElementById('oldLondon').value);
+  const newLondon = parseFloat(document.getElementById('newLondon').value);
+  const rowsEl       = document.getElementById('backPayRows');
+  const totalEl      = document.getElementById('backPayTotal');
+  const totalAmtEl   = document.getElementById('backPayTotalAmt');
+  const totalBasEl   = document.getElementById('backPayTotalBasis');
+  const noticeEl     = document.getElementById('backPayNotice');
+  const breakdownBtn = document.getElementById('bpBreakdownBtn');
+
+  const fromPNum  = +(document.getElementById('backPayFrom')?.value || 0);
+  const bpSel     = document.getElementById('backPayPeriod');
+  const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
+  const bpP       = bpPNum ? getPeriods().find(x => x.num === bpPNum) : null;
+  const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
+  const hasLondon = oldLondon > 0 && newLondon > 0 && newLondon > oldLondon;
+
+  const labelEl    = document.getElementById('backPayTotalLabel');
+  const periodWrap = document.getElementById('backPayPeriodWrap');
+  const applyWrap  = document.getElementById('applyRateWrap');
+  const applyBtn   = document.getElementById('applyRateBtn');
+
+  if (!hasRate && !hasLondon) {
+    rowsEl.innerHTML = '';
+    rowsEl.classList.remove('open');
+    totalEl.style.display      = 'none';
+    noticeEl.style.display     = 'none';
+    breakdownBtn.style.display = 'none';
+    if (periodWrap) periodWrap.style.display = 'none';
+    if (applyWrap)  applyWrap.style.display  = 'none';
+    return;
+  }
+
+  const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
+  const londonDiff = hasLondon ? newLondon - oldLondon : 0;
+  const periods    = getPeriods();
+  let rows         = '';
+  let grandTotal   = 0;
+  let pCount       = 0;
+
+  periods.forEach(p => {
+    try {
+      if (fromPNum && p.num < fromPNum) return; // exclude before April
+      if (bpPNum   && p.num > bpPNum)  return; // exclude after "paid in" period
+      const raw = localStorage.getItem(periodKey(p.num));
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (isDataEmpty(d)) return;
+
+      const satHrs = (d.satH || 0) + (d.satM || 0) / 60;
+      const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
+      const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
+      const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
+      const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
+      const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
+      const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
+
+      const ratePay =
+        CONTR    * rateDiff        +
+        satHrs   * rateDiff * 0.25 +
+        bhHrs    * rateDiff * 0.25 +
+        bhOtHrs  * rateDiff * 1.25 +
+        otHrs    * rateDiff * 1.25 +
+        rdwHrs   * rateDiff * 1.25 +
+        sunHrs   * rateDiff * 1.50 +
+        boxHrs   * rateDiff * 3.00 +
+        (d.peer || 0) * 2 * rateDiff;
+
+      const backPay = ratePay + londonDiff;
+
+      if (backPay > 0) {
+        grandTotal += backPay;
+        pCount++;
+        rows += `<div class="bp-row">
+          <span class="bp-lbl">P${p.num} · ${fd(p.payday)}</span>
+          <span class="bp-val">${fmt(backPay)}</span>
+        </div>`;
+      }
+    } catch(e) {}
+  });
+
+  if (grandTotal > 0) {
+    // Total headline
+    totalEl.style.display  = 'block';
+    totalAmtEl.textContent = fmt(grandTotal);
+    if (labelEl) {
+      labelEl.textContent = bpP
+        ? `💷 Lump sum · Paid ${fdShort(bpP.payday)}`
+        : '💷 Lump sum on one payslip';
+    }
+    const parts = [];
+    if (hasRate)   parts.push(`rate ${fmt(oldRate)} → ${fmt(newRate)}`);
+    if (hasLondon) parts.push(`London Allow ${fmt(oldLondon)} → ${fmt(newLondon)}`);
+    totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated · ${parts.join(' · ')}`;
+
+    // "Paid in" period selector
+    if (periodWrap) periodWrap.style.display = 'block';
+
+    // Tax caution
+    noticeEl.style.display = 'block';
+    if (bpP) {
+      const payLong = bpP.payday.toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+      });
+      noticeEl.innerHTML = `⚠️ This lump sum will appear on your <strong>P${bpP.num} payslip (paid ${payLong})</strong>. It is taxed in full in that period — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.`;
+    } else {
+      noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
+    }
+
+    // Apply new rate button — shown once rates are confirmed
+    if (applyWrap && applyBtn && hasRate) {
+      const currentRate = numVal('hourlyRate');
+      const alreadyApplied = Math.abs(currentRate - newRate) < 0.001;
+      applyBtn.textContent = alreadyApplied
+        ? `✓ New rate already applied — £${newRate.toFixed(2)}/hr`
+        : `Apply new rate to settings — £${newRate.toFixed(2)}/hr →`;
+      applyBtn.disabled = alreadyApplied;
+      applyWrap.style.display = 'block';
+    } else if (applyWrap) {
+      applyWrap.style.display = 'none';
+    }
+
+    // Per-period breakdown
+    rowsEl.innerHTML = rows;
+    breakdownBtn.style.display = 'flex';
+  } else {
+    totalEl.style.display      = 'none';
+    noticeEl.style.display     = 'none';
+    breakdownBtn.style.display = 'none';
+    if (periodWrap) periodWrap.style.display = 'none';
+    if (applyWrap)  applyWrap.style.display  = 'none';
+    rowsEl.innerHTML = '<p style="font-size:13px;color:var(--text-light);padding:8px 0">No saved periods found. Enter hours for each period first.</p>';
+  }
+}
+
+function toggleBpBreakdown() {
+  document.getElementById('bpBreakdownBtn').classList.toggle('open');
+  document.getElementById('backPayRows').classList.toggle('open');
+}
+
+function applyNewRate() {
+  const newRate = parseFloat(document.getElementById('newRateInput').value);
+  if (!newRate) return;
+  document.getElementById('hourlyRate').value = newRate.toFixed(2);
+  saveSettings();
+  calculate();
+  // Update button state to reflect it's been applied
+  const btn = document.getElementById('applyRateBtn');
+  const fb  = document.getElementById('applyRateFeedback');
+  if (btn) { btn.textContent = `✓ New rate already applied — £${newRate.toFixed(2)}/hr`; btn.disabled = true; }
+  if (fb)  { fb.textContent  = 'Settings updated — all future periods will now calculate at the new rate.'; }
+}
+
+// ── HPP FORMULA NOTE TOGGLE ───────────────────────────────────────────────────
+// ── HOURS SHOW MORE TOGGLE ────────────────────────────────────────────────────
+function toggleHoursExtra() {
+  const btn  = document.getElementById('hoursShowMore');
+  const body = document.getElementById('hoursExtra');
+  const open = body.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.querySelector('.show-more-arrow').textContent = open ? '▲' : '▼';
+  document.getElementById('hoursShowMoreLabel').textContent = open
+    ? 'Fewer options '
+    : 'More options (period adjustments) ';
+}
+
+function toggleHppNote() {
+  const btn  = document.getElementById('hppToggleBtn');
+  const body = document.getElementById('hppNoteBody');
+  const open = body.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  btn.querySelector('.hpp-toggle-arrow').textContent = open ? '▲' : '▼';
+  document.getElementById('hppToggleBtnLabel').textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
+}
+
+// ── DISCLAIMER TOGGLE ─────────────────────────────────────────────────────────
+function toggleDisclaimer() {
+  const extra  = document.getElementById('disclaimerExtra');
+  const toggle = document.getElementById('disclaimerToggle');
+  const open   = extra.classList.toggle('open');
+  toggle.textContent = open ? 'Less ▲' : 'More ▼';
+}
+
+// ── PEER STEPPER ──────────────────────────────────────────────────────────────
+function stepPeer(delta) {
+  const el = document.getElementById('peerVal');
+  el.textContent = Math.max(0, Math.min(10, +el.textContent + delta));
+  autosave();
+}
+
+// ── BREAKDOWN TOGGLE ──────────────────────────────────────────────────────────
+function toggleBD() {
+  document.getElementById('bdBtn').classList.toggle('open');
+  document.getElementById('bdBody').classList.toggle('open');
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+loadSettings();
+buildPeriodSelect();
+
+// ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
+
+// Period navigation
+document.getElementById('periodSelect').addEventListener('change', onPeriodChange);
+document.getElementById('prevBtn').addEventListener('click', prevPeriod);
+document.getElementById('nextBtn').addEventListener('click', nextPeriod);
+document.getElementById('clearBtn').addEventListener('click', clearPeriod);
+
+// Result breakdown toggle
+document.getElementById('bdBtn').addEventListener('click', toggleBD);
+
+// Hours inputs — Saturday (has validation warn)
+document.getElementById('satH').addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
+document.getElementById('satM').addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn'); autosave(); });
+
+// Hours inputs — minutes clamp + autosave
+['bhH','bhOtH','otH','rdwH','sunH','boxH'].forEach(id => {
+  document.getElementById(id).addEventListener('input', autosave);
+});
+['bhM','bhOtM','otM','rdwM','sunM','boxM'].forEach(id => {
+  document.getElementById(id).addEventListener('input', () => { clampMins(id); autosave(); });
+});
+
+// Peer training stepper
+document.getElementById('peerMinus').addEventListener('click', () => stepPeer(-1));
+document.getElementById('peerPlus').addEventListener('click',  () => stepPeer(1));
+
+// Back-pay inputs
+['oldRate','newRateInput','oldLondon','newLondon'].forEach(id => {
+  document.getElementById(id).addEventListener('input', calcBackPay);
+});
+
+// Card collapse toggles
+document.getElementById('settingsToggle').addEventListener('click', toggleSettingsCard);
+document.getElementById('payslipCardToggle').addEventListener('click', togglePayslipCard);
+document.getElementById('hppCardToggle').addEventListener('click', toggleHppCard);
+document.getElementById('backPayCardToggle').addEventListener('click', toggleBackPayCard);
+
+// Back-pay inputs + period selectors + apply rate
+document.getElementById('bpBreakdownBtn').addEventListener('click', toggleBpBreakdown);
+document.getElementById('backPayFrom').addEventListener('change', calcBackPay);
+document.getElementById('backPayPeriod').addEventListener('change', calcBackPay);
+document.getElementById('applyRateBtn').addEventListener('click', applyNewRate);
+document.getElementById('saveSettingsBtn').addEventListener('click', confirmSettings);
+
+// Hours card — show more toggle
+document.getElementById('hoursShowMore').addEventListener('click', toggleHoursExtra);
+
+// Tax year tabs
+document.getElementById('tyTab0').addEventListener('click', () => jumpToTaxYear(0));
+document.getElementById('tyTab1').addEventListener('click', () => jumpToTaxYear(1));
+
+// Settings inputs
+document.getElementById('gradeSelect').addEventListener('change', () => { saveSettings(); });
+document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
+document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
+document.getElementById('studentLoan').addEventListener('change',() => { saveSettings(); calculate(); });
+document.getElementById('pensionAmt').addEventListener('input',  () => { saveSettings(); calculate(); });
+
+// Per-period overrides
+document.getElementById('slSkipCheck').addEventListener('change', autosave);
+document.getElementById('otherAdj').addEventListener('input', autosave);
+
+// Payslip card inputs
+document.getElementById('ytdPay').addEventListener('input',    () => { saveSettings(); calculate(); });
+document.getElementById('ytdTax').addEventListener('input',    () => { saveSettings(); calculate(); });
+
+// Prior year HPP actual — saves to per-year key and refreshes the prior HPP section display
+document.getElementById('priorHppActualInput').addEventListener('input', () => {
+  const pNum  = currentPeriodNum();
+  const curP  = getPeriods().find(x => x.num === pNum);
+  const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
+  if (tyIdx <= 0) return;
+  const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
+  const val = document.getElementById('priorHppActualInput').value;
+  if (val) {
+    localStorage.setItem(hppActualKey(priorTy), val);
+  } else {
+    localStorage.removeItem(hppActualKey(priorTy));
+  }
+  updatePriorHpp(curTy);
+});
+
+// HPP formula toggle + disclaimer + back-pay cross-link
+document.getElementById('hppToggleBtn').addEventListener('click', toggleHppNote);
+document.getElementById('disclaimerToggle').addEventListener('click', toggleDisclaimer);
+document.getElementById('hppBackPayLink').addEventListener('click', () => {
+  const body = document.getElementById('backPayBody');
+  if (!body.classList.contains('open')) toggleBackPayCard();
+  document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
+
+// Dismiss splash after first render
+const _splash = document.getElementById('splash');
+if (_splash) {
+  setTimeout(() => {
+    _splash.classList.add('hidden');
+    _splash.addEventListener('transitionend', () => _splash.remove(), { once: true });
+  }, 280);
+}
+
+// ── ABOUT LIGHTBOX ────────────────────────────────────────────────────────────
+(function () {
+  const lightbox    = document.getElementById('iconLightbox');
+  const appIcon     = document.getElementById('appIcon');
+  const versionEl   = document.getElementById('lightboxVersion');
+  const statusEl    = document.getElementById('lightboxUpdateStatus');
+  const updateBtn   = document.getElementById('lightboxUpdateBtn');
+  const closeBtn    = document.getElementById('iconLightboxClose');
+  const contentCard = document.getElementById('iconLightboxContent');
+
+  if (!lightbox || !appIcon) return;
+
+  // Bug report link — pre-populated with version and device info
+  const bugLink = document.getElementById('bugReportLink');
+  if (bugLink) {
+    const body = `App: Marylebone Pay Calculator
+Version: ${CONFIG.APP_VERSION}
+Device: ${navigator.userAgent}
+
+--- Describe the bug ---
+`;
+    bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+  }
+
+  if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
+
+  let swReg = null;
+
+  function showUpToDate() {
+    if (!statusEl) return;
+    statusEl.textContent = pendingWorker ? 'Update ready — see banner above' : '✓ Up to date';
+    statusEl.className   = 'lightbox-status up-to-date';
+  }
+  function checkUpdateStatus() {
+    showUpToDate();
+  }
+
+  // Show the update banner when a new SW is waiting — user taps "Refresh now" when ready.
+  // We never auto-reload: the user may be mid-entry and we don't want to wipe their session.
+  let pendingWorker = null;
+  const banner    = document.getElementById('updateBanner');
+  const bannerBtn = document.getElementById('updateBannerBtn');
+
+  function showUpdateBanner(worker) {
+    pendingWorker = worker;
+    if (banner) banner.classList.add('visible');
+  }
+
+  if (bannerBtn) {
+    bannerBtn.addEventListener('click', () => {
+      if (pendingWorker) pendingWorker.postMessage({ type: 'SKIP_WAITING' });
+    });
+  }
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(reg => {
+      swReg = reg;
+      if (reg.waiting) showUpdateBanner(reg.waiting);
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            showUpdateBanner(nw);
+          }
+        });
+      });
+      // Poll every 15 minutes (backup check)
+      setInterval(() => reg.update(), 15 * 60 * 1000);
+      // Also check whenever the user returns to the tab — catches updates after the app
+      // has been open in the background for a while (most common real-world scenario)
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update();
+      });
+    });
+  }
+
+  function openLightbox() {
+    checkUpdateStatus();
+    lightbox.classList.add('visible');
+    requestAnimationFrame(() => lightbox.classList.add('open'));
+    document.addEventListener('keydown', onKeyDown);
+  }
+  function closeLightbox() {
+    lightbox.classList.remove('open');
+    lightbox.addEventListener('transitionend', () => {
+      lightbox.classList.remove('visible');
+    }, { once: true });
+    document.removeEventListener('keydown', onKeyDown);
+  }
+  function onKeyDown(e) { if (e.key === 'Escape') closeLightbox(); }
+
+  appIcon.addEventListener('click', e => { e.stopPropagation(); openLightbox(); });
+  lightbox.addEventListener('click', closeLightbox);
+  if (contentCard) contentCard.addEventListener('click', e => e.stopPropagation());
+  if (closeBtn)    closeBtn.addEventListener('click', closeLightbox);
+})();
+
+// ── HELP LIGHTBOX ─────────────────────────────────────────────────────────────
+// Generic lightbox driven by HELP_CONTENT — opened by any .help-btn[data-help].
+(function () {
+  const lb      = document.getElementById('helpLightbox');
+  const content = document.getElementById('helpLightboxContent');
+  const titleEl = document.getElementById('helpLightboxTitle');
+  const listEl  = document.getElementById('helpLightboxList');
+  const closeBtn = document.getElementById('helpLightboxClose');
+  if (!lb) return;
+
+  function openHelp(key) {
+    const data = HELP_CONTENT[key];
+    if (!data) return;
+    titleEl.textContent = data.title;
+    listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
+    lb.classList.add('visible');
+    requestAnimationFrame(() => lb.classList.add('open'));
+    document.addEventListener('keydown', onKey);
+  }
+
+  function closeHelp() {
+    lb.classList.remove('open');
+    lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+    document.removeEventListener('keydown', onKey);
+  }
+
+  function onKey(e) { if (e.key === 'Escape') closeHelp(); }
+
+  lb.addEventListener('click', closeHelp);
+  if (content) content.addEventListener('click', e => e.stopPropagation());
+  if (closeBtn) closeBtn.addEventListener('click', closeHelp);
+
+  // Wire all ? buttons. stopPropagation prevents collapsible card toggles firing.
+  document.querySelectorAll('.help-btn').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openHelp(btn.dataset.help);
+    });
+  });
+})();
+
+// ── SERVICE WORKER REGISTRATION + AUTO-UPDATE TOAST ──────────────────────────
+(function () {
+  if (!('serviceWorker' in navigator)) return;
+
+  // Show "Updated to vX.XX ✓" toast if this load was triggered by an auto-update
+  const justUpdated = sessionStorage.getItem('swJustUpdated');
+  if (justUpdated) {
+    sessionStorage.removeItem('swJustUpdated');
+    const toast = document.getElementById('updateToast');
+    if (toast) {
+      toast.textContent = '✓ Updated to v' + justUpdated;
+      requestAnimationFrame(() => toast.classList.add('visible'));
+      setTimeout(() => toast.classList.remove('visible'), 4000);
+    }
+  }
+
+  // When a new SW takes control, store the new version and reload once.
+  // Guard on navigator.serviceWorker.controller so we don't reload on first install
+  // (when there was no previous controller).
+  if (navigator.serviceWorker.controller) {
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      sessionStorage.setItem('swJustUpdated', CONFIG.APP_VERSION);
+      window.location.reload();
+    }, { once: true });
+  }
+
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./pay-service-worker.js')
+      .then(reg  => console.log('SW registered:', reg.scope))
+      .catch(err => console.error('SW registration failed:', err));
+  });
+})();
