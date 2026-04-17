@@ -102,6 +102,7 @@
     --correction-text:   #e65100;   /* correction pill text (burnt orange) */
 
     /* Border Radius */
+    --radius-sm:  8px;
     --radius-md: 12px;
     --radius-lg: 14px;
 
