@@ -1503,7 +1503,6 @@ if (_splash) {
   const appIcon     = document.getElementById('appIcon');
   const versionEl   = document.getElementById('lightboxVersion');
   const statusEl    = document.getElementById('lightboxUpdateStatus');
-  const updateBtn   = document.getElementById('lightboxUpdateBtn');
   const closeBtn    = document.getElementById('iconLightboxClose');
   const contentCard = document.getElementById('iconLightboxContent');
 
@@ -1525,42 +1524,42 @@ Device: ${navigator.userAgent}
 
   let swReg = null;
 
+  let pendingWorker = null;
+  const updateToastEl  = document.getElementById('updateToast');
+  const updateToastBtn = document.getElementById('updateToastBtn');
+
+  function showUpdateToast(worker) {
+    pendingWorker = worker;
+    if (updateToastEl) updateToastEl.classList.add('visible');
+  }
+
   function showUpToDate() {
     if (!statusEl) return;
-    statusEl.textContent = pendingWorker ? 'Update ready — see banner above' : '✓ Up to date';
+    statusEl.textContent = pendingWorker ? 'Update ready' : '✓ Up to date';
     statusEl.className   = 'lightbox-status up-to-date';
   }
   function checkUpdateStatus() {
     showUpToDate();
   }
 
-  // Show the update banner when a new SW is waiting — user taps "Refresh now" when ready.
-  // We never auto-reload: the user may be mid-entry and we don't want to wipe their session.
-  let pendingWorker = null;
-  const banner    = document.getElementById('updateBanner');
-  const bannerBtn = document.getElementById('updateBannerBtn');
-
-  function showUpdateBanner(worker) {
-    pendingWorker = worker;
-    if (banner) banner.classList.add('visible');
-  }
-
-  if (bannerBtn) {
-    bannerBtn.addEventListener('click', () => {
+  if (updateToastBtn) {
+    updateToastBtn.addEventListener('click', () => {
       if (pendingWorker) pendingWorker.postMessage({ type: 'SKIP_WAITING' });
+      updateToastBtn.textContent = 'Updating…';
+      updateToastBtn.disabled    = true;
     });
   }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
       swReg = reg;
-      if (reg.waiting) showUpdateBanner(reg.waiting);
+      if (reg.waiting) showUpdateToast(reg.waiting);
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         if (!nw) return;
         nw.addEventListener('statechange', () => {
           if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateBanner(nw);
+            showUpdateToast(nw);
           }
         });
       });

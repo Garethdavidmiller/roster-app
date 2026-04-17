@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.47 -->
+<!-- MYB Roster — Pay Calculator v6.48 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.47">
+  <link rel="stylesheet" href="./shared.css?v=6.48">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -47,16 +47,24 @@
       color: var(--primary-blue); font-size: 20px; font-weight: 800;
       letter-spacing: -0.5px; margin: 0; line-height: 1.2;
     }
-    .back-link {
+    .btn-back {
       margin-left: auto; flex-shrink: 0;
-      color: var(--primary-blue); text-decoration: none;
-      font-size: var(--type-small); font-weight: 600;
-      padding: 5px 10px; border-radius: var(--radius-sm);
-      border: 1px solid var(--border-mid);
-      white-space: nowrap; touch-action: manipulation;
+      background: transparent; border: 1.5px solid var(--border-light);
+      color: var(--primary-blue); font-size: 11px; font-weight: 700;
+      padding: 5px 10px; border-radius: 8px;
+      cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 4px;
+      transition: all 0.12s; white-space: nowrap;
+      -webkit-user-select: none; user-select: none; touch-action: manipulation;
     }
     @media (hover: hover) and (pointer: fine) {
-      .back-link:hover { background: var(--bg-faint); }
+      .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
+    }
+    @media (max-width: 480px) {
+      .btn-back {
+        background: var(--primary-blue); border-color: var(--primary-blue);
+        color: white; font-size: 12px; padding: 7px 13px;
+      }
     }
     .app-icon {
       height: 36px; width: 36px; border-radius: var(--radius-sm);
@@ -591,11 +599,11 @@
       align-items: center; gap: 6px;
       background: rgba(255,255,255,0.08);
       border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 24px; padding: 36px 40px 32px;
+      border-radius: 24px; padding: 36px 32px 28px;
       cursor: default;
       transform: scale(0.85);
       transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-      width: min(260px, 80vw); text-align: center;
+      width: min(300px, 85vw); text-align: center;
     }
     #iconLightbox.open #iconLightboxContent { transform: scale(1); }
     .lightbox-app-name {
@@ -619,19 +627,6 @@
     .lightbox-privacy {
       margin-top: 16px; font-size: 11px; line-height: 1.5;
       color: rgba(255,255,255,0.38); text-align: center;
-    }
-    .lightbox-update-btn {
-      margin-top: 8px; padding: 10px 24px;
-      background: var(--update-btn); color: white; border: none;
-      border-radius: 20px; font-family: inherit;
-      font-size: 14px; font-weight: 600; cursor: pointer;
-      touch-action: manipulation;
-      transition: background 0.15s ease, transform 0.1s ease;
-      letter-spacing: 0.2px;
-    }
-    .lightbox-update-btn:active { background: var(--update-btn-active); transform: scale(0.96); }
-    @media (hover: hover) and (pointer: fine) {
-      .lightbox-update-btn:hover { background: var(--update-btn-active); }
     }
     .lightbox-tips {
       margin-top: 16px; padding-top: 14px;
@@ -740,7 +735,7 @@
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
       .show-more-arrow, .hpp-toggle-arrow, .card-toggle-arrow,
-      .save-status, .stepper button, .lightbox-update-btn {
+      .save-status, .stepper button {
         transition: none !important;
         animation: none !important;
       }
@@ -800,38 +795,32 @@
   .toggle-row label { font-size: var(--type-body); color: var(--text-mid); cursor: pointer; margin: 0; font-weight: 400; }
   .toggle-row.hidden { display: none; }
 
-  /* ── UPDATE BANNER (shown when a new version is waiting) ── */
-  #updateBanner {
-    display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 9998;
+  /* ── UPDATE TOAST (shown when a new version is waiting, and after reload) ── */
+  #updateToast {
+    position: fixed;
+    top: max(16px, env(safe-area-inset-top));
+    left: 50%; transform: translateX(-50%) translateY(-20px);
     background: var(--primary-blue); color: white;
-    padding: 10px 16px;
-    align-items: center; justify-content: space-between; gap: 12px;
-    box-shadow: var(--shadow-2);
+    font-size: var(--type-small); padding: 10px 16px;
+    border-radius: 24px; box-shadow: var(--shadow-3);
+    z-index: 7500; opacity: 0; pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    white-space: nowrap; display: flex; align-items: center; gap: 10px;
   }
-  #updateBanner.visible { display: flex; }
-  #updateBanner span { font-size: var(--type-small); }
-  #updateBannerBtn {
+  #updateToast.visible {
+    opacity: 1; transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+  }
+  #updateToastBtn {
     background: var(--accent-gold); color: var(--primary-blue);
     border: none; border-radius: 12px;
-    padding: 4px 12px; font-family: inherit;
-    font-weight: 700; font-size: var(--type-small);
-    cursor: pointer; touch-action: manipulation; flex-shrink: 0;
+    font-size: var(--type-small); font-weight: 700;
+    padding: 4px 12px; cursor: pointer;
+    font-family: inherit; touch-action: manipulation; flex-shrink: 0;
   }
   @media (hover: hover) and (pointer: fine) {
-    #updateBannerBtn:hover { background: var(--accent-gold-dark); }
+    #updateToastBtn:hover { background: var(--accent-gold-dark); }
   }
-
-  /* ── UPDATE TOAST ── */
-  #updateToast {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    background: var(--primary-blue); color: white;
-    padding: 10px 22px; border-radius: 24px;
-    font-size: var(--type-body); font-weight: 600;
-    box-shadow: var(--shadow-3); z-index: 999;
-    pointer-events: none; white-space: nowrap;
-    opacity: 0; transition: opacity 0.35s;
-  }
-  #updateToast.visible { opacity: 1; }
 
   </style>
   <link rel="manifest" href="./pay-manifest.json">
@@ -842,12 +831,6 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 </head>
 <body>
-
-<!-- Update banner: shown when a new version is waiting. User taps "Refresh now" when ready. -->
-<div id="updateBanner" role="status" aria-live="polite">
-  <span>Update available</span>
-  <button id="updateBannerBtn">Refresh now</button>
-</div>
 
 <!-- Splash screen: covers the launch gap on iOS PWA cold start.
      Dismissed ~280ms after first render with a 0.4s fade. -->
@@ -863,7 +846,7 @@
     <div>
       <h1>Pay Calculator</h1>
     </div>
-    <a href="./index.html" class="back-link" aria-label="Back to roster">← Roster</a>
+    <a href="./index.html" class="btn-back" aria-label="Back to roster">← Roster</a>
   </header>
 
   <main>
@@ -1387,7 +1370,7 @@
     ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax uses per-period estimates (÷13) unless you enter YTD figures from your payslip, which switches to HMRC's cumulative method. Actual PAYE may still differ due to employer rounding or corrections across prior periods. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle">More ▼</button>
   </div>
 
-  <div id="updateToast" role="status" aria-live="polite"></div>
+  <div id="updateToast" role="status" aria-live="polite">Update ready — <button id="updateToastBtn" type="button">Refresh now</button></div>
 
   </main>
 
@@ -1402,23 +1385,20 @@
 </div>
 
 <!-- About lightbox: opened by tapping the header icon -->
-<div id="iconLightbox" role="dialog" aria-label="About Marylebone Pay Calculator" aria-modal="true">
+<div id="iconLightbox" role="dialog" aria-label="About Pay Calculator" aria-modal="true">
   <button id="iconLightboxClose" aria-label="Close">✕</button>
   <div id="iconLightboxContent">
     <img src="icon-192.png" id="lightboxIcon" alt="App icon" style="width:96px;height:96px;border-radius:22px;object-fit:cover;box-shadow:0 0 0 3px rgba(255,255,255,0.18),0 12px 40px rgba(0,0,0,0.5);margin-bottom:8px;">
-    <div class="lightbox-app-name">Marylebone Pay Calculator</div>
+    <div class="lightbox-app-name">Pay Calculator</div>
     <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-    <button id="lightboxUpdateBtn" class="lightbox-update-btn" style="display:none">
-      ↻ Update now
-    </button>
-    <div class="lightbox-privacy">Your pay data is saved on this device only.<br>Nothing is sent to any server or shared with anyone.</div>
+    <div class="lightbox-privacy">Your pay data is saved on this device only — never sent anywhere or shared with anyone.</div>
     <div class="lightbox-tips">
       <div class="lightbox-tips-title">Tips</div>
       <div class="lightbox-tip"><span>Tap <strong style="color:rgba(255,255,255,0.8)">?</strong> on any card for detailed help and explanations</span></div>
       <div class="lightbox-tip"><span>Holiday Pay Premium (HPP) builds across the year — it's paid as a lump sum every January</span></div>
       <div class="lightbox-tip"><span>Enter YTD figures from your payslip under <strong style="color:rgba(255,255,255,0.8)">Improve Accuracy</strong> for a sharper tax estimate</span></div>
-      <div class="lightbox-tip"><span>Your pay data never leaves this device — nothing is sent anywhere</span></div>
+      <div class="lightbox-tip"><span>Tap <strong style="color:rgba(255,255,255,0.8)">← Roster</strong> to return to the shift calendar without losing your entries</span></div>
     </div>
     <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
   </div>
@@ -1426,6 +1406,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.47"></script>
+<script type="module" src="./paycalc.js?v=6.48"></script>
 </body>
 </html>
