@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.40';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.40';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.41';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.41';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -331,7 +331,7 @@ const TYPES = {
     rdw:          { label: 'Rest Day Working', fixed: false },
     annual_leave: { label: 'Annual Leave',   fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day', fixed: true,  fixedValue: 'RD' },
-    sick:         { label: 'Absence',        fixed: true,  fixedValue: 'SICK' },
+    sick:         { label: 'Absent',          fixed: true,  fixedValue: 'SICK' },
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift', fixed: false },
     overtime:     { label: 'Overtime',        fixed: false },
@@ -788,7 +788,7 @@ function buildWeekGridInto(container, dateStr) {
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
                 <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                <button class="type-pill-btn pill-sick"         data-type="sick">Absence</button>
+                <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
                 <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
             </div>
             <div class="col-time">
