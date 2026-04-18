@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.65 -->
+<!-- MYB Roster — Pay Calculator v6.67 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.65">
+  <link rel="stylesheet" href="./shared.css?v=6.67">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -102,6 +102,7 @@
     @media (hover: hover) and (pointer: fine) {
       .nav-pill:hover:not(:disabled) { background: var(--primary-blue-dark); }
     }
+    .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); text-align: center; }
     .period-meta   { display: flex; flex-direction: column; gap: 3px; width: 100%; }
     .pm-range      { font-size: 13px; font-weight: 600; color: var(--text-dark); }
     .pm-sub        { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
@@ -692,7 +693,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.65">
+  <link rel="manifest" href="./pay-manifest.json?v=6.67">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -755,12 +756,12 @@
       </div>
 
       <div class="field">
-        <label>Pension <span class="note">Smart RPS CR Scheme</span></label>
+        <label>Pension <span class="note">Smart RPS CR Scheme</span> <span id="pensionPeriodLabel" class="rate-year-label"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="number" id="pensionAmt" step="0.01" min="0" value="154.77" inputmode="decimal">
         </div>
-        <div class="field-hint">Your pension deduction per period — shown as "Smart RPS CR Scheme" on your payslip. The amount varies slightly across the year — check each period's payslip and update this if needed.</div>
+        <div class="field-hint">Shown as "Smart RPS CR Scheme" on your payslip. <strong>Saved per period</strong> — update here when your pension changes and past periods will keep their own amount automatically.</div>
         <div id="pensionWarn" class="val-warn">⚠ Pension exceeds gross pay — check the amount</div>
       </div>
 
@@ -800,6 +801,7 @@
       <button class="ty-tab" id="tyTab1" data-ty="1">Tax year 2026/27</button>
     </div>
     <select id="periodSelect"></select>
+    <p class="period-hint">Set to your next upcoming payslip — use ← to view a past period.</p>
     <div class="period-nav">
       <button class="nav-pill" id="prevBtn">← Prev</button>
       <button class="nav-pill" id="nextBtn">Next →</button>
@@ -1270,6 +1272,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.65"></script>
+<script type="module" src="./paycalc.js?v=6.67"></script>
 </body>
 </html>
