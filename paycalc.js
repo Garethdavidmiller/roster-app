@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.54';
+import { APP_VERSION } from './roster-data.js?v=6.55';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -1665,6 +1665,13 @@ Device: ${navigator.userAgent}
       window.location.reload();
     }, { once: true });
   }
+
+  // Sign-out — clears admin session and returns to the main app.
+  // AUTH_KEY matches admin-app.js so the same session is cleared.
+  document.getElementById('signOutBtn').addEventListener('click', () => {
+    localStorage.removeItem('myb_admin_session');
+    window.location.href = './index.html';
+  });
 
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')

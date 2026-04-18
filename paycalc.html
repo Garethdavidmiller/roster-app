@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.54 -->
+<!-- MYB Roster — Pay Calculator v6.55 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.54">
+  <link rel="stylesheet" href="./shared.css?v=6.55">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -598,7 +598,8 @@
       .app { max-width: 100% !important; }
       #splash, #iconLightbox, #helpLightbox, .setup-banner, .controls, .save-row,
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
-      #backPayCard, #backPayCardToggle, .field-hint { display: none !important; }
+      #backPayCard, #backPayCardToggle, .field-hint,
+      .btn-back, .btn-signout { display: none !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -763,6 +764,7 @@
     <a href="./index.html" class="btn-back" aria-label="Back to roster">← Roster</a>
     <h1>MYB Roster</h1>
     <span class="badge-page">Pay</span>
+    <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
   </header>
 
   <main>
@@ -1322,6 +1324,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.54"></script>
+<script type="module" src="./paycalc.js?v=6.55"></script>
 </body>
 </html>
