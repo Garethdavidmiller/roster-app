@@ -194,15 +194,17 @@ exports.ingestHuddle = onRequest(
             await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
-            res.status(200).json({ success: true, date, storageUrl });
 
-            // Fan out push notifications — fire after response so upload latency is unaffected.
-            // Errors here are non-fatal: the upload already succeeded.
+            // Fan out push notifications before sending the response.
+            // Must run before res.json() — Cloud Run can reclaim the container
+            // immediately after the response is sent, cutting off pending async work.
             try {
                 await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
             } catch (pushErr) {
                 console.warn('[ingestHuddle] Push fan-out error (non-fatal):', pushErr.message);
             }
+
+            res.status(200).json({ success: true, date, storageUrl });
 
         } catch (err) {
             console.error('[ingestHuddle] Upload failed:', err);
