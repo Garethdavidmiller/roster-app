@@ -1,5 +1,19 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.68';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.69';
 'use strict';
+
+// ── SESSION GUARD ─────────────────────────────────────────────────────────────
+// Redirect unsigned-in users to admin.html to sign in, then return here.
+// Uses window.location.replace so the back button skips this page (avoids loops).
+(function () {
+  try {
+    const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+    if (!(session && session.name)) {
+      window.location.replace('./admin.html?redirect=paycalc');
+    }
+  } catch {
+    window.location.replace('./admin.html?redirect=paycalc');
+  }
+})();
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Single source of truth for all app constants — matches MYB Roster pattern.
@@ -1719,4 +1733,38 @@ Device: ${navigator.userAgent}
       .then(reg  => console.log('SW registered:', reg.scope))
       .catch(err => console.error('SW registration failed:', err));
   });
+})();
+
+// ── WELCOME LIGHTBOX ──────────────────────────────────────────────────────────
+// Shown once, on the very first visit to the pay calculator. Never shown again.
+// Dismissed by the ✕ button or clicking the overlay; guide link also dismisses it.
+(function () {
+  const WELCOME_KEY = 'cea_pay_welcome_shown';
+  const lb       = document.getElementById('welcomeLightbox');
+  const content  = document.getElementById('welcomeLightboxContent');
+  const closeBtn = document.getElementById('welcomeLightboxClose');
+  const guideLink = lb && lb.querySelector('.welcome-guide-link');
+  if (!lb) return;
+
+  function openWelcome() {
+    lb.classList.add('visible');
+    requestAnimationFrame(() => lb.classList.add('open'));
+    document.addEventListener('keydown', onKeyDown);
+  }
+
+  function closeWelcome() {
+    localStorage.setItem(WELCOME_KEY, '1');
+    lb.classList.remove('open');
+    lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+    document.removeEventListener('keydown', onKeyDown);
+  }
+
+  function onKeyDown(e) { if (e.key === 'Escape') closeWelcome(); }
+
+  lb.addEventListener('click', closeWelcome);
+  if (content)   content.addEventListener('click',  e => e.stopPropagation());
+  if (closeBtn)  closeBtn.addEventListener('click',  closeWelcome);
+  if (guideLink) guideLink.addEventListener('click', closeWelcome);
+
+  if (!localStorage.getItem(WELCOME_KEY)) openWelcome();
 })();

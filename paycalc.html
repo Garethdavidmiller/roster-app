@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.68 -->
+<!-- MYB Roster — Pay Calculator v6.69 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.68">
+  <link rel="stylesheet" href="./shared.css?v=6.69">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -602,9 +602,72 @@
       }
     }
 
+    /* ── WELCOME LIGHTBOX (first-time only) ─────────────────────────── */
+    /* Follows the same pattern as #iconLightbox in shared.css */
+    #welcomeLightbox {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0, 10, 20, 0.82);
+      z-index: 9000;
+      align-items: center; justify-content: center;
+      opacity: 0; transition: opacity 0.2s ease;
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      cursor: pointer;
+    }
+    #welcomeLightbox.visible { display: flex; }
+    #welcomeLightbox.open    { opacity: 1; }
+    #welcomeLightboxContent {
+      position: relative;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px; padding: 36px 32px 28px;
+      cursor: default;
+      transform: scale(0.85);
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      width: min(320px, 88vw); text-align: center;
+      -webkit-overflow-scrolling: touch;
+    }
+    #welcomeLightbox.open #welcomeLightboxContent { transform: scale(1); }
+    #welcomeLightboxClose {
+      position: absolute; top: 14px; right: 16px;
+      background: none; border: none; font-family: inherit;
+      color: rgba(255,255,255,0.45); font-size: 22px;
+      cursor: pointer; padding: 6px; line-height: 1;
+      touch-action: manipulation; transition: color 0.15s ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+    #welcomeLightboxClose:active { color: white; }
+    @media (hover: hover) and (pointer: fine) {
+      #welcomeLightboxClose:hover { color: white; }
+    }
+    .welcome-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
+    .welcome-grade-badge {
+      background: var(--primary-blue); color: var(--accent-gold);
+      font-size: 10px; font-weight: 800;
+      padding: 3px 10px; border-radius: 50px;
+      letter-spacing: 0.5px; text-transform: uppercase;
+      margin: 2px 0 4px;
+    }
+    .welcome-desc {
+      font-size: 13px; color: rgba(255,255,255,0.68); line-height: 1.6;
+      margin: 0;
+    }
+    .welcome-guide-link {
+      display: block; margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      width: 100%; text-align: center;
+      font-size: 13px; font-weight: 600;
+      color: var(--accent-gold); text-decoration: none;
+      transition: color 0.15s;
+    }
+    @media (hover: hover) and (pointer: fine) {
+      .welcome-guide-link:hover { color: white; }
+    }
+
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
       #splash, #iconLightbox, #iconLightboxContent,
+      #welcomeLightbox, #welcomeLightboxContent,
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
       .show-more-arrow, .hpp-toggle-arrow, .card-toggle-arrow,
@@ -696,7 +759,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.68">
+  <link rel="manifest" href="./pay-manifest.json?v=6.69">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1275,6 +1338,20 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.68"></script>
+<!-- Welcome lightbox — shown on first-ever visit to the pay calculator; never shown again after close -->
+<div id="welcomeLightbox" role="dialog" aria-label="Welcome to Pay Calculator" aria-modal="true">
+  <button id="welcomeLightboxClose" aria-label="Close">✕</button>
+  <div id="welcomeLightboxContent">
+    <div class="welcome-emoji">💷</div>
+    <div class="lightbox-app-name">Pay Calculator</div>
+    <div class="welcome-grade-badge">CEA grade</div>
+    <p class="welcome-desc">Enter your hours for any pay period — regular, Saturday, bank holidays, overtime and rest day working — and get an instant estimate of your take-home pay.</p>
+    <p class="welcome-desc" style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.45);">Currently available for the CEA grade only. Other grades will be added in a future update.</p>
+    <div class="lightbox-privacy">🔒 Your pay data is saved on this device only — never sent to any server or visible to anyone else.</div>
+    <a class="welcome-guide-link" href="./paycalc-guide.html" target="_blank" rel="noopener">📖 View the Pay Guide →</a>
+  </div>
+</div>
+
+<script type="module" src="./paycalc.js?v=6.69"></script>
 </body>
 </html>
