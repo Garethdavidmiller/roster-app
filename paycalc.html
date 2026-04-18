@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.49 -->
+<!-- MYB Roster — Pay Calculator v6.50 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.49">
+  <link rel="stylesheet" href="./shared.css?v=6.50">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -46,6 +46,18 @@
     .app-header h1 {
       color: var(--primary-blue); font-size: 18px; font-weight: 800;
       letter-spacing: -0.3px; margin: 0; line-height: 1.2; flex: 1;
+      text-align: center;
+    }
+    .badge-pay {
+      background: var(--accent-gold);
+      color: var(--primary-blue);
+      font-size: 10px;
+      font-weight: 800;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      flex-shrink: 0;
     }
     .btn-back {
       flex-shrink: 0;
@@ -846,7 +858,8 @@
   <header class="app-header">
     <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
     <a href="./index.html" class="btn-back" aria-label="Back to roster">← Roster</a>
-    <h1>Pay Calculator</h1>
+    <h1>MYB Roster</h1>
+    <span class="badge-pay">Pay</span>
   </header>
 
   <main>
@@ -1406,6 +1419,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.49"></script>
+<script type="module" src="./paycalc.js?v=6.50"></script>
 </body>
 </html>

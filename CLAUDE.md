@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.40` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `6.50` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -29,7 +29,7 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v5.49:** JS is now in separate files. You need to update **thirteen** places:
+**As of v6.50:** JS is now in separate files. You need to update **seventeen** places:
 
 | File | Location | Example |
 |------|----------|---------|
@@ -38,14 +38,18 @@
 | `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← must match |
 | `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.95 -->` |
 | `index.html` | `<script src="./app.js?v=...">` | `app.js?v=4.95` |
+| `index.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
 | `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.95 -->` |
 | `admin.html` | `<script src="./admin-app.js?v=...">` | `admin-app.js?v=4.95` |
+| `admin.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
 | `app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
 | `app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
 | `admin-app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
 | `admin-app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
-| `index.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
-| `admin.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
+| `paycalc.html` | Line 2 HTML comment | `<!-- MYB Roster — Pay Calculator v4.95 -->` |
+| `paycalc.html` | `<script src="./paycalc.js?v=...">` | `paycalc.js?v=4.95` |
+| `paycalc.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
+| `paycalc.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
 
 `CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
 
