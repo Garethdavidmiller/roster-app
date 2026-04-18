@@ -19,7 +19,8 @@
  *   Push any change to functions/ on main — GitHub Actions deploys automatically.
  */
 
-const { onRequest }    = require('firebase-functions/v2/https');
+const { onRequest }         = require('firebase-functions/v2/https');
+const { onDocumentCreated } = require('firebase-functions/v2/firestore');
 const { defineSecret }  = require('firebase-functions/params');
 const admin             = require('firebase-admin');
 const crypto            = require('crypto');
@@ -58,7 +59,7 @@ const VAPID_PUBLIC_KEY = 'BLX8DG2Yot8lOwmQpSWwVOIW6ymhVDpK4eSuh0J911R2svlkE9RTRL
  */
 exports.ingestHuddle = onRequest(
     {
-        secrets:       [HUDDLE_SECRET, VAPID_PRIVATE_KEY],
+        secrets:       [HUDDLE_SECRET],
         region:        'europe-west2',
         cors:          false,
         timeoutSeconds: 60,
@@ -194,15 +195,9 @@ exports.ingestHuddle = onRequest(
             await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
+            // Push notifications are handled by the onHuddleCreated Firestore trigger —
+            // that fires for both Power Automate uploads and manual admin uploads.
             res.status(200).json({ success: true, date, storageUrl });
-
-            // Fan out push notifications — fire after response so upload latency is unaffected.
-            // Errors here are non-fatal: the upload already succeeded.
-            try {
-                await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
-            } catch (pushErr) {
-                console.warn('[ingestHuddle] Push fan-out error (non-fatal):', pushErr.message);
-            }
 
         } catch (err) {
             console.error('[ingestHuddle] Upload failed:', err);
@@ -214,10 +209,36 @@ exports.ingestHuddle = onRequest(
 // ============================================================================
 // sendHuddlePushNotifications
 // ============================================================================
+// ============================================================================
+// onHuddleCreated — Firestore trigger
+// ============================================================================
+/**
+ * Fires whenever a new document is created in the `huddles` collection —
+ * i.e. the first upload for a given date, whether from Power Automate or
+ * from the manual upload card in admin.html.
+ *
+ * Re-uploads for the same date (setDoc overwrite) are UPDATE events, not
+ * CREATE events, so staff are only notified once per huddle date.
+ */
+exports.onHuddleCreated = onDocumentCreated(
+    {
+        document: 'huddles/{date}',
+        secrets:  [VAPID_PRIVATE_KEY],
+        region:   'europe-west2',
+    },
+    async event => {
+        const date = event.params.date;
+        console.log(`[onHuddleCreated] New huddle for ${date} — fanning out push`);
+        try {
+            await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
+        } catch (err) {
+            console.warn('[onHuddleCreated] Push fan-out error:', err.message);
+        }
+    }
+);
+
 /**
  * Fan out Web Push notifications to all subscribed devices.
- * Called after a successful huddle upload — fire-and-forget from ingestHuddle.
- *
  * Builds a smart day label in London time:
  *   Same day as huddleDate  → "Today's Huddle is ready"
  *   Day after huddleDate    → "Tomorrow's Huddle is ready"
