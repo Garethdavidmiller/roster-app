@@ -269,3 +269,100 @@ body {
 @media (hover: hover) and (pointer: fine) {
     #iconLightboxClose:hover { color: white; }
 }
+
+/* ============================================================
+   APP HEADER
+   Used by admin.html and paycalc.html. Index.html has its own
+   full-bleed header and does not use these rules.
+   ============================================================ */
+.app-header {
+    background: var(--bg-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.app-header img, .app-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    cursor: pointer;
+    flex-shrink: 0;
+    object-fit: cover;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.app-header h1 {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--primary-blue);
+    flex: 1;
+    text-align: center;
+    margin: 0;
+    letter-spacing: -0.3px;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+/* Gold pill badge — shown in header to identify the current section */
+.badge-page {
+    background: var(--accent-gold);
+    color: var(--primary-blue);
+    font-size: 10px;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    flex-shrink: 0;
+}
+
+/* Back-to-roster navigation link */
+.btn-back {
+    flex-shrink: 0;
+    background: transparent;
+    border: 1.5px solid var(--border-light);
+    color: var(--primary-blue);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.12s;
+    white-space: nowrap;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
+}
+
+@media (max-width: 480px) {
+    .app-header {
+        gap: 6px;
+        padding: 10px 12px;
+    }
+    .app-header h1 {
+        font-size: 14px;
+    }
+    .badge-page {
+        padding: 4px 7px;
+        font-size: 9px;
+    }
+    .btn-back {
+        background: var(--primary-blue);
+        border-color: var(--primary-blue);
+        color: white;
+        font-size: 12px;
+        padding: 7px 13px;
+    }
+}

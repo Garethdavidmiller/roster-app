@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.50 -->
+<!-- MYB Roster Admin v6.51 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.50">
+    <link rel="stylesheet" href="shared.css?v=6.51">
 
     <style>
         body {
@@ -34,37 +34,6 @@
         .container { max-width: 1100px; width: 100%; margin: 0 auto; display: none; gap: 10px; box-sizing: border-box; overflow-x: clip; }
         body.auth-ready .container { display: grid; }
 
-        /* ---- Header ---- */
-        .app-header {
-            background: var(--bg-light);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-2);
-            padding: 14px 18px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .app-header img { width: 36px; height: 36px; border-radius: 8px; cursor: pointer; }
-
-        .app-header h1 {
-            font-size: 18px;
-            font-weight: 800;
-            color: var(--primary-blue);
-            flex: 1;
-            text-align: center;
-        }
-
-        .badge-admin {
-            background: var(--accent-gold);
-            color: var(--primary-blue);
-            font-size: 10px;
-            font-weight: 800;
-            padding: 4px 10px;
-            border-radius: 20px;
-            text-transform: uppercase;
-            letter-spacing: 0.6px;
-        }
 
         /* Small ? button inside each card heading */
         .btn-card-tips {
@@ -1494,56 +1463,6 @@
 
         }
 
-        /* ---- Header — narrow screen ---- */
-        @media (max-width: 480px) {
-            .app-header {
-                gap: 6px;
-                padding: 10px 12px;
-            }
-            .app-header h1 {
-                font-size: 14px;
-                min-width: 0;
-            }
-            .badge-admin {
-                padding: 4px 7px;
-                font-size: 9px;
-            }
-        }
-
-        /* ---- Back-to-roster button (in header) ---- */
-        .btn-back {
-            background: transparent;
-            border: 1.5px solid var(--border-light);
-            color: var(--primary-blue);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 5px 10px;
-            border-radius: 8px;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            transition: all 0.12s;
-            white-space: nowrap;
-            -webkit-user-select: none;
-            user-select: none;
-            touch-action: manipulation;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
-        }
-        /* On touch/mobile screens make the back link clearly button-like */
-        @media (max-width: 480px) {
-            .btn-back {
-                background: var(--primary-blue);
-                border-color: var(--primary-blue);
-                color: white;
-                font-size: 12px;
-                padding: 7px 13px;
-            }
-        }
-
         /* ---- Sign-out button (in header) ---- */
         .btn-signout {
             background: transparent;
@@ -2163,7 +2082,7 @@
         <img src="icon-192.png" alt="Chiltern Railways">
         <a href="index.html" class="btn-back" aria-label="Back to roster calendar">← Roster</a>
         <h1>MYB Roster</h1>
-        <span class="badge-admin" id="adminBadge">Admin</span>
+        <span class="badge-page" id="adminBadge">Admin</span>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
 
@@ -2555,6 +2474,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.50"></script>
+<script type="module" src="./admin-app.js?v=6.51"></script>
 </body>
 </html>
