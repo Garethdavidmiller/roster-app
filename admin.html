@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.54 -->
+<!-- MYB Roster Admin v6.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -12,7 +12,7 @@
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.54">
+    <link rel="stylesheet" href="shared.css?v=6.55">
 
     <style>
         body {
@@ -1463,26 +1463,7 @@
 
         }
 
-        /* ---- Sign-out button (in header) ---- */
-        .btn-signout {
-            background: transparent;
-            border: 1.5px solid var(--border-light);
-            color: var(--text-light);
-            font-size: 11px;
-            font-weight: 700;
-            padding: 5px 10px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-family: inherit;
-            touch-action: manipulation;
-            -webkit-user-select: none;
-            user-select: none;
-            transition: all 0.12s;
-            white-space: nowrap;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .btn-signout:hover { border-color: var(--error-red); color: var(--error-red); }
-        }
+        /* .btn-signout defined in shared.css */
 
         /* Print header — hidden on screen, shown by @media print */
         #printHeader { display: none; }
@@ -2474,6 +2455,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.54"></script>
+<script type="module" src="./admin-app.js?v=6.55"></script>
 </body>
 </html>
