@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.62';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.62';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.63';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.63';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -27,6 +27,16 @@ const fetchedMonths         = new Set();
 // Cache for getShiftTypesInMonth(). Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
 const shiftTypesMonthCache  = new Map();
+
+// Tracks the member whose data is currently cached so we can flush on member switch.
+let _cachedMemberName = null;
+
+function clearMemberCaches() {
+    rosterOverridesCache.clear();
+    memberSettingsCache.clear();
+    fetchedMonths.clear();
+    shiftTypesMonthCache.clear();
+}
 
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -716,6 +726,13 @@ function renderCalendar() {
     try {
         const member = getCurrentMember();
 
+        // Flush all Firestore caches when the selected member changes so stale data
+        // from a previous member is never silently served to the new one.
+        if (_cachedMemberName !== member.name) {
+            clearMemberCaches();
+            _cachedMemberName = member.name;
+        }
+
         // Update legend for current member and month (Night, 🎄, 🥚 are conditional)
         updateLegend();
 
@@ -1396,7 +1413,7 @@ try {
                     const date     = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
                     const ua       = navigator.userAgent;
                     const body     = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster v${CONFIG.APP_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
-                    bugLink.href   = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Roster v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+                    bugLink.href   = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
                 }
                 lightbox.classList.add('visible');
                 requestAnimationFrame(() => lightbox.classList.add('open'));
@@ -1720,12 +1737,25 @@ if ('serviceWorker' in navigator) {
  * @returns {string}
  */
 function sanitiseHtml(html) {
+    // Allowlist approach: only known-safe tags survive; everything else is removed entirely.
+    // Safer than a blocklist because new attack vectors (href="javascript:", <svg> handlers,
+    // CSS expressions) don't require updating this function.
+    // mammoth produces p/h1-h6/ul/ol/li/strong/em/table/tr/td/th/a — all covered below.
+    const ALLOWED = new Set([
+        'p','h1','h2','h3','h4','h5','h6',
+        'ul','ol','li',
+        'strong','em','b','i','br',
+        'table','thead','tbody','tr','th','td',
+        'div','span','a',
+    ]);
     const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll('script, style, iframe, object, embed, form, input, button, link').forEach(el => el.remove());
+    // Remove disallowed elements entirely (including their children).
     doc.querySelectorAll('*').forEach(el => {
-        [...el.attributes]
-            .filter(a => a.name.startsWith('on') || a.name === 'href' && el.tagName === 'LINK')
-            .forEach(a => el.removeAttribute(a.name));
+        if (!ALLOWED.has(el.tagName.toLowerCase())) el.remove();
+    });
+    // Strip all attributes from remaining elements — no href="javascript:", no on* handlers.
+    doc.querySelectorAll('*').forEach(el => {
+        [...el.attributes].forEach(a => el.removeAttribute(a.name));
     });
     return doc.body.innerHTML;
 }

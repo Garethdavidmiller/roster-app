@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.62';
+import { APP_VERSION, CONFIG } from './roster-data.js?v=6.63';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -1512,7 +1512,7 @@ Device: ${navigator.userAgent}
 
 --- Describe the bug ---
 `;
-    bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator v${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+    bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator v${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
   }
 
   if (versionEl) versionEl.textContent = APP_VERSION;
