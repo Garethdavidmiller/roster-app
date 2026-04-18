@@ -9,6 +9,22 @@
   "theme_color": "#001e3c",
   "orientation": "portrait-primary",
   "scope": "./",
+  "shortcuts": [
+    {
+      "name": "My Roster",
+      "short_name": "Roster",
+      "description": "View your shift calendar",
+      "url": "./index.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Admin",
+      "short_name": "Admin",
+      "description": "Staff self-service and admin portal",
+      "url": "./admin.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "icon-120.png",
