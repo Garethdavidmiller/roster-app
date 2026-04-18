@@ -1,13 +1,13 @@
+import { APP_VERSION } from './roster-data.js?v=6.50';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
 // Single source of truth for all app constants — matches MYB Roster pattern.
 // ⚠️  TAX YEAR ROLLOVER: Each April, update the following:
-//     APP_VERSION, ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET,
+//     ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET,
 //     and the TAX / NI / SL threshold values below.
 //     P48 anchor (13 Feb 2026) stays fixed as the offset reference point.
 const CONFIG = {
-  APP_VERSION:    '1.21',
   // Period arithmetic
   ANCHOR_DATE:    new Date(2026, 1, 13), // P48 payday: 13 Feb 2026 (fixed reference)
   PERIOD_DAYS:    28,
@@ -1511,16 +1511,16 @@ if (_splash) {
   // Bug report link — pre-populated with version and device info
   const bugLink = document.getElementById('bugReportLink');
   if (bugLink) {
-    const body = `App: Marylebone Pay Calculator
-Version: ${CONFIG.APP_VERSION}
+    const body = `App: MYB Roster — Pay Calculator
+Version: ${APP_VERSION}
 Device: ${navigator.userAgent}
 
 --- Describe the bug ---
 `;
-    bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+    bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator v${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
   }
 
-  if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
+  if (versionEl) versionEl.textContent = APP_VERSION;
 
   let swReg = null;
 
@@ -1528,9 +1528,13 @@ Device: ${navigator.userAgent}
   const updateToastEl  = document.getElementById('updateToast');
   const updateToastBtn = document.getElementById('updateToastBtn');
 
+  let updateToastTimer = null;
   function showUpdateToast(worker) {
     pendingWorker = worker;
-    if (updateToastEl) updateToastEl.classList.add('visible');
+    if (!updateToastEl) return;
+    updateToastEl.classList.add('visible');
+    clearTimeout(updateToastTimer);
+    updateToastTimer = setTimeout(() => updateToastEl.classList.remove('visible'), 12000);
   }
 
   function showUpToDate() {
@@ -1544,6 +1548,7 @@ Device: ${navigator.userAgent}
 
   if (updateToastBtn) {
     updateToastBtn.addEventListener('click', () => {
+      clearTimeout(updateToastTimer);
       if (pendingWorker) pendingWorker.postMessage({ type: 'SKIP_WAITING' });
       updateToastBtn.textContent = 'Updating…';
       updateToastBtn.disabled    = true;
@@ -1656,7 +1661,7 @@ Device: ${navigator.userAgent}
   // (when there was no previous controller).
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      sessionStorage.setItem('swJustUpdated', CONFIG.APP_VERSION);
+      sessionStorage.setItem('swJustUpdated', APP_VERSION);
       window.location.reload();
     }, { once: true });
   }
