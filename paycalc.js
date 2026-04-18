@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.61';
+import { APP_VERSION } from './roster-data.js?v=6.62';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -504,6 +504,8 @@ function onPeriodChange() {
 
   // Settings confirmation check for this tax year.
   const tyConfirmed = localStorage.getItem(settingsKey(ty));
+  // Always keep the title current so the hardcoded HTML default never shows stale text.
+  document.getElementById('setupBannerTitle').textContent = `👋 Set up for ${ty.label}`;
   if (tyConfirmed) {
     // Confirmed — hide banner, update card header hint with saved values.
     document.getElementById('setupBanner').classList.add('hidden');
