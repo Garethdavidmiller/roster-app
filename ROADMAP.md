@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: April 2026 — v6.28 (Push notifications live; Allocated shift type; startDate/proRatedAL member fields; guide.html added)*
+*Last updated: April 2026 — v6.53 (Pay calculator integrated; single service worker; shared CSS; integration audit)*
 
 ---
 
@@ -271,23 +271,21 @@ Storage rules remain unchanged: authenticated write, open read.
 
 ---
 
-### Payday calculator ⚙️ In progress
-**What:** A view that shows the staff member's worked shifts for the current pay period, counts hours and shift types, and gives a breakdown of what contributes to pay. Paydays are every 4 weeks (Friday); the cutoff for each period is the preceding Saturday.
+### Payday calculator ✓ Complete (v6.50–v6.53)
 
-**What is already built:**
-- `getPaydaysAndCutoffs(year)` in `roster-data.js` — calculates every payday and cutoff date for a given year, adjusts backwards if payday falls on a bank holiday
-- `isPayday()` and `isCutoffDate()` helper functions, both tested
-- `FIRST_PAYDAY` and `PAYDAY_INTERVAL_DAYS` in `CONFIG`
-- Calendar cells already show 💷 payday and ✂️ cutoff markers
-- Gareth has calculator UI work in progress externally — will be integrated when ready
+**What was built:**
 
-**Depends on:** Nothing new. All shift data already in Firestore; pay period boundaries already calculated.
+| Component | Detail |
+|-----------|--------|
+| `paycalc.html` + `paycalc.js` | Full pay calculator UI — reads base roster and Firestore overrides, shows shift-type breakdown per pay period, supports period navigation |
+| `pay-manifest.json` | Separate PWA manifest so the calculator can be installed to the home screen independently of the main app |
+| Shared infrastructure | `shared.css` extended with `.app-header`, `.badge-page`, `.btn-back` — used by both admin.html and paycalc.html |
+| Single service worker | Consolidated from two competing SWs into one `service-worker.js` covering all three pages. `pay-service-worker.js` reduced to a migration stub (safe to delete ~May 2026). |
+| Version integration | `APP_VERSION` imported from `roster-data.js` — pay calculator always matches roster app version |
 
-**Integration notes for when the code arrives:**
-- The data layer lives in `roster-data.js` — do not duplicate it in the new file
-- Any new page should follow the same file structure: `paycalc.html` (HTML+CSS only) + `paycalc.js` (JS only) + import from `roster-data.js` and `firebase-client.js`
-- Add to service worker `ASSETS_TO_CACHE` and network-first list
-- Version bump table will need two new rows
+**Key design decisions:**
+- **One service worker** rather than per-page SWs — two SWs sharing the same scope (`./`) competed and wiped each other's caches on every activation
+- **`pay-manifest.json` kept separate** rather than merging into `manifest.json` — allows independent home-screen installation with a distinct app name ("MYB Pay") while sharing all assets
 
 ---
 

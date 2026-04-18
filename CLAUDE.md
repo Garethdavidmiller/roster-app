@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.50` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `6.53` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -77,26 +77,31 @@ The goal is that Gareth understands the codebase, not just that the codebase wor
 
 ```
 roster-app/
-├── index.html          ← main PWA app (HTML + CSS only)
-├── admin.html          ← staff self-service and admin portal (HTML + CSS only)
-├── app.js              ← all JavaScript for index.html
-├── admin-app.js        ← all JavaScript for admin.html
-├── roster-data.js      ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
-├── firebase-client.js  ← shared module: Firebase init (one place), exports db + all Firestore functions
-├── shared.css          ← CSS shared between index.html and admin.html
-├── service-worker.js   ← cache name includes app version, e.g. myb-roster-v4.95
-├── manifest.json       ← PWA manifest
-├── guide.html          ← printable staff + admin quick guide (update at major versions: v7, v8 …)
-├── icon-*.png          ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── index.html              ← main PWA app (HTML + CSS only)
+├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
+├── paycalc.html            ← pay calculator (HTML + CSS only)
+├── app.js                  ← all JavaScript for index.html
+├── admin-app.js            ← all JavaScript for admin.html
+├── paycalc.js              ← all JavaScript for paycalc.html
+├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
+├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
+├── shared.css              ← CSS shared by all three pages
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v6.53
+├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
+├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
+├── pay-service-worker.js   ← migration stub only — cleans up old myb-pay-calc-* caches; safe to delete after ~May 2026
+├── guide.html              ← printable staff + admin quick guide (update at major versions: v7, v8 …)
+├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 └── functions/
-    ├── index.js        ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF
-    └── package.json    ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
+    ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF
+    └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
-- Cache-first: icons (cached individually), `manifest.json` — stable assets
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `paycalc.html`, `paycalc.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
+- One SW (`service-worker.js`) covers all three pages. `pay-service-worker.js` is a stub that deregisters old caches and hands control over.
 
 ---
 
@@ -131,24 +136,19 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 
 ---
 
-## Payday calculator — planned feature
+## Payday calculator — integrated (v6.50)
 
-Work on a payday calculator UI is in progress externally and will be integrated when ready. **Do not rebuild the data layer — it already exists.**
+The pay calculator is a fully integrated page of the app. It lives at `paycalc.html` / `paycalc.js`, shares `shared.css`, imports `APP_VERSION` and pay-period helpers from `roster-data.js`, and is covered by the single `service-worker.js`.
 
-| What exists | Location |
-|-------------|----------|
+| Component | Location |
+|-----------|----------|
 | `getPaydaysAndCutoffs(year)` | `roster-data.js` — returns `{ paydays[], cutoffs[] }` for any year |
 | `isPayday(date)` / `isCutoffDate(date)` | `roster-data.js` — boolean helpers |
 | `FIRST_PAYDAY`, `PAYDAY_INTERVAL_DAYS` | `CONFIG` in `roster-data.js` |
 | 💷 / ✂️ calendar markers | `app.js` — `.payday` and `.cutoff` CSS classes applied per cell |
-| Tests | `roster-data.test.mjs` — payday and cutoff tests already passing |
-
-**When integrating the calculator UI:**
-- Follow the existing file pattern: `paycalc.html` (HTML+CSS only) + `paycalc.js` (JS only)
-- Import shared functions from `roster-data.js` and `firebase-client.js` — do not duplicate
-- Add both new files to the service worker `ASSETS_TO_CACHE` and network-first list
-- The version bump table will need two new rows (`paycalc.html` and `paycalc.js`)
-- See ROADMAP.md for full context
+| Tests | `roster-data.test.mjs` — payday and cutoff tests passing |
+| UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
+| PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
 
 ---
 
