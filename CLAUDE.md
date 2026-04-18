@@ -31,7 +31,7 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v6.50:** JS is now in separate files. You need to update **seventeen** places:
+**As of v6.63:** JS is now in separate files. You need to update **twenty** places:
 
 | File | Location | Example |
 |------|----------|---------|
@@ -41,9 +41,11 @@
 | `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.95 -->` |
 | `index.html` | `<script src="./app.js?v=...">` | `app.js?v=4.95` |
 | `index.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
+| `index.html` | `<link rel="manifest" href="manifest.json?v=...">` | `manifest.json?v=4.95` |
 | `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.95 -->` |
 | `admin.html` | `<script src="./admin-app.js?v=...">` | `admin-app.js?v=4.95` |
 | `admin.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
+| `admin.html` | `<link rel="manifest" href="manifest.json?v=...">` | `manifest.json?v=4.95` |
 | `app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
 | `app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
 | `admin-app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
@@ -51,6 +53,7 @@
 | `paycalc.html` | Line 2 HTML comment | `<!-- MYB Roster — Pay Calculator v4.95 -->` |
 | `paycalc.html` | `<script src="./paycalc.js?v=...">` | `paycalc.js?v=4.95` |
 | `paycalc.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
+| `paycalc.html` | `<link rel="manifest" href="./pay-manifest.json?v=...">` | `pay-manifest.json?v=4.95` |
 | `paycalc.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
 
 `CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.

@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.62';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.62';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.63';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.63';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -141,7 +141,7 @@ function initLoginOverlay() {
             const date   = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             const ua     = navigator.userAgent;
             const body   = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Admin v${ADMIN_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
-            bugLink.href = `mailto:Gareth.Miller@chilternrailways.co.uk?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin v${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
+            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin v${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
         }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
@@ -1405,12 +1405,13 @@ function renderTable() {
     if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
     rows.forEach(o => {
         const typeMeta = TYPES[o.type];
+        const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
         const tr   = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${esc(o.memberName)} ${o.date}"></td>
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
             <td>${esc(o.memberName)}</td>
-            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : esc(o.type)}</span></td>
+            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : esc(o.type)}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}</td>
             <td style="font-family:monospace;font-size:12px">${esc(o.value)}</td>
             <td style="color:var(--text-light);font-style:italic">${esc(o.note)}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
             <td>
