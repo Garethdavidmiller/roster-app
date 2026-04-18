@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.58` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `6.59` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -21,6 +21,8 @@
 | `HUDDLE_SECRET` | Bearer token Power Automate sends to `ingestHuddle` — must also be in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
 | `ROSTER_SECRET` | Bearer token the admin page sends to `parseRosterPDF` — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET`. **⚠ The current value is hardcoded in `admin-app.js` (visible in page source — known limitation, see issue #14). Rotate it if the function is ever abused.** |
 | `ANTHROPIC_API_KEY` | API key for Claude AI (used by `parseRosterPDF` to read the roster PDF) — Firebase Secret Manager only, not needed in GitHub Actions: `firebase functions:secrets:set ANTHROPIC_API_KEY` |
+| `VAPID_PUBLIC_KEY` | Web Push public key for Huddle push notifications — Firebase Secret Manager only: `firebase functions:secrets:set VAPID_PUBLIC_KEY` |
+| `VAPID_PRIVATE_KEY` | Web Push private key — Firebase Secret Manager only: `firebase functions:secrets:set VAPID_PRIVATE_KEY` |
 
 **GitHub Actions workflows:**
 - `.github/workflows/deploy-functions.yml` — triggers on push to `main` when any file under `functions/` changes, or manually via `workflow_dispatch`. Deploys Cloud Functions only (not the PWA). Exit code from Firebase CLI is treated as success if the only error text is "cleanup policy" (a benign GCP Artifact Registry warning).
@@ -336,6 +338,15 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 | v6.26 | 🟡 Med | **M. Okeke added to team.** New `startDate` field on `teamMembers`: `getBaseShift()` returns `'RD'` for all dates before the member's start date. New `proRatedAL` field: `getALEntitlement()` checks `member.proRatedAL[year]` and returns the explicit figure for joiners part-way through a year. |
 | v6.27 | 🟡 Med | **AL lightbox stats bar overflowed the card.** `align-items: center` on the flex column parent let `.al-lb-stats` grow wider than the card. Fixed with `width: 100%` + `flex: 1; min-width: 0` on stat columns, reduced card padding (40px → 20px), reduced stat padding, and smaller label font (10px → 9px). |
 | v6.28 | 🟠 High | **`buildCalendarContainer` bypassed `getBaseShift()`.** Calendar cells were built by reading `roster.data[weekNum][dayKey]` directly, skipping `startDate` suppression and Christmas rules. M. Okeke showed full roster shifts before her April 20 start date. Fixed by replacing the manual lookup with `getBaseShift(member, currentDate)`. |
+| v6.50 | 🟠 High | **JS extracted from both HTML files.** `app.js` (index.html), `admin-app.js` (admin.html), `paycalc.js` (paycalc.html) are now separate files. `shared.css` covers all shared styles. `roster-data.js` and `firebase-client.js` are imported by all three JS files. |
+| v6.50 | 🟠 High | **Pay calculator integrated.** Previously a separate experimental app; merged into the main roster app. `paycalc.html` / `paycalc.js` now share `shared.css`, import from `roster-data.js`, and are covered by the single `service-worker.js`. |
+| v6.53 | 🟢 Low | **Integration audit.** `firebase.json` hardened: `Cache-Control: no-cache` added for service workers; dev files (`*.md`, `*.mjs`, `firestore.rules`) excluded from Firebase Hosting. `pay-manifest.json` updated with `shortcuts` array matching `manifest.json`. Obsolete `paycalc-claude-guide.md` deleted. |
+| v6.54 | 🟢 Low | **Header/lightbox consistency pass.** Admin and pay title cards made fully consistent: `<img>` attributes aligned, lightbox app name standardised to "MYB Roster", version format "v<n>", lightbox close button changed from `<span>` to `<button>`. Pay calculator 💷 button `aria-label` corrected. |
+| v6.55 | 🟢 Low | **Sign-out button added to pay calculator header.** Was missing from paycalc — only present on admin. `.btn-signout` CSS block moved to `shared.css` (same pattern as `.btn-back`). Click handler in `paycalc.js` clears `myb_admin_session` and returns to `index.html`. |
+| v6.56 | 🟢 Low | **Back button text reduced to bare arrow.** Both admin and pay back buttons changed from "← Roster" to "←". `aria-label` preserved for screen readers. |
+| v6.57 | 🟢 Low | **Admin gold badge always shows "Admin".** Previously showed the user's surname (e.g. "Springer") for non-master-admin logins — redundant since name is already visible in the locked dropdown. Removed the JS override; HTML default `Admin` now persists for all users. |
+| v6.58 | 🟢 Low | **Pay calculator splash screen removed.** Had a hardcoded 280ms delay + 400ms CSS fade-out (up to 680ms dead time). Appropriate for a standalone app; unnecessary when navigating to it from within the integrated roster app. HTML, CSS, and JS removed. |
+| v6.59 | 🟢 Low | **Settings card flash on pay calculator load fixed.** Settings card had `open` class baked into HTML; JS removed it for returning users after the page painted — causing a visible flash. Reversed: card starts closed in HTML, JS adds `open` only for first-time users who haven't confirmed settings yet. |
 
 ---
 
@@ -349,8 +360,8 @@ The daily Huddle briefing arrives as an email with a PDF or DOCX attachment. A P
 
 | File | Purpose |
 |------|---------|
-| `functions/index.js` | Cloud Function — receives file, validates, uploads to Storage, writes Firestore doc |
-| `functions/package.json` | Node 20; only `firebase-admin` and `firebase-functions` as dependencies |
+| `functions/index.js` | Three Cloud Functions: `ingestHuddle` (Power Automate upload), `parseRosterPDF` (AI roster parser), `sendHuddlePushNotifications` (fan-out Web Push on new Huddle) |
+| `functions/package.json` | Node 20; `firebase-admin`, `firebase-functions`, `@anthropic-ai/sdk` as dependencies |
 
 ### Firebase Storage
 
@@ -455,9 +466,6 @@ Trigger: new email with attachment
     │   ├── Compose: attachment
     │   │   body('filter_array_1')[0]?['contentBytes']
     │   │
-    │   ├── Compose: debug_content   ← REMOVE THIS once everything works
-    │   │   length(outputs('attachment'))
-    │   │
     │   └── HTTP action (Premium)
     │       Method: POST
     │       URI: https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle
@@ -546,7 +554,7 @@ match /huddles/{docId} {
 
 If `allow write: if false` blocks the Cloud Function, that is a misconfiguration — the Admin SDK bypasses Security Rules entirely. Client-side writes (from the browser) are correctly blocked.
 
-### Current status (as of v6.28)
+### Current status (as of v6.59)
 
 - ✅ Cloud Function `ingestHuddle` deployed and live
 - ✅ PDF and DOCX upload via Power Automate — working end to end
@@ -665,7 +673,7 @@ Apply approved changes:
 
 Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is treated the same as no override — the new PDF result replaces it without conflict. Only overrides with no `source` field (or any other value) are treated as manual and trigger the CONFLICT state.
 
-### Current status (as of v6.28)
+### Current status (as of v6.59)
 
 - ✅ Cloud Function deployed and live
 - ✅ PDF parsing via Claude AI — working end to end for CEA/Bilingual, CES, Dispatcher rosters
