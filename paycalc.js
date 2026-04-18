@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.66';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.67';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -144,9 +144,9 @@ const HELP_CONTENT = {
     tips: [
       '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. The CEA rate is currently £20.74. It changes each April with the pay award.',
       '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). Most CEA staff are on 1257L. A code starting with S means you pay Scottish income tax rates.',
-      '<strong>Pension:</strong> the amount shown as "Smart RPS CR Scheme" on your payslip. It can vary slightly period to period — update it if your payslip shows a different figure.',
+      '<strong>Pension:</strong> shown as "Smart RPS CR Scheme" on your payslip. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
       '<strong>Student loan:</strong> only select a plan if a student loan deduction appears on your payslip. If you repay by direct debit, leave this as None.',
-      'Settings are saved per tax year — updating your rate for 2026/27 won\'t affect your 2025/26 figures.',
+      'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
     ],
   },
   accuracy: {
@@ -506,6 +506,10 @@ function onPeriodChange() {
   // Load the rate and Year to Date figures for this period's tax year
   updateRateForPeriod(ty);
   updateYtdForTaxYear(ty);
+  // Update the "for P__" label next to the pension field so users can see
+  // which period's pension they are viewing or editing.
+  const pensionPeriodLbl = document.getElementById('pensionPeriodLabel');
+  if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for P${p.num}`;
 
   // Settings confirmation check for this tax year.
   const tyConfirmed = localStorage.getItem(settingsKey(ty));
@@ -572,6 +576,7 @@ function readFormData() {
     peer: +document.getElementById('peerVal').textContent,
     slSkip:   document.getElementById('slSkipCheck').checked,
     otherAdj: parseFloat(document.getElementById('otherAdj').value) || 0,
+    pension:  parseFloat(document.getElementById('pensionAmt').value) || 0,
   };
 }
 
@@ -587,6 +592,17 @@ function writeFormData(d) {
   document.getElementById('peerVal').textContent  = d.peer || 0;
   document.getElementById('slSkipCheck').checked  = d.slSkip || false;
   document.getElementById('otherAdj').value        = d.otherAdj || '';
+  // Restore pension from period data if saved; otherwise use the global Settings default.
+  // `d.pension != null` is intentionally loose-null so that pension = 0 (no deduction)
+  // is preserved correctly — 0 is falsy and would otherwise fall through to the default.
+  const pa = document.getElementById('pensionAmt');
+  if (pa) {
+    if (d.pension != null) {
+      pa.value = d.pension;
+    } else {
+      pa.value = localStorage.getItem(SK.pension) ?? '';
+    }
+  }
 }
 
 function isDataEmpty(d) {
@@ -710,6 +726,17 @@ function confirmSettings() {
   const pNum  = currentPeriodNum();
   const curP  = getPeriods().find(x => x.num === pNum);
   const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  // If this period already has saved hours, patch its pension value in-place.
+  // We only update existing records — we don't create an hours-empty record just
+  // because the user tapped Save settings.
+  const existingRaw = localStorage.getItem(periodKey(pNum));
+  if (existingRaw) {
+    try {
+      const d = JSON.parse(existingRaw);
+      d.pension = parseFloat(document.getElementById('pensionAmt').value) || 0;
+      localStorage.setItem(periodKey(pNum), JSON.stringify(d));
+    } catch(e) {}
+  }
   localStorage.setItem(settingsKey(curTy), '1');
   localStorage.setItem(SK.setup, '1');
   document.getElementById('setupBanner').classList.add('hidden');
@@ -1473,7 +1500,9 @@ document.getElementById('gradeSelect').addEventListener('change', () => { saveSe
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
 document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
 document.getElementById('studentLoan').addEventListener('change',() => { saveSettings(); calculate(); });
-document.getElementById('pensionAmt').addEventListener('input',  () => { saveSettings(); calculate(); });
+// pensionAmt: save global default AND lock pension to current period immediately.
+// autosave() calls calculate() internally, so no separate calculate() call needed.
+document.getElementById('pensionAmt').addEventListener('input',  () => { saveSettings(); autosave(); });
 
 // Per-period overrides
 document.getElementById('slSkipCheck').addEventListener('change', autosave);
