@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.58';
+import { APP_VERSION } from './roster-data.js?v=6.59';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -753,16 +753,18 @@ function loadSettings() {
     localStorage.removeItem(SK.ytdPay);
     localStorage.removeItem(SK.ytdTax);
   }
-  // On repeat visits: hide banner and collapse Settings
-  if (done) {
+  // Settings card starts closed in HTML. Open it only for first-time users.
+  // (Previously started open and was removed for returning users — caused a visible flash.)
+  if (!done) {
+    document.getElementById('settingsToggle').classList.add('open');
+    document.getElementById('settingsBody').classList.add('open');
+  } else {
     // Migration: mark all tax years confirmed if global setup flag already set (v1.13+)
     CONFIG.TAX_YEARS.forEach(ty => {
       if (!localStorage.getItem(settingsKey(ty))) {
         localStorage.setItem(settingsKey(ty), '1');
       }
     });
-    document.getElementById('settingsToggle').classList.remove('open');
-    document.getElementById('settingsBody').classList.remove('open');
   }
   // Migration: copy legacy global hppActual (cea_hpp_actual) to per-year key if needed
   const legacyHppActual = localStorage.getItem('cea_hpp_actual');
