@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.68';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.68';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.69';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.69';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -879,45 +879,20 @@ document.getElementById('nextMonth').addEventListener('click', () => {
     announceMonthChange();
 });
 
-// Pay button — navigates to paycalc.html for admin; shows coming-soon lightbox for everyone else.
-// Reads the admin session from localStorage (written by admin.html on login).
-(function () {
-    const overlay  = document.getElementById('payLightbox');
-    const content  = document.getElementById('payLightboxContent');
-    const closeBtn = document.getElementById('payLightboxClose');
-
-    function openPayLightbox() {
-        overlay.classList.add('visible');
-        requestAnimationFrame(() => overlay.classList.add('open'));
-        document.addEventListener('keydown', onKeyDown);
-    }
-
-    function closePayLightbox() {
-        overlay.classList.remove('open');
-        overlay.addEventListener('transitionend', () => overlay.classList.remove('visible'), { once: true });
-        document.removeEventListener('keydown', onKeyDown);
-    }
-
-    function onKeyDown(e) { if (e.key === 'Escape') closePayLightbox(); }
-
-    function isAdminUser() {
-        try {
-            const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
-            return !!(session && CONFIG.ADMIN_NAMES.includes(session.name));
-        } catch { return false; }
-    }
-
-    document.getElementById('payBtn').addEventListener('click', () => {
-        if (isAdminUser()) {
+// Pay button — navigates to paycalc.html for any signed-in staff member.
+// If no session exists, sends the user to admin.html to sign in, then redirects back.
+document.getElementById('payBtn').addEventListener('click', () => {
+    try {
+        const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+        if (session && session.name) {
             window.location.href = './paycalc.html';
         } else {
-            openPayLightbox();
+            window.location.href = './admin.html?redirect=paycalc';
         }
-    });
-    overlay.addEventListener('click', closePayLightbox);
-    if (content)  content.addEventListener('click',  e => e.stopPropagation());
-    if (closeBtn) closeBtn.addEventListener('click', closePayLightbox);
-})();
+    } catch {
+        window.location.href = './admin.html?redirect=paycalc';
+    }
+});
 
 // Print — moved from nav button to the about lightbox
 document.getElementById('lightboxPrintBtn').addEventListener('click', () => {
