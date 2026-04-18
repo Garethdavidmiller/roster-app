@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.51';
+import { APP_VERSION } from './roster-data.js?v=6.52';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -1667,7 +1667,7 @@ Device: ${navigator.userAgent}
   }
 
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./pay-service-worker.js')
+    navigator.serviceWorker.register('./service-worker.js')
       .then(reg  => console.log('SW registered:', reg.scope))
       .catch(err => console.error('SW registration failed:', err));
   });
