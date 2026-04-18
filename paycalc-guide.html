@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Pay Calculator Guide  |  Update when pay rules change -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MYB Roster — Pay Calculator Guide</title>
+    <style>
+        /* ── Print setup ─────────────────────────────────────── */
+        @page { size: A4; margin: 14mm 13mm; }
+        @media print {
+            body  { background: white; padding: 0; font-size: 11px; }
+            .page { max-width: 100%; margin: 0; padding: 18px 18px 14px; box-shadow: none; border-radius: 0; }
+            .no-print { display: none !important; }
+            .page-break { page-break-before: always; break-before: page; }
+            a { color: inherit; text-decoration: none; }
+            h2 { margin: 10px 0 5px; }
+            h2:first-of-type { margin-top: 0; }
+            .steps li { margin-bottom: 3px; }
+            .info { margin-top: 4px; padding: 4px 8px; }
+            .guide-header { padding: 10px 14px; margin-bottom: 14px; }
+            .guide-footer { margin-top: 10px; padding-top: 7px; }
+            .cols { gap: 16px; }
+        }
+
+        /* ── Variables ───────────────────────────────────────── */
+        :root {
+            --navy:       #001e3c;
+            --navy-mid:   #0a2d52;
+            --gold:       #f5c800;
+            --text:       #1a1a2e;
+            --mid:        #555;
+            --light:      #888;
+            --border:     #dde1e8;
+            --bg:         #f8f9fb;
+        }
+
+        /* ── Base ────────────────────────────────────────────── */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 12px;
+            line-height: 1.5;
+            color: var(--text);
+            background: #e8ecf2;
+            padding: 24px 16px;
+        }
+
+        .page {
+            background: white;
+            max-width: 760px;
+            margin: 0 auto 28px;
+            padding: 28px 28px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 20px rgba(0,0,0,0.14);
+        }
+
+        /* ── Print / action bar ──────────────────────────────── */
+        .action-bar {
+            max-width: 760px;
+            margin: 0 auto 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-print {
+            background: var(--navy);
+            color: white;
+            border: none;
+            padding: 9px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-print:hover { background: #00152a; }
+        .action-hint { font-size: 12px; color: var(--mid); }
+
+        /* ── Page header ─────────────────────────────────────── */
+        .guide-header {
+            background: var(--navy);
+            color: white;
+            padding: 14px 18px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+        .guide-header-left { display: flex; align-items: center; gap: 12px; }
+        .guide-header-icon { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .guide-header h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; }
+        .guide-header .sub { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
+        .version-pill {
+            background: var(--gold);
+            color: var(--navy);
+            font-size: 10px;
+            font-weight: 800;
+            padding: 3px 9px;
+            border-radius: 12px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        /* ── Section headings ────────────────────────────────── */
+        h2 {
+            font-size: 10.5px;
+            font-weight: 800;
+            color: var(--navy);
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 3px;
+            margin: 16px 0 8px;
+        }
+        h2:first-of-type { margin-top: 0; }
+
+        /* ── Two-column layout ───────────────────────────────── */
+        .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        /* ── Mobile: single column ── */
+        @media screen and (max-width: 640px) {
+            body  { padding: 12px 10px; }
+            .page { padding: 16px 14px 14px; }
+            .cols { grid-template-columns: 1fr; gap: 0; }
+            .guide-header { padding: 10px 12px; margin-bottom: 14px; }
+            .guide-header h1 { font-size: 14px; }
+            .guide-header-icon { width: 32px; height: 32px; border-radius: 8px; }
+            h2 { margin-top: 14px; }
+        }
+
+        /* ── Info box ────────────────────────────────────────── */
+        .info {
+            background: #eef4ff;
+            border-left: 3px solid var(--navy);
+            padding: 6px 9px;
+            border-radius: 0 5px 5px 0;
+            font-size: 10.5px;
+            color: var(--mid);
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+        .info strong { color: var(--navy); }
+
+        /* ── Numbered steps ──────────────────────────────────── */
+        .steps { list-style: none; counter-reset: s; }
+        .steps li {
+            counter-increment: s;
+            display: flex;
+            align-items: flex-start;
+            gap: 7px;
+            margin-bottom: 5px;
+            font-size: 11px;
+        }
+        .steps li::before {
+            content: counter(s);
+            background: var(--navy);
+            color: white;
+            font-size: 9px;
+            font-weight: 800;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        /* ── Table ───────────────────────────────────────────── */
+        table { width: 100%; border-collapse: collapse; font-size: 10.5px; }
+        thead th {
+            background: var(--navy);
+            color: white;
+            padding: 5px 7px;
+            text-align: left;
+            font-size: 9.5px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        tbody td { padding: 4px 7px; border-bottom: 1px solid var(--border); vertical-align: top; }
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:nth-child(even) td { background: var(--bg); }
+        td strong { color: var(--navy); }
+
+        /* ── Pay type grid ───────────────────────────────────── */
+        .pay-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .pay-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 7px;
+            padding: 5px 7px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg);
+        }
+        .pay-emoji { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+        .pay-name  { font-size: 10.5px; font-weight: 700; color: var(--navy); display: block; }
+        .pay-desc  { font-size: 10px; color: var(--light); display: block; line-height: 1.3; }
+
+        /* ── Footer ──────────────────────────────────────────── */
+        .guide-footer {
+            text-align: center;
+            font-size: 9.5px;
+            color: var(--light);
+            margin-top: 16px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* ── Body copy ───────────────────────────────────────── */
+        p { font-size: 11px; color: var(--mid); margin-bottom: 6px; line-height: 1.45; }
+        code { background: var(--bg); padding: 1px 4px; border-radius: 3px; font-size: 10.5px; border: 1px solid var(--border); font-family: monospace; }
+    </style>
+</head>
+<body>
+
+<!-- ── Action bar (screen only) ───────────────────────────────── -->
+<div class="action-bar no-print">
+    <button class="btn-print" onclick="window.print()">🖨 Save as PDF / Print</button>
+    <a href="./paycalc.html" style="font-size:12px;color:#555;text-decoration:none;">← Back to Pay Calculator</a>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     PAGE 1 — PAY CALCULATOR GUIDE
+     ══════════════════════════════════════════════════════════════ -->
+<div class="page">
+    <div class="guide-header">
+        <div class="guide-header-left">
+            <img class="guide-header-icon" src="./icon-192.png" alt="MYB Roster app icon">
+            <div>
+                <h1>Pay Calculator — Guide</h1>
+                <div class="sub">Chiltern Railways · MYB Station · CEA pay estimate tool</div>
+            </div>
+        </div>
+        <span class="version-pill">v6.x</span>
+    </div>
+
+    <div class="cols">
+        <!-- ── LEFT COLUMN ── -->
+        <div>
+            <h2>What it does</h2>
+            <p>The Pay Calculator estimates your <strong>net take-home pay</strong> for any 4-week pay period. It reads your actual shifts from the roster, applies your tax code, pension, and any extras you enter, and gives you a breakdown of gross pay, deductions, and net. It is an <em>estimate only</em> — your payslip is the authoritative figure.</p>
+            <div class="info"><strong>Privacy:</strong> All figures are saved on your device only — nothing is sent to any server or visible to anyone else.</div>
+
+            <h2>First-time setup</h2>
+            <ol class="steps">
+                <li>Open the Pay Calculator via the <strong>💷 Pay</strong> button on the roster</li>
+                <li>Tap <strong>Set up your pay calculator</strong> if the settings card is visible</li>
+                <li>Enter your <strong>hourly rate</strong> (check your latest payslip)</li>
+                <li>Enter your <strong>tax code</strong> (e.g. <code>1257L</code>) — find it on your payslip or P60</li>
+                <li>Choose your <strong>pension scheme</strong> (BRASS or CARE) and contribution percentage</li>
+                <li>If you have a student loan, choose your plan</li>
+                <li>Tap <strong>Save settings</strong></li>
+            </ol>
+
+            <h2>Choosing a pay period</h2>
+            <p>Use the dropdown or the <strong>← Prev / Next →</strong> buttons to navigate between 4-week pay periods. The current period is highlighted. Payday for each period is shown in the period label.</p>
+            <div class="info"><strong>Pay cut-off:</strong> The ✂️ icon on the roster calendar marks the Saturday before payday — changes entered after that date count towards the <em>next</em> period.</div>
+
+            <h2>Understanding the result</h2>
+            <table>
+                <thead><tr><th>Line</th><th>What it means</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Basic pay</strong></td><td>All standard worked hours (shifts + RDW + Sunday premium)</td></tr>
+                    <tr><td><strong>Overtime / extras</strong></td><td>Saturday hours, Boxing Day, bank holiday premium</td></tr>
+                    <tr><td><strong>HPP accrual</strong></td><td>Holiday Pay Premium earned this period (paid in January — see below)</td></tr>
+                    <tr><td><strong>Gross pay</strong></td><td>Total before any deductions</td></tr>
+                    <tr><td><strong>Tax</strong></td><td>Estimated PAYE using your tax code and YTD figures</td></tr>
+                    <tr><td><strong>NI</strong></td><td>Employee National Insurance contribution</td></tr>
+                    <tr><td><strong>Pension</strong></td><td>Your pension contribution (pre-tax if CARE; post-tax if BRASS)</td></tr>
+                    <tr><td><strong>Net pay</strong></td><td>Estimated take-home amount</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- ── RIGHT COLUMN ── -->
+        <div>
+            <h2>Pay types explained</h2>
+            <div class="pay-grid">
+                <div class="pay-item">
+                    <span class="pay-emoji">☀️</span>
+                    <div><span class="pay-name">Shift</span><span class="pay-desc">Standard worked shift — Early, Late, or Night</span></div>
+                </div>
+                <div class="pay-item">
+                    <span class="pay-emoji">💼</span>
+                    <div><span class="pay-name">RDW</span><span class="pay-desc">Rest day worked — attracts an RDW premium on top of basic rate</span></div>
+                </div>
+                <div class="pay-item">
+                    <span class="pay-emoji">🌅</span>
+                    <div><span class="pay-name">Sunday</span><span class="pay-desc">Working on a Sunday — Sunday premium applies</span></div>
+                </div>
+                <div class="pay-item">
+                    <span class="pay-emoji">⭐</span>
+                    <div><span class="pay-name">Bank holiday</span><span class="pay-desc">Working on a bank holiday — BH premium applies</span></div>
+                </div>
+                <div class="pay-item">
+                    <span class="pay-emoji">🎁</span>
+                    <div><span class="pay-name">Boxing Day</span><span class="pay-desc">Dec 26 worked — special Boxing Day rate (if applicable)</span></div>
+                </div>
+                <div class="pay-item">
+                    <span class="pay-emoji">📋</span>
+                    <div><span class="pay-name">Saturday OT</span><span class="pay-desc">Saturday hours beyond contracted hours — overtime rate</span></div>
+                </div>
+            </div>
+
+            <h2>Holiday Pay Premium (HPP)</h2>
+            <p>HPP is a portion of your irregular pay (RDW, overtime, Sunday, BH premiums) set aside so that your holiday pay reflects what you actually earn — not just your basic rate.</p>
+            <p>It <strong>accumulates throughout the year</strong> and is paid as a <strong>lump sum in January</strong>. The calculator tracks your running HPP total and shows what you have accrued so far.</p>
+            <div class="info"><strong>Why is it shown but not in the net figure?</strong> Because you don't receive it until January. The accrual figure is shown separately so you can see it building — it won't appear in your monthly take-home.</div>
+
+            <h2>Improving accuracy — YTD figures</h2>
+            <p>Tax is calculated incrementally across the year. To get a sharper estimate, open the <strong>Improve Accuracy</strong> section and enter figures from your latest payslip:</p>
+            <ul style="list-style:disc;padding-left:1.2em;font-size:11px;color:#555;line-height:1.5;">
+                <li><strong>YTD gross</strong> — total gross pay from the start of the tax year to your last payslip</li>
+                <li><strong>YTD tax paid</strong> — total income tax deducted so far this year</li>
+                <li><strong>YTD NI paid</strong> — total National Insurance deducted so far this year</li>
+            </ul>
+            <p>These figures let the calculator run a running-total tax estimate rather than guessing from scratch each period.</p>
+
+            <h2>Back-pay</h2>
+            <p>If you receive a pay award or one-off back-payment, expand the <strong>Back-pay</strong> card, enter the gross amount, and the calculator will include it in the deductions estimate for that period.</p>
+
+            <h2>Data and privacy</h2>
+            <p>Settings and YTD figures are saved in your browser's <code>localStorage</code> — they persist between sessions but stay on your device only. Clearing your browser data will remove them. Nothing is uploaded to any server.</p>
+        </div>
+    </div>
+
+    <div class="guide-footer">
+        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v6.x · This guide is an estimate tool — your payslip is the authoritative figure
+    </div>
+</div>
+
+</body>
+</html>

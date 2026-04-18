@@ -253,21 +253,155 @@ body {
     text-align: center;
 }
 
-/* Close button — positioned absolute over the overlay */
+/* Close button — positioned absolute over the overlay.
+   Doubles as <button> reset so admin and paycalc (which use <button>) render without
+   default browser chrome. index.html currently uses <span> — no harm having extra resets. */
 #iconLightboxClose {
     position: absolute;
     top: 20px;
     right: 20px;
+    background: none;
+    border: none;
+    font-family: inherit;
     color: rgba(255,255,255,0.5);
     font-size: 26px;
     line-height: 1;
     cursor: pointer;
     padding: 8px;
     transition: color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
 }
 
 @media (hover: hover) and (pointer: fine) {
     #iconLightboxClose:hover { color: white; }
+}
+
+/* ============================================================
+   LIGHTBOX EXTRAS — shared by all three pages
+   Update status pill, update button, tips section, print button.
+   index.html shows all of these; admin shows status only;
+   paycalc shows status + tips.
+   ============================================================ */
+
+/* Update status pill */
+.lightbox-status {
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 8px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    min-height: 24px;
+}
+.lightbox-status.up-to-date {
+    color: var(--status-ok);
+    background: var(--status-ok-bg);
+}
+.lightbox-status.update-available {
+    color: var(--status-update);
+    background: var(--status-update-bg);
+}
+.lightbox-status.checking {
+    color: rgba(255,255,255,0.4);
+}
+
+/* Update now button */
+.lightbox-update-btn {
+    margin-top: 8px;
+    padding: 10px 24px;
+    background: var(--update-btn);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    letter-spacing: 0.2px;
+}
+.lightbox-update-btn:active {
+    background: var(--update-btn-active);
+    transform: scale(0.96);
+}
+@media (hover: hover) and (pointer: fine) {
+    .lightbox-update-btn:hover { background: var(--update-btn-active); }
+}
+
+/* Tips / keyboard shortcuts section */
+.lightbox-tips {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255,255,255,0.12);
+    width: 100%;
+}
+.lightbox-tips-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 8px;
+    text-align: center;
+}
+.lightbox-tip {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 4px 0;
+    font-size: 12px;
+    color: rgba(255,255,255,0.55);
+}
+
+/* Keyboard-only tips: hidden on touch devices, shown on devices with hover+pointer */
+.lightbox-tip.keyboard-only { display: none; }
+@media (hover: hover) and (pointer: fine) {
+    .lightbox-tip.keyboard-only { display: flex; justify-content: space-between; }
+}
+
+.lightbox-tip-key {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.8);
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 5px;
+    padding: 2px 7px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* Print button row inside the about lightbox (index.html only) */
+.lightbox-print-wrap {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+}
+.lightbox-print-btn {
+    background: rgba(255,255,255,0.1);
+    color: white;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    padding: 8px 20px;
+    cursor: pointer;
+    touch-action: manipulation;
+    transition: background 0.15s;
+    width: 100%;
+}
+.lightbox-print-btn:active { background: rgba(255,255,255,0.2); }
+@media (hover: hover) and (pointer: fine) {
+    .lightbox-print-btn:hover { background: rgba(255,255,255,0.18); }
+}
+.lightbox-print-hint {
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
 }
 
 /* ============================================================

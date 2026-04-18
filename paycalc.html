@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.63 -->
+<!-- MYB Roster — Pay Calculator v6.64 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.63">
+  <link rel="stylesheet" href="./shared.css?v=6.64">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -530,38 +530,8 @@
   .clear-btn.confirming { color: var(--error-red) !important; }
 
     /* ── ABOUT LIGHTBOX — overrides on top of shared.css base ── */
-    /* Tighter horizontal padding than the default in shared.css */
+    /* Tighter horizontal padding than the default 40px in shared.css */
     #iconLightboxContent { padding: 36px 32px 28px; }
-    /* Close button is a <button> here, needs reset styles */
-    #iconLightboxClose {
-      background: none; border: none; font-family: inherit;
-      -webkit-tap-highlight-color: transparent;
-    }
-    /* SW update status pill */
-    .lightbox-status {
-      font-size: var(--type-small); font-weight: 600; margin-top: 8px;
-      padding: 4px 12px; border-radius: 20px; min-height: 24px;
-    }
-    .lightbox-status.up-to-date   { color: var(--status-ok);     background: var(--status-ok-bg); }
-    .lightbox-status.update-available { color: var(--status-update); background: var(--status-update-bg); }
-    .lightbox-status.checking     { color: rgba(255,255,255,0.4); }
-    /* Quick-tip block at the bottom of the about lightbox */
-    .lightbox-tips {
-      margin-top: 16px; padding-top: 14px;
-      border-top: 1px solid rgba(255,255,255,0.12); width: 100%;
-    }
-    .lightbox-tips-title {
-      font-size: 10px; font-weight: 700;
-      color: rgba(255,255,255,0.35); text-transform: uppercase;
-      letter-spacing: 0.8px; margin-bottom: 8px; text-align: center;
-    }
-    .lightbox-tip {
-      display: flex; align-items: center; justify-content: center;
-      gap: 12px; padding: 4px 0; font-size: 12px; color: rgba(255,255,255,0.55);
-    }
-    @media (hover: hover) and (pointer: fine) {
-      #iconLightboxClose:hover { color: white; }
-    }
 
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
     @media print {
@@ -722,7 +692,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.63">
+  <link rel="manifest" href="./pay-manifest.json?v=6.64">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1281,7 +1251,7 @@
 <div id="iconLightbox" role="dialog" aria-label="About Pay Calculator" aria-modal="true">
   <button id="iconLightboxClose" aria-label="Close">✕</button>
   <div id="iconLightboxContent">
-    <img src="icon-192.png" id="lightboxIcon" alt="App icon" style="width:96px;height:96px;border-radius:22px;object-fit:cover;box-shadow:0 0 0 3px rgba(255,255,255,0.18),0 12px 40px rgba(0,0,0,0.5);margin-bottom:8px;">
+    <img src="icon-192.png" id="lightboxIcon" alt="App icon">
     <div class="lightbox-app-name">Pay Calculator</div>
     <div class="lightbox-version">v<span id="lightboxVersion"></span></div>
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
@@ -1293,12 +1263,13 @@
       <div class="lightbox-tip"><span>Enter YTD figures from your payslip under <strong style="color:rgba(255,255,255,0.8)">Improve Accuracy</strong> for a sharper tax estimate</span></div>
       <div class="lightbox-tip"><span>Tap <strong style="color:rgba(255,255,255,0.8)">←</strong> to return to the shift calendar without losing your entries</span></div>
     </div>
+    <a href="./paycalc-guide.html" target="_blank" class="lightbox-bug-link">📖 View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
   </div>
 </div>
 
 
 
-<script type="module" src="./paycalc.js?v=6.63"></script>
+<script type="module" src="./paycalc.js?v=6.64"></script>
 </body>
 </html>

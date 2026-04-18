@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.63 -->
+<!-- MYB Roster Calendar - Version 6.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=6.63">
+    <link rel="manifest" href="manifest.json?v=6.64">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.63">
+    <link rel="stylesheet" href="shared.css?v=6.64">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1149,40 +1149,6 @@
             #payLightboxClose:hover { color: white; }
         }
 
-        /* ---- Print button inside about lightbox ---- */
-        .lightbox-print-wrap {
-            margin-top: 14px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
-        .lightbox-print-btn {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            padding: 8px 20px;
-            cursor: pointer;
-            touch-action: manipulation;
-            transition: background 0.15s;
-            width: 100%;
-        }
-        .lightbox-print-btn:active { background: rgba(255, 255, 255, 0.2); }
-        @media (hover: hover) and (pointer: fine) {
-            .lightbox-print-btn:hover { background: rgba(255, 255, 255, 0.18); }
-        }
-        .lightbox-print-hint {
-            font-size: 11px;
-            color: rgba(255, 255, 255, 0.35);
-        }
-
         /* ---- Notification prompt ---- */
         #notifPrompt {
             background: var(--primary-blue);
@@ -1691,114 +1657,6 @@
             color: rgba(255, 255, 255, 0.6);
             margin-top: -12px;
         }
-        /* ============================================
-           ICON LIGHTBOX — page-specific additions
-           Base overlay, content card, and close button are
-           in shared.css. Below are index.html-only extras:
-           SW update status pill and keyboard tips section.
-           ============================================ */
-
-        /* Update status line — changes text and colour based on state */
-        .lightbox-status {
-            font-size: 12px;
-            font-weight: 600;
-            margin-top: 8px;
-            padding: 4px 12px;
-            border-radius: 20px;
-            min-height: 24px;
-        }
-
-        .lightbox-status.up-to-date {
-            color: var(--status-ok);
-            background: var(--status-ok-bg);
-        }
-
-        .lightbox-status.update-available {
-            color: var(--status-update);
-            background: var(--status-update-bg);
-        }
-
-        .lightbox-status.checking {
-            color: rgba(255,255,255,0.4);
-        }
-
-        /* Update now button */
-        .lightbox-update-btn {
-            margin-top: 8px;
-            padding: 10px 24px;
-            background: var(--update-btn);
-            color: white;
-            border: none;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.15s ease, transform 0.1s ease;
-            letter-spacing: 0.2px;
-        }
-
-        .lightbox-update-btn:active {
-            background: var(--update-btn-active);
-            transform: scale(0.96);
-        }
-
-        @media (hover: hover) and (pointer: fine) {
-            .lightbox-update-btn:hover {
-                background: var(--update-btn-active);
-            }
-        }
-
-        /* Tips section in lightbox.
-           Keyboard-specific tips (.keyboard-only) are hidden on touch devices
-           and shown only on devices that have a real keyboard (hover+fine pointer). */
-        .lightbox-tip.keyboard-only { display: none; }
-        @media (hover: hover) and (pointer: fine) {
-            .lightbox-tip.keyboard-only { display: flex; }
-        }
-
-        /* Tips / keyboard shortcuts section in lightbox */
-        .lightbox-tips {
-            margin-top: 16px;
-            padding-top: 14px;
-            border-top: 1px solid rgba(255,255,255,0.12);
-            width: 100%;
-        }
-
-        .lightbox-tips-title {
-            font-size: 10px;
-            font-weight: 700;
-            color: rgba(255,255,255,0.35);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            margin-bottom: 8px;
-            text-align: center;
-        }
-
-        .lightbox-tip {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            padding: 4px 0;
-            font-size: 12px;
-            color: rgba(255,255,255,0.55);
-        }
-        .lightbox-tip.keyboard-only {
-            justify-content: space-between;
-        }
-
-        .lightbox-tip-key {
-            font-size: 11px;
-            font-weight: 700;
-            color: rgba(255,255,255,0.8);
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 5px;
-            padding: 2px 7px;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-
         /* ---- Annual Leave lightbox ---- */
         #alLightbox {
             display: none;
@@ -2167,11 +2025,11 @@
     <!-- Icon lightbox / about panel — shown when the header icon is tapped.
          Shows app name, version, and live update status. -->
     <div id="iconLightbox" role="dialog" aria-label="About MYB Roster" aria-modal="true">
-        <span id="iconLightboxClose" aria-label="Close">✕</span>
+        <button id="iconLightboxClose" aria-label="Close">✕</button>
         <div id="iconLightboxContent">
             <img src="icon-192.png" alt="Chiltern Railways app icon">
             <div class="lightbox-app-name">Marylebone Roster</div>
-            <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+            <div class="lightbox-version">v<span id="lightboxVersion"></span></div>
             <div id="lightboxUpdateStatus" class="lightbox-status"></div>
             <button id="lightboxUpdateBtn" class="lightbox-update-btn" style="display:none">
                 ↻ Update now
@@ -2373,7 +2231,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.63"></script>
+    <script type="module" src="./app.js?v=6.64"></script>
 
 </body>
 </html>
