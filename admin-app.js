@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.50';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.50';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.52';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.52';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3007,10 +3007,13 @@ if ('serviceWorker' in navigator) {
     const updateToast = document.getElementById('updateToast');
     const updateBtn   = document.getElementById('updateToastBtn');
     let swRegistration = null;
+    let updateToastTimer = null;
 
-    /** Show the "Update ready" toast. */
     function showUpdateToast() {
-        if (updateToast) updateToast.classList.add('visible');
+        if (!updateToast) return;
+        updateToast.classList.add('visible');
+        clearTimeout(updateToastTimer);
+        updateToastTimer = setTimeout(() => updateToast.classList.remove('visible'), 12000);
     }
 
     navigator.serviceWorker.register('./service-worker.js')
@@ -3048,6 +3051,7 @@ if ('serviceWorker' in navigator) {
     // "Refresh now" button — sends SKIP_WAITING then reloads once the new SW takes control
     if (updateBtn) {
         updateBtn.addEventListener('click', () => {
+            clearTimeout(updateToastTimer);
             updateBtn.textContent = 'Updating…';
             updateBtn.disabled    = true;
 

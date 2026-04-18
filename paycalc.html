@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.50 -->
+<!-- MYB Roster — Pay Calculator v6.52 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.50">
+  <link rel="stylesheet" href="./shared.css?v=6.52">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -34,59 +34,11 @@
 
     .app { max-width: 480px; margin: 0 auto; }
 
-    /* ── APP HEADER ── */
-    .app-header {
-      background: var(--bg-light);
-      padding: 14px 18px;
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow-2);
-      margin-bottom: 16px;
-      display: flex; align-items: center; gap: 12px;
-    }
-    .app-header h1 {
-      color: var(--primary-blue); font-size: 18px; font-weight: 800;
-      letter-spacing: -0.3px; margin: 0; line-height: 1.2; flex: 1;
-      text-align: center;
-    }
-    .badge-pay {
-      background: var(--accent-gold);
-      color: var(--primary-blue);
-      font-size: 10px;
-      font-weight: 800;
-      padding: 4px 10px;
-      border-radius: 20px;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      flex-shrink: 0;
-    }
-    .btn-back {
-      flex-shrink: 0;
-      background: transparent; border: 1.5px solid var(--border-light);
-      color: var(--primary-blue); font-size: 11px; font-weight: 700;
-      padding: 5px 10px; border-radius: 8px;
-      cursor: pointer; text-decoration: none;
-      display: inline-flex; align-items: center; gap: 4px;
-      transition: all 0.12s; white-space: nowrap;
-      -webkit-user-select: none; user-select: none; touch-action: manipulation;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
-    }
-    @media (max-width: 480px) {
-      .app-header { gap: 6px; padding: 10px 12px; }
-      .app-header h1 { font-size: 14px; min-width: 0; }
-      .btn-back {
-        background: var(--primary-blue); border-color: var(--primary-blue);
-        color: white; font-size: 12px; padding: 7px 13px;
-      }
-    }
-    .app-icon {
-      height: 36px; width: 36px; border-radius: var(--radius-sm);
-      box-shadow: var(--shadow-1);
-      object-fit: cover; flex-shrink: 0;
-      cursor: pointer;
-      -webkit-tap-highlight-color: transparent;
-    }
+    /* .app-header, .app-header h1, .badge-page, .btn-back, .app-icon
+       are all defined in shared.css */
+
+    /* paycalc-specific: header has bottom margin (admin uses grid gap) */
+    .app-header { margin-bottom: 16px; }
 
     /* ── CARD HEADER (roster-app component pattern) ── */
     .card-header {
@@ -596,52 +548,23 @@
       color: white; letter-spacing: -0.5px;
       max-width: 260px; text-align: center; line-height: 1.2;
     }
-    /* ── ABOUT LIGHTBOX ──────────────────────────────────────────────── */
-    #iconLightbox {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0,10,20,0.82);
-      z-index: 8000;
-      align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.2s ease;
-      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-      cursor: pointer;
+    /* ── ABOUT LIGHTBOX — overrides on top of shared.css base ── */
+    /* Tighter horizontal padding than the default in shared.css */
+    #iconLightboxContent { padding: 36px 32px 28px; }
+    /* Close button is a <button> here, needs reset styles */
+    #iconLightboxClose {
+      background: none; border: none; font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
     }
-    #iconLightbox.visible { display: flex; }
-    #iconLightbox.open    { opacity: 1; }
-    #iconLightboxContent {
-      display: flex; flex-direction: column;
-      align-items: center; gap: 6px;
-      background: rgba(255,255,255,0.08);
-      border: 1px solid rgba(255,255,255,0.14);
-      border-radius: 24px; padding: 36px 32px 28px;
-      cursor: default;
-      transform: scale(0.85);
-      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
-      width: min(300px, 85vw); text-align: center;
-    }
-    #iconLightbox.open #iconLightboxContent { transform: scale(1); }
-    .lightbox-app-name {
-      color: white; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
-    }
-    .lightbox-version {
-      color: rgba(255,255,255,0.42); font-size: var(--type-small);
-      font-weight: 500; letter-spacing: 0.3px;
-    }
+    /* SW update status pill */
     .lightbox-status {
       font-size: var(--type-small); font-weight: 600; margin-top: 8px;
       padding: 4px 12px; border-radius: 20px; min-height: 24px;
     }
-    .lightbox-status.up-to-date {
-      color: var(--status-ok); background: var(--status-ok-bg);
-    }
-    .lightbox-status.update-available {
-      color: var(--status-update); background: var(--status-update-bg);
-    }
-    .lightbox-status.checking { color: rgba(255,255,255,0.4); }
-    .lightbox-privacy {
-      margin-top: 16px; font-size: 11px; line-height: 1.5;
-      color: rgba(255,255,255,0.38); text-align: center;
-    }
+    .lightbox-status.up-to-date   { color: var(--status-ok);     background: var(--status-ok-bg); }
+    .lightbox-status.update-available { color: var(--status-update); background: var(--status-update-bg); }
+    .lightbox-status.checking     { color: rgba(255,255,255,0.4); }
+    /* Quick-tip block at the bottom of the about lightbox */
     .lightbox-tips {
       margin-top: 16px; padding-top: 14px;
       border-top: 1px solid rgba(255,255,255,0.12); width: 100%;
@@ -653,27 +576,7 @@
     }
     .lightbox-tip {
       display: flex; align-items: center; justify-content: center;
-      gap: 12px; padding: 4px 0;
-      font-size: 12px; color: rgba(255,255,255,0.55);
-    }
-    .lightbox-bug-link {
-      display: block; margin-top: 14px; padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.1); width: 100%;
-      text-align: center; font-size: 12px;
-      color: rgba(255,255,255,0.35); text-decoration: none;
-      transition: color 0.15s;
-    }
-    @media (hover: hover) and (pointer: fine) {
-      .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
-    }
-    #iconLightboxClose {
-      position: absolute; top: 20px; right: 20px;
-      background: none; border: none; font-family: inherit;
-      color: rgba(255,255,255,0.48); font-size: 26px;
-      line-height: 1; cursor: pointer; padding: 8px;
-      touch-action: manipulation;
-      transition: color 0.15s ease;
-      -webkit-tap-highlight-color: transparent;
+      gap: 12px; padding: 4px 0; font-size: 12px; color: rgba(255,255,255,0.55);
     }
     @media (hover: hover) and (pointer: fine) {
       #iconLightboxClose:hover { color: white; }
@@ -859,7 +762,7 @@
     <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
     <a href="./index.html" class="btn-back" aria-label="Back to roster">← Roster</a>
     <h1>MYB Roster</h1>
-    <span class="badge-pay">Pay</span>
+    <span class="badge-page">Pay</span>
   </header>
 
   <main>
@@ -1419,6 +1322,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.50"></script>
+<script type="module" src="./paycalc.js?v=6.52"></script>
 </body>
 </html>
