@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.67 -->
+<!-- MYB Roster Calendar - Version 6.68 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=6.67">
+    <link rel="manifest" href="manifest.json?v=6.68">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.67">
+    <link rel="stylesheet" href="shared.css?v=6.68">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -63,7 +63,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             background: var(--primary-blue);
@@ -213,9 +213,7 @@
             max-width: 200px;
         }
 
-        .controls select option {
-            text-align: center;
-        }
+        /* text-align on <option> is not supported cross-browser — omitted */
 
         .controls button {
             background: var(--primary-blue);
@@ -1107,6 +1105,7 @@
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             width: min(300px, 85vw);
             text-align: center;
+            -webkit-overflow-scrolling: touch;
         }
         #payLightbox.open #payLightboxContent { transform: scale(1); }
 
@@ -1689,6 +1688,7 @@
             transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             width: min(340px, 92vw);
             text-align: center;
+            -webkit-overflow-scrolling: touch;
         }
         #alLightbox.open #alLightboxContent { transform: scale(1); }
 
@@ -2231,7 +2231,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.67"></script>
+    <script type="module" src="./app.js?v=6.68"></script>
 
 </body>
 </html>

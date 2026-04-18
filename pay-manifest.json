@@ -9,6 +9,7 @@
   "theme_color": "#001e3c",
   "orientation": "portrait-primary",
   "scope": "./",
+  "categories": ["productivity", "utilities"],
   "shortcuts": [
     {
       "name": "My Roster",
