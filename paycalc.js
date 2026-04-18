@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.65';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.66';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -43,9 +43,12 @@ const TAX_BY_YEAR = {
   '2025/26': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 },
   '2026/27': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 }, // confirmed frozen
 };
+// NI thresholds are set weekly by HMRC; the correct 4-weekly value is weekly × 4.
+// PT 2025/26: £242/wk × 4 = £968. UEL 2025/26: £967/wk × 4 = £3,868.
+// Using annual ÷ 13 (£966.92 / £3,867.69) would overstate NI by ~£0.09/period.
 const NI_BY_YEAR = {
-  '2025/26': { pt: 12570/P_YR, uel: 50270/P_YR, r8:0.08, r2:0.02 },
-  '2026/27': { pt: 12570/P_YR, uel: 50270/P_YR, r8:0.08, r2:0.02 }, // confirmed unchanged
+  '2025/26': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 },
+  '2026/27': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 }, // confirmed unchanged
 };
 // Student loan thresholds by tax year — HMRC publishes these each April.
 // ⚠️ Review after each Autumn Budget and update next tax year's values.
@@ -131,7 +134,7 @@ const HELP_CONTENT = {
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
       'Only enter hours at a <strong>different rate</strong>: Saturdays (1.25×), overtime (1.25×), rest days (1.25×), Sundays (1.5×), Boxing Day (3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
-      'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time.',
+      'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
       'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
       'Each entry updates the estimate instantly — no need to tap a calculate button.',
     ],
@@ -287,6 +290,7 @@ function getTaxYearForOffset(offset) {
 }
 function getThresholds(yearLabel) {
   const ty = CONFIG.TAX_YEARS.find(t => t.label === yearLabel) || CONFIG.TAX_YEARS[0];
+  if (!TAX_BY_YEAR[yearLabel]) console.warn(`[PayCalc] No tax data for ${yearLabel} — using 2025/26 thresholds. Update TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, and SCOTTISH_TAX_BY_YEAR.`);
   return {
     tax:         TAX_BY_YEAR[yearLabel]          || TAX_BY_YEAR['2025/26'],
     scottishTax: SCOTTISH_TAX_BY_YEAR[yearLabel] || SCOTTISH_TAX_BY_YEAR['2025/26'],
@@ -393,7 +397,8 @@ function buildBackPayPeriodSelect() {
 // Loads the stored rate for the given tax year into the hourly rate field.
 // Falls back to the legacy single rate, then to the CEA default.
 function updateRateForPeriod(ty) {
-  const rates = JSON.parse(localStorage.getItem(SK.rates) || '{}');
+  let rates = {};
+  try { rates = JSON.parse(localStorage.getItem(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted'); }
   const rate  = rates[ty.label]
              || parseFloat(localStorage.getItem(SK.rate))
              || GRADES.cea.rate;
@@ -635,8 +640,9 @@ function updateSaveStatus(pNum) {
   const el  = document.getElementById('saveStatus');
   const raw = localStorage.getItem(periodKey(pNum));
   if (raw) {
-    const d = JSON.parse(raw);
-    if (!isDataEmpty(d)) {
+    let d;
+    try { d = JSON.parse(raw); } catch(e) { d = null; }
+    if (d && !isDataEmpty(d)) {
       el.textContent = '✓ Entries saved for this period';
       el.className   = 'save-status saved';
       return;
@@ -684,7 +690,8 @@ function saveSettings() {
   const pNum    = currentPeriodNum();
   const curP    = getPeriods().find(x => x.num === pNum);
   const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const rates   = JSON.parse(localStorage.getItem(SK.rates) || '{}');
+  let rates = {};
+  try { rates = JSON.parse(localStorage.getItem(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   rates[curTy.label] = parseFloat(rateVal) || 20.74;
   localStorage.setItem(SK.rates,     JSON.stringify(rates));
   localStorage.setItem(SK.rate,      rateVal);
@@ -1035,30 +1042,36 @@ function calcHPP() {
       pCount++;
 
       const r125 = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
-      const satHrs = (d.satH || 0) + (d.satM || 0) / 60;
+      const satHrs  = (d.satH  || 0) + (d.satM  || 0) / 60;
       const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
       const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
       const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
       const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
       const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
       const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
+      // Mirror the capping logic from calculate() — bhCapped can be 0 when all
+      // contracted hours fall on Saturday, in which case the BH premium must not
+      // contribute to HPP either (it was not included in that period's gross pay).
+      const satCapped = Math.min(satHrs, CONTR);
+      const normHrs   = CONTR - satCapped;
+      const bhCapped  = Math.min(bhHrs, normHrs);
 
       // Variable pay = Gross minus Basic:
-      // Saturday uplift (0.25× extra on sat hours)
-      // Bank Holiday premium (0.25× extra on rostered BH hours)
+      // Saturday uplift (0.25× extra on contracted sat hours)
+      // Bank Holiday premium (0.25× extra on contracted BH hours)
       // Full BH overtime, OT, RDW, Sunday, Boxing pay
       // London Allowance (explicitly included per Chiltern payroll)
       // NOT peer training (extra basic, not variable)
       const { londonAllow: pLondon } = getThresholds(getTaxYearForOffset(p.num - 48).label);
       const varPay =
-        satHrs  * (rate * 0.25) +  // sat uplift above base rate
-        bhHrs   * (rate * 0.25) +  // bank holiday rostered premium above base rate
-        bhOtHrs * r125           +  // full BH overtime pay
-        otHrs   * r125           +  // full OT pay
-        rdwHrs  * r125           +  // full RDW pay
-        sunHrs  * r150           +  // full Sunday pay
-        boxHrs  * r300           +  // full Boxing Day pay
-        pLondon;                    // London Allowance per period (year-specific)
+        satCapped * (rate * 0.25) +  // sat uplift above base rate
+        bhCapped  * (rate * 0.25) +  // bank holiday rostered premium above base rate
+        bhOtHrs   * r125           +  // full BH overtime pay
+        otHrs     * r125           +  // full OT pay
+        rdwHrs    * r125           +  // full RDW pay
+        sunHrs    * r150           +  // full Sunday pay
+        boxHrs    * r300           +  // full Boxing Day pay
+        pLondon;                      // London Allowance per period (year-specific)
 
       totalVar += varPay;
     } catch(e) {}
@@ -1248,19 +1261,23 @@ function calcBackPay() {
       const d = JSON.parse(raw);
       if (isDataEmpty(d)) return;
 
-      const satHrs = (d.satH || 0) + (d.satM || 0) / 60;
+      const satHrs  = (d.satH  || 0) + (d.satM  || 0) / 60;
       const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
       const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
       const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
       const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
       const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
       const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
+      // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
+      const satCapped = Math.min(satHrs, CONTR);
+      const normHrsBP = CONTR - satCapped;
+      const bhCapped  = Math.min(bhHrs, normHrsBP);
 
       const ratePay =
-        CONTR    * rateDiff        +
-        satHrs   * rateDiff * 0.25 +
-        bhHrs    * rateDiff * 0.25 +
-        bhOtHrs  * rateDiff * 1.25 +
+        CONTR     * rateDiff        +
+        satCapped * rateDiff * 0.25 +
+        bhCapped  * rateDiff * 0.25 +
+        bhOtHrs   * rateDiff * 1.25 +
         otHrs    * rateDiff * 1.25 +
         rdwHrs   * rateDiff * 1.25 +
         sunHrs   * rateDiff * 1.50 +
@@ -1452,7 +1469,7 @@ document.getElementById('tyTab0').addEventListener('click', () => jumpToTaxYear(
 document.getElementById('tyTab1').addEventListener('click', () => jumpToTaxYear(1));
 
 // Settings inputs
-document.getElementById('gradeSelect').addEventListener('change', () => { saveSettings(); });
+document.getElementById('gradeSelect').addEventListener('change', () => { saveSettings(); calculate(); });
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
 document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
 document.getElementById('studentLoan').addEventListener('change',() => { saveSettings(); calculate(); });
