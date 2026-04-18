@@ -195,8 +195,18 @@ exports.ingestHuddle = onRequest(
             await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
-            // Push notifications are handled by the onHuddleCreated Firestore trigger —
-            // that fires for both Power Automate uploads and manual admin uploads.
+
+            // Send push notifications directly here — before res.json() so Cloud Run
+            // doesn't reclaim the container before the fan-out completes.
+            // The onHuddleCreated Firestore trigger handles manual admin uploads separately;
+            // it skips Power Automate uploads (uploadedBy === 'power-automate') to avoid
+            // double-notifying. This direct call is the authoritative path for PA uploads.
+            try {
+                await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
+            } catch (pushErr) {
+                console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
+            }
+
             res.status(200).json({ success: true, date, storageUrl });
 
         } catch (err) {
@@ -227,8 +237,19 @@ exports.onHuddleCreated = onDocumentCreated(
         region:   'europe-west2',
     },
     async event => {
-        const date = event.params.date;
-        console.log(`[onHuddleCreated] New huddle for ${date} — fanning out push`);
+        const date       = event.params.date;
+        const uploadedBy = event.data.data().uploadedBy || '';
+
+        // Power Automate uploads are handled directly inside ingestHuddle (before the
+        // HTTP response, so the container is guaranteed to be alive). Skip here to
+        // avoid double-notifying staff for the same huddle.
+        if (uploadedBy === 'power-automate') {
+            console.log(`[onHuddleCreated] Skipping — Power Automate upload already notified via ingestHuddle`);
+            return;
+        }
+
+        // Manual admin upload — fire push from here (ingestHuddle is not involved).
+        console.log(`[onHuddleCreated] Manual upload by "${uploadedBy}" for ${date} — fanning out push`);
         try {
             await sendHuddlePushNotifications(date, VAPID_PRIVATE_KEY);
         } catch (err) {
