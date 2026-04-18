@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.63';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.63';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.64';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.64';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -126,13 +126,35 @@ function initLoginOverlay() {
     const headerIcon = document.getElementById('appIcon');
     const closeBtn   = document.getElementById('iconLightboxClose');
     const versionEl  = document.getElementById('lightboxVersion');
+    const statusEl   = document.getElementById('lightboxUpdateStatus');
     const bugLink    = document.getElementById('adminBugReportLink');
 
     if (!lightbox || !headerIcon) return;
 
     if (versionEl) versionEl.textContent = ADMIN_VERSION;
 
+    // SW update status (mirrors app.js logic — no update button; admin uses the #updateToast)
+    let swRegistration = null;
+    function showUpToDate()       { if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; } }
+    function showUpdateAvailable(){ if (statusEl) { statusEl.textContent = 'Update available'; statusEl.className = 'lightbox-status update-available'; } }
+    function checkUpdateStatus()  { swRegistration && swRegistration.waiting ? showUpdateAvailable() : showUpToDate(); }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+            swRegistration = reg;
+            if (reg.waiting) showUpdateAvailable();
+            reg.addEventListener('updatefound', () => {
+                const w = reg.installing;
+                if (!w) return;
+                w.addEventListener('statechange', () => {
+                    if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateAvailable();
+                });
+            });
+        });
+    }
+
     function openLightbox() {
+        checkUpdateStatus();
         const userEl = document.getElementById('lightboxCurrentUser');
         if (userEl) userEl.textContent = currentUser ? `Signed in as ${currentUser}` : '';
 
