@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.60` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `6.61` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -348,6 +348,7 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 | v6.58 | 🟢 Low | **Pay calculator splash screen removed.** Had a hardcoded 280ms delay + 400ms CSS fade-out (up to 680ms dead time). Appropriate for a standalone app; unnecessary when navigating to it from within the integrated roster app. HTML, CSS, and JS removed. |
 | v6.59 | 🟢 Low | **Settings card flash on pay calculator load fixed.** Settings card had `open` class baked into HTML; JS removed it for returning users after the page painted — causing a visible flash. Reversed: card starts closed in HTML, JS adds `open` only for first-time users who haven't confirmed settings yet. |
 | v6.60 | 🟠 High | **Push notifications were silently dropping.** `sendHuddlePushNotifications` ran after `res.json()` in `ingestHuddle`. Cloud Run considers the function done once the HTTP response is sent and can reclaim the container before the async push completes. Moved the push fan-out to run before `res.json()`. Also changed the subscription renewal error from a silent `catch (_) {}` to `console.warn` so failures appear in the browser console. |
+| v6.61 | 🟠 High | **Manual Huddle uploads did not trigger push notifications.** `uploadHuddle()` in `firebase-client.js` writes directly to Firestore from the browser — it never calls `ingestHuddle`, so the push fan-out never fired for admin uploads. Fixed by moving push into a Firestore trigger (`onDocumentCreated` on `huddles/{date}`). This fires automatically for both Power Automate and manual uploads. Staff are notified once per date (re-uploads are UPDATE events, not CREATE, so they don't re-notify). |
 
 ---
 

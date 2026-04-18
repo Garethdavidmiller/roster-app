@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.60';
+import { APP_VERSION } from './roster-data.js?v=6.61';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
