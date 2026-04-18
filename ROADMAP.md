@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: April 2026 — v6.53 (Pay calculator integrated; single service worker; shared CSS; integration audit)*
+*Last updated: April 2026 — v6.59 (Pay calculator integrated and polished; single service worker; shared CSS; integration audit; UX consistency pass)*
 
 ---
 
@@ -271,7 +271,7 @@ Storage rules remain unchanged: authenticated write, open read.
 
 ---
 
-### Payday calculator ✓ Complete (v6.50–v6.53)
+### Payday calculator ✓ Complete (v6.50–v6.59)
 
 **What was built:**
 
