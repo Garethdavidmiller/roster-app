@@ -1,4 +1,4 @@
-import { APP_VERSION } from './roster-data.js?v=6.57';
+import { APP_VERSION } from './roster-data.js?v=6.58';
 'use strict';
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -1487,15 +1487,6 @@ document.getElementById('hppBackPayLink').addEventListener('click', () => {
   if (!body.classList.contains('open')) toggleBackPayCard();
   document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
-
-// Dismiss splash after first render
-const _splash = document.getElementById('splash');
-if (_splash) {
-  setTimeout(() => {
-    _splash.classList.add('hidden');
-    _splash.addEventListener('transitionend', () => _splash.remove(), { once: true });
-  }, 280);
-}
 
 // ── ABOUT LIGHTBOX ────────────────────────────────────────────────────────────
 (function () {

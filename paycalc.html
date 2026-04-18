@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.57 -->
+<!-- MYB Roster — Pay Calculator v6.58 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.57">
+  <link rel="stylesheet" href="./shared.css?v=6.58">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -529,25 +529,6 @@
   /* ── CLEAR BUTTON confirming state ── */
   .clear-btn.confirming { color: var(--error-red) !important; }
 
-    /* ── SPLASH SCREEN ───────────────────────────────────────────────── */
-    #splash {
-      position: fixed; inset: 0;
-      background: var(--primary-blue);
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      gap: 20px; z-index: 9999;
-      transition: opacity 0.4s ease;
-    }
-    #splash.hidden { opacity: 0; pointer-events: none; }
-    #splash-icon {
-      width: 100px; height: 100px; border-radius: 22px;
-      box-shadow: var(--shadow-3); object-fit: cover;
-    }
-    #splash-title {
-      font-size: 22px; font-weight: 800;
-      color: white; letter-spacing: -0.5px;
-      max-width: 260px; text-align: center; line-height: 1.2;
-    }
     /* ── ABOUT LIGHTBOX — overrides on top of shared.css base ── */
     /* Tighter horizontal padding than the default in shared.css */
     #iconLightboxContent { padding: 36px 32px 28px; }
@@ -596,7 +577,7 @@
         min-height: auto !important;
       }
       .app { max-width: 100% !important; }
-      #splash, #iconLightbox, #helpLightbox, .setup-banner, .controls, .save-row,
+      #iconLightbox, #helpLightbox, .setup-banner, .controls, .save-row,
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
       .btn-back, .btn-signout { display: none !important; }
@@ -750,12 +731,6 @@
 </head>
 <body>
 
-<!-- Splash screen: covers the launch gap on iOS PWA cold start.
-     Dismissed ~280ms after first render with a 0.4s fade. -->
-<div id="splash" role="presentation" aria-hidden="true">
-  <img id="splash-icon" src="icon-192.png" alt="" loading="eager">
-  <div id="splash-title">Pay Calculator</div>
-</div>
 <div class="app">
 
   <!-- HEADER -->
@@ -1324,6 +1299,6 @@
 
 
 
-<script type="module" src="./paycalc.js?v=6.57"></script>
+<script type="module" src="./paycalc.js?v=6.58"></script>
 </body>
 </html>
