@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.95';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.96';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ const TAX_BY_YEAR = {
 };
 // NI thresholds are set weekly by HMRC; the correct 4-weekly value is weekly × 4.
 // PT 2025/26: £242/wk × 4 = £968. UEL 2025/26: £967/wk × 4 = £3,868.
-// Using annual ÷ 13 (£966.95 / £3,867.69) would overstate NI by ~£0.09/period.
+// Using annual ÷ 13 (£966.96 / £3,867.69) would overstate NI by ~£0.09/period.
 const NI_BY_YEAR = {
   '2025/26': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 },
   '2026/27': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 }, // confirmed unchanged
@@ -118,6 +118,12 @@ const GRADES = {
   // ces:      { label: 'CES',      rate: 0, contr: 0, pension: 0 }, // add when confirmed
   // dispatch: { label: 'Dispatch', rate: 0, contr: 0, pension: 0 }, // add when confirmed
 };
+
+/** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
+function getPensionDefault() {
+  const g = localStorage.getItem(SK.grade);
+  return GRADES[g && GRADES[g] ? g : 'cea']?.pension ?? '';
+}
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
 const SK = { rate:'cea_rate', rates:'cea_rates', code:'cea_code', sl:'cea_sl', pension:'cea_pension', setup:'cea_setup_done', ytdPay:'cea_ytd_pay', ytdTax:'cea_ytd_tax', grade:'cea_grade' };
@@ -614,7 +620,7 @@ function writeFormData(d) {
     if (d.pension != null) {
       pa.value = d.pension;
     } else {
-      pa.value = localStorage.getItem(SK.pension) ?? '';
+      pa.value = localStorage.getItem(SK.pension) ?? getPensionDefault();
     }
   }
 }
@@ -791,9 +797,7 @@ function loadSettings() {
   if (sl)      document.getElementById('studentLoan').value = sl;
   const grade = localStorage.getItem(SK.grade);
   if (grade) document.getElementById('gradeSelect').value = grade;
-  const gradeKey = (grade && GRADES[grade]) ? grade : 'cea';
-  const pensionDefault = GRADES[gradeKey]?.pension ?? '';
-  document.getElementById('pensionAmt').value = pension ?? pensionDefault;
+  document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
   // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
   const legacyYtdPay = localStorage.getItem(SK.ytdPay);
   const legacyYtdTax = localStorage.getItem(SK.ytdTax);

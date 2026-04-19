@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.95';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.95';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.96';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.96';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1659,12 +1659,15 @@ function sanitiseHtml(html) {
         'div','span','a',
     ]);
     const doc = new DOMParser().parseFromString(html, 'text/html');
+    // Scope to doc.body — doc.querySelectorAll('*') would include <html>, <head>, and
+    // <body> itself, none of which are in ALLOWED, so <body> would be removed and
+    // doc.body would become null, crashing the return statement.
     // Remove disallowed elements entirely (including their children).
-    doc.querySelectorAll('*').forEach(el => {
+    doc.body.querySelectorAll('*').forEach(el => {
         if (!ALLOWED.has(el.tagName.toLowerCase())) el.remove();
     });
     // Strip all attributes from remaining elements — no href="javascript:", no on* handlers.
-    doc.querySelectorAll('*').forEach(el => {
+    doc.body.querySelectorAll('*').forEach(el => {
         [...el.attributes].forEach(a => el.removeAttribute(a.name));
     });
     return doc.body.innerHTML;
@@ -1699,18 +1702,21 @@ function sanitiseHtml(html) {
         }
 
         btn.addEventListener('click', () => {
-            if (huddle.htmlContent) {
-                // DOCX with pre-converted HTML — sanitise then display in the in-app viewer
-                body.innerHTML = sanitiseHtml(huddle.htmlContent);
-                openViewer();
-                close.focus();
-            } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
-                // PDF — open in new tab (browsers handle these natively)
-                window.open(huddle.storageUrl, '_blank', 'noopener');
-            } else {
-                // DOCX without htmlContent — conversion failed at upload time.
-                // Ask the admin to re-upload so conversion runs again.
-                body.innerHTML = '<p style="color:#c62828;font-weight:600">This Huddle could not be previewed — ask an admin to re-upload the Word file.</p>';
+            try {
+                if (huddle.htmlContent) {
+                    body.innerHTML = sanitiseHtml(huddle.htmlContent);
+                    openViewer();
+                    close.focus();
+                } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
+                    window.open(huddle.storageUrl, '_blank', 'noopener');
+                } else {
+                    body.innerHTML = '<p style="color:#c62828;font-weight:600">This Huddle could not be previewed — please re-upload the Word file from the Admin page.</p>';
+                    openViewer();
+                    close.focus();
+                }
+            } catch (e) {
+                console.error('[Huddle] Viewer error:', e);
+                body.innerHTML = '<p style="color:#c62828;font-weight:600">Could not display this Huddle — please try again.</p>';
                 openViewer();
                 close.focus();
             }
