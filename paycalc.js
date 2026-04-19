@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.93';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.94';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ const TAX_BY_YEAR = {
 };
 // NI thresholds are set weekly by HMRC; the correct 4-weekly value is weekly × 4.
 // PT 2025/26: £242/wk × 4 = £968. UEL 2025/26: £967/wk × 4 = £3,868.
-// Using annual ÷ 13 (£966.93 / £3,867.69) would overstate NI by ~£0.09/period.
+// Using annual ÷ 13 (£966.94 / £3,867.69) would overstate NI by ~£0.09/period.
 const NI_BY_YEAR = {
   '2025/26': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 },
   '2026/27': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 }, // confirmed unchanged

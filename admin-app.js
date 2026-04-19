@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.93';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.93';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.94';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.94';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2866,24 +2866,35 @@ if (overridesMonthFilter) {
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
 
-        // For DOCX files, convert to HTML in the browser before uploading.
-        // The HTML is stored in Firestore alongside the file URL so the viewer
-        // can display it directly — no CORS fetch or external viewer needed.
         let htmlContent = null;
         const isDocx = file.name.toLowerCase().endsWith('.docx');
         if (isDocx) {
             uploadBtn.textContent = 'Converting…';
-            await new Promise((resolve, reject) => {
-                if (window.mammoth) { resolve(); return; }
-                const s = document.createElement('script');
-                s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
-                s.onload  = resolve;
-                s.onerror = () => reject(new Error('Could not load converter'));
-                document.head.appendChild(s);
-            });
-            const arrayBuffer = await file.arrayBuffer();
-            const result      = await mammoth.convertToHtml({ arrayBuffer });
-            htmlContent       = result.value || null;
+            try {
+                await new Promise((resolve, reject) => {
+                    if (window.mammoth) { resolve(); return; }
+                    const s = document.createElement('script');
+                    s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
+                    s.onload  = resolve;
+                    s.onerror = () => reject(new Error('load'));
+                    document.head.appendChild(s);
+                });
+                const arrayBuffer = await file.arrayBuffer();
+                const result      = await mammoth.convertToHtml({ arrayBuffer });
+                const html        = result.value || null;
+                // Firestore document limit is 1 MB — skip htmlContent if the conversion
+                // is too large; the viewer will fall back to opening the Storage URL.
+                htmlContent = html && html.length < 800_000 ? html : null;
+            } catch (convErr) {
+                console.error('[Huddle] DOCX conversion failed:', convErr);
+                feedback.textContent = convErr.message === 'load'
+                    ? 'Could not load Word converter — check your connection and try again'
+                    : 'Could not read the Word file — make sure it is a valid .docx';
+                feedback.className = 'huddle-feedback huddle-feedback--err';
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload Huddle';
+                return;
+            }
         }
 
         uploadBtn.textContent = 'Uploading…';
