@@ -64,13 +64,9 @@
     --desktop-gradient-start: #0a2240;
     --desktop-gradient-end:   #001630;
 
-    /* index.html: SW update status pill colours */
+    /* SW update status pill colours */
     --status-ok:         #4caf50;
     --status-ok-bg:      rgba(76, 175, 80, 0.15);
-    --status-update:     #64b5f6;
-    --status-update-bg:  rgba(100, 181, 246, 0.15);
-    --update-btn:        #1976d2;
-    --update-btn-active: #1565c0;
 
     /* index.html: AL lightbox state colours */
     --al-lb-ok:          #4db6ac;   /* plenty of leave remaining */
