@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.88';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.88';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.91';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=6.91';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1268,7 +1268,6 @@ try {
             const titleIcon    = document.querySelector('.title-icon');
             const versionEl    = document.getElementById('lightboxVersion');
             const statusEl     = document.getElementById('lightboxUpdateStatus');
-            const updateBtn    = document.getElementById('lightboxUpdateBtn');
             const closeBtn     = document.getElementById('iconLightboxClose');
             const contentCard  = document.getElementById('iconLightboxContent');
             const bugLink      = document.getElementById('bugReportLink');
@@ -1278,69 +1277,30 @@ try {
             // Populate version from CONFIG
             if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
 
-            // ---- Update status management ----
-
-            let swRegistration = null; // Holds the SW registration once available
-
-            function showUpToDate() {
-                if (!statusEl) return;
-                statusEl.textContent   = '✓ Up to date';
-                statusEl.className     = 'lightbox-status up-to-date';
-                if (updateBtn) updateBtn.style.display = 'none';
-            }
-
-            function showUpdateAvailable() {
-                if (!statusEl) return;
-                statusEl.textContent   = 'Update available';
-                statusEl.className     = 'lightbox-status update-available';
-                if (updateBtn) updateBtn.style.display = 'block';
-            }
-
-            function showChecking() {
-                if (!statusEl) return;
-                statusEl.textContent   = 'Checking…';
-                statusEl.className     = 'lightbox-status checking';
-                if (updateBtn) updateBtn.style.display = 'none';
-            }
-
-            // Check the current SW registration state and update the UI accordingly.
-            // Called once when the lightbox opens and whenever the SW state changes.
+            // ---- Update status ----
             function checkUpdateStatus() {
-                if (!swRegistration) {
-                    showUpToDate();
-                    return;
-                }
-                if (swRegistration.waiting) {
-                    showUpdateAvailable();
-                } else {
-                    showUpToDate();
-                }
+                if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
             }
 
-            // Watch for SW registration changes — runs once after DOMContentLoaded
-            // so we have a registration reference before the lightbox is ever opened.
+            // Auto-update: skip waiting immediately, reload silently on controllerchange.
             if ('serviceWorker' in navigator) {
                 navigator.serviceWorker.ready.then(registration => {
-                    swRegistration = registration;
+                    function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
 
-                    // A new SW finished installing and is now waiting
-                    if (registration.waiting) showUpdateAvailable();
+                    if (registration.waiting) activate(registration.waiting);
 
-                    // A new SW starts downloading (will move to waiting on completion)
                     registration.addEventListener('updatefound', () => {
-                        const newWorker = registration.installing;
-                        if (!newWorker) return;
-                        newWorker.addEventListener('statechange', () => {
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                // New SW installed alongside the active one — update available
-                                showUpdateAvailable();
-                            }
+                        const nw = registration.installing;
+                        if (!nw) return;
+                        nw.addEventListener('statechange', () => {
+                            if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
                         });
                     });
 
-                    // Periodically check for updates (every 60 mins)
-                    // — catches cases where the app is left open for a long time.
-                    // Paused while the tab is hidden to avoid unnecessary background traffic on mobile.
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        window.location.reload();
+                    }, { once: true });
+
                     let swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
                     document.addEventListener('visibilitychange', () => {
                         if (document.hidden) {
@@ -1350,31 +1310,6 @@ try {
                             swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
                         }
                     });
-                });
-            }
-
-            // ---- Update button ----
-            // Sends SKIP_WAITING to the waiting SW, which activates it immediately.
-            // The SW's activate handler calls clients.claim(), taking control of this tab.
-            // We then reload to run the new version.
-            if (updateBtn) {
-                updateBtn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Don't close lightbox
-
-                    updateBtn.textContent  = 'Updating…';
-                    updateBtn.disabled     = true;
-
-                    if (swRegistration && swRegistration.waiting) {
-                        // Normal case: new SW installed and waiting — tell it to activate
-                        swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                        navigator.serviceWorker.addEventListener('controllerchange', () => {
-                            window.location.reload();
-                        }, { once: true });
-                    } else {
-                        // SW already auto-activated via skipWaiting() on install —
-                        // the new version is in control; just reload to run it.
-                        window.location.reload();
-                    }
                 });
             }
 

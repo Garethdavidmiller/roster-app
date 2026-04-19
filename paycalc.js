@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.88';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.91';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1578,58 +1578,36 @@ Device: ${navigator.userAgent}
 
   if (versionEl) versionEl.textContent = APP_VERSION;
 
-  let swReg = null;
-
-  let pendingWorker = null;
-  const updateToastEl  = document.getElementById('updateToast');
-  const updateToastBtn = document.getElementById('updateToastBtn');
-
-  let updateToastTimer = null;
-  function showUpdateToast(worker) {
-    pendingWorker = worker;
-    if (!updateToastEl) return;
-    updateToastEl.classList.add('visible');
-    clearTimeout(updateToastTimer);
-    updateToastTimer = setTimeout(() => updateToastEl.classList.remove('visible'), 12000);
-  }
-
-  function showUpToDate() {
-    if (!statusEl) return;
-    statusEl.textContent = pendingWorker ? 'Update ready' : '✓ Up to date';
-    statusEl.className   = 'lightbox-status up-to-date';
-  }
   function checkUpdateStatus() {
-    showUpToDate();
-  }
-
-  if (updateToastBtn) {
-    updateToastBtn.addEventListener('click', () => {
-      clearTimeout(updateToastTimer);
-      if (pendingWorker) pendingWorker.postMessage({ type: 'SKIP_WAITING' });
-      updateToastBtn.textContent = 'Updating…';
-      updateToastBtn.disabled    = true;
-    });
+    if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
   }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
-      swReg = reg;
-      if (reg.waiting) showUpdateToast(reg.waiting);
+      function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
+
+      if (reg.waiting) activate(reg.waiting);
+
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         if (!nw) return;
         nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateToast(nw);
-          }
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
         });
       });
-      // Poll every 15 minutes (backup check)
-      setInterval(() => reg.update(), 15 * 60 * 1000);
-      // Also check whenever the user returns to the tab — catches updates after the app
-      // has been open in the background for a while (most common real-world scenario)
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      }, { once: true });
+
+      let updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') reg.update();
+        if (document.visibilityState === 'hidden') {
+          clearInterval(updateInterval);
+        } else {
+          clearInterval(updateInterval);
+          updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
+        }
       });
     });
   }
@@ -1700,24 +1678,11 @@ Device: ${navigator.userAgent}
 (function () {
   if (!('serviceWorker' in navigator)) return;
 
-  // Show "Updated to vX.XX ✓" toast if this load was triggered by an auto-update
-  const justUpdated = sessionStorage.getItem('swJustUpdated');
-  if (justUpdated) {
-    sessionStorage.removeItem('swJustUpdated');
-    const toast = document.getElementById('updateToast');
-    if (toast) {
-      toast.textContent = '✓ Updated to v' + justUpdated;
-      requestAnimationFrame(() => toast.classList.add('visible'));
-      setTimeout(() => toast.classList.remove('visible'), 4000);
-    }
-  }
-
   // When a new SW takes control, store the new version and reload once.
   // Guard on navigator.serviceWorker.controller so we don't reload on first install
   // (when there was no previous controller).
   if (navigator.serviceWorker.controller) {
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      sessionStorage.setItem('swJustUpdated', APP_VERSION);
       window.location.reload();
     }, { once: true });
   }

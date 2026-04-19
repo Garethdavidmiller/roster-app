@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.88';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.88';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.91';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.91';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -138,24 +138,8 @@ function initLoginOverlay() {
 
     if (versionEl) versionEl.textContent = ADMIN_VERSION;
 
-    // SW update status (mirrors app.js logic — no update button; admin uses the #updateToast)
-    let swRegistration = null;
-    function showUpToDate()       { if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; } }
-    function showUpdateAvailable(){ if (statusEl) { statusEl.textContent = 'Update available'; statusEl.className = 'lightbox-status update-available'; } }
-    function checkUpdateStatus()  { swRegistration && swRegistration.waiting ? showUpdateAvailable() : showUpToDate(); }
-
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then(reg => {
-            swRegistration = reg;
-            if (reg.waiting) showUpdateAvailable();
-            reg.addEventListener('updatefound', () => {
-                const w = reg.installing;
-                if (!w) return;
-                w.addEventListener('statechange', () => {
-                    if (w.state === 'installed' && navigator.serviceWorker.controller) showUpdateAvailable();
-                });
-            });
-        });
+    function checkUpdateStatus() {
+        if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
     }
 
     function openLightbox() {
@@ -3022,43 +3006,27 @@ if (!isAuthenticated) {
 
 // ============================================
 // SERVICE WORKER — registration + update toast
-// ============================================
-// Registers the shared service worker so admin.html benefits from caching.
-// When a new SW finishes installing and is waiting, shows the update toast
-// instead of reloading immediately — lets the user decide when to refresh.
+// Registers the shared service worker. Auto-updates silently — skips waiting
+// immediately and reloads on controllerchange, consistent with index.html and paycalc.html.
 if ('serviceWorker' in navigator) {
-    const updateToast = document.getElementById('updateToast');
-    const updateBtn   = document.getElementById('updateToastBtn');
-    let swRegistration = null;
-    let updateToastTimer = null;
-
-    function showUpdateToast() {
-        if (!updateToast) return;
-        updateToast.classList.add('visible');
-        clearTimeout(updateToastTimer);
-        updateToastTimer = setTimeout(() => updateToast.classList.remove('visible'), 12000);
-    }
-
     navigator.serviceWorker.register('./service-worker.js')
         .then(registration => {
-            swRegistration = registration;
+            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
 
-            // A new SW is already waiting (page was loaded while one was pending)
-            if (registration.waiting) showUpdateToast();
+            if (registration.waiting) activate(registration.waiting);
 
-            // A new SW starts downloading — watch for it to finish installing
             registration.addEventListener('updatefound', () => {
-                const newWorker = registration.installing;
-                if (!newWorker) return;
-                newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                        showUpdateToast();
-                    }
+                const nw = registration.installing;
+                if (!nw) return;
+                nw.addEventListener('statechange', () => {
+                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
                 });
             });
 
-            // Poll for updates every 60 minutes (catches long-lived sessions).
-            // Cleared on hidden and restarted on visible to avoid background network traffic.
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
+            }, { once: true });
+
             let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'hidden') {
@@ -3070,27 +3038,6 @@ if ('serviceWorker' in navigator) {
             });
         })
         .catch(e => console.warn('[SW] Registration failed:', e));
-
-    // "Refresh now" button — sends SKIP_WAITING then reloads once the new SW takes control
-    if (updateBtn) {
-        updateBtn.addEventListener('click', () => {
-            clearTimeout(updateToastTimer);
-            updateBtn.textContent = 'Updating…';
-            updateBtn.disabled    = true;
-
-            if (swRegistration?.waiting) {
-                // Normal case: new SW installed and waiting — tell it to activate
-                swRegistration.waiting.postMessage({ type: 'SKIP_WAITING' });
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    window.location.reload();
-                }, { once: true });
-            } else {
-                // SW already auto-activated via skipWaiting() on install —
-                // the new version is in control; just reload to run it.
-                window.location.reload();
-            }
-        });
-    }
 }
 
 // ============================================
