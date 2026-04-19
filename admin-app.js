@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.76';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.76';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=6.77';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=6.77';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -370,8 +370,8 @@ const TYPES = {
 // ============================================
 
 // getRosterData, getWeekNum, getBaseShift — imported from roster-data.js as getRosterForMember, getWeekNumberForDate, getBaseShift
-// shiftBadge — thin wrapper so inline admin grid uses a space separator instead of <br>
-function shiftBadge(shift) { return getShiftBadge(shift, ' '); }
+// shiftBadge — alias for getShiftBadge; layout direction controlled by admin.html CSS
+function shiftBadge(shift) { return getShiftBadge(shift); }
 
 // ============================================
 // DOM
@@ -3529,13 +3529,13 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
             // Pipe-encoded RDW: "RDW|14:30-22:00" — explicit flag from AI
             if (typeof shiftStr === 'string' && shiftStr.startsWith('RDW|')) {
                 const time  = shiftStr.slice(4);
-                const badge = getShiftBadge('RDW', ' ');
+                const badge = getShiftBadge('RDW');
                 return `${badge}<span class="review-shift-time">${esc(time)}</span>`;
             }
             const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
             // Sunday is always uncontracted — any shift worked on a Sunday is an RDW
             const isSunday = isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0;
-            const badge  = getShiftBadge(isSunday ? 'RDW' : shiftStr, ' ');
+            const badge  = getShiftBadge(isSunday ? 'RDW' : shiftStr);
             return isTime
                 ? `${badge}<span class="review-shift-time">${esc(shiftStr)}</span>`
                 : badge;
