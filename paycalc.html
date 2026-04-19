@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.87 -->
+<!-- MYB Roster — Pay Calculator v6.88 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.87">
+  <link rel="stylesheet" href="./shared.css?v=6.88">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -761,7 +761,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.87">
+  <link rel="manifest" href="./pay-manifest.json?v=6.88">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -927,7 +927,7 @@
         <div class="h-info">
           <div class="h-title">🗓️ Rostered Saturday Hours</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub">Saturdays that appear in your contracted roster. If a Saturday falls on your rest day, enter it in Rest Day Working below instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
+          <div class="h-sub">A Saturday shift from your roster. If Saturday is your rest day that week, use Rest Day Working below instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
           <div class="val-warn" id="satWarn">⚠ Over 140 hours — capped at your contracted maximum</div>
         </div>
         <div>
@@ -950,7 +950,7 @@
         <div class="h-info">
           <div class="h-title">🏛️ Bank Holiday Rostered</div>
           <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £25.93/hr</span>
-          <div class="h-sub">Rostered shifts that fall on a bank holiday (Easter, summer BH, etc.). Shows as "Bank Holiday Rostered 1.25" on your payslip.</div>
+          <div class="h-sub">You were rostered to work, and it fell on a bank holiday (Easter, May Day, etc.). Shows as "Bank Holiday Rostered 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -970,9 +970,9 @@
       <!-- Bank Holiday Overtime — also hidden when no bank holiday in period -->
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
-          <div class="h-title">💼 Bank Holiday Rest Day</div>
+          <div class="h-title">🏛️ Bank Holiday Rest Day</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £25.93/hr</span>
-          <div class="h-sub">Worked a rest day that fell on a bank holiday — you weren't rostered, but came in. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
+          <div class="h-sub">It was your rest day, but you came in — and it was a bank holiday. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1063,7 +1063,7 @@
         <div class="h-info">
           <div class="h-title">🎁 Boxing Day Working</div>
           <span class="rate-badge badge-box" id="badge-box">3×  ·  £62.22/hr</span>
-          <div class="h-sub">26 December only — overrides all other rates. Shows as "Bank Holiday Overtime 3.0" on your payslip.</div>
+          <div class="h-sub">Hours worked on 26 December — the highest pay rate of the year. Shows as "Bank Holiday Overtime 3.0" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1087,7 +1087,7 @@
         <div class="h-info">
           <div class="h-title">🎓 Training Days</div>
           <span class="rate-badge badge-peer">+2 hrs pay</span>
-          <div class="h-sub">Each day adds 2 hours' pay at your base rate. Shows as extra basic pay on your payslip.</div>
+          <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. Shows as extra basic pay on your payslip.</div>
         </div>
         <div class="stepper">
           <button id="peerMinus" aria-label="Decrease">−</button>
@@ -1348,6 +1348,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=6.87"></script>
+<script type="module" src="./paycalc.js?v=6.88"></script>
 </body>
 </html>
