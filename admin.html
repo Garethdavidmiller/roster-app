@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v6.91 -->
+<!-- MYB Roster Admin v6.92 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=6.91">
+    <link rel="manifest" href="manifest.json?v=6.92">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.91">
+    <link rel="stylesheet" href="shared.css?v=6.92">
 
     <style>
         body {
@@ -1547,12 +1547,7 @@
 
         /* ---- Lightbox — admin.html additions ----
            Base overlay, content card, close button, and .lightbox-badge are in shared.css. */
-        /* "Signed in as …" shown below the Admin panel badge */
-        .lightbox-signed-in {
-            font-size: 12px;
-            color: rgba(255,255,255,0.5);
-            margin-top: 4px;
-        }
+
 
         /* ---- Save hint (shown when button is disabled) ---- */
         .save-hint {
@@ -2003,8 +1998,7 @@
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
         <div class="lightbox-badge">Admin panel</div>
-        <div id="lightboxCurrentUser" class="lightbox-signed-in"></div>
-        <a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:14px">📖 View quick guide</a>
+<a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:14px">📖 View quick guide</a>
         <a href="./index.html" class="lightbox-bug-link">📅 View staff roster</a>
         <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     </div>
@@ -2424,6 +2418,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=6.91"></script>
+<script type="module" src="./admin-app.js?v=6.92"></script>
 </body>
 </html>
