@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.89';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.90';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1578,30 +1578,36 @@ Device: ${navigator.userAgent}
 
   if (versionEl) versionEl.textContent = APP_VERSION;
 
-  let swReg = null;
-
-  function showUpToDate() {
-    if (!statusEl) return;
-    statusEl.textContent = '✓ Up to date';
-    statusEl.className   = 'lightbox-status up-to-date';
-  }
   function checkUpdateStatus() {
-    showUpToDate();
+    if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
   }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
-      swReg = reg;
+      function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
+
+      if (reg.waiting) activate(reg.waiting);
+
       reg.addEventListener('updatefound', () => {
         const nw = reg.installing;
         if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
+        });
       });
-      // Poll every 15 minutes (backup check)
-      setInterval(() => reg.update(), 15 * 60 * 1000);
-      // Also check whenever the user returns to the tab — catches updates after the app
-      // has been open in the background for a while (most common real-world scenario)
+
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+      }, { once: true });
+
+      let updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') reg.update();
+        if (document.visibilityState === 'hidden') {
+          clearInterval(updateInterval);
+        } else {
+          clearInterval(updateInterval);
+          updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
+        }
       });
     });
   }

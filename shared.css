@@ -313,36 +313,6 @@ body {
     color: var(--status-ok);
     background: var(--status-ok-bg);
 }
-.lightbox-status.update-available {
-    color: var(--status-update);
-    background: var(--status-update-bg);
-}
-.lightbox-status.checking {
-    color: rgba(255,255,255,0.4);
-}
-
-/* Update now button */
-.lightbox-update-btn {
-    margin-top: 8px;
-    padding: 10px 24px;
-    background: var(--update-btn);
-    color: white;
-    border: none;
-    border-radius: 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s ease, transform 0.1s ease;
-    letter-spacing: 0.2px;
-}
-.lightbox-update-btn:active {
-    background: var(--update-btn-active);
-    transform: scale(0.96);
-}
-@media (hover: hover) and (pointer: fine) {
-    .lightbox-update-btn:hover { background: var(--update-btn-active); }
-}
-
 /* Tips / keyboard shortcuts section */
 .lightbox-tips {
     margin-top: 16px;
