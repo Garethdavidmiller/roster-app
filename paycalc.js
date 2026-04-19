@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.83';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.84';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -789,10 +789,11 @@ function loadSettings() {
   const done    = localStorage.getItem(SK.setup);
   if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
   if (sl)      document.getElementById('studentLoan').value = sl;
-  if (pension) document.getElementById('pensionAmt').value  = pension;
-  // YTD values are loaded per-tax-year in updateYtdForTaxYear(), called from onPeriodChange().
   const grade = localStorage.getItem(SK.grade);
   if (grade) document.getElementById('gradeSelect').value = grade;
+  const gradeKey = (grade && GRADES[grade]) ? grade : 'cea';
+  const pensionDefault = GRADES[gradeKey]?.pension ?? '';
+  document.getElementById('pensionAmt').value = pension ?? pensionDefault;
   // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
   const legacyYtdPay = localStorage.getItem(SK.ytdPay);
   const legacyYtdTax = localStorage.getItem(SK.ytdTax);
