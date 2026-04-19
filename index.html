@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 6.80 -->
+<!-- MYB Roster Calendar - Version 6.81 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=6.80">
+    <link rel="manifest" href="manifest.json?v=6.81">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=6.80">
+    <link rel="stylesheet" href="shared.css?v=6.81">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -63,7 +63,7 @@
         }
 
         body {
-            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             background: var(--primary-blue);
@@ -544,12 +544,13 @@
             align-items: center;
             justify-content: center;
             gap: 4px;
-            padding: 8px 14px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 11px;
             font-weight: 700;
             margin-bottom: 8px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
             min-width: 80%;
@@ -2143,7 +2144,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=6.80"></script>
+    <script type="module" src="./app.js?v=6.81"></script>
 
 </body>
 </html>
