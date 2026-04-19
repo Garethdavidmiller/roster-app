@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.85 -->
+<!-- MYB Roster — Pay Calculator v6.87 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.85">
+  <link rel="stylesheet" href="./shared.css?v=6.87">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -731,6 +731,7 @@
   .toggle-row input[type="checkbox"] { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; }
   .toggle-row label { font-size: var(--type-body); color: var(--text-mid); cursor: pointer; margin: 0; font-weight: 400; }
   .toggle-row.hidden { display: none; }
+  .hours-row.hidden { display: none; }
 
   /* ── UPDATE TOAST (shown when a new version is waiting, and after reload) ── */
   #updateToast {
@@ -760,7 +761,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.85">
+  <link rel="manifest" href="./pay-manifest.json?v=6.87">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -947,7 +948,7 @@
       <!-- Bank Holiday rows — both hidden when period has no bank holidays -->
       <div class="hours-row hidden" id="bhRow">
         <div class="h-info">
-          <div class="h-title">🏖️ Bank Holiday Hours</div>
+          <div class="h-title">🏛️ Bank Holiday Rostered</div>
           <span class="rate-badge badge-bh" id="badge-bh">1.25×  ·  £25.93/hr</span>
           <div class="h-sub">Rostered shifts that fall on a bank holiday (Easter, summer BH, etc.). Shows as "Bank Holiday Rostered 1.25" on your payslip.</div>
         </div>
@@ -969,7 +970,7 @@
       <!-- Bank Holiday Overtime — also hidden when no bank holiday in period -->
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
-          <div class="h-title">➕ Bank Holiday Overtime</div>
+          <div class="h-title">💼 Bank Holiday Rest Day</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £25.93/hr</span>
           <div class="h-sub">Worked a rest day that fell on a bank holiday — you weren't rostered, but came in. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
         </div>
@@ -1347,6 +1348,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=6.85"></script>
+<script type="module" src="./paycalc.js?v=6.87"></script>
 </body>
 </html>
