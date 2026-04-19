@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.83 -->
+<!-- MYB Roster — Pay Calculator v6.85 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.83">
+  <link rel="stylesheet" href="./shared.css?v=6.85">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -760,7 +760,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.83">
+  <link rel="manifest" href="./pay-manifest.json?v=6.85">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -924,9 +924,9 @@
       <!-- Saturday -->
       <div class="hours-row">
         <div class="h-info">
-          <div class="h-title">🗓️ Saturday Hours</div>
+          <div class="h-title">🗓️ Rostered Saturday Hours</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub">Saturdays in your contracted roster. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
+          <div class="h-sub">Saturdays that appear in your contracted roster. If a Saturday falls on your rest day, enter it in Rest Day Working below instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
           <div class="val-warn" id="satWarn">⚠ Over 140 hours — capped at your contracted maximum</div>
         </div>
         <div>
@@ -1018,7 +1018,7 @@
         <div class="h-info">
           <div class="h-title">💼 Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub" id="rdwSub">Shifts worked on your normal rest day. Shows as "RDW 1.25" on your payslip.</div>
+          <div class="h-sub" id="rdwSub">Shifts worked on your rest day — including any Saturday that isn't in your contracted roster. Shows as "RDW 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1347,6 +1347,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=6.83"></script>
+<script type="module" src="./paycalc.js?v=6.85"></script>
 </body>
 </html>

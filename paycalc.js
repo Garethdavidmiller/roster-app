@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.83';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.85';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -146,7 +146,7 @@ const HELP_CONTENT = {
     title: 'Your Hours — how it works',
     tips: [
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
-      'Only enter hours at a <strong>different rate</strong>: Saturdays (1.25×), overtime (1.25×), rest days (1.25×), Sundays (1.5×), Boxing Day (3×).',
+      'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (1.25×), overtime (1.25×), rest days including unrostered Saturdays (1.25×), Sundays (1.5×), Boxing Day (3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
       'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
@@ -789,10 +789,11 @@ function loadSettings() {
   const done    = localStorage.getItem(SK.setup);
   if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
   if (sl)      document.getElementById('studentLoan').value = sl;
-  if (pension) document.getElementById('pensionAmt').value  = pension;
-  // YTD values are loaded per-tax-year in updateYtdForTaxYear(), called from onPeriodChange().
   const grade = localStorage.getItem(SK.grade);
   if (grade) document.getElementById('gradeSelect').value = grade;
+  const gradeKey = (grade && GRADES[grade]) ? grade : 'cea';
+  const pensionDefault = GRADES[gradeKey]?.pension ?? '';
+  document.getElementById('pensionAmt').value = pension ?? pensionDefault;
   // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
   const legacyYtdPay = localStorage.getItem(SK.ytdPay);
   const legacyYtdTax = localStorage.getItem(SK.ytdTax);
