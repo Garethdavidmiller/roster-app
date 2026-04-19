@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.87';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.88';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -499,11 +499,11 @@ function onPeriodChange() {
 
   // Update cut-off date in sub descriptions
   document.getElementById('overtimeSub').textContent =
-    `Hours beyond your roster this period (cut-off: ${cutStr}). Shows as "Overtime 1.25" on your payslip.`;
+    `Extra hours on top of a rostered shift (cut-off: ${cutStr}). Shows as "Overtime 1.25" on your payslip.`;
   document.getElementById('rdwSub').textContent =
-    `Shifts worked on your normal rest day (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
+    `You came in on a rest day, including any unrostered Saturdays (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
   document.getElementById('sundaySub').textContent =
-    `All Sunday hours are at 1.5× (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
+    `Any hours you worked on a Sunday (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
 
   // Boxing Day
   const boxing = hasBoxingDay(p);
