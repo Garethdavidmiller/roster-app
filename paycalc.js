@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.14';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.15';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
