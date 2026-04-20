@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `6.61` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `7.07` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -95,6 +95,7 @@ roster-app/
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
 ├── pay-service-worker.js   ← migration stub only — cleans up old myb-pay-calc-* caches; safe to delete after ~May 2026
+├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
 ├── guide.html              ← printable staff + admin quick guide (update at major versions: v7, v8 …)
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 └── functions/
@@ -154,6 +155,8 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | Tests | `roster-data.test.mjs` — payday and cutoff tests passing |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
 | PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
+| `getRosterSuggestion(period)` | `paycalc.js` — reads the logged-in member from localStorage, calls `getBaseShift` for each day in the period window, returns counts of Saturday/Sunday/BH/Boxing Day shifts. Used by the "Fill from roster →" hint bar in the Hours card (v7.07). Works fully offline — base roster only, no Firestore. |
+| Reference guide | `paycalc-guide.html` — printable/linkable pay calculator reference (linked from the about lightbox, added v6.64) |
 
 ---
 
@@ -195,6 +198,17 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
   proRatedAL: { 2026: 23 } // Optional — overrides getALEntitlement for specific years. Use for joiners who start part-way through the year. From the following year, standard entitlement applies automatically.
 }
 ```
+
+**AL entitlement by role** (returned by `getALEntitlement(member, year)` in `roster-data.js`):
+
+| Role / roster type | Days |
+|--------------------|------|
+| CEA (main, bilingual, fixed) | 32 days/year |
+| CES (`ces`) | 34 days/year |
+| C. Reen (`fixed`) | 34 days/year |
+| Dispatcher (`dispatcher`) | 22 base days + 1 lieu day per bank holiday actually worked that year (dynamic — checked via `countDispatcherBankHolidaysWorked(member, year)` which counts bank holidays where `getBaseShift` returns a worked shift) |
+
+`proRatedAL[year]` overrides the above for joiners. From the year after joining, the standard entitlement resumes automatically.
 
 ### Roster types
 
@@ -352,6 +366,21 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 | v6.59 | 🟢 Low | **Settings card flash on pay calculator load fixed.** Settings card had `open` class baked into HTML; JS removed it for returning users after the page painted — causing a visible flash. Reversed: card starts closed in HTML, JS adds `open` only for first-time users who haven't confirmed settings yet. |
 | v6.60 | 🟠 High | **Push notifications were silently dropping.** `sendHuddlePushNotifications` ran after `res.json()` in `ingestHuddle`. Cloud Run considers the function done once the HTTP response is sent and can reclaim the container before the async push completes. Moved the push fan-out to run before `res.json()`. Also changed the subscription renewal error from a silent `catch (_) {}` to `console.warn` so failures appear in the browser console. |
 | v6.61 | 🟠 High | **Manual Huddle uploads did not trigger push notifications.** `uploadHuddle()` in `firebase-client.js` writes directly to Firestore from the browser — it never calls `ingestHuddle`, so the push fan-out never fired for admin uploads. Fixed by moving push into a Firestore trigger (`onDocumentCreated` on `huddles/{date}`). This fires automatically for both Power Automate and manual uploads. Staff are notified once per date (re-uploads are UPDATE events, not CREATE, so they don't re-notify). |
+| v6.62 | 🟢 Low | **Pay calculator banner showed stale "Set up for 2025/26" when period changed to 2026/27.** The setup-confirmation banner read the tax year from the previous period's data rather than the current one. Fixed. |
+| v6.63 | 🟢 Low | **App review pass.** SW skip-cache instruction added for HTML/JS on navigate requests; cache-busting query strings added to pay calculator imports; miscellaneous maintainability fixes. |
+| v6.64 | 🟢 Low | **`paycalc-guide.html` added.** Printable and linkable pay calculator reference guide. Linked from the about lightbox on `paycalc.html`. |
+| v6.66 | 🟡 Med | **QA audit — pay calculator calculation errors.** Saturday uplift was not capped to contracted hours (used raw Saturday hours instead). NI threshold corrected to weekly×4 per pay period rather than annual÷13. |
+| v6.67 | 🟡 Med | **Pension saved per pay period.** Previously a single global value; now stored inside each period's localStorage record (`d.pension`) so past periods keep their own pension amount when the figure changes. |
+| v6.69 | 🟢 Low | **Pay calculator released to all staff.** Removed the admin-only guard — all logged-in members can now access `paycalc.html`. |
+| v6.84 | 🟢 Low | **First-time users get pension pre-filled from grade default.** Previously the pension field was blank on first use. Now pre-filled from the grade default (£154.77 for CEA) so new users don't have to look up the figure. |
+| v6.88 | 🟢 Low | **Pay calculator row descriptions rewritten in plain English.** Technical labels replaced with plain descriptions to reduce cognitive load for staff unfamiliar with payroll terminology. |
+| v6.90 | 🟡 Med | **Silent auto-update for all three pages.** All three pages (index.html, admin.html, paycalc.html) now silently update the service worker in the background when a new version is available. No toast, no user action needed — the update applies on next page load. Replaced the previous `#updateToast` "Refresh now" banner. |
+| v6.95 | 🟢 Low | **Huddle viewer works for DOCX uploads.** The `📋 Huddle` button in `index.html` now reads the `fileType` field from the Firestore `huddles` doc and opens the correct file type. Previously DOCX huddles failed to open. |
+| v6.96 | 🟡 Med | **Pension not overwritten on load.** `loadSettings()` was restoring the grade-default pension before `loadPeriodData()` set the per-period saved value, causing the per-period value to be overwritten on every load. Fixed by correcting load order. |
+| v7.00 | 🟢 Low | **+/− toggle button for pay period adjustment field.** Android soft keyboard has no minus key, making negative adjustments impossible to type. Added `#adjSignBtn` button that negates the current value; shows a red highlight (`.negative` CSS class) when the value is negative. `updateAdjSign()` keeps button state in sync after load and clear. |
+| v7.05 | 🟡 Med | **Record Absence extended to 6 months and now skips non-working days.** Maximum date range increased from 1 month to 6 months. Non-working days (Sundays, and days where `getBaseShift` returns RD/OFF) are now skipped — same logic as Record Annual Leave. Only actual contracted shift days are marked SICK. |
+| v7.06 | 🟠 High | **Record Absence save button was permanently disabled.** `updateSickPreview()` referenced `from`/`to` variables that were only in scope inside `getSickDates()`. The resulting silent `ReferenceError` left the save button permanently disabled. Fixed by computing dates directly from `sickFrom.value` / `sickTo.value` inside `updateSickPreview()`. |
+| v7.07 | 🟠 High | **Roster-aware fill for pay calculator.** When the logged-in member has Saturday, Sunday, BH, or Boxing Day shifts in the current pay period, a hint bar appears in the Hours card showing the count. "Fill from roster →" pre-fills those fields from the base roster in one tap. Pre-filled fields turn gold until manually edited. Works fully offline — base roster only, no Firestore. `getRosterSuggestion(period)` in `paycalc.js` does the work; imports `teamMembers` and `getBaseShift` from `roster-data.js`. `clearRosterSuggestedAll()` is called from `writeFormData()` so highlights never carry over when the period changes. |
 
 ---
 
@@ -559,12 +588,13 @@ match /huddles/{docId} {
 
 If `allow write: if false` blocks the Cloud Function, that is a misconfiguration — the Admin SDK bypasses Security Rules entirely. Client-side writes (from the browser) are correctly blocked.
 
-### Current status (as of v6.59)
+### Current status (as of v7.07)
 
 - ✅ Cloud Function `ingestHuddle` deployed and live
 - ✅ PDF and DOCX upload via Power Automate — working end to end
 - ✅ Push notifications live (v6.11) — VAPID keys configured, Cloud Function `sendHuddlePushNotifications` deployed. Staff subscribed via admin.html receive a notification when a new Huddle is ingested.
 - ✅ Power Automate flow redesigned (v6.x): condition now only sets `huddleDate` (today vs tomorrow for afternoon emails). A single Filter Array after the condition accepts both `.pdf` and `.docx` using an OR expression on file extension. One HTTP action sends whichever attachment arrived — no time-based PDF/DOCX branching.
+- ✅ DOCX huddles open correctly in the `📋 Huddle` button (v6.95) — `fileType` field from Firestore used to construct the correct download URL.
 - ⏳ Huddle viewer history in admin.html — not yet built. Firestore `huddles` collection is populated and ready; the staff-facing `📋 Huddle` button in index.html already shows the latest huddle.
 
 ### Next steps for huddle viewer UI
@@ -678,7 +708,7 @@ Apply approved changes:
 
 Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is treated the same as no override — the new PDF result replaces it without conflict. Only overrides with no `source` field (or any other value) are treated as manual and trigger the CONFLICT state.
 
-### Current status (as of v6.59)
+### Current status (as of v7.07)
 
 - ✅ Cloud Function deployed and live
 - ✅ PDF parsing via Claude AI — working end to end for CEA/Bilingual, CES, Dispatcher rosters

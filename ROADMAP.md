@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: April 2026 — v6.59 (Pay calculator integrated and polished; single service worker; shared CSS; integration audit; UX consistency pass)*
+*Last updated: April 2026 — v7.07*
 
 ---
 
@@ -271,7 +271,7 @@ Storage rules remain unchanged: authenticated write, open read.
 
 ---
 
-### Payday calculator ✓ Complete (v6.50–v6.59)
+### Payday calculator ✓ Complete (v6.50–v7.07)
 
 **What was built:**
 
@@ -282,10 +282,13 @@ Storage rules remain unchanged: authenticated write, open read.
 | Shared infrastructure | `shared.css` extended with `.app-header`, `.badge-page`, `.btn-back` — used by both admin.html and paycalc.html |
 | Single service worker | Consolidated from two competing SWs into one `service-worker.js` covering all three pages. `pay-service-worker.js` reduced to a migration stub (safe to delete ~May 2026). |
 | Version integration | `APP_VERSION` imported from `roster-data.js` — pay calculator always matches roster app version |
+| `paycalc-guide.html` | Printable/linkable reference guide linked from the about lightbox (v6.64) |
+| Roster-aware fill (v7.07) | `getRosterSuggestion(period)` in `paycalc.js` reads the logged-in member's base shifts for the pay period and returns counts of Saturday/Sunday/BH/Boxing Day shifts. A hint bar in the Hours card shows the counts; "Fill from roster →" pre-fills the corresponding fields in one tap. Pre-filled fields turn gold until manually edited. Works fully offline — base roster only, no Firestore. |
 
 **Key design decisions:**
 - **One service worker** rather than per-page SWs — two SWs sharing the same scope (`./`) competed and wiped each other's caches on every activation
 - **`pay-manifest.json` kept separate** rather than merging into `manifest.json` — allows independent home-screen installation with a distinct app name ("MYB Pay") while sharing all assets
+- **Base roster only for roster-aware fill** — Firestore overrides are not consulted, so the feature works fully offline and never blocks on a network call
 
 ---
 

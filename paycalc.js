@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=7.06';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.07';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -152,6 +152,7 @@ const HELP_CONTENT = {
     title: 'Your Hours — how it works',
     tips: [
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
+      'If your name is in the roster, a hint bar appears at the top of this section. Tap <strong>Fill from roster →</strong> to pre-fill your Saturday, Sunday, bank holiday, and Boxing Day hours in one tap. Fields filled this way turn gold — edit any of them if your actual hours were different. It uses your base roster only, so swaps or changes you\'ve requested won\'t be reflected.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (1.25×), overtime (1.25×), rest days including unrostered Saturdays (1.25×), Sundays (1.5×), Boxing Day (3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
@@ -290,6 +291,14 @@ const BANK_HOLIDAYS_EW = [
 function hasBankHoliday(p) {
   // Returns true if any E&W bank holiday (other than 26 Dec) falls in the period window
   return BANK_HOLIDAYS_EW.some(bh => bh >= p.start && bh <= p.cutoff);
+}
+
+function isDateInBHList(d) {
+  return BANK_HOLIDAYS_EW.some(bh =>
+    bh.getFullYear() === d.getFullYear() &&
+    bh.getMonth()    === d.getMonth()    &&
+    bh.getDate()     === d.getDate()
+  );
 }
 
 function updateBhRows(p) {
@@ -564,6 +573,9 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
+  // Update roster hint bar for this period
+  updateRosterHint();
+
   // Load saved data for this period
   loadPeriodData(p.num);
 
@@ -601,6 +613,7 @@ function readFormData() {
 }
 
 function writeFormData(d) {
+  clearRosterSuggestedAll();
   const set = (id, v) => { document.getElementById(id).value = v || ''; };
   set('satH', d.satH || ''); set('satM', d.satM || '');
   set('bhH',   d.bhH   || ''); set('bhM',   d.bhM   || '');
@@ -726,6 +739,11 @@ function clearPeriod() {
   calculate();
 }
 
+function clearRosterSuggestedAll() {
+  document.querySelectorAll('.hhmm-field input.roster-suggested')
+    .forEach(el => el.classList.remove('roster-suggested'));
+}
+
 // ── SETTINGS SAVE / LOAD ──────────────────────────────────────────────────────
 // settingsKey: per-tax-year "confirmed" flag, separate from the raw saved values.
 function settingsKey(ty) { return `cea_setup_${ty.label.replace('/', '_')}`; }
@@ -841,6 +859,107 @@ function loadSettings() {
     }
     localStorage.removeItem('cea_hpp_actual');
   }
+}
+
+// ── ROSTER-AWARE FILL ─────────────────────────────────────────────────────────
+
+/**
+ * Scan the period window using the logged-in member's base roster.
+ * Returns totals for Saturday, Sunday, Bank Holiday, and Boxing Day shifts,
+ * or null if the member isn't in teamMembers or has nothing special in this period.
+ * Base roster only — Firestore overrides are deliberately excluded to keep this
+ * simple and offline-capable.
+ */
+function getRosterSuggestion(p) {
+  let session;
+  try { session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { return null; }
+  if (!session?.name) return null;
+
+  const member = teamMembers.find(m => m.name === session.name);
+  if (!member) return null;
+
+  let satMins = 0, sunMins = 0, bhMins = 0, boxMins = 0;
+  let satCount = 0, sunCount = 0, bhCount = 0, boxCount = 0;
+
+  const cur = new Date(p.start);
+  while (cur <= p.cutoff) {
+    const noon = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12);
+    const base = getBaseShift(member, noon);
+    if (base && base.includes('-') && base.includes(':')) {
+      const parts = base.split('-');
+      const [sh, sm] = parts[0].split(':').map(Number);
+      const [eh, em] = parts[1].split(':').map(Number);
+      let mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins <= 0) mins += 24 * 60; // overnight shift
+
+      const dow = cur.getDay(); // 0 = Sun, 6 = Sat
+      const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
+      if (isBoxing) {
+        boxMins += mins; boxCount++;
+      } else if (isDateInBHList(cur)) {
+        bhMins += mins; bhCount++;
+      } else if (dow === 0) {
+        sunMins += mins; sunCount++;
+      } else if (dow === 6) {
+        satMins += mins; satCount++;
+      }
+      // Mon–Fri non-BH: already in contracted basic pay — no field to fill
+    }
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  if (!satCount && !sunCount && !bhCount && !boxCount) return null;
+
+  return {
+    satH: Math.floor(satMins / 60), satM: satMins % 60,
+    sunH: Math.floor(sunMins / 60), sunM: sunMins % 60,
+    bhH:  Math.floor(bhMins  / 60), bhM:  bhMins  % 60,
+    boxH: Math.floor(boxMins / 60), boxM: boxMins % 60,
+    satCount, sunCount, bhCount, boxCount,
+    memberName: member.name,
+  };
+}
+
+function updateRosterHint() {
+  const bar = document.getElementById('rosterHintBar');
+  if (!bar) return;
+
+  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  if (!p) { bar.style.display = 'none'; return; }
+
+  const s = getRosterSuggestion(p);
+  if (!s) { bar.style.display = 'none'; return; }
+
+  const parts = [];
+  if (s.satCount) parts.push(`${s.satCount} Sat`);
+  if (s.sunCount) parts.push(`${s.sunCount} Sun`);
+  if (s.bhCount)  parts.push(`${s.bhCount} BH`);
+  if (s.boxCount) parts.push(`${s.boxCount} Boxing Day`);
+  document.getElementById('rosterHintText').textContent =
+    `Your roster this period: ${parts.join(' · ')}`;
+  bar.style.display = '';
+}
+
+function fillFromRoster() {
+  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  if (!p) return;
+
+  const s = getRosterSuggestion(p);
+  if (!s) return;
+
+  const suggest = (id, val) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.value = val || '';
+    if (val) el.classList.add('roster-suggested');
+  };
+
+  suggest('satH', s.satH); suggest('satM', s.satM);
+  suggest('sunH', s.sunH); suggest('sunM', s.sunM);
+  suggest('bhH',  s.bhH);  suggest('bhM',  s.bhM);
+  suggest('boxH', s.boxH); suggest('boxM', s.boxM);
+
+  autosave();
 }
 
 // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
@@ -1520,6 +1639,15 @@ document.getElementById('saveSettingsBtn').addEventListener('click', confirmSett
 
 // Hours card — show more toggle
 document.getElementById('hoursShowMore').addEventListener('click', toggleHoursExtra);
+
+// Roster fill
+const _fillBtn = document.getElementById('fillFromRosterBtn');
+if (_fillBtn) _fillBtn.addEventListener('click', fillFromRoster);
+
+// Remove roster-suggested highlight as soon as the user edits any hours input
+document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#sunH,#sunM,#boxH,#boxM').forEach(el => {
+  el.addEventListener('input', () => el.classList.remove('roster-suggested'));
+});
 
 // Tax year tabs
 document.getElementById('tyTab0').addEventListener('click', () => jumpToTaxYear(0));

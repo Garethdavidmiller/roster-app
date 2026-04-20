@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.06 -->
+<!-- MYB Roster — Pay Calculator v7.07 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.06">
+  <link rel="stylesheet" href="./shared.css?v=7.07">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -745,8 +745,38 @@
   .toggle-row.hidden { display: none; }
   .hours-row.hidden { display: none; }
 
+  /* ── ROSTER HINT BAR ── */
+  .roster-hint-bar {
+    background: var(--bg-faint); border: 1.5px solid var(--border-mid);
+    border-radius: var(--radius-sm); padding: 8px 12px;
+    margin-bottom: 10px;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  }
+  .roster-hint-text {
+    font-size: var(--type-small); font-weight: 700; color: var(--text-dark);
+    flex: 1; min-width: 0;
+  }
+  .fill-roster-btn {
+    padding: 5px 12px;
+    background: var(--primary-blue); color: white;
+    border: none; border-radius: var(--radius-sm);
+    font-family: inherit; font-size: var(--type-small); font-weight: 700;
+    cursor: pointer; touch-action: manipulation; flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .fill-roster-btn:hover { background: var(--primary-blue-dark); }
+  }
+  .roster-hint-note {
+    width: 100%; font-size: var(--type-micro); color: var(--text-faint);
+    line-height: 1.4;
+  }
+  .hhmm-field input.roster-suggested {
+    background: #fffce6; border-color: var(--accent-gold);
+  }
+
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.06">
+  <link rel="manifest" href="./pay-manifest.json?v=7.07">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -905,6 +935,13 @@
     <div class="card-body">
 
       <div class="boxing-banner" id="boxingBanner">🎁 Boxing Day (26 Dec) falls in this period — 3× rate applies</div>
+
+      <!-- ROSTER HINT BAR: shown when the logged-in member has special shifts this period -->
+      <div class="roster-hint-bar" id="rosterHintBar" style="display:none">
+        <span class="roster-hint-text" id="rosterHintText">Your roster this period: –</span>
+        <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from roster →</button>
+        <div class="roster-hint-note">Base roster only — doesn't include swaps or changes you've requested</div>
+      </div>
 
       <!-- ── BASIC PAY ADJUSTMENTS ── -->
       <!-- Saturday -->
@@ -1335,6 +1372,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.06"></script>
+<script type="module" src="./paycalc.js?v=7.07"></script>
 </body>
 </html>
