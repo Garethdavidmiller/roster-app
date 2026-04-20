@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.09';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.10';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.09 }, // pre-award £267.09 (P8–P28); new £276.16 from P36 (Oct award)
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.10 }, // pre-award £267.10 (P8–P28); new £276.16 from P36 (Oct award)
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
@@ -1192,6 +1192,9 @@ function calculate() {
     bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
   document.getElementById('bdBody').innerHTML = bd;
 
+  const _peekBtn = document.getElementById('resultPeekBtn');
+  if (_peekBtn) _peekBtn.textContent = `↑ Estimated take-home: ${fmt(net)}`;
+
   calcHPP();
 }
 
@@ -1646,6 +1649,11 @@ document.getElementById('saveSettingsBtn').addEventListener('click', confirmSett
 
 // Hours card — show more toggle
 document.getElementById('hoursShowMore').addEventListener('click', toggleHoursExtra);
+
+// Result peek — scrolls result card into view
+document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
+  document.querySelector('.result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 
 // Roster fill
 const _fillBtn = document.getElementById('fillFromRosterBtn');

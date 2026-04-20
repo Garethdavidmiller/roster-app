@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.09 -->
+<!-- MYB Roster — Pay Calculator v7.10 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.09">
+  <link rel="stylesheet" href="./shared.css?v=7.10">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -565,7 +565,7 @@
       #iconLightbox, #helpLightbox, .setup-banner, .controls, .save-row,
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
-      .privacy-note-standalone,
+      .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
       .btn-back, .btn-signout { display: none !important; }
       .app-header {
         box-shadow: none !important;
@@ -745,6 +745,30 @@
   .toggle-row.hidden { display: none; }
   .hours-row.hidden { display: none; }
 
+  /* ── RESULT PEEK BUTTON (hours card header) ── */
+  .result-peek-btn {
+    font-size: var(--type-small); color: var(--accent-gold); font-weight: 700;
+    background: none; border: none; padding: 0; margin-top: 3px;
+    cursor: pointer; font-family: inherit; display: block;
+    text-align: left; touch-action: manipulation; line-height: 1.4;
+  }
+  .result-peek-btn:active { opacity: 0.7; }
+  @media (hover: hover) and (pointer: fine) {
+    .result-peek-btn:hover { text-decoration: underline; }
+  }
+
+  /* ── GUIDE FOOTER LINK ── */
+  .guide-footer-link { text-align: center; margin-bottom: 12px; }
+  .guide-footer-link a {
+    font-size: var(--type-small); color: rgba(255,255,255,0.55);
+    text-decoration: none; font-weight: 600;
+    transition: color 0.15s;
+  }
+  .guide-footer-link a:active { color: white; }
+  @media (hover: hover) and (pointer: fine) {
+    .guide-footer-link a:hover { color: white; }
+  }
+
   /* ── ROSTER HINT BAR ── */
   .roster-hint-bar {
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
@@ -776,7 +800,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.09">
+  <link rel="manifest" href="./pay-manifest.json?v=7.10">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -871,7 +895,7 @@
         <div class="field-hint">CEA is the only grade currently supported. CES and Dispatch will be added in a future update.</div>
       </div>
 
-      <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings ✓</button>
+      <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
       <div id="settingsSaveFeedback" style="font-size:var(--type-small);color:var(--success-text);text-align:center;min-height:18px;margin-top:6px"></div>
 
     </div>
@@ -880,14 +904,14 @@
   <!-- PERIOD SELECTOR -->
   <div class="controls">
     <div class="ty-tabs">
-      <button class="ty-tab" id="tyTab0" data-ty="0">Tax year 2025/26</button>
-      <button class="ty-tab" id="tyTab1" data-ty="1">Tax year 2026/27</button>
+      <button class="ty-tab" id="tyTab0" data-ty="0">2025/26</button>
+      <button class="ty-tab" id="tyTab1" data-ty="1">2026/27</button>
     </div>
     <select id="periodSelect"></select>
     <p class="period-hint">Set to your next upcoming payslip — use ← to view a past period.</p>
     <div class="period-nav">
-      <button class="nav-pill" id="prevBtn">← Prev</button>
-      <button class="nav-pill" id="nextBtn">Next →</button>
+      <button class="nav-pill" id="prevBtn">← Earlier</button>
+      <button class="nav-pill" id="nextBtn">Later →</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -929,6 +953,7 @@
       <div>
         <h2>⏱️ Your Hours This Period</h2>
         <span class="hint">Saved automatically as you type</span>
+        <button class="result-peek-btn" id="resultPeekBtn" type="button">↑ Estimated take-home: £–</button>
       </div>
       <button class="help-btn" data-help="hours" aria-label="Help: Your Hours">?</button>
     </div>
@@ -1166,7 +1191,6 @@
     <div class="card-body collapsible-body" id="payslipCardBody">
 
       <div class="field">
-        <label>Make my tax calculation more accurate <span class="note">optional</span></label>
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1;min-width:0">
             <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Total taxable pay this year</div>
@@ -1323,6 +1347,11 @@
     </div>
   </div>
 
+  <!-- GUIDE FOOTER LINK -->
+  <div class="guide-footer-link">
+    <a href="./paycalc-guide.html" target="_blank" rel="noopener">📖 Pay Calculator Guide — what each figure means →</a>
+  </div>
+
   <!-- DISCLAIMER -->
   <div class="disclaimer">
     ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app switches to the same calculation method your employer uses — more accurate, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle">More ▼</button>
@@ -1372,6 +1401,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.09"></script>
+<script type="module" src="./paycalc.js?v=7.10"></script>
 </body>
 </html>
