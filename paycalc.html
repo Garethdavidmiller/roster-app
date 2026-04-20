@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.12 -->
+<!-- MYB Roster — Pay Calculator v7.13 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.12">
+  <link rel="stylesheet" href="./shared.css?v=7.13">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -567,7 +567,7 @@
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
-      .btn-back, .btn-signout { display: none !important; }
+      #decimalConverterCard, .btn-back, .btn-signout { display: none !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -692,6 +692,35 @@
     }
 
   /* ── COLLAPSIBLE CARDS (Settings, Payslip, HPP, Back Pay) ── */
+  /* ── DECIMAL HOURS CONVERTER ── */
+  .decimal-conv-row {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .decimal-conv-field {
+    display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 130px;
+  }
+  .decimal-conv-field label {
+    font-size: var(--type-small); font-weight: 600; color: var(--text-mid);
+  }
+  .decimal-hrs-input {
+    width: 100%; padding: 10px 12px; border: 2px solid var(--border-mid);
+    border-radius: var(--radius-sm); font-size: 1rem; font-family: inherit;
+    background: white; color: var(--text-dark);
+    transition: border-color 0.15s;
+  }
+  .decimal-hrs-input:focus { outline: none; border-color: var(--primary-blue); }
+  .decimal-conv-equals {
+    font-size: 1.3rem; font-weight: 700; color: var(--text-light);
+    flex-shrink: 0; padding-top: 20px;
+  }
+  .decimal-conv-result {
+    flex: 1.5; min-width: 140px; padding: 10px 14px;
+    background: var(--bg-faint); border-radius: var(--radius-sm);
+    font-size: 1rem; font-weight: 700; color: var(--primary-blue);
+    border: 2px solid var(--border-light);
+    margin-top: 20px;
+  }
+
   .card-header-toggle {
     cursor: pointer; user-select: none;
     display: flex; align-items: flex-start; justify-content: space-between;
@@ -801,7 +830,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.12">
+  <link rel="manifest" href="./pay-manifest.json?v=7.13">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1353,6 +1382,28 @@
     <a href="./paycalc-guide.html" target="_blank" rel="noopener">📖 Pay Calculator Guide — what each figure means →</a>
   </div>
 
+  <!-- DECIMAL HOURS CONVERTER -->
+  <div class="card" id="decimalConverterCard">
+    <div class="card-header card-header-toggle" id="decimalConverterToggle">
+      <div>
+        <h2>🔢 Decimal Hours Converter</h2>
+        <span class="hint">Chiltern payslips show hours as decimals — tap to convert</span>
+      </div>
+      <span class="card-toggle-arrow">▼</span>
+    </div>
+    <div class="card-body collapsible-body" id="decimalConverterBody">
+      <p class="card-explainer">Your payslip shows hours worked as a decimal — for example, 7.5 means 7 hours 30 minutes, and 0.25 means 15 minutes. Use this converter when entering figures from an old payslip into the calculator above.</p>
+      <div class="decimal-conv-row">
+        <div class="decimal-conv-field">
+          <label for="decimalHrsInput">Decimal from payslip</label>
+          <input type="number" id="decimalHrsInput" class="decimal-hrs-input" min="0" step="0.01" placeholder="e.g. 7.5" inputmode="decimal">
+        </div>
+        <div class="decimal-conv-equals">=</div>
+        <div class="decimal-conv-result" id="decimalHrsResult" aria-live="polite">–</div>
+      </div>
+    </div>
+  </div>
+
   <!-- DISCLAIMER -->
   <div class="disclaimer">
     ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app switches to the same calculation method your employer uses — more accurate, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle">More ▼</button>
@@ -1402,6 +1453,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.12"></script>
+<script type="module" src="./paycalc.js?v=7.13"></script>
 </body>
 </html>

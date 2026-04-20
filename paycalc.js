@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.12';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.13';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.12 }, // pre-award £267.12 (P8–P28); new £276.16 from P36 (Oct award)
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.13 }, // pre-award £267.13 (P8–P28); new £276.16 from P36 (Oct award)
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
@@ -1908,4 +1908,35 @@ Device: ${navigator.userAgent}
   if (guideLink) guideLink.addEventListener('click', closeWelcome);
 
   if (!localStorage.getItem(WELCOME_KEY)) openWelcome();
+})();
+
+// ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────
+(function () {
+  const toggle = document.getElementById('decimalConverterToggle');
+  const body   = document.getElementById('decimalConverterBody');
+  const input  = document.getElementById('decimalHrsInput');
+  const result = document.getElementById('decimalHrsResult');
+
+  toggle.addEventListener('click', () => {
+    const open = toggle.classList.toggle('open');
+    body.classList.toggle('open', open);
+    if (open) input.focus();
+  });
+
+  function convert() {
+    const val = parseFloat(input.value);
+    if (isNaN(val) || val < 0) { result.textContent = '–'; return; }
+    const totalMins = Math.round(val * 60);
+    const hrs  = Math.floor(totalMins / 60);
+    const mins = totalMins % 60;
+    if (hrs === 0) {
+      result.textContent = `${mins} min${mins !== 1 ? 's' : ''}`;
+    } else if (mins === 0) {
+      result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''}`;
+    } else {
+      result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''} ${mins} min${mins !== 1 ? 's' : ''}`;
+    }
+  }
+
+  input.addEventListener('input', convert);
 })();
