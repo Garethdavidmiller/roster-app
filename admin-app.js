@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.01';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.01';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.02';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.02';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3735,19 +3735,26 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         feedback.textContent = '';
         try {
             const memberName = 'Z. Lewis';
+            const member = teamMembers.find(m => m.name === memberName);
+            if (!member) throw new Error('Z. Lewis not found in teamMembers');
             const start = new Date(2026, 0, 1);
             const end   = new Date(2026, 4, 31);
             const batch = writeBatch(db);
             let count = 0;
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const yyyy = d.getFullYear();
-                const mm   = String(d.getMonth() + 1).padStart(2, '0');
-                const dd   = String(d.getDate()).padStart(2, '0');
+                const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
+                const isSunday = noon.getDay() === 0;
+                const base = getBaseShift(member, noon);
+                // Sundays always RD; non-Sundays only if she was rostered to work
+                if (!isSunday && (base === 'RD' || base === 'OFF')) continue;
+                const yyyy = noon.getFullYear();
+                const mm   = String(noon.getMonth() + 1).padStart(2, '0');
+                const dd   = String(noon.getDate()).padStart(2, '0');
                 batch.set(doc(collection(db, 'overrides')), {
                     date: `${yyyy}-${mm}-${dd}`,
                     memberName,
-                    type:      d.getDay() === 0 ? 'correction' : 'sick',
-                    value:     d.getDay() === 0 ? 'RD' : 'SICK',
+                    type:      isSunday ? 'correction' : 'sick',
+                    value:     isSunday ? 'RD' : 'SICK',
                     note:      'Suspended',
                     createdAt: serverTimestamp(),
                 });
