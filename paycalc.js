@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.07';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.08';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -152,7 +152,7 @@ const HELP_CONTENT = {
     title: 'Your Hours — how it works',
     tips: [
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
-      'If your name is in the roster, a hint bar appears at the top of this section. Tap <strong>Fill from roster →</strong> to pre-fill your Saturday, Sunday, bank holiday, and Boxing Day hours in one tap. Fields filled this way turn gold — edit any of them if your actual hours were different. It uses your base roster only, so swaps or changes you\'ve requested won\'t be reflected.',
+      'If your name is in the roster, a hint bar appears at the top of this section. Tap <strong>Fill blanks from roster →</strong> to pre-fill any <em>empty</em> Saturday, Sunday, bank holiday, and Boxing Day fields from your base roster. It only fills fields you haven\'t already entered — it will never overwrite hours you\'ve typed. Filled fields turn gold; the highlight clears as soon as you edit them. Base roster only — swaps or changes you\'ve requested won\'t be reflected.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (1.25×), overtime (1.25×), rest days including unrostered Saturdays (1.25×), Sundays (1.5×), Boxing Day (3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
@@ -947,17 +947,24 @@ function fillFromRoster() {
   const s = getRosterSuggestion(p);
   if (!s) return;
 
-  const suggest = (id, val) => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.value = val || '';
-    if (val) el.classList.add('roster-suggested');
+  // Only fill a field pair if both hours and minutes are currently blank/zero.
+  // This prevents a tap from silently overwriting hours the user has already entered.
+  const suggestIfBlank = (hId, mId, hVal, mVal) => {
+    const elH = document.getElementById(hId);
+    const elM = document.getElementById(mId);
+    if (!elH || !elM) return;
+    if (parseInt(elH.value) || parseInt(elM.value)) return; // already has a value — skip
+    if (!hVal && !mVal) return;
+    elH.value = hVal || '';
+    elM.value = mVal || '';
+    elH.classList.add('roster-suggested');
+    elM.classList.add('roster-suggested');
   };
 
-  suggest('satH', s.satH); suggest('satM', s.satM);
-  suggest('sunH', s.sunH); suggest('sunM', s.sunM);
-  suggest('bhH',  s.bhH);  suggest('bhM',  s.bhM);
-  suggest('boxH', s.boxH); suggest('boxM', s.boxM);
+  suggestIfBlank('satH', 'satM', s.satH, s.satM);
+  suggestIfBlank('sunH', 'sunM', s.sunH, s.sunM);
+  suggestIfBlank('bhH',  'bhM',  s.bhH,  s.bhM);
+  suggestIfBlank('boxH', 'boxM', s.boxH, s.boxM);
 
   autosave();
 }
