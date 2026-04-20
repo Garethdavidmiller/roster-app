@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 7.11 -->
+<!-- MYB Roster Calendar - Version 7.12 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=7.11">
+    <link rel="manifest" href="manifest.json?v=7.12">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.11">
+    <link rel="stylesheet" href="shared.css?v=7.12">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1718,7 +1718,7 @@
             background: var(--primary-blue);
             color: #fff;
             padding: 12px 16px;
-            padding-top: max(12px, env(safe-area-inset-top));
+            padding-top: max(20px, calc(env(safe-area-inset-top) + 12px));
             flex-shrink: 0;
             gap: 12px;
         }
@@ -1730,7 +1730,9 @@
             font-size: 1.5rem;
             line-height: 1;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 8px 12px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
             transition: color 0.15s ease;
         }
         @media (hover: hover) and (pointer: fine) {
@@ -2024,7 +2026,7 @@
     <div id="huddleViewer" role="dialog" aria-label="Daily Huddle" aria-modal="true">
         <div id="huddleViewerHeader">
             <span id="huddleViewerTitle">📋 Daily Huddle</span>
-            <button id="huddleViewerClose" aria-label="Close">✕</button>
+            <button id="huddleViewerClose" type="button" aria-label="Close">✕</button>
         </div>
         <div id="huddleViewerBody">
             <p id="huddleViewerLoading">Loading…</p>
@@ -2143,7 +2145,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=7.11"></script>
+    <script type="module" src="./app.js?v=7.12"></script>
 
 </body>
 </html>

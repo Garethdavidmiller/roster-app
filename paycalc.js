@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.11';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.12';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.11 }, // pre-award £267.11 (P8–P28); new £276.16 from P36 (Oct award)
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.12 }, // pre-award £267.12 (P8–P28); new £276.16 from P36 (Oct award)
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
