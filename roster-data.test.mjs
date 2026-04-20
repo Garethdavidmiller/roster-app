@@ -147,8 +147,10 @@ test('getALEntitlement: CES gets 34 days', () => {
     assert.equal(getALEntitlement({ role: 'CES', rosterType: 'ces' }), 34);
 });
 
-test('getALEntitlement: Dispatcher gets 34 days', () => {
-    assert.equal(getALEntitlement({ role: 'Dispatcher', rosterType: 'dispatcher' }), 34);
+test('getALEntitlement: Dispatcher base entitlement is 22 days (no BH worked)', () => {
+    // Dispatchers earn 22 base days + 1 lieu day per bank holiday actually worked.
+    // A member with no valid roster (no currentWeek) works no bank holidays, so returns 22.
+    assert.equal(getALEntitlement({ role: 'Dispatcher', rosterType: 'dispatcher' }), 22);
 });
 
 test('getALEntitlement: fixed roster (C. Reen) gets 34 days', () => {
