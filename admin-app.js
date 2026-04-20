@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.00';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.00';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.01';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.01';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3719,36 +3719,49 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
 // ============================================
 // ONE-TIME UTILITY — Z. Lewis suspension
-// Run window.bulkSuspendLewis() from the browser console on admin.html
-// once to create all overrides, then this function can be removed.
+// Admin-only card in admin.html; remove this block once run.
 // ============================================
-window.bulkSuspendLewis = async function() {
-    const memberName = 'Z. Lewis';
-    const start = new Date(2026, 0, 1);   // 1 Jan 2026
-    const end   = new Date(2026, 4, 31);  // 31 May 2026
+(function initLewisUtility() {
+    if (!currentIsAdmin) return;
+    const card     = document.getElementById('lewisUtilityCard');
+    const btn      = document.getElementById('lewisUtilityBtn');
+    const feedback = document.getElementById('lewisUtilityFeedback');
+    if (!card) return;
+    card.style.display = '';
 
-    const batch = writeBatch(db);
-    let count = 0;
-
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        const yyyy = d.getFullYear();
-        const mm   = String(d.getMonth() + 1).padStart(2, '0');
-        const dd   = String(d.getDate()).padStart(2, '0');
-        const dateStr = `${yyyy}-${mm}-${dd}`;
-        const isSunday = d.getDay() === 0;
-
-        batch.set(doc(collection(db, 'overrides')), {
-            date:       dateStr,
-            memberName,
-            type:       isSunday ? 'correction' : 'sick',
-            value:      isSunday ? 'RD' : 'SICK',
-            note:       'Suspended',
-            createdAt:  serverTimestamp(),
-        });
-        count++;
-    }
-
-    await batch.commit();
-    console.log(`[bulkSuspendLewis] Created ${count} overrides for ${memberName} (1 Jan – 31 May 2026)`);
-    alert(`Done — ${count} overrides created for ${memberName}.`);
-};
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Running…';
+        feedback.textContent = '';
+        try {
+            const memberName = 'Z. Lewis';
+            const start = new Date(2026, 0, 1);
+            const end   = new Date(2026, 4, 31);
+            const batch = writeBatch(db);
+            let count = 0;
+            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const yyyy = d.getFullYear();
+                const mm   = String(d.getMonth() + 1).padStart(2, '0');
+                const dd   = String(d.getDate()).padStart(2, '0');
+                batch.set(doc(collection(db, 'overrides')), {
+                    date: `${yyyy}-${mm}-${dd}`,
+                    memberName,
+                    type:      d.getDay() === 0 ? 'correction' : 'sick',
+                    value:     d.getDay() === 0 ? 'RD' : 'SICK',
+                    note:      'Suspended',
+                    createdAt: serverTimestamp(),
+                });
+                count++;
+            }
+            await batch.commit();
+            feedback.textContent = `✓ Done — ${count} overrides created.`;
+            feedback.style.color = 'var(--success-text)';
+            card.style.display = 'none';
+        } catch (e) {
+            feedback.textContent = `Error: ${e.message}`;
+            feedback.style.color = 'var(--error-red)';
+            btn.disabled = false;
+            btn.textContent = 'Run now';
+        }
+    });
+}());
