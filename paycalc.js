@@ -152,6 +152,7 @@ const HELP_CONTENT = {
     title: 'Your Hours — how it works',
     tips: [
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
+      'If your name is in the roster, a hint bar appears at the top of this section. Tap <strong>Fill from roster →</strong> to pre-fill your Saturday, Sunday, bank holiday, and Boxing Day hours in one tap. Fields filled this way turn gold — edit any of them if your actual hours were different. It uses your base roster only, so swaps or changes you\'ve requested won\'t be reflected.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (1.25×), overtime (1.25×), rest days including unrostered Saturdays (1.25×), Sundays (1.5×), Boxing Day (3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
