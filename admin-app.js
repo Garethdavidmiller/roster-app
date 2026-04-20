@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.04';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.04';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.05';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.05';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2129,9 +2129,11 @@ function updateSickPreview() {
         return;
     }
 
-    if (dates.length > 60) {
+    const maxTo = new Date(from);
+    maxTo.setMonth(maxTo.getMonth() + 6);
+    if (to > maxTo) {
         sickPreview.className = 'al-preview sick-preview error';
-        sickPreview.textContent = `That's ${dates.length} days — maximum range is 60 days.`;
+        sickPreview.textContent = 'Maximum range is 6 months.';
         sickSaveBtn.disabled = true;
         return;
     }
@@ -2149,7 +2151,9 @@ function updateSickPreview() {
             if (isSunday(dateStr)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') restCount++;
+            if (base === 'RD' || base === 'OFF') { restCount++; return; }
+            const ov = allOverrides.find(o => o.memberName === memberObj.name && o.date === dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) restCount++;
         });
     }
     const workDays = dates.length - restCount;
@@ -2177,7 +2181,10 @@ sickSaveBtn.addEventListener('click', async () => {
             if (isSunday(dateStr)) return false;
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
-            return base !== 'RD' && base !== 'OFF';
+            if (base === 'RD' || base === 'OFF') return false;
+            const ov = allOverrides.find(o => o.memberName === member && o.date === dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
+            return true;
           })
         : dates;
 
@@ -3716,75 +3723,3 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
     })();
 
 })();
-
-// ============================================
-// ONE-TIME UTILITY — Z. Lewis suspension
-// Admin-only card in admin.html; remove this block once run.
-// ============================================
-(function initLewisUtility() {
-    if (!currentIsAdmin) return;
-    const card     = document.getElementById('lewisUtilityCard');
-    const btn      = document.getElementById('lewisUtilityBtn');
-    const feedback = document.getElementById('lewisUtilityFeedback');
-    if (!card) return;
-    card.style.display = '';
-
-    btn.addEventListener('click', async () => {
-        btn.disabled = true;
-        btn.textContent = 'Cleaning up old overrides…';
-        feedback.textContent = '';
-        try {
-            const memberName = 'Z. Lewis';
-            const member = teamMembers.find(m => m.name === memberName);
-            if (!member) throw new Error('Z. Lewis not found in teamMembers');
-
-            // Step 1: delete any existing overrides for Z. Lewis in the date range
-            // (catches the wrong Mon–Sat blanket overrides from the first run)
-            const existing = await getDocs(query(
-                collection(db, 'overrides'),
-                where('memberName', '==', memberName),
-                where('date', '>=', '2026-01-01'),
-                where('date', '<=', '2026-05-31')
-            ));
-            if (!existing.empty) {
-                const deleteBatch = writeBatch(db);
-                existing.docs.forEach(d => deleteBatch.delete(d.ref));
-                await deleteBatch.commit();
-            }
-
-            // Step 2: create correct overrides — only on days she was rostered to work
-            btn.textContent = 'Creating overrides…';
-            const start = new Date(2026, 0, 1);
-            const end   = new Date(2026, 4, 31);
-            const createBatch = writeBatch(db);
-            let count = 0;
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
-                const isSunday = noon.getDay() === 0;
-                const base = getBaseShift(member, noon);
-                if (!base.includes(':')) continue;
-                const yyyy = noon.getFullYear();
-                const mm   = String(noon.getMonth() + 1).padStart(2, '0');
-                const dd   = String(noon.getDate()).padStart(2, '0');
-                createBatch.set(doc(collection(db, 'overrides')), {
-                    date: `${yyyy}-${mm}-${dd}`,
-                    memberName,
-                    type:      isSunday ? 'correction' : 'sick',
-                    value:     isSunday ? 'RD' : 'SICK',
-                    note:      'Suspended',
-                    createdAt: serverTimestamp(),
-                });
-                count++;
-            }
-            await createBatch.commit();
-            feedback.textContent = `✓ Done — ${existing.size} old overrides removed, ${count} correct ones created.`;
-            feedback.style.color = 'var(--success-text)';
-            card.style.display = 'none';
-        } catch (e) {
-            feedback.textContent = `Error: ${e.message}`;
-            feedback.style.color = 'var(--error-red)';
-            btn.disabled = false;
-            btn.textContent = 'Run now';
-        }
-    });
-}());
