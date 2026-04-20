@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.08 -->
+<!-- MYB Roster — Pay Calculator v7.09 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.08">
+  <link rel="stylesheet" href="./shared.css?v=7.09">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -776,7 +776,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.08">
+  <link rel="manifest" href="./pay-manifest.json?v=7.09">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1120,12 +1120,12 @@
 
       <!-- ── SHOW MORE TOGGLE ── -->
       <button class="show-more-btn" id="hoursShowMore">
-        <span id="hoursShowMoreLabel">More options (period adjustments) </span><span class="show-more-arrow">▼</span>
+        <span id="hoursShowMoreLabel">More options</span><span class="show-more-arrow">▼</span>
       </button>
 
       <div class="hours-extra" id="hoursExtra">
 
-        <div class="sec-hd" style="margin-top:4px">Period adjustments</div>
+        <div class="sec-hd" style="margin-top:4px">Other adjustments</div>
 
         <div class="toggle-row hidden" id="slSkipRow">
           <input type="checkbox" id="slSkipCheck">
@@ -1156,7 +1156,7 @@
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
         <h2>📊 Improve Accuracy <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
-        <span class="hint">Year to Date figures from your payslip + January HPP amount</span>
+        <span class="hint">Optional: enter payslip totals for a more accurate tax estimate</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
         <button class="help-btn" data-help="accuracy" aria-label="Help: Improve Accuracy">?</button>
@@ -1257,7 +1257,7 @@
       <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum. Select the first period covered by the new rate, enter the old and new values, then choose which payslip the lump sum lands on.</p>
 
       <div class="field">
-        <label>Back pay from period</label>
+        <label>Pay rise backdated from</label>
         <select id="backPayFrom">
           <option value="">— all periods with saved data —</option>
         </select>
@@ -1301,7 +1301,7 @@
       </div>
       <!-- Period selector — appears once total is calculated -->
       <div class="field" id="backPayPeriodWrap" style="display:none;margin:0 0 12px">
-        <label>Paid in period</label>
+        <label>Which payslip carries this lump sum?</label>
         <select id="backPayPeriod">
           <option value="">— select when the lump sum will land —</option>
         </select>
@@ -1325,7 +1325,7 @@
 
   <!-- DISCLAIMER -->
   <div class="disclaimer">
-    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax uses per-period estimates (÷13) unless you enter YTD figures from your payslip, which switches to HMRC's cumulative method. Actual PAYE may still differ due to employer rounding or corrections across prior periods. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle">More ▼</button>
+    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app switches to the same calculation method your employer uses — more accurate, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle">More ▼</button>
   </div>
 
 
@@ -1372,6 +1372,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.08"></script>
+<script type="module" src="./paycalc.js?v=7.09"></script>
 </body>
 </html>

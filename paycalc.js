@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.08';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.09';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.08 }, // pre-award £267.08 (P8–P28); new £276.16 from P36 (Oct award)
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.09 }, // pre-award £267.09 (P8–P28); new £276.16 from P36 (Oct award)
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
@@ -153,7 +153,7 @@ const HELP_CONTENT = {
     tips: [
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
       'If your name is in the roster, a hint bar appears at the top of this section. Tap <strong>Fill blanks from roster →</strong> to pre-fill any <em>empty</em> Saturday, Sunday, bank holiday, and Boxing Day fields from your base roster. It only fills fields you haven\'t already entered — it will never overwrite hours you\'ve typed. Filled fields turn gold; the highlight clears as soon as you edit them. Base roster only — swaps or changes you\'ve requested won\'t be reflected.',
-      'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (1.25×), overtime (1.25×), rest days including unrostered Saturdays (1.25×), Sundays (1.5×), Boxing Day (3×).',
+      'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
       'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
@@ -173,7 +173,7 @@ const HELP_CONTENT = {
   accuracy: {
     title: 'Improve Accuracy — why it helps',
     tips: [
-      'By default, the app estimates your tax each period as 1/13 of your annual allowance. This is usually close, but can drift if you had an unusual period earlier in the year.',
+      'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> switches to the same calculation method your employer uses — significantly more accurate.',
       'Find <strong>"Total taxable pay"</strong> and <strong>"Total tax deducted"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
       'Once your January payslip arrives with the confirmed Holiday Pay Premium amount, enter it in the <strong>Holiday Pay Premium</strong> card below to replace the running estimate.',
@@ -183,7 +183,7 @@ const HELP_CONTENT = {
     title: 'Holiday Pay Premium (HPP)',
     tips: [
       'When you take annual leave, Chiltern only pay your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay, and Sunday pay for those days.',
-      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your variable pay (overtime, RDW, Sundays, London Allowance) across the whole tax year.',
+      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your extra pay above basic hours (overtime, rest day working, Sundays, and London Allowance) across the whole tax year.',
       'This is paid as a <strong>single lump sum in your January payslip</strong> every year — it doesn\'t appear on any other payslip.',
       'The estimate builds across all periods you\'ve entered in the current tax year. When you move into the next tax year, the prior year\'s estimate carries forward into this card — enter the confirmed January payslip figure there to replace it.',
     ],
@@ -684,12 +684,12 @@ function loadPeriodData(pNum) {
     extraBody.classList.add('open');
     extraBtn.classList.add('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▲';
-    document.getElementById('hoursShowMoreLabel').textContent = 'Fewer options ';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Fewer options';
   } else if (!hasExtras && extraBody.classList.contains('open')) {
     extraBody.classList.remove('open');
     extraBtn.classList.remove('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▼';
-    document.getElementById('hoursShowMoreLabel').textContent = 'More options (period adjustments) ';
+    document.getElementById('hoursShowMoreLabel').textContent = 'More options';
   }
   updateSaveStatus(pNum);
   calculate();
@@ -1278,13 +1278,13 @@ function calcHPP() {
   } else {
     if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
     amountEl.textContent = fmt(hpp);
-    basisEl.textContent  = `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} variable pay × 7.69% · due January ${ty.hppPaidJan}`;
+    basisEl.textContent  = `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
   }
 
   // Dynamic formula note
   const noteEl = document.getElementById('hppNote');
   if (noteEl) {
-    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All variable pay (overtime + rest day hours + London Allowance) × 4/52 = 7.69%. Basic pay, peer training, expenses and bonuses are excluded. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's pro-rated if you were not employed for the full year.`;
+    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All extra pay above your basic hours (overtime, rest day working, Sundays, and London Allowance) × 7.69%. Basic pay, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
   }
 
   // Update the prior year section (shows the previous tax year's HPP carry-forward)
