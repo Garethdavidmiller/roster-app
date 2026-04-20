@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.10';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.11';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.10 }, // pre-award £267.10 (P8–P28); new £276.16 from P36 (Oct award)
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.11 }, // pre-award £267.11 (P8–P28); new £276.16 from P36 (Oct award)
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
@@ -1680,13 +1680,23 @@ document.getElementById('pensionAmt').addEventListener('input',  () => { saveSet
 // Per-period overrides
 document.getElementById('slSkipCheck').addEventListener('change', autosave);
 document.getElementById('otherAdj').addEventListener('input', () => { updateAdjSign(); autosave(); });
-document.getElementById('adjSignBtn').addEventListener('click', () => {
-  const input = document.getElementById('otherAdj');
-  const val = parseFloat(input.value) || 0;
-  input.value = val !== 0 ? (-val).toFixed(2) : '';
-  updateAdjSign();
-  autosave();
-});
+// iOS: tapping adjSignBtn while the number input is focused causes the keyboard
+// to dismiss first, which triggers a viewport layout shift that cancels the
+// touch-to-click conversion — so 'click' never fires on iOS in that scenario.
+// 'touchend' fires before the keyboard dismisses, so the input value is still
+// readable. preventDefault() stops iOS from synthesising a duplicate 'click'.
+(function () {
+  function toggleAdjSign() {
+    const input = document.getElementById('otherAdj');
+    const val   = parseFloat(input.value) || 0;
+    input.value = val !== 0 ? (-val).toFixed(2) : '';
+    updateAdjSign();
+    autosave();
+  }
+  const btn = document.getElementById('adjSignBtn');
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); toggleAdjSign(); });
+  btn.addEventListener('click', toggleAdjSign); // non-touch devices + keyboard activation
+})();
 
 // Payslip card inputs
 document.getElementById('ytdPay').addEventListener('input',    () => { saveSettings(); calculate(); });
