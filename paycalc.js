@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=7.03';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=7.04';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────

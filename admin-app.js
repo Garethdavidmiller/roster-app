@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.03';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.03';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.04';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.04';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3731,27 +3731,42 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
     btn.addEventListener('click', async () => {
         btn.disabled = true;
-        btn.textContent = 'Running…';
+        btn.textContent = 'Cleaning up old overrides…';
         feedback.textContent = '';
         try {
             const memberName = 'Z. Lewis';
             const member = teamMembers.find(m => m.name === memberName);
             if (!member) throw new Error('Z. Lewis not found in teamMembers');
+
+            // Step 1: delete any existing overrides for Z. Lewis in the date range
+            // (catches the wrong Mon–Sat blanket overrides from the first run)
+            const existing = await getDocs(query(
+                collection(db, 'overrides'),
+                where('memberName', '==', memberName),
+                where('date', '>=', '2026-01-01'),
+                where('date', '<=', '2026-05-31')
+            ));
+            if (!existing.empty) {
+                const deleteBatch = writeBatch(db);
+                existing.docs.forEach(d => deleteBatch.delete(d.ref));
+                await deleteBatch.commit();
+            }
+
+            // Step 2: create correct overrides — only on days she was rostered to work
+            btn.textContent = 'Creating overrides…';
             const start = new Date(2026, 0, 1);
             const end   = new Date(2026, 4, 31);
-            const batch = writeBatch(db);
+            const createBatch = writeBatch(db);
             let count = 0;
             for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                 const noon = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0);
                 const isSunday = noon.getDay() === 0;
                 const base = getBaseShift(member, noon);
-                // Only act on days she was rostered to work (actual shift times).
-                // RD, SPARE, and Sundays already RD need no override.
                 if (!base.includes(':')) continue;
                 const yyyy = noon.getFullYear();
                 const mm   = String(noon.getMonth() + 1).padStart(2, '0');
                 const dd   = String(noon.getDate()).padStart(2, '0');
-                batch.set(doc(collection(db, 'overrides')), {
+                createBatch.set(doc(collection(db, 'overrides')), {
                     date: `${yyyy}-${mm}-${dd}`,
                     memberName,
                     type:      isSunday ? 'correction' : 'sick',
@@ -3761,8 +3776,8 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
                 });
                 count++;
             }
-            await batch.commit();
-            feedback.textContent = `✓ Done — ${count} overrides created.`;
+            await createBatch.commit();
+            feedback.textContent = `✓ Done — ${existing.size} old overrides removed, ${count} correct ones created.`;
             feedback.style.color = 'var(--success-text)';
             card.style.display = 'none';
         } catch (e) {
