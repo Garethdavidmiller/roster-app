@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v6.99 -->
+<!-- MYB Roster — Pay Calculator v7.00 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=6.99">
+  <link rel="stylesheet" href="./shared.css?v=7.00">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -431,6 +431,18 @@
       font-size: 15px; font-weight: 600; color: var(--text-mid); pointer-events: none;
     }
     .pfx input { padding-left: 26px; width: 100%; }
+    .adj-sign-btn {
+      width: 36px; height: 36px; flex-shrink: 0;
+      border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
+      background: white; color: var(--text-dark);
+      font-family: inherit; font-size: 18px; font-weight: 700;
+      cursor: pointer; touch-action: manipulation;
+      display: flex; align-items: center; justify-content: center; padding: 0;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .adj-sign-btn.negative {
+      background: var(--error-bg); border-color: var(--error-red); color: var(--error-red);
+    }
     .field-hint { font-size: var(--type-micro); color: var(--text-faint); margin-top: 5px; line-height: 1.4; }
 
     /* First-run banner */
@@ -734,7 +746,7 @@
   .hours-row.hidden { display: none; }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=6.99">
+  <link rel="manifest" href="./pay-manifest.json?v=7.00">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1086,11 +1098,14 @@
         <div class="hours-row">
           <div class="h-info">
             <div class="h-title">Any other payslip adjustment</div>
-            <div class="h-sub">For absence deductions, corrections, or any extra line on your payslip. Use a negative number to reduce pay (e.g. −45.00 for an absence), positive to add to it.</div>
+            <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Tap <strong>+/−</strong> to switch between adding or deducting.</div>
           </div>
-          <div class="pfx" style="width:110px;flex-shrink:0">
-            <span class="pfx-sym">£</span>
-            <input type="number" id="otherAdj" step="0.01" placeholder="0.00" inputmode="text" style="text-align:right">
+          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+            <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>
+            <div class="pfx" style="width:90px">
+              <span class="pfx-sym">£</span>
+              <input type="number" id="otherAdj" step="0.01" placeholder="0.00" inputmode="decimal" style="text-align:right">
+            </div>
           </div>
         </div>
 
@@ -1320,6 +1335,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=6.99"></script>
+<script type="module" src="./paycalc.js?v=7.00"></script>
 </body>
 </html>

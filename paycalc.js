@@ -1,4 +1,4 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=6.99';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG } from './roster-data.js?v=7.00';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -625,6 +625,15 @@ function writeFormData(d) {
   }
 }
 
+function updateAdjSign() {
+  const val = parseFloat(document.getElementById('otherAdj').value) || 0;
+  const btn = document.getElementById('adjSignBtn');
+  const neg = val < 0;
+  btn.textContent = neg ? '−' : '+';
+  btn.setAttribute('aria-label', neg ? 'Toggle sign: currently negative' : 'Toggle sign: currently positive');
+  btn.classList.toggle('negative', neg);
+}
+
 function isDataEmpty(d) {
   return !d.satH && !d.satM &&
          !d.bhH  && !d.bhM  &&
@@ -653,6 +662,7 @@ function loadPeriodData(pNum) {
     if (raw) d = JSON.parse(raw);
   } catch(e) { /* use empty */ }
   writeFormData(d);
+  updateAdjSign();
   // Auto-expand "more options" if this period has extras saved
   const hasExtras = d.slSkip || d.otherAdj;
   const extraBody = document.getElementById('hoursExtra');
@@ -711,6 +721,7 @@ function clearPeriod() {
   const pNum = currentPeriodNum();
   localStorage.removeItem(periodKey(pNum));
   writeFormData(emptyPeriodData());
+  updateAdjSign();
   updateSaveStatus(pNum);
   calculate();
 }
@@ -1525,7 +1536,14 @@ document.getElementById('pensionAmt').addEventListener('input',  () => { saveSet
 
 // Per-period overrides
 document.getElementById('slSkipCheck').addEventListener('change', autosave);
-document.getElementById('otherAdj').addEventListener('input', autosave);
+document.getElementById('otherAdj').addEventListener('input', () => { updateAdjSign(); autosave(); });
+document.getElementById('adjSignBtn').addEventListener('click', () => {
+  const input = document.getElementById('otherAdj');
+  const val = parseFloat(input.value) || 0;
+  input.value = val !== 0 ? (-val).toFixed(2) : '';
+  updateAdjSign();
+  autosave();
+});
 
 // Payslip card inputs
 document.getElementById('ytdPay').addEventListener('input',    () => { saveSettings(); calculate(); });
