@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.17';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.17';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.18';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.18';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -878,10 +878,11 @@ function loadSettings() {
  * Base roster + any admin-added Sunday overrides from Firestore.
  */
 
-// Cached override Sunday/BH minutes for the current period, loaded async by
+// Cached override Sunday/BH/RDW minutes for the current period, loaded async by
 // fetchOverrideSpecialDaysForPeriod(). getRosterSuggestion() reads these synchronously.
 let _overrideSunMins = 0;
 let _overrideBhMins  = 0;
+let _overrideRdwMins = 0;
 
 /**
  * Queries Firestore for override shifts in the period that fall on a Sunday or
@@ -892,6 +893,7 @@ let _overrideBhMins  = 0;
 async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
   _overrideSunMins = 0;
   _overrideBhMins  = 0;
+  _overrideRdwMins = 0;
   try {
     const q = query(
       collection(db, 'overrides'),
@@ -910,14 +912,18 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
       let mins = (eh * 60 + em) - (sh * 60 + sm);
       if (mins <= 0) mins += 24 * 60;
 
-      const date = new Date(d.date + 'T12:00:00');
-      const dow  = date.getDay(); // 0 = Sunday
+      const date    = new Date(d.date + 'T12:00:00');
+      const dow     = date.getDay(); // 0 = Sunday
       const isBoxing = date.getMonth() === 11 && date.getDate() === 26;
+      const isBH    = !isBoxing && isDateInBHList(date);
 
       if (dow === 0) {
         _overrideSunMins += mins;
-      } else if (!isBoxing && isDateInBHList(date)) {
+      } else if (isBH) {
         _overrideBhMins += mins;
+      } else if (d.type === 'rdw') {
+        // RDW on a regular weekday or Saturday — goes in the RDW column
+        _overrideRdwMins += mins;
       }
     });
     updateRosterHint();
@@ -964,20 +970,24 @@ function getRosterSuggestion(p) {
     cur.setDate(cur.getDate() + 1);
   }
 
-  // Merge in admin-added Sunday and BH overrides fetched async from Firestore
+  // Merge in admin-added Sunday, BH, and RDW overrides fetched async from Firestore
   const totalSunMins = sunMins + _overrideSunMins;
   const totalBhMins  = bhMins  + _overrideBhMins;
+  // RDW never appears in the base roster — it only ever comes from overrides
+  const totalRdwMins = _overrideRdwMins;
   const totalSunCount = totalSunMins > 0 ? Math.max(sunCount, 1) : sunCount;
   const totalBhCount  = totalBhMins  > 0 ? Math.max(bhCount,  1) : bhCount;
+  const totalRdwCount = totalRdwMins > 0 ? 1 : 0;
 
-  if (!satCount && !totalSunCount && !totalBhCount && !boxCount) return null;
+  if (!satCount && !totalSunCount && !totalBhCount && !totalRdwCount && !boxCount) return null;
 
   return {
     satH: Math.floor(satMins      / 60), satM: satMins      % 60,
     sunH: Math.floor(totalSunMins / 60), sunM: totalSunMins % 60,
     bhH:  Math.floor(totalBhMins  / 60), bhM:  totalBhMins  % 60,
+    rdwH: Math.floor(totalRdwMins / 60), rdwM: totalRdwMins % 60,
     boxH: Math.floor(boxMins      / 60), boxM: boxMins      % 60,
-    satCount, sunCount: totalSunCount, bhCount: totalBhCount, boxCount,
+    satCount, sunCount: totalSunCount, bhCount: totalBhCount, rdwCount: totalRdwCount, boxCount,
     memberName: member.name,
   };
 }
@@ -996,6 +1006,7 @@ function updateRosterHint() {
   if (s.satCount) parts.push(`${s.satCount} Sat`);
   if (s.sunCount) parts.push(`${s.sunCount} Sun`);
   if (s.bhCount)  parts.push(`${s.bhCount} BH`);
+  if (s.rdwCount) parts.push(`${s.rdwCount} RDW`);
   if (s.boxCount) parts.push(`${s.boxCount} Boxing Day`);
   document.getElementById('rosterHintText').textContent =
     `Your roster this period: ${parts.join(' · ')}`;
@@ -1026,6 +1037,7 @@ function fillFromRoster() {
   suggestIfBlank('satH', 'satM', s.satH, s.satM);
   suggestIfBlank('sunH', 'sunM', s.sunH, s.sunM);
   suggestIfBlank('bhH',  'bhM',  s.bhH,  s.bhM);
+  suggestIfBlank('rdwH', 'rdwM', s.rdwH, s.rdwM);
   suggestIfBlank('boxH', 'boxM', s.boxH, s.boxM);
 
   autosave();
