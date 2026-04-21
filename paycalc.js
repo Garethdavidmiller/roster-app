@@ -1,4 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift } from './roster-data.js?v=7.15';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.16';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.16';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -573,8 +574,15 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
-  // Update roster hint bar for this period
+  // Update roster hint bar for this period (base roster, instant)
   updateRosterHint();
+
+  // Fetch admin-added Sunday overrides from Firestore in the background.
+  // Resets _overrideSunMins to 0 immediately so stale data from the previous
+  // period never bleeds into this one, then re-calls updateRosterHint() when done.
+  let session2;
+  try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
+  if (session2?.name) fetchOverrideSundaysForPeriod(p, session2.name);
 
   // Load saved data for this period
   loadPeriodData(p.num);
@@ -867,9 +875,47 @@ function loadSettings() {
  * Scan the period window using the logged-in member's base roster.
  * Returns totals for Saturday, Sunday, Bank Holiday, and Boxing Day shifts,
  * or null if the member isn't in teamMembers or has nothing special in this period.
- * Base roster only — Firestore overrides are deliberately excluded to keep this
- * simple and offline-capable.
+ * Base roster + any admin-added Sunday overrides from Firestore.
  */
+
+// Cached override Sunday minutes for the current period, loaded async by
+// fetchOverrideSundaysForPeriod(). getRosterSuggestion() reads this synchronously.
+let _overrideSunMins = 0;
+
+/**
+ * Queries Firestore for override shifts in the period that fall on a Sunday.
+ * Fires and forgets from onPeriodChange — if Firestore is unavailable the
+ * value stays 0 and the base-roster-only total is shown instead.
+ */
+async function fetchOverrideSundaysForPeriod(p, memberName) {
+  _overrideSunMins = 0;
+  try {
+    const q = query(
+      collection(db, 'overrides'),
+      where('memberName', '==', memberName),
+      where('date', '>=', formatISO(p.start)),
+      where('date', '<=', formatISO(p.cutoff))
+    );
+    const snap = await getDocs(q);
+    snap.forEach(doc => {
+      const d = doc.data();
+      const dow = new Date(d.date + 'T12:00:00').getDay(); // 0 = Sunday
+      if (dow !== 0) return;
+      // Only count worked time-string overrides (e.g. "08:00-16:00")
+      if (!d.value || !d.value.includes('-') || !d.value.includes(':')) return;
+      const parts = d.value.split('-');
+      const [sh, sm] = parts[0].split(':').map(Number);
+      const [eh, em] = parts[1].split(':').map(Number);
+      let mins = (eh * 60 + em) - (sh * 60 + sm);
+      if (mins <= 0) mins += 24 * 60;
+      _overrideSunMins += mins;
+    });
+    updateRosterHint();
+  } catch {
+    // Firestore unavailable — base roster already shown, nothing to update
+  }
+}
+
 function getRosterSuggestion(p) {
   let session;
   try { session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { return null; }
@@ -908,14 +954,18 @@ function getRosterSuggestion(p) {
     cur.setDate(cur.getDate() + 1);
   }
 
-  if (!satCount && !sunCount && !bhCount && !boxCount) return null;
+  // Merge in admin-added Sunday overrides fetched async from Firestore
+  const totalSunMins = sunMins + _overrideSunMins;
+  const totalSunCount = totalSunMins > 0 ? Math.max(sunCount, 1) : sunCount;
+
+  if (!satCount && !totalSunCount && !bhCount && !boxCount) return null;
 
   return {
-    satH: Math.floor(satMins / 60), satM: satMins % 60,
-    sunH: Math.floor(sunMins / 60), sunM: sunMins % 60,
-    bhH:  Math.floor(bhMins  / 60), bhM:  bhMins  % 60,
-    boxH: Math.floor(boxMins / 60), boxM: boxMins % 60,
-    satCount, sunCount, bhCount, boxCount,
+    satH: Math.floor(satMins    / 60), satM: satMins    % 60,
+    sunH: Math.floor(totalSunMins / 60), sunM: totalSunMins % 60,
+    bhH:  Math.floor(bhMins     / 60), bhM:  bhMins     % 60,
+    boxH: Math.floor(boxMins    / 60), boxM: boxMins    % 60,
+    satCount, sunCount: totalSunCount, bhCount, boxCount,
     memberName: member.name,
   };
 }
