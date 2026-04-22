@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.27';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.27';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.28';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.28';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -904,6 +904,7 @@ function loadSettings() {
 let _overrideSunMins = 0;
 let _overrideBhMins  = 0;
 let _overrideRdwMins = 0;
+let _overrideRdwDays = []; // { date, shift, type:'rdw' } — individual RDW override days
 
 /**
  * Queries Firestore for override shifts in the period window and sorts them into
@@ -928,6 +929,7 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
   _overrideSunMins = 0;
   _overrideBhMins  = 0;
   _overrideRdwMins = 0;
+  _overrideRdwDays = [];
   try {
     const q = query(
       collection(db, 'overrides'),
@@ -958,6 +960,7 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
       } else if (d.type === 'rdw') {
         // RDW on a regular weekday or Saturday — goes in the RDW column
         _overrideRdwMins += mins;
+        _overrideRdwDays.push({ date, shift: d.value, type: 'rdw' });
       }
     });
     updateRosterHint();
@@ -976,6 +979,7 @@ function getRosterSuggestion(p) {
 
   let satMins = 0, sunMins = 0, bhMins = 0, boxMins = 0;
   let satCount = 0, sunCount = 0, bhCount = 0, boxCount = 0;
+  const days = []; // individual dated shifts for the day list
 
   const cur = new Date(p.start);
   while (cur <= p.cutoff) {
@@ -992,12 +996,16 @@ function getRosterSuggestion(p) {
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
       if (isBoxing) {
         boxMins += mins; boxCount++;
+        days.push({ date: new Date(cur), shift: base, type: 'box' });
       } else if (isDateInBHList(cur)) {
         bhMins += mins; bhCount++;
+        days.push({ date: new Date(cur), shift: base, type: 'bh' });
       } else if (dow === 0) {
         sunMins += mins; sunCount++;
+        days.push({ date: new Date(cur), shift: base, type: 'sun' });
       } else if (dow === 6) {
         satMins += mins; satCount++;
+        days.push({ date: new Date(cur), shift: base, type: 'sat' });
       }
       // Mon–Fri non-BH: already in contracted basic pay — no field to fill
     }
@@ -1015,6 +1023,9 @@ function getRosterSuggestion(p) {
 
   if (!satCount && !totalSunCount && !totalBhCount && !totalRdwCount && !boxCount) return null;
 
+  // Merge RDW override days and sort the full list chronologically
+  const allDays = [...days, ..._overrideRdwDays].sort((a, b) => a.date - b.date);
+
   return {
     satH: Math.floor(satMins      / 60), satM: satMins      % 60,
     sunH: Math.floor(totalSunMins / 60), sunM: totalSunMins % 60,
@@ -1023,7 +1034,15 @@ function getRosterSuggestion(p) {
     boxH: Math.floor(boxMins      / 60), boxM: boxMins      % 60,
     satCount, sunCount: totalSunCount, bhCount: totalBhCount, rdwCount: totalRdwCount, boxCount,
     memberName: member.name,
+    days: allDays,
   };
+}
+
+/** Formats hours+minutes as a compact string: "7h 30m", "7h", or "30m". */
+function fmtH(h, m) {
+  if (h && m) return `${h}h ${m}m`;
+  if (h)      return `${h}h`;
+  return `${m}m`;
 }
 
 function updateRosterHint() {
@@ -1036,15 +1055,57 @@ function updateRosterHint() {
   const s = getRosterSuggestion(p);
   if (!s) { bar.style.display = 'none'; return; }
 
+  // Reset day list to closed state whenever the period changes
+  const dayList   = document.getElementById('rosterDayList');
+  const daysToggle = document.getElementById('rosterDaysToggle');
+  if (dayList)    dayList.style.display = 'none';
+  if (daysToggle) daysToggle.textContent = 'Show days ▼';
+
   const parts = [];
-  if (s.satCount) parts.push(`${s.satCount} Sat`);
-  if (s.sunCount) parts.push(`${s.sunCount} Sun`);
-  if (s.bhCount)  parts.push(`${s.bhCount} BH`);
-  if (s.rdwCount) parts.push(`${s.rdwCount} RDW`);
-  if (s.boxCount) parts.push(`${s.boxCount} Boxing Day`);
+  if (s.satH || s.satM) parts.push(`${fmtH(s.satH, s.satM)} Sat`);
+  if (s.sunH || s.sunM) parts.push(`${fmtH(s.sunH, s.sunM)} Sun`);
+  if (s.bhH  || s.bhM)  parts.push(`${fmtH(s.bhH,  s.bhM)} BH`);
+  if (s.rdwH || s.rdwM) parts.push(`${fmtH(s.rdwH, s.rdwM)} RDW`);
+  if (s.boxH || s.boxM) parts.push(`${fmtH(s.boxH, s.boxM)} Boxing Day`);
   document.getElementById('rosterHintText').textContent =
     `Your roster this period: ${parts.join(' · ')}`;
+
+  // Show/hide the toggle depending on whether there are days to display
+  if (daysToggle) daysToggle.style.display = s.days.length ? '' : 'none';
+  renderRosterDayList(s.days);
   bar.style.display = '';
+}
+
+const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const _DAY_TYPE_LABELS = { sat: '', sun: '', bh: 'BH', box: 'Boxing Day', rdw: 'RDW override' };
+
+/** Populates the collapsible day list with the individual shifts behind the suggestion. */
+function renderRosterDayList(days) {
+  const list = document.getElementById('rosterDayList');
+  if (!list) return;
+  if (!days || !days.length) { list.innerHTML = ''; return; }
+
+  list.innerHTML = days.map(d => {
+    const dt      = d.date;
+    const dateStr = `${_DAY_ABBS[dt.getDay()]} ${dt.getDate()} ${_MON_ABBS[dt.getMonth()]}`;
+    const tag     = _DAY_TYPE_LABELS[d.type];
+    return `<div class="roster-day-row">` +
+      `<span class="roster-day-date">${dateStr}</span>` +
+      `<span class="roster-day-shift">${escapeHtml(d.shift)}</span>` +
+      (tag ? `<span class="roster-day-tag">${tag}</span>` : '') +
+      `</div>`;
+  }).join('');
+}
+
+/** Toggles the day list open/closed. */
+function toggleRosterDays() {
+  const list = document.getElementById('rosterDayList');
+  const btn  = document.getElementById('rosterDaysToggle');
+  if (!list || !btn) return;
+  const opening = list.style.display === 'none';
+  list.style.display = opening ? '' : 'none';
+  btn.textContent    = opening ? 'Hide days ▲' : 'Show days ▼';
 }
 
 function fillFromRoster() {
@@ -1720,6 +1781,9 @@ document.getElementById('clearBtn').addEventListener('click', clearPeriod);
 
 // Result breakdown toggle
 document.getElementById('bdBtn').addEventListener('click', toggleBD);
+
+// Roster day list toggle
+document.getElementById('rosterDaysToggle').addEventListener('click', toggleRosterDays);
 
 // Hours inputs — Saturday (has validation warn)
 document.getElementById('satH').addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
