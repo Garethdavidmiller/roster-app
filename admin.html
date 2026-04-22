@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.21 -->
+<!-- MYB Roster Admin v7.22 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.21">
+    <link rel="manifest" href="manifest.json?v=7.22">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.21">
+    <link rel="stylesheet" href="shared.css?v=7.22">
 
     <style>
         body {
@@ -34,6 +34,8 @@
            (which would hide the blue edge). clip is safe: no scroll container created. */
         .container { max-width: 1100px; width: 100%; margin: 0 auto; display: none; gap: 10px; box-sizing: border-box; overflow-x: clip; }
         body.auth-ready .container { display: grid; }
+        /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
+        .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
 
 
         /* Small ? button inside each card heading */
@@ -1875,6 +1877,71 @@
             .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
         }
 
+        /* ═════════════════════════════════════════════════════════════
+           TABLET & DESKTOP  —  min-width only; mobile (< 768px) untouched
+           ═════════════════════════════════════════════════════════════ */
+
+        /* ── Tablet: 768px — single-column with more breathing room ── */
+        @media (min-width: 768px) {
+            .container { gap: 14px; }
+
+            /* Card header text scales up slightly */
+            .card-header h2 { font-size: 14px; }
+            .card-header .hint { font-size: 12px; }
+
+            /* Date-range rows side by side */
+            .al-dates,
+            .sick-dates { flex-direction: row; gap: 12px; }
+            .al-dates .date-input,
+            .sick-dates .date-input { flex: 1; }
+
+            /* Override table: header text larger */
+            .override-table th { font-size: 11px; }
+            .override-table td { font-size: 13px; }
+
+            /* List toolbar: always on one line */
+            .list-toolbar { flex-wrap: nowrap; gap: 10px; }
+        }
+
+        /* ── Desktop: 1024px — two-column grid ── */
+        @media (min-width: 1024px) {
+            body.auth-ready .container {
+                grid-template-columns: 3fr 2fr;
+                column-gap: 20px;
+                align-items: start;
+            }
+
+            /* Header and overrides span both columns */
+            .app-header   { grid-column: 1 / -1; }
+            #overridesCard { grid-column: 1 / -1; }
+
+            /* Column wrappers become flex containers with tighter gap */
+            .col-main,
+            .col-side {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            /* Tighten week grid spacing */
+            .day-row { gap: 10px; }
+
+            /* Save button: no need to span a 640px column */
+            .btn-save { max-width: 320px; }
+
+            /* Bulk bar: slightly more spacious */
+            .bulk-bar { gap: 14px; }
+
+            /* Card headers: comfortable at desktop */
+            .card-header h2 { font-size: 14px; }
+            .card-header .hint { font-size: 12px; }
+
+            /* Override table: comfortable column spacing */
+            .override-table th { font-size: 11px; letter-spacing: 0.3px; }
+            .override-table td { font-size: 13px; }
+            .list-toolbar { flex-wrap: nowrap; gap: 12px; }
+        }
+
         @media print {
             @page { margin: 1cm; size: A4 portrait; }
 
@@ -1904,7 +1971,8 @@
 
             /* Reset backgrounds for print */
             html, body { background: white !important; color: black !important; padding: 0 !important; }
-            .container { display: grid !important; max-width: 100% !important; }
+            .container { display: grid !important; max-width: 100% !important; grid-template-columns: 1fr !important; }
+            .col-main, .col-side { display: contents !important; }
 
             /* Week header */
             .week-header {
@@ -2039,6 +2107,7 @@
     </div>
 
     <!-- ==================== OVERRIDE FORM ==================== -->
+    <div class="col-main">
     <div class="card">
         <div class="card-header">
             <h2>Change a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing shifts">?</button></h2>
@@ -2110,7 +2179,9 @@
 
         </div>
     </div>
+    </div><!-- /col-main -->
 
+    <div class="col-side">
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
@@ -2377,6 +2448,7 @@
             </div>
         </div>
     </div>
+    </div><!-- /col-side -->
 
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card" id="overridesCard">
@@ -2418,6 +2490,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.21"></script>
+<script type="module" src="./admin-app.js?v=7.22"></script>
 </body>
 </html>
