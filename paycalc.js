@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.22';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.22';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.23';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.23';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -885,8 +885,21 @@ let _overrideBhMins  = 0;
 let _overrideRdwMins = 0;
 
 /**
- * Queries Firestore for override shifts in the period that fall on a Sunday or
- * bank holiday (excluding Boxing Day, which has its own column).
+ * Queries Firestore for override shifts in the period window and sorts them into
+ * three buckets used by getRosterSuggestion():
+ *
+ *   _overrideSunMins  — overrides whose date is a Sunday (dow === 0)
+ *   _overrideBhMins   — overrides on a bank holiday that is not Boxing Day
+ *                       (Boxing Day has its own pay column; BH detection uses
+ *                        BANK_HOLIDAYS_EW via isDateInBHList())
+ *   _overrideRdwMins  — overrides with type === 'rdw' on any other day
+ *                       (i.e. a rest-day-worked that is not Sunday/BH/Boxing Day)
+ *
+ * Detection relies on d.type === 'rdw' for RDW classification — this is the
+ * Firestore document type field, not inferred from the date. Any override with
+ * a valid time-string value (HH:MM-HH:MM) is eligible; non-time-string values
+ * (RD, AL, SICK, SPARE) are skipped by the HH:MM guard on line 908.
+ *
  * Fires and forgets from onPeriodChange — if Firestore is unavailable the
  * values stay 0 and the base-roster-only totals are shown instead.
  */
