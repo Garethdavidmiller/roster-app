@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.23';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.23';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.24';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.24';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -359,7 +359,28 @@ function buildPeriodSelect() {
   // so staff want to see what they're about to be paid, not what they already received.
   // If all paydays have passed (end of supported range), fall back to the last period.
   const upcoming = periods.find(p => p.payday > today);
-  const defPNum  = upcoming ? upcoming.num : periods[periods.length - 1].num;
+  let defPNum    = upcoming ? upcoming.num : periods[periods.length - 1].num;
+
+  // URL params let the roster calendar pre-select a specific period.
+  // ?payday=YYYY-MM-DD  — tap on a 💷 payday cell jumps directly to that period.
+  // ?month=YYYY-MM      — 💷 header button passes the currently viewed calendar month.
+  const _urlParams = new URLSearchParams(window.location.search);
+  const _paydayParam = _urlParams.get('payday');
+  const _monthParam  = _urlParams.get('month');
+  if (_paydayParam) {
+    const [_py, _pm, _pd] = _paydayParam.split('-').map(Number);
+    const _matched = periods.find(p =>
+      p.payday.getFullYear() === _py &&
+      p.payday.getMonth()    === _pm - 1 &&
+      p.payday.getDate()     === _pd
+    );
+    if (_matched) defPNum = _matched.num;
+  } else if (_monthParam) {
+    const [_my, _mm] = _monthParam.split('-').map(Number);
+    const _mid = new Date(_my, _mm - 1, 15);
+    const _matched = periods.find(p => p.start <= _mid && _mid <= p.cutoff);
+    if (_matched) defPNum = _matched.num;
+  }
 
   sel.innerHTML = '';
   let currentGroup    = null;
