@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.24 -->
+<!-- MYB Roster — Pay Calculator v7.25 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.24">
+  <link rel="stylesheet" href="./shared.css?v=7.25">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -603,7 +603,8 @@
 
       /* Left column: period selector + the main hours input card */
       .controls  { grid-column: 1; }
-      #hoursCard { grid-column: 1; grid-row: span 4; } /* spans same rows as right col */
+      #hoursCard { grid-column: 1; } /* span set only in full detail mode, below */
+      .app.detail-mode #hoursCard { grid-row: span 4; }
 
       /* Right column: settings → result (sticky) → archived period cards */
       #settingsCard { grid-column: 2; }
@@ -621,6 +622,14 @@
       /* Lightbox: comfortable reading width */
       #helpLightboxContent { width: min(620px, 85vw); }
     }
+
+    /* ── SIMPLE / FULL BREAKDOWN TOGGLE ─────────────────────────────── */
+    /* Four advanced cards are hidden until the user opts into full mode.
+       One CSS class on .app controls all of them — no per-card JS needed. */
+    .app:not(.detail-mode) #payslipCard,
+    .app:not(.detail-mode) #hppCard,
+    .app:not(.detail-mode) #backPayCard,
+    .app:not(.detail-mode) #decimalConverterCard { display: none; }
 
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
     @media print {
@@ -641,6 +650,8 @@
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
       #decimalConverterCard, .btn-back, .btn-signout { display: none !important; }
+      /* Always print payslip and HPP detail regardless of simple/full mode */
+      #payslipCard, #hppCard { display: block !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -903,7 +914,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.24">
+  <link rel="manifest" href="./pay-manifest.json?v=7.25">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1045,9 +1056,12 @@
       ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
     </div>
     <button class="bd-btn" id="bdBtn">
-      Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
+      How it's calculated &nbsp;<span class="bd-arrow">▼</span>
     </button>
     <div class="bd-body" id="bdBody"></div>
+    <button class="bd-btn" id="modeToggleBtn" aria-expanded="false">
+      <span class="mode-label">Show full breakdown</span>&nbsp;<span class="bd-arrow">▼</span>
+    </button>
   </div>
 
   <!-- HOURS THIS PERIOD -->
@@ -1526,6 +1540,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.24"></script>
+<script type="module" src="./paycalc.js?v=7.25"></script>
 </body>
 </html>

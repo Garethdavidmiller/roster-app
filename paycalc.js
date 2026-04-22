@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.24';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.24';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.25';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.25';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1706,9 +1706,32 @@ function toggleBD() {
   document.getElementById('bdBody').classList.toggle('open');
 }
 
+// ── SIMPLE / FULL DETAIL MODE ─────────────────────────────────────────────────
+// Controls four advanced cards: payslip detail, HPP, back pay, decimal converter.
+// State persisted per-user in localStorage so it survives page reloads.
+const MODE_KEY = 'myb_paycalc_mode';
+
+function applyDetailMode() {
+  const full  = localStorage.getItem(MODE_KEY) === 'full';
+  const app   = document.querySelector('.app');
+  const btn   = document.getElementById('modeToggleBtn');
+  if (!app || !btn) return;
+  app.classList.toggle('detail-mode', full);
+  btn.setAttribute('aria-expanded', String(full));
+  btn.classList.toggle('open', full);
+  btn.querySelector('.mode-label').textContent = full ? 'Hide breakdown' : 'Show full breakdown';
+}
+
+function toggleDetailMode() {
+  const full = localStorage.getItem(MODE_KEY) === 'full';
+  localStorage.setItem(MODE_KEY, full ? 'simple' : 'full');
+  applyDetailMode();
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 loadSettings();
 buildPeriodSelect();
+applyDetailMode();
 
 // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
@@ -1720,6 +1743,9 @@ document.getElementById('clearBtn').addEventListener('click', clearPeriod);
 
 // Result breakdown toggle
 document.getElementById('bdBtn').addEventListener('click', toggleBD);
+
+// Simple / full detail mode toggle
+document.getElementById('modeToggleBtn').addEventListener('click', toggleDetailMode);
 
 // Hours inputs — Saturday (has validation warn)
 document.getElementById('satH').addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
