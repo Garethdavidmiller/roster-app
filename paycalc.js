@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.19';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.19';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.20';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.20';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1768,8 +1768,9 @@ document.getElementById('otherAdj').addEventListener('input', () => { updateAdjS
     autosave();
   }
   const btn = document.getElementById('adjSignBtn');
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); toggleAdjSign(); });
-  btn.addEventListener('click', toggleAdjSign); // non-touch devices + keyboard activation
+  let touchFired = false;
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); touchFired = true; toggleAdjSign(); });
+  btn.addEventListener('click', () => { if (touchFired) { touchFired = false; return; } toggleAdjSign(); });
 })();
 
 // Payslip card inputs
