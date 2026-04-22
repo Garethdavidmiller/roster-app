@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 7.18 -->
+<!-- MYB Roster Calendar - Version 7.21 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=7.18">
+    <link rel="manifest" href="manifest.json?v=7.21">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.18">
+    <link rel="stylesheet" href="shared.css?v=7.21">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1746,6 +1746,9 @@
             line-height: 1.55;
             color: #111;
         }
+        /* PDF iframe — removes body padding so the iframe fills edge-to-edge */
+        #huddleViewerBody.has-iframe { padding: 0; overflow: hidden; }
+        #huddleViewerBody.has-iframe iframe { display: block; width: 100%; height: 100%; border: none; }
         /* Style the HTML that mammoth.js generates from the DOCX */
         #huddleViewerBody h1, #huddleViewerBody h2, #huddleViewerBody h3 {
             color: var(--primary-blue);
@@ -2145,7 +2148,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=7.18"></script>
+    <script type="module" src="./app.js?v=7.21"></script>
 
 </body>
 </html>

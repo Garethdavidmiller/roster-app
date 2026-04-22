@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.18';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.18';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.21';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.21';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ const HELP_CONTENT = {
     title: 'Your Hours — how it works',
     tips: [
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
-      'If your name is in the roster, a hint bar appears at the top of this section. Tap <strong>Fill blanks from roster →</strong> to pre-fill any <em>empty</em> Saturday, Sunday, bank holiday, and Boxing Day fields from your base roster. It only fills fields you haven\'t already entered — it will never overwrite hours you\'ve typed. Filled fields turn gold; the highlight clears as soon as you edit them. Base roster only — swaps or changes you\'ve requested won\'t be reflected.',
+      'If your name is in the roster, a hint bar appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, rest day working (RDW), and Boxing Day. Tap <strong>Fill blanks from roster →</strong> to pre-fill any <em>empty</em> fields in one tap. It will never overwrite hours you\'ve already typed. Filled fields turn gold; the highlight clears as soon as you edit them. Saturday and Boxing Day come from the base roster only. Sunday, bank holiday, and RDW shifts also include any overrides added by admin.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday Overtime" is for working a rest day that happened to fall on a BH.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
@@ -1768,8 +1768,9 @@ document.getElementById('otherAdj').addEventListener('input', () => { updateAdjS
     autosave();
   }
   const btn = document.getElementById('adjSignBtn');
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); toggleAdjSign(); });
-  btn.addEventListener('click', toggleAdjSign); // non-touch devices + keyboard activation
+  let touchFired = false;
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); touchFired = true; toggleAdjSign(); });
+  btn.addEventListener('click', () => { if (touchFired) { touchFired = false; return; } toggleAdjSign(); });
 })();
 
 // Payslip card inputs
