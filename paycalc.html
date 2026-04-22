@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.27 -->
+<!-- MYB Roster — Pay Calculator v7.28 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.27">
+  <link rel="stylesheet" href="./shared.css?v=7.28">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -898,12 +898,30 @@
     width: 100%; font-size: var(--type-micro); color: var(--text-faint);
     line-height: 1.4;
   }
+  .roster-days-toggle {
+    background: none; border: none; padding: 0; margin-left: 8px;
+    font-family: inherit; font-size: var(--type-micro); font-weight: 700;
+    color: var(--primary-blue); cursor: pointer; touch-action: manipulation;
+    text-decoration: underline; text-underline-offset: 2px;
+    vertical-align: baseline;
+  }
+  .roster-day-list {
+    width: 100%; border-top: 1px solid var(--border-light);
+    margin-top: 6px; padding-top: 6px;
+  }
+  .roster-day-row {
+    display: flex; gap: 10px; align-items: baseline;
+    font-size: var(--type-micro); padding: 2px 0;
+  }
+  .roster-day-date  { width: 68px; flex-shrink: 0; font-weight: 600; color: var(--text-dark); }
+  .roster-day-shift { font-family: ui-monospace, 'Roboto Mono', monospace; color: var(--text-dark); }
+  .roster-day-tag   { color: var(--text-faint); }
   .hhmm-field input.roster-suggested {
     background: #fffce6; border-color: var(--accent-gold);
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.27">
+  <link rel="manifest" href="./pay-manifest.json?v=7.28">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1068,7 +1086,8 @@
       <div class="roster-hint-bar" id="rosterHintBar" style="display:none">
         <span class="roster-hint-text" id="rosterHintText">Your roster this period: –</span>
         <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill blanks from roster →</button>
-        <div class="roster-hint-note">From your base roster and any admin-recorded overrides — only fills empty fields</div>
+        <div class="roster-hint-note">From your base roster and any admin-recorded overrides — only fills empty fields<button class="roster-days-toggle" id="rosterDaysToggle" type="button">Show days ▼</button></div>
+        <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
 
       <!-- ── BASIC PAY ADJUSTMENTS ── -->
@@ -1526,6 +1545,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.27"></script>
+<script type="module" src="./paycalc.js?v=7.28"></script>
 </body>
 </html>
