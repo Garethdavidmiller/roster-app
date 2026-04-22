@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.25';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.25';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO } from './roster-data.js?v=7.26';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.26';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1719,7 +1719,7 @@ function applyDetailMode() {
   app.classList.toggle('detail-mode', full);
   btn.setAttribute('aria-expanded', String(full));
   btn.classList.toggle('open', full);
-  btn.querySelector('.mode-label').textContent = full ? 'Hide breakdown' : 'Show full breakdown';
+  btn.querySelector('.mode-label').textContent = full ? 'Hide breakdown' : 'Full breakdown';
 }
 
 function toggleDetailMode() {

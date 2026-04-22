@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.25 -->
+<!-- MYB Roster — Pay Calculator v7.26 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.25">
+  <link rel="stylesheet" href="./shared.css?v=7.26">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -631,6 +631,17 @@
     .app:not(.detail-mode) #backPayCard,
     .app:not(.detail-mode) #decimalConverterCard { display: none; }
 
+    /* Soft reveal when entering full mode — fade + slight upward slide.
+       Only plays on the way in; hiding is instant (feels snappier). */
+    @keyframes detailReveal {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .app.detail-mode #payslipCard,
+    .app.detail-mode #hppCard,
+    .app.detail-mode #backPayCard,
+    .app.detail-mode #decimalConverterCard { animation: detailReveal 0.28s ease; }
+
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
     @media print {
       @page { margin: 1.2cm; size: A4 portrait; }
@@ -914,7 +925,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.25">
+  <link rel="manifest" href="./pay-manifest.json?v=7.26">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1060,7 +1071,7 @@
     </button>
     <div class="bd-body" id="bdBody"></div>
     <button class="bd-btn" id="modeToggleBtn" aria-expanded="false">
-      <span class="mode-label">Show full breakdown</span>&nbsp;<span class="bd-arrow">▼</span>
+      <span class="mode-label">Full breakdown</span>&nbsp;<span class="bd-arrow">▼</span>
     </button>
   </div>
 
@@ -1540,6 +1551,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.25"></script>
+<script type="module" src="./paycalc.js?v=7.26"></script>
 </body>
 </html>
