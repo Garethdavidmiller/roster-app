@@ -504,3 +504,23 @@ body {
         padding: 7px 13px;
     }
 }
+
+/* ── Shared header: desktop (≥ 768px) ── */
+@media (min-width: 768px) {
+    .app-header {
+        padding: 16px 20px;
+        gap: 14px;
+    }
+    .app-header h1 { font-size: 20px; }
+    .app-icon,
+    .app-header img { width: 40px; height: 40px; }
+    .badge-page {
+        font-size: 11px;
+        padding: 5px 12px;
+    }
+    .btn-back,
+    .btn-signout {
+        font-size: 12px;
+        padding: 6px 13px;
+    }
+}

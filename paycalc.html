@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.21 -->
+<!-- MYB Roster — Pay Calculator v7.23 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.21">
+  <link rel="stylesheet" href="./shared.css?v=7.23">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -549,6 +549,79 @@
     /* Tighter horizontal padding than the default 40px in shared.css */
     #iconLightboxContent { padding: 36px 32px 28px; }
 
+    /* ═══════════════════════════════════════════════════════════════════
+       TABLET & DESKTOP  —  min-width only; mobile (< 768px) untouched
+       ═══════════════════════════════════════════════════════════════════ */
+
+    /* ── Tablet: 768px — single column, more breathing room ── */
+    @media (min-width: 768px) {
+      .app { max-width: 720px; }
+
+      /* Period selector: pull nav pills onto same line as the dropdown */
+      .controls {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        grid-template-areas:
+          "tabs   tabs"
+          "select nav"
+          "meta   meta"
+          "save   save";
+        gap: 8px 12px;
+        align-items: center;
+      }
+      .ty-tabs      { grid-area: tabs; }
+      #periodSelect { grid-area: select; }
+      .period-nav   { grid-area: nav; width: auto; flex-wrap: nowrap; }
+      .nav-pill     { flex: none; padding: 10px 18px; }
+      .period-meta  { grid-area: meta; }
+      .save-row     { grid-area: save; }
+      .period-hint  { display: none; } /* not needed once layout is clear */
+
+      /* Buttons: stop at 280px — no need to span a 720px card */
+      .btn-primary { max-width: 280px; }
+
+      /* Help lightbox: wider at tablet */
+      #helpLightboxContent { width: min(520px, 88vw); }
+    }
+
+    /* ── Desktop: 1040px — two-column grid ── */
+    @media (min-width: 1040px) {
+      .app {
+        max-width: 1080px;
+        display: grid;
+        grid-template-columns: 1fr 360px;
+        column-gap: 24px;
+        align-items: start;
+      }
+
+      /* Full-width rows spanning both columns */
+      .app-header,
+      #setupBanner,
+      #decimalConverterCard,
+      .guide-footer-link,
+      .disclaimer      { grid-column: 1 / -1; }
+
+      /* Left column: period selector + the main hours input card */
+      .controls  { grid-column: 1; }
+      #hoursCard { grid-column: 1; grid-row: span 4; } /* spans same rows as right col */
+
+      /* Right column: settings → result (sticky) → archived period cards */
+      #settingsCard { grid-column: 2; }
+      .result-card  { grid-column: 2; position: sticky; top: 20px; }
+      #payslipCard  { grid-column: 2; }
+      #hppCard      { grid-column: 2; }
+      #backPayCard  { grid-column: 2; }
+
+      /* Headline figure benefits from the extra horizontal space */
+      .net-amount { font-size: 60px; }
+
+      /* Buttons: fixed-width — no reason to span a 700px card */
+      .btn-primary { max-width: 240px; }
+
+      /* Lightbox: comfortable reading width */
+      #helpLightboxContent { width: min(620px, 85vw); }
+    }
+
     /* ── PRINT STYLES ────────────────────────────────────────────────── */
     @media print {
       @page { margin: 1.2cm; size: A4 portrait; }
@@ -562,7 +635,7 @@
         margin: 0 !important; overflow: visible !important;
         min-height: auto !important;
       }
-      .app { max-width: 100% !important; }
+      .app { max-width: 100% !important; display: block !important; }
       #iconLightbox, #helpLightbox, .setup-banner, .controls, .save-row,
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
@@ -830,7 +903,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.21">
+  <link rel="manifest" href="./pay-manifest.json?v=7.23">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -978,7 +1051,7 @@
   </div>
 
   <!-- HOURS THIS PERIOD -->
-  <div class="content-card">
+  <div class="content-card" id="hoursCard">
     <div class="card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <h2>⏱️ Your Hours This Period</h2>
@@ -995,7 +1068,7 @@
       <div class="roster-hint-bar" id="rosterHintBar" style="display:none">
         <span class="roster-hint-text" id="rosterHintText">Your roster this period: –</span>
         <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill blanks from roster →</button>
-        <div class="roster-hint-note">Only fills empty fields — won't overwrite hours you've already entered</div>
+        <div class="roster-hint-note">From your base roster and any admin-recorded overrides — only fills empty fields</div>
       </div>
 
       <!-- ── BASIC PAY ADJUSTMENTS ── -->
@@ -1207,7 +1280,7 @@
   </div>
 
   <!-- ── FROM YOUR LAST PAYSLIP ── -->
-  <div class="content-card">
+  <div class="content-card" id="payslipCard">
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
         <h2>📊 Improve Accuracy <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
@@ -1246,7 +1319,7 @@
   </div>
 
   <!-- ── HOLIDAY PAY PREMIUM ESTIMATOR ── -->
-  <div class="content-card">
+  <div class="content-card" id="hppCard">
     <div class="card-header card-header-toggle" id="hppCardToggle">
       <div>
         <h2>🏖️ Holiday Pay Premium (HPP)</h2>
@@ -1453,6 +1526,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.21"></script>
+<script type="module" src="./paycalc.js?v=7.23"></script>
 </body>
 </html>
