@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.29 -->
+<!-- MYB Roster Admin v7.33 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.29">
+    <link rel="manifest" href="manifest.json?v=7.33">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.29">
+    <link rel="stylesheet" href="shared.css?v=7.33">
 
     <style>
         body {
@@ -2095,6 +2095,7 @@
         <a href="index.html" class="btn-back" aria-label="Back to roster calendar">←</a>
         <h1>MYB Roster</h1>
         <span class="badge-page" id="adminBadge">Admin</span>
+        <a href="./paycalc.html" class="btn-back" id="payCalcNavBtn" aria-label="Go to pay calculator">Pay calc</a>
         <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
     </header>
 
@@ -2111,7 +2112,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Change a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing shifts">?</button></h2>
-            <span class="hint">Tap a type button on any day to change it — or use Apply to multiple days below</span>
+            <span class="hint">Tap any day to expand it, choose a type, then save — or tick multiple days and use Apply to all below</span>
         </div>
         <div class="card-body">
 
@@ -2132,10 +2133,10 @@
 
             <!-- Bulk bar — shown once member+date are chosen -->
             <div class="bulk-bar" id="bulkBar">
-                <div class="bulk-bar-label">Apply to selected days</div>
+                <div class="bulk-bar-label">Apply to multiple days at once</div>
                 <!-- Step 1: select days -->
                 <div class="bulk-step">
-                    <span class="bulk-step-label">1. Select</span>
+                    <span class="bulk-step-label">1. Tick days</span>
                     <div class="bulk-select-group">
                         <button class="btn-bulk-select" id="bulkSelMonFri">Mon–Fri</button>
                         <button class="btn-bulk-select" id="bulkSelWorking">Working days</button>
@@ -2145,7 +2146,7 @@
                 </div>
                 <!-- Step 2: choose override type -->
                 <div class="bulk-step">
-                    <span class="bulk-step-label">2. Type</span>
+                    <span class="bulk-step-label">2. Choose type</span>
                     <div class="bulk-type-group" id="bulkTypePills">
                         <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                         <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
@@ -2162,7 +2163,7 @@
                     </div>
                 </div>
                 <!-- Step 3: apply -->
-                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to selected days</button>
+                <button class="btn-bulk-apply" id="bulkApplyBtn">3. Apply to ticked days</button>
             </div>
 
             <!-- 7-day week grid -->
@@ -2453,8 +2454,8 @@
     <!-- ==================== EXISTING OVERRIDES ==================== -->
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
-            <h2>Saved Changes <button class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes">?</button></h2>
-            <span class="hint">All schedule changes — tap any row to edit or delete</span>
+            <h2>📋 Saved Changes <button class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes">?</button></h2>
+            <span class="hint">All recorded changes — tap any row to edit or delete</span>
             <span class="collapse-chevron" id="overridesChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="overridesBody">
@@ -2490,6 +2491,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.29"></script>
+<script type="module" src="./admin-app.js?v=7.33"></script>
 </body>
 </html>

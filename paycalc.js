@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.29';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.29';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.33';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.33';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ const HELP_CONTENT = {
     ],
   },
   accuracy: {
-    title: 'Improve Accuracy — why it helps',
+    title: 'Match Your Payslip — why it helps',
     tips: [
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> switches to the same calculation method your employer uses — significantly more accurate.',
@@ -668,12 +668,10 @@ function writeFormData(d) {
 }
 
 function updateAdjSign() {
-  const val = parseFloat(document.getElementById('otherAdj').value) || 0;
   const btn = document.getElementById('adjSignBtn');
-  const neg = val < 0;
-  btn.textContent = neg ? '−' : '+';
-  btn.setAttribute('aria-label', neg ? 'Toggle sign: currently negative' : 'Toggle sign: currently positive');
-  btn.classList.toggle('negative', neg);
+  btn.textContent = _adjNegative ? '−' : '+';
+  btn.setAttribute('aria-label', _adjNegative ? 'Toggle sign: currently negative' : 'Toggle sign: currently positive');
+  btn.classList.toggle('negative', _adjNegative);
 }
 
 function isDataEmpty(d) {
@@ -704,6 +702,7 @@ function loadPeriodData(pNum) {
     if (raw) d = JSON.parse(raw);
   } catch(e) { /* use empty */ }
   writeFormData(d);
+  _adjNegative = (d.otherAdj || 0) < 0;
   updateAdjSign();
   // Auto-expand "more options" if this period has extras saved
   const hasExtras = d.slSkip || d.otherAdj;
@@ -713,12 +712,12 @@ function loadPeriodData(pNum) {
     extraBody.classList.add('open');
     extraBtn.classList.add('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▲';
-    document.getElementById('hoursShowMoreLabel').textContent = 'Fewer options';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Hide adjustments';
   } else if (!hasExtras && extraBody.classList.contains('open')) {
     extraBody.classList.remove('open');
     extraBtn.classList.remove('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▼';
-    document.getElementById('hoursShowMoreLabel').textContent = 'More options';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Other adjustments';
   }
   updateSaveStatus(pNum);
   calculate();
@@ -763,6 +762,7 @@ function clearPeriod() {
   const pNum = currentPeriodNum();
   localStorage.removeItem(periodKey(pNum));
   writeFormData(emptyPeriodData());
+  _adjNegative = false;
   updateAdjSign();
   updateSaveStatus(pNum);
   calculate();
@@ -905,6 +905,7 @@ let _overrideSunMins = 0;
 let _overrideBhMins  = 0;
 let _overrideRdwMins = 0;
 let _overrideRdwDays = []; // { date, shift, type:'rdw' } — individual RDW override days
+let _adjNegative     = false; // tracks intended sign of otherAdj independently of value
 
 /**
  * Queries Firestore for override shifts in the period window and sorts them into
@@ -1736,8 +1737,8 @@ function toggleHoursExtra() {
   btn.classList.toggle('open', open);
   btn.querySelector('.show-more-arrow').textContent = open ? '▲' : '▼';
   document.getElementById('hoursShowMoreLabel').textContent = open
-    ? 'Fewer options '
-    : 'More options (period adjustments) ';
+    ? 'Hide adjustments'
+    : 'Other adjustments';
 }
 
 function toggleHppNote() {
@@ -1854,7 +1855,15 @@ document.getElementById('pensionAmt').addEventListener('input',  () => { saveSet
 
 // Per-period overrides
 document.getElementById('slSkipCheck').addEventListener('change', autosave);
-document.getElementById('otherAdj').addEventListener('input', () => { updateAdjSign(); autosave(); });
+document.getElementById('otherAdj').addEventListener('input', () => {
+  // Sync _adjNegative from what the user typed (but don't reset it when they
+  // clear the field — they may have just pressed − to mark intent before typing).
+  const v = parseFloat(document.getElementById('otherAdj').value);
+  if (v < 0) _adjNegative = true;
+  else if (v > 0) _adjNegative = false;
+  updateAdjSign();
+  autosave();
+});
 // iOS: tapping adjSignBtn while the number input is focused causes the keyboard
 // to dismiss first, which triggers a viewport layout shift that cancels the
 // touch-to-click conversion — so 'click' never fires on iOS in that scenario.
@@ -1862,9 +1871,12 @@ document.getElementById('otherAdj').addEventListener('input', () => { updateAdjS
 // readable. preventDefault() stops iOS from synthesising a duplicate 'click'.
 (function () {
   function toggleAdjSign() {
+    _adjNegative = !_adjNegative;
     const input = document.getElementById('otherAdj');
     const val   = parseFloat(input.value) || 0;
-    input.value = val !== 0 ? (-val).toFixed(2) : '';
+    // Only negate the value when it is nonzero — when zero, the button marks
+    // intent so the next number typed will be shown as negative.
+    if (val !== 0) input.value = (Math.abs(val) * (_adjNegative ? -1 : 1)).toFixed(2);
     updateAdjSign();
     autosave();
   }
