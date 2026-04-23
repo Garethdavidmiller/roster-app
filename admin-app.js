@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.35';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.35';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.36';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.36';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -267,6 +267,17 @@ function initLoginOverlay() {
                 { heading: 'Conflicts', items: [
                     { icon: '⚠️', html: 'If a day already has a <strong>manual override</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
                     { icon: '🔄', html: 'Old roster uploads are replaced automatically — only your manual changes show a warning if the new PDF disagrees' },
+                ]},
+            ],
+        },
+        'fip-travel': {
+            title: 'FIP Travel',
+            sections: [
+                { items: [
+                    { icon: '🃏', html: '<strong>FIP Card</strong> — gives you 50% off most European rail fares at station ticket offices' },
+                    { icon: '🎟️', html: '<strong>Free Coupons</strong> — a small annual allowance of completely free journeys on partner railways and ferries' },
+                    { icon: '👨‍👩‍👧', html: 'Both cover you, your spouse or partner, and dependent children' },
+                    { icon: '✈️', html: 'Leisure travel only — not for commuting or any work purpose' },
                 ]},
             ],
         },
@@ -2675,6 +2686,20 @@ function updateALBookedBox() {
 if (overridesMonthFilter) {
     overridesMonthFilter.addEventListener('change', renderTable);
 }
+
+// ============================================
+// FIP TRAVEL CARD — collapse/expand
+// ============================================
+(function initFipCard() {
+    const header  = document.getElementById('fipToggleHeader');
+    const body    = document.getElementById('fipBody');
+    const chevron = document.getElementById('fipChevron');
+    if (!header || !body || !chevron) return;
+    header.addEventListener('click', () => {
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
+    });
+})();
 
 // ============================================
 // EXISTING OVERRIDES CARD — collapse/expand
