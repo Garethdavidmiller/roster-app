@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.32';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.32';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.33';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.33';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -792,7 +792,7 @@ function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
-                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">Annual Leave</button>
+                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
                 <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
