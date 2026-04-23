@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<!-- MYB Roster — FIP Travel Guide  |  Update when FIP rules or prices change -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIP Travel Guide — MYB Roster</title>
+    <style>
+        :root {
+            --navy:        #001e3c;
+            --navy-dark:   #00152a;
+            --gold:        #f5c800;
+            --text:        #1a1a2e;
+            --mid:         #555;
+            --light:       #888;
+            --border:      #dde1e8;
+            --bg:          #f4f5f8;
+            --white:       #fff;
+            --green-bg:    #e8f5e9;
+            --green-text:  #2e7d32;
+            --red-bg:      #ffebee;
+            --red-text:    #c62828;
+            --yellow-bg:   #fff9e6;
+            --yellow-bdr:  #d4a800;
+            --blue-bg:     #e3f2fd;
+            --blue-text:   #1565c0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 15px;
+            line-height: 1.55;
+            color: var(--text);
+            background: var(--bg);
+        }
+
+        /* ── Page header ─────────────────────────── */
+        .page-header {
+            background: var(--navy);
+            color: white;
+            padding: 14px 16px 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .btn-back {
+            color: white;
+            text-decoration: none;
+            font-size: 22px;
+            line-height: 1;
+            padding: 2px 6px 2px 0;
+            flex-shrink: 0;
+        }
+        .page-header h1 { font-size: 17px; font-weight: 700; }
+        .page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+
+        /* ── Content wrapper ─────────────────────── */
+        .content {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px 14px 48px;
+        }
+
+        /* ── Section label ───────────────────────── */
+        .section-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--navy);
+            border-bottom: 2px solid var(--gold);
+            padding-bottom: 5px;
+            margin: 24px 0 12px;
+        }
+        .section-label:first-child { margin-top: 0; }
+
+        /* ── Plain card ──────────────────────────── */
+        .card {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+        .card-pad { padding: 14px 16px; }
+
+        /* ── Two-column cards ────────────────────── */
+        .two-up {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .two-up .card { margin-bottom: 0; }
+        .two-up .card .icon { font-size: 26px; margin-bottom: 6px; }
+        .two-up .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+        .two-up .card p { font-size: 12px; color: var(--mid); line-height: 1.45; }
+
+        /* ── Steps ───────────────────────────────── */
+        .steps { list-style: none; counter-reset: step; }
+        .steps li {
+            counter-increment: step;
+            position: relative;
+            padding: 12px 14px 12px 48px;
+            border-bottom: 1px solid var(--border);
+        }
+        .steps li:last-child { border-bottom: none; }
+        .steps li::before {
+            content: counter(step);
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 26px; height: 26px;
+            background: var(--navy);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .steps li strong { display: block; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+        .steps li span { font-size: 13px; color: var(--mid); }
+
+        /* ── Info / warning boxes ────────────────── */
+        .box {
+            border-radius: 8px;
+            padding: 11px 13px;
+            font-size: 13px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+        .box-yellow { background: var(--yellow-bg); border: 1px solid var(--yellow-bdr); }
+        .box-red    { background: var(--red-bg);    border: 1px solid #f5c0c0; }
+        .box-blue   { background: var(--blue-bg);   border: 1px solid #90caf9; }
+        .box strong { display: block; font-size: 13px; margin-bottom: 4px; }
+
+        /* ── Eurostar pricing ────────────────────── */
+        .price-row {
+            display: flex;
+            gap: 16px;
+            padding: 12px 16px 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .price-item { flex: 1; }
+        .price-amount { font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1; margin-bottom: 3px; }
+        .price-amount.grey { color: var(--light); }
+        .price-desc { font-size: 12px; color: var(--mid); }
+
+        .detail-list { padding: 12px 16px; }
+        .detail-row {
+            display: flex;
+            gap: 10px;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-key { color: var(--mid); flex-shrink: 0; min-width: 88px; font-size: 13px; }
+
+        /* ── Country/ferry collapsibles ──────────── */
+        details {
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            overflow: hidden;
+        }
+        summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 13px 14px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 600;
+            list-style: none;
+            user-select: none;
+            -webkit-user-select: none;
+            background: var(--white);
+        }
+        summary::-webkit-details-marker { display: none; }
+        summary .chevron {
+            font-size: 11px;
+            color: var(--light);
+            transition: transform 0.2s;
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
+        details[open] > summary .chevron { transform: rotate(180deg); }
+        details[open] > summary { border-bottom: 1px solid var(--border); }
+
+        .detail-body {
+            padding: 14px;
+            font-size: 14px;
+        }
+        .detail-body p { margin-bottom: 8px; }
+        .detail-body p:last-child { margin-bottom: 0; }
+
+        /* ── Tags ────────────────────────────────── */
+        .tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+        .tag {
+            display: inline-block;
+            padding: 3px 9px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .tag-yes  { background: var(--green-bg); color: var(--green-text); }
+        .tag-no   { background: var(--red-bg);   color: var(--red-text); }
+        .tag-note { background: var(--blue-bg);  color: var(--blue-text); }
+
+        /* ── Rules list ──────────────────────────── */
+        .rule-list { list-style: none; }
+        .rule-list li {
+            padding: 9px 14px 9px 34px;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        .rule-list li:last-child { border-bottom: none; }
+        .rule-list li::before {
+            position: absolute;
+            left: 12px;
+            font-weight: 700;
+        }
+        .rule-list li.yes::before { content: '✓'; color: var(--green-text); }
+        .rule-list li.no::before  { content: '✗'; color: var(--red-text); }
+
+        /* ── CTA buttons ─────────────────────────── */
+        .btn-primary, .btn-secondary, .btn-text-link {
+            display: block;
+            width: 100%;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            transition: background 0.15s, border-color 0.15s;
+            margin-bottom: 10px;
+        }
+        .btn-primary {
+            background: var(--navy);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            font-size: 15px;
+            font-weight: 700;
+        }
+        .btn-primary:active { background: var(--navy-dark); }
+        .btn-secondary {
+            background: white;
+            color: var(--navy);
+            border: 2px solid var(--navy);
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        .btn-text-link {
+            color: var(--navy);
+            font-size: 13px;
+            padding: 8px;
+            text-decoration: underline;
+            background: none;
+            border: none;
+        }
+
+        /* ── Divider ─────────────────────────────── */
+        hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+    </style>
+</head>
+<body>
+
+    <header class="page-header">
+        <a href="./admin.html" class="btn-back" aria-label="Back to admin">←</a>
+        <div>
+            <h1>🚂 FIP Travel</h1>
+            <p class="sub">European travel for Chiltern Railways staff</p>
+        </div>
+    </header>
+
+    <div class="content">
+
+        <!-- ── WHAT YOU GET ──────────────────────── -->
+        <p class="section-label">What you get</p>
+
+        <div class="two-up">
+            <div class="card card-pad">
+                <div class="icon">🃏</div>
+                <h3>FIP Card</h3>
+                <p>Half price on most European train fares — buy tickets at station offices</p>
+            </div>
+            <div class="card card-pad">
+                <div class="icon">🎟️</div>
+                <h3>Free Coupons</h3>
+                <p>A small annual allowance of completely free journeys on partner railways</p>
+            </div>
+        </div>
+
+        <p style="font-size:13px;color:var(--mid);padding:0 2px">Both cover you, your spouse or partner, and dependent children.</p>
+
+
+        <!-- ── HOW IT WORKS ──────────────────────── -->
+        <p class="section-label">How it works</p>
+
+        <div class="card">
+            <ol class="steps">
+                <li>
+                    <strong>Apply for your FIP Card</strong>
+                    <span>A physical card you apply for once — valid for 2 years. Sign it, and make sure your name matches your passport.</span>
+                </li>
+                <li>
+                    <strong>Order your free coupons once a year</strong>
+                    <span>Fill in the online form at least 3 weeks before you travel. Once you have them, fill them in using a permanent ballpoint pen — no corrections allowed.</span>
+                </li>
+                <li>
+                    <strong>Book your trip</strong>
+                    <span>Each country works slightly differently. Most require you to buy a ticket at a station ticket office rather than online. See the country guides below.</span>
+                </li>
+                <li>
+                    <strong>Travel with card and passport</strong>
+                    <span>Always carry both together. Staff at the ticket office and on board may ask to see them.</span>
+                </li>
+            </ol>
+        </div>
+
+        <div class="box box-yellow">
+            <strong>⚠ Filling in your coupons — permanent ink only</strong>
+            Use a <strong>permanent ballpoint pen</strong>. Any crossing out or correction invalidates the coupon — it will be refused at the ticket office. Write carefully and check before you hand them over.
+        </div>
+
+
+        <!-- ── EUROSTAR ───────────────────────────── -->
+        <p class="section-label">Eurostar — London to Paris, Brussels &amp; Amsterdam</p>
+
+        <div class="card">
+            <div class="price-row">
+                <div class="price-item">
+                    <div class="price-amount">£34.50</div>
+                    <div class="price-desc">Standard class — each way<br>(includes £5 surcharge)</div>
+                </div>
+                <div class="price-item">
+                    <div class="price-amount grey">£52.50</div>
+                    <div class="price-desc">Standard Premier —<br>see note below</div>
+                </div>
+            </div>
+            <div class="detail-list">
+                <div class="detail-row">
+                    <span class="detail-key">How to book</span>
+                    <span>By phone, or in person at St Pancras (London) or Paris Nord ticket offices</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Coupons</span>
+                    <span>Not accepted on Eurostar — fixed FIP prices apply instead</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-key">Book ahead</span>
+                    <span>Up to 6 months in advance — seats are quota-controlled and sell out</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="box box-red" style="margin-bottom:8px">
+            <strong>Standard Premier — not available to Chiltern CEA staff</strong>
+            The £52.50 fare is only for staff with a first-class priv entitlement. Chiltern CEA grade holds standard priv, so only the £34.50 Standard fare applies to you and your colleagues.
+        </div>
+        <div class="box box-red" style="margin-bottom:0">
+            <strong>Eurostar Premier class — not available on any FIP fare</strong>
+            Business Premier and Eurostar Premier cannot be booked with FIP, regardless of grade.
+        </div>
+
+
+        <!-- ── EUROPEAN DESTINATIONS ─────────────── -->
+        <p class="section-label">European destinations</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Tap a country to see what to expect and how to book.</p>
+
+        <details>
+            <summary>🇫🇷 France <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Operator: SNCF</strong> (including TGV high-speed trains)</p>
+                <p>Show your FIP Card at an SNCF ticket office for 50% off most fares. Free coupons are also accepted. Reservations are compulsory on TGV and long-distance Intercités trains — there's a booking fee on top of the discounted fare.</p>
+                <p>Domestic France journeys must be bought at a ticket office (by phone or in person) — not online.</p>
+                <div class="box box-red" style="margin-top:8px;margin-bottom:0">
+                    <strong>⚠ OUIGO (low-cost TGV) — FIP not valid</strong>
+                    OUIGO trains will not accept FIP tickets or coupons.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🇧🇪 Belgium <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Operator: SNCB / NMBS</strong></p>
+                <p>Both 50% FIP tickets and free coupons are valid. No reservation is required — buy your ticket and travel.</p>
+                <div class="box box-blue" style="margin-top:8px;margin-bottom:0">
+                    <strong>From July 2026:</strong> Tickets cannot be bought on board. Make sure you buy before boarding at a station ticket desk.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🇳🇱 Netherlands <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Operator: NS</strong></p>
+                <p>FIP tickets and coupons must currently be bought at the <strong>NS International counter at Amsterdam Centraal</strong> (western entrance, near the taxi rank) — the only counter in the Netherlands offering this service.</p>
+                <div class="box box-blue" style="margin-top:8px;margin-bottom:0">
+                    <strong>ICE trains:</strong> A €3 supplement applies per journey if you're using a 50% FIP ticket on an ICE high-speed train. This charge doesn't apply if you're using a free coupon.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🇩🇪 Germany <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Operator: DB (Deutsche Bahn)</strong></p>
+                <p>Buy your 50% ticket at any DB Reisezentrum (station ticket office). You can also now book online at <strong>bahn.de</strong> — good for planning ahead before you travel. ICE high-speed trains are included, though a supplement applies.</p>
+                <p>Cross-border routes such as Paris–Frankfurt (TGV/ICE) can also be booked at DB ticket offices.</p>
+            </div>
+        </details>
+
+        <details>
+            <summary>🇮🇹 Italy <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Operator: Trenitalia</strong></p>
+                <p>FIP 50% tickets are available at Trenitalia ticket offices. On Frecciarossa and Frecciargento high-speed services, a reservation is mandatory — the reservation fee is paid on top of the discounted fare.</p>
+                <div class="box box-red" style="margin-top:8px;margin-bottom:0">
+                    <strong>⚠ Italo (private operator) — FIP not valid</strong>
+                    The Italo high-speed trains are a private company and do not accept FIP.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🇪🇸 Spain <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                </div>
+                <p><strong>Operator: Renfe</strong></p>
+                <p>A FIP Global Fare is available for AVE high-speed trains from €15. Tickets must be bought at a Renfe ticket office in Spain — you can't book these online in advance from the UK.</p>
+                <div class="box box-red" style="margin-top:8px;margin-bottom:0">
+                    <strong>⚠ Ouigo Spain — FIP not valid</strong>
+                    Like OUIGO in France, the low-cost Ouigo trains in Spain don't accept FIP.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>🇨🇭 Switzerland <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">FIP Card ✓</span>
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Operator: SBB CFF FFS</strong></p>
+                <p>FIP gives 50% off throughout Switzerland on SBB trains. Buy tickets at SBB ticket counters or on the SBB website. Some cross-border services may carry supplements — check at the counter when booking.</p>
+            </div>
+        </details>
+
+
+        <!-- ── FERRY SERVICES ─────────────────────── -->
+        <p class="section-label">Ferry services</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">A small number of ferry operators take part in FIP — particularly useful if you're taking a car or heading to Greece.</p>
+
+        <details>
+            <summary>⛴️ Stena Line — Harwich to Netherlands <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Route:</strong> Harwich → Hook of Holland</p>
+                <p>Your FIP coupon covers the basic crossing fare. You'll also need to pay a <strong>Port Tax and Environmental Charge</strong> separately — these are not covered by the coupon.</p>
+                <p><strong>You must book in advance</strong> — tickets cannot be bought on board. Call Stena on <strong>01255 202352</strong> and have your coupon number(s) ready.</p>
+                <div class="box box-blue" style="margin-top:8px;margin-bottom:0">
+                    <strong>Overnight crossings:</strong> A cabin must be booked — it's not optional. Do this when you call to book your ticket.
+                </div>
+            </div>
+        </details>
+
+        <details>
+            <summary>⛴️ Superfast Ferries — Italy to Greece <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-yes">Free Coupons ✓</span>
+                </div>
+                <p><strong>Routes:</strong> Ancona / Bari → Patras, Igoumenitsa, Corfu</p>
+                <p>FIP coupons are valid. You need to book by sending the <strong>Attica FIP Reservation Form</strong> by email before you travel. The current booking contact and form are available on the full RDG FIP guide (link at the bottom of this page).</p>
+            </div>
+        </details>
+
+
+        <!-- ── RULES ──────────────────────────────── -->
+        <p class="section-label">Important to know</p>
+
+        <div class="card">
+            <ul class="rule-list">
+                <li class="yes">Leisure travel only — not for commuting or any work purpose</li>
+                <li class="yes">Always carry your <strong>FIP Card and passport together</strong></li>
+                <li class="yes">Book early — seats are quota-controlled and limited</li>
+                <li class="yes">Eligible for you, your spouse/partner, and dependent children</li>
+                <li class="no">FIP is not a contractual entitlement — it can change or be withdrawn at any time</li>
+                <li class="no">Normal delay and cancellation terms apply — travel is at your own risk</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <!-- ── ACTION LINKS ───────────────────────── -->
+        <p class="section-label">Order coupons &amp; apply for a card</p>
+
+        <a href="https://www.raildeliverygroup.com/files/Publications/services/rst/RST_XX09c_IntCoupFamily.html"
+           target="_blank" rel="noopener" class="btn-primary">
+            📋 Order FIP Coupons — you and your family
+        </a>
+
+        <a href="https://www.raildeliverygroup.com/files/Publications/services/rst/RST_XX09c_IntCoup.html"
+           target="_blank" rel="noopener" class="btn-primary">
+            📋 Order FIP Coupons — you only
+        </a>
+
+        <a href="https://www.raildeliverygroup.com/files/Publications/services/rst/RST_XX09a_FIPCardRequest.html"
+           target="_blank" rel="noopener" class="btn-secondary">
+            🪪 Apply for a new FIP Card
+        </a>
+
+        <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html"
+           target="_blank" rel="noopener" class="btn-text-link">
+            Full guide on Rail Delivery Group website →
+        </a>
+
+        <a href="./admin.html" class="btn-text-link" style="margin-top:4px">
+            ← Back to admin
+        </a>
+
+    </div>
+
+</body>
+</html>
