@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.30';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.30';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.31';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.31';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -172,7 +172,7 @@ const HELP_CONTENT = {
     ],
   },
   accuracy: {
-    title: 'Improve Accuracy — why it helps',
+    title: 'Match Your Payslip — why it helps',
     tips: [
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> switches to the same calculation method your employer uses — significantly more accurate.',
@@ -712,12 +712,12 @@ function loadPeriodData(pNum) {
     extraBody.classList.add('open');
     extraBtn.classList.add('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▲';
-    document.getElementById('hoursShowMoreLabel').textContent = 'Fewer options';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Hide adjustments';
   } else if (!hasExtras && extraBody.classList.contains('open')) {
     extraBody.classList.remove('open');
     extraBtn.classList.remove('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▼';
-    document.getElementById('hoursShowMoreLabel').textContent = 'More options';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Other adjustments';
   }
   updateSaveStatus(pNum);
   calculate();
@@ -1737,8 +1737,8 @@ function toggleHoursExtra() {
   btn.classList.toggle('open', open);
   btn.querySelector('.show-more-arrow').textContent = open ? '▲' : '▼';
   document.getElementById('hoursShowMoreLabel').textContent = open
-    ? 'Fewer options '
-    : 'More options (period adjustments) ';
+    ? 'Hide adjustments'
+    : 'Other adjustments';
 }
 
 function toggleHppNote() {

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.30 -->
+<!-- MYB Roster — Pay Calculator v7.31 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.30">
+  <link rel="stylesheet" href="./shared.css?v=7.31">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -921,7 +921,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.30">
+  <link rel="manifest" href="./pay-manifest.json?v=7.31">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -947,7 +947,7 @@
   <!-- SETUP BANNER: shown when current tax year's settings haven't been confirmed yet -->
   <div class="setup-banner hidden" id="setupBanner">
     <h2 id="setupBannerTitle">👋 Set up your pay calculator</h2>
-    <p id="setupBannerBody">Enter your <strong>hourly rate</strong> and <strong>tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. These settings are for this tax year only — the app will prompt you again when the new year starts.</p>
+    <p id="setupBannerBody">Enter your <strong>hourly rate</strong>, <strong>tax code</strong> and <strong>pension</strong> in ⚙️ Settings below, then tap <strong>Save settings</strong> — takes less than a minute.</p>
   </div>
 
   <!-- PRIVACY NOTE: always visible -->
@@ -1054,7 +1054,7 @@
       <div class="net-label">💷 Estimated Take-Home Pay</div>
       <div class="net-amount" id="netDisplay">£–</div>
       <div class="net-period" id="netPeriod">Select a pay period above</div>
-      <div class="net-hint" id="netHint">Enter your hours from your payslip or roster below — updates as you type</div>
+      <div class="net-hint" id="netHint">Enter your hours below — the estimate updates as you type</div>
     </div>
     <div class="summary" id="summary"></div>
     <div class="payslip-note" id="payslipNote" style="display:none">
@@ -1140,9 +1140,9 @@
       <!-- Bank Holiday Overtime — also hidden when no bank holiday in period -->
       <div class="hours-row hidden" id="bhOtRow">
         <div class="h-info">
-          <div class="h-title">🏛️ Bank Holiday Rest Day</div>
+          <div class="h-title">🏛️ Bank Holiday — Called In</div>
           <span class="rate-badge badge-bh" id="badge-bhot">1.25×  ·  £25.93/hr</span>
-          <div class="h-sub">It was your rest day, but you came in — and it was a bank holiday. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
+          <div class="h-sub">It was your rest day but you came in — and it happened to be a bank holiday. Shows as "Bank Holiday Overtime 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1268,7 +1268,7 @@
 
       <!-- ── SHOW MORE TOGGLE ── -->
       <button class="show-more-btn" id="hoursShowMore">
-        <span id="hoursShowMoreLabel">More options</span><span class="show-more-arrow">▼</span>
+        <span id="hoursShowMoreLabel">Other adjustments</span><span class="show-more-arrow">▼</span>
       </button>
 
       <div class="hours-extra" id="hoursExtra">
@@ -1303,8 +1303,8 @@
   <div class="content-card" id="payslipCard">
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
-        <h2>📊 Improve Accuracy <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
-        <span class="hint">Optional: enter payslip totals for a more accurate tax estimate</span>
+        <h2>📊 Match Your Payslip <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
+        <span class="hint">Optional: enter Year to Date figures from your payslip for a more accurate tax estimate</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
         <button class="help-btn" data-help="accuracy" aria-label="Help: Improve Accuracy">?</button>
@@ -1316,14 +1316,14 @@
       <div class="field">
         <div style="display:flex;gap:8px;margin-bottom:6px">
           <div style="flex:1;min-width:0">
-            <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Total taxable pay this year</div>
+            <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Taxable pay — year to date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
               <input type="number" id="ytdPay" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
             </div>
           </div>
           <div style="flex:1;min-width:0">
-            <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Total tax deducted this year</div>
+            <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Tax deducted — year to date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
               <input type="number" id="ytdTax" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
@@ -1546,6 +1546,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.30"></script>
+<script type="module" src="./paycalc.js?v=7.31"></script>
 </body>
 </html>

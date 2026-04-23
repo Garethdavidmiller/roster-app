@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.30';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.30';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.31';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.31';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -226,7 +226,7 @@ function initLoginOverlay() {
                 { heading: 'What to use it for', items: [
                     { icon: '🤧', html: '<strong>Sickness</strong> — any number of days' },
                     { icon: '👨‍👩‍👧', html: '<strong>Family or domestic emergency</strong> — e.g. child ill, caring for a relative' },
-                    { icon: '🪑', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
+                    { icon: '🤒', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
                 ]},
                 { heading: 'Good to know', items: [
                     { icon: '📅', html: 'Rest days and Sundays in the range are ignored automatically — you only need to pick the start and end date' },
@@ -792,7 +792,7 @@ function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
-                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
+                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">Annual Leave</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
                 <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
