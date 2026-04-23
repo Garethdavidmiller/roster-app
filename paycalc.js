@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.28';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.28';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.29';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.29';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -955,6 +955,9 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
 
       if (dow === 0) {
         _overrideSunMins += mins;
+        // RDW on a Sunday still goes to the Sunday column (higher rate), but also
+        // needs to appear in the day list so staff can see which day contributed.
+        if (d.type === 'rdw') _overrideRdwDays.push({ date, shift: d.value, type: 'rdw' });
       } else if (isBH) {
         _overrideBhMins += mins;
       } else if (d.type === 'rdw') {
