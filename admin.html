@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.35 -->
+<!-- MYB Roster Admin v7.36 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.35">
+    <link rel="manifest" href="manifest.json?v=7.36">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.35">
+    <link rel="stylesheet" href="shared.css?v=7.36">
 
     <style>
         body {
@@ -2452,13 +2452,16 @@
 
     <!-- ==================== FIP TRAVEL ==================== -->
     <div class="card" id="fipCard">
-        <div class="card-header">
-            <h2>🚂 FIP Travel</h2>
-            <span class="hint">Discounted and free travel on European trains and ferries</span>
+        <div class="card-header card-collapsible-header" id="fipToggleHeader">
+            <h2>🇪🇺 FIP Travel <button class="btn-card-tips" data-card="fip-travel" aria-label="Tips for FIP Travel">?</button></h2>
+            <span class="hint">Half-price and free travel on European trains and ferries</span>
+            <span class="collapse-chevron" id="fipChevron">▾</span>
         </div>
-        <div class="card-body">
-            <p style="font-size:13px;color:#555;line-height:1.55;margin-bottom:14px">As a Chiltern Railways employee you're entitled to travel on most European railways at half price — or completely free using your annual coupon allowance. Your partner and dependent children can travel too.</p>
-            <a href="./fip.html" class="btn-save" style="display:block;text-align:center;text-decoration:none">View FIP Travel Guide →</a>
+        <div class="card-collapsible-body" id="fipBody">
+            <div class="card-body">
+                <p style="font-size:13px;color:#555;line-height:1.55;margin-bottom:14px">As a Chiltern Railways employee you're entitled to travel on most European railways at half price — or completely free using your annual coupon allowance. Your partner and dependent children can travel too.</p>
+                <a href="./fip.html" class="btn-save" style="display:block;text-align:center;text-decoration:none">View FIP Travel Guide →</a>
+            </div>
         </div>
     </div>
 
@@ -2502,6 +2505,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.35"></script>
+<script type="module" src="./admin-app.js?v=7.36"></script>
 </body>
 </html>
