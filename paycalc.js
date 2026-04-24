@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.41';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.41';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.42';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.42';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -598,9 +598,9 @@ function onPeriodChange() {
   // Update roster hint bar for this period (base roster, instant)
   updateRosterHint();
 
-  // Fetch admin-added Sunday overrides from Firestore in the background.
-  // Resets _overrideSunMins to 0 immediately so stale data from the previous
-  // period never bleeds into this one, then re-calls updateRosterHint() when done.
+  // Fetch admin-added overrides from Firestore in the background. The fetch
+  // clears _overridesByDate synchronously and bumps a request token so any
+  // in-flight older fetch can no longer write stale data for the previous period.
   let session2;
   try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
   if (session2?.name) fetchOverrideSpecialDaysForPeriod(p, session2.name);
@@ -893,44 +893,41 @@ function loadSettings() {
 // ── ROSTER-AWARE FILL ─────────────────────────────────────────────────────────
 
 /**
- * Scan the period window using the logged-in member's base roster.
- * Returns totals for Saturday, Sunday, Bank Holiday, and Boxing Day shifts,
- * or null if the member isn't in teamMembers or has nothing special in this period.
- * Base roster + any admin-added Sunday overrides from Firestore.
+ * Scan the period window using the logged-in member's base roster, merged
+ * with any admin-entered overrides from Firestore. Overrides *replace* the
+ * base shift for a day (so an AL/RD/SICK override on a Sunday correctly
+ * suppresses that Sunday's base shift). Returns totals for Saturday, Sunday,
+ * Bank Holiday, RDW, and Boxing Day shifts, or null if nothing applies.
  */
 
-// Cached override Sunday/BH/RDW minutes for the current period, loaded async by
-// fetchOverrideSpecialDaysForPeriod(). getRosterSuggestion() reads these synchronously.
-let _overrideSunMins = 0;
-let _overrideBhMins  = 0;
-let _overrideRdwMins = 0;
-let _overrideRdwDays = []; // { date, shift, type:'rdw' } — individual RDW override days
-let _adjNegative     = false; // tracks intended sign of otherAdj independently of value
+// Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
+// Populated asynchronously by fetchOverrideSpecialDaysForPeriod(); read
+// synchronously by getRosterSuggestion(). Cleared on every period change so
+// stale data from the previous period can never leak into the current one.
+let _overridesByDate = new Map();
+
+// Monotonic request token — incremented on every period change. A Firestore
+// fetch only writes its results if its token is still the latest, so a slow
+// fetch from an earlier period can never overwrite the current period's data.
+let _overrideFetchToken = 0;
+
+let _adjNegative = false; // tracks intended sign of otherAdj independently of value
 
 /**
- * Queries Firestore for override shifts in the period window and sorts them into
- * three buckets used by getRosterSuggestion():
+ * Queries Firestore for override documents in the period window and stores
+ * them in _overridesByDate keyed by ISO date. Non-work values (AL, RD, SICK,
+ * SPARE) are kept — getRosterSuggestion needs to know about them to skip the
+ * base shift on that day.
  *
- *   _overrideSunMins  — overrides whose date is a Sunday (dow === 0)
- *   _overrideBhMins   — overrides on a bank holiday that is not Boxing Day
- *                       (Boxing Day has its own pay column; BH detection uses
- *                        BANK_HOLIDAYS_EW via isDateInBHList())
- *   _overrideRdwMins  — overrides with type === 'rdw' on any other day
- *                       (i.e. a rest-day-worked that is not Sunday/BH/Boxing Day)
- *
- * Detection relies on d.type === 'rdw' for RDW classification — this is the
- * Firestore document type field, not inferred from the date. Any override with
- * a valid time-string value (HH:MM-HH:MM) is eligible; non-time-string values
- * (RD, AL, SICK, SPARE) are skipped by the HH:MM guard on line 908.
+ * Race protection: captures a fetch token on entry and discards the response
+ * if a newer period change has superseded this fetch while it was in flight.
  *
  * Fires and forgets from onPeriodChange — if Firestore is unavailable the
- * values stay 0 and the base-roster-only totals are shown instead.
+ * map stays empty and the base-roster-only totals are shown instead.
  */
 async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
-  _overrideSunMins = 0;
-  _overrideBhMins  = 0;
-  _overrideRdwMins = 0;
-  _overrideRdwDays = [];
+  const thisToken = ++_overrideFetchToken;
+  _overridesByDate = new Map();
   try {
     const q = query(
       collection(db, 'overrides'),
@@ -939,34 +936,17 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
       where('date', '<=', formatISO(p.cutoff))
     );
     const snap = await getDocs(q);
+    // A newer period change has superseded this fetch — discard the result
+    if (thisToken !== _overrideFetchToken) return;
+    const map = new Map();
     snap.forEach(doc => {
       const d = doc.data();
-      // Only count worked time-string overrides (e.g. "08:00-16:00")
-      if (!d.value || !d.value.includes('-') || !d.value.includes(':')) return;
-      const parts = d.value.split('-');
-      const [sh, sm] = parts[0].split(':').map(Number);
-      const [eh, em] = parts[1].split(':').map(Number);
-      let mins = (eh * 60 + em) - (sh * 60 + sm);
-      if (mins <= 0) mins += 24 * 60;
-
-      const date    = new Date(d.date + 'T12:00:00');
-      const dow     = date.getDay(); // 0 = Sunday
-      const isBoxing = date.getMonth() === 11 && date.getDate() === 26;
-      const isBH    = !isBoxing && isDateInBHList(date);
-
-      if (dow === 0) {
-        _overrideSunMins += mins;
-        // RDW on a Sunday still goes to the Sunday column (higher rate), but also
-        // needs to appear in the day list so staff can see which day contributed.
-        if (d.type === 'rdw') _overrideRdwDays.push({ date, shift: d.value, type: 'rdw' });
-      } else if (isBH) {
-        _overrideBhMins += mins;
-      } else if (d.type === 'rdw') {
-        // RDW on a regular weekday or Saturday — goes in the RDW column
-        _overrideRdwMins += mins;
-        _overrideRdwDays.push({ date, shift: d.value, type: 'rdw' });
-      }
+      if (!d.date) return;
+      // If a date has multiple override docs (unusual but possible),
+      // the last one wins — matches what admin.html shows as "current".
+      map.set(d.date, { type: d.type, value: d.value });
     });
+    _overridesByDate = map;
     updateRosterHint();
   } catch {
     // Firestore unavailable — base roster already shown, nothing to update
@@ -981,62 +961,69 @@ function getRosterSuggestion(p) {
   const member = teamMembers.find(m => m.name === session.name);
   if (!member) return null;
 
-  let satMins = 0, sunMins = 0, bhMins = 0, boxMins = 0;
-  let satCount = 0, sunCount = 0, bhCount = 0, boxCount = 0;
+  let satMins = 0, sunMins = 0, bhMins = 0, boxMins = 0, rdwMins = 0;
+  let satCount = 0, sunCount = 0, bhCount = 0, boxCount = 0, rdwCount = 0;
   const days = []; // individual dated shifts for the day list
 
   const cur = new Date(p.start);
   while (cur <= p.cutoff) {
     const noon = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12);
-    const base = getBaseShift(member, noon);
-    if (base && base.includes('-') && base.includes(':')) {
-      const parts = base.split('-');
+    const iso  = formatISO(cur);
+    const ov   = _overridesByDate.get(iso);
+
+    // Replacement-aware: if an override exists for this date it wins over the
+    // base roster entirely. Non-work values (AL, RD, SICK, SPARE) fall through
+    // the HH:MM-HH:MM guard below and correctly suppress the day.
+    const effValue = ov ? ov.value : getBaseShift(member, noon);
+    const effType  = ov ? ov.type  : null;
+
+    if (effValue && effValue.includes('-') && effValue.includes(':')) {
+      const parts = effValue.split('-');
       const [sh, sm] = parts[0].split(':').map(Number);
       const [eh, em] = parts[1].split(':').map(Number);
       let mins = (eh * 60 + em) - (sh * 60 + sm);
       if (mins <= 0) mins += 24 * 60; // overnight shift
 
-      const dow = cur.getDay(); // 0 = Sun, 6 = Sat
+      const dow      = cur.getDay(); // 0 = Sun, 6 = Sat
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
+      const isBH     = !isBoxing && isDateInBHList(cur);
+
       if (isBoxing) {
         boxMins += mins; boxCount++;
-        days.push({ date: new Date(cur), shift: base, type: 'box' });
-      } else if (isDateInBHList(cur)) {
+        days.push({ date: new Date(cur), shift: effValue, type: 'box' });
+      } else if (isBH) {
         bhMins += mins; bhCount++;
-        days.push({ date: new Date(cur), shift: base, type: 'bh' });
+        days.push({ date: new Date(cur), shift: effValue, type: 'bh' });
       } else if (dow === 0) {
+        // Sunday — the higher Sunday rate applies regardless of whether this
+        // is a base Sunday or an RDW override. We tag the day as 'rdw' when
+        // the override marks it so the day list shows the right icon.
         sunMins += mins; sunCount++;
-        days.push({ date: new Date(cur), shift: base, type: 'sun' });
+        days.push({ date: new Date(cur), shift: effValue, type: effType === 'rdw' ? 'rdw' : 'sun' });
+      } else if (effType === 'rdw') {
+        // Rest-day-worked on a weekday or Saturday — RDW column
+        rdwMins += mins; rdwCount++;
+        days.push({ date: new Date(cur), shift: effValue, type: 'rdw' });
       } else if (dow === 6) {
         satMins += mins; satCount++;
-        days.push({ date: new Date(cur), shift: base, type: 'sat' });
+        days.push({ date: new Date(cur), shift: effValue, type: 'sat' });
       }
-      // Mon–Fri non-BH: already in contracted basic pay — no field to fill
+      // Mon–Fri non-BH, non-RDW: already in contracted basic pay — nothing to fill
     }
     cur.setDate(cur.getDate() + 1);
   }
 
-  // Merge in admin-added Sunday, BH, and RDW overrides fetched async from Firestore
-  const totalSunMins = sunMins + _overrideSunMins;
-  const totalBhMins  = bhMins  + _overrideBhMins;
-  // RDW never appears in the base roster — it only ever comes from overrides
-  const totalRdwMins = _overrideRdwMins;
-  const totalSunCount = totalSunMins > 0 ? Math.max(sunCount, 1) : sunCount;
-  const totalBhCount  = totalBhMins  > 0 ? Math.max(bhCount,  1) : bhCount;
-  const totalRdwCount = totalRdwMins > 0 ? 1 : 0;
+  if (!satCount && !sunCount && !bhCount && !rdwCount && !boxCount) return null;
 
-  if (!satCount && !totalSunCount && !totalBhCount && !totalRdwCount && !boxCount) return null;
-
-  // Merge RDW override days and sort the full list chronologically
-  const allDays = [...days, ..._overrideRdwDays].sort((a, b) => a.date - b.date);
+  const allDays = days.sort((a, b) => a.date - b.date);
 
   return {
-    satH: Math.floor(satMins      / 60), satM: satMins      % 60,
-    sunH: Math.floor(totalSunMins / 60), sunM: totalSunMins % 60,
-    bhH:  Math.floor(totalBhMins  / 60), bhM:  totalBhMins  % 60,
-    rdwH: Math.floor(totalRdwMins / 60), rdwM: totalRdwMins % 60,
-    boxH: Math.floor(boxMins      / 60), boxM: boxMins      % 60,
-    satCount, sunCount: totalSunCount, bhCount: totalBhCount, rdwCount: totalRdwCount, boxCount,
+    satH: Math.floor(satMins / 60), satM: satMins % 60,
+    sunH: Math.floor(sunMins / 60), sunM: sunMins % 60,
+    bhH:  Math.floor(bhMins  / 60), bhM:  bhMins  % 60,
+    rdwH: Math.floor(rdwMins / 60), rdwM: rdwMins % 60,
+    boxH: Math.floor(boxMins / 60), boxM: boxMins % 60,
+    satCount, sunCount, bhCount, rdwCount, boxCount,
     memberName: member.name,
     days: allDays,
   };
