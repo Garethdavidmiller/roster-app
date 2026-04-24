@@ -11,114 +11,148 @@
    spacing changes only ever need one edit.
    ============================================================ */
 :root {
-    /* Brand colours — Chiltern Railways */
+    /* ── Brand identity ─────────────────────────────────────────
+       Chiltern Railways navy and gold. These two colours carry the
+       entire brand identity — use them only for structural elements
+       and highlights, not decorative fills. */
     --primary-blue:      #001e3c;
-    --primary-blue-dark: #00152a;   /* hover state for primary buttons */
-    --accent-gold:       #f5c800;
-    --accent-gold-dark:  #e6bb00;   /* hover state for today/gold buttons */
+    --primary-blue-dark: #00152a;   /* hover/pressed state */
+    --accent-gold:       #f5c800;   /* active state, today highlight */
+    --accent-gold-dark:  #e6bb00;   /* gold hover */
 
-    /* Shift colours */
-    --green:             #43a047;
-    --green-hover:       #388e3c;   /* index.html: print button hover */
-    --green-light:       #e8f5e9;
+    /* ── Shift type colours ──────────────────────────────────────
+       Each shift type has a base colour for badges/icons and a
+       light variant for cell backgrounds. Text variants exist where
+       the base colour fails contrast on white.
+       All darkened to meet WCAG AA on white backgrounds. */
+
+    /* Early shift */
     --orange:            #ff9800;
     --orange-light:      #fff3e0;
+
+    /* Late shift */
+    --blue-sky:          #1565c0;   /* darkened from #2196f3 for AA contrast */
     --blue-light:        #e3f2fd;
-    --blue-sky:          #1565c0;   /* late shift — darkened from #2196f3 for AA contrast */
-    --purple:            #7b1fa2;   /* spare shift — darkened from #9c27b0 for AA contrast */
-    --purple-light:      #f3e5f5;
-    --rdw:               #c2185b;   /* RDW/overtime — magenta/raspberry */
-    --rdw-text:          #880e4f;   /* RDW text on light bg — deep magenta, 7.9:1 on white */
-    --rdw-light:         #fce4ec;   /* RDW cell background — light pink */
-    --al:                #00897b;
-    --al-light:          #e0f2f1;
-    --absence:           #616161;   /* absence day — neutral grey */
-    --absence-light:     #f5f5f5;   /* absence day cell background */
-    --absence-text:      #212121;   /* absence text on light bg — 15.8:1 */
-    --rest-day-bg:       #f9f9fb;   /* rest day cell — off-white so it doesn't vanish on page */
-    --charcoal:          #2d2d2d;   /* rest badge background */
-    --night:             #1a1a2e;   /* night shift badge */
+
+    /* Night shift */
+    --night:             #1a1a2e;
     --night-cell-bg:     rgba(20, 20, 40, 0.10);
     --night-cell-border: rgba(20, 20, 40, 0.30);
-    --ot:                #5c6bc0;   /* admin.html: overtime pill */
-    --ot-light:          #ede7f6;   /* admin.html: overtime list pill background */
 
-    /* Error colours */
+    /* Spare / standby */
+    --purple:            #7b1fa2;   /* darkened from #9c27b0 for AA contrast */
+    --purple-light:      #f3e5f5;
+
+    /* RDW — rest day worked */
+    --rdw:               #c2185b;   /* magenta/raspberry */
+    --rdw-text:          #880e4f;   /* on light bg — 7.9:1 on white */
+    --rdw-light:         #fce4ec;
+
+    /* Annual leave */
+    --al:                #00897b;
+    --al-light:          #e0f2f1;
+    --al-hover:          #00796b;   /* AL button hover */
+    --al-deep:           #004d40;   /* pill text, AL preview ready */
+
+    /* Absence / sick — deliberately neutral; reason for absence is never stored */
+    --absence:           #616161;
+    --absence-light:     #f5f5f5;   /* same hex as --bg-faint; kept separate for semantic clarity */
+    --absence-text:      #212121;   /* 15.8:1 on white */
+
+    /* Rest day */
+    --rest-day-bg:       #f9f9fb;   /* slightly off-white so cells don't vanish on the page */
+    --charcoal:          #2d2d2d;   /* rest badge background */
+
+    /* Allocated / confirmed shifts (admin) */
+    --green:             #43a047;
+    --green-hover:       #388e3c;
+    --green-light:       #e8f5e9;
+
+    /* Overtime pill (admin override list) */
+    --ot:                #5c6bc0;
+    --ot-light:          #ede7f6;
+
+    /* ── State / semantic colours ────────────────────────────────
+       Used for feedback, warnings, and status — not shift types. */
+
+    /* Errors */
     --error-bg:          #ffebee;
     --error-red:         #d32f2f;
-    --error-banner:      #c62828;   /* index.html: error banner background */
+    --error-banner:      #c62828;
 
-    /* Neutral colours */
-    --text-dark:         #333;
-    --text-mid:          #555;
-    --text-light:        #999;
-    --text-faint:        #aaa;
-    --border-light:      #e8e8e8;
-    --border-mid:        #cccccc;   /* other-day cells and mid-tone borders */
-    --bg-light:          #f8f8f8;
-    --bg-faint:          #f5f5f5;
-    --today-print:       #fffde7;   /* softer gold for print/today highlight */
+    /* Success */
+    --success-text:      #1b5e20;
 
-    /* index.html: interactive element hover and desktop colours */
-    --al-hover:               #00796b;
-    --desktop-gradient-start: #0a2240;
-    --desktop-gradient-end:   #001630;
-
-    /* SW update status pill colours */
+    /* SW update status */
     --status-ok:         #4caf50;
     --status-ok-bg:      rgba(76, 175, 80, 0.15);
 
-    /* index.html: AL lightbox state colours */
+    /* AL balance warnings (index.html lightbox + admin.html) */
     --al-lb-ok:          #4db6ac;   /* plenty of leave remaining */
-    --al-lb-low:         #ffb74d;   /* leave running low */
+    --al-lb-low:         #ffb74d;   /* running low */
     --al-lb-empty:       #ef9a9a;   /* no leave remaining */
+    --al-low:            #e67e00;   /* running low — inline warning */
+    --al-warning:        #c0392b;   /* at zero / over limit */
+    --al-warning-bg:     #fdecea;
 
-    /* admin.html: AL balance state colours */
-    --al-low:            #e67e00;   /* AL running low — orange */
-    --al-warning:        #c0392b;   /* AL at zero / over limit — red */
-    --al-warning-bg:     #fdecea;   /* AL warning message background */
-    --al-deep:           #004d40;   /* deep teal — AL pill text, AL preview ready */
+    /* AL over-limit confirm bar (admin.html) */
+    --al-confirm-bg:     #fff8e1;
+    --al-confirm-accent: #f9a825;
 
-    /* admin.html: day-row state backgrounds */
-    --row-selected-bg:        #e8f0f8;   /* checkbox ticked, no type yet */
-    --row-override-bg:        #fff3cd;   /* has existing Firestore override */
-    --row-override-active-bg: #ffe0b2;   /* override + type set */
+    /* Admin override list */
+    --correction-text:   #e65100;   /* correction pill — burnt orange */
 
-    /* admin.html: current-week nav highlight */
-    --week-current-bg:   #e8f4fb;
+    /* ── Admin row / nav state backgrounds ──────────────────────
+       Tinted backgrounds applied to day rows and nav items. */
+    --row-selected-bg:        #e8f0f8;   /* checkbox ticked, no type chosen */
+    --row-override-bg:        #fff3cd;   /* existing Firestore override */
+    --row-override-active-bg: #ffe0b2;   /* override + type chosen */
+    --week-current-bg:        #e8f4fb;   /* current week in the week-nav list */
 
-    /* admin.html: feedback colours */
-    --success-text:      #1b5e20;   /* success message text (dark green) */
+    /* ── Neutral palette ─────────────────────────────────────────
+       Text, borders, and background fills. Four text greys cover all
+       hierarchy levels; two border weights; two background fills. */
+    --text-dark:    #333;
+    --text-mid:     #555;
+    --text-light:   #999;   /* secondary labels, placeholder text */
+    --text-faint:   #aaa;   /* micro-labels, field hints, timestamps */
 
-    /* admin.html: AL over-limit confirm bar */
-    --al-confirm-bg:     #fff8e1;   /* warm yellow bar background */
-    --al-confirm-accent: #f9a825;   /* border and save button */
+    --border-light: #e8e8e8;
+    --border-mid:   #cccccc;   /* mid-tone borders, other-month day cells */
 
-    /* admin.html: override list pill text colours */
-    --correction-text:   #e65100;   /* correction pill text (burnt orange) */
+    --bg-light:     #f8f8f8;   /* card headers, hover trays */
+    --bg-faint:     #f5f5f5;   /* subtler backgrounds, button rests */
 
-    /* Page shell — unified max-width so calendar, admin and pay calculator
-       all feel like one product on desktop. Individual pages still control
-       their inner grid/column layout. */
+    --today-print:  #fffde7;   /* softer gold for print media today-cell */
+
+    /* ── Page shell ──────────────────────────────────────────────
+       Unified max-width keeps calendar, admin, and pay feeling like
+       one product at desktop widths. */
     --page-max-width: 1400px;
 
-    /* Border Radius */
+    /* ── Border radius ───────────────────────────────────────────
+       Three steps: small for inputs/buttons, medium for content cards,
+       large for primary containers and headers. */
     --radius-sm:  8px;
     --radius-md: 12px;
     --radius-lg: 14px;
 
-    /* Typography scale */
-    --type-micro:  10px;   /* tiny labels, badges */
-    --type-small:  12px;   /* hints, metadata */
-    --type-body:   14px;   /* default body text */
-    --type-medium: 16px;   /* form inputs */
-    --type-large:  18px;   /* section headers */
-    --type-xl:     24px;   /* page title */
+    /* ── Typography scale ────────────────────────────────────────
+       Six steps from micro-labels to page titles. The 16px form input
+       size is intentional — iOS zooms in on inputs smaller than 16px. */
+    --type-micro:  10px;
+    --type-small:  12px;
+    --type-body:   14px;
+    --type-medium: 16px;   /* form inputs — prevents iOS auto-zoom */
+    --type-large:  18px;
+    --type-xl:     24px;
 
-    /* Elevation system */
-    --shadow-1: 0 1px 4px rgba(0,0,0,0.10);                  /* cards, subtle lift */
-    --shadow-2: 0 2px 12px rgba(0,30,60,0.12);               /* header, containers */
-    --shadow-3: 0 8px 32px rgba(0,0,0,0.18);                 /* modals, lightboxes */
+    /* ── Elevation ───────────────────────────────────────────────
+       Three shadow levels. Keep shadows subtle — the navy background
+       provides contrast; heavy shadows on white cards look dated. */
+    --shadow-1: 0 1px 4px rgba(0,0,0,0.10);          /* cards */
+    --shadow-2: 0 2px 12px rgba(0,30,60,0.12);        /* headers, containers */
+    --shadow-3: 0 8px 32px rgba(0,0,0,0.18);          /* modals, lightboxes */
 }
 
 /* ============================================================
