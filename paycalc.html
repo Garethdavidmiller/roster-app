@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.41 -->
+<!-- MYB Roster — Pay Calculator v7.42 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.41">
+  <link rel="stylesheet" href="./shared.css?v=7.42">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -584,14 +584,19 @@
       #helpLightboxContent { width: min(520px, 88vw); }
     }
 
-    /* ── Desktop: 1040px — two-column grid ── */
+    /* ── Desktop: 1040px — two-column grid ──
+       grid-auto-flow: dense lets each column fill its own gaps independently,
+       so hiding/showing cards on either side can never leave orphaned space or
+       force the other column to stretch. No brittle row-span assumptions. */
     @media (min-width: 1040px) {
       .app {
-        max-width: 1080px;
+        max-width: var(--page-max-width);
         display: grid;
-        grid-template-columns: 1fr 360px;
+        grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
         column-gap: 24px;
+        row-gap: 16px;
         align-items: start;
+        grid-auto-flow: row dense;
       }
 
       /* Full-width rows spanning both columns */
@@ -602,15 +607,18 @@
       .disclaimer      { grid-column: 1 / -1; }
 
       /* Left column: period selector + the main hours input card */
-      .controls  { grid-column: 1; }
-      #hoursCard { grid-column: 1; grid-row: span 4; } /* spans same rows as right col */
+      .controls,
+      #hoursCard       { grid-column: 1; }
 
       /* Right column: settings → result (sticky) → archived period cards */
-      #settingsCard { grid-column: 2; }
-      .result-card  { grid-column: 2; position: sticky; top: 20px; }
-      #payslipCard  { grid-column: 2; }
-      #hppCard      { grid-column: 2; }
-      #backPayCard  { grid-column: 2; }
+      #settingsCard,
+      .result-card,
+      #payslipCard,
+      #hppCard,
+      #backPayCard     { grid-column: 2; }
+
+      /* Result card stays visible while scrolling through the left column */
+      .result-card     { position: sticky; top: 20px; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
@@ -921,7 +929,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.41">
+  <link rel="manifest" href="./pay-manifest.json?v=7.42">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1545,6 +1553,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.41"></script>
+<script type="module" src="./paycalc.js?v=7.42"></script>
 </body>
 </html>

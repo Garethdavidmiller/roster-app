@@ -5,22 +5,59 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIP Travel Guide — MYB Roster</title>
-    <link rel="stylesheet" href="./shared.css?v=7.41">
     <style>
-        /* FIP-specific tokens not covered by shared.css */
         :root {
-            --yellow-bg:  #fff9e6;
-            --yellow-bdr: #d4a800;
-            --green-text: #2e7d32;
+            --navy:        #001e3c;
+            --navy-dark:   #00152a;
+            --gold:        #f5c800;
+            --text:        #1a1a2e;
+            --mid:         #555;
+            --light:       #888;
+            --border:      #dde1e8;
+            --bg:          #f4f5f8;
+            --white:       #fff;
+            --green-bg:    #e8f5e9;
+            --green-text:  #2e7d32;
+            --red-bg:      #ffebee;
+            --red-text:    #c62828;
+            --yellow-bg:   #fff9e6;
+            --yellow-bdr:  #d4a800;
+            --blue-bg:     #e3f2fd;
+            --blue-text:   #1565c0;
         }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 15px;
             line-height: 1.55;
-            color: var(--text-dark);
-            background: var(--primary-blue);
+            color: var(--text);
+            background: var(--bg);
         }
+
+        /* ── Page header ─────────────────────────── */
+        .page-header {
+            background: var(--navy);
+            color: white;
+            padding: 14px 16px 16px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .btn-back {
+            color: white;
+            text-decoration: none;
+            font-size: 22px;
+            line-height: 1;
+            padding: 2px 6px 2px 0;
+            flex-shrink: 0;
+        }
+        .page-header h1 { font-size: 17px; font-weight: 700; }
+        .page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
 
         /* ── Content wrapper ─────────────────────── */
         .content {
@@ -35,27 +72,19 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            color: white;
-            border-bottom: 2px solid var(--accent-gold);
+            color: var(--navy);
+            border-bottom: 2px solid var(--gold);
             padding-bottom: 5px;
             margin: 24px 0 12px;
         }
         .section-label:first-child { margin-top: 0; }
 
-        /* ── Hint text on dark background ────────── */
-        .hint-text {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.65);
-            margin-bottom: 12px;
-        }
-
         /* ── Plain card ──────────────────────────── */
         .card {
-            background: white;
-            border: 1px solid var(--border-light);
+            background: var(--white);
+            border: 1px solid var(--border);
             border-radius: 10px;
             margin-bottom: 10px;
-            box-shadow: var(--shadow-1);
         }
         .card-pad { padding: 14px 16px; }
 
@@ -64,12 +93,12 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         .two-up .card { margin-bottom: 0; }
         .two-up .card .icon { font-size: 26px; margin-bottom: 6px; }
         .two-up .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
-        .two-up .card p { font-size: 12px; color: var(--text-mid); line-height: 1.45; }
+        .two-up .card p { font-size: 12px; color: var(--mid); line-height: 1.45; }
 
         /* ── Steps ───────────────────────────────── */
         .steps { list-style: none; counter-reset: step; }
@@ -77,7 +106,7 @@
             counter-increment: step;
             position: relative;
             padding: 12px 14px 12px 48px;
-            border-bottom: 1px solid var(--border-light);
+            border-bottom: 1px solid var(--border);
         }
         .steps li:last-child { border-bottom: none; }
         .steps li::before {
@@ -87,7 +116,7 @@
             top: 50%;
             transform: translateY(-50%);
             width: 26px; height: 26px;
-            background: var(--primary-blue);
+            background: var(--navy);
             color: white;
             border-radius: 50%;
             display: flex;
@@ -97,7 +126,7 @@
             font-weight: 700;
         }
         .steps li strong { display: block; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
-        .steps li span { font-size: 13px; color: var(--text-mid); }
+        .steps li span { font-size: 13px; color: var(--mid); }
 
         /* ── Info / warning boxes ────────────────── */
         .box {
@@ -107,9 +136,9 @@
             line-height: 1.5;
             margin-bottom: 10px;
         }
-        .box-yellow { background: var(--yellow-bg);  border: 1px solid var(--yellow-bdr); }
-        .box-red    { background: var(--error-bg);   border: 1px solid #f5c0c0; }
-        .box-blue   { background: var(--blue-light); border: 1px solid #90caf9; }
+        .box-yellow { background: var(--yellow-bg); border: 1px solid var(--yellow-bdr); }
+        .box-red    { background: var(--red-bg);    border: 1px solid #f5c0c0; }
+        .box-blue   { background: var(--blue-bg);   border: 1px solid #90caf9; }
         .box strong { display: block; font-size: 13px; margin-bottom: 4px; }
 
         /* ── Eurostar pricing ────────────────────── */
@@ -117,32 +146,31 @@
             display: flex;
             gap: 16px;
             padding: 12px 16px 14px;
-            border-bottom: 1px solid var(--border-light);
+            border-bottom: 1px solid var(--border);
         }
         .price-item { flex: 1; }
-        .price-amount { font-size: 26px; font-weight: 800; color: var(--primary-blue); line-height: 1; margin-bottom: 3px; }
-        .price-amount.grey { color: var(--text-light); }
-        .price-desc { font-size: 12px; color: var(--text-mid); }
+        .price-amount { font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1; margin-bottom: 3px; }
+        .price-amount.grey { color: var(--light); }
+        .price-desc { font-size: 12px; color: var(--mid); }
 
         .detail-list { padding: 12px 16px; }
         .detail-row {
             display: flex;
             gap: 10px;
             padding: 5px 0;
-            border-bottom: 1px solid var(--border-light);
+            border-bottom: 1px solid var(--border);
             font-size: 14px;
         }
         .detail-row:last-child { border-bottom: none; }
-        .detail-key { color: var(--text-mid); flex-shrink: 0; min-width: 88px; font-size: 13px; }
+        .detail-key { color: var(--mid); flex-shrink: 0; min-width: 88px; font-size: 13px; }
 
         /* ── Country/ferry collapsibles ──────────── */
         details {
-            background: white;
-            border: 1px solid var(--border-light);
+            background: var(--white);
+            border: 1px solid var(--border);
             border-radius: 8px;
             margin-bottom: 8px;
             overflow: hidden;
-            box-shadow: var(--shadow-1);
         }
         summary {
             display: flex;
@@ -155,20 +183,23 @@
             list-style: none;
             user-select: none;
             -webkit-user-select: none;
-            background: white;
+            background: var(--white);
         }
         summary::-webkit-details-marker { display: none; }
         summary .chevron {
             font-size: 11px;
-            color: var(--text-light);
+            color: var(--light);
             transition: transform 0.2s;
             flex-shrink: 0;
             margin-left: 8px;
         }
         details[open] > summary .chevron { transform: rotate(180deg); }
-        details[open] > summary { border-bottom: 1px solid var(--border-light); }
+        details[open] > summary { border-bottom: 1px solid var(--border); }
 
-        .detail-body { padding: 14px; font-size: 14px; }
+        .detail-body {
+            padding: 14px;
+            font-size: 14px;
+        }
         .detail-body p { margin-bottom: 8px; }
         .detail-body p:last-child { margin-bottom: 0; }
 
@@ -181,22 +212,26 @@
             font-size: 11px;
             font-weight: 700;
         }
-        .tag-yes  { background: var(--green-light); color: var(--green-text); }
-        .tag-no   { background: var(--error-bg);    color: var(--error-banner); }
-        .tag-note { background: var(--blue-light);  color: var(--blue-sky); }
+        .tag-yes  { background: var(--green-bg); color: var(--green-text); }
+        .tag-no   { background: var(--red-bg);   color: var(--red-text); }
+        .tag-note { background: var(--blue-bg);  color: var(--blue-text); }
 
         /* ── Rules list ──────────────────────────── */
         .rule-list { list-style: none; }
         .rule-list li {
             padding: 9px 14px 9px 34px;
             position: relative;
-            border-bottom: 1px solid var(--border-light);
+            border-bottom: 1px solid var(--border);
             font-size: 14px;
         }
         .rule-list li:last-child { border-bottom: none; }
-        .rule-list li::before { position: absolute; left: 12px; font-weight: 700; }
+        .rule-list li::before {
+            position: absolute;
+            left: 12px;
+            font-weight: 700;
+        }
         .rule-list li.yes::before { content: '✓'; color: var(--green-text); }
-        .rule-list li.no::before  { content: '✗'; color: var(--error-banner); }
+        .rule-list li.no::before  { content: '✗'; color: var(--red-text); }
 
         /* ── CTA buttons ─────────────────────────── */
         .btn-primary, .btn-secondary, .btn-text-link {
@@ -211,24 +246,24 @@
             margin-bottom: 10px;
         }
         .btn-primary {
-            background: var(--primary-blue);
+            background: var(--navy);
             color: white;
             border: none;
             padding: 14px 20px;
             font-size: 15px;
             font-weight: 700;
         }
-        .btn-primary:active { background: var(--primary-blue-dark); }
+        .btn-primary:active { background: var(--navy-dark); }
         .btn-secondary {
             background: white;
-            color: var(--primary-blue);
-            border: 2px solid var(--primary-blue);
+            color: var(--navy);
+            border: 2px solid var(--navy);
             padding: 12px 20px;
             font-size: 14px;
             font-weight: 700;
         }
         .btn-text-link {
-            color: rgba(255, 255, 255, 0.7);
+            color: var(--navy);
             font-size: 13px;
             padding: 8px;
             text-decoration: underline;
@@ -237,18 +272,20 @@
         }
 
         /* ── Divider ─────────────────────────────── */
-        hr { border: none; border-top: 1px solid rgba(255, 255, 255, 0.15); margin: 22px 0; }
+        hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     </style>
 </head>
 <body>
 
-    <div class="content">
-
-        <header class="app-header" style="margin-bottom:20px">
-            <a href="./admin.html" class="btn-back" aria-label="Back to admin">←</a>
+    <header class="page-header">
+        <a href="./admin.html" class="btn-back" aria-label="Back to admin">←</a>
+        <div>
             <h1>🇪🇺 FIP Travel</h1>
-            <span class="badge-page">FIP</span>
-        </header>
+            <p class="sub">European travel for Chiltern Railways staff</p>
+        </div>
+    </header>
+
+    <div class="content">
 
         <!-- ── WHAT YOU GET ──────────────────────── -->
         <p class="section-label">What you get</p>
@@ -381,7 +418,7 @@
 
         <!-- ── EUROPEAN DESTINATIONS ─────────────── -->
         <p class="section-label">European destinations</p>
-        <p class="hint-text">Tap a country to see what to expect and how to book.</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Tap a country to see what to expect and how to book.</p>
 
         <details>
             <summary>🇫🇷 France <span class="chevron">▾</span></summary>
@@ -593,7 +630,7 @@
 
         <!-- ── FERRY SERVICES ─────────────────────── -->
         <p class="section-label">Ferry services</p>
-        <p class="hint-text">A small number of ferry operators take part in FIP — handy for reaching Ireland, the Netherlands, or Greece, especially if you're taking a car.</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">A small number of ferry operators take part in FIP — handy for reaching Ireland, the Netherlands, or Greece, especially if you're taking a car.</p>
 
         <details>
             <summary>⛴️ Stena Line — North Sea &amp; Irish Sea <span class="chevron">▾</span></summary>
@@ -625,7 +662,7 @@
 
         <!-- ── BOOKING FROM UK ───────────────────── -->
         <p class="section-label">Booking from the UK</p>
-        <p class="hint-text">Four ways to buy FIP tickets without travelling to a European station first.</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Four ways to buy FIP tickets without travelling to a European station first.</p>
 
         <div class="card">
             <div class="detail-list">

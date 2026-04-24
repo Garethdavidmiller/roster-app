@@ -97,6 +97,11 @@
     /* admin.html: override list pill text colours */
     --correction-text:   #e65100;   /* correction pill text (burnt orange) */
 
+    /* Page shell — unified max-width so calendar, admin and pay calculator
+       all feel like one product on desktop. Individual pages still control
+       their inner grid/column layout. */
+    --page-max-width: 1400px;
+
     /* Border Radius */
     --radius-sm:  8px;
     --radius-md: 12px;

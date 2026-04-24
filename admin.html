@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.41 -->
+<!-- MYB Roster Admin v7.42 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.41">
+    <link rel="manifest" href="manifest.json?v=7.42">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.41">
+    <link rel="stylesheet" href="shared.css?v=7.42">
 
     <style>
         body {
@@ -23,6 +23,10 @@
             background: var(--primary-blue);
             min-height: 100vh;  /* Fallback for browsers without dvh support */
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
+            padding-top:    max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            padding-left:   max(20px, env(safe-area-inset-left));
+            padding-right:  max(20px, env(safe-area-inset-right));
             overflow-x: hidden;
             overscroll-behavior: none;
             color: var(--text-dark);
@@ -32,7 +36,7 @@
         /* overflow-x: clip clips any child that overflows the container at the container
            boundary — prevents overflow from bleeding into body's 16px right padding
            (which would hide the blue edge). clip is safe: no scroll container created. */
-        .container { max-width: 1100px; width: 100%; margin: 0 auto; display: none; gap: 10px; box-sizing: border-box; overflow-x: clip; }
+        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 10px; box-sizing: border-box; overflow-x: clip; }
         body.auth-ready .container { display: grid; }
         /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
         .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
@@ -1906,8 +1910,8 @@
         /* ── Desktop: 1024px — two-column grid ── */
         @media (min-width: 1024px) {
             body.auth-ready .container {
-                grid-template-columns: 3fr 2fr;
-                column-gap: 20px;
+                grid-template-columns: minmax(0, 1.3fr) minmax(360px, 0.9fr);
+                column-gap: 24px;
                 align-items: start;
             }
 
@@ -2505,6 +2509,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.41"></script>
+<script type="module" src="./admin-app.js?v=7.42"></script>
 </body>
 </html>
