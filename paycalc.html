@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.42 -->
+<!-- MYB Roster — Pay Calculator v7.43 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.42">
+  <link rel="stylesheet" href="./shared.css?v=7.43">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -140,12 +140,12 @@
     }
     .result-net { background: var(--primary-blue); padding: 18px 16px 14px; text-align: center; }
     .net-label {
-      font-size: var(--type-micro); font-weight: 700; color: rgba(255,255,255,0.55);
+      font-size: var(--type-micro); font-weight: 700; color: rgba(255,255,255,0.68);
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
     }
     .net-amount { font-size: 52px; font-weight: 800; color: white; letter-spacing: -2px; line-height: 1; }
-    .net-period { font-size: 13px; color: rgba(255,255,255,0.3); margin-top: 4px; }
-    .net-hint   { font-size: 11px; color: rgba(255,255,255,0.22); margin-top: 3px; letter-spacing: 0.2px; }
+    .net-period { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.72); margin-top: 6px; }
+    .net-hint   { font-size: 12px; color: rgba(255,255,255,0.48); margin-top: 4px; letter-spacing: 0.1px; }
 
     .summary { padding: 2px 16px; }
     .sum-row {
@@ -622,6 +622,7 @@
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
+      .net-period { font-size: 17px; }
 
       /* Buttons: fixed-width — no reason to span a 700px card */
       .btn-primary { max-width: 240px; }
@@ -929,7 +930,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.42">
+  <link rel="manifest" href="./pay-manifest.json?v=7.43">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1553,6 +1554,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.42"></script>
+<script type="module" src="./paycalc.js?v=7.43"></script>
 </body>
 </html>
