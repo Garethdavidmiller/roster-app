@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.59';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.59';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.60';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.60';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -595,12 +595,17 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
-  // Update roster hint bar for this period (base roster, instant)
+  // Clear the override cache before rendering the hint — without this, the first
+  // hint render uses override data from the previous period (stale Firestore results).
+  _overrideFetchToken++;
+  _overridesByDate = new Map();
+
+  // Update roster hint bar for this period (base roster, instant; override data
+  // will be empty here and filled in once the Firestore fetch completes below).
   updateRosterHint();
 
-  // Fetch admin-added overrides from Firestore in the background. The fetch
-  // clears _overridesByDate synchronously and bumps a request token so any
-  // in-flight older fetch can no longer write stale data for the previous period.
+  // Fetch admin-added overrides from Firestore in the background. Bumps the token
+  // again and clears the map so any in-flight older fetch cannot write stale data.
   let session2;
   try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
   if (session2?.name) fetchOverrideSpecialDaysForPeriod(p, session2.name);
@@ -1156,12 +1161,15 @@ function calculate() {
   const peer = +document.getElementById('peerVal').textContent;
 
   const satHrs  = hhmmDec('satH',  'satM');
-  const bhHrs   = hhmmDec('bhH',   'bhM');
-  const bhOtHrs = hhmmDec('bhOtH', 'bhOtM');
+  // Guard: only count BH/Boxing hours if this period actually contains those days.
+  // localStorage can restore saved values into hidden rows, so we must sanitise here
+  // rather than relying solely on the DOM row being hidden.
+  const bhHrs   = hasBankHoliday(_curP) ? hhmmDec('bhH',   'bhM')   : 0;
+  const bhOtHrs = hasBankHoliday(_curP) ? hhmmDec('bhOtH', 'bhOtM') : 0;
   const oHrs    = hhmmDec('otH',   'otM');
   const rHrs    = hhmmDec('rdwH',  'rdwM');
   const sHrs    = hhmmDec('sunH',  'sunM');
-  const bHrs    = hhmmDec('boxH',  'boxM');
+  const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
   const satCapped  = Math.min(satHrs, CONTR);
   const normHrs    = CONTR - satCapped;     // non-Saturday contracted hours
@@ -1301,7 +1309,7 @@ function calculate() {
   const slSkip  = document.getElementById('slSkipCheck').checked;
   // Show the "not deducted this period" toggle only when a plan is selected
   document.getElementById('slSkipRow').classList.toggle('hidden', plan === 'none');
-  const sl      = (SL_PLAN && !slSkip) ? Math.max(0, (sacGross - SL_PLAN.t) * SL_PLAN.r) : 0;
+  const sl      = (SL_PLAN && !slSkip) ? Math.floor(Math.max(0, (sacGross - SL_PLAN.t) * SL_PLAN.r)) : 0;
 
   const net = sacGross - tax - ni - sl; // same as gross - pension - tax - ni - sl
 
