@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.61 -->
+<!-- MYB Roster Admin v7.62 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.61">
+    <link rel="manifest" href="manifest.json?v=7.62">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.61">
+    <link rel="stylesheet" href="shared.css?v=7.62">
 
     <style>
         body {
@@ -1907,18 +1907,23 @@
             .list-toolbar { flex-wrap: nowrap; gap: 10px; }
         }
 
-        /* ── Desktop: 1024px — two-column grid ── */
+        /* ── Desktop: 1024px — two-column grid ──
+           Change a Shift is the main work area and gets the wide left column.
+           AL booking, sick, notifications, and admin tools sit on the right.
+           Column minimums (640+280+24=944px) safely fit in 1024px viewport
+           minus 40px body padding = 984px available. */
         @media (min-width: 1024px) {
             body.auth-ready .container {
-                max-width: 1000px;
-                grid-template-columns: minmax(0, 1.3fr) minmax(360px, 0.9fr);
+                max-width: 1400px;
+                grid-template-columns: minmax(640px, 1fr) minmax(280px, 360px);
                 column-gap: 24px;
                 align-items: start;
             }
 
-            /* Header and overrides span both columns */
+            /* Full-width rows spanning both columns */
             .app-header          { grid-column: 1 / -1; }
             .member-context-bar  { grid-column: 1 / -1; }
+            #fipCard             { grid-column: 1 / -1; }
             #overridesCard       { grid-column: 1 / -1; }
 
             /* Explicit column assignment — prevents auto-placement mis-ordering */
@@ -2515,6 +2520,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.61"></script>
+<script type="module" src="./admin-app.js?v=7.62"></script>
 </body>
 </html>
