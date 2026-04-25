@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.59';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.59';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.61';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.61';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -40,7 +40,9 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.12 }, // pre-award £267.12 (P8–P28); new £276.16 from P36 (Oct award)
+    // londonAllowPre=pre-award, londonAllow=post-award, londonAllowFrom=first payday at new rate
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
+      londonAllow: 276.16, londonAllowPre: 267.12, londonAllowFrom: new Date(2025, 9, 24) },
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
@@ -329,6 +331,21 @@ function getThresholds(yearLabel) {
     londonAllow: ty.londonAllow,
   };
 }
+/**
+ * Return the London Allowance for a specific pay period.
+ * When a pay award mid-year changes the allowance, periods before londonAllowFrom
+ * use londonAllowPre; from londonAllowFrom onwards use londonAllow.
+ * @param {{payday: Date}} p
+ * @param {{londonAllow: number, londonAllowPre?: number, londonAllowFrom?: Date}} ty
+ * @returns {number}
+ */
+function getLondonAllowanceForPeriod(p, ty) {
+  if (ty.londonAllowPre && ty.londonAllowFrom && p.payday < ty.londonAllowFrom) {
+    return ty.londonAllowPre;
+  }
+  return ty.londonAllow;
+}
+
 
 /**
  * Apply progressive tax bands to a taxable amount.
@@ -595,12 +612,17 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
-  // Update roster hint bar for this period (base roster, instant)
+  // Clear the override cache before rendering the hint — without this, the first
+  // hint render uses override data from the previous period (stale Firestore results).
+  _overrideFetchToken++;
+  _overridesByDate = new Map();
+
+  // Update roster hint bar for this period (base roster, instant; override data
+  // will be empty here and filled in once the Firestore fetch completes below).
   updateRosterHint();
 
-  // Fetch admin-added overrides from Firestore in the background. The fetch
-  // clears _overridesByDate synchronously and bumps a request token so any
-  // in-flight older fetch can no longer write stale data for the previous period.
+  // Fetch admin-added overrides from Firestore in the background. Bumps the token
+  // again and clears the map so any in-flight older fetch cannot write stale data.
   let session2;
   try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
   if (session2?.name) fetchOverrideSpecialDaysForPeriod(p, session2.name);
@@ -942,9 +964,14 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
     snap.forEach(doc => {
       const d = doc.data();
       if (!d.date) return;
-      // If a date has multiple override docs (unusual but possible),
-      // the last one wins — matches what admin.html shows as "current".
-      map.set(d.date, { type: d.type, value: d.value });
+      // If a date has multiple override docs, keep the most recently created one.
+      // createdAt is a Firestore server timestamp — toMillis() gives ms since epoch.
+      const existing = map.get(d.date);
+      const docTs    = d.createdAt?.toMillis?.() ?? 0;
+      const existTs  = existing?._ts ?? -1;
+      if (!existing || docTs > existTs) {
+        map.set(d.date, { type: d.type, value: d.value, _ts: docTs });
+      }
     });
     _overridesByDate = map;
     updateRosterHint();
@@ -1146,7 +1173,8 @@ function calculate() {
   const _pNum   = currentPeriodNum();
   const _curP   = getPeriods().find(x => x.num === _pNum);
   const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL, londonAllow: LONDON } = getThresholds(_ty.label);
+  const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL } = getThresholds(_ty.label);
+  const LONDON = _curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow;
 
   const rate = numVal('hourlyRate') || 20.74;
   updateBadges(rate);
@@ -1156,12 +1184,15 @@ function calculate() {
   const peer = +document.getElementById('peerVal').textContent;
 
   const satHrs  = hhmmDec('satH',  'satM');
-  const bhHrs   = hhmmDec('bhH',   'bhM');
-  const bhOtHrs = hhmmDec('bhOtH', 'bhOtM');
+  // Guard: only count BH/Boxing hours if this period actually contains those days.
+  // localStorage can restore saved values into hidden rows, so we must sanitise here
+  // rather than relying solely on the DOM row being hidden.
+  const bhHrs   = hasBankHoliday(_curP) ? hhmmDec('bhH',   'bhM')   : 0;
+  const bhOtHrs = hasBankHoliday(_curP) ? hhmmDec('bhOtH', 'bhOtM') : 0;
   const oHrs    = hhmmDec('otH',   'otM');
   const rHrs    = hhmmDec('rdwH',  'rdwM');
   const sHrs    = hhmmDec('sunH',  'sunM');
-  const bHrs    = hhmmDec('boxH',  'boxM');
+  const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
   const satCapped  = Math.min(satHrs, CONTR);
   const normHrs    = CONTR - satCapped;     // non-Saturday contracted hours
@@ -1301,7 +1332,7 @@ function calculate() {
   const slSkip  = document.getElementById('slSkipCheck').checked;
   // Show the "not deducted this period" toggle only when a plan is selected
   document.getElementById('slSkipRow').classList.toggle('hidden', plan === 'none');
-  const sl      = (SL_PLAN && !slSkip) ? Math.max(0, (sacGross - SL_PLAN.t) * SL_PLAN.r) : 0;
+  const sl      = (SL_PLAN && !slSkip) ? Math.floor(Math.max(0, (sacGross - SL_PLAN.t) * SL_PLAN.r)) : 0;
 
   const net = sacGross - tax - ni - sl; // same as gross - pension - tax - ni - sl
 
@@ -1408,7 +1439,8 @@ function calcHPP() {
       // Full BH overtime, OT, RDW, Sunday, Boxing pay
       // London Allowance (explicitly included per Chiltern payroll)
       // NOT peer training (extra basic, not variable)
-      const { londonAllow: pLondon } = getThresholds(getTaxYearForOffset(p.num - 48).label);
+      const _pTy    = getTaxYearForOffset(p.num - 48);
+      const pLondon = getLondonAllowanceForPeriod(p, _pTy);
       const varPay =
         satCapped * (rate * 0.25) +  // sat uplift above base rate
         bhCapped  * (rate * 0.25) +  // bank holiday rostered premium above base rate
