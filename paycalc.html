@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.61 -->
+<!-- MYB Roster — Pay Calculator v7.62 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.61">
+  <link rel="stylesheet" href="./shared.css?v=7.62">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -585,14 +585,15 @@
     }
 
     /* ── Desktop: 1040px — two-column grid ──
-       grid-auto-flow: dense lets each column fill its own gaps independently,
-       so hiding/showing cards on either side can never leave orphaned space or
-       force the other column to stretch. No brittle row-span assumptions. */
+       Left column = work input (period controls, hours).
+       Right column = settings + result + detail cards.
+       grid-auto-flow: dense fills gaps independently so hiding/showing
+       cards never leaves orphaned space or stretches the other column. */
     @media (min-width: 1040px) {
       .app {
-        max-width: 960px;
+        max-width: 1400px;
         display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(360px, 420px);
+        grid-template-columns: minmax(0, 1fr) minmax(380px, 440px);
         column-gap: 24px;
         row-gap: 16px;
         align-items: start;
@@ -602,22 +603,22 @@
       /* Full-width rows spanning both columns */
       .app-header,
       #setupBanner,
-      #decimalConverterCard,
       .guide-footer-link,
       .disclaimer      { grid-column: 1 / -1; }
 
-      /* Left column: settings first (fills the page on initial setup), then
-         the period selector + hours input form once settings are saved */
-      #settingsCard,
+      /* Left column: period selector and hours entry — the main work area */
       .controls,
       #hoursCard       { grid-column: 1; }
 
-      /* Right column: result card (sticky) + archived period cards.
-         Result stays visible while the user scrolls the input column. */
+      /* Right column: settings first, then result card, then all detail/archive cards.
+         Settings lives here on desktop so it stays accessible without dominating the
+         work column. On mobile it still appears first in the document order. */
+      #settingsCard,
       .result-card,
       #payslipCard,
       #hppCard,
-      #backPayCard     { grid-column: 2; }
+      #backPayCard,
+      #decimalConverterCard { grid-column: 2; }
 
       .result-card     { position: sticky; top: 20px; }
 
@@ -625,7 +626,7 @@
       .net-amount { font-size: 60px; }
       .net-period { font-size: 17px; }
 
-      /* Buttons: fixed-width — no reason to span a 700px card */
+      /* Buttons: fixed-width — no reason to span a wide card */
       .btn-primary { max-width: 240px; }
 
       /* Lightbox: comfortable reading width */
@@ -931,7 +932,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.61">
+  <link rel="manifest" href="./pay-manifest.json?v=7.62">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1555,6 +1556,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.61"></script>
+<script type="module" src="./paycalc.js?v=7.62"></script>
 </body>
 </html>
