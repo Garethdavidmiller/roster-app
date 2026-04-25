@@ -131,13 +131,11 @@
     --page-max-width: 1400px;
 
     /* ── Border radius ───────────────────────────────────────────
-       Four steps: small for inputs, medium for content cards,
-       large for primary containers and headers, btn for action buttons.
-       Buttons use an aggressive pill radius — distinct from card rounding. */
+       Three steps: small for inputs/buttons, medium for content cards,
+       large for primary containers and headers. */
     --radius-sm:  8px;
     --radius-md: 16px;
     --radius-lg: 18px;
-    --radius-btn: 100px;
 
     /* ── Typography scale ────────────────────────────────────────
        Six steps from micro-labels to page titles. The 16px form input
