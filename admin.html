@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.63 -->
+<!-- MYB Roster Admin v7.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.63">
+    <link rel="manifest" href="manifest.json?v=7.64">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.63">
+    <link rel="stylesheet" href="shared.css?v=7.64">
 
     <style>
         body {
@@ -607,8 +607,8 @@
 
         .day-row:last-child { border-bottom: none; }
 
-        /* Pre-selected (checkbox ticked, no type yet) */
-        .day-row.selected   { background: var(--row-selected-bg); }
+        /* Pre-selected (checkbox ticked, no type yet) — gold left-border aligns with brand */
+        .day-row.selected   { background: rgba(245,200,0,0.08); border-left: 4px solid var(--accent-gold); }
         /* Active (type is set — ready to save) */
         .day-row.active     { background: var(--today-print); }
         /* Has an existing Firestore override — will overwrite */
@@ -1910,21 +1910,22 @@
         /* ── Desktop: 1024px — two-column grid ──
            Change a Shift is the main work area and gets the wide left column.
            AL booking, sick, notifications, and admin tools sit on the right.
-           Column minimums (640+280+24=944px) safely fit in 1024px viewport
+           Column minimums (600+340+24=964px) safely fit in 1024px viewport
            minus 40px body padding = 984px available. */
         @media (min-width: 1024px) {
             body.auth-ready .container {
                 max-width: 1400px;
-                grid-template-columns: minmax(640px, 1fr) minmax(280px, 360px);
+                grid-template-columns: minmax(600px, 1fr) minmax(340px, 420px);
                 column-gap: 24px;
                 align-items: start;
             }
 
             /* Full-width rows spanning both columns */
-            .app-header          { grid-column: 1 / -1; }
-            .member-context-bar  { grid-column: 1 / -1; }
-            #fipCard             { grid-column: 1 / -1; }
-            #overridesCard       { grid-column: 1 / -1; }
+            .app-header              { grid-column: 1 / -1; }
+            /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
+            .container > .member-context-bar { grid-column: 1 / -1; }
+            #fipCard                 { grid-column: 1 / -1; }
+            #overridesCard           { grid-column: 1 / -1; }
 
             /* Explicit column assignment — prevents auto-placement mis-ordering */
             .col-main { grid-column: 1; }
@@ -1938,10 +1939,36 @@
                 gap: 16px;
             }
 
+            /* Fix 6: sticky sidebar — action cards stay visible as the week grid grows */
+            .col-side { position: sticky; top: 20px; }
+
+            /* Fix 1: member bar restyled as compact white card once JS moves it into col-side */
+            .col-side .member-context-bar {
+                background: white;
+                border: 1px solid var(--border-light);
+                box-shadow: var(--shadow-1);
+            }
+            .col-side .member-context-bar label { color: var(--text-light); }
+            .col-side .member-context-bar select {
+                background: white;
+                border-color: var(--border-light);
+                color: var(--text-dark);
+            }
+            .col-side .member-context-bar select option { color: var(--text-dark); }
+
+            /* Fix 3: constrain week nav — looks loose stretching across a 600px column */
+            .week-nav { max-width: 480px; margin: 0 auto; }
+
+            /* Fix 4: desktop shift-row column zones */
+            .week-grid-header,
+            .day-row {
+                grid-template-columns: 36px 90px 110px minmax(300px, 1fr) 190px;
+            }
+
             /* Tighten week grid spacing */
             .day-row { gap: 10px; }
 
-            /* Save button: no need to span a 640px column */
+            /* Save button: no need to span a 600px column */
             .btn-save { max-width: 320px; }
 
             /* Bulk bar: slightly more spacious */
@@ -2520,6 +2547,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.63"></script>
+<script type="module" src="./admin-app.js?v=7.64"></script>
 </body>
 </html>
