@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.64 -->
+<!-- MYB Roster — Pay Calculator v7.65 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.64">
+  <link rel="stylesheet" href="./shared.css?v=7.65">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -883,56 +883,90 @@
     .guide-footer-link a:hover { color: white; }
   }
 
-  /* ── ROSTER HINT BAR ── */
-  .roster-hint-bar {
+  /* ── ROSTER SUGGESTION CARD ── */
+  .roster-card {
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
-    border-radius: var(--radius-sm); padding: 8px 12px;
-    margin-bottom: 10px;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px;
   }
-  .roster-hint-text {
+  .roster-card-header {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin-bottom: 8px;
+  }
+  .roster-card-title {
     font-size: var(--type-small); font-weight: 700; color: var(--text-dark);
-    flex: 1; min-width: 0;
   }
+  .roster-state-badge {
+    font-size: var(--type-micro); font-weight: 600; padding: 2px 8px;
+    border-radius: 99px; white-space: nowrap;
+  }
+  .roster-state-badge.loaded    { background: #e8f5e9; color: #2e7d32; }
+  .roster-state-badge.base-only { background: #fff8e1; color: #f57f17; }
+  .roster-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 8px; }
+  .roster-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 0; border-bottom: 1px solid var(--border-light);
+  }
+  .roster-row:last-child { border-bottom: none; }
+  .roster-row-icon  { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
+  .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); min-width: 90px; flex-shrink: 0; }
+  .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
+  .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; }
+  .roster-cat-btn {
+    padding: 3px 9px; background: white; color: var(--primary-blue);
+    border: 1.5px solid var(--border-mid); border-radius: var(--radius-sm);
+    font-family: inherit; font-size: var(--type-micro); font-weight: 700;
+    cursor: pointer; touch-action: manipulation; flex-shrink: 0;
+    transition: background 0.12s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .roster-cat-btn:hover { background: var(--bg-faint); }
+  }
+  .roster-card-note {
+    font-size: var(--type-micro); color: var(--text-faint);
+    line-height: 1.4; margin: 0 0 8px;
+  }
+  .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fill-roster-btn {
-    padding: 5px 12px;
-    background: var(--primary-blue); color: white;
+    padding: 5px 12px; background: var(--primary-blue); color: white;
     border: none; border-radius: var(--radius-sm);
     font-family: inherit; font-size: var(--type-small); font-weight: 700;
-    cursor: pointer; touch-action: manipulation; flex-shrink: 0;
-    transition: background 0.15s;
+    cursor: pointer; touch-action: manipulation; transition: background 0.15s;
   }
   @media (hover: hover) and (pointer: fine) {
     .fill-roster-btn:hover { background: var(--primary-blue-dark); }
   }
-  .roster-hint-note {
-    width: 100%; font-size: var(--type-micro); color: var(--text-faint);
-    line-height: 1.4;
-  }
   .roster-days-toggle {
-    background: none; border: none; padding: 0; margin-left: 8px;
+    background: none; border: none; padding: 0;
     font-family: inherit; font-size: var(--type-micro); font-weight: 700;
     color: var(--primary-blue); cursor: pointer; touch-action: manipulation;
     text-decoration: underline; text-underline-offset: 2px;
-    vertical-align: baseline;
   }
   .roster-day-list {
-    width: 100%; border-top: 1px solid var(--border-light);
-    margin-top: 6px; padding-top: 6px;
+    border-top: 1px solid var(--border-light); margin-top: 8px; padding-top: 8px;
   }
   .roster-day-row {
-    display: flex; gap: 10px; align-items: baseline;
-    font-size: var(--type-micro); padding: 2px 0;
+    display: flex; gap: 8px; align-items: center;
+    font-size: var(--type-micro); padding: 3px 0;
   }
   .roster-day-date  { width: 68px; flex-shrink: 0; font-weight: 600; color: var(--text-dark); }
-  .roster-day-shift { font-family: ui-monospace, 'Roboto Mono', monospace; color: var(--text-dark); }
-  .roster-day-tag   { color: var(--text-faint); }
+  .roster-day-shift { font-family: ui-monospace, 'Roboto Mono', monospace; color: var(--text-dark); flex: 1; }
+  .roster-day-chip  { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
+  .roster-day-chip--sat { background: var(--primary-blue); color: white; }
+  .roster-day-chip--sun { background: var(--blue-sky); color: white; }
+  .roster-day-chip--bh  { background: #7b1fa2; color: white; }
+  .roster-day-chip--box { background: var(--accent-gold); color: var(--primary-blue); }
+  .roster-day-chip--rdw { background: var(--rdw); color: white; }
+  .roster-view-link {
+    display: block; margin-top: 8px;
+    font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
+  }
+  @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
   .hhmm-field input.roster-suggested {
     background: #fffce6; border-color: var(--accent-gold);
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.64">
+  <link rel="manifest" href="./pay-manifest.json?v=7.65">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1056,6 +1090,7 @@
       <span class="save-status" id="saveStatus">No data saved for this period</span>
       <button class="clear-btn" id="clearBtn">Clear all entries</button>
     </div>
+    <a class="roster-view-link" id="rosterViewLink" href="./index.html">← View these dates in your roster calendar</a>
   </div>
 
   <!-- RESULT -->
@@ -1093,11 +1128,18 @@
 
       <div class="boxing-banner" id="boxingBanner">🎁 Boxing Day (26 Dec) falls in this period — 3× rate applies</div>
 
-      <!-- ROSTER HINT BAR: shown when the logged-in member has special shifts this period -->
-      <div class="roster-hint-bar" id="rosterHintBar" style="display:none">
-        <span class="roster-hint-text" id="rosterHintText">Your roster this period: –</span>
-        <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill blanks from roster →</button>
-        <div class="roster-hint-note">From your base roster and any admin-recorded overrides — only fills empty fields<button class="roster-days-toggle" id="rosterDaysToggle" type="button">Show days ▼</button></div>
+      <!-- ROSTER SUGGESTION CARD: shown when the logged-in member has special shifts this period -->
+      <div class="roster-card" id="rosterHintBar" style="display:none">
+        <div class="roster-card-header">
+          <span class="roster-card-title">Suggested from your roster</span>
+          <span class="roster-state-badge" id="rosterStateBadge"></span>
+        </div>
+        <div class="roster-rows" id="rosterRows"></div>
+        <p class="roster-card-note">Likely hours from your base roster and any admin-recorded overrides. Check against what you actually worked.</p>
+        <div class="roster-card-actions">
+          <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill blank fields</button>
+          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
+        </div>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
 
@@ -1556,6 +1598,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.64"></script>
+<script type="module" src="./paycalc.js?v=7.65"></script>
 </body>
 </html>
