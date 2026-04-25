@@ -3,8 +3,20 @@ rules_version = '2';
 // Deploy: firebase deploy --only firestore:rules
 // Or via Firebase Console → Firestore → Rules tab.
 //
-// Last updated: v6.44 — added 'shift' type to overrides allow list.
-// Legacy types (overtime/swap/allocated) retained so existing records still display correctly.
+// ⚠️  DEPLOYMENT ORDER — READ BEFORE DEPLOYING ⚠️
+//
+// These rules require Firebase Auth (request.auth != null) for all writes.
+// Deploy them ONLY AFTER running setupRosterAuth to create all staff accounts:
+//
+//   curl -X POST \
+//     -H "Authorization: Bearer <ROSTER_SECRET>" \
+//     https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth
+//
+// Until accounts exist, writes will fail. Once setupRosterAuth confirms all
+// accounts are created (check "created" + "skipped" arrays in the response),
+// deploy these rules: firebase deploy --only firestore:rules
+//
+// Last updated: v7.61 — added request.auth != null for all writes and deletes.
 
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -12,6 +24,7 @@ service cloud.firestore {
     match /overrides/{document=**} {
       allow read;
       allow create, update: if
+        request.auth != null &&
         request.resource.data.keys().hasAll(['date', 'memberName', 'type', 'value', 'note']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
@@ -21,32 +34,39 @@ service cloud.firestore {
         ] &&
         request.resource.data.value is string &&
         request.resource.data.value.size() > 0;
-      allow delete;
+      allow delete: if request.auth != null;
     }
 
     match /memberSettings/{document=**} {
       allow read;
       allow create, update: if
+        request.auth != null &&
         request.resource.data.keys().hasAll(['memberName', 'faithCalendar']) &&
         request.resource.data.memberName is string &&
         request.resource.data.faithCalendar in [
           'islamic', 'hindu', 'chinese', 'jamaican',
           'congolese', 'portuguese', 'none'
         ];
-      allow delete;
+      allow delete: if request.auth != null;
     }
 
     match /huddles/{date} {
       allow read;
+      // Cloud Function writes use Admin SDK — bypasses these rules entirely.
+      // Browser writes (manual admin upload) require auth.
       allow create, update: if
+        request.auth != null &&
         request.resource.data.keys().hasAll(['date', 'storageUrl', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.storageUrl is string;
-      allow delete;
+      allow delete: if request.auth != null;
     }
 
     match /pushSubscriptions/{docId} {
-      allow read, write: if true;
+      // Push subscriptions are written by the browser using the Web Push API.
+      // Authentication is by subscription endpoint (derived key) — any authenticated
+      // user may manage their own subscription.
+      allow read, write: if request.auth != null;
     }
 
   }

@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.60';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.60';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.61';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.61';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -40,7 +40,9 @@ const CONFIG = {
   // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
   // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
   TAX_YEARS: [
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027, londonAllow: 276.16, londonAllowPre: 267.12 }, // pre-award £267.12 (P8–P28); new £276.16 from P36 (Oct award)
+    // londonAllowPre=pre-award, londonAllow=post-award, londonAllowFrom=first payday at new rate
+    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
+      londonAllow: 276.16, londonAllowPre: 267.12, londonAllowFrom: new Date(2025, 9, 24) },
     { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
   ],
 };
@@ -329,6 +331,21 @@ function getThresholds(yearLabel) {
     londonAllow: ty.londonAllow,
   };
 }
+/**
+ * Return the London Allowance for a specific pay period.
+ * When a pay award mid-year changes the allowance, periods before londonAllowFrom
+ * use londonAllowPre; from londonAllowFrom onwards use londonAllow.
+ * @param {{payday: Date}} p
+ * @param {{londonAllow: number, londonAllowPre?: number, londonAllowFrom?: Date}} ty
+ * @returns {number}
+ */
+function getLondonAllowanceForPeriod(p, ty) {
+  if (ty.londonAllowPre && ty.londonAllowFrom && p.payday < ty.londonAllowFrom) {
+    return ty.londonAllowPre;
+  }
+  return ty.londonAllow;
+}
+
 
 /**
  * Apply progressive tax bands to a taxable amount.
@@ -947,9 +964,14 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
     snap.forEach(doc => {
       const d = doc.data();
       if (!d.date) return;
-      // If a date has multiple override docs (unusual but possible),
-      // the last one wins — matches what admin.html shows as "current".
-      map.set(d.date, { type: d.type, value: d.value });
+      // If a date has multiple override docs, keep the most recently created one.
+      // createdAt is a Firestore server timestamp — toMillis() gives ms since epoch.
+      const existing = map.get(d.date);
+      const docTs    = d.createdAt?.toMillis?.() ?? 0;
+      const existTs  = existing?._ts ?? -1;
+      if (!existing || docTs > existTs) {
+        map.set(d.date, { type: d.type, value: d.value, _ts: docTs });
+      }
     });
     _overridesByDate = map;
     updateRosterHint();
@@ -1151,7 +1173,8 @@ function calculate() {
   const _pNum   = currentPeriodNum();
   const _curP   = getPeriods().find(x => x.num === _pNum);
   const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL, londonAllow: LONDON } = getThresholds(_ty.label);
+  const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL } = getThresholds(_ty.label);
+  const LONDON = _curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow;
 
   const rate = numVal('hourlyRate') || 20.74;
   updateBadges(rate);
@@ -1416,7 +1439,8 @@ function calcHPP() {
       // Full BH overtime, OT, RDW, Sunday, Boxing pay
       // London Allowance (explicitly included per Chiltern payroll)
       // NOT peer training (extra basic, not variable)
-      const { londonAllow: pLondon } = getThresholds(getTaxYearForOffset(p.num - 48).label);
+      const _pTy    = getTaxYearForOffset(p.num - 48);
+      const pLondon = getLondonAllowanceForPeriod(p, _pTy);
       const varPay =
         satCapped * (rate * 0.25) +  // sat uplift above base rate
         bhCapped  * (rate * 0.25) +  // bank holiday rostered premium above base rate

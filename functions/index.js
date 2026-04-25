@@ -838,3 +838,99 @@ function normaliseShift(raw) {
     console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
     return 'RD';
 }
+
+// ── Firebase Auth account setup ──────────────────────────────────────────────
+
+/**
+ * Derive the Firebase Auth email from a teamMembers display name.
+ * Must stay in sync with nameToEmail() in firebase-client.js.
+ *
+ * @param {string} fullName - e.g. "G. Miller" → "g.miller@myb-roster.local"
+ */
+function nameToEmail(fullName) {
+    const parts   = fullName.split(' ');
+    const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
+    const surname = parts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return `${initial}.${surname}@myb-roster.local`;
+}
+
+/**
+ * Derive the Firebase Auth password from a teamMembers display name.
+ * Must stay in sync with getSurname() in admin-app.js.
+ *
+ * @param {string} fullName - e.g. "G. Miller" → "miller"
+ */
+function nameToPassword(fullName) {
+    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+/**
+ * All current roster members (excluding vacancies and cultural calendar entries).
+ * Update this list whenever teamMembers changes in roster-data.js.
+ */
+const ROSTER_MEMBERS = [
+    'L. Springer', 'A. Hared', 'G. Miller', 'M. Robson', 'C. Matthews',
+    'I. Cooper', 'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
+    'L. Atrakimaviciene', 'J. Haque', 'R. Frimpong', 'N. Tuck',
+    'R. Forrester-Blackstock', 'S. Langley', 'S. Silva', 'J. Sumaili',
+    'T. Bibi', 'T. Nsuala', 'D. Irvine', 'M. Okeke', 'T. Gherbi', 'C. Reen',
+    'D. Minto', 'A. Targanov', 'S. Warman', 'S. Faure', 'L. Szpejer',
+    'K. Porter', 'A. Murray', 'S. Clarke', 'A. Atkins', 'K. Yeboah',
+    'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru', 'L. Webster',
+    'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman',
+];
+
+/**
+ * POST /setupRosterAuth
+ *
+ * One-time setup function that creates Firebase Auth email/password accounts
+ * for all roster members. Run this once after deploying, then deploy the
+ * updated firestore.rules (which require request.auth != null for writes).
+ *
+ * Idempotent — if an account already exists it is skipped without error.
+ *
+ * Auth: Authorization: Bearer <ROSTER_SECRET>
+ *
+ * Response:
+ *   { created: string[], skipped: string[], failed: string[] }
+ */
+exports.setupRosterAuth = onRequest(
+    {
+        region:  'europe-west2',
+        secrets: [ROSTER_SECRET],
+        timeoutSeconds: 120,
+    },
+    async (req, res) => {
+        if (req.method !== 'POST') {
+            return res.status(405).send('Method not allowed');
+        }
+
+        const authHeader = req.headers['authorization'] || '';
+        if (authHeader !== `Bearer ${ROSTER_SECRET.value()}`) {
+            return res.status(403).json({ error: 'Forbidden' });
+        }
+
+        const created = [];
+        const skipped = [];
+        const failed  = [];
+
+        for (const name of ROSTER_MEMBERS) {
+            const email    = nameToEmail(name);
+            const password = nameToPassword(name);
+            try {
+                await admin.auth().createUser({ email, password, displayName: name });
+                created.push(name);
+                console.log(`[setupRosterAuth] Created: ${email}`);
+            } catch (err) {
+                if (err.code === 'auth/email-already-exists') {
+                    skipped.push(name);
+                } else {
+                    failed.push(name);
+                    console.error(`[setupRosterAuth] Failed for ${name}: ${err.message}`);
+                }
+            }
+        }
+
+        res.json({ created, skipped, failed });
+    }
+);

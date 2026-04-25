@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.60';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle } from './firebase-client.js?v=7.60';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.61';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.61';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -60,6 +60,7 @@ function saveSession(name) {
 
 function clearSession() {
     localStorage.removeItem(AUTH_KEY);
+    firebaseSignOut(auth).catch(() => {}); // fire-and-forget
 }
 
 // ---- Check session immediately ----
@@ -108,6 +109,9 @@ function initLoginOverlay() {
             return;
         }
         saveSession(name);
+        // Also authenticate with Firebase Auth so Firestore Security Rules can verify the session
+        // server-side. Fire-and-forget — silently ignored if accounts haven't been created yet.
+        signInWithEmailAndPassword(auth, nameToEmail(name), pw).catch(() => {});
         const redirect = new URLSearchParams(location.search).get('redirect');
         if (redirect === 'paycalc') {
             window.location.replace('./paycalc.html');

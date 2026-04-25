@@ -19,6 +19,11 @@ import {
     doc, serverTimestamp, writeBatch
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
+import {
+    getAuth,
+    signInWithEmailAndPassword,
+    signOut,
+} from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
@@ -36,6 +41,35 @@ export const db = getFirestore(app);
 
 // Re-export Firestore operation functions so callers import from one place.
 export { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch };
+
+// ---- Firebase Authentication ----
+
+/** Shared Firebase Auth instance. */
+export const auth = getAuth(app);
+
+// Re-export auth operations so callers import from one place.
+export { signInWithEmailAndPassword, signOut };
+
+/**
+ * Derive a stable Firebase Auth email from a teamMembers display name.
+ *
+ * Convention: initial.surname@myb-roster.local
+ *   "G. Miller"            → "g.miller@myb-roster.local"
+ *   "C. Francisco-Charles" → "c.franciscocharles@myb-roster.local"
+ *   "L. Atrakimaviciene"   → "l.atrakimaviciene@myb-roster.local"
+ *
+ * The @myb-roster.local domain is synthetic — these accounts are never used for email.
+ * The password matches the existing localStorage password (surname, lowercase, alpha only).
+ *
+ * @param {string} fullName - Display name exactly as stored in teamMembers
+ * @returns {string} Firebase Auth email address
+ */
+export function nameToEmail(fullName) {
+    const parts   = fullName.split(' ');
+    const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
+    const surname = parts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return `${initial}.${surname}@myb-roster.local`;
+}
 
 // ---- Firebase Storage ----
 

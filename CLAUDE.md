@@ -7,10 +7,11 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `7.07` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `7.61` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
+| | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` — One-time Firebase Auth account creation (POST with ROSTER_SECRET) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **GitHub Actions secrets required** (Settings → Secrets and variables → Actions):
@@ -323,7 +324,7 @@ A full audit was completed at v4.86. The items below are ordered by priority. It
 These were identified in the audit but not addressed. Tackle in future sessions:
 
 #### 🟠 High
-- **#14 — Authentication is client-side only.** Anyone who opens DevTools can impersonate any staff member by writing to localStorage. Plan: migrate to Firebase Authentication (email/password). Free at this scale, gives server-verified tokens.
+- **#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is now partially implemented (v7.61 — see below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` and deploying the updated rules. See "Firebase Auth migration" section below.
 
 #### 🟢 Low — UX improvements deferred at v6.30 (needs discussion before implementing)
 - **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming to something less exclusive (e.g. "My Shifts" or splitting into two entry points: a staff self-service button and a separate admin route). Requires discussion about branding and URL structure before changing.
@@ -735,5 +736,73 @@ Jamaican, Congolese, and Portuguese calendars are **rule-based** (fixed-date or 
 **Sources:** islamicfinder.org · drikpanchang.com (London timezone) · chinesenewyear.net
 
 `warnIfCulturalCalendarMissingYear()` in `roster-data.js` logs a console warning automatically if any of these datasets are missing data for the current year.
+
+---
+
+## Firebase Auth migration (v7.61 — two-phase rollout)
+
+### What was done (v7.61)
+
+Firebase Auth is now wired into the app, but the Firestore security rules haven't been deployed yet. The implementation is intentionally non-breaking — existing localStorage sessions continue to work exactly as before.
+
+**Changes in v7.61:**
+
+- **`firebase-client.js`**: Added Firebase Auth SDK import. Exports `auth`, `signInWithEmailAndPassword`, `signOut`, and `nameToEmail(fullName)`.
+- **`admin-app.js`**: After a successful localStorage login, also calls `signInWithEmailAndPassword` with the Firebase Auth email and password (fire-and-forget — silently ignored if the account doesn't exist yet). Sign-out also calls Firebase `signOut`.
+- **`functions/index.js`**: New `setupRosterAuth` Cloud Function creates Firebase Auth accounts for all roster members (idempotent — safe to re-run).
+- **`firestore.rules`**: Updated to require `request.auth != null` for all writes and deletes. **Not yet deployed** — see deployment steps below.
+
+### Email and password convention
+
+| Display name | Firebase email | Firebase password |
+|---|---|---|
+| G. Miller | g.miller@myb-roster.local | miller |
+| C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
+| L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
+
+Function: `nameToEmail(name)` in `firebase-client.js` and `nameToEmail(name)` / `nameToPassword(name)` in `functions/index.js` — both must stay in sync with `getSurname()` in `admin-app.js`.
+
+The `@myb-roster.local` domain is synthetic — these are not real email addresses. Firebase Auth accepts them as valid email format.
+
+### Phase 2 — completing the migration
+
+Run this once after the v7.61 Cloud Functions deploy has finished:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer <ROSTER_SECRET>" \
+  https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth
+```
+
+The response will list `created`, `skipped`, and `failed` accounts. Once `failed` is empty, deploy the updated Firestore rules:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+**Do not deploy the rules before running `setupRosterAuth`** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
+
+### Adding a new staff member
+
+When a new team member is added to `teamMembers` in `roster-data.js`:
+1. Add their name to `ROSTER_MEMBERS` in `functions/index.js` (same array used by `setupRosterAuth`).
+2. Re-run `setupRosterAuth` (idempotent — existing accounts are skipped).
+3. The new account is ready immediately. No Firestore rule change needed.
+
+---
+
+## Pay calculator — current reality (v7.07+)
+
+The pay calculator is primarily **manual-entry**. Staff enter their hours, and the calculator computes tax, NI, pension, and take-home pay.
+
+The **roster-assist hint bar** ("Fill from roster →") is a convenience feature, not a data pipeline:
+- It reads **base roster only** — the static patterns in `roster-data.js`
+- It **also** reads Firestore overrides for the current period (via `fetchOverrideSpecialDaysForPeriod`) to detect RDW and updated shifts
+- It counts Saturday, Sunday, bank holiday, and Boxing Day shifts and pre-fills those hours fields
+- It does **not** fill standard weekday hours — staff enter those manually
+- Pre-filled fields turn gold; editing them removes the highlight
+- It works offline (base roster) and improves with Firestore data when online
+
+The calculator is **not** a payslip replacement — it estimates take-home pay based on staff-entered data. Actual payslips from Chiltern may differ due to adjustments, arrears, and deductions not captured here.
 
 ---
