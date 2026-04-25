@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.58 -->
+<!-- MYB Roster — Pay Calculator v7.59 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.58">
+  <link rel="stylesheet" href="./shared.css?v=7.59">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -606,18 +606,19 @@
       .guide-footer-link,
       .disclaimer      { grid-column: 1 / -1; }
 
-      /* Left column: period selector + the main hours input card */
+      /* Left column: settings first (fills the page on initial setup), then
+         the period selector + hours input form once settings are saved */
+      #settingsCard,
       .controls,
       #hoursCard       { grid-column: 1; }
 
-      /* Right column: settings → result (sticky) → archived period cards */
-      #settingsCard,
+      /* Right column: result card (sticky) + archived period cards.
+         Result stays visible while the user scrolls the input column. */
       .result-card,
       #payslipCard,
       #hppCard,
       #backPayCard     { grid-column: 2; }
 
-      /* Result card stays visible while scrolling through the left column */
       .result-card     { position: sticky; top: 20px; }
 
       /* Headline figure benefits from the extra horizontal space */
@@ -930,7 +931,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.58">
+  <link rel="manifest" href="./pay-manifest.json?v=7.59">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1554,6 +1555,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.58"></script>
+<script type="module" src="./paycalc.js?v=7.59"></script>
 </body>
 </html>

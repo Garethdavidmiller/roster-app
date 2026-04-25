@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.58 -->
+<!-- MYB Roster Admin v7.59 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.58">
+    <link rel="manifest" href="manifest.json?v=7.59">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.58">
+    <link rel="stylesheet" href="shared.css?v=7.59">
 
     <style>
         body {
@@ -1917,8 +1917,13 @@
             }
 
             /* Header and overrides span both columns */
-            .app-header   { grid-column: 1 / -1; }
-            #overridesCard { grid-column: 1 / -1; }
+            .app-header          { grid-column: 1 / -1; }
+            .member-context-bar  { grid-column: 1 / -1; }
+            #overridesCard       { grid-column: 1 / -1; }
+
+            /* Explicit column assignment — prevents auto-placement mis-ordering */
+            .col-main { grid-column: 1; }
+            .col-side { grid-column: 2; }
 
             /* Column wrappers become flex containers with tighter gap */
             .col-main,
@@ -2510,6 +2515,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.58"></script>
+<script type="module" src="./admin-app.js?v=7.59"></script>
 </body>
 </html>
