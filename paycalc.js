@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.62';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.62';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.65';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.65';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -616,10 +616,15 @@ function onPeriodChange() {
   // hint render uses override data from the previous period (stale Firestore results).
   _overrideFetchToken++;
   _overridesByDate = new Map();
+  _overridesFetchState = 'base-only'; // reset: Firestore fetch for new period hasn't run yet
 
-  // Update roster hint bar for this period (base roster, instant; override data
+  // Update roster suggestion card for this period (base roster, instant; override data
   // will be empty here and filled in once the Firestore fetch completes below).
   updateRosterHint();
+
+  // Update Pay → Calendar link for this period
+  const _rvl = document.getElementById('rosterViewLink');
+  if (_rvl) _rvl.href = `./index.html?date=${formatISO(p.start)}`;
 
   // Fetch admin-added overrides from Firestore in the background. Bumps the token
   // again and clears the map so any in-flight older fetch cannot write stale data.
@@ -933,6 +938,10 @@ let _overridesByDate = new Map();
 // fetch from an earlier period can never overwrite the current period's data.
 let _overrideFetchToken = 0;
 
+// 'base-only': Firestore not yet attempted or failed — showing base roster only.
+// 'loaded':    Firestore succeeded — overrides applied to suggestions.
+let _overridesFetchState = 'base-only';
+
 let _adjNegative = false; // tracks intended sign of otherAdj independently of value
 
 /**
@@ -974,9 +983,11 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
       }
     });
     _overridesByDate = map;
+    _overridesFetchState = 'loaded';
     updateRosterHint();
   } catch {
-    // Firestore unavailable — base roster already shown, nothing to update
+    _overridesFetchState = 'base-only';
+    updateRosterHint(); // re-render so state badge updates from loading → base-only
   }
 }
 
@@ -990,6 +1001,7 @@ function getRosterSuggestion(p) {
 
   let satMins = 0, sunMins = 0, bhMins = 0, boxMins = 0, rdwMins = 0;
   let satCount = 0, sunCount = 0, bhCount = 0, boxCount = 0, rdwCount = 0;
+  let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
   const days = []; // individual dated shifts for the day list
 
   const cur = new Date(p.start);
@@ -1015,25 +1027,30 @@ function getRosterSuggestion(p) {
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
       const isBH     = !isBoxing && isDateInBHList(cur);
 
+      const fromOv = !!ov; // true if this day came from a Firestore override
       if (isBoxing) {
         boxMins += mins; boxCount++;
-        days.push({ date: new Date(cur), shift: effValue, type: 'box' });
+        if (fromOv) boxFromOv = true;
+        days.push({ date: new Date(cur), shift: effValue, type: 'box', source: fromOv ? 'override' : 'base' });
       } else if (isBH) {
         bhMins += mins; bhCount++;
-        days.push({ date: new Date(cur), shift: effValue, type: 'bh' });
+        if (fromOv) bhFromOv = true;
+        days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
       } else if (dow === 0) {
         // Sunday — the higher Sunday rate applies regardless of whether this
         // is a base Sunday or an RDW override. We tag the day as 'rdw' when
         // the override marks it so the day list shows the right icon.
         sunMins += mins; sunCount++;
-        days.push({ date: new Date(cur), shift: effValue, type: effType === 'rdw' ? 'rdw' : 'sun' });
+        if (fromOv) sunFromOv = true;
+        days.push({ date: new Date(cur), shift: effValue, type: effType === 'rdw' ? 'rdw' : 'sun', source: fromOv ? 'override' : 'base' });
       } else if (effType === 'rdw') {
-        // Rest-day-worked on a weekday or Saturday — RDW column
+        // Rest-day-worked on a weekday or Saturday — always an override
         rdwMins += mins; rdwCount++;
-        days.push({ date: new Date(cur), shift: effValue, type: 'rdw' });
+        days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
       } else if (dow === 6) {
         satMins += mins; satCount++;
-        days.push({ date: new Date(cur), shift: effValue, type: 'sat' });
+        if (fromOv) satFromOv = true;
+        days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: fromOv ? 'override' : 'base' });
       }
       // Mon–Fri non-BH, non-RDW: already in contracted basic pay — nothing to fill
     }
@@ -1051,6 +1068,7 @@ function getRosterSuggestion(p) {
     rdwH: Math.floor(rdwMins / 60), rdwM: rdwMins % 60,
     boxH: Math.floor(boxMins / 60), boxM: boxMins % 60,
     satCount, sunCount, bhCount, rdwCount, boxCount,
+    satFromOv, sunFromOv, bhFromOv, boxFromOv, rdwFromOv: true, // RDW is always an override
     memberName: member.name,
     days: allDays,
   };
@@ -1064,39 +1082,69 @@ function fmtH(h, m) {
 }
 
 function updateRosterHint() {
-  const bar = document.getElementById('rosterHintBar');
-  if (!bar) return;
+  const card = document.getElementById('rosterHintBar');
+  if (!card) return;
 
   const p = getPeriods().find(x => x.num === currentPeriodNum());
-  if (!p) { bar.style.display = 'none'; return; }
+  if (!p) { card.style.display = 'none'; return; }
 
   const s = getRosterSuggestion(p);
-  if (!s) { bar.style.display = 'none'; return; }
+  if (!s) { card.style.display = 'none'; return; }
 
-  // Reset day list to closed state whenever the period changes
-  const dayList   = document.getElementById('rosterDayList');
+  // State badge
+  const badge = document.getElementById('rosterStateBadge');
+  if (badge) {
+    if (_overridesFetchState === 'loaded') {
+      badge.textContent  = '✓ Roster + overrides';
+      badge.className    = 'roster-state-badge loaded';
+    } else {
+      badge.textContent  = '⚠ Base roster only';
+      badge.className    = 'roster-state-badge base-only';
+    }
+  }
+
+  // Category rows — only render rows that have data
+  const rows = document.getElementById('rosterRows');
+  if (rows) {
+    const cats = [
+      { cat: 'sat', icon: '🗓️', label: 'Saturday',    h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
+      { cat: 'sun', icon: '☀️', label: 'Sunday',       h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
+      { cat: 'bh',  icon: '🏦', label: 'Bank holiday', h: s.bhH,  m: s.bhM,  count: s.bhCount,  fromOv: s.bhFromOv  },
+      { cat: 'rdw', icon: '💼', label: 'RDW',          h: s.rdwH, m: s.rdwM, count: s.rdwCount, fromOv: true        },
+      { cat: 'box', icon: '🎁', label: 'Boxing Day',   h: s.boxH, m: s.boxM, count: s.boxCount, fromOv: s.boxFromOv },
+    ].filter(r => r.count > 0);
+
+    rows.innerHTML = cats.map(r => {
+      const total  = fmtH(r.h, r.m);
+      const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
+      const src    = _overridesFetchState === 'loaded'
+        ? (r.fromOv ? ' · Override' : ' · Base roster') : '';
+      return `<div class="roster-row">` +
+        `<span class="roster-row-icon">${r.icon}</span>` +
+        `<span class="roster-row-label">${r.label}</span>` +
+        `<span class="roster-row-total">${total}</span>` +
+        `<span class="roster-row-meta">${dayStr}${src}</span>` +
+        `<button class="roster-cat-btn" type="button" data-cat="${r.cat}" ` +
+          `aria-label="Fill ${r.label} hours from roster">Fill →</button>` +
+        `</div>`;
+    }).join('');
+  }
+
+  // Day list — reset to closed state on every period change
+  const dayList    = document.getElementById('rosterDayList');
   const daysToggle = document.getElementById('rosterDaysToggle');
   if (dayList)    dayList.style.display = 'none';
-  if (daysToggle) daysToggle.textContent = 'Show days ▼';
-
-  const parts = [];
-  if (s.satH || s.satM) parts.push(`${fmtH(s.satH, s.satM)} Sat`);
-  if (s.sunH || s.sunM) parts.push(`${fmtH(s.sunH, s.sunM)} Sun`);
-  if (s.bhH  || s.bhM)  parts.push(`${fmtH(s.bhH,  s.bhM)} BH`);
-  if (s.rdwH || s.rdwM) parts.push(`${fmtH(s.rdwH, s.rdwM)} RDW`);
-  if (s.boxH || s.boxM) parts.push(`${fmtH(s.boxH, s.boxM)} Boxing Day`);
-  document.getElementById('rosterHintText').textContent =
-    `Your roster this period: ${parts.join(' · ')}`;
-
-  // Show/hide the toggle depending on whether there are days to display
-  if (daysToggle) daysToggle.style.display = s.days.length ? '' : 'none';
+  if (daysToggle) {
+    daysToggle.textContent = 'Show days ▼';
+    daysToggle.style.display = s.days.length ? '' : 'none';
+  }
   renderRosterDayList(s.days);
-  bar.style.display = '';
+  card.style.display = '';
 }
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_TYPE_LABELS = { sat: '', sun: '', bh: 'BH', box: 'Boxing Day', rdw: 'RDW override' };
+const _DAY_CHIP_LABELS = { sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
 
 /** Populates the collapsible day list with the individual shifts behind the suggestion. */
 function renderRosterDayList(days) {
@@ -1107,11 +1155,11 @@ function renderRosterDayList(days) {
   list.innerHTML = days.map(d => {
     const dt      = d.date;
     const dateStr = `${_DAY_ABBS[dt.getDay()]} ${dt.getDate()} ${_MON_ABBS[dt.getMonth()]}`;
-    const tag     = _DAY_TYPE_LABELS[d.type];
+    const chipLabel = _DAY_CHIP_LABELS[d.type] || '';
     return `<div class="roster-day-row">` +
       `<span class="roster-day-date">${dateStr}</span>` +
       `<span class="roster-day-shift">${escapeHtml(d.shift)}</span>` +
-      (tag ? `<span class="roster-day-tag">${tag}</span>` : '') +
+      (chipLabel ? `<span class="roster-day-chip roster-day-chip--${d.type}">${chipLabel}</span>` : '') +
       `</div>`;
   }).join('');
 }
@@ -1126,33 +1174,47 @@ function toggleRosterDays() {
   btn.textContent    = opening ? 'Hide days ▲' : 'Show days ▼';
 }
 
+/** Fills a single H/M field pair if currently blank. */
+function _suggestIfBlank(hId, mId, hVal, mVal) {
+  const elH = document.getElementById(hId);
+  const elM = document.getElementById(mId);
+  if (!elH || !elM) return;
+  if (parseInt(elH.value) || parseInt(elM.value)) return; // already has a value — skip
+  if (!hVal && !mVal) return;
+  elH.value = hVal || '';
+  elM.value = mVal || '';
+  elH.classList.add('roster-suggested');
+  elM.classList.add('roster-suggested');
+}
+
+/** Fills only the named category's hours from the current roster suggestion. */
+function fillCategoryFromRoster(cat) {
+  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  if (!p) return;
+  const s = getRosterSuggestion(p);
+  if (!s) return;
+  const map = {
+    sat: ['satH', 'satM', s.satH, s.satM],
+    sun: ['sunH', 'sunM', s.sunH, s.sunM],
+    bh:  ['bhH',  'bhM',  s.bhH,  s.bhM ],
+    rdw: ['rdwH', 'rdwM', s.rdwH, s.rdwM],
+    box: ['boxH', 'boxM', s.boxH, s.boxM],
+  };
+  const args = map[cat];
+  if (args) { _suggestIfBlank(...args); autosave(); }
+}
+
+/** Fills ALL categories from the current roster suggestion (blank fields only). */
 function fillFromRoster() {
   const p = getPeriods().find(x => x.num === currentPeriodNum());
   if (!p) return;
-
   const s = getRosterSuggestion(p);
   if (!s) return;
-
-  // Only fill a field pair if both hours and minutes are currently blank/zero.
-  // This prevents a tap from silently overwriting hours the user has already entered.
-  const suggestIfBlank = (hId, mId, hVal, mVal) => {
-    const elH = document.getElementById(hId);
-    const elM = document.getElementById(mId);
-    if (!elH || !elM) return;
-    if (parseInt(elH.value) || parseInt(elM.value)) return; // already has a value — skip
-    if (!hVal && !mVal) return;
-    elH.value = hVal || '';
-    elM.value = mVal || '';
-    elH.classList.add('roster-suggested');
-    elM.classList.add('roster-suggested');
-  };
-
-  suggestIfBlank('satH', 'satM', s.satH, s.satM);
-  suggestIfBlank('sunH', 'sunM', s.sunH, s.sunM);
-  suggestIfBlank('bhH',  'bhM',  s.bhH,  s.bhM);
-  suggestIfBlank('rdwH', 'rdwM', s.rdwH, s.rdwM);
-  suggestIfBlank('boxH', 'boxM', s.boxH, s.boxM);
-
+  _suggestIfBlank('satH', 'satM', s.satH, s.satM);
+  _suggestIfBlank('sunH', 'sunM', s.sunH, s.sunM);
+  _suggestIfBlank('bhH',  'bhM',  s.bhH,  s.bhM);
+  _suggestIfBlank('rdwH', 'rdwM', s.rdwH, s.rdwM);
+  _suggestIfBlank('boxH', 'boxM', s.boxH, s.boxM);
   autosave();
 }
 
@@ -1850,9 +1912,15 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   document.querySelector('.result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-// Roster fill
+// Roster fill — "Fill blank fields" button + per-category "Fill →" buttons
 const _fillBtn = document.getElementById('fillFromRosterBtn');
 if (_fillBtn) _fillBtn.addEventListener('click', fillFromRoster);
+
+// Per-category fill buttons are dynamically rendered inside #rosterRows — use delegation
+document.getElementById('rosterRows')?.addEventListener('click', e => {
+  const btn = e.target.closest('[data-cat]');
+  if (btn) fillCategoryFromRoster(btn.dataset.cat);
+});
 
 // Remove roster-suggested highlight as soon as the user edits any hours input
 document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#sunH,#sunM,#boxH,#boxM').forEach(el => {

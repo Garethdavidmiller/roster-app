@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.62';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.62';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.65';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.65';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -392,6 +392,17 @@ const shiftNote             = document.getElementById('shiftNote');
 const overridesMonthFilter  = document.getElementById('overridesMonthFilter');
 const selectAllOverrides    = document.getElementById('selectAllOverrides');
 const bulkDeleteBtn         = document.getElementById('bulkDeleteBtn');
+
+// On desktop, move the member-context-bar into col-side as the first card.
+// This replaces the full-width navy banner with a compact white sidebar card.
+// Mobile layout is unaffected — the bar stays in its original HTML position
+// (before col-main) when the viewport is < 1024px.
+(function syncMemberBarToSidebar() {
+    if (!window.matchMedia('(min-width: 1024px)').matches) return;
+    const bar     = document.querySelector('.member-context-bar');
+    const colSide = document.querySelector('.col-side');
+    if (bar && colSide) colSide.insertBefore(bar, colSide.firstChild);
+})();
 
 // ============================================
 // POPULATE MEMBER DROPDOWNS
