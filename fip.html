@@ -273,6 +273,52 @@
 
         /* ── Divider ─────────────────────────────── */
         hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+
+        /* ── Source bar ──────────────────────────── */
+        .source-bar {
+            background: var(--white);
+            border-bottom: 1px solid var(--border);
+            padding: 9px 14px;
+            font-size: 12px;
+            color: var(--light);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 14px;
+        }
+        .source-bar a { color: var(--blue-text); text-decoration: none; }
+        .source-bar a:hover { text-decoration: underline; }
+
+        /* ── Checklist ───────────────────────────── */
+        .checklist { list-style: none; }
+        .checklist li {
+            padding: 8px 14px 8px 36px;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+        }
+        .checklist li:last-child { border-bottom: none; }
+        .checklist li::before {
+            content: '☐';
+            position: absolute;
+            left: 12px;
+            color: var(--mid);
+            font-size: 15px;
+        }
+
+        /* ── Summary warning badge ───────────────── */
+        .summary-warn {
+            font-size: 11px;
+            font-weight: 700;
+            background: var(--yellow-bg);
+            color: #7a5500;
+            border: 1px solid var(--yellow-bdr);
+            border-radius: 8px;
+            padding: 2px 7px;
+            margin-left: 6px;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -284,6 +330,12 @@
             <p class="sub">European travel for Chiltern Railways staff</p>
         </div>
     </header>
+
+    <div class="source-bar">
+        <span>Last checked: April 2026</span>
+        <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener">RDG Europe &amp; FIP guide ↗</a>
+        <a href="https://www.raildeliverygroup.com/rst/forms.html" target="_blank" rel="noopener">RST forms ↗</a>
+    </div>
 
     <div class="content">
 
@@ -432,6 +484,11 @@
         <p class="section-label">European destinations</p>
         <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Tap a country to see what to expect and how to book.</p>
 
+        <div class="box box-yellow" style="margin-bottom:12px">
+            <strong>Always compare public fares first</strong>
+            A FIP discounted fare is not automatically the cheapest option. Advance public tickets, promotions, and low-cost operators can sometimes beat the FIP price — especially outside peak periods. Check before you book.
+        </div>
+
         <div class="box box-blue" style="margin-bottom:12px">
             <strong>Cross-border journeys</strong>
             On a cross-border journey where coupons are accepted, you need a coupon for <strong>each country you travel through</strong> — regardless of which company operates the train. Each national railway publishes a table of transit points that define exactly where one country's coupon ends and the next begins.<br><br>
@@ -462,7 +519,7 @@
         </details>
 
         <details>
-            <summary>🇧🇪 Belgium <span class="chevron">▾</span></summary>
+            <summary>🇧🇪 Belgium <span class="summary-warn">⚠ buy before boarding from Jul 2026</span><span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
                     <span class="tag tag-yes">FIP Card ✓</span>
@@ -470,8 +527,9 @@
                 </div>
                 <p><strong>Operator: SNCB / NMBS</strong></p>
                 <p>Both 75% FIP tickets and free coupons are valid. No reservation is required — buy your ticket and travel.</p>
-                <div class="box box-blue" style="margin-top:8px;margin-bottom:0">
-                    <strong>From July 2026:</strong> Tickets cannot be bought on board. Make sure you buy before boarding at a station ticket desk.
+                <div class="box box-yellow" style="margin-top:8px;margin-bottom:0">
+                    <strong>⚠ From 1 July 2026 — buy before boarding</strong>
+                    SNCB will no longer sell tickets on board, including FIP discounted tickets. Buy at a station ticket desk before you board. Do not assume you can pay on the train.
                 </div>
             </div>
         </details>
@@ -799,6 +857,38 @@
         </div>
 
 
+        <!-- ── COMMON MISTAKES ───────────────────── -->
+        <p class="section-label">Common mistakes</p>
+
+        <div class="card">
+            <ul class="rule-list">
+                <li class="no">Assuming Eurostar accepts FIP coupons — it doesn't. Fixed FIP fares apply instead</li>
+                <li class="no">Assuming FIP is always cheaper than public fares — compare advance tickets first</li>
+                <li class="no">Forgetting that FIP seats on quota-controlled trains can sell out weeks ahead</li>
+                <li class="no">Writing on a coupon too early — fill in the date as close to travel as possible, in permanent ink, no corrections</li>
+                <li class="no">Using a coupon on a private operator (Italo, OUIGO, Ouigo Spain, RegioJet) — FIP is only valid on the national operator</li>
+                <li class="no">Assuming city metros and trams are included — they almost never are</li>
+                <li class="no">Forgetting that reservations are still required on many high-speed trains even with a coupon</li>
+                <li class="no">Trying to buy on board in Belgium from July 2026 — you must buy before boarding</li>
+            </ul>
+        </div>
+
+
+        <!-- ── WHAT TO CARRY ─────────────────────── -->
+        <p class="section-label">What to carry</p>
+
+        <div class="card">
+            <ul class="checklist">
+                <li>Passport</li>
+                <li>FIP Card (if using discounted fares)</li>
+                <li>FIP coupons filled in correctly (if using free travel)</li>
+                <li>Seat reservation or supplement confirmation where required</li>
+                <li>Printed or digital ticket confirmation</li>
+                <li>Any booking reference from Trainseurope / bookmyrst.co.uk</li>
+            </ul>
+        </div>
+
+
         <!-- ── RULES ──────────────────────────────── -->
         <p class="section-label">Important to know</p>
 
@@ -849,7 +939,7 @@
         </a>
 
         <p style="font-size:11px;color:var(--light);opacity:0.7;text-align:center;margin-top:20px;line-height:1.6">
-            Last checked: April 2026 · Source: <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener" style="color:inherit">Rail Delivery Group / Rail Staff Travel</a>
+            Quick reference only — always verify with <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener" style="color:inherit">Rail Delivery Group</a> before booking
         </p>
 
     </div>
