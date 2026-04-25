@@ -523,6 +523,13 @@ body {
     .btn-signout:hover { border-color: var(--error-red); color: var(--error-red); }
 }
 
+@media (max-width: 768px) {
+    body {
+        padding-left:  max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
+}
+
 @media (max-width: 480px) {
     .app-header {
         gap: 6px;
