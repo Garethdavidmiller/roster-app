@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `7.61` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `7.68` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -92,15 +92,15 @@ roster-app/
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
-├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v6.53
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v7.68
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
-├── pay-service-worker.js   ← migration stub only — cleans up old myb-pay-calc-* caches; safe to delete after ~May 2026
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
+├── fip.html                ← FIP European travel guide for staff (linked from admin.html)
 ├── guide.html              ← printable staff + admin quick guide (update at major versions: v7, v8 …)
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 └── functions/
-    ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF
+    ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF + setupRosterAuth
     └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
 ```
 
@@ -108,7 +108,7 @@ roster-app/
 - Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `paycalc.html`, `paycalc.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
-- One SW (`service-worker.js`) covers all three pages. `pay-service-worker.js` is a stub that deregisters old caches and hands control over.
+- One SW (`service-worker.js`) covers all three pages.
 
 ---
 
@@ -274,120 +274,21 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ---
 
-## Senior code review — v4.86 → v4.92 (March 2026)
+## Known issues & deferred work
 
-A full audit was completed at v4.86. The items below are ordered by priority. Items marked ✅ were fixed in v4.92.
+### 🟠 High priority
 
-### Fixed in v4.92
+**#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is partially implemented (v7.61 — see "Firebase Auth migration" section below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` then deploying the updated rules. **Do not deploy the rules before accounts exist** — all Firestore writes will fail and the app will break for everyone.
 
-| # | Severity | What was fixed |
-|---|----------|----------------|
-| 2/25 | 🟠 High | **Service worker offline fallback was broken.** `caches.match() \|\| caches.match()` joined two Promises (always truthy), so the index.html fallback never triggered. Fixed to `.then(r => r \|\| ...)`. |
-| 26 | 🟠 High | **Cache name was independent of app version.** Cache is now `myb-roster-v{APP_VERSION}` so any version bump automatically invalidates old caches across all clients. |
-| 27 | 🟠 High | **`cache.addAll()` on all assets — a missing icon blocked SW install.** Icons are now cached individually in try/catch so a transient network error on one icon does not prevent the service worker from activating. |
-| 20 | 🟢 Low | **`"./"` and `"./index.html"` were both in ASSETS_TO_CACHE** — same resource cached twice. Removed `"./"`. |
-| 5 | 🟢 Low | **CSS `dvh`/`vh` fallback order was wrong** — `100dvh` came first then `100vh` overwrote it in all browsers. Swapped to `100vh` first, `100dvh` second (modern browsers use the last valid value). Fixed in both HTML files. |
-| 1 | 🟠 High | **`#alConfirmBar` HTML was after `</script>` outside the normal document flow.** Moved inside `<body>` alongside other UI elements where it is guaranteed to render correctly. |
-| 3 | 🟡 Med | **Payday loop had no guard.** If `FIRST_PAYDAY` were ever misconfigured, the while loop could iterate thousands of times. Added a 1000-iteration guard with a `console.warn`. |
-| 6 | 🟢 Low | **`calculateBankHolidays()` had no year-range guard.** Now returns `[]` and logs a warning for years outside `CONFIG.MIN_YEAR`–`CONFIG.MAX_YEAR`. |
-| 4 | 🟡 Med | **`getSurname()` lacked documentation.** Added JSDoc explaining exactly which characters are stripped and warning that changing this function locks out all staff. |
-| 21 | 🟡 Med | **`select:focus { outline: none }` removed focus ring for keyboard/AT users.** Removed the `:focus` suppression rule; the styled ring is now applied only on `:focus-visible`. Fixed in both HTML files. |
-| 29 | 🟢 Low | **`manifest.json` was missing `id` field.** Added `"id": "/"`. Without it, if the URL ever changes, installed PWAs lose their home-screen icon. |
-| 33 | 🟡 Med | **Roster pattern strings had no validation.** Added `validateRosterPatterns()` and `warnIfCulturalCalendarMissingYear()` in `roster-data.js`; both run automatically at module load and log errors/warnings to the console. |
-| 10 | 🟡 Med | **Version number required manual updates in 7 places** — a known source of drift. `APP_VERSION` is now exported from `roster-data.js` and read by both HTML files via `CONFIG.APP_VERSION`. The remaining manual step is updating the import `?v=` cache-busting strings. |
-| 15 | 🟠 High | **innerHTML + Firestore data audit.** Reviewed all `innerHTML` assignments. The override list table (admin.html ~3296) correctly passes all Firestore values through `esc()`. The `alPreview.innerHTML` correctly uses `esc(member)`. All other `innerHTML` assignments use only app-computed values. **No changes required — audit passed.** |
-| 30 | 🟢 Low | **No PWA shortcuts defined in manifest.** Added `shortcuts` array with "My Roster" (index.html) and "Admin" (admin.html) entries, each with a 192×192 icon. |
-| 24 | 🟢 Low | **Print output lacked member name, date, and print timestamp.** index.html uses `beforeprint` to set `data-print-date` on `.header`; admin.html populates a `#printHeader` div with member name, week label, and timestamp. |
-| 19 | 🟢 Low | **Override list re-queried Firestore after every edit.** After saving or deleting, `allOverrides` is now updated in-memory (filter removed IDs, push new docs, re-sort) and `renderTable()` is called directly — no round-trip. |
-| 18 | 🟡 Med | **`getShiftTypesInMonth()` recalculated all days on every swipe.** Result is now memoised in a Map keyed by `"memberName\|year\|month"`, cleared on override change. |
-| 22 | 🟡 Med | **Splash screen used a fixed 1.5s delay.** Now dismissed when `renderCalendar()` completes, with a 300ms minimum to ensure the calendar is painted before the fade. |
-| 35 | 🟢 Low | **No linter or formatter.** Added `.eslintrc.json` (`eslint:recommended`) and `.prettierrc` to the repo root. |
-| 28 | 🟡 Med | **admin.html auto-reloaded immediately on `controllerchange`.** Added SW registration to admin.html with an `#updateToast` banner (top of screen, navy + gold "Refresh now" button). Toast appears when a new SW is waiting; pressing the button sends `SKIP_WAITING` then reloads — user controls when to refresh. |
-| 8 | 🟠 High | **~1,500 lines of CSS duplicated** between index.html and admin.html. Extracted shared CSS to `shared.css` (242 lines); both HTML files now link to it. |
-| 7 | 🟠 High | **Core roster logic duplicated across both HTML files.** `getWeekNumberForDate`, `getRosterForMember`, `getShiftBadge`, etc. moved to `roster-data.js` and exported. Both HTML files import them. admin.html retains a one-liner `shiftBadge()` alias with a different default separator — not a duplicate. |
-| 34 | 🟡 Med | **No automated tests.** Added `roster-data.test.mjs` (158 lines) using Node's built-in `node:test` runner — covers bank holidays, Easter, paydays, cutoffs, AL entitlement, and roster validation. Run with `node --test roster-data.test.mjs`. |
-| 23 | 🟢 Low | **Legend was very long on mobile.** Responsive CSS collapses the three legend rows into a single centred strip at narrow viewports. |
-| 31/16 | 🟠 High | **Two 4,000-line monolithic HTML files; JS embedded in HTML.** Extracted all JavaScript from `index.html` into `app.js` (1,693 lines) and from `admin.html` into `admin-app.js` (1,983 lines). Both HTML files now contain only HTML and CSS. JS can now be linted, cached independently, and navigated separately. |
-| 9/32 | 🟡 Med | **Cultural calendar dates were 400+ lines of hardcoded strings.** Added three private helpers (`fixedAnnualDate`, `easterOffset`, `nthWeekdayOfMonth`) in `roster-data.js`. 18 of 33 datasets (all fixed-date, Easter-relative, and day-of-week-rule holidays) are now auto-computed for the full CONFIG year range — no manual updates ever needed. 15 genuinely lunar/lunisolar datasets (Islamic ×5, Hindu ×5, Chinese ×5) remain as lookup tables and still need annual updates. `warnIfCulturalCalendarMissingYear()` now checks all 15 of these. |
+### 🟡 UX decisions on hold (needs discussion before implementing)
 
-| v5.00 | 🟡 Med | **SW offline fallback served index.html for admin requests.** The catch branch fell back to `caches.match("./index.html")` regardless of which page was requested. Fixed to detect `admin` in the path and fall back to `./admin.html` instead. |
-| v5.00 | 🟢 Low | **`shared.css?v=` was missing from the version bump checklist.** Both HTML files were stuck on `?v=4.93` while the app moved through several releases. Added `shared.css` to the mandatory version bump table and corrected both references to v5.00. |
-| v5.00 | 🟢 Low | **app.js defined `dayNames` and `dayKeys` locally when identical constants were already imported from `roster-data.js`.** Removed local declarations; all call sites updated to use `DAY_NAMES` and `DAY_KEYS`. `fullDayNames` and `monthNames` retained as they have no equivalent in the shared module. |
-| v5.00 | 🟢 Low | **Test suite expanded from 23 to 51 tests.** Added coverage for `isChristmasRD`, `isEarlyShift`, `isNightShift`, `getShiftClass`, `getShiftBadge`, `isSameDay`, `getRosterForMember`, `getWeekNumberForDate`, `getBaseShift`, and AL entitlement edge cases. |
-| v5.15 | 🟢 Low | **"Book/Booked Annual Leave" label was verbose.** Renamed to "Record Annual Leave" in both the type pill and the confirm button for consistency and brevity. |
-| v5.16 | 🟢 Low | **Date inputs in the sick/AL date row overflowed their container on narrow viewports.** Added `min-width: 0` and `width: 100%` to `.date-input` so inputs shrink correctly inside the flex row. |
-| v5.17 | 🟢 Low | **Bulk type pills left-aligned when wrapping to a second row.** Added `justify-content: center` to `.bulk-type-group` so the second row (Swap, Sick, Rest Day) is centred rather than left-orphaned on mobile. |
-| v5.00 | 🟡 Med | **#11 — `ADMIN_NAME` was hardcoded** in `admin-app.js`. Moved to `CONFIG.ADMIN_NAMES` as an array in `roster-data.js`. Admin check now uses `CONFIG.ADMIN_NAMES.includes(currentUser)`. |
+- **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming (e.g. "My Shifts") or splitting into separate staff and admin entry points. Requires discussion about branding and URL structure before changing.
+- **Shift type count** — The admin type selector has 8 types. RDW/Overtime/Swap/Allocated are subtly different and create cognitive load for infrequent users. Consider whether any can be merged or renamed for clarity. Requires discussion about operational use before changing.
 
-### Remaining items — not yet fixed
+### 🟢 UX ideas — explored but held back
 
-These were identified in the audit but not addressed. Tackle in future sessions:
-
-#### 🟠 High
-- **#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is now partially implemented (v7.61 — see below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` and deploying the updated rules. See "Firebase Auth migration" section below.
-
-#### 🟢 Low — UX improvements deferred at v6.30 (needs discussion before implementing)
-- **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming to something less exclusive (e.g. "My Shifts" or splitting into two entry points: a staff self-service button and a separate admin route). Requires discussion about branding and URL structure before changing.
-- **Shift type count** — The admin type selector has 8 types. RDW / Overtime / Swap / Allocated are subtly different and create cognitive load for infrequent users. Consider whether any can be merged or renamed for clarity (e.g. Overtime and Swap may rarely be distinguished in practice). Requires discussion about operational use before changing.
-
-#### 🟡 UX ideas — explored but held back (see roadmap.md for full notes)
-- **Bottom navigation bar** — A persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Technically complete but felt like clutter in practice. Worth revisiting if the app grows more pages or user feedback confirms the navigation gap.
-- **Glanceable summary strip** — Four chips below the controls showing Today's shift / Next RD / Leave left / Payday. Infrastructure is straightforward (base roster + Firestore), but adds visual noise above the calendar. Consider if staff specifically request "at a glance" information.
-
-### Fixed after v5.19
-
-| Version | Severity | What was fixed |
-|---------|----------|----------------|
-| v5.18 | 🟢 Low | **Colour audit — RDW, late, spare, rest day.** RDW changed from magenta to amber (distinct from sick's red family). Late badge darkened (#2196f3 → #1565c0, contrast 3.7:1 → 8.5:1). Spare badge darkened (#9c27b0 → #7b1fa2, contrast 3.5:1 → 8.3:1). Rest day background changed from pure white to #f9f9fb so cells don't vanish on the page. |
-| v5.19 | 🟠 High | **RDW text contrast failures in admin.** Amber text on white pill (1.4:1) and amber text on pale amber lpill (1.4:1) both failed WCAG AA. Added --rdw-text: #8b6000 (dark amber, 5.5:1 on white) for all text-on-light contexts. |
-| #13 | 🔴 Critical | **Firestore Security Rules deployed.** Rules now: allow reads on both collections; allow writes only if all required fields are present and `type`/`faithCalendar` values are within the valid set. Junk/missing-field writes return 403. Verified by live REST API tests (read ✅, invalid write blocked ✅, valid write allowed ✅). Rules are now tracked in `firestore.rules` in the repo root (added v6.39). Deploy with: `firebase deploy --only firestore:rules` |
-| v5.22 | 🟢 Low | **RDW colour reverted to magenta** (`#c2185b`) while colour scheme is reconsidered. Amber was too close to early-shift orange. RDW badge text changed from dark (`--text-dark`) to white (7.9:1 contrast on magenta). `--rdw-light` set to `#fce4ec`, `--rdw-text` to `#880e4f`. |
-| v5.23 | 🟢 Low | **Per-row type pills centred** in the week grid to match the bulk-bar pills (added `justify-content: center` to `.col-pills`). |
-| v5.23 | 🟢 Low | **Button label casing made consistent** — "Save Changes", "Record Annual Leave", "Record Sick Days" changed to sentence case to match the rest of the UI. |
-| v5.23 | 🟠 High | **`fetchedMonths` no longer permanently poisoned on Firestore error.** Month key deleted from Set in catch block so it retries on next navigation. |
-| v5.23 | 🟢 Low | **AL/sick booked boxes now show all years** instead of filtering to the year inferred from input fields, which could silently hide records from other years. |
-| v5.23 | 🟡 Med | **Service worker network-first fetch bypasses browser HTTP cache** (`{ cache: 'no-store' }`) so a stale HTTP-cached file can no longer defeat the network-first strategy. |
-| v5.23 | 🟡 Med | **Service worker network-first fetch times out after 5 s** on slow/hanging connections and falls back to the cached copy, preventing indefinite loading on weak signal. |
-| v5.23 | 🟢 Low | **Deep-link card scroll** switched from `setTimeout(300)` to double `requestAnimationFrame` for reliable timing on slow devices. |
-| v5.23 | 🟢 Low | **SW update poll interval** cleared on `visibilitychange: hidden` to avoid unnecessary background network traffic on mobile. |
-| v5.48 | 🟢 Low | **Month/year filter added to Saved Changes.** Dropdown in the list toolbar lets admin filter overrides by month. Options rebuild automatically from available data when member selection changes. |
-| v5.48 | 🟢 Low | **Per-row note buttons replaced with a shared note field.** The `+ Note` button on each day row (and its expanding note-row, extra grid column, and associated CSS) was removed. A single `Note (optional)` input now sits between the week grid and the Save button — applies to all days in the batch. Pre-populates when editing an existing override that has a note. Clears on save. |
-| v5.49 | 🟢 Low | **Stale note field on week navigation fixed.** Typing a note then swiping or navigating to a different week without saving left the old note text in the field, where it would silently attach to the next save. `renderWeekGrid()` and the swipe commit path now both clear the field before loading a new week. |
-| v6.19 | 🟡 Med | **Allocated shift type added.** New `allocated` override type for spare-week CEAs whose shift has been confirmed. Added to `TYPES`, `shiftValueToOverrideType()`, per-row pills (JS template string in `renderWeekGrid()`), bulk bar pills (static HTML), CSS pill/lpill classes, Firestore security rules, and Change a Shift tips lightbox. |
-| v6.21 | 🟢 Low | **Allocated pill was missing from per-row type selector.** The pill was added to the bulk bar HTML in v6.19 but not to the JS template string in `renderWeekGrid()`. The admin per-row selector had no Allocated button until this fix. |
-| v6.22 | 🟢 Low | **Change a Shift card consistency pass.** Empty state text personalised to member vs admin context. Bulk bar label corrected. Pill order standardised across both pill lists. `+ Note` per-row buttons replaced with a single shared note field. Visual separator added to bulk bar label. |
-| v6.23 | 🟢 Low | **Tips lightbox overflow fixed.** `#tipsLightboxContent` had no `max-height`, causing it to overflow the screen on mobile. Fixed with `max-height: 85vh; overflow-y: auto`. SW network-first fetch now bypasses browser HTTP cache (`cache: 'no-store'`) and times out after 5 seconds, falling back to cached copy. |
-| v6.24 | 🟡 Med | **Save button not enabling on time-only edits.** Time input `change` handlers called `markChanged()` but not `updateSaveBtn()`, so editing only the start/end time of an existing override never lit up the Save button. Fixed by calling `updateSaveBtn()` in both handlers and removing `prefilled-existing` class. |
-| v6.25 | 🟢 Low | **AL lightbox width made consistent** with icon and pay lightboxes (`min-width: 300px` → `width: min(300px, 85vw)`). |
-| v6.26 | 🟡 Med | **M. Okeke added to team.** New `startDate` field on `teamMembers`: `getBaseShift()` returns `'RD'` for all dates before the member's start date. New `proRatedAL` field: `getALEntitlement()` checks `member.proRatedAL[year]` and returns the explicit figure for joiners part-way through a year. |
-| v6.27 | 🟡 Med | **AL lightbox stats bar overflowed the card.** `align-items: center` on the flex column parent let `.al-lb-stats` grow wider than the card. Fixed with `width: 100%` + `flex: 1; min-width: 0` on stat columns, reduced card padding (40px → 20px), reduced stat padding, and smaller label font (10px → 9px). |
-| v6.28 | 🟠 High | **`buildCalendarContainer` bypassed `getBaseShift()`.** Calendar cells were built by reading `roster.data[weekNum][dayKey]` directly, skipping `startDate` suppression and Christmas rules. M. Okeke showed full roster shifts before her April 20 start date. Fixed by replacing the manual lookup with `getBaseShift(member, currentDate)`. |
-| v6.50 | 🟠 High | **JS extracted from both HTML files.** `app.js` (index.html), `admin-app.js` (admin.html), `paycalc.js` (paycalc.html) are now separate files. `shared.css` covers all shared styles. `roster-data.js` and `firebase-client.js` are imported by all three JS files. |
-| v6.50 | 🟠 High | **Pay calculator integrated.** Previously a separate experimental app; merged into the main roster app. `paycalc.html` / `paycalc.js` now share `shared.css`, import from `roster-data.js`, and are covered by the single `service-worker.js`. |
-| v6.53 | 🟢 Low | **Integration audit.** `firebase.json` hardened: `Cache-Control: no-cache` added for service workers; dev files (`*.md`, `*.mjs`, `firestore.rules`) excluded from Firebase Hosting. `pay-manifest.json` updated with `shortcuts` array matching `manifest.json`. Obsolete `paycalc-claude-guide.md` deleted. |
-| v6.54 | 🟢 Low | **Header/lightbox consistency pass.** Admin and pay title cards made fully consistent: `<img>` attributes aligned, lightbox app name standardised to "MYB Roster", version format "v<n>", lightbox close button changed from `<span>` to `<button>`. Pay calculator 💷 button `aria-label` corrected. |
-| v6.55 | 🟢 Low | **Sign-out button added to pay calculator header.** Was missing from paycalc — only present on admin. `.btn-signout` CSS block moved to `shared.css` (same pattern as `.btn-back`). Click handler in `paycalc.js` clears `myb_admin_session` and returns to `index.html`. |
-| v6.56 | 🟢 Low | **Back button text reduced to bare arrow.** Both admin and pay back buttons changed from "← Roster" to "←". `aria-label` preserved for screen readers. |
-| v6.57 | 🟢 Low | **Admin gold badge always shows "Admin".** Previously showed the user's surname (e.g. "Springer") for non-master-admin logins — redundant since name is already visible in the locked dropdown. Removed the JS override; HTML default `Admin` now persists for all users. |
-| v6.58 | 🟢 Low | **Pay calculator splash screen removed.** Had a hardcoded 280ms delay + 400ms CSS fade-out (up to 680ms dead time). Appropriate for a standalone app; unnecessary when navigating to it from within the integrated roster app. HTML, CSS, and JS removed. |
-| v6.59 | 🟢 Low | **Settings card flash on pay calculator load fixed.** Settings card had `open` class baked into HTML; JS removed it for returning users after the page painted — causing a visible flash. Reversed: card starts closed in HTML, JS adds `open` only for first-time users who haven't confirmed settings yet. |
-| v6.60 | 🟠 High | **Push notifications were silently dropping.** `sendHuddlePushNotifications` ran after `res.json()` in `ingestHuddle`. Cloud Run considers the function done once the HTTP response is sent and can reclaim the container before the async push completes. Moved the push fan-out to run before `res.json()`. Also changed the subscription renewal error from a silent `catch (_) {}` to `console.warn` so failures appear in the browser console. |
-| v6.61 | 🟠 High | **Manual Huddle uploads did not trigger push notifications.** `uploadHuddle()` in `firebase-client.js` writes directly to Firestore from the browser — it never calls `ingestHuddle`, so the push fan-out never fired for admin uploads. Fixed by moving push into a Firestore trigger (`onDocumentCreated` on `huddles/{date}`). This fires automatically for both Power Automate and manual uploads. Staff are notified once per date (re-uploads are UPDATE events, not CREATE, so they don't re-notify). |
-| v6.62 | 🟢 Low | **Pay calculator banner showed stale "Set up for 2025/26" when period changed to 2026/27.** The setup-confirmation banner read the tax year from the previous period's data rather than the current one. Fixed. |
-| v6.63 | 🟢 Low | **App review pass.** SW skip-cache instruction added for HTML/JS on navigate requests; cache-busting query strings added to pay calculator imports; miscellaneous maintainability fixes. |
-| v6.64 | 🟢 Low | **`paycalc-guide.html` added.** Printable and linkable pay calculator reference guide. Linked from the about lightbox on `paycalc.html`. |
-| v6.66 | 🟡 Med | **QA audit — pay calculator calculation errors.** Saturday uplift was not capped to contracted hours (used raw Saturday hours instead). NI threshold corrected to weekly×4 per pay period rather than annual÷13. |
-| v6.67 | 🟡 Med | **Pension saved per pay period.** Previously a single global value; now stored inside each period's localStorage record (`d.pension`) so past periods keep their own pension amount when the figure changes. |
-| v6.69 | 🟢 Low | **Pay calculator released to all staff.** Removed the admin-only guard — all logged-in members can now access `paycalc.html`. |
-| v6.84 | 🟢 Low | **First-time users get pension pre-filled from grade default.** Previously the pension field was blank on first use. Now pre-filled from the grade default (£154.77 for CEA) so new users don't have to look up the figure. |
-| v6.88 | 🟢 Low | **Pay calculator row descriptions rewritten in plain English.** Technical labels replaced with plain descriptions to reduce cognitive load for staff unfamiliar with payroll terminology. |
-| v6.90 | 🟡 Med | **Silent auto-update for all three pages.** All three pages (index.html, admin.html, paycalc.html) now silently update the service worker in the background when a new version is available. No toast, no user action needed — the update applies on next page load. Replaced the previous `#updateToast` "Refresh now" banner. |
-| v6.95 | 🟢 Low | **Huddle viewer works for DOCX uploads.** The `📋 Huddle` button in `index.html` now reads the `fileType` field from the Firestore `huddles` doc and opens the correct file type. Previously DOCX huddles failed to open. |
-| v6.96 | 🟡 Med | **Pension not overwritten on load.** `loadSettings()` was restoring the grade-default pension before `loadPeriodData()` set the per-period saved value, causing the per-period value to be overwritten on every load. Fixed by correcting load order. |
-| v7.00 | 🟢 Low | **+/− toggle button for pay period adjustment field.** Android soft keyboard has no minus key, making negative adjustments impossible to type. Added `#adjSignBtn` button that negates the current value; shows a red highlight (`.negative` CSS class) when the value is negative. `updateAdjSign()` keeps button state in sync after load and clear. |
-| v7.05 | 🟡 Med | **Record Absence extended to 6 months and now skips non-working days.** Maximum date range increased from 1 month to 6 months. Non-working days (Sundays, and days where `getBaseShift` returns RD/OFF) are now skipped — same logic as Record Annual Leave. Only actual contracted shift days are marked SICK. |
-| v7.06 | 🟠 High | **Record Absence save button was permanently disabled.** `updateSickPreview()` referenced `from`/`to` variables that were only in scope inside `getSickDates()`. The resulting silent `ReferenceError` left the save button permanently disabled. Fixed by computing dates directly from `sickFrom.value` / `sickTo.value` inside `updateSickPreview()`. |
-| v7.07 | 🟠 High | **Roster-aware fill for pay calculator.** When the logged-in member has Saturday, Sunday, BH, or Boxing Day shifts in the current pay period, a hint bar appears in the Hours card showing the count. "Fill from roster →" pre-fills those fields from the base roster in one tap. Pre-filled fields turn gold until manually edited. Works fully offline — base roster only, no Firestore. `getRosterSuggestion(period)` in `paycalc.js` does the work; imports `teamMembers` and `getBaseShift` from `roster-data.js`. `clearRosterSuggestedAll()` is called from `writeFormData()` so highlights never carry over when the period changes. |
+- **Bottom navigation bar** — Persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Prototyped at v7.66, reverted — felt like clutter at current scale. Worth revisiting if the app adds more pages or staff report navigation confusion. See ROADMAP.md → "UX experiments" for full implementation notes.
+- **Glanceable summary strip** — Four chips below the calendar controls: Today's shift / Next RD / Leave left / Payday. Prototyped at v7.66, reverted — adds visual noise between controls and calendar. Consider if staff specifically request at-a-glance information. See ROADMAP.md → "UX experiments" for full implementation notes.
 
 ---
 
@@ -595,7 +496,7 @@ match /huddles/{docId} {
 
 If `allow write: if false` blocks the Cloud Function, that is a misconfiguration — the Admin SDK bypasses Security Rules entirely. Client-side writes (from the browser) are correctly blocked.
 
-### Current status (as of v7.07)
+### Current status
 
 - ✅ Cloud Function `ingestHuddle` deployed and live
 - ✅ PDF and DOCX upload via Power Automate — working end to end
@@ -715,7 +616,7 @@ Apply approved changes:
 
 Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is treated the same as no override — the new PDF result replaces it without conflict. Only overrides with no `source` field (or any other value) are treated as manual and trigger the CONFLICT state.
 
-### Current status (as of v7.07)
+### Current status
 
 - ✅ Cloud Function deployed and live
 - ✅ PDF parsing via Claude AI — working end to end for CEA/Bilingual, CES, Dispatcher rosters
