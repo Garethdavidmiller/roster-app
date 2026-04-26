@@ -1,12 +1,12 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.90';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=7.90';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.91';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=7.91';
 
 // ============================================
 // CEA ROSTER CALENDAR
 // ============================================
 // Performance Optimizations:
 // - Member fetched once per render (not 31+ times)
-// - Bank holidays cached per year
+// - Bank holidays computed on demand from roster-data.js
 // - Pure functions for predictable behavior
 // - CSS variables for instant theme changes
 // ============================================
@@ -32,6 +32,10 @@ const shiftTypesMonthCache  = new Map();
 // rosterOverridesCache is keyed "memberName|date" and stores all members' data,
 // so it does NOT need to be cleared when the selected member changes.
 let _cachedMemberName = null;
+
+// Set when localStorage held a member name that's no longer in the roster.
+// renderCalendar() shows a brief info banner once then clears this flag.
+let _staleMemberName = null;
 
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -139,7 +143,11 @@ function getSelectedMemberIndex() {
     const savedName = localStorage.getItem('myb_roster_selected_member');
     if (savedName) {
         const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
-        return idx !== -1 ? idx : getDefaultMemberIndex();
+        if (idx !== -1) return idx;
+        // savedName stored but not found — stale entry from a removed member
+        _staleMemberName = savedName;
+        localStorage.removeItem('myb_roster_selected_member');
+        return getDefaultMemberIndex();
     }
     // No saved selection (fresh device) — auto-select from the admin session if present
     // so the logged-in staff member sees their own calendar without triggering a
@@ -751,6 +759,18 @@ function renderCalendar() {
 
         _cachedMemberName = member.name;
 
+        // If the previously-selected member was removed from the roster, show a one-time notice.
+        if (_staleMemberName) {
+            const stale = _staleMemberName;
+            _staleMemberName = null;
+            const banner = document.getElementById('errorBanner');
+            if (banner) {
+                banner.textContent = `${stale} is no longer in the roster — now showing ${member.name}'s calendar.`;
+                banner.classList.add('visible');
+                setTimeout(() => banner.classList.remove('visible'), 5000);
+            }
+        }
+
         // Update legend for current member and month (Night, 🎄, 🥚 are conditional)
         updateLegend();
 
@@ -797,11 +817,7 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If this keeps happening, check your internet connection.</p>';
-            const errMsg = document.createElement('p');
-            errMsg.className = 'calendar-error-message';
-            errMsg.textContent = `Error: ${error.message}`;
-            errDiv.appendChild(errMsg);
+            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If this keeps happening, try turning your internet off and on.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -923,10 +939,15 @@ document.getElementById('lightboxPrintBtn').addEventListener('click', () => {
 (function initPayPeriodStrip() {
     const strip = document.getElementById('payPeriodStrip');
     if (!strip) return;
+    let session;
     try {
-        const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
-        if (!session?.name) return;
-    } catch { return; }
+        session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+    } catch { session = null; }
+    if (!session?.name) {
+        strip.innerHTML = '<a class="pay-period-link" href="./admin.html?redirect=paycalc">Log in to see your pay period</a>';
+        strip.style.display = '';
+        return;
+    }
 
     const today = new Date();
     let period  = null;
@@ -1496,7 +1517,7 @@ try {
     if (splashEl) splashEl.remove();
     const banner = document.getElementById('errorBanner');
     if (banner) {
-        banner.textContent = '⚠️ Failed to initialise calendar. Please refresh. Error: ' + error.message;
+        banner.textContent = '⚠️ Couldn\'t start the calendar — please refresh the page.';
         banner.classList.add('visible');
     }
 }
@@ -1645,23 +1666,41 @@ async function ensureOverridesCached(year, month) {
     fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
     fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
 
-    // Show a "Syncing…" chip after 800 ms if Firestore hasn't responded yet.
+    // Show an "Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
     // Injected into .calendar-header so it sits next to the month/year heading.
     // Also adds .calendar-fetching to the calendar container to trigger skeleton shimmer.
-    // Both are removed immediately when data arrives or the fetch fails.
+    // Cleared on success (brief "✓ Up to date"), or replaced with an error + retry on timeout.
     let syncChip = null;
+    let syncResolved = false;
     const calGrid = document.getElementById('calendarDisplay');
     const loadingTimer = setTimeout(() => {
         const header = document.querySelector('.calendar-header');
-        if (header) {
+        if (header && !syncResolved) {
             syncChip = document.createElement('span');
             syncChip.className = 'sync-chip';
             syncChip.setAttribute('aria-live', 'polite');
-            syncChip.textContent = '↻ Syncing…';
+            syncChip.textContent = '↻ Updating your shifts…';
             header.appendChild(syncChip);
         }
         if (calGrid) calGrid.classList.add('calendar-fetching');
     }, 800);
+
+    // If Firestore takes more than 10 s, show an error state with a retry link.
+    const timeoutTimer = setTimeout(() => {
+        if (syncResolved) return;
+        if (syncChip) {
+            syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
+            syncChip.className = 'sync-chip sync-chip-error';
+            syncChip.style.cursor = 'pointer';
+            syncChip.addEventListener('click', () => {
+                fetchedMonths.clear();
+                syncChip.remove();
+                syncChip = null;
+                ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
+            }, { once: true });
+        }
+        if (calGrid) calGrid.classList.remove('calendar-fetching');
+    }, 10000);
 
     try {
         const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
@@ -1692,13 +1731,26 @@ async function ensureOverridesCached(year, month) {
             }
         });
 
+        syncResolved = true;
         renderCalendar();
         updateFaithHint();
+
+        // Briefly show "✓ Up to date" then fade the chip away
+        if (syncChip) {
+            syncChip.textContent = '✓ Up to date';
+            syncChip.className = 'sync-chip sync-chip-ok';
+            setTimeout(() => syncChip?.remove(), 1500);
+            syncChip = null;
+        }
     } catch (err) {
+        syncResolved = true;
         console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
     } finally {
         clearTimeout(loadingTimer);
-        if (syncChip) syncChip.remove();
+        clearTimeout(timeoutTimer);
+        if (syncChip && syncResolved && !syncChip.className.includes('sync-chip-error')) {
+            syncChip.remove();
+        }
         if (calGrid) calGrid.classList.remove('calendar-fetching');
     }
 })();
@@ -1716,12 +1768,7 @@ window.addEventListener('beforeprint', () => {
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('./service-worker.js')
-            .then(registration => {
-                console.log('Service Worker registered successfully:', registration.scope);
-            })
-            .catch(error => {
-                console.log('Service Worker registration failed:', error);
-            });
+            .catch(err => console.error('Service Worker registration failed:', err));
     });
 }
 
@@ -1800,6 +1847,8 @@ function sanitiseHtml(html) {
         const huddle = await getLatestHuddle();
         if (!huddle) {
             btn.disabled = true;
+            btn.title = 'No briefing has been uploaded today';
+            btn.setAttribute('aria-label', 'Huddle — no briefing uploaded yet');
             return;
         }
 
@@ -1836,6 +1885,8 @@ function sanitiseHtml(html) {
         });
     } catch (err) {
         btn.disabled = true;
+        btn.title = 'Couldn\'t load the briefing — check your connection';
+        btn.setAttribute('aria-label', 'Huddle — couldn\'t load, check your connection');
         console.warn('[Huddle] Could not fetch latest huddle:', err);
     }
 })();
@@ -1884,7 +1935,7 @@ function sanitiseHtml(html) {
             applicationServerKey: vapidKey(),
         });
         await savePushSubscription(subscription);
-        console.log('[Notifications] Subscribed');
+        console.info('[Notifications] Subscribed');
     }
 
     /** Unsubscribe and remove the subscription from Firestore. */
@@ -1894,7 +1945,7 @@ function sanitiseHtml(html) {
         const endpoint = existing.endpoint;
         await existing.unsubscribe();
         await deletePushSubscription(endpoint).catch(() => {});
-        console.log('[Notifications] Unsubscribed');
+        console.info('[Notifications] Unsubscribed');
     }
 
     async function init() {

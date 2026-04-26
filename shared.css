@@ -153,6 +153,15 @@
     --shadow-1: 0 1px 4px rgba(0,0,0,0.10);          /* cards */
     --shadow-2: 0 2px 12px rgba(0,30,60,0.12);        /* headers, containers */
     --shadow-3: 0 8px 32px rgba(0,0,0,0.18);          /* modals, lightboxes */
+
+    /* ── Button colour intent ────────────────────────────────────
+       Primary action   = navy (--primary-blue) fill, white text
+       Secondary action = white/outline, navy text
+       Destructive      = red (--error) fill or text
+       Contextual       = per-section accent (gold today-btn, green AL-btn, etc.)
+       Back/navigation  = outline only (.btn-back)
+       Never use plain blue for interactive elements — it clashes with Firestore
+       status messages and the sync chip. */
 }
 
 /* ============================================================
@@ -224,6 +233,7 @@ body {
     max-height: 80vh;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
 }
 
 #iconLightbox.open #iconLightboxContent {
@@ -356,7 +366,7 @@ body {
     width: 100%;
 }
 .lightbox-tips-title {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
     color: rgba(255,255,255,0.35);
     text-transform: uppercase;
@@ -467,7 +477,7 @@ body {
 .badge-page {
     background: var(--accent-gold);
     color: var(--primary-blue);
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 800;
     padding: 4px 10px;
     border-radius: 20px;
@@ -485,6 +495,7 @@ body {
     font-size: 11px;
     font-weight: 700;
     padding: 5px 10px;
+    min-height: 36px; /* safe tap target on mobile */
     border-radius: 8px;
     cursor: pointer;
     text-decoration: none;

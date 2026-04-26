@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.90 -->
+<!-- MYB Roster — Pay Calculator v7.91 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.90">
+  <link rel="stylesheet" href="./shared.css?v=7.91">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -82,7 +82,7 @@
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       font-family: inherit; font-size: var(--type-medium); font-weight: 700;
       color: var(--primary-blue); background: white;
-      appearance: none; -webkit-appearance: none;
+      -webkit-appearance: none; appearance: none;
       text-align: center; text-align-last: center;
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
@@ -250,7 +250,7 @@
     transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     width: min(340px, 88vw);
     max-height: 78vh; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
   }
   #helpLightbox.open #helpLightboxContent { transform: scale(1); }
   .help-lightbox-title {
@@ -428,7 +428,7 @@
       border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25);
     }
     .field select {
-      appearance: none; -webkit-appearance: none;
+      -webkit-appearance: none; appearance: none;
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat; background-position: right 10px center;
       background-size: 1em; padding-right: 30px; cursor: pointer;
@@ -731,7 +731,7 @@
       transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
       width: min(300px, 85vw); text-align: center;
       max-height: 80vh; overflow-y: auto;
-      -webkit-overflow-scrolling: touch;
+      -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
     }
     #welcomeLightbox.open #welcomeLightboxContent { transform: scale(1); }
     #welcomeLightboxClose {
@@ -975,7 +975,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.90">
+  <link rel="manifest" href="./pay-manifest.json?v=7.91">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1084,7 +1084,7 @@
       <button class="ty-tab" id="tyTab1" data-ty="1">2026/27</button>
     </div>
     <select id="periodSelect"></select>
-    <p class="period-hint">Set to your next upcoming payslip — use ← to view a past period.</p>
+    <p class="period-hint">Chiltern pays every 4 weeks. Select the period matching your next payslip, or use ← to view a past period.</p>
     <div class="period-nav">
       <button class="nav-pill" id="prevBtn">← Earlier</button>
       <button class="nav-pill" id="nextBtn">Later →</button>
@@ -1145,7 +1145,7 @@
           <span class="roster-state-badge" id="rosterStateBadge"></span>
         </div>
         <div class="roster-rows" id="rosterRows"></div>
-        <p class="roster-card-note">Likely hours from your base roster and any admin-recorded overrides. Check against what you actually worked.</p>
+        <p class="roster-card-note" id="rosterHintText">Likely hours from your base roster and any admin-recorded overrides. Check against what you actually worked.</p>
         <div class="roster-card-actions">
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill blank fields</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
@@ -1610,6 +1610,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.90"></script>
+<script type="module" src="./paycalc.js?v=7.91"></script>
 </body>
 </html>
