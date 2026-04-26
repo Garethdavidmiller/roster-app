@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"Reminder: Run setupRosterAuth and deploy Firestore rules to fix push notifications — see CLAUDE.md Firebase Auth migration section.\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}

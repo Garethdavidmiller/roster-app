@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.77';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.77';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.78';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.78';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1951,7 +1951,13 @@ document.getElementById('tyTab0').addEventListener('click', () => jumpToTaxYear(
 document.getElementById('tyTab1').addEventListener('click', () => jumpToTaxYear(1));
 
 // Settings inputs
-document.getElementById('gradeSelect').addEventListener('change', () => { saveSettings(); calculate(); });
+document.getElementById('gradeSelect').addEventListener('change', () => {
+  saveSettings();
+  const p  = getPeriods().find(x => x.num === currentPeriodNum());
+  const ty = CONFIG.TAX_YEARS.find(t => t.first <= p.num && p.num <= t.last);
+  if (ty) updateRateForPeriod(ty);
+  calculate();
+});
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
 document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
 document.getElementById('studentLoan').addEventListener('change',() => { saveSettings(); calculate(); });
