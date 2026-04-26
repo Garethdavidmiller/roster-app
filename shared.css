@@ -551,6 +551,9 @@ body {
     }
 }
 
+/* Mobile default: show short title, hide long version */
+.title-desktop { display: none; }
+
 /* ── Shared header: desktop (≥ 768px) ── */
 @media (min-width: 768px) {
     .app-header {
@@ -572,4 +575,3 @@ body {
     .title-mobile { display: none; }
     .title-desktop { display: inline; }
 }
-.title-desktop { display: none; }

@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `7.76` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `7.85` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -158,7 +158,9 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | Tests | `roster-data.test.mjs` — payday and cutoff tests passing |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
 | PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
-| `getRosterSuggestion(period)` | `paycalc.js` — reads the logged-in member from localStorage, calls `getBaseShift` for each day in the period window, returns counts of Saturday/Sunday/BH/Boxing Day shifts. Used by the "Fill from roster →" hint bar in the Hours card (v7.07). Works fully offline — base roster only, no Firestore. |
+| `getRosterSuggestion(period)` | `paycalc.js` — reads the logged-in member from localStorage, calls `getBaseShift` for each day in the period window, returns counts of Saturday/Sunday/BH/Boxing Day shifts. Used by the "Fill from roster →" hint bar in the Hours card. Also reads Firestore overrides (via `fetchOverrideSpecialDaysForPeriod`) to detect RDW and updated shifts when online. |
+| `getLoggedMember()` | `paycalc.js` — returns the `teamMembers` entry for the session user, or null. |
+| `getEffectiveContr(p)` | `paycalc.js` — returns contracted hours for the period, pro-rated if the member has a `startDate` that falls within it. Full contracted hours otherwise. Used by `calculate()`, HPP loop, and Saturday cap. |
 | Reference guide | `paycalc-guide.html` — printable/linkable pay calculator reference (linked from the about lightbox, added v6.64) |
 
 ---
@@ -279,6 +281,8 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 ### 🟠 High priority
 
 **#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is partially implemented (v7.61 — see "Firebase Auth migration" section below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` then deploying the updated rules. **Do not deploy the rules before accounts exist** — all Firestore writes will fail and the app will break for everyone.
+
+**Override deduplication (v7.84):** `fetchOverridesForRange()` in `app.js` now uses priority-based deduplication when multiple Firestore documents share the same `memberName|date` key (can happen after roster re-imports). Manual overrides (no `source` field) always beat `roster_import` entries; among same-class entries the newer `createdAt` wins. A `console.warn` is logged whenever a duplicate is detected — check DevTools Console if overrides appear then disappear in the calendar. Delete stale duplicate documents in the Firebase Console to clean up.
 
 ### 🟡 UX decisions on hold (needs discussion before implementing)
 
@@ -700,30 +704,28 @@ When a new team member is added to `teamMembers` in `roster-data.js`:
 
 ---
 
-## Pay calculator — current reality (v7.76+)
+## Pay calculator — current reality (v7.85+)
 
 The pay calculator is primarily **manual-entry**. Staff enter their hours, and the calculator computes tax, NI, pension, and take-home pay.
 
-**Grades supported:**
+**Grades supported:** CEA and CES. Dispatch is not yet supported — rates not confirmed.
 
 | Grade | 2025/26 rate | Contracted hrs | Pension | London Allowance |
 |-------|-------------|----------------|---------|-----------------|
 | CEA   | £20.74/hr   | 140/period     | £154.77 | £276.16         |
 | CES   | £21.81/hr   | 140/period     | £154.77 | £276.16         |
 
-2026/27 rates: not yet confirmed for either grade — update `GRADES` in `paycalc.js` when the pay award is announced.
+2026/27 rates: not yet confirmed for either grade — update `GRADES` in `paycalc.js` when announced.
 
-Grade is auto-detected from the logged-in member's `role` field on first visit. CES staff get CES pre-selected; CEA is the default. Staff can change the grade in Settings.
+Grade is auto-detected from the logged-in member's `role` field on first visit. CES staff get CES pre-selected; CEA is the default. Staff can change grade in Settings. All rate fallbacks (in `saveSettings`, `calculate`, HPP accumulation) use the selected grade default — never hardcoded CEA.
 
-Dispatch is not yet supported — rates not confirmed.
+**Members with a `startDate`:** If a member started mid-period, `getEffectiveContr(p)` pro-rates their contracted hours. A notice banner in the Hours card explains the adjustment. Subsequent full periods use the full 140 hours automatically.
 
 The **roster-assist hint bar** ("Fill from roster →") is a convenience feature, not a data pipeline:
-- It reads **base roster only** — the static patterns in `roster-data.js`
-- It **also** reads Firestore overrides for the current period (via `fetchOverrideSpecialDaysForPeriod`) to detect RDW and updated shifts
-- It counts Saturday, Sunday, bank holiday, and Boxing Day shifts and pre-fills those hours fields
-- It does **not** fill standard weekday hours — staff enter those manually
+- Reads **base roster** (`roster-data.js`) plus Firestore overrides (via `fetchOverrideSpecialDaysForPeriod`) for the current period — works offline on base roster, improves with overrides when online
+- Counts Saturday, Sunday, bank holiday, Boxing Day, and RDW shifts and pre-fills those hours fields
+- Does **not** fill standard weekday hours — staff enter those manually
 - Pre-filled fields turn gold; editing them removes the highlight
-- It works offline (base roster) and improves with Firestore data when online
 
 The calculator is **not** a payslip replacement — it estimates take-home pay based on staff-entered data. Actual payslips from Chiltern may differ due to adjustments, arrears, and deductions not captured here.
 

@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.84';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.84';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.85';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.85';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -620,7 +620,8 @@ function onPeriodChange() {
   if (tyConfirmed) {
     // Confirmed — hide banner, update card header hint with saved values.
     document.getElementById('setupBanner').classList.add('hidden');
-    const rate = parseFloat(document.getElementById('hourlyRate').value || '20.74').toFixed(2);
+    const _hdrGrade = localStorage.getItem(SK.grade);
+    const rate = parseFloat(document.getElementById('hourlyRate').value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
     const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
     document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
   } else {
@@ -847,7 +848,9 @@ function saveSettings() {
   const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   let rates = {};
   try { rates = JSON.parse(localStorage.getItem(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
-  rates[curTy.label] = parseFloat(rateVal) || 20.74;
+  const _savedGrade   = document.getElementById('gradeSelect').value;
+  const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
+  rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
   localStorage.setItem(SK.rates,     JSON.stringify(rates));
   localStorage.setItem(SK.rate,      rateVal);
   localStorage.setItem(SK.code,      document.getElementById('taxCode').value);
@@ -1309,7 +1312,9 @@ function calculate() {
   const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL } = getThresholds(_ty.label);
   const LONDON = _curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow;
 
-  const rate = numVal('hourlyRate') || 20.74;
+  const _calcGrade = localStorage.getItem(SK.grade);
+  const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
+  const rate = numVal('hourlyRate') || _calcDefaultRate;
   updateBadges(rate);
   const r125 = rate * 1.25;
   const r150 = rate * 1.50;
@@ -1529,7 +1534,9 @@ function calculate() {
 // Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance
 // Does NOT include: peer training, basic pay, expenses, bonuses
 function calcHPP() {
-  const rate       = numVal('hourlyRate') || 20.74;
+  const _hppGrade       = localStorage.getItem(SK.grade);
+  const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
+  const rate       = numVal('hourlyRate') || _hppDefaultRate;
   const allPeriods = getPeriods();
 
   // HPP accumulates only within the selected period's tax year
