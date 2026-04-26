@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.88';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.88';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.89';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.89';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -638,7 +638,9 @@ function onPeriodChange() {
         document.getElementById('settingsToggle').classList.add('open');
         document.getElementById('settingsBody').classList.add('open');
         const notice = document.getElementById('settingsNewYearNotice');
-        notice.textContent = `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
+        notice.textContent = ty.label === '2026/27'
+          ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Check your April payslip and update here, then tap Save settings.`
+          : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
         notice.classList.remove('hidden');
       }
     }
@@ -646,6 +648,10 @@ function onPeriodChange() {
 
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
+
+  // Show rate-unconfirmed notice when in a period where the pay award isn't finalised
+  const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
+  if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', ty.label !== '2026/27');
 
   // Read session now so we can set the correct initial fetch state
   let session2;
