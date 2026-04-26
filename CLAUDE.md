@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `7.85` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `7.87` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -282,7 +282,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 **#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is partially implemented (v7.61 — see "Firebase Auth migration" section below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` then deploying the updated rules. **Do not deploy the rules before accounts exist** — all Firestore writes will fail and the app will break for everyone.
 
-**Override deduplication (v7.84):** `fetchOverridesForRange()` in `app.js` now uses priority-based deduplication when multiple Firestore documents share the same `memberName|date` key (can happen after roster re-imports). Manual overrides (no `source` field) always beat `roster_import` entries; among same-class entries the newer `createdAt` wins. A `console.warn` is logged whenever a duplicate is detected — check DevTools Console if overrides appear then disappear in the calendar. Delete stale duplicate documents in the Firebase Console to clean up.
+**Override cache architecture (v7.84–7.87):** `rosterOverridesCache` in `app.js` is keyed `"memberName|date"` and stores overrides for ALL members — it is never cleared on member switch. `fetchOverridesForRange()` uses priority-based deduplication: `source: 'manual'` always beats `source: 'roster_import'`; same-source entries keep the newer `createdAt`. A `console.warn` is logged whenever a duplicate is detected — check DevTools Console if overrides still appear inconsistently. Swipe navigation calls `ensureOverridesCached()` after the animation completes (v7.86) so adjacent months are fetched even after a member switch clears `fetchedMonths`. Delete stale duplicate Firestore documents in the Firebase Console to clean up at source.
 
 ### 🟡 UX decisions on hold (needs discussion before implementing)
 
@@ -704,7 +704,7 @@ When a new team member is added to `teamMembers` in `roster-data.js`:
 
 ---
 
-## Pay calculator — current reality (v7.85+)
+## Pay calculator — current reality (v7.87+)
 
 The pay calculator is primarily **manual-entry**. Staff enter their hours, and the calculator computes tax, NI, pension, and take-home pay.
 
