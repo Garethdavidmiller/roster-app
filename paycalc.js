@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.73';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.73';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.74';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.74';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1110,7 +1110,7 @@ function updateRosterHint() {
   const rows = document.getElementById('rosterRows');
   if (rows) {
     const cats = [
-      { cat: 'sat', icon: '🗓️', label: 'Rostered Saturday', h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
+      { cat: 'sat', icon: '🗓️', label: 'Rostered Sat', h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
       { cat: 'sun', icon: '☀️', label: 'Sunday',       h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
       { cat: 'bh',  icon: '🏦', label: 'Bank holiday', h: s.bhH,  m: s.bhM,  count: s.bhCount,  fromOv: s.bhFromOv  },
       { cat: 'rdw', icon: '💼', label: 'RDW',          h: s.rdwH, m: s.rdwM, count: s.rdwCount, fromOv: true        },
