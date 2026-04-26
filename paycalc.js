@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.69';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.69';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.71';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.71';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ const TAX_BY_YEAR = {
 };
 // NI thresholds are set weekly by HMRC; the correct 4-weekly value is weekly × 4.
 // PT 2025/26: £242/wk × 4 = £968. UEL 2025/26: £967/wk × 4 = £3,868.
-// Using annual ÷ 13 (£966.97 / £3,867.69) would overstate NI by ~£0.09/period.
+// Using annual ÷ 13 (£966.97 / £3,867.70) would overstate NI by ~£0.09/period.
 const NI_BY_YEAR = {
   '2025/26': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 },
   '2026/27': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 }, // confirmed unchanged
@@ -1110,7 +1110,7 @@ function updateRosterHint() {
   const rows = document.getElementById('rosterRows');
   if (rows) {
     const cats = [
-      { cat: 'sat', icon: '🗓️', label: 'Saturday',    h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
+      { cat: 'sat', icon: '🗓️', label: 'Rostered Saturday', h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
       { cat: 'sun', icon: '☀️', label: 'Sunday',       h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
       { cat: 'bh',  icon: '🏦', label: 'Bank holiday', h: s.bhH,  m: s.bhM,  count: s.bhCount,  fromOv: s.bhFromOv  },
       { cat: 'rdw', icon: '💼', label: 'RDW',          h: s.rdwH, m: s.rdwM, count: s.rdwCount, fromOv: true        },
@@ -1147,7 +1147,7 @@ function updateRosterHint() {
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
+const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
 
 /** Populates the collapsible day list with the individual shifts behind the suggestion. */
 function renderRosterDayList(days) {
