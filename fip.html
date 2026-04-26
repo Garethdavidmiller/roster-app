@@ -274,20 +274,25 @@
         /* ── Divider ─────────────────────────────── */
         hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
-        /* ── Source bar ──────────────────────────── */
-        .source-bar {
-            border-top: 1px solid var(--border);
-            margin-top: 28px;
-            padding: 12px 0 0;
+        /* ── Source strip (below header) ────────── */
+        .source-strip {
+            background: var(--white);
+            border-bottom: 2px solid var(--gold);
+            padding: 7px 16px;
             font-size: 12px;
-            color: var(--light);
+            color: var(--mid);
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: 6px 14px;
+            gap: 4px 10px;
         }
-        .source-bar a { color: var(--blue-text); text-decoration: none; }
-        .source-bar a:hover { text-decoration: underline; }
+        .source-strip .src-label {
+            font-weight: 600;
+            color: var(--navy);
+            margin-right: 2px;
+        }
+        .source-strip a { color: var(--blue-text); text-decoration: none; }
+        .source-strip a:hover { text-decoration: underline; }
 
         /* ── Checklist ───────────────────────────── */
         .checklist { list-style: none; }
@@ -330,6 +335,12 @@
             <p class="sub">European travel for Chiltern Railways staff</p>
         </div>
     </header>
+
+    <div class="source-strip">
+        <span class="src-label">Last checked: April 2026</span>
+        <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener">RDG Europe &amp; FIP guide ↗</a>
+        <a href="https://www.raildeliverygroup.com/rst/forms.html" target="_blank" rel="noopener">RST forms ↗</a>
+    </div>
 
     <div class="content">
 
@@ -936,11 +947,6 @@
             Quick reference only — always verify with <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener" style="color:inherit">Rail Delivery Group</a> before booking
         </p>
 
-        <div class="source-bar">
-            <span>Last checked: April 2026</span>
-            <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener">RDG Europe &amp; FIP guide ↗</a>
-            <a href="https://www.raildeliverygroup.com/rst/forms.html" target="_blank" rel="noopener">RST forms ↗</a>
-        </div>
 
     </div>
 
