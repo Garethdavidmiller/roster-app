@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 7.65 -->
+<!-- MYB Roster Calendar - Version 7.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=7.65">
+    <link rel="manifest" href="manifest.json?v=7.66">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.65">
+    <link rel="stylesheet" href="shared.css?v=7.66">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -77,6 +77,11 @@
             padding-right:  max(20px, env(safe-area-inset-right));
             overflow-x: hidden;
             overscroll-behavior: none;
+        }
+
+        /* Extra bottom padding on mobile so content clears the fixed bottom nav */
+        @media (max-width: 767px) {
+            body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
         }
 
         .container {
@@ -277,6 +282,44 @@
         }
         @media (hover: hover) and (pointer: fine) {
             .pay-period-link:hover { text-decoration: underline; }
+        }
+
+        /* ── Glanceable summary strip ── */
+        .summary-strip {
+            display: flex;
+            gap: 8px;
+            padding: 0 4px 14px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+        }
+        .summary-strip::-webkit-scrollbar { display: none; }
+
+        .sc {
+            flex-shrink: 0;
+            background: white;
+            border-radius: 20px;
+            padding: 8px 14px;
+            box-shadow: var(--shadow-1);
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1px;
+            min-width: 80px;
+        }
+        .sc-label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .sc-val {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-dark);
+            white-space: nowrap;
         }
 
         .controls button.al-btn {
@@ -2083,6 +2126,26 @@
         <!-- Pay period strip: shows current period dates + link to pay calculator -->
         <div id="payPeriodStrip" class="pay-period-strip" aria-live="polite"></div>
 
+        <!-- Glanceable summary strip: personalised chips shown when logged in -->
+        <div id="summaryStrip" class="summary-strip" aria-label="Your roster at a glance" style="display:none">
+            <div class="sc" id="scToday">
+                <span class="sc-label">Today</span>
+                <span class="sc-val" id="scTodayVal">…</span>
+            </div>
+            <div class="sc" id="scNextRD">
+                <span class="sc-label">Next RD</span>
+                <span class="sc-val" id="scNextRDVal">…</span>
+            </div>
+            <div class="sc" id="scLeave">
+                <span class="sc-label">Leave left</span>
+                <span class="sc-val" id="scLeaveVal">…</span>
+            </div>
+            <div class="sc" id="scPayday">
+                <span class="sc-label">Payday</span>
+                <span class="sc-val" id="scPaydayVal">…</span>
+            </div>
+        </div>
+
         <!-- Notification prompt — shown when permission not yet granted, hidden once
              subscribed or dismissed. Managed entirely by initNotifications() in app.js. -->
         <div id="notifPrompt" role="status" aria-live="polite" style="display:none">
@@ -2163,7 +2226,21 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=7.65"></script>
+    <script type="module" src="./app.js?v=7.66"></script>
 
+    <nav class="bottom-nav" aria-label="Main navigation">
+        <a href="./index.html" class="bottom-nav-item active" aria-current="page">
+            <span class="bottom-nav-icon">📅</span>
+            <span>Roster</span>
+        </a>
+        <a href="./paycalc.html" class="bottom-nav-item">
+            <span class="bottom-nav-icon">💷</span>
+            <span>Pay</span>
+        </a>
+        <a href="./admin.html" class="bottom-nav-item">
+            <span class="bottom-nav-icon">🔐</span>
+            <span>Admin</span>
+        </a>
+    </nav>
 </body>
 </html>

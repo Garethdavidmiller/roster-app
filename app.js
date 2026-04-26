@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.65';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=7.65';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.66';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=7.66';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -30,12 +30,15 @@ const shiftTypesMonthCache  = new Map();
 
 // Tracks the member whose data is currently cached so we can flush on member switch.
 let _cachedMemberName = null;
+// AL query for the summary strip fires once per member; reset when member changes.
+let _summaryALFetched = false;
 
 function clearMemberCaches() {
     rosterOverridesCache.clear();
     memberSettingsCache.clear();
     fetchedMonths.clear();
     shiftTypesMonthCache.clear();
+    _summaryALFetched = false;
 }
 
 // ============================================
@@ -781,6 +784,9 @@ function renderCalendar() {
             nextBtn.style.opacity = atEnd ? '0.4' : '';
         }
 
+        // Update personalised summary strip chips (today, next RD, AL, payday).
+        updateSummaryStrip();
+
         // Ensure Firestore overrides are cached for the displayed month.
         // No-op if already fetched; fires a background fetch and re-render if not
         // (e.g. when the user navigates beyond the initial 3-month window).
@@ -942,6 +948,104 @@ document.getElementById('lightboxPrintBtn').addEventListener('click', () => {
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
     strip.style.display = '';
 })();
+
+/**
+ * Populate the glanceable summary strip chips with personalised data.
+ * Today's shift and Next RD use base roster + override cache (offline).
+ * AL remaining fires a Firestore query once per member then caches the result.
+ * Called by renderCalendar() on every navigation so chips reflect fresh override data.
+ */
+function updateSummaryStrip() {
+    const strip = document.getElementById('summaryStrip');
+    if (!strip) return;
+
+    try {
+        const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+        if (!session?.name) return;
+    } catch { return; }
+
+    const member   = getCurrentMember();
+    const today    = getToday();
+    const todayStr = formatISO(today);
+
+    // ── Today's shift ──
+    let todayShift = getBaseShift(member, today);
+    const ov = rosterOverridesCache.get(`${member.name}|${todayStr}`);
+    if (ov) todayShift = ov.type === 'rdw' ? 'RDW' : ov.value;
+    const todayLabel = todayShift === 'RD' || todayShift === 'OFF' ? 'Rest day'
+        : todayShift === 'SPARE'  ? 'Spare'
+        : todayShift === 'AL'     ? 'Annual leave'
+        : todayShift === 'SICK'   ? 'Absent'
+        : todayShift === 'RDW'    ? 'RDW'
+        : isNightShift(todayShift) ? `Night ${todayShift.split('-')[0]}`
+        : isEarlyShift(todayShift) ? `Early ${todayShift.split('-')[0]}`
+        : `Late ${todayShift.split('-')[0]}`;
+    const scTodayVal = document.getElementById('scTodayVal');
+    if (scTodayVal) scTodayVal.textContent = todayLabel;
+
+    // ── Next RD (scan base roster + cached overrides, up to 90 days out) ──
+    let nextRD = null;
+    for (let i = 1; i <= 90 && !nextRD; i++) {
+        const d  = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+        const ds = formatISO(d);
+        const sh = getBaseShift(member, d);
+        const ov2 = rosterOverridesCache.get(`${member.name}|${ds}`);
+        const eff = ov2 ? (ov2.type === 'rdw' ? 'RDW' : ov2.value) : sh;
+        if (eff === 'RD' || eff === 'OFF') nextRD = d;
+    }
+    const scNextRDVal = document.getElementById('scNextRDVal');
+    if (scNextRDVal && nextRD) {
+        const diffDays = Math.round((nextRD - today) / 86400000);
+        const fmtLong  = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+        const fmtShort = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+        scNextRDVal.textContent = diffDays === 1 ? 'Tomorrow'
+            : diffDays <= 6 ? fmtLong(nextRD)
+            : fmtShort(nextRD);
+    }
+
+    // ── AL remaining (async, fires once per member) ──
+    const scLeaveVal = document.getElementById('scLeaveVal');
+    if (scLeaveVal && !_summaryALFetched) {
+        _summaryALFetched = true;
+        const yearStr  = String(today.getFullYear());
+        getDocs(query(collection(db, 'overrides'), where('memberName', '==', member.name)))
+            .then(snap => {
+                let taken = 0, booked = 0;
+                const memberOverrides = [];
+                snap.forEach(d => {
+                    const data = d.data();
+                    memberOverrides.push(data);
+                    if (data.type === 'annual_leave' && data.date?.startsWith(yearStr) && !isSunday(data.date)) {
+                        if (data.date <= todayStr) taken++; else booked++;
+                    }
+                });
+                const ent       = getALEntitlement(member, today.getFullYear(), memberOverrides);
+                const remaining = ent - taken - booked;
+                scLeaveVal.textContent = `${remaining} day${remaining !== 1 ? 's' : ''}`;
+            })
+            .catch(() => { scLeaveVal.textContent = '—'; });
+    }
+
+    // ── Payday ──
+    let nextPayday = null;
+    for (const yr of [today.getFullYear(), today.getFullYear() + 1]) {
+        const { paydays } = getPaydaysAndCutoffs(yr);
+        for (const pd of paydays) {
+            if (pd >= today) { nextPayday = pd; break; }
+        }
+        if (nextPayday) break;
+    }
+    const scPaydayVal = document.getElementById('scPaydayVal');
+    if (scPaydayVal && nextPayday) {
+        const diffDays = Math.round((nextPayday - today) / 86400000);
+        const fmtShort = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+        scPaydayVal.textContent = diffDays === 0 ? 'Today!'
+            : diffDays === 1 ? 'Tomorrow'
+            : `${fmtShort(nextPayday)} (${diffDays}d)`;
+    }
+
+    strip.style.display = 'flex';
+}
 
 document.getElementById('adminBtn').addEventListener('click', () => {
     const today = getToday();

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.65 -->
+<!-- MYB Roster — Pay Calculator v7.66 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.65">
+  <link rel="stylesheet" href="./shared.css?v=7.66">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -32,6 +32,10 @@
       padding-right:  max(20px, env(safe-area-inset-right));
       overflow-x: hidden; overscroll-behavior: none;
       font-size: var(--type-body); color: var(--text-dark);
+    }
+
+    @media (max-width: 767px) {
+      body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
     }
 
     .app { max-width: 480px; margin: 0 auto; }
@@ -138,14 +142,14 @@
       background: white; border-radius: var(--radius-lg);
       box-shadow: var(--shadow-1); margin-bottom: 16px; overflow: hidden;
     }
-    .result-net { background: var(--primary-blue); padding: 18px 16px 14px; text-align: center; }
+    .result-net { background: var(--primary-blue); padding: 18px 16px 16px; text-align: center; }
     .net-label {
       font-size: var(--type-micro); font-weight: 700; color: rgba(255,255,255,0.68);
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
     }
     .net-amount { font-size: 52px; font-weight: 800; color: white; letter-spacing: -2px; line-height: 1; }
-    .net-period { font-size: 15px; font-weight: 600; color: rgba(255,255,255,0.72); margin-top: 6px; }
-    .net-hint   { font-size: 12px; color: rgba(255,255,255,0.48); margin-top: 4px; letter-spacing: 0.1px; }
+    .net-period { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
+    .net-hint   { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
 
     .summary { padding: 2px 16px; }
     .sum-row {
@@ -966,7 +970,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.65">
+  <link rel="manifest" href="./pay-manifest.json?v=7.66">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1598,6 +1602,21 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.65"></script>
+<script type="module" src="./paycalc.js?v=7.66"></script>
+
+<nav class="bottom-nav" aria-label="Main navigation">
+  <a href="./index.html" class="bottom-nav-item">
+    <span class="bottom-nav-icon">📅</span>
+    <span>Roster</span>
+  </a>
+  <a href="./paycalc.html" class="bottom-nav-item active" aria-current="page">
+    <span class="bottom-nav-icon">💷</span>
+    <span>Pay</span>
+  </a>
+  <a href="./admin.html" class="bottom-nav-item">
+    <span class="bottom-nav-icon">🔐</span>
+    <span>Admin</span>
+  </a>
+</nav>
 </body>
 </html>
