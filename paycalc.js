@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.87';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.87';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.88';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.88';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -647,11 +647,16 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
+  // Read session now so we can set the correct initial fetch state
+  let session2;
+  try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
+
   // Clear the override cache before rendering the hint — without this, the first
   // hint render uses override data from the previous period (stale Firestore results).
   _overrideFetchToken++;
   _overridesByDate = new Map();
-  _overridesFetchState = 'base-only'; // reset: Firestore fetch for new period hasn't run yet
+  // 'checking' if a Firestore fetch is about to start, 'base-only' if no session logged in.
+  _overridesFetchState = session2?.name ? 'checking' : 'base-only';
 
   // Update roster suggestion card and joiner notice for this period.
   updateRosterHint();
@@ -661,10 +666,7 @@ function onPeriodChange() {
   const _rvl = document.getElementById('rosterViewLink');
   if (_rvl) _rvl.href = `./index.html?date=${formatISO(p.start)}`;
 
-  // Fetch admin-added overrides from Firestore in the background. Bumps the token
-  // again and clears the map so any in-flight older fetch cannot write stale data.
-  let session2;
-  try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
+  // Fetch admin-added overrides from Firestore in the background.
   if (session2?.name) fetchOverrideSpecialDaysForPeriod(p, session2.name);
 
   // Load saved data for this period
@@ -988,7 +990,8 @@ let _overridesByDate = new Map();
 // fetch from an earlier period can never overwrite the current period's data.
 let _overrideFetchToken = 0;
 
-// 'base-only': Firestore not yet attempted or failed — showing base roster only.
+// 'checking':  Firestore fetch in progress — overrides not yet applied.
+// 'base-only': No session logged in, or fetch failed — showing base roster only.
 // 'loaded':    Firestore succeeded — overrides applied to suggestions.
 let _overridesFetchState = 'base-only';
 
@@ -1007,7 +1010,7 @@ let _adjNegative = false; // tracks intended sign of otherAdj independently of v
  * map stays empty and the base-roster-only totals are shown instead.
  */
 async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
-  const thisToken = ++_overrideFetchToken;
+  const thisToken = _overrideFetchToken; // onPeriodChange already incremented — just capture
   _overridesByDate = new Map();
   try {
     // Query by date range only — no memberName equality filter. Adding memberName
@@ -1150,6 +1153,9 @@ function updateRosterHint() {
     if (_overridesFetchState === 'loaded') {
       badge.textContent  = '✓ Roster + overrides';
       badge.className    = 'roster-state-badge loaded';
+    } else if (_overridesFetchState === 'checking') {
+      badge.textContent  = '↻ Checking…';
+      badge.className    = 'roster-state-badge checking';
     } else {
       badge.textContent  = '⚠ Base roster only';
       badge.className    = 'roster-state-badge base-only';
