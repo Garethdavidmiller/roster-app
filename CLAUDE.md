@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `7.68` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `7.76` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -696,9 +696,22 @@ When a new team member is added to `teamMembers` in `roster-data.js`:
 
 ---
 
-## Pay calculator — current reality (v7.07+)
+## Pay calculator — current reality (v7.76+)
 
 The pay calculator is primarily **manual-entry**. Staff enter their hours, and the calculator computes tax, NI, pension, and take-home pay.
+
+**Grades supported:**
+
+| Grade | 2025/26 rate | Contracted hrs | Pension | London Allowance |
+|-------|-------------|----------------|---------|-----------------|
+| CEA   | £20.74/hr   | 140/period     | £154.77 | £276.16         |
+| CES   | £21.81/hr   | 140/period     | £154.77 | £276.16         |
+
+2026/27 rates: not yet confirmed for either grade — update `GRADES` in `paycalc.js` when the pay award is announced.
+
+Grade is auto-detected from the logged-in member's `role` field on first visit. CES staff get CES pre-selected; CEA is the default. Staff can change the grade in Settings.
+
+Dispatch is not yet supported — rates not confirmed.
 
 The **roster-assist hint bar** ("Fill from roster →") is a convenience feature, not a data pipeline:
 - It reads **base roster only** — the static patterns in `roster-data.js`
