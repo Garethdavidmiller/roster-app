@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.81 -->
+<!-- MYB Roster — Pay Calculator v7.84 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.81">
+  <link rel="stylesheet" href="./shared.css?v=7.84">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -396,6 +396,14 @@
     .boxing-banner.visible {
       max-height: 60px; opacity: 1;
       padding: 8px 12px; margin-bottom: 10px;
+    }
+
+    /* Joiner notice — shown when the member started mid-period */
+    .joiner-notice {
+      background: #fff8e1; border: 1px solid var(--accent-gold);
+      border-radius: var(--radius-sm); padding: 10px 12px;
+      font-size: var(--type-small); color: var(--primary-blue);
+      margin-bottom: 10px;
     }
 
     /* Settings fields */
@@ -966,7 +974,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.81">
+  <link rel="manifest" href="./pay-manifest.json?v=7.84">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1143,6 +1151,9 @@
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
 
+      <!-- JOINER NOTICE: shown when the logged-in member started mid-period -->
+      <div class="joiner-notice" id="joinerNotice" style="display:none"></div>
+
       <!-- ── BASIC PAY ADJUSTMENTS ── -->
       <!-- Saturday -->
       <div class="hours-row">
@@ -1150,7 +1161,7 @@
           <div class="h-title">🗓️ Rostered Saturday Hours</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
           <div class="h-sub">A Saturday shift from your roster. If Saturday is your rest day that week, use Rest Day Working below instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
-          <div class="val-warn" id="satWarn">⚠ Over 140 hours — capped at your contracted maximum</div>
+          <div class="val-warn" id="satWarn">⚠ Capped at your contracted maximum for this period</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1597,6 +1608,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.81"></script>
+<script type="module" src="./paycalc.js?v=7.84"></script>
 </body>
 </html>
