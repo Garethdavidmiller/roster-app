@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.79';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.79';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.80';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.80';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -2190,7 +2190,7 @@ Device: ${navigator.userAgent}
     const badge = document.getElementById('welcomeGradeBadge');
     if (badge) {
       const g = localStorage.getItem(SK.grade);
-      badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA') + ' grade';
+      badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
     }
     lb.classList.add('visible');
     requestAnimationFrame(() => lb.classList.add('open'));
