@@ -569,5 +569,7 @@ body {
         font-size: 12px;
         padding: 6px 13px;
     }
+    .title-mobile { display: none; }
+    .title-desktop { display: inline; }
 }
-
+.title-desktop { display: none; }
