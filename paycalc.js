@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.78';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.78';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.79';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.79';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1952,10 +1952,9 @@ document.getElementById('tyTab1').addEventListener('click', () => jumpToTaxYear(
 
 // Settings inputs
 document.getElementById('gradeSelect').addEventListener('change', () => {
+  const g = document.getElementById('gradeSelect').value;
+  if (g && GRADES[g]) document.getElementById('hourlyRate').value = GRADES[g].rate.toFixed(2);
   saveSettings();
-  const p  = getPeriods().find(x => x.num === currentPeriodNum());
-  const ty = CONFIG.TAX_YEARS.find(t => t.first <= p.num && p.num <= t.last);
-  if (ty) updateRateForPeriod(ty);
   calculate();
 });
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
