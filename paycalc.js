@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.82';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.82';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.83';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.83';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -124,6 +124,35 @@ function getContr() {
   return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
 }
 
+/** Return the teamMembers entry for the logged-in session user, or null. */
+function getLoggedMember() {
+  try {
+    const sess = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+    if (!sess?.name) return null;
+    return teamMembers.find(m => m.name === sess.name) || null;
+  } catch { return null; }
+}
+
+/**
+ * Return effective contracted hours for the given period, pro-rated if the
+ * logged-in member started mid-period.
+ * @param {object} p - Period object with .start and .cutoff Date properties.
+ * @returns {number} Contracted hours (full or pro-rated).
+ */
+function getEffectiveContr(p) {
+  const base = getContr();
+  if (!p) return base;
+  const member = getLoggedMember();
+  if (!member?.startDate) return base;
+  const sd = member.startDate;
+  if (sd <= p.start) return base;          // started before this period — full hours
+  if (sd > p.cutoff) return 0;             // not yet employed in this period
+  const msPerDay     = 86400000;
+  const daysEmployed = Math.round((p.cutoff - sd) / msPerDay) + 1;
+  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
+  return Math.round(base * daysEmployed / totalDays);
+}
+
 /** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
 function getPensionDefault() {
   const g = localStorage.getItem(SK.grade);
@@ -231,13 +260,15 @@ function clampMins(mId) {
 }
 
 function onHhMm(hId, mId, warnId) {
-  // Validate Saturday hours don't exceed 140
+  // Validate Saturday hours don't exceed contracted hours (pro-rated for joining periods)
   if (warnId) {
-    const hrs = hhmmDec(hId, mId);
-    const warn = document.getElementById(warnId);
-    warn.classList.toggle('show', hrs > getContr());
-    if (hrs > getContr()) {
-      document.getElementById(hId).value = getContr();
+    const hrs   = hhmmDec(hId, mId);
+    const warn  = document.getElementById(warnId);
+    const curP  = getPeriods().find(x => x.num === currentPeriodNum());
+    const contr = getEffectiveContr(curP);
+    warn.classList.toggle('show', hrs > contr);
+    if (hrs > contr) {
+      document.getElementById(hId).value = contr;
       document.getElementById(mId).value = 0;
     }
   }
@@ -621,9 +652,9 @@ function onPeriodChange() {
   _overridesByDate = new Map();
   _overridesFetchState = 'base-only'; // reset: Firestore fetch for new period hasn't run yet
 
-  // Update roster suggestion card for this period (base roster, instant; override data
-  // will be empty here and filled in once the Firestore fetch completes below).
+  // Update roster suggestion card and joiner notice for this period.
   updateRosterHint();
+  updateJoinerNotice(p);
 
   // Update Pay → Calendar link for this period
   const _rvl = document.getElementById('rosterViewLink');
@@ -1165,6 +1196,27 @@ const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
 
+/**
+ * Show (or hide) a notice when the logged-in member started mid-period,
+ * explaining that their contracted hours have been pro-rated.
+ * @param {object} p - Current period object.
+ */
+function updateJoinerNotice(p) {
+  const el = document.getElementById('joinerNotice');
+  if (!el || !p) return;
+  const member = getLoggedMember();
+  if (!member?.startDate || member.startDate <= p.start) { el.style.display = 'none'; return; }
+  if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
+  const msPerDay     = 86400000;
+  const daysEmployed = Math.round((p.cutoff - member.startDate) / msPerDay) + 1;
+  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
+  const proRated     = getEffectiveContr(p);
+  const base         = getContr();
+  const startFmt     = member.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  el.textContent = `📅 You joined on ${startFmt}. Your contracted hours for this period are ${proRated} of ${base} (${daysEmployed} of ${totalDays} days).`;
+  el.style.display = '';
+}
+
 /** Populates the collapsible day list with the individual shifts behind the suggestion. */
 function renderRosterDayList(days) {
   const list = document.getElementById('rosterDayList');
@@ -1275,8 +1327,9 @@ function calculate() {
   const sHrs    = hhmmDec('sunH',  'sunM');
   const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
-  const satCapped  = Math.min(satHrs, getContr());
-  const normHrs    = getContr() - satCapped;     // non-Saturday contracted hours
+  const _effContr  = getEffectiveContr(_curP);
+  const satCapped  = Math.min(satHrs, _effContr);
+  const normHrs    = _effContr - satCapped;      // non-Saturday contracted hours
   const bhCapped   = Math.min(bhHrs, normHrs); // clamp to available non-Sat hours
   const nonBhNorm  = normHrs - bhCapped;    // weekday non-BH contracted hours
 
@@ -1510,8 +1563,10 @@ function calcHPP() {
       // Mirror the capping logic from calculate() — bhCapped can be 0 when all
       // contracted hours fall on Saturday, in which case the BH premium must not
       // contribute to HPP either (it was not included in that period's gross pay).
-      const satCapped = Math.min(satHrs, getContr());
-      const normHrs   = getContr() - satCapped;
+      // Use getEffectiveContr so joining periods use pro-rated hours consistently.
+      const _hppEffContr = getEffectiveContr(p);
+      const satCapped = Math.min(satHrs, _hppEffContr);
+      const normHrs   = _hppEffContr - satCapped;
       const bhCapped  = Math.min(bhHrs, normHrs);
 
       // Variable pay = Gross minus Basic:
