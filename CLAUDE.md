@@ -330,6 +330,10 @@ These were identified in the audit but not addressed. Tackle in future sessions:
 - **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming to something less exclusive (e.g. "My Shifts" or splitting into two entry points: a staff self-service button and a separate admin route). Requires discussion about branding and URL structure before changing.
 - **Shift type count** — The admin type selector has 8 types. RDW / Overtime / Swap / Allocated are subtly different and create cognitive load for infrequent users. Consider whether any can be merged or renamed for clarity (e.g. Overtime and Swap may rarely be distinguished in practice). Requires discussion about operational use before changing.
 
+#### 🟡 UX ideas — explored but held back (see roadmap.md for full notes)
+- **Bottom navigation bar** — A persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Technically complete but felt like clutter in practice. Worth revisiting if the app grows more pages or user feedback confirms the navigation gap.
+- **Glanceable summary strip** — Four chips below the controls showing Today's shift / Next RD / Leave left / Payday. Infrastructure is straightforward (base roster + Firestore), but adds visual noise above the calendar. Consider if staff specifically request "at a glance" information.
+
 ### Fixed after v5.19
 
 | Version | Severity | What was fixed |
