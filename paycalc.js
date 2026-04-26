@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.89';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.89';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.90';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.90';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -639,7 +639,7 @@ function onPeriodChange() {
         document.getElementById('settingsBody').classList.add('open');
         const notice = document.getElementById('settingsNewYearNotice');
         notice.textContent = ty.label === '2026/27'
-          ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Check your April payslip and update here, then tap Save settings.`
+          ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
           : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
         notice.classList.remove('hidden');
       }
