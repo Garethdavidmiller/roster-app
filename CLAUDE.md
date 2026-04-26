@@ -614,7 +614,11 @@ Apply approved changes:
 
 ### Cell state — `source` field
 
-Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is treated the same as no override — the new PDF result replaces it without conflict. Only overrides with no `source` field (or any other value) are treated as manual and trigger the CONFLICT state.
+Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is compared against the new PDF value:
+- If the new PDF **matches** the previous import → `COVERED` (no re-approval needed)
+- If the new PDF **differs** from the previous import → `DIFF` (re-approve only the changed shifts)
+
+Only overrides with no `source` field (or any other value) are treated as manual and trigger the `CONFLICT` state.
 
 ### Current status
 
