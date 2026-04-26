@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.75';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.75';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.76';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.76';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -27,10 +27,7 @@ const CONFIG = {
   ANCHOR_DATE:    new Date(2026, 1, 13), // P48 payday: 13 Feb 2026 (fixed reference)
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: 13,
-  // Contractual — CEA grade, Marylebone
-  // Grade — CEA only for now. CES and Dispatch planned; do not add yet.
-  GRADE:          'CEA',
-  CONTRACTED_HRS: 140,                   // hours per 28-day period
+  CONTRACTED_HRS: 140,                   // default; per-grade value from GRADES object
   LONDON_ALLOW:   276.16,               // London Allowance per period (£3,590.08/yr)
   FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
   LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
@@ -49,7 +46,6 @@ const CONFIG = {
 
 // Convenience aliases (keeps calculation code readable)
 const P_YR   = CONFIG.PERIODS_PER_YR;
-const CONTR  = CONFIG.CONTRACTED_HRS;
 
 // ── TAX & NI THRESHOLDS BY TAX YEAR ──────────────────────────────────────────
 // All annual figures ÷ 13 to give 4-weekly amounts.
@@ -114,13 +110,19 @@ const SCOTTISH_TAX_BY_YEAR = {
 const HPP_FRACTION = 4 / 52;
 
 // ── GRADES — contractual data per grade ───────────────────────────────────────
-// Only CEA is active. CES and Dispatch will be added here when rates are confirmed.
 // Each grade entry drives contracted hours, default rate, and default pension.
+// 2026/27 rates: CES and CEA pay awards not yet confirmed — update when announced.
 const GRADES = {
   cea: { label: 'CEA', rate: 20.74, contr: 140, pension: 154.77 },
-  // ces:      { label: 'CES',      rate: 0, contr: 0, pension: 0 }, // add when confirmed
+  ces: { label: 'CES', rate: 21.81, contr: 140, pension: 154.77 }, // 2025/26 rate; 2026/27 TBC
   // dispatch: { label: 'Dispatch', rate: 0, contr: 0, pension: 0 }, // add when confirmed
 };
+
+/** Return contracted hours for the currently selected grade. */
+function getContr() {
+  const g = localStorage.getItem(SK.grade);
+  return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
+}
 
 /** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
 function getPensionDefault() {
@@ -154,7 +156,7 @@ const HELP_CONTENT = {
   hours: {
     title: 'Your Hours — how it works',
     tips: [
-      'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay.',
+      'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay. (CES and CEA are both 140 hours.)',
       'If your name is in the roster, a hint bar appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, rest day working (RDW), and Boxing Day. Tap <strong>Fill blanks from roster →</strong> to pre-fill any <em>empty</em> fields in one tap. It will never overwrite hours you\'ve already typed. Filled fields turn gold; the highlight clears as soon as you edit them. Saturday and Boxing Day come from the base roster only. Sunday, bank holiday, and RDW shifts also include any overrides added by admin.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday RDW" is for working a rest day that happened to fall on a BH.',
@@ -166,8 +168,8 @@ const HELP_CONTENT = {
   settings: {
     title: 'Settings — where to find things',
     tips: [
-      '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. The CEA rate is currently £20.74. It changes each April with the pay award.',
-      '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). Most CEA staff are on 1257L. A code starting with S means you pay Scottish income tax rates.',
+      '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. CEA rate is currently £20.74; CES rate is currently £21.81. Both change each April with the pay award.',
+      '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). Most staff are on 1257L. A code starting with S means you pay Scottish income tax rates.',
       '<strong>Pension:</strong> shown as "Smart RPS CR Scheme" on your payslip. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
       '<strong>Student loan:</strong> only select a plan if a student loan deduction appears on your payslip. If you repay by direct debit, leave this as None.',
       'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
@@ -233,9 +235,9 @@ function onHhMm(hId, mId, warnId) {
   if (warnId) {
     const hrs = hhmmDec(hId, mId);
     const warn = document.getElementById(warnId);
-    warn.classList.toggle('show', hrs > CONTR);
-    if (hrs > CONTR) {
-      document.getElementById(hId).value = CONTR;
+    warn.classList.toggle('show', hrs > getContr());
+    if (hrs > getContr()) {
+      document.getElementById(hId).value = getContr();
       document.getElementById(mId).value = 0;
     }
   }
@@ -463,13 +465,14 @@ function buildBackPayPeriodSelect() {
 
 // ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
 // Loads the stored rate for the given tax year into the hourly rate field.
-// Falls back to the legacy single rate, then to the CEA default.
+// Falls back to the legacy single rate, then to the current grade's default.
 function updateRateForPeriod(ty) {
   let rates = {};
   try { rates = JSON.parse(localStorage.getItem(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted'); }
+  const g     = localStorage.getItem(SK.grade);
   const rate  = rates[ty.label]
              || parseFloat(localStorage.getItem(SK.rate))
-             || GRADES.cea.rate;
+             || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
   document.getElementById('hourlyRate').value = rate.toFixed(2);
   // Update label to show which tax year this rate applies to
   const lbl = document.getElementById('rateYearLabel');
@@ -880,8 +883,21 @@ function loadSettings() {
   const done    = localStorage.getItem(SK.setup);
   if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
   if (sl)      document.getElementById('studentLoan').value = sl;
-  const grade = localStorage.getItem(SK.grade);
-  if (grade) document.getElementById('gradeSelect').value = grade;
+  let grade = localStorage.getItem(SK.grade);
+  if (!grade || !GRADES[grade]) {
+    // Auto-detect from the logged-in member's role
+    try {
+      const sess = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+      if (sess?.name) {
+        const member = teamMembers.find(m => m.name === sess.name);
+        if (member?.role === 'CES') grade = 'ces';
+      }
+    } catch(e) {}
+  }
+  if (grade && GRADES[grade]) {
+    document.getElementById('gradeSelect').value = grade;
+    localStorage.setItem(SK.grade, grade);
+  }
   document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
   // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
   const legacyYtdPay = localStorage.getItem(SK.ytdPay);
@@ -1259,8 +1275,8 @@ function calculate() {
   const sHrs    = hhmmDec('sunH',  'sunM');
   const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
-  const satCapped  = Math.min(satHrs, CONTR);
-  const normHrs    = CONTR - satCapped;     // non-Saturday contracted hours
+  const satCapped  = Math.min(satHrs, getContr());
+  const normHrs    = getContr() - satCapped;     // non-Saturday contracted hours
   const bhCapped   = Math.min(bhHrs, normHrs); // clamp to available non-Sat hours
   const nonBhNorm  = normHrs - bhCapped;    // weekday non-BH contracted hours
 
@@ -1494,8 +1510,8 @@ function calcHPP() {
       // Mirror the capping logic from calculate() — bhCapped can be 0 when all
       // contracted hours fall on Saturday, in which case the BH premium must not
       // contribute to HPP either (it was not included in that period's gross pay).
-      const satCapped = Math.min(satHrs, CONTR);
-      const normHrs   = CONTR - satCapped;
+      const satCapped = Math.min(satHrs, getContr());
+      const normHrs   = getContr() - satCapped;
       const bhCapped  = Math.min(bhHrs, normHrs);
 
       // Variable pay = Gross minus Basic:
@@ -1712,12 +1728,12 @@ function calcBackPay() {
       const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
       const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
       // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
-      const satCapped = Math.min(satHrs, CONTR);
-      const normHrsBP = CONTR - satCapped;
+      const satCapped = Math.min(satHrs, getContr());
+      const normHrsBP = getContr() - satCapped;
       const bhCapped  = Math.min(bhHrs, normHrsBP);
 
       const ratePay =
-        CONTR     * rateDiff        +
+        getContr()     * rateDiff        +
         satCapped * rateDiff * 0.25 +
         bhCapped  * rateDiff * 0.25 +
         bhOtHrs   * rateDiff * 1.25 +
@@ -2166,6 +2182,11 @@ Device: ${navigator.userAgent}
   if (!lb) return;
 
   function openWelcome() {
+    const badge = document.getElementById('welcomeGradeBadge');
+    if (badge) {
+      const g = localStorage.getItem(SK.grade);
+      badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA') + ' grade';
+    }
     lb.classList.add('visible');
     requestAnimationFrame(() => lb.classList.add('open'));
     document.addEventListener('keydown', onKeyDown);

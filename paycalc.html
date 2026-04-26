@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v7.75 -->
+<!-- MYB Roster — Pay Calculator v7.76 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=7.75">
+  <link rel="stylesheet" href="./shared.css?v=7.76">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -966,7 +966,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=7.75">
+  <link rel="manifest" href="./pay-manifest.json?v=7.76">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1055,10 +1055,10 @@
         <label>Grade</label>
         <select id="gradeSelect">
           <option value="cea">CEA — Customer Experience Adviser</option>
-          <option value="ces" disabled>CES — Customer Experience Supervisor (coming soon)</option>
+          <option value="ces">CES — Customer Experience Supervisor</option>
           <option value="dispatch" disabled>Dispatch (coming soon)</option>
         </select>
-        <div class="field-hint">CEA is the only grade currently supported. CES and Dispatch will be added in a future update.</div>
+        <div class="field-hint">Dispatch will be added in a future update.</div>
       </div>
 
       <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
@@ -1590,14 +1590,13 @@
   <div id="welcomeLightboxContent">
     <div class="welcome-emoji">💷</div>
     <div class="lightbox-app-name">Pay Calculator</div>
-    <div class="welcome-grade-badge">CEA grade</div>
+    <div class="welcome-grade-badge" id="welcomeGradeBadge">CEA grade</div>
     <p class="welcome-desc">Enter your hours for any pay period — regular, Saturday, bank holidays, overtime and rest day working — and get an instant estimate of your take-home pay.</p>
-    <p class="welcome-desc" style="margin-top:6px;font-size:12px;color:rgba(255,255,255,0.45);">Currently available for the CEA grade only. Other grades will be added in a future update.</p>
     <div class="lightbox-privacy">🔒 Your pay data is saved on this device only — never sent to any server or visible to anyone else.</div>
     <a class="welcome-guide-link" href="./paycalc-guide.html" target="_blank" rel="noopener">📖 View the Pay Guide →</a>
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=7.75"></script>
+<script type="module" src="./paycalc.js?v=7.76"></script>
 </body>
 </html>
