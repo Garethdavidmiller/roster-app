@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.65 -->
+<!-- MYB Roster Admin v7.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.65">
+    <link rel="manifest" href="manifest.json?v=7.66">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.65">
+    <link rel="stylesheet" href="shared.css?v=7.66">
 
     <style>
         body {
@@ -30,6 +30,10 @@
             overflow-x: hidden;
             overscroll-behavior: none;
             color: var(--text-dark);
+        }
+
+        @media (max-width: 767px) {
+            body { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
         }
 
         /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
@@ -2547,6 +2551,21 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.65"></script>
+<script type="module" src="./admin-app.js?v=7.66"></script>
+
+<nav class="bottom-nav" aria-label="Main navigation">
+    <a href="./index.html" class="bottom-nav-item">
+        <span class="bottom-nav-icon">📅</span>
+        <span>Roster</span>
+    </a>
+    <a href="./paycalc.html" class="bottom-nav-item">
+        <span class="bottom-nav-icon">💷</span>
+        <span>Pay</span>
+    </a>
+    <a href="./admin.html" class="bottom-nav-item active" aria-current="page">
+        <span class="bottom-nav-icon">🔐</span>
+        <span>Admin</span>
+    </a>
+</nav>
 </body>
 </html>

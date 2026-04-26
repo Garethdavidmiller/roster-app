@@ -570,3 +570,62 @@ body {
         padding: 6px 13px;
     }
 }
+
+/* ============================================================
+   BOTTOM NAVIGATION BAR
+   Persistent tab bar on mobile. Hidden on desktop (≥ 768px)
+   and in all print output.
+   ============================================================ */
+.bottom-nav {
+    display: none; /* desktop: not shown */
+}
+
+@media (max-width: 767px) {
+    .bottom-nav {
+        position: fixed;
+        bottom: 0; left: 0; right: 0;
+        background: var(--primary-blue);
+        border-top: 1px solid rgba(255,255,255,0.12);
+        display: flex;
+        padding-bottom: env(safe-area-inset-bottom);
+        z-index: 500;
+    }
+}
+
+.bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 7px 4px;
+    min-height: 56px;
+    color: rgba(255,255,255,0.5);
+    text-decoration: none;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    transition: color 0.15s;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.bottom-nav-item.active {
+    color: var(--accent-gold);
+}
+
+@media (hover: hover) and (pointer: fine) {
+    .bottom-nav-item:hover { color: rgba(255,255,255,0.85); }
+}
+
+.bottom-nav-icon {
+    font-size: 20px;
+    line-height: 1;
+}
+
+@media print {
+    .bottom-nav { display: none !important; }
+}
