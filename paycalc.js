@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.68';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.68';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.69';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.69';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -960,9 +960,12 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
   const thisToken = ++_overrideFetchToken;
   _overridesByDate = new Map();
   try {
+    // Query by date range only — no memberName equality filter. Adding memberName
+    // as an equality filter alongside a date range requires a composite Firestore
+    // index that doesn't exist in this project. app.js uses the same date-only
+    // pattern and filters by member client-side, so we do the same here.
     const q = query(
       collection(db, 'overrides'),
-      where('memberName', '==', memberName),
       where('date', '>=', formatISO(p.start)),
       where('date', '<=', formatISO(p.cutoff))
     );
@@ -972,7 +975,7 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
     const map = new Map();
     snap.forEach(doc => {
       const d = doc.data();
-      if (!d.date) return;
+      if (!d.date || d.memberName !== memberName) return; // filter to current member
       // If a date has multiple override docs, keep the most recently created one.
       // createdAt is a Firestore server timestamp — toMillis() gives ms since epoch.
       const existing = map.get(d.date);
@@ -1037,12 +1040,12 @@ function getRosterSuggestion(p) {
         if (fromOv) bhFromOv = true;
         days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
       } else if (dow === 0) {
-        // Sunday — the higher Sunday rate applies regardless of whether this
-        // is a base Sunday or an RDW override. We tag the day as 'rdw' when
-        // the override marks it so the day list shows the right icon.
+        // Sunday — the higher Sunday rate applies whether this is a base rostered
+        // Sunday or an RDW override on a Sunday. Always tagged 'sun' so the day
+        // list chip matches the field it fills (Sunday, not RDW).
         sunMins += mins; sunCount++;
         if (fromOv) sunFromOv = true;
-        days.push({ date: new Date(cur), shift: effValue, type: effType === 'rdw' ? 'rdw' : 'sun', source: fromOv ? 'override' : 'base' });
+        days.push({ date: new Date(cur), shift: effValue, type: 'sun', source: fromOv ? 'override' : 'base' });
       } else if (effType === 'rdw') {
         // Rest-day-worked on a weekday or Saturday — always an override
         rdwMins += mins; rdwCount++;
