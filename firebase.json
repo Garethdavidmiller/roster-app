@@ -14,6 +14,7 @@
       "functions/**",
       "**/*.md",
       "**/*.mjs",
+      "**/*.zip",
       "firestore.rules"
     ],
     "headers": [
