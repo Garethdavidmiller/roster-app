@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.69';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.69';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.70';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.70';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ const TAX_BY_YEAR = {
 };
 // NI thresholds are set weekly by HMRC; the correct 4-weekly value is weekly × 4.
 // PT 2025/26: £242/wk × 4 = £968. UEL 2025/26: £967/wk × 4 = £3,868.
-// Using annual ÷ 13 (£966.97 / £3,867.69) would overstate NI by ~£0.09/period.
+// Using annual ÷ 13 (£966.97 / £3,867.70) would overstate NI by ~£0.09/period.
 const NI_BY_YEAR = {
   '2025/26': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 },
   '2026/27': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 }, // confirmed unchanged
@@ -186,7 +186,7 @@ const HELP_CONTENT = {
     title: 'Holiday Pay Premium (HPP)',
     tips: [
       'When you take annual leave, Chiltern only pay your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay, and Sunday pay for those days.',
-      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your extra pay above basic hours (overtime, rest day working, Sundays, and London Allowance) across the whole tax year.',
+      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.70%</strong> of your extra pay above basic hours (overtime, rest day working, Sundays, and London Allowance) across the whole tax year.',
       'This is paid as a <strong>single lump sum in your January payslip</strong> every year — it doesn\'t appear on any other payslip.',
       'The estimate builds across all periods you\'ve entered in the current tax year. When you move into the next tax year, the prior year\'s estimate carries forward into this card — enter the confirmed January payslip figure there to replace it.',
     ],
@@ -1110,7 +1110,7 @@ function updateRosterHint() {
   const rows = document.getElementById('rosterRows');
   if (rows) {
     const cats = [
-      { cat: 'sat', icon: '🗓️', label: 'Saturday',    h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
+      { cat: 'sat', icon: '🗓️', label: 'Rostered Saturday', h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
       { cat: 'sun', icon: '☀️', label: 'Sunday',       h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
       { cat: 'bh',  icon: '🏦', label: 'Bank holiday', h: s.bhH,  m: s.bhM,  count: s.bhCount,  fromOv: s.bhFromOv  },
       { cat: 'rdw', icon: '💼', label: 'RDW',          h: s.rdwH, m: s.rdwM, count: s.rdwCount, fromOv: true        },
@@ -1147,7 +1147,7 @@ function updateRosterHint() {
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Saturday', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
+const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
 
 /** Populates the collapsible day list with the individual shifts behind the suggestion. */
 function renderRosterDayList(days) {
@@ -1538,13 +1538,13 @@ function calcHPP() {
   } else {
     if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
     amountEl.textContent = fmt(hpp);
-    basisEl.textContent  = `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+    basisEl.textContent  = `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.70% · due January ${ty.hppPaidJan}`;
   }
 
   // Dynamic formula note
   const noteEl = document.getElementById('hppNote');
   if (noteEl) {
-    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All extra pay above your basic hours (overtime, rest day working, Sundays, and London Allowance) × 7.69%. Basic pay, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
+    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All extra pay above your basic hours (overtime, rest day working, Sundays, and London Allowance) × 7.70%. Basic pay, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
   }
 
   // Update the prior year section (shows the previous tax year's HPP carry-forward)
