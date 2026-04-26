@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.87';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.87';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=7.91';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=7.91';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -113,8 +113,8 @@ const HPP_FRACTION = 4 / 52;
 // Each grade entry drives contracted hours, default rate, and default pension.
 // 2026/27 rates: CES and CEA pay awards not yet confirmed — update when announced.
 const GRADES = {
-  cea: { label: 'CEA', rate: 20.74, contr: 140, pension: 154.77 },
-  ces: { label: 'CES', rate: 21.81, contr: 140, pension: 154.77 }, // 2025/26 rate; 2026/27 TBC
+  cea: { label: 'CEA — £20.74/hr', rate: 20.74, contr: 140, pension: 154.77 },
+  ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 154.77 }, // 2025/26 rate; 2026/27 TBC
   // dispatch: { label: 'Dispatch', rate: 0, contr: 0, pension: 0 }, // add when confirmed
 };
 
@@ -185,10 +185,11 @@ const HELP_CONTENT = {
   hours: {
     title: 'Your Hours — how it works',
     tips: [
+      '<strong>Glossary:</strong> AL = Annual Leave · RDW = Rest Day Worked (you worked on your scheduled day off) · BH = Bank Holiday · CEA / CES = your pay grade · HPP = Holiday Pay Premium (annual lump sum in January).',
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay. (CES and CEA are both 140 hours.)',
       'If your name is in the roster, a hint bar appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, rest day working (RDW), and Boxing Day. Tap <strong>Fill blanks from roster →</strong> to pre-fill any <em>empty</em> fields in one tap. It will never overwrite hours you\'ve already typed. Filled fields turn gold; the highlight clears as soon as you edit them. Saturday and Boxing Day come from the base roster only. Sunday, bank holiday, and RDW shifts also include any overrides added by admin.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
-      '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a BH; "Bank Holiday RDW" is for working a rest day that happened to fall on a BH.',
+      '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a bank holiday; "Bank Holiday RDW" is for working a rest day that happened to fall on a bank holiday.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
       'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
       'Each entry updates the estimate instantly — no need to tap a calculate button.',
@@ -198,9 +199,10 @@ const HELP_CONTENT = {
     title: 'Settings — where to find things',
     tips: [
       '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. CEA rate is currently £20.74; CES rate is currently £21.81. Both change each April with the pay award.',
-      '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). Most staff are on 1257L. A code starting with S means you pay Scottish income tax rates.',
+      '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). It tells HMRC how much tax-free income you get. Most Marylebone staff are on 1257L. A code starting with S means you pay Scottish income tax rates. If you\'re unsure, check your payslip or contact payroll.',
       '<strong>Pension:</strong> shown as "Smart RPS CR Scheme" on your payslip. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
-      '<strong>Student loan:</strong> only select a plan if a student loan deduction appears on your payslip. If you repay by direct debit, leave this as None.',
+      '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one.',
+      '<strong>London Allowance (£276.16/period):</strong> a fixed supplement paid to all Marylebone staff. It\'s included automatically — you don\'t need to enter it.',
       'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
     ],
   },
@@ -337,16 +339,22 @@ function isDateInBHList(d) {
   );
 }
 
+// Rows that are conditionally shown/hidden based on period content.
+// Each entry: { condition(p), rows: [id], fields: [id] }
+const CONDITIONAL_ROWS = [
+  {
+    condition: hasBankHoliday,
+    rows:   ['bhRow', 'bhOtRow'],
+    fields: ['bhH', 'bhM', 'bhOtH', 'bhOtM'],
+  },
+];
+
 function updateBhRows(p) {
-  const hasBH = hasBankHoliday(p);
-  document.getElementById('bhRow').classList.toggle('hidden', !hasBH);
-  document.getElementById('bhOtRow').classList.toggle('hidden', !hasBH);
-  if (!hasBH) {
-    document.getElementById('bhH').value  = '';
-    document.getElementById('bhM').value  = '';
-    document.getElementById('bhOtH').value = '';
-    document.getElementById('bhOtM').value = '';
-  }
+  CONDITIONAL_ROWS.forEach(({ condition, rows, fields }) => {
+    const show = condition(p);
+    rows.forEach(id => document.getElementById(id)?.classList.toggle('hidden', !show));
+    if (!show) fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  });
 }
 
 // ── TAX YEAR HELPERS ──────────────────────────────────────────────────────────
@@ -448,11 +456,10 @@ function buildPeriodSelect() {
 
     const o = document.createElement('option');
     o.value = p.num;
-    // Plain-language label — "Paid 13 Feb 2026" — makes the date unambiguous
     const payStr = p.payday.toLocaleDateString('en-GB', {
       day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
     });
-    o.textContent = `Paid ${payStr}`;
+    o.textContent = `P${p.num} · Paid ${payStr}`;
     currentGroup.appendChild(o);
   });
 
@@ -564,8 +571,16 @@ function onPeriodChange() {
 
   // Prev / Next button states
   const idx = periods.findIndex(x => x.num === pNum);
-  document.getElementById('prevBtn').disabled = (idx <= 0);
-  document.getElementById('nextBtn').disabled = (idx >= periods.length - 1);
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  prevBtn.disabled = (idx <= 0);
+  nextBtn.disabled = (idx >= periods.length - 1);
+  prevBtn.setAttribute('aria-label', idx <= 0
+    ? 'No earlier period available — this is the first one'
+    : 'View earlier period');
+  nextBtn.setAttribute('aria-label', idx >= periods.length - 1
+    ? 'No later period available — this is the last one'
+    : 'View later period');
 
   // Meta row — two lines
   // Row 1: the shift dates (start → cutoff, not start → payday)
@@ -578,7 +593,7 @@ function onPeriodChange() {
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
   });
   const payStr = p.payday.toLocaleDateString('en-GB', {
-    day: 'numeric', month: 'short', timeZone: 'Europe/London'
+    day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
   });
   document.getElementById('pmRange').textContent   = `${startStr} – ${cutLongStr}`;
   document.getElementById('pmSub').textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
@@ -593,14 +608,11 @@ function onPeriodChange() {
   document.getElementById('sundaySub').textContent =
     `Any hours you worked on a Sunday (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
 
-  // Boxing Day
+  // Boxing Day — uses same pattern as CONDITIONAL_ROWS but needs the banner too
   const boxing = hasBoxingDay(p);
   document.getElementById('boxingBanner').classList.toggle('visible', boxing);
   document.getElementById('boxingRow').classList.toggle('hidden', !boxing);
-  if (!boxing) {
-    document.getElementById('boxH').value = '';
-    document.getElementById('boxM').value = '';
-  }
+  if (!boxing) { document.getElementById('boxH').value = ''; document.getElementById('boxM').value = ''; }
 
   // Update tax year tab active state
   updateTyTabs();
@@ -638,7 +650,9 @@ function onPeriodChange() {
         document.getElementById('settingsToggle').classList.add('open');
         document.getElementById('settingsBody').classList.add('open');
         const notice = document.getElementById('settingsNewYearNotice');
-        notice.textContent = `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
+        notice.textContent = ty.label === '2026/27'
+          ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
+          : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
         notice.classList.remove('hidden');
       }
     }
@@ -647,11 +661,20 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
+  // Show rate-unconfirmed notice when in a period where the pay award isn't finalised
+  const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
+  if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', ty.label !== '2026/27');
+
+  // Read session now so we can set the correct initial fetch state
+  let session2;
+  try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
+
   // Clear the override cache before rendering the hint — without this, the first
   // hint render uses override data from the previous period (stale Firestore results).
   _overrideFetchToken++;
   _overridesByDate = new Map();
-  _overridesFetchState = 'base-only'; // reset: Firestore fetch for new period hasn't run yet
+  // 'checking' if a Firestore fetch is about to start, 'base-only' if no session logged in.
+  _overridesFetchState = session2?.name ? 'checking' : 'base-only';
 
   // Update roster suggestion card and joiner notice for this period.
   updateRosterHint();
@@ -661,10 +684,7 @@ function onPeriodChange() {
   const _rvl = document.getElementById('rosterViewLink');
   if (_rvl) _rvl.href = `./index.html?date=${formatISO(p.start)}`;
 
-  // Fetch admin-added overrides from Firestore in the background. Bumps the token
-  // again and clears the map so any in-flight older fetch cannot write stale data.
-  let session2;
-  try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
+  // Fetch admin-added overrides from Firestore in the background.
   if (session2?.name) fetchOverrideSpecialDaysForPeriod(p, session2.name);
 
   // Load saved data for this period
@@ -801,24 +821,31 @@ function updateSaveStatus(pNum) {
   el.className   = 'save-status unsaved';
 }
 
-let _clearPending = false;
-let _clearTimer   = null;
+const _clearState = { pending: false, timer: null, countdownTimer: null };
 
 function clearPeriod() {
   const btn = document.getElementById('clearBtn');
-  if (!_clearPending) {
-    _clearPending = true;
-    btn.textContent = 'Tap again to confirm';
+  if (!_clearState.pending) {
+    _clearState.pending = true;
+    let secs = 3;
+    btn.textContent = `Tap again to confirm (${secs})`;
     btn.classList.add('confirming');
-    _clearTimer = setTimeout(() => {
-      _clearPending   = false;
+    // Countdown tick every second
+    _clearState.countdownTimer = setInterval(() => {
+      secs--;
+      if (secs > 0) btn.textContent = `Tap again to confirm (${secs})`;
+    }, 1000);
+    _clearState.timer = setTimeout(() => {
+      clearInterval(_clearState.countdownTimer);
+      _clearState.pending = false;
       btn.textContent = 'Clear all entries';
       btn.classList.remove('confirming');
     }, 3000);
     return;
   }
-  clearTimeout(_clearTimer);
-  _clearPending   = false;
+  clearTimeout(_clearState.timer);
+  clearInterval(_clearState.countdownTimer);
+  _clearState.pending = false;
   btn.textContent = 'Clear all entries';
   btn.classList.remove('confirming');
   const pNum = currentPeriodNum();
@@ -895,7 +922,7 @@ function confirmSettings() {
     fb.textContent = '';
     document.getElementById('settingsToggle').classList.remove('open');
     document.getElementById('settingsBody').classList.remove('open');
-  }, 900);
+  }, 2500);
   calculate();
 }
 
@@ -988,7 +1015,8 @@ let _overridesByDate = new Map();
 // fetch from an earlier period can never overwrite the current period's data.
 let _overrideFetchToken = 0;
 
-// 'base-only': Firestore not yet attempted or failed — showing base roster only.
+// 'checking':  Firestore fetch in progress — overrides not yet applied.
+// 'base-only': No session logged in, or fetch failed — showing base roster only.
 // 'loaded':    Firestore succeeded — overrides applied to suggestions.
 let _overridesFetchState = 'base-only';
 
@@ -1007,7 +1035,7 @@ let _adjNegative = false; // tracks intended sign of otherAdj independently of v
  * map stays empty and the base-roster-only totals are shown instead.
  */
 async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
-  const thisToken = ++_overrideFetchToken;
+  const thisToken = _overrideFetchToken; // onPeriodChange already incremented — just capture
   _overridesByDate = new Map();
   try {
     // Query by date range only — no memberName equality filter. Adding memberName
@@ -1150,6 +1178,9 @@ function updateRosterHint() {
     if (_overridesFetchState === 'loaded') {
       badge.textContent  = '✓ Roster + overrides';
       badge.className    = 'roster-state-badge loaded';
+    } else if (_overridesFetchState === 'checking') {
+      badge.textContent  = '↻ Checking…';
+      badge.className    = 'roster-state-badge checking';
     } else {
       badge.textContent  = '⚠ Base roster only';
       badge.className    = 'roster-state-badge base-only';
@@ -1290,6 +1321,13 @@ function fillFromRoster() {
   _suggestIfBlank('rdwH', 'rdwM', s.rdwH, s.rdwM);
   _suggestIfBlank('boxH', 'boxM', s.boxH, s.boxM);
   autosave();
+  // Brief confirmation — tap Clear all entries to undo
+  const hint = document.getElementById('rosterHintText');
+  if (hint) {
+    const prev = hint.textContent;
+    hint.textContent = '✓ Filled — tap "Clear all entries" to undo';
+    setTimeout(() => { hint.textContent = prev; }, 3000);
+  }
 }
 
 // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
@@ -2232,7 +2270,7 @@ Device: ${navigator.userAgent}
 
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')
-      .then(reg  => console.log('SW registered:', reg.scope))
+      .then(() => {})
       .catch(err => console.error('SW registration failed:', err));
   });
 })();
