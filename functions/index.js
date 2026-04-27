@@ -856,12 +856,17 @@ function nameToEmail(fullName) {
 
 /**
  * Derive the Firebase Auth password from a teamMembers display name.
- * Must stay in sync with getSurname() in admin-app.js.
+ * Firebase requires a minimum of 6 characters, so short surnames are padded
+ * by repeating the surname until it reaches 6 chars (e.g. "tuck" → "tucktu").
+ * Staff never type this into Firebase directly — the localStorage login uses
+ * the raw surname. Both createUser and signInWithEmailAndPassword must use
+ * this same function so the password always matches.
  *
- * @param {string} fullName - e.g. "G. Miller" → "miller"
+ * @param {string} fullName - e.g. "G. Miller" → "miller", "N. Tuck" → "tucktu"
  */
 function nameToPassword(fullName) {
-    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    const surname = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return surname.length >= 6 ? surname : surname.padEnd(6, surname);
 }
 
 /**
@@ -931,8 +936,9 @@ exports.setupRosterAuth = onRequest(
                 if (err.code === 'auth/email-already-exists') {
                     skipped.push(name);
                 } else {
-                    failed.push(name);
-                    console.error(`[setupRosterAuth] Failed for ${name}: ${err.message}`);
+                    const reason = err.code || err.message || 'unknown';
+                    failed.push(`${name} (${reason})`);
+                    console.error(`[setupRosterAuth] Failed for ${name}: ${reason}`);
                 }
             }
         }
