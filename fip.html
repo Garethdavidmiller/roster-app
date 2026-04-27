@@ -275,25 +275,6 @@
         hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
         /* ── Source strip (below header) ────────── */
-        .source-strip {
-            background: var(--white);
-            border-bottom: 2px solid var(--gold);
-            padding: 7px 16px;
-            font-size: 12px;
-            color: var(--mid);
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 4px 10px;
-        }
-        .source-strip .src-label {
-            font-weight: 600;
-            color: var(--navy);
-            margin-right: 2px;
-        }
-        .source-strip a { color: var(--blue-text); text-decoration: none; }
-        .source-strip a:hover { text-decoration: underline; }
-
         /* ── Checklist ───────────────────────────── */
         .checklist { list-style: none; }
         .checklist li {
@@ -332,17 +313,14 @@
         <a href="./admin.html" class="btn-back" aria-label="Back to admin">←</a>
         <div>
             <h1>🇪🇺 FIP Travel</h1>
-            <p class="sub">European travel for Chiltern Railways staff</p>
+            <p class="sub">European travel for Chiltern Railways staff · Last checked April 2026</p>
         </div>
     </header>
 
-    <div class="source-strip">
-        <span class="src-label">Last checked: April 2026</span>
-        <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener">RDG Europe &amp; FIP guide ↗</a>
-        <a href="https://www.raildeliverygroup.com/rst/forms.html" target="_blank" rel="noopener">RST forms ↗</a>
-    </div>
-
     <div class="content">
+
+        <p style="font-size:14px;line-height:1.6;margin-bottom:4px;color:var(--text)">FIP is your European train pass as a Chiltern Railways employee — discounted or free travel on most European national rail networks. This page tells you what to do, where it works, and how to book.</p>
+        <p style="font-size:12px;color:var(--mid);margin-bottom:16px">Official sources: <a href="https://www.raildeliverygroup.com/rst/europe-and-fip.html" target="_blank" rel="noopener" style="color:var(--blue-text)">RDG Europe &amp; FIP guide ↗</a> · <a href="https://www.raildeliverygroup.com/rst/forms.html" target="_blank" rel="noopener" style="color:var(--blue-text)">RST forms ↗</a></p>
 
         <!-- ── QUICK START ───────────────────────── -->
         <p class="section-label">What do I need?</p>
@@ -418,6 +396,32 @@
         <div class="box box-yellow">
             <strong>⚠ On day 2 of your 48 hours — watch the inspector</strong>
             Some inspectors try to mark a second box on day 2, thinking each day needs a new date. It doesn't — one date covers a full 48 hours (write Monday's date and you're valid for all of Monday and all of Tuesday). Politely point this out if it happens.
+        </div>
+
+
+        <!-- ── BOOKING FROM UK ───────────────────── -->
+        <p class="section-label">Booking from the UK</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Four ways to book your FIP trip from the UK.</p>
+
+        <div class="card">
+            <ol class="steps">
+                <li>
+                    <strong>Trainseurope</strong>
+                    <span>Call <b>01354 660222</b> — Mon–Fri 09:00–19:00, Sat–Sun 10:00–15:00. Speak to a person and get it booked in one call. Handles most countries.</span>
+                </li>
+                <li>
+                    <strong>SNCF direct</strong>
+                    <span>Call <b>00 33 1 84 94 3635</b> — ask for the English option. Best for Eurostar and French-operated trains. They can email tickets to you.</span>
+                </li>
+                <li>
+                    <strong>bookmyrst.co.uk</strong>
+                    <span>Online request form — submit your journey and they email a quote. <b>Allow at least 3 weeks</b> — no telephone bookings. Covers most routes.</span>
+                </li>
+                <li>
+                    <strong>Ffestiniog Travel</strong>
+                    <span>A specialist rail agency. Email <b>rail@ffestiniogtravel.com</b> — worth trying if Trainseurope can't help with your route.</span>
+                </li>
+            </ol>
         </div>
 
 
@@ -556,13 +560,13 @@
                 </div>
                 <p><strong>Operator: SNCB / NMBS</strong></p>
                 <p>Both 75% FIP tickets and free coupons are valid on SNCB services. No reservation is required — buy your ticket and travel. Note: a surcharge applies at Brussels Airport Zaventem station — check the current amount when booking.</p>
-                <div class="box box-red" style="margin-top:8px">
-                    <strong>⚠ International TGV trains from France — SNCB coupons not valid</strong>
-                    SNCF operates TGV trains between Brussels and Lyon, Marseille, and other French cities. SNCB coupons are <strong>not</strong> accepted on these — a FIP Global Fare must be purchased instead. For Brussels–Paris, a Eurostar FIP fare is usually cheaper and easier.
-                </div>
-                <div class="box box-yellow" style="margin-bottom:0">
+                <div class="box box-yellow" style="margin-top:8px">
                     <strong>⚠ From 1 July 2026 — buy before boarding</strong>
                     SNCB will no longer sell tickets on board, including FIP discounted tickets. Buy at a station ticket desk before you board. Do not assume you can pay on the train.
+                </div>
+                <div class="box box-red" style="margin-bottom:0">
+                    <strong>⚠ TGV trains from France — SNCB coupons not valid</strong>
+                    SNCF TGV trains between Brussels and Lyon, Marseille, etc. don't accept SNCB coupons. A separate fixed-price FIP ticket must be booked (call Trainseurope). For Brussels–Paris, a Eurostar FIP fare is usually cheaper and easier.
                 </div>
             </div>
         </details>
@@ -636,13 +640,9 @@
                 <div class="box box-blue" style="margin-top:8px">
                     <strong>Railjet class:</strong> A second-class coupon covers Economy class; first-class coupons are needed for Railjet first class. Business class on Railjet isn't bookable with FIP at all.
                 </div>
-                <div class="box box-red" style="margin-top:0">
-                    <strong>⚠ Westbahn and RegioJet — FIP not valid</strong>
-                    Both run long-distance services in Austria but don't accept FIP. They can appear in journey planners listed as IC or WB — check you're on an ÖBB service before assuming FIP applies.
-                </div>
-                <div class="box box-red" style="margin-bottom:0">
-                    <strong>⚠ CAT (City Airport Train) Vienna — FIP not valid</strong>
-                    The direct airport express to Vienna Airport is not an ÖBB service and does not accept FIP. Use an ÖBB suburban train instead — slower but covered by FIP.
+                <div class="box box-red" style="margin-top:0;margin-bottom:0">
+                    <strong>⚠ Private operators — FIP not valid</strong>
+                    Westbahn and RegioJet run long-distance trains in Austria but don't accept FIP (they appear as IC or WB in journey planners). The CAT (City Airport Train Vienna) is also not in FIP — use an ÖBB suburban train to the airport instead.
                 </div>
             </div>
         </details>
@@ -656,13 +656,9 @@
                 </div>
                 <p><strong>Operator: Trenitalia</strong></p>
                 <p>Both 50% FIP tickets and free coupons are accepted at Trenitalia ticket offices. On high-speed Frecciarossa and Frecciargento trains, a seat reservation is required — the fee is paid on top of the discounted fare. Sicily is also reachable by Trenitalia night and InterCity trains, which include a ferry crossing of the Strait of Messina.</p>
-                <div class="box box-red" style="margin-top:8px">
-                    <strong>⚠ Trenord (northern Italy/Lombardy) — FIP not valid</strong>
-                    Trenord operates regional trains across Lombardy — including services around Milan, Lake Como, and Bergamo. Despite sharing tracks with Trenitalia, Trenord does not accept FIP. Check that your train is Trenitalia-operated before assuming FIP applies in northern Italy.
-                </div>
-                <div class="box box-red" style="margin-bottom:0">
-                    <strong>⚠ Italo and Ferrovie Sud Est — FIP not valid</strong>
-                    Italo high-speed trains (private operator) do not accept FIP. Ferrovie Sud Est, which operates regional services in Puglia (Bari area), also does not accept FIP.
+                <div class="box box-red" style="margin-top:8px;margin-bottom:0">
+                    <strong>⚠ Private and regional operators — FIP not valid</strong>
+                    Italo high-speed trains don't accept FIP. Trenord — which runs regional trains across Lombardy (Milan, Lake Como, Bergamo) — also doesn't accept FIP despite sharing tracks with Trenitalia. Ferrovie Sud Est (Puglia/Bari area) is the same. Always check the operator before boarding a regional train in northern or southern Italy.
                 </div>
             </div>
         </details>
@@ -744,8 +740,8 @@
                     <strong>First class:</strong> A free coupon or 50% FIP ticket is required for first class. Second class is always free.
                 </div>
                 <div class="box box-yellow" style="margin-bottom:0">
-                    <strong>TGV trains from/to France — Global Fare required</strong>
-                    SNCF's TGV services between Paris and Luxembourg cannot be used with a standard CFL FIP coupon. A FIP Global Fare ticket must be purchased instead — and these can be expensive. Regional trains to/from France are fine with normal coupons.
+                    <strong>TGV trains from/to France — special fixed fare required</strong>
+                    SNCF's TGV services between Paris and Luxembourg cannot be used with a standard CFL FIP coupon. A separate fixed-price FIP ticket must be booked instead (call Trainseurope) — and these can be expensive. Regional trains to/from France are fine with normal coupons.
                 </div>
             </div>
         </details>
@@ -875,7 +871,7 @@
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
                 <p><strong>Operator: ZSSK (Slovak Railways)</strong></p>
-                <p>Both 50% FIP tickets and free coupons are valid on ZSSK services — coupons for staff only. The network connects Bratislava with Košice via Poprad, and to neighbouring countries via Vienna, Budapest and Prague. Buy at ZSSK ticket offices. Reservations are required in 1st class and on Intercity trains in 2nd class — book at the ticket office when you buy your FIP ticket.</p>
+                <p>Both 50% FIP tickets and free coupons are valid on ZSSK services — coupons for staff only. Connects to Vienna, Budapest and Prague. Buy at ZSSK ticket offices. Ask about reservations when you buy — they're required on some trains.</p>
                 <div class="box box-blue" style="margin-top:8px">
                     <strong>High Tatras mountain railway</strong>
                     The Tatranská železnica electric mountain railway in the High Tatras is operated by ZSSK and is covered by FIP — a rare chance to take a mountain railway included on your FIP ticket.
@@ -894,12 +890,7 @@
                     <span class="tag tag-yes">FIP Card ✓</span>
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
-                <p><strong>Operator: CFR Călători (Romanian State Railways)</strong></p>
-                <p>Both 50% FIP tickets and free coupons are valid on CFR services — coupons for staff only. Reservations are mandatory on most routes but are cheap. Buy at ticket offices; for international journeys, use the special international counters at major stations (Bucharest, Cluj, Timișoara). Trains are generally slow — plan extra time.</p>
-                <div class="box box-blue" style="margin-top:8px;margin-bottom:0">
-                    <strong>Vienna–Budapest–Bucharest — Dacia night train</strong>
-                    The famous Dacia overnight service connects Vienna and Bucharest via Budapest, and can be used with FIP for the entire route (ÖBB coupon for Austria, MÁV for Hungary, CFR for Romania). In summer, trains extend onward to the Bulgarian Black Sea coast.
-                </div>
+                <p>Both 50% FIP tickets and free coupons are valid on CFR Călători services — coupons for staff only. Buy at ticket offices. Trains are slow — build in extra time.</p>
             </div>
         </details>
 
@@ -910,12 +901,7 @@
                     <span class="tag tag-yes">FIP Card ✓</span>
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
-                <p><strong>Operator: BDŽ (Bulgarian State Railways)</strong></p>
-                <p>Both 50% FIP tickets and free coupons are valid on BDŽ services — coupons for staff only. Online booking is very limited; buy at ticket offices. For international journeys, use special international counters at major stations (Sofia, Plovdiv, Varna). The network is slow but covers main cities.</p>
-                <div class="box box-blue" style="margin-top:8px;margin-bottom:0">
-                    <strong>Cross-border to Romania</strong>
-                    Trains run between Sofia and Bucharest (more frequent in summer, including an overnight with couchette option). You need FIP coupons for both countries plus a mandatory reservation.
-                </div>
+                <p>Both 50% FIP tickets and free coupons are valid on BDŽ services — coupons for staff only. Buy at ticket offices — online booking is very limited.</p>
             </div>
         </details>
 
@@ -926,8 +912,7 @@
                     <span class="tag tag-yes">FIP Card ✓</span>
                     <span class="tag tag-warn">Coupons: staff only</span>
                 </div>
-                <p><strong>Operator: LTG-Link</strong> (member since early 2024)</p>
-                <p>Both 50% FIP tickets and free coupons are valid on LTG-Link services — coupons for staff only. When using a coupon, a free ticket must still be obtained per journey (available online at ltglink.lt). Trains connect Vilnius with Kaunas, Klaipėda, and internationally with Riga (Latvia) and Warsaw (Poland). Reservations are recommended on busy summer routes.</p>
+                <p>Both 50% FIP tickets and free coupons are valid on LTG-Link services — coupons for staff only. With a coupon you still need to get a free ticket before you travel — do this at ltglink.lt.</p>
             </div>
         </details>
 
@@ -988,36 +973,10 @@
                     <span class="tag tag-note">Fixed fare — no coupons</span>
                 </div>
                 <p><strong>Routes:</strong> Ancona / Bari → Patras, Igoumenitsa, Corfu</p>
-                <p>Superfast Ferries (operated by Attica Group) use fixed FIP Global Fares — not a percentage discount and not standard coupons. You need to book by sending the <strong>Attica FIP Reservation Form</strong> by email before you travel. The current booking contact and form are available on the full RDG FIP guide (link at the bottom of this page).</p>
+                <p>Superfast Ferries (operated by Attica Group) use a fixed FIP price — not a percentage discount and not standard coupons. You need to book by sending the <strong>Attica FIP Reservation Form</strong> by email before you travel. The current booking contact and form are available on the full RDG FIP guide (link at the bottom of this page).</p>
                 <p style="font-size:12px;color:var(--mid);margin-bottom:0">Always check RDG for current contact details before booking — these arrangements can change.</p>
             </div>
         </details>
-
-
-        <!-- ── BOOKING FROM UK ───────────────────── -->
-        <p class="section-label">Booking from the UK</p>
-        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Four ways to book your FIP trip from the UK.</p>
-
-        <div class="card">
-            <ol class="steps">
-                <li>
-                    <strong>Trainseurope</strong>
-                    <span>Call <b>01354 660222</b> — Mon–Fri 09:00–19:00, Sat–Sun 10:00–15:00. Speak to a person and get it booked in one call. Handles most countries.</span>
-                </li>
-                <li>
-                    <strong>SNCF direct</strong>
-                    <span>Call <b>00 33 1 84 94 3635</b> — ask for the English option. Best for Eurostar and French-operated trains. They can email tickets to you.</span>
-                </li>
-                <li>
-                    <strong>bookmyrst.co.uk</strong>
-                    <span>Online request form — submit your journey and they email a quote. <b>Allow at least 3 weeks</b> — no telephone bookings. Covers most routes.</span>
-                </li>
-                <li>
-                    <strong>Ffestiniog Travel</strong>
-                    <span>A specialist rail agency. Email <b>rail@ffestiniogtravel.com</b> — worth trying if Trainseurope can't help with your route.</span>
-                </li>
-            </ol>
-        </div>
 
 
         <!-- ── COMMON MISTAKES ───────────────────── -->
