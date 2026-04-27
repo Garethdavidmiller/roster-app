@@ -892,9 +892,10 @@ function nameToPassword(fullName) {
  */
 exports.setupRosterAuth = onRequest(
     {
-        region:  'europe-west2',
-        secrets: [ROSTER_SECRET],
+        region:        'europe-west2',
+        secrets:       [ROSTER_SECRET],
         timeoutSeconds: 120,
+        cors:          true,
     },
     async (req, res) => {
         if (req.method !== 'POST') {
