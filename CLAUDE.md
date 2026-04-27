@@ -685,28 +685,47 @@ The `@myb-roster.local` domain is synthetic — these are not real email address
 
 ### Phase 2 — completing the migration
 
-Run this once after the v7.61 Cloud Functions deploy has finished:
+The `setupRosterAuth` function now takes the member list from the POST body — there is no hardcoded array in `functions/index.js` to maintain. Claude generates the curl command with the current active `teamMembers` each time it is needed.
+
+**Step 1 — create all Firebase Auth accounts:**
 
 ```bash
 curl -X POST \
   -H "Authorization: Bearer <ROSTER_SECRET>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "members": ["L. Springer","A. Hared","G. Miller","M. Robson","I. Cooper","A. Panchal","C. Francisco-Charles","O. Mylla","S. Boyle","L. Atrakimaviciene","J. Haque","N. Tuck","R. Forrester-Blackstock","S. Langley","S. Silva","J. Sumaili","T. Bibi","T. Nsuala","D. Irvine","M. Okeke","T. Gherbi","C. Reen","D. Minto","A. Targanov","S. Warman","S. Faure","L. Szpejer","K. Porter","A. Murray","S. Clarke","A. Atkins","K. Yeboah","F. Mohamed","P. Lloyd","P. Prashanthan","G. Rotaru","L. Webster","Z. Lewis","M. Bowler","W. Cummings","S. Horsman"],
+    "removeOrphans": false
+  }' \
   https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth
 ```
 
-The response will list `created`, `skipped`, and `failed` accounts. Once `failed` is empty, deploy the updated Firestore rules:
+The response lists `created`, `skipped`, `disabled`, and `failed`. Once `failed` is empty, proceed.
+
+**Step 2 — deploy Firestore rules:**
+
+Push a trivial whitespace change to any file under `functions/` and merge to `main` — GitHub Actions will deploy the functions. Then deploy the rules separately (requires Firebase CLI on a local machine, or ask Claude to add a rules-deploy step to the workflow):
 
 ```bash
 firebase deploy --only firestore:rules
 ```
 
-**Do not deploy the rules before running `setupRosterAuth`** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
+**Do not deploy the rules before Step 1** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
 
 ### Adding a new staff member
 
-When a new team member is added to `teamMembers` in `roster-data.js`:
-1. Add their name to `ROSTER_MEMBERS` in `functions/index.js` (same array used by `setupRosterAuth`).
-2. Re-run `setupRosterAuth` (idempotent — existing accounts are skipped).
-3. The new account is ready immediately. No Firestore rule change needed.
+1. Add them to `teamMembers` in `roster-data.js` (always required)
+2. Ask Claude to regenerate and run the `setupRosterAuth` curl command — it reads the current `teamMembers` and posts the full active list. Existing accounts are skipped; only the new account is created.
+
+No changes to `functions/index.js` are needed — there is no separate list to update.
+
+### Removing a staff member (leavers)
+
+1. Set `hidden: true` on their entry in `teamMembers` (or remove entirely)
+2. Ask Claude to run `setupRosterAuth` with `"removeOrphans": true` — their Firebase Auth account will be **disabled** (not deleted). A disabled account cannot sign in.
+3. If you want to permanently delete the account, do so via Firebase Console → Authentication → Users.
+
+The `removeOrphans` flag only disables accounts — it never deletes data.
 
 ---
 
