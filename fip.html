@@ -292,6 +292,26 @@
             font-size: 15px;
         }
 
+        /* ── Country jump list ───────────────────── */
+        .country-jump {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 14px;
+        }
+        .country-jump a {
+            font-size: 12px;
+            padding: 3px 9px;
+            background: var(--white);
+            border: 1px solid var(--divider);
+            border-radius: 20px;
+            text-decoration: none;
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
+        .country-jump a.not-fip { opacity: 0.45; }
+
         /* ── Summary warning badge ───────────────── */
         .summary-warn {
             font-size: 11px;
@@ -479,6 +499,7 @@
 
         <!-- ── EUROSTAR RED ───────────────────────── -->
         <p class="section-label">Eurostar Red — Paris, Brussels, Amsterdam &amp; Cologne</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Previously called <strong>Thalys</strong> — the same trains and routes, rebranded as part of Eurostar in 2023.</p>
 
         <div class="card">
             <div class="detail-list">
@@ -508,14 +529,41 @@
 
         <!-- ── EUROPEAN DESTINATIONS ─────────────── -->
         <p class="section-label">European destinations</p>
-        <p style="font-size:13px;color:var(--mid);margin-bottom:12px">Tap a country to see what to expect and how to book.</p>
+        <p style="font-size:13px;color:var(--mid);margin-bottom:10px">Tap a country to see what to expect and how to book.</p>
+        <div class="country-jump">
+            <a href="#country-fr">🇫🇷 France</a>
+            <a href="#country-be">🇧🇪 Belgium</a>
+            <a href="#country-nl">🇳🇱 Netherlands</a>
+            <a href="#country-ie">🇮🇪 Ireland</a>
+            <a href="#country-de">🇩🇪 Germany</a>
+            <a href="#country-at">🇦🇹 Austria</a>
+            <a href="#country-it">🇮🇹 Italy</a>
+            <a href="#country-es">🇪🇸 Spain</a>
+            <a href="#country-ch">🇨🇭 Switzerland</a>
+            <a href="#country-pt">🇵🇹 Portugal</a>
+            <a href="#country-lu">🇱🇺 Luxembourg</a>
+            <a href="#country-dk">🇩🇰 Denmark</a>
+            <a href="#country-no">🇳🇴 Norway</a>
+            <a href="#country-cz">🇨🇿 Czech Republic</a>
+            <a href="#country-hu">🇭🇺 Hungary</a>
+            <a href="#country-hr">🇭🇷 Croatia</a>
+            <a href="#country-gr">🇬🇷 Greece</a>
+            <a href="#country-pl">🇵🇱 Poland</a>
+            <a href="#country-sk">🇸🇰 Slovakia</a>
+            <a href="#country-ro">🇷🇴 Romania</a>
+            <a href="#country-bg">🇧🇬 Bulgaria</a>
+            <a href="#country-lt">🇱🇹 Lithuania</a>
+            <a href="#country-lv">🇱🇻 Latvia</a>
+            <a href="#country-se" class="not-fip">🇸🇪 Sweden</a>
+            <a href="#country-fi" class="not-fip">🇫🇮 Finland</a>
+        </div>
 
         <div class="box box-yellow" style="margin-bottom:12px">
             <strong>Always compare public fares first</strong>
             A FIP discounted fare is not automatically the cheapest option. Advance public tickets, promotions, and low-cost operators can sometimes beat the FIP price — especially outside peak periods. Check before you book.
         </div>
 
-        <details style="margin-bottom:12px">
+        <details id="multi-country" style="margin-bottom:12px">
             <summary>ℹ️ Travelling through more than one country? <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <p>You need a coupon for <strong>each country you pass through</strong> — even if it's one continuous train.</p>
@@ -525,7 +573,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-fr">
             <summary>🇫🇷 France <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -551,7 +599,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-be">
             <summary>🇧🇪 Belgium <span class="summary-warn">⚠ buy before boarding from Jul 2026</span><span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -571,7 +619,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-nl">
             <summary>🇳🇱 Netherlands <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -590,7 +638,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-ie">
             <summary>🇮🇪 Republic of Ireland &amp; Northern Ireland <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -612,7 +660,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-de">
             <summary>🇩🇪 Germany <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -628,7 +676,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-at">
             <summary>🇦🇹 Austria <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -647,7 +695,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-it">
             <summary>🇮🇹 Italy <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -663,7 +711,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-es">
             <summary>🇪🇸 Spain <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -683,7 +731,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-ch">
             <summary>🇨🇭 Switzerland <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -707,7 +755,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-pt">
             <summary>🇵🇹 Portugal <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -728,7 +776,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-lu">
             <summary>🇱🇺 Luxembourg — free for everyone <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -746,7 +794,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-dk">
             <summary>🇩🇰 Denmark <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -766,7 +814,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-no">
             <summary>🇳🇴 Norway <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -786,7 +834,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-cz">
             <summary>🇨🇿 Czech Republic <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -802,7 +850,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-hu">
             <summary>🇭🇺 Hungary <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -814,7 +862,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-hr">
             <summary>🇭🇷 Croatia <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -830,7 +878,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-gr">
             <summary>🇬🇷 Greece <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -846,7 +894,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-pl">
             <summary>🇵🇱 Poland <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -863,7 +911,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-sk">
             <summary>🇸🇰 Slovakia <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -883,7 +931,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-ro">
             <summary>🇷🇴 Romania <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -894,7 +942,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-bg">
             <summary>🇧🇬 Bulgaria <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -905,7 +953,7 @@
             </div>
         </details>
 
-        <details>
+        <details id="country-lt">
             <summary>🇱🇹 Lithuania <span class="chevron">▾</span></summary>
             <div class="detail-body">
                 <div class="tags">
@@ -916,7 +964,19 @@
             </div>
         </details>
 
-        <div class="card card-pad" style="opacity:0.6;margin-bottom:8px">
+        <details id="country-lv">
+            <summary>🇱🇻 Latvia <span class="chevron">▾</span></summary>
+            <div class="detail-body">
+                <div class="tags">
+                    <span class="tag tag-no">LDz: FIP not valid</span>
+                    <span class="tag tag-note">LTG-Link via Riga ✓</span>
+                </div>
+                <p>Latvia's national operator LDz is <strong>not in FIP</strong> — pay standard fares on any LDz domestic service.</p>
+                <p>However, LTG-Link (the Lithuanian operator) runs a daily train from Vilnius to the Estonian border at Valga, stopping in Riga. FIP is valid on the Latvian section of this route under the same conditions as in Lithuania — book at ltglink.lt. This is the only FIP-valid way to reach Riga by train.</p>
+            </div>
+        </details>
+
+        <div id="country-se" class="card card-pad" style="opacity:0.6;margin-bottom:8px">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <span style="font-size:15px;font-weight:600">🇸🇪 Sweden</span>
                 <span class="tag tag-no">FIP not valid</span>
@@ -924,7 +984,7 @@
             <p style="font-size:13px;color:var(--mid);margin-top:6px;margin-bottom:0">SJ (the main operator) is not in FIP — pay standard public fares.</p>
         </div>
 
-        <div class="card card-pad" style="opacity:0.6;margin-bottom:8px">
+        <div id="country-fi" class="card card-pad" style="opacity:0.6;margin-bottom:8px">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <span style="font-size:15px;font-weight:600">🇫🇮 Finland</span>
                 <span class="tag tag-no">FIP not valid</span>
