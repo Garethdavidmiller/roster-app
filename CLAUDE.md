@@ -63,6 +63,8 @@
 - The `?v=` cache-busting strings **must** be updated manually (browsers use them to bust the module cache)
 - Tell the user the new version number in your reply after committing
 
+**CLAUDE.md update policy:** This file is updated every **0.10 version** (e.g. 7.90 → 8.00), not on every patch release. The version shown in "Project identity" above will routinely lag the live app by a few patch numbers — this is intentional, not documentation drift. Always treat `APP_VERSION` in `roster-data.js` as the authoritative version. Update CLAUDE.md between those checkpoints only if there is a major behavioural change: new pay grade, auth/Firestore model change, service worker strategy change, new page or module going to production, or a data model change.
+
 ---
 
 ## How to work with the owner
