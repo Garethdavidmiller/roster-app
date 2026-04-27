@@ -736,3 +736,34 @@ The **roster-assist hint bar** ("Fill from roster →") is a convenience feature
 The calculator is **not** a payslip replacement — it estimates take-home pay based on staff-entered data. Actual payslips from Chiltern may differ due to adjustments, arrears, and deductions not captured here.
 
 ---
+
+## FIP guide — positioning and review criteria
+
+The FIP guide (`fip.html`) lives inside the Admin / Tools area. It is **not** a core daily-use workflow like the Calendar, Pay Calculator, or Change a Shift flow.
+
+**Purpose:**
+- Educational and reference sheet for staff European travel facilities (FIP Card and coupons)
+- Helps staff understand and make better use of FIP, which is currently underused
+- Designed for occasional use — someone planning a trip, not someone opening the app every day
+
+**How to judge it in reviews:**
+Judge `fip.html` as a **low-frequency educational reference page**, not as a core workflow or dashboard. It is correct and intentional that it feels more article-like than the main app pages. Do not flag its reference-page nature as a design defect.
+
+Still care about:
+- Factual accuracy of FIP rules and fares
+- Clear "last checked" date in the header
+- RDG/RST source links visible and correct
+- Warnings about exceptions (private operators, coupons not valid on specific trains)
+- Readable mobile layout
+- Basic visual consistency with the rest of the app (shared CSS, navy/gold palette)
+
+Do not require:
+- Dashboard-style layout density matching Calendar or Pay Calculator
+- The same level of Firestore/data integration as the core workflows
+- Heavy interactivity — collapsible country cards are sufficient
+
+**Design guidance:**
+- May feel more like a reference guide than a main app screen — this is correct
+- Does not need a two-column desktop layout like the pay calculator
+- Keep "last checked" and source links visible because FIP rules change frequently
+- Avoid overconfident wording on country-specific rules — use "check RDG/RST before booking" where details may change
