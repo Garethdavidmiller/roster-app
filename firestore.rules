@@ -1,20 +1,18 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
-// Deploy: firebase deploy --only firestore:rules
-// Or via Firebase Console → Firestore → Rules tab.
 //
 // ⚠️  DEPLOYMENT ORDER — READ BEFORE DEPLOYING ⚠️
 //
 // These rules require Firebase Auth (request.auth != null) for all writes.
-// Deploy them ONLY AFTER running setupRosterAuth to create all staff accounts:
+// Deploy ONLY AFTER running the "Set up accounts" button in admin.html
+// (Admin section → Staff Login Accounts). All staff must have Firebase Auth
+// accounts before the rules go live — otherwise every Firestore write fails.
 //
-//   curl -X POST \
-//     -H "Authorization: Bearer <ROSTER_SECRET>" \
-//     https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth
+// Once the button reports no failures:
+//   GitHub → Actions → "Deploy Firestore Rules" → Run workflow
 //
-// Until accounts exist, writes will fail. Once setupRosterAuth confirms all
-// accounts are created (check "created" + "skipped" arrays in the response),
-// deploy these rules: firebase deploy --only firestore:rules
+// The workflow (deploy-rules.yml) also runs automatically whenever this
+// file changes on the main branch.
 //
 // Last updated: v7.61 — added request.auth != null for all writes and deletes.
 

@@ -685,47 +685,34 @@ The `@myb-roster.local` domain is synthetic — these are not real email address
 
 ### Phase 2 — completing the migration
 
-The `setupRosterAuth` function now takes the member list from the POST body — there is no hardcoded array in `functions/index.js` to maintain. Claude generates the curl command with the current active `teamMembers` each time it is needed.
+No curl commands or local tools required. Both steps are done through the browser or GitHub.
 
 **Step 1 — create all Firebase Auth accounts:**
 
-```bash
-curl -X POST \
-  -H "Authorization: Bearer <ROSTER_SECRET>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "members": ["L. Springer","A. Hared","G. Miller","M. Robson","I. Cooper","A. Panchal","C. Francisco-Charles","O. Mylla","S. Boyle","L. Atrakimaviciene","J. Haque","N. Tuck","R. Forrester-Blackstock","S. Langley","S. Silva","J. Sumaili","T. Bibi","T. Nsuala","D. Irvine","M. Okeke","T. Gherbi","C. Reen","D. Minto","A. Targanov","S. Warman","S. Faure","L. Szpejer","K. Porter","A. Murray","S. Clarke","A. Atkins","K. Yeboah","F. Mohamed","P. Lloyd","P. Prashanthan","G. Rotaru","L. Webster","Z. Lewis","M. Bowler","W. Cummings","S. Horsman"],
-    "removeOrphans": false
-  }' \
-  https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth
-```
+Open admin.html → scroll to **Staff Login Accounts** → click **Set up accounts**.
 
-The response lists `created`, `skipped`, `disabled`, and `failed`. Once `failed` is empty, proceed.
+The card reads active members directly from `teamMembers` and calls `setupRosterAuth`. It shows a summary: created / already existed / failed. Proceed only when failed is empty.
 
 **Step 2 — deploy Firestore rules:**
 
-Push a trivial whitespace change to any file under `functions/` and merge to `main` — GitHub Actions will deploy the functions. Then deploy the rules separately (requires Firebase CLI on a local machine, or ask Claude to add a rules-deploy step to the workflow):
+Go to **GitHub → Actions → Deploy Firestore Rules → Run workflow**.
 
-```bash
-firebase deploy --only firestore:rules
-```
+The `deploy-rules.yml` workflow deploys `firestore.rules` to Firebase. No Firebase CLI needed — GitHub Actions handles it using the existing `FIREBASE_SERVICE_ACCOUNT` secret.
 
-**Do not deploy the rules before Step 1** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
+**Do not run Step 2 before Step 1** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
 
 ### Adding a new staff member
 
-1. Add them to `teamMembers` in `roster-data.js` (always required)
-2. Ask Claude to regenerate and run the `setupRosterAuth` curl command — it reads the current `teamMembers` and posts the full active list. Existing accounts are skipped; only the new account is created.
-
-No changes to `functions/index.js` are needed — there is no separate list to update.
+1. Add them to `teamMembers` in `roster-data.js` (always required — no other file needs updating)
+2. Open admin.html → **Staff Login Accounts** → **Set up accounts**. The card picks up the new name automatically. Existing accounts are skipped; only the new account is created.
 
 ### Removing a staff member (leavers)
 
-1. Set `hidden: true` on their entry in `teamMembers` (or remove entirely)
-2. Ask Claude to run `setupRosterAuth` with `"removeOrphans": true` — their Firebase Auth account will be **disabled** (not deleted). A disabled account cannot sign in.
-3. If you want to permanently delete the account, do so via Firebase Console → Authentication → Users.
+1. Set `hidden: true` on their entry in `teamMembers`
+2. Open admin.html → **Staff Login Accounts** → tick **"Disable accounts for anyone no longer on the roster"** → **Set up accounts**. Their Firebase Auth account is disabled — they can no longer sign in.
+3. To permanently delete the account: Firebase Console → Authentication → Users → find and delete.
 
-The `removeOrphans` flag only disables accounts — it never deletes data.
+The disable option never deletes Firestore data — override history is preserved.
 
 ---
 

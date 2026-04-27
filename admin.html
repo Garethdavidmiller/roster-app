@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v7.93 -->
+<!-- MYB Roster Admin v7.94 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=7.93">
+    <link rel="manifest" href="manifest.json?v=7.94">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.93">
+    <link rel="stylesheet" href="shared.css?v=7.94">
 
     <style>
         body {
@@ -2545,9 +2545,31 @@
         </div><!-- /.card-collapsible-body -->
     </div>
 
+    <!-- Staff login accounts — admin only, hidden until JS reveals it -->
+    <div class="card" id="authSetupCard" style="display:none">
+        <div class="card-header card-collapsible-header" id="authSetupToggleHeader">
+            <h2>🔐 Staff Login Accounts</h2>
+            <span class="hint">Create or update Firebase accounts for all current staff</span>
+            <span class="collapse-chevron" id="authSetupChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="authSetupBody">
+            <div class="card-body">
+                <p style="font-size:13px;color:var(--text-mid);margin-bottom:12px">
+                    Creates a login account for every active staff member. Safe to run any time — existing accounts are skipped. Run it when someone joins or leaves.
+                </p>
+                <label style="display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:13px;cursor:pointer">
+                    <input type="checkbox" id="authSetupOrphans" style="width:16px;height:16px;accent-color:var(--primary-blue)">
+                    Disable accounts for anyone no longer on the roster (leavers)
+                </label>
+                <button class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
+                <div id="authSetupResult" style="margin-top:14px;font-size:13px;display:none"></div>
+            </div>
+        </div>
+    </div>
+
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=7.93"></script>
+<script type="module" src="./admin-app.js?v=7.94"></script>
 </body>
 </html>
