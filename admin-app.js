@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.92';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.92';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.94';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.94';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3764,6 +3764,81 @@ const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
         header.addEventListener('click', () => {
             const isOpen = body.classList.toggle('open');
             chevron.classList.toggle('open', isOpen);
+        });
+    })();
+
+    // ── Staff login accounts setup ───────────────────────────────────────────
+    (function initAuthSetup() {
+        if (!currentIsAdmin) return;
+
+        const card      = document.getElementById('authSetupCard');
+        const btn       = document.getElementById('authSetupBtn');
+        const orphansCb = document.getElementById('authSetupOrphans');
+        const resultEl  = document.getElementById('authSetupResult');
+        if (!card || !btn || !orphansCb || !resultEl) return;
+
+        card.style.display = '';
+
+        // Collapse toggle
+        const header  = document.getElementById('authSetupToggleHeader');
+        const body    = document.getElementById('authSetupBody');
+        const chevron = document.getElementById('authSetupChevron');
+        if (header && body && chevron) {
+            header.addEventListener('click', () => {
+                const isOpen = body.classList.toggle('open');
+                chevron.classList.toggle('open', isOpen);
+            });
+        }
+
+        // Active members: non-hidden staff with a real role (excludes vacancies and cultural calendar entries)
+        const ACTIVE_MEMBERS = teamMembers
+            .filter(m => !m.hidden && ['CEA', 'CES', 'Dispatcher'].includes(m.role))
+            .map(m => m.name);
+
+        const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
+
+        btn.addEventListener('click', async () => {
+            btn.disabled  = true;
+            btn.textContent = 'Working…';
+            resultEl.style.display = 'none';
+
+            try {
+                const resp = await fetch(SETUP_AUTH_URL, {
+                    method:  'POST',
+                    headers: {
+                        'Authorization':  `Bearer ${ROSTER_SECRET_VALUE}`,
+                        'Content-Type':   'application/json',
+                    },
+                    body: JSON.stringify({
+                        members:       ACTIVE_MEMBERS,
+                        removeOrphans: orphansCb.checked,
+                    }),
+                });
+
+                if (!resp.ok) {
+                    const err = await resp.text();
+                    throw new Error(`Server responded ${resp.status}: ${err}`);
+                }
+
+                const { created = [], skipped = [], disabled = [], failed = [] } = await resp.json();
+
+                const lines = [];
+                if (created.length)  lines.push(`✅ Created (${created.length}): ${created.join(', ')}`);
+                if (skipped.length)  lines.push(`⏭️ Already existed (${skipped.length}): ${skipped.join(', ')}`);
+                if (disabled.length) lines.push(`🚫 Disabled leavers (${disabled.length}): ${disabled.join(', ')}`);
+                if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
+                if (!lines.length)   lines.push('Nothing to do — all accounts already up to date.');
+
+                resultEl.innerHTML = lines.map(l => `<p style="margin:0 0 6px">${escapeHtml(l)}</p>`).join('');
+                resultEl.style.display = 'block';
+            } catch (err) {
+                resultEl.innerHTML = `<p style="color:var(--error)">❌ ${escapeHtml(err.message)}</p>`;
+                resultEl.style.display = 'block';
+                console.error('[authSetup]', err);
+            } finally {
+                btn.disabled    = false;
+                btn.textContent = 'Set up accounts';
+            }
         });
     })();
 

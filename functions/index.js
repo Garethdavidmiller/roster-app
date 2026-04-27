@@ -865,34 +865,30 @@ function nameToPassword(fullName) {
 }
 
 /**
- * All current roster members (excluding vacancies and cultural calendar entries).
- * Update this list whenever teamMembers changes in roster-data.js.
- */
-const ROSTER_MEMBERS = [
-    'L. Springer', 'A. Hared', 'G. Miller', 'M. Robson', 'C. Matthews',
-    'I. Cooper', 'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
-    'L. Atrakimaviciene', 'J. Haque', 'R. Frimpong', 'N. Tuck',
-    'R. Forrester-Blackstock', 'S. Langley', 'S. Silva', 'J. Sumaili',
-    'T. Bibi', 'T. Nsuala', 'D. Irvine', 'M. Okeke', 'T. Gherbi', 'C. Reen',
-    'D. Minto', 'A. Targanov', 'S. Warman', 'S. Faure', 'L. Szpejer',
-    'K. Porter', 'A. Murray', 'S. Clarke', 'A. Atkins', 'K. Yeboah',
-    'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru', 'L. Webster',
-    'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman',
-];
-
-/**
  * POST /setupRosterAuth
  *
- * One-time setup function that creates Firebase Auth email/password accounts
- * for all roster members. Run this once after deploying, then deploy the
- * updated firestore.rules (which require request.auth != null for writes).
+ * Creates Firebase Auth accounts for all active roster members and optionally
+ * disables accounts for anyone who has left. Run any time membership changes —
+ * it is fully idempotent (existing accounts are skipped).
  *
- * Idempotent — if an account already exists it is skipped without error.
+ * The member list comes from the request body, not a hardcoded array, so there
+ * is no separate list to keep in sync with teamMembers in roster-data.js. Claude
+ * generates the curl command with the current active members each time.
+ *
+ * Body (JSON):
+ *   {
+ *     "members": ["G. Miller", "L. Springer", ...],  // active non-hidden teamMembers
+ *     "removeOrphans": true                           // optional, default false
+ *   }
+ *
+ * removeOrphans: scans all @myb-roster.local Firebase Auth accounts and disables
+ * any that are not in the members list. Disabled accounts cannot sign in.
+ * They are not deleted — use the Firebase Console to delete permanently if needed.
  *
  * Auth: Authorization: Bearer <ROSTER_SECRET>
  *
  * Response:
- *   { created: string[], skipped: string[], failed: string[] }
+ *   { created: string[], skipped: string[], disabled: string[], failed: string[] }
  */
 exports.setupRosterAuth = onRequest(
     {
@@ -910,11 +906,20 @@ exports.setupRosterAuth = onRequest(
             return res.status(403).json({ error: 'Forbidden' });
         }
 
-        const created = [];
-        const skipped = [];
-        const failed  = [];
+        const body    = req.body || {};
+        const members = body.members;
+        if (!Array.isArray(members) || members.length === 0) {
+            return res.status(400).json({ error: '`members` array is required in the request body' });
+        }
 
-        for (const name of ROSTER_MEMBERS) {
+        const removeOrphans = body.removeOrphans === true;
+        const created  = [];
+        const skipped  = [];
+        const disabled = [];
+        const failed   = [];
+
+        // Create accounts for all current members
+        for (const name of members) {
             const email    = nameToEmail(name);
             const password = nameToPassword(name);
             try {
@@ -931,6 +936,31 @@ exports.setupRosterAuth = onRequest(
             }
         }
 
-        res.json({ created, skipped, failed });
+        // Disable accounts for leavers — anyone with @myb-roster.local not in members list
+        if (removeOrphans) {
+            const activeEmails = new Set(members.map(nameToEmail));
+            let pageToken;
+            do {
+                const page = await admin.auth().listUsers(1000, pageToken);
+                for (const user of page.users) {
+                    if (user.email &&
+                        user.email.endsWith('@myb-roster.local') &&
+                        !activeEmails.has(user.email) &&
+                        !user.disabled) {
+                        try {
+                            await admin.auth().updateUser(user.uid, { disabled: true });
+                            disabled.push(user.displayName || user.email);
+                            console.log(`[setupRosterAuth] Disabled leaver: ${user.email}`);
+                        } catch (err) {
+                            failed.push(user.email);
+                            console.error(`[setupRosterAuth] Failed to disable ${user.email}: ${err.message}`);
+                        }
+                    }
+                }
+                pageToken = page.pageToken;
+            } while (pageToken);
+        }
+
+        res.json({ created, skipped, disabled, failed });
     }
 );

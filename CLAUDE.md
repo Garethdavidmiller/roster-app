@@ -685,28 +685,34 @@ The `@myb-roster.local` domain is synthetic — these are not real email address
 
 ### Phase 2 — completing the migration
 
-Run this once after the v7.61 Cloud Functions deploy has finished:
+No curl commands or local tools required. Both steps are done through the browser or GitHub.
 
-```bash
-curl -X POST \
-  -H "Authorization: Bearer <ROSTER_SECRET>" \
-  https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth
-```
+**Step 1 — create all Firebase Auth accounts:**
 
-The response will list `created`, `skipped`, and `failed` accounts. Once `failed` is empty, deploy the updated Firestore rules:
+Open admin.html → scroll to **Staff Login Accounts** → click **Set up accounts**.
 
-```bash
-firebase deploy --only firestore:rules
-```
+The card reads active members directly from `teamMembers` and calls `setupRosterAuth`. It shows a summary: created / already existed / failed. Proceed only when failed is empty.
 
-**Do not deploy the rules before running `setupRosterAuth`** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
+**Step 2 — deploy Firestore rules:**
+
+Go to **GitHub → Actions → Deploy Firestore Rules → Run workflow**.
+
+The `deploy-rules.yml` workflow deploys `firestore.rules` to Firebase. No Firebase CLI needed — GitHub Actions handles it using the existing `FIREBASE_SERVICE_ACCOUNT` secret.
+
+**Do not run Step 2 before Step 1** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
 
 ### Adding a new staff member
 
-When a new team member is added to `teamMembers` in `roster-data.js`:
-1. Add their name to `ROSTER_MEMBERS` in `functions/index.js` (same array used by `setupRosterAuth`).
-2. Re-run `setupRosterAuth` (idempotent — existing accounts are skipped).
-3. The new account is ready immediately. No Firestore rule change needed.
+1. Add them to `teamMembers` in `roster-data.js` (always required — no other file needs updating)
+2. Open admin.html → **Staff Login Accounts** → **Set up accounts**. The card picks up the new name automatically. Existing accounts are skipped; only the new account is created.
+
+### Removing a staff member (leavers)
+
+1. Set `hidden: true` on their entry in `teamMembers`
+2. Open admin.html → **Staff Login Accounts** → tick **"Disable accounts for anyone no longer on the roster"** → **Set up accounts**. Their Firebase Auth account is disabled — they can no longer sign in.
+3. To permanently delete the account: Firebase Console → Authentication → Users → find and delete.
+
+The disable option never deletes Firestore data — override history is preserved.
 
 ---
 
@@ -736,3 +742,34 @@ The **roster-assist hint bar** ("Fill from roster →") is a convenience feature
 The calculator is **not** a payslip replacement — it estimates take-home pay based on staff-entered data. Actual payslips from Chiltern may differ due to adjustments, arrears, and deductions not captured here.
 
 ---
+
+## FIP guide — positioning and review criteria
+
+The FIP guide (`fip.html`) lives inside the Admin / Tools area. It is **not** a core daily-use workflow like the Calendar, Pay Calculator, or Change a Shift flow.
+
+**Purpose:**
+- Educational and reference sheet for staff European travel facilities (FIP Card and coupons)
+- Helps staff understand and make better use of FIP, which is currently underused
+- Designed for occasional use — someone planning a trip, not someone opening the app every day
+
+**How to judge it in reviews:**
+Judge `fip.html` as a **low-frequency educational reference page**, not as a core workflow or dashboard. It is correct and intentional that it feels more article-like than the main app pages. Do not flag its reference-page nature as a design defect.
+
+Still care about:
+- Factual accuracy of FIP rules and fares
+- Clear "last checked" date in the header
+- RDG/RST source links visible and correct
+- Warnings about exceptions (private operators, coupons not valid on specific trains)
+- Readable mobile layout
+- Basic visual consistency with the rest of the app (shared CSS, navy/gold palette)
+
+Do not require:
+- Dashboard-style layout density matching Calendar or Pay Calculator
+- The same level of Firestore/data integration as the core workflows
+- Heavy interactivity — collapsible country cards are sufficient
+
+**Design guidance:**
+- May feel more like a reference guide than a main app screen — this is correct
+- Does not need a two-column desktop layout like the pay calculator
+- Keep "last checked" and source links visible because FIP rules change frequently
+- Avoid overconfident wording on country-specific rules — use "check RDG/RST before booking" where details may change
