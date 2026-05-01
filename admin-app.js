@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.01';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.01';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.02';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.02';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -293,6 +293,33 @@ function initLoginOverlay() {
                     { icon: '🎟️', html: '<strong>Free Coupons</strong> — a small annual allowance of completely free journeys on partner railways and ferries' },
                     { icon: '👨‍👩‍👧', html: 'Both cover you, your spouse or partner, and dependent children' },
                     { icon: '✈️', html: 'Leisure travel only — not for commuting or any work purpose' },
+                ]},
+            ],
+        },
+        'staff-login': {
+            title: 'Staff Login Accounts',
+            sections: [
+                { items: [
+                    { icon: '🔐', html: 'Creates a secure login for every active staff member so the app knows who is saving changes' },
+                    { icon: '✅', html: 'Safe to run any time — people who already have an account are skipped, so it won\'t break anything' },
+                    { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
+                    { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
+                ]},
+            ],
+        },
+        'notifications': {
+            title: 'Notifications',
+            sections: [
+                { heading: 'What you\'ll get', items: [
+                    { icon: '📋', html: '<strong>Daily Huddle</strong> — an alert when today\'s Huddle briefing has been uploaded, so you don\'t have to keep checking' },
+                    { icon: '💷', html: '<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away' },
+                ]},
+                { heading: 'How it works', items: [
+                    { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow when your phone asks — that\'s it. You can disable them here at any time' },
+                    { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them. Your browser settings are not changed — you can re-enable here whenever you like' },
+                ]},
+                { heading: 'iPhone users', items: [
+                    { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari) and you open it from there. They do not work in the regular Safari browser tab' },
                 ]},
             ],
         },
@@ -2857,6 +2884,102 @@ if (overridesMonthFilter) {
 
     // Expose loader so the auth block can call it after currentUser is confirmed
     window._loadReligiousSetting = loadReligiousSetting;
+})();
+
+// ============================================
+// NOTIFICATIONS CARD — all staff
+// ============================================
+// Lets staff enable or disable Huddle and pay-reminder push notifications.
+// Shows current permission state and provides appropriate action buttons.
+(function initNotificationsCard() {
+    const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
+
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        const statusMsg = document.getElementById('notifStatusMsg');
+        if (statusMsg) statusMsg.textContent = 'Push notifications are not supported on this device or browser.';
+        return;
+    }
+
+    const header     = document.getElementById('notifToggleHeader');
+    const body       = document.getElementById('notifBody');
+    const chevron    = document.getElementById('notifChevron');
+    const statusMsg  = document.getElementById('notifStatusMsg');
+    const enableBtn  = document.getElementById('notifEnableBtn');
+    const disableBtn = document.getElementById('notifDisableBtn');
+    const deniedMsg  = document.getElementById('notifDeniedMsg');
+
+    if (!header || !body || !chevron) return;
+
+    // Collapse/expand
+    header.addEventListener('click', () => {
+        body.classList.toggle('open');
+        chevron.textContent = body.classList.contains('open') ? '▴' : '▾';
+    });
+
+    function vapidKey() {
+        const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
+        return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
+    }
+
+    async function refreshUI() {
+        const perm = Notification.permission;
+        const reg  = await navigator.serviceWorker.ready;
+        const sub  = await reg.pushManager.getSubscription();
+        const active = perm === 'granted' && !!sub;
+
+        enableBtn.style.display  = 'none';
+        disableBtn.style.display = 'none';
+        deniedMsg.style.display  = 'none';
+
+        if (perm === 'granted' && active) {
+            statusMsg.textContent = 'Notifications are on — you\'ll be alerted when the Huddle is ready and when payday is approaching.';
+            disableBtn.style.display = 'block';
+        } else if (perm === 'granted' && !active) {
+            statusMsg.textContent = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
+            enableBtn.style.display = 'block';
+        } else if (perm === 'denied') {
+            statusMsg.textContent = 'Notifications are blocked. To re-enable, change your browser settings.';
+            deniedMsg.style.display = 'block';
+        } else {
+            statusMsg.textContent = 'Tap Enable to get an alert when the daily Huddle is ready or when payday is approaching.';
+            enableBtn.style.display = 'block';
+        }
+    }
+
+    enableBtn.addEventListener('click', async () => {
+        try {
+            const perm = await Notification.requestPermission();
+            if (perm === 'granted') {
+                const reg = await navigator.serviceWorker.ready;
+                const sub = await reg.pushManager.subscribe({
+                    userVisibleOnly:      true,
+                    applicationServerKey: vapidKey(),
+                });
+                await savePushSubscription(sub);
+            }
+        } catch (err) {
+            console.warn('[Notifications] Enable failed:', err);
+        }
+        await refreshUI();
+    });
+
+    disableBtn.addEventListener('click', async () => {
+        try {
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager.getSubscription();
+            if (sub) {
+                const endpoint = sub.endpoint;
+                await sub.unsubscribe();
+                await deletePushSubscription(endpoint).catch(() => {});
+            }
+        } catch (err) {
+            console.warn('[Notifications] Disable failed:', err);
+        }
+        await refreshUI();
+    });
+
+    refreshUI().catch(err => console.warn('[Notifications] Init error:', err));
 })();
 
 // ============================================

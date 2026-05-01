@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.01 -->
+<!-- MYB Roster Admin v8.02 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.01">
+    <link rel="manifest" href="manifest.json?v=8.02">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.01">
+    <link rel="stylesheet" href="shared.css?v=8.02">
 
     <style>
         body {
@@ -2347,72 +2347,6 @@
     <!-- ==================== CULTURAL CALENDAR ==================== -->
     <!-- Collapsed by default — unobtrusive for staff who don't need it. -->
     <!-- Any staff member can expand, opt in/out independently.          -->
-    <div class="card" id="religiousCard">
-        <div class="card-header card-religious-header" id="religiousToggleHeader">
-            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar">?</button></h2>
-            <span class="hint">Optional date markers — one per person</span>
-            <span class="religious-chevron" id="religiousChevron">▾</span>
-        </div>
-        <div class="card-religious-body" id="religiousBody">
-            <p class="religious-intro">
-                Choose a calendar to show key dates as small icons on matching days
-                in your roster. Only one calendar can be active at a time.
-                These markers are visible to anyone who views your roster.
-            </p>
-            <div class="faith-radio-group" role="radiogroup" aria-label="Cultural calendar">
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="none">
-                    <span><strong>None</strong></span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="islamic">
-                    <span>
-                        <strong>🌙 Islamic</strong>
-                        <span class="faith-radio-sublabel">Ramadan · Eid al-Fitr · Eid al-Adha · Islamic New Year · Mawlid al-Nabi</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="hindu">
-                    <span>
-                        <strong>🪔 Hindu</strong>
-                        <span class="faith-radio-sublabel">Holi · Navratri · Dussehra · Diwali · Raksha Bandhan</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="chinese">
-                    <span>
-                        <strong>🧧 Chinese</strong>
-                        <span class="faith-radio-sublabel">Lunar New Year · Lantern Festival · Qingming · Dragon Boat · Mid-Autumn</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="jamaican">
-                    <span>
-                        <strong>🇯🇲 Jamaican</strong>
-                        <span class="faith-radio-sublabel">Ash Wednesday · Labour Day · Emancipation Day · Independence Day · National Heroes Day</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="congolese">
-                    <span>
-                        <strong>🇨🇩 Congolese</strong>
-                        <span class="faith-radio-sublabel">Martyrs' Day · Liberation Day · Heroes' Day · Independence Day</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="portuguese">
-                    <span>
-                        <strong>🇵🇹 Portuguese</strong>
-                        <span class="faith-radio-sublabel">Carnival · Freedom Day · Labour Day · Portugal Day · Corpus Christi · Assumption · Republic Day · Restoration of Independence · Immaculate Conception</span>
-                    </span>
-                </label>
-            </div>
-            <!-- Disclaimer shown only for the selected calendar, to avoid a growing list -->
-            <p class="religious-disclaimer" id="calendarDisclaimer" style="display:none;"></p>
-            <div class="religious-saved" id="religiousSaved">✓ Saved</div>
-        </div>
-    </div>
-
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="huddleUploadCard" style="display:none">
@@ -2545,10 +2479,98 @@
         </div><!-- /.card-collapsible-body -->
     </div>
 
+    <!-- Push notifications toggle — all staff -->
+    <div class="card" id="notificationsCard">
+        <div class="card-header card-collapsible-header" id="notifToggleHeader">
+            <h2>🔔 Notifications <button class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications">?</button></h2>
+            <span class="hint">Get an alert when the daily Huddle is ready or payday is approaching</span>
+            <span class="collapse-chevron" id="notifChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="notifBody">
+            <div class="card-body">
+                <div id="notifStatusMsg" style="font-size:13px;color:var(--text-mid);margin-bottom:14px"></div>
+                <button class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
+                <button class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
+                <p id="notifDeniedMsg" style="display:none;font-size:13px;color:var(--text-mid);margin-top:10px">
+                    Notifications are blocked in your browser settings. To re-enable:<br>
+                    Android: tap the lock icon in Chrome → Site settings → Notifications → Allow.<br>
+                    iPhone: Settings → Chrome / Safari → Notifications → Allow.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cultural Calendar — all staff -->
+    <div class="card" id="religiousCard">
+        <div class="card-header card-religious-header" id="religiousToggleHeader">
+            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar">?</button></h2>
+            <span class="hint">Optional date markers — one per person</span>
+            <span class="religious-chevron" id="religiousChevron">▾</span>
+        </div>
+        <div class="card-religious-body" id="religiousBody">
+            <p class="religious-intro">
+                Choose a calendar to show key dates as small icons on matching days
+                in your roster. Only one calendar can be active at a time.
+                These markers are visible to anyone who views your roster.
+            </p>
+            <div class="faith-radio-group" role="radiogroup" aria-label="Cultural calendar">
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="none">
+                    <span><strong>None</strong></span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="islamic">
+                    <span>
+                        <strong>🌙 Islamic</strong>
+                        <span class="faith-radio-sublabel">Ramadan · Eid al-Fitr · Eid al-Adha · Islamic New Year · Mawlid al-Nabi</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="hindu">
+                    <span>
+                        <strong>🪔 Hindu</strong>
+                        <span class="faith-radio-sublabel">Holi · Navratri · Dussehra · Diwali · Raksha Bandhan</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="chinese">
+                    <span>
+                        <strong>🧧 Chinese</strong>
+                        <span class="faith-radio-sublabel">Lunar New Year · Lantern Festival · Qingming · Dragon Boat · Mid-Autumn</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="jamaican">
+                    <span>
+                        <strong>🇯🇲 Jamaican</strong>
+                        <span class="faith-radio-sublabel">Ash Wednesday · Labour Day · Emancipation Day · Independence Day · National Heroes Day</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="congolese">
+                    <span>
+                        <strong>🇨🇩 Congolese</strong>
+                        <span class="faith-radio-sublabel">Martyrs' Day · Liberation Day · Heroes' Day · Independence Day</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="portuguese">
+                    <span>
+                        <strong>🇵🇹 Portuguese</strong>
+                        <span class="faith-radio-sublabel">Carnival · Freedom Day · Labour Day · Portugal Day · Corpus Christi · Assumption · Republic Day · Restoration of Independence · Immaculate Conception</span>
+                    </span>
+                </label>
+            </div>
+            <!-- Disclaimer shown only for the selected calendar, to avoid a growing list -->
+            <p class="religious-disclaimer" id="calendarDisclaimer" style="display:none;"></p>
+            <div class="religious-saved" id="religiousSaved">✓ Saved</div>
+        </div>
+    </div>
+
     <!-- Staff login accounts — admin only, hidden until JS reveals it -->
     <div class="card" id="authSetupCard" style="display:none">
         <div class="card-header card-collapsible-header" id="authSetupToggleHeader">
-            <h2>🔐 Staff Login Accounts</h2>
+            <h2>🔐 Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts">?</button></h2>
             <span class="hint">Create or update Firebase accounts for all current staff</span>
             <span class="collapse-chevron" id="authSetupChevron">▾</span>
         </div>
@@ -2570,6 +2592,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.01"></script>
+<script type="module" src="./admin-app.js?v=8.02"></script>
 </body>
 </html>
