@@ -37,7 +37,7 @@ const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
 
 // VAPID public key — safe to expose, matches the private key stored in Secret Manager.
 // Staff browsers use this to encrypt push payloads so only this server can read them.
-const VAPID_PUBLIC_KEY = 'BLX8DG2Yot8lOwmQpSWwVOIW6ymhVDpK4eSuh0J911R2svlkE9RTRLTSz4f7NThtyPuhYeP1NuVbADKacjNQhGw';
+const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
 /**
  * POST /ingestHuddle
