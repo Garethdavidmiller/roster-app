@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v8.00
+// MYB Roster — Service Worker v8.01
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '8.00';
+const APP_VERSION = '8.01';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -177,30 +177,36 @@ self.addEventListener("push", event => {
     let data = { title: "Marylebone Roster", body: "Huddle is ready" };
     try { if (event.data) data = event.data.json(); } catch (_) {}
 
+    const url = data.url || "./";
+    const tag = url.includes('paycalc') ? 'pay-reminder' : 'huddle';
+
     event.waitUntil(
         self.registration.showNotification(data.title, {
             body:     data.body,
             icon:     "./icon-192.png",
             badge:    "./icon-192.png",
-            tag:      "huddle",       // replaces the previous notification rather than stacking
+            tag,
             renotify: true,           // still vibrates/sounds even if replacing
-            data:     { url: "./" },
+            data:     { url },
         })
     );
 });
 
-// When staff tap the notification, focus the app if it's already open,
-// otherwise open it in a new tab.
+// When staff tap the notification, open the correct page — Huddle goes to the
+// calendar, pay reminder goes directly to the pay calculator.
 self.addEventListener("notificationclick", event => {
     event.notification.close();
+    const url = (event.notification.data && event.notification.data.url) || "./";
     event.waitUntil(
         clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
             for (const client of list) {
                 if (client.url.startsWith(self.location.origin) && "focus" in client) {
-                    return client.focus();
+                    return client.navigate
+                        ? client.navigate(new URL(url, self.location.origin).href).then(() => client.focus())
+                        : client.focus();
                 }
             }
-            return clients.openWindow("./");
+            return clients.openWindow(url);
         })
     );
 });

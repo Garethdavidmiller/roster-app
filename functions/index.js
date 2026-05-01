@@ -21,6 +21,7 @@
 
 const { onRequest }         = require('firebase-functions/v2/https');
 const { onDocumentCreated } = require('firebase-functions/v2/firestore');
+const { onSchedule }        = require('firebase-functions/v2/scheduler');
 const { defineSecret }  = require('firebase-functions/params');
 const admin             = require('firebase-admin');
 const crypto            = require('crypto');
@@ -321,6 +322,98 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
 
     await Promise.allSettled(sends);
     console.log(`[push] Notified ${snapshot.size} device(s) — "${dayLabel} Huddle is ready"`);
+}
+
+// ============================================================================
+// sendPayReminderNotification — scheduled pay cutoff reminder
+// ============================================================================
+/**
+ * Runs daily at 08:00 London time. On pay cutoff Saturdays (the Saturday before
+ * payday), sends a push notification to all subscribed devices reminding staff
+ * to enter their hours in the Pay Calculator.
+ *
+ * Cutoff date logic mirrors isCutoffDate() in roster-data.js:
+ *   - First payday: 13 Feb 2026 (Friday). Cycle: every 28 days.
+ *   - Cutoff = Saturday 6 days before payday.
+ *   - Bank holiday adjustments to payday are not replicated here (rare edge case).
+ */
+exports.sendPayReminderNotification = onSchedule(
+    {
+        schedule:  'every day 08:00',
+        timeZone:  'Europe/London',
+        secrets:   [VAPID_PRIVATE_KEY],
+    },
+    async () => {
+        const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+        const today     = new Date(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
+
+        if (!isPayCutoffDay(today)) {
+            console.log('[payReminder] Not a cutoff date — skipping');
+            return;
+        }
+
+        // Payday is 6 days after the Saturday cutoff
+        const payday = new Date(today);
+        payday.setDate(today.getDate() + 6);
+        const paydayFormatted = payday.toLocaleDateString('en-GB', {
+            day: 'numeric', month: 'long', timeZone: 'Europe/London',
+        });
+
+        console.log(`[payReminder] Cutoff day — fanning out pay reminder for payday ${paydayFormatted}`);
+
+        webpush.setVapidDetails(
+            'mailto:noreply@myb-roster.web.app',
+            VAPID_PUBLIC_KEY,
+            VAPID_PRIVATE_KEY.value(),
+        );
+
+        const payload = JSON.stringify({
+            title: '💷 Payday is Friday!',
+            body:  `Hours cutoff today — tap to calculate what lands in your account on ${paydayFormatted} 🎉`,
+            url:   './paycalc.html',
+        });
+
+        const snapshot = await admin.firestore().collection('pushSubscriptions').get();
+        if (snapshot.empty) {
+            console.log('[payReminder] No subscriptions — skipping');
+            return;
+        }
+
+        const sends = snapshot.docs.map(async docSnap => {
+            const { endpoint, keys } = docSnap.data();
+            try {
+                await webpush.sendNotification({ endpoint, keys }, payload);
+            } catch (err) {
+                if (err.statusCode === 410 || err.statusCode === 404) {
+                    await docSnap.ref.delete();
+                    console.log(`[payReminder] Removed dead subscription ${docSnap.id}`);
+                } else {
+                    console.warn(`[payReminder] Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
+                }
+            }
+        });
+
+        await Promise.allSettled(sends);
+        console.log(`[payReminder] Notified ${snapshot.size} device(s)`);
+    }
+);
+
+/**
+ * Returns true if the given date is a pay cutoff day (Saturday before payday).
+ * Mirrors isCutoffDate() in roster-data.js. FIRST_PAYDAY and INTERVAL_DAYS
+ * must be kept in sync with CONFIG in roster-data.js.
+ * @param {Date} date - midnight local date to check
+ */
+function isPayCutoffDay(date) {
+    const FIRST_PAYDAY_MS = new Date(2026, 1, 13, 12, 0, 0).getTime(); // 13 Feb 2026
+    const INTERVAL_DAYS   = 28;
+    const MS_PER_DAY      = 86_400_000;
+    // Cutoff is 6 days before payday (Saturday before a Friday)
+    const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
+    candidate.setHours(12, 0, 0, 0);
+    const diff = candidate.getTime() - FIRST_PAYDAY_MS;
+    if (diff < 0) return false;
+    return Math.round(diff / MS_PER_DAY) % INTERVAL_DAYS === 0;
 }
 
 // ============================================================================
