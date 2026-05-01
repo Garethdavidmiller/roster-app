@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.97';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.97';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.98';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.98';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -10,8 +10,9 @@ const ADMIN_VERSION = CONFIG.APP_VERSION;
 // Passwords are surnames (lowercase) — sufficient
 // to prevent casual misbehaviour, not cryptographic security.
 // ============================================
-const AUTH_KEY   = 'myb_admin_session';
-const SESSION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const AUTH_KEY      = 'myb_admin_session';
+const SESSION_MS    = 30 * 24 * 60 * 60 * 1000; // 30 days
+const SESSION_VER   = 2; // bump to force all existing sessions to re-login
 
 /**
  * Derive the login password from a staff member's display name.
@@ -47,6 +48,7 @@ function getSession() {
         if (!raw) return null;
         const s = JSON.parse(raw);
         if (Date.now() > s.expiry) { localStorage.removeItem(AUTH_KEY); return null; }
+        if ((s.ver || 1) < SESSION_VER) { localStorage.removeItem(AUTH_KEY); return null; }
         return s;
     } catch { return null; }
 }
@@ -54,6 +56,7 @@ function getSession() {
 function saveSession(name) {
     localStorage.setItem(AUTH_KEY, JSON.stringify({
         name,
+        ver:    SESSION_VER,
         expiry: Date.now() + SESSION_MS
     }));
 }
