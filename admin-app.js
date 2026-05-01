@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.96';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.96';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.97';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=7.97';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -91,7 +91,7 @@ function initLoginOverlay() {
         nameSelect.appendChild(grp);
     });
 
-    function attempt() {
+    async function attempt() {
         const name = nameSelect.value;
         const pw   = passwordInput.value.trim().toLowerCase();
         errorEl.classList.remove('visible');
@@ -109,9 +109,17 @@ function initLoginOverlay() {
             return;
         }
         saveSession(name);
-        // Also authenticate with Firebase Auth so Firestore Security Rules can verify the session
-        // server-side. Fire-and-forget — silently ignored if accounts haven't been created yet.
-        signInWithEmailAndPassword(auth, nameToEmail(name), pw).catch(() => {});
+        // Authenticate with Firebase Auth so Firestore Security Rules can verify the session.
+        // Must await before reloading — the page reload would otherwise cancel the async
+        // network request before Firebase can save the auth token to IndexedDB.
+        // Password is padded to 6+ chars to match what setupRosterAuth stored (Firebase minimum).
+        const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
+        try {
+            await signInWithEmailAndPassword(auth, nameToEmail(name), fbPassword);
+        } catch (e) {
+            // Account may not exist yet — app still works via localStorage session.
+            console.warn('[Auth] Firebase sign-in skipped:', e.code);
+        }
         const redirect = new URLSearchParams(location.search).get('redirect');
         if (redirect === 'paycalc') {
             window.location.replace('./paycalc.html');
