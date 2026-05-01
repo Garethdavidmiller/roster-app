@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.01';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.01';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.02';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.02';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
