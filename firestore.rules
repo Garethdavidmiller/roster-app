@@ -61,10 +61,12 @@ service cloud.firestore {
     }
 
     match /pushSubscriptions/{docId} {
-      // Push subscriptions are written by the browser using the Web Push API.
-      // Authentication is by subscription endpoint (derived key) — any authenticated
-      // user may manage their own subscription.
-      allow read, write: if request.auth != null;
+      // Push subscriptions are written from index.html which is a public page
+      // (no login required). The data stored is a browser endpoint URL and
+      // encryption keys — not PII. Writes are open so any device can subscribe
+      // or unsubscribe without needing a Firebase Auth session.
+      allow read: if request.auth != null;
+      allow write: if true;
     }
 
   }
