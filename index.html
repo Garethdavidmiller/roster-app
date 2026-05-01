@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 7.99 -->
+<!-- MYB Roster Calendar - Version 8.00 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=7.99">
+    <link rel="manifest" href="manifest.json?v=8.00">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=7.99">
+    <link rel="stylesheet" href="shared.css?v=8.00">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -291,6 +291,29 @@
             color: var(--accent-gold);
             border-color: var(--primary-blue);
             font-weight: 700;
+        }
+
+        .controls button.notif-toggle-btn {
+            background: var(--bg-light);
+            color: var(--text-mid);
+            border-color: var(--border-light);
+            padding: 9px 10px;
+            font-size: 16px;
+        }
+        .controls button.notif-toggle-btn.notif-active {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-color: var(--accent-gold);
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .controls button.notif-toggle-btn:hover {
+                background: var(--border-light);
+                border-color: var(--border-mid, #ccc);
+            }
+            .controls button.notif-toggle-btn.notif-active:hover {
+                background: var(--accent-gold-dark);
+                border-color: var(--accent-gold-dark);
+            }
         }
 
         .controls select:focus-visible, .controls button:focus-visible {
@@ -2086,11 +2109,12 @@
             </div>
             <div class="controls-row">
                 <div class="control-group">
-                    <button id="todayBtn"  class="today-btn"  aria-label="Go to today">📍</button>
-                    <button id="huddleBtn" class="huddle-btn" aria-label="Open latest Huddle PDF">📋 Huddle</button>
-                    <button id="alBtn"     class="al-btn"     aria-label="View annual leave balance">🏖️ AL</button>
-                    <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
-                    <button id="payBtn"    class="pay-btn"    aria-label="Pay Calculator">💷 Pay</button>
+                    <button id="todayBtn"      class="today-btn"   aria-label="Go to today">📍</button>
+                    <button id="huddleBtn"     class="huddle-btn"  aria-label="Open latest Huddle PDF">📋 Huddle</button>
+                    <button id="alBtn"         class="al-btn"      aria-label="View annual leave balance">🏖️ AL</button>
+                    <button id="adminBtn"      class="admin-btn"   aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">🔐 Admin</button>
+                    <button id="payBtn"        class="pay-btn"     aria-label="Pay Calculator">💷 Pay</button>
+                    <button id="notifToggleBtn" class="notif-toggle-btn" aria-label="Enable Huddle notifications" title="Huddle notifications">🔔</button>
                 </div>
             </div>
         </nav>
@@ -2178,7 +2202,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=7.99"></script>
+    <script type="module" src="./app.js?v=8.00"></script>
 
 </body>
 </html>

@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=7.99';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=7.99';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.00';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.00';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1910,10 +1910,11 @@ function sanitiseHtml(html) {
     // Used by the browser to encrypt push payloads for this server only.
     const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
-    const prompt     = document.getElementById('notifPrompt');
-    const enableBtn  = document.getElementById('notifEnableBtn');
-    const dismissBtn = document.getElementById('notifDismissBtn');
-    const deniedEl   = document.getElementById('notifDenied');
+    const prompt        = document.getElementById('notifPrompt');
+    const enableBtn     = document.getElementById('notifEnableBtn');
+    const dismissBtn    = document.getElementById('notifDismissBtn');
+    const deniedEl      = document.getElementById('notifDenied');
+    const bellBtn       = document.getElementById('notifToggleBtn');
 
     // Push notifications require HTTPS + service worker + PushManager support.
     // This silently exits on any unsupported environment (e.g. old browsers, HTTP).
@@ -1948,6 +1949,17 @@ function sanitiseHtml(html) {
         console.info('[Notifications] Unsubscribed');
     }
 
+    /** Update the bell button to reflect current subscription state. */
+    async function updateBellBtn() {
+        if (!bellBtn) return;
+        const reg      = await navigator.serviceWorker.ready;
+        const existing = await reg.pushManager.getSubscription();
+        const active   = Notification.permission === 'granted' && !!existing;
+        bellBtn.textContent = active ? '🔕' : '🔔';
+        bellBtn.setAttribute('aria-label', active ? 'Mute Huddle notifications' : 'Enable Huddle notifications');
+        bellBtn.classList.toggle('notif-active', active);
+    }
+
     async function init() {
         const perm = Notification.permission;
 
@@ -1957,6 +1969,7 @@ function sanitiseHtml(html) {
             try { await subscribe(); } catch (err) {
                 console.warn('[Notifications] Subscription renewal failed:', err.message);
             }
+            await updateBellBtn();
             return;
         }
 
@@ -1965,6 +1978,7 @@ function sanitiseHtml(html) {
             if (!localStorage.getItem('notifDismissed')) {
                 deniedEl.style.display = 'block';
             }
+            await updateBellBtn();
             return;
         }
 
@@ -1972,6 +1986,7 @@ function sanitiseHtml(html) {
         if (!localStorage.getItem('notifDismissed')) {
             prompt.style.display = 'block';
         }
+        await updateBellBtn();
     }
 
     enableBtn.addEventListener('click', async () => {
@@ -1990,6 +2005,7 @@ function sanitiseHtml(html) {
         } catch (err) {
             console.warn('[Notifications] Permission request failed:', err);
         }
+        await updateBellBtn();
     });
 
     dismissBtn.addEventListener('click', () => {
@@ -1997,6 +2013,43 @@ function sanitiseHtml(html) {
         deniedEl.style.display = 'none';
         localStorage.setItem('notifDismissed', '1');
     });
+
+    if (bellBtn) {
+        bellBtn.addEventListener('click', async () => {
+            const perm = Notification.permission;
+            const reg  = await navigator.serviceWorker.ready;
+
+            if (perm === 'granted') {
+                const existing = await reg.pushManager.getSubscription();
+                if (existing) {
+                    // Currently subscribed — unsubscribe
+                    await unsubscribe(reg);
+                } else {
+                    // Permission granted but no active subscription — re-subscribe
+                    await subscribe().catch(err => console.warn('[Notifications] Re-subscribe failed:', err));
+                }
+            } else if (perm === 'denied') {
+                // Can't request again — show the browser settings instructions
+                deniedEl.style.display = 'block';
+                prompt.style.display   = 'none';
+            } else {
+                // Not yet asked — request permission and subscribe
+                localStorage.removeItem('notifDismissed');
+                prompt.style.display = 'none';
+                try {
+                    const newPerm = await Notification.requestPermission();
+                    if (newPerm === 'granted') {
+                        await subscribe();
+                    } else if (newPerm === 'denied') {
+                        deniedEl.style.display = 'block';
+                    }
+                } catch (err) {
+                    console.warn('[Notifications] Permission request failed:', err);
+                }
+            }
+            await updateBellBtn();
+        });
+    }
 
     init().catch(err => console.warn('[Notifications] Init error:', err));
 })();
