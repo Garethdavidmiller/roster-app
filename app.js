@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.21';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.21';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.22';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.22';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -120,6 +120,245 @@ let currentDisplayYear = getToday().getFullYear();
 // SWIPE GESTURE STATE
 // ============================================
 let swipeCooldown = false;
+
+// ============================================
+// HUDDLE BUTTON STATE
+// Persists across renders — #huddleBtn is re-created on every renderCalendar()
+// and renderTeamView() call. Module-level state lets applyHuddleButtonState()
+// immediately restore the correct enabled/disabled label on each new button.
+// ============================================
+let _huddleData  = null;
+let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
+
+function applyHuddleButtonState() {
+    const btn = document.getElementById('huddleBtn');
+    if (!btn) return;
+    if (_huddleState === 'loading') {
+        btn.disabled = true;
+    } else if (_huddleState === 'none') {
+        btn.disabled = true;
+        btn.title = 'No briefing uploaded today';
+        btn.setAttribute('aria-label', 'Huddle — no briefing uploaded yet');
+    } else if (_huddleState === 'error') {
+        btn.disabled = true;
+        btn.title = "Couldn't load the briefing";
+        btn.setAttribute('aria-label', "Huddle — couldn't load, check your connection");
+    } else {
+        btn.disabled = false;
+        btn.title = "Open today's Huddle";
+        btn.setAttribute('aria-label', "Open today's Huddle");
+    }
+}
+
+// ============================================
+// TEAM VIEW STATE
+// ============================================
+let teamViewMode = false;
+
+/** Monday of the week currently shown in team view. Reset to current week on each open. */
+let currentTeamWeekStart = (() => { const m = getMonday(new Date()); return m; })();
+
+/** Grade tab shown in team view. Defaults to the logged-in member's role. */
+let currentTeamGrade = (() => {
+    try {
+        const idx  = getSelectedMemberIndex();
+        const role = idx >= 0 ? teamMembers[idx].role : 'CEA';
+        return (role === 'CES' || role === 'Dispatcher') ? role : 'CEA';
+    } catch { return 'CEA'; }
+})();
+
+/** Returns the Monday of the week containing `date`. */
+function getMonday(date) {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay(); // 0=Sun
+    d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+    return d;
+}
+
+/** Returns an array of 7 Date objects Mon–Sun starting from `monday`. */
+function getTeamWeekDates(monday) {
+    return Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(monday);
+        d.setDate(d.getDate() + i);
+        return d;
+    });
+}
+
+/**
+ * Returns the effective shift display data for a member on a date,
+ * applying any cached Firestore overrides over the base roster.
+ * @returns {{ text: string, cls: string }}
+ */
+function getTeamCellDisplay(member, date) {
+    const dateStr  = formatISO(date);
+    const cacheKey = `${member.name}|${dateStr}`;
+
+    let shift = getBaseShift(member, date);
+
+    const override = rosterOverridesCache.get(cacheKey);
+    if (override) {
+        if      (override.type === 'annual_leave') shift = 'AL';
+        else if (override.type === 'sick')         shift = 'SICK';
+        else if (override.type === 'correction')   shift = 'RD';
+        else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
+        else if (override.value)                   shift = override.value;
+    }
+
+    if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest' };
+    if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare' };
+    if (shift === 'AL')                    return { text: '🏖 AL', cls: 'tv-al' };
+    if (shift === 'SICK')                  return { text: '🪑', cls: 'tv-sick' };
+    if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw' };
+    if (shift.startsWith('RDW|')) {
+        return { text: `💼 ${shift.slice(4)}`, cls: 'tv-rdw' };
+    }
+    if (SHIFT_TIME_REGEX.test(shift)) {
+        let emoji = '🌙';
+        if      (member.permanentShift === 'early') emoji = '☀️';
+        else if (member.permanentShift === 'late')  emoji = '🌙';
+        else if (isNightShift(shift))               emoji = '🦉';
+        else if (isEarlyShift(shift))               emoji = '☀️';
+
+        const cls = member.permanentShift === 'early' ? 'tv-early'
+                  : member.permanentShift === 'late'  ? 'tv-late'
+                  : isNightShift(shift)               ? 'tv-night'
+                  : isEarlyShift(shift)               ? 'tv-early'
+                  : 'tv-late';
+        return { text: `${emoji} ${shift}`, cls };
+    }
+    return { text: escapeHtml(shift), cls: '' };
+}
+
+/**
+ * Renders the team week grid for the given grade into #calendarDisplay.
+ * Safe to call multiple times (re-render on week/grade change or after Firestore loads).
+ * @param {string} grade  'CEA' | 'CES' | 'Dispatcher'
+ */
+function renderTeamView(grade) {
+    currentTeamGrade = grade;
+
+    const calendarDisplay = document.getElementById('calendarDisplay');
+    if (!calendarDisplay) return;
+
+    const weekDates = getTeamWeekDates(currentTeamWeekStart);
+    const weekStart = weekDates[0];
+    const weekEnd   = weekDates[6];
+
+    // Week label: "19–25 May 2026" or "28 Apr – 4 May 2026" for cross-month weeks
+    const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+    const weekLabel = sameMonth
+        ? `${weekStart.getDate()}–${weekEnd.getDate()} ${monthNames[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
+        : `${weekStart.getDate()} ${monthNames[weekStart.getMonth()]} – ${weekEnd.getDate()} ${monthNames[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
+
+    const gradeMembers = teamMembers.filter(m => !m.hidden && m.role === grade);
+
+    const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dayHeaders = weekDates.map((d, i) =>
+        `<th class="tv-day-header">${dayLabels[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
+    ).join('');
+
+    const rows = gradeMembers.map(member => {
+        const cells = weekDates.map(date => {
+            const { text, cls } = getTeamCellDisplay(member, date);
+            return `<td class="tv-cell ${cls}">${text}</td>`;
+        }).join('');
+        return `<tr><td class="tv-name-col">${escapeHtml(member.name)}</td>${cells}</tr>`;
+    }).join('');
+
+    const gradeBtns = ['CEA', 'CES', 'Dispatcher'].map(g =>
+        `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" data-grade="${g}">${g}</button>`
+    ).join('');
+
+    calendarDisplay.innerHTML = `
+        <div class="team-view-container">
+            <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
+            <div class="team-week-row">
+                <span class="team-week-text">${weekLabel}</span>
+                <button id="huddleBtn" class="huddle-icon-btn" aria-label="Open today's Huddle" title="Open today's Huddle">📋</button>
+            </div>
+            <div class="team-table-wrap">
+                <table class="team-table" aria-label="Team roster — week of ${weekLabel}">
+                    <thead><tr>
+                        <th class="tv-name-col">Name</th>${dayHeaders}
+                    </tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        </div>`;
+
+    calendarDisplay.querySelectorAll('.grade-tab').forEach(tab =>
+        tab.addEventListener('click', () => renderTeamView(tab.dataset.grade))
+    );
+
+    applyHuddleButtonState();
+
+    // Background Firestore fetch — re-renders after data arrives
+    fetchTeamWeekOverrides(weekDates[0], weekDates[6]);
+}
+
+/** Fetches all overrides for a week in one query and re-renders if new data is found. */
+async function fetchTeamWeekOverrides(weekStart, weekEnd) {
+    try {
+        const snap = await getDocs(query(
+            collection(db, 'overrides'),
+            where('date', '>=', formatISO(weekStart)),
+            where('date', '<=', formatISO(weekEnd))
+        ));
+        let updated = false;
+        snap.forEach(doc => {
+            const d          = doc.data();
+            const cacheKey   = `${d.memberName}|${d.date}`;
+            const existing   = rosterOverridesCache.get(cacheKey);
+            const newManual  = d.source !== 'roster_import';
+            const exManual   = existing && existing.source !== 'roster_import';
+            if (!existing ||
+                (newManual && !exManual) ||
+                (newManual === exManual && (d.createdAt?.toMillis?.() ?? 0) > (existing?.createdAt?.toMillis?.() ?? 0))) {
+                rosterOverridesCache.set(cacheKey, d);
+                updated = true;
+            }
+        });
+        if (updated && teamViewMode) renderTeamView(currentTeamGrade);
+    } catch (err) {
+        console.warn('[TeamView] Could not fetch week overrides:', err);
+    }
+}
+
+/**
+ * Toggles between personal calendar and team week view.
+ * Admin users get the full team view; everyone else sees the coming-soon lightbox.
+ */
+function toggleTeamView() {
+    const currentMember = getCurrentMember();
+    const isAdmin = CONFIG.ADMIN_NAMES.includes(currentMember.name);
+
+    if (!isAdmin) {
+        // Show coming-soon lightbox for non-admin staff
+        const lb = document.getElementById('teamComingSoonLightbox');
+        if (lb) lb.classList.add('visible');
+        return;
+    }
+
+    teamViewMode = !teamViewMode;
+
+    const teamBtn      = document.getElementById('teamViewBtn');
+    const memberSelect = document.getElementById('teamMemberSelect');
+    const prevBtn      = document.getElementById('prevMonth');
+    const nextBtn      = document.getElementById('nextMonth');
+
+    if (teamBtn)      teamBtn.classList.toggle('active', teamViewMode);
+    if (memberSelect) memberSelect.style.visibility = teamViewMode ? 'hidden' : '';
+    if (prevBtn)      prevBtn.setAttribute('aria-label', teamViewMode ? 'Previous week' : 'Previous month');
+    if (nextBtn)      nextBtn.setAttribute('aria-label', teamViewMode ? 'Next week' : 'Next month');
+
+    if (teamViewMode) {
+        currentTeamWeekStart = getMonday(new Date());
+        renderTeamView(currentTeamGrade);
+    } else {
+        renderCalendar();
+    }
+}
 
 // ============================================
 // MONTH NAVIGATION
@@ -282,7 +521,10 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
     }
     return `
         <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${monthNames[month]} ${year}">${monthNames[month]} ${year}</div>
-        ${weekDisplay ? `<div class="week-info">${weekDisplay}</div>` : ''}
+        <div class="week-info">
+            ${weekDisplay ? `<span class="week-info-text">${weekDisplay}</span>` : ''}
+            <button id="huddleBtn" class="huddle-icon-btn" aria-label="Open today's Huddle" title="Open today's Huddle">📋</button>
+        </div>
     `;
 }
 
@@ -840,6 +1082,8 @@ function renderCalendar() {
             ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
         }
 
+        applyHuddleButtonState();
+
     } catch (error) {
         console.error('Error rendering calendar:', error);
         const calendarDisplay = document.getElementById('calendarDisplay');
@@ -890,10 +1134,17 @@ function updateFaithHint() {
 }
 
 document.getElementById('prevMonth').addEventListener('click', () => {
-    if (swipeCooldown) return; // Don't interrupt a swipe animation
-    changeMonth(-1);
-    renderCalendar();
-    announceMonthChange();
+    if (swipeCooldown) return;
+    if (teamViewMode) {
+        const prev = new Date(currentTeamWeekStart);
+        prev.setDate(prev.getDate() - 7);
+        currentTeamWeekStart = prev;
+        renderTeamView(currentTeamGrade);
+    } else {
+        changeMonth(-1);
+        renderCalendar();
+        announceMonthChange();
+    }
 });
 
 // Briefly pulses the today cell - only called when navigating TO today
@@ -926,20 +1177,32 @@ function announceMonthChange() {
 }
 
 document.getElementById('todayBtn').addEventListener('click', () => {
-    if (swipeCooldown) return; // Don't interrupt a swipe animation
-    const now = getToday();
-    currentDisplayMonth = now.getMonth();
-    currentDisplayYear = now.getFullYear();
-    renderCalendar();
-    pulseToday();
-    announceMonthChange();
+    if (swipeCooldown) return;
+    if (teamViewMode) {
+        currentTeamWeekStart = getMonday(new Date());
+        renderTeamView(currentTeamGrade);
+    } else {
+        const now = getToday();
+        currentDisplayMonth = now.getMonth();
+        currentDisplayYear = now.getFullYear();
+        renderCalendar();
+        pulseToday();
+        announceMonthChange();
+    }
 });
 
 document.getElementById('nextMonth').addEventListener('click', () => {
-    if (swipeCooldown) return; // Don't interrupt a swipe animation
-    changeMonth(1);
-    renderCalendar();
-    announceMonthChange();
+    if (swipeCooldown) return;
+    if (teamViewMode) {
+        const next = new Date(currentTeamWeekStart);
+        next.setDate(next.getDate() + 7);
+        currentTeamWeekStart = next;
+        renderTeamView(currentTeamGrade);
+    } else {
+        changeMonth(1);
+        renderCalendar();
+        announceMonthChange();
+    }
 });
 
 // Pay button — navigates to paycalc.html for any signed-in staff member.
@@ -1003,6 +1266,20 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     const dd   = String(targetDate.getDate()).padStart(2, '0');
     location.href = `admin.html?date=${yyyy}-${mm}-${dd}`;
 });
+
+document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView);
+
+(function initTeamComingSoon() {
+    const lb       = document.getElementById('teamComingSoonLightbox');
+    const closeX   = document.getElementById('teamCsClose');
+    const closeBtn = document.getElementById('teamCsCloseBtn');
+    if (!lb) return;
+    function close() { lb.classList.remove('visible'); }
+    if (closeX)   closeX.addEventListener('click', close);
+    if (closeBtn) closeBtn.addEventListener('click', close);
+    lb.addEventListener('click', e => { if (e.target === lb) close(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && lb.classList.contains('visible')) close(); });
+})();
 
 // Modules are always deferred — the DOM is fully parsed before this code runs.
 // No DOMContentLoaded wrapper needed; initialize directly.
@@ -1847,14 +2124,17 @@ function sanitiseHtml(html) {
     return doc.body.innerHTML;
 }
 
-(async function initHuddleButton() {
-    const btn    = document.getElementById('huddleBtn');
+// ============================================
+// HUDDLE BUTTON — event delegation + module-state
+// #huddleBtn is re-created on every renderCalendar() / renderTeamView() call.
+// Delegation on document handles clicks regardless of which instance is live.
+// _huddleData / _huddleState are set once at startup and survive re-renders.
+// ============================================
+(function initHuddleViewer() {
     const viewer = document.getElementById('huddleViewer');
     const body   = document.getElementById('huddleViewerBody');
     const close  = document.getElementById('huddleViewerClose');
-    if (!btn) return;
 
-    // ---- Viewer open / close ----
     function openViewer() {
         viewer.classList.add('visible');
         requestAnimationFrame(() => viewer.classList.add('open'));
@@ -1869,57 +2149,64 @@ function sanitiseHtml(html) {
         document.removeEventListener('keydown', onKey);
     }
     function onKey(e) { if (e.key === 'Escape') closeViewer(); }
+
     if (close) {
         close.addEventListener('touchend', (e) => { e.preventDefault(); closeViewer(); });
         close.addEventListener('click', closeViewer);
     }
 
-    try {
-        const huddle = await getLatestHuddle();
-        if (!huddle) {
-            btn.disabled = true;
-            btn.title = 'No briefing has been uploaded today';
-            btn.setAttribute('aria-label', 'Huddle — no briefing uploaded yet');
-            return;
-        }
-
-        btn.addEventListener('click', () => {
-            try {
-                if (huddle.htmlContent) {
-                    body.innerHTML = sanitiseHtml(huddle.htmlContent);
+    // Event delegation — fires on every document click; only acts on #huddleBtn.
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#huddleBtn')) return;
+        if (_huddleState !== 'ready' || !_huddleData) return;
+        const huddle = _huddleData;
+        try {
+            if (huddle.htmlContent) {
+                body.innerHTML = sanitiseHtml(huddle.htmlContent);
+                openViewer();
+                close.focus();
+            } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
+                if (/Android/i.test(navigator.userAgent)) {
+                    const iframe = document.createElement('iframe');
+                    iframe.src   = 'https://docs.google.com/viewer?url=' + encodeURIComponent(huddle.storageUrl) + '&embedded=true';
+                    iframe.title = 'Daily Huddle';
+                    body.innerHTML = '';
+                    body.appendChild(iframe);
+                    body.classList.add('has-iframe');
                     openViewer();
                     close.focus();
-                } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
-                    if (/Android/i.test(navigator.userAgent)) {
-                        const iframe = document.createElement('iframe');
-                        iframe.src   = 'https://docs.google.com/viewer?url=' + encodeURIComponent(huddle.storageUrl) + '&embedded=true';
-                        iframe.title = 'Daily Huddle';
-                        body.innerHTML = '';
-                        body.appendChild(iframe);
-                        body.classList.add('has-iframe');
-                        openViewer();
-                        close.focus();
-                    } else {
-                        window.open(huddle.storageUrl, '_blank', 'noopener');
-                    }
                 } else {
-                    body.innerHTML = '<p style="color:#c62828;font-weight:600">This Huddle could not be previewed — please re-upload the Word file from the Admin page.</p>';
-                    openViewer();
-                    close.focus();
+                    window.open(huddle.storageUrl, '_blank', 'noopener');
                 }
-            } catch (e) {
-                console.error('[Huddle] Viewer error:', e);
-                body.innerHTML = '<p style="color:#c62828;font-weight:600">Could not display this Huddle — please try again.</p>';
+            } else {
+                body.innerHTML = '<p style="color:#c62828;font-weight:600">This Huddle could not be previewed — please re-upload the Word file from the Admin page.</p>';
                 openViewer();
                 close.focus();
             }
-        });
-    } catch (err) {
-        btn.disabled = true;
-        btn.title = 'Couldn\'t load the briefing — check your connection';
-        btn.setAttribute('aria-label', 'Huddle — couldn\'t load, check your connection');
-        console.warn('[Huddle] Could not fetch latest huddle:', err);
-    }
+        } catch (err) {
+            console.error('[Huddle] Viewer error:', err);
+            body.innerHTML = '<p style="color:#c62828;font-weight:600">Could not display this Huddle — please try again.</p>';
+            openViewer();
+            close.focus();
+        }
+    });
+
+    // Fetch huddle data once at startup — result persists in module-level state.
+    (async () => {
+        try {
+            const huddle = await getLatestHuddle();
+            if (!huddle) {
+                _huddleState = 'none';
+            } else {
+                _huddleData  = huddle;
+                _huddleState = 'ready';
+            }
+        } catch (err) {
+            _huddleState = 'error';
+            console.warn('[Huddle] Could not fetch latest huddle:', err);
+        }
+        applyHuddleButtonState();
+    })();
 })();
 
 // ============================================
