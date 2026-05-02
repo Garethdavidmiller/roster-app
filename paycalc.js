@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.12';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.12';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.13';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.13';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1567,6 +1567,9 @@ function calculate() {
   const _peekBtn = document.getElementById('resultPeekBtn');
   if (_peekBtn) _peekBtn.textContent = `↑ Estimated take-home: ${fmt(net)}`;
 
+  const _stickyAmt = document.getElementById('stickyAmount');
+  if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+
   calcHPP();
 }
 
@@ -2034,6 +2037,25 @@ document.getElementById('hoursShowMore').addEventListener('click', toggleHoursEx
 document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   document.querySelector('.result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
+
+// Sticky take-home bar — show when result card is off-screen on mobile
+(function () {
+  const stickyBar  = document.getElementById('stickyTotal');
+  const resultCard = document.querySelector('.result-card');
+  if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
+  const obs = new IntersectionObserver(([entry]) => {
+    const show = !entry.isIntersecting;
+    stickyBar.classList.toggle('visible', show);
+    document.body.classList.toggle('sticky-active', show);
+  }, { threshold: 0 });
+  obs.observe(resultCard);
+  stickyBar.addEventListener('click', () =>
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  );
+  stickyBar.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+})();
 
 // Roster fill — "Fill blank fields" button + per-category "Fill →" buttons
 const _fillBtn = document.getElementById('fillFromRosterBtn');

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.12 -->
+<!-- MYB Roster — Pay Calculator v8.13 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.12">
+  <link rel="stylesheet" href="./shared.css?v=8.13">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -886,6 +886,26 @@
     .result-peek-btn:hover { text-decoration: underline; }
   }
 
+  /* ── STICKY TAKE-HOME BAR (mobile only) ── */
+  #stickyTotal {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--primary-blue); color: white;
+    padding: 10px 20px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    z-index: 200;
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.25);
+    cursor: pointer; touch-action: manipulation;
+    flex-direction: row; align-items: center; justify-content: space-between;
+    gap: 8px;
+  }
+  #stickyTotal.visible { display: flex; }
+  #stickyTotal .sticky-label { font-size: var(--type-small); opacity: 0.75; }
+  #stickyTotal .sticky-amount { font-size: var(--type-large); font-weight: 700; letter-spacing: -0.02em; }
+  @media (min-width: 1040px) { #stickyTotal { display: none !important; } }
+  /* Space so the disclaimer is never hidden behind the sticky bar */
+  body.sticky-active { padding-bottom: max(70px, calc(60px + env(safe-area-inset-bottom))); }
+
   /* ── GUIDE FOOTER LINK ── */
   .guide-footer-link { text-align: center; margin-bottom: 12px; }
   .guide-footer-link a {
@@ -982,7 +1002,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.12">
+  <link rel="manifest" href="./pay-manifest.json?v=8.13">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1578,6 +1598,13 @@
   </main>
 
 </div>
+
+<!-- Sticky take-home bar — mobile only, shown when result card scrolls off-screen -->
+<div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to estimated take-home pay">
+  <div class="sticky-label">💷 Estimated take-home</div>
+  <div class="sticky-amount" id="stickyAmount">£–</div>
+</div>
+
 <!-- Help lightbox: opened by ? buttons on each card -->
 <div id="helpLightbox" role="dialog" aria-modal="true" aria-labelledby="helpLightboxTitle">
   <div id="helpLightboxContent">
@@ -1617,6 +1644,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.12"></script>
+<script type="module" src="./paycalc.js?v=8.13"></script>
 </body>
 </html>
