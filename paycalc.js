@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.02';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.02';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.07';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.07';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -200,7 +200,7 @@ const HELP_CONTENT = {
     tips: [
       '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. CEA rate is currently £20.74; CES rate is currently £21.81. Both change each April with the pay award.',
       '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). It tells HMRC how much tax-free income you get. Most Marylebone staff are on 1257L. A code starting with S means you pay Scottish income tax rates. If you\'re unsure, check your payslip or contact payroll.',
-      '<strong>Pension:</strong> shown as "Smart RPS CR Scheme" on your payslip. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
+      '<strong>Pension contribution:</strong> your payslip calls this "Smart RPS CR Scheme" — it\'s the same thing. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
       '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one.',
       '<strong>London Allowance (£276.16/period):</strong> a fixed supplement paid to all Marylebone staff. It\'s included automatically — you don\'t need to enter it.',
       'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
@@ -268,11 +268,15 @@ function onHhMm(hId, mId, warnId) {
     const warn  = document.getElementById(warnId);
     const curP  = getPeriods().find(x => x.num === currentPeriodNum());
     const contr = getEffectiveContr(curP);
-    warn.classList.toggle('show', hrs > contr);
     if (hrs > contr) {
       document.getElementById(hId).value = contr;
       document.getElementById(mId).value = 0;
+      warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`;
+      warn.classList.add('show');
+    } else if (hrs < contr) {
+      warn.classList.remove('show');
     }
+    // hrs === contr: warning stays as-is so it remains visible after clamping
   }
   calculate();
 }
@@ -1521,7 +1525,7 @@ function calculate() {
 
   document.getElementById('summary').innerHTML = `
     <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>
-    ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension (Smart RPS CR Scheme)</span><span class="val">−${fmt(pension)}</span></div>` : ''}
+    ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
     ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
     <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:10px;font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
     <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>

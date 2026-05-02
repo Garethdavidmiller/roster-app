@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.02 -->
+<!-- MYB Roster Calendar - Version 8.07 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.02">
+    <link rel="manifest" href="manifest.json?v=8.07">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.02">
+    <link rel="stylesheet" href="shared.css?v=8.07">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -278,6 +278,13 @@
         @media (hover: hover) and (pointer: fine) {
             .pay-period-link:hover { text-decoration: underline; }
         }
+        .swipe-hint {
+            text-align: center; font-size: 11px; color: var(--text-light);
+            padding: 2px 12px 8px; opacity: 1;
+            transition: opacity 0.4s ease;
+            pointer-events: none; user-select: none;
+        }
+        .swipe-hint.fade-out { opacity: 0; }
 
         .controls button.al-btn {
             background: var(--al, #00897b);
@@ -2028,6 +2035,10 @@
         <!-- Pay period strip: shows current period dates + link to pay calculator -->
         <div id="payPeriodStrip" class="pay-period-strip" aria-live="polite"></div>
 
+        <!-- First-visit swipe hint — dismissed after any month navigation -->
+        <div id="swipeHint" class="swipe-hint" aria-hidden="true" style="display:none">
+            ← Swipe to change month →
+        </div>
 
         <main id="calendarDisplay" aria-label="Monthly roster calendar"></main>
 
@@ -2091,7 +2102,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.02"></script>
+    <script type="module" src="./app.js?v=8.07"></script>
 
 </body>
 </html>

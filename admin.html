@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.02 -->
+<!-- MYB Roster Admin v8.07 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.02">
+    <link rel="manifest" href="manifest.json?v=8.07">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.02">
+    <link rel="stylesheet" href="shared.css?v=8.07">
 
     <style>
         body {
@@ -1452,6 +1452,34 @@
         #printHeader { display: none; }
 
         /* ---- Login overlay ---- */
+        /* ---- Unsaved changes confirmation banner ---- */
+        #unsavedBanner {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: #7a3a00;
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            z-index: 8000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #unsavedBannerMsg { flex: 1; min-width: 160px; }
+        .unsaved-banner-btns { display: flex; gap: 8px; }
+        .unsaved-discard-btn {
+            background: white; color: #7a3a00;
+            border: none; border-radius: var(--radius-sm);
+            padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .unsaved-keep-btn {
+            background: transparent; color: white;
+            border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-sm);
+            padding: 7px 14px; font-size: 13px; cursor: pointer;
+        }
+
         #loginOverlay {
             display: none;
             position: fixed;
@@ -2070,6 +2098,14 @@
 <body>
 <!-- Print-only header — populated by beforeprint listener; hidden on screen -->
 <div id="printHeader" aria-hidden="true"></div>
+<!-- Unsaved changes confirmation banner — shown instead of confirm() dialog -->
+<div id="unsavedBanner" role="alertdialog" aria-label="Unsaved changes" style="display:none">
+    <span id="unsavedBannerMsg">You have unsaved changes.</span>
+    <div class="unsaved-banner-btns">
+        <button class="unsaved-discard-btn" id="unsavedDiscardBtn">Discard and continue</button>
+        <button class="unsaved-keep-btn"    id="unsavedKeepBtn">Keep editing</button>
+    </div>
+</div>
 <!-- Login overlay — shown when no valid session exists -->
 <div id="loginOverlay" role="dialog" aria-label="Sign in to Admin" aria-modal="true">
     <div id="loginCard">
@@ -2153,7 +2189,7 @@
     <div class="col-main">
     <div class="card">
         <div class="card-header">
-            <h2>Change a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for changing shifts">?</button></h2>
+            <h2>Update a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for updating shifts">?</button></h2>
             <span class="hint">Tap any day to expand it, choose a type, then save — or tick multiple days and use Apply to all below</span>
         </div>
         <div class="card-body">
@@ -2592,6 +2628,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.02"></script>
+<script type="module" src="./admin-app.js?v=8.07"></script>
 </body>
 </html>
