@@ -12,16 +12,23 @@
   "categories": ["productivity", "business"],
   "shortcuts": [
     {
-      "name": "My Roster",
-      "short_name": "Roster",
+      "name": "Calendar",
+      "short_name": "Calendar",
       "description": "View your shift calendar",
       "url": "./index.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
+      "name": "Pay",
+      "short_name": "Pay",
+      "description": "Pay calculator",
+      "url": "./paycalc.html",
+      "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
       "name": "Admin",
       "short_name": "Admin",
-      "description": "Staff self-service and admin portal",
+      "description": "Record shifts, annual leave and absences",
       "url": "./admin.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
