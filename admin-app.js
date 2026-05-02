@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.02';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.02';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.03';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.03';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -500,14 +500,43 @@ window.addEventListener('beforeunload', e => {
     if (hasUnsavedChanges()) { e.preventDefault(); e.returnValue = ''; }
 });
 
+// Pending navigation callback — set by confirmNavigate() when unsaved changes
+// exist. Executed if the user taps "Discard and continue" in the banner.
+let _pendingNavigate = null;
+
+(function initUnsavedBanner() {
+    const banner      = document.getElementById('unsavedBanner');
+    const discardBtn  = document.getElementById('unsavedDiscardBtn');
+    const keepBtn     = document.getElementById('unsavedKeepBtn');
+    if (!banner || !discardBtn || !keepBtn) return;
+
+    discardBtn.addEventListener('click', () => {
+        banner.style.display = 'none';
+        userMadeChanges = false;
+        if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
+    });
+    keepBtn.addEventListener('click', () => {
+        banner.style.display = 'none';
+        _pendingNavigate = null;
+    });
+})();
+
 /**
- * Prompts for confirmation when there are unsaved changes.
- * Returns true immediately if nothing is unsaved.
- * @returns {boolean} true = safe to navigate, false = user cancelled
+ * If there are unsaved changes, shows a confirmation banner and stores the
+ * navigation action for execution if the user chooses to discard.
+ * Returns true immediately if nothing is unsaved (safe to continue now).
+ * Returns false if unsaved changes exist — the banner handles continuation.
+ * @param {Function} onConfirm  Action to run after the user confirms discard
+ * @returns {boolean} true = proceed now, false = wait for banner response
  */
-function confirmNavigate() {
+function confirmNavigate(onConfirm) {
     if (!hasUnsavedChanges()) return true;
-    return confirm('You have unsaved changes. Continue and lose them?');
+    const banner = document.getElementById('unsavedBanner');
+    if (banner) {
+        _pendingNavigate = onConfirm || null;
+        banner.style.display = 'flex';
+    }
+    return false;
 }
 
 // ============================================
@@ -519,19 +548,19 @@ function confirmNavigate() {
  * @param {number} delta  Positive = forward, negative = back
  */
 function shiftWeek(delta) {
-    if (!confirmNavigate()) return;
-    const d = new Date(fieldDate.value + 'T12:00:00');
-    d.setDate(d.getDate() + delta * 7);
-    fieldDate.value = formatISO(d);
-    lastFieldDate = fieldDate.value;
-    renderWeekGrid();
+    const go = () => {
+        const d = new Date(fieldDate.value + 'T12:00:00');
+        d.setDate(d.getDate() + delta * 7);
+        fieldDate.value = formatISO(d);
+        lastFieldDate = fieldDate.value;
+        renderWeekGrid();
+    };
+    if (confirmNavigate(go)) go();
 }
 
 document.getElementById('thisWeekBtn').addEventListener('click', () => {
-    if (!confirmNavigate()) return;
-    fieldDate.value = formatISO(new Date());
-    lastFieldDate = fieldDate.value;
-    renderWeekGrid();
+    const go = () => { fieldDate.value = formatISO(new Date()); lastFieldDate = fieldDate.value; renderWeekGrid(); };
+    if (confirmNavigate(go)) go();
 });
 
 // ============================================
@@ -1365,34 +1394,39 @@ async function executeSave(toSave, toDelete = []) {
 }
 
 fieldMember.addEventListener('change', () => {
-    if (!confirmNavigate()) { fieldMember.value = localStorage.getItem('myb_roster_selected_member') || localStorage.getItem('adminLastMember') || ''; return; }
-    localStorage.setItem('adminLastMember', fieldMember.value);
-    localStorage.setItem('myb_roster_selected_member', fieldMember.value);
-    alMember.value   = fieldMember.value;
-    sickMember.value = fieldMember.value;
-    syncMemberDisplay();
-    syncSickMemberDisplay();
-    if (fieldMember.value && typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value);
-    updateALBanner();
-    updateALBookedBox();
-    updateSickBookedBox();
-    renderTable();
-    renderWeekGrid();
+    const chosen = fieldMember.value;
+    const go = () => {
+        localStorage.setItem('adminLastMember', chosen);
+        localStorage.setItem('myb_roster_selected_member', chosen);
+        alMember.value   = chosen;
+        sickMember.value = chosen;
+        syncMemberDisplay();
+        syncSickMemberDisplay();
+        if (chosen && typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(chosen);
+        updateALBanner();
+        updateALBookedBox();
+        updateSickBookedBox();
+        renderTable();
+        renderWeekGrid();
+    };
+    if (confirmNavigate(go)) { go(); return; }
+    // Revert the dropdown to the previously selected member while the banner waits
+    fieldMember.value = localStorage.getItem('myb_roster_selected_member') || localStorage.getItem('adminLastMember') || '';
 });
 let lastFieldDate = fieldDate.value;
 fieldDate.addEventListener('change', () => {
-    if (hasUnsavedChanges()) {
-        const newVal = fieldDate.value;
-        fieldDate.value = lastFieldDate; // revert so user sees the restore if they cancel
-        if (!confirm('You have unsaved changes. Continue and lose them?')) return;
+    const newVal = fieldDate.value;
+    const go = () => {
         fieldDate.value = newVal;
-    }
-    lastFieldDate = fieldDate.value;
-    renderWeekGrid();
-    // Banner year follows the week being viewed (when no alFrom date is set)
-    updateALBanner();
-    updateALBookedBox();
-    updateSickBookedBox();
+        lastFieldDate = newVal;
+        renderWeekGrid();
+        updateALBanner();
+        updateALBookedBox();
+        updateSickBookedBox();
+    };
+    if (confirmNavigate(go)) { go(); return; }
+    // Revert the date picker while the banner waits for a decision
+    fieldDate.value = lastFieldDate;
 });
 
 // ============================================
@@ -1622,16 +1656,16 @@ function handleEdit(e) {
     const btn        = e.currentTarget;
     const memberName = btn.dataset.member;
     const date       = btn.dataset.date;
-    if (!confirmNavigate()) return;
-    // Populate selectors and re-render the week grid
-    fieldMember.value = memberName;
-    fieldDate.value   = date;
-    lastFieldDate     = date;
-    localStorage.setItem('adminLastMember', memberName);
-    localStorage.setItem('myb_roster_selected_member', memberName);
-    renderWeekGrid();
-    // Scroll to the override form card
-    document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    const go = () => {
+        fieldMember.value = memberName;
+        fieldDate.value   = date;
+        lastFieldDate     = date;
+        localStorage.setItem('adminLastMember', memberName);
+        localStorage.setItem('myb_roster_selected_member', memberName);
+        renderWeekGrid();
+        document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    if (confirmNavigate(go)) go();
 }
 
 // ============================================

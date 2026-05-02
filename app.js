@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.02';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.02';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.03';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.03';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -36,6 +36,11 @@ let _cachedMemberName = null;
 // Set when localStorage held a member name that's no longer in the roster.
 // renderCalendar() shows a brief info banner once then clears this flag.
 let _staleMemberName = null;
+
+// Guards against ensureOverridesCached() triggering a competing fetch while
+// the initial 3-month load is already in flight. Set true before the IIFE
+// await, cleared in its finally block.
+let _initialFetchInProgress = false;
 
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -809,7 +814,11 @@ function renderCalendar() {
         // Ensure Firestore overrides are cached for the displayed month.
         // No-op if already fetched; fires a background fetch and re-render if not
         // (e.g. when the user navigates beyond the initial 3-month window).
-        ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
+        // Skipped while the initial 3-month fetch is in flight to avoid a competing
+        // fetch that could race against it and produce a blank re-render mid-load.
+        if (!_initialFetchInProgress) {
+            ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
+        }
 
     } catch (error) {
         console.error('Error rendering calendar:', error);
@@ -1374,7 +1383,10 @@ try {
                     });
 
                     navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        window.location.reload();
+                        // Small delay so any in-flight render cycle completes before
+                        // the page tears down — prevents overrides flashing then disappearing
+                        // if the SW activates at the exact moment overrides have just rendered.
+                        setTimeout(() => window.location.reload(), 500);
                     }, { once: true });
 
                     let swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
@@ -1655,6 +1667,8 @@ async function ensureOverridesCached(year, month) {
 // delay when the user swipes left or right on first open.
 // ============================================
 (async () => {
+    _initialFetchInProgress = true;
+
     const now  = new Date();
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -1746,6 +1760,7 @@ async function ensureOverridesCached(year, month) {
         syncResolved = true;
         console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
     } finally {
+        _initialFetchInProgress = false;
         clearTimeout(loadingTimer);
         clearTimeout(timeoutTimer);
         if (syncChip && syncResolved && !syncChip.className.includes('sync-chip-error')) {
