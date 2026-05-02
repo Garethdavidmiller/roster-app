@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.26 -->
+<!-- MYB Roster Calendar - Version 8.27 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.26">
+    <link rel="manifest" href="manifest.json?v=8.27">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.26">
+    <link rel="stylesheet" href="shared.css?v=8.27">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1152,11 +1152,43 @@
             box-shadow: var(--shadow-2);
             overflow: hidden;
         }
+        /* Grade tab row: spacer + centred tabs + ℹ button keeps tabs truly centred */
+        .grade-tabs-row {
+            display: flex;
+            align-items: center;
+            padding: 6px 10px 0;
+            gap: 4px;
+        }
+        .grade-tabs-spacer {
+            width: 28px;
+            flex-shrink: 0;
+        }
         .grade-tabs {
             display: flex;
             gap: 6px;
-            padding: 6px 14px 0;
+            flex: 1;
             justify-content: center;
+        }
+        .team-info-btn {
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: var(--text-faint);
+            font-size: 15px;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            touch-action: manipulation;
+            transition: color 0.15s, background 0.15s;
+            line-height: 1;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .team-info-btn:hover { color: var(--primary-blue); background: var(--bg-soft); }
         }
         .grade-tab {
             padding: 5px 14px;
@@ -1200,25 +1232,30 @@
             color: var(--text-dark);
         }
         .tv-week-nav {
-            background: none;
-            border: none;
-            font-size: 22px;
-            font-weight: 300;
+            background: white;
+            border: 2px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 700;
             color: var(--primary-blue);
             cursor: pointer;
-            padding: 2px 10px;
-            min-width: 44px;
-            min-height: 44px;
+            padding: 3px 10px;
+            min-width: 40px;
+            min-height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 8px;
             touch-action: manipulation;
             line-height: 1;
             flex-shrink: 0;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
         @media (hover: hover) and (pointer: fine) {
-            .tv-week-nav:hover { background: var(--bg-soft); }
+            .tv-week-nav:hover {
+                background: var(--primary-blue);
+                border-color: var(--primary-blue);
+                color: white;
+            }
         }
         .team-table-wrap {
             overflow-x: auto;
@@ -1287,28 +1324,155 @@
         .tv-al    { background: var(--al-light); }
         .tv-sick  { background: var(--absence-light); }
 
-        /* ---- Team view coming-soon lightbox ---- */
-        #teamComingSoonLightbox {
+        /* ---- Team view lightbox overlay (shared by coming-soon + info) ---- */
+        .team-overlay {
             display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 30, 60, 0.55);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-        #teamComingSoonLightbox.visible { display: flex; }
-        .team-cs-body {
-            max-width: 320px;
-            text-align: left;
+        .team-overlay.visible { display: flex; }
+        .team-lb-card {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 20px;
+            max-width: 340px;
+            width: 100%;
+            position: relative;
+            max-height: 88vh;
+            overflow-y: auto;
         }
-        .team-cs-body h2 {
-            font-size: 18px;
+        .team-lb-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: none;
+            border: none;
+            font-size: 17px;
+            cursor: pointer;
+            color: var(--text-mid);
+            padding: 4px 8px;
+            border-radius: 6px;
+            touch-action: manipulation;
+            line-height: 1;
+        }
+        .team-lb-title {
+            font-size: 17px;
             font-weight: 700;
             color: var(--primary-blue);
             margin-bottom: 12px;
+            padding-right: 28px;
         }
-        .team-cs-body p {
+        /* Coming-soon body */
+        .team-cs-text {
             font-size: 14px;
             line-height: 1.6;
             color: var(--text-dark);
             margin-bottom: 10px;
         }
-        .team-cs-body p:last-of-type { margin-bottom: 16px; }
+        .team-lb-got-it {
+            display: block;
+            width: 100%;
+            margin-top: 6px;
+            padding: 10px;
+            background: white;
+            color: var(--primary-blue);
+            border: 2px solid var(--border-light);
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            touch-action: manipulation;
+            text-align: center;
+        }
+        /* Info lightbox body */
+        .team-info-print-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100%;
+            padding: 10px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            touch-action: manipulation;
+            margin-bottom: 4px;
+        }
+        .team-info-print-hint {
+            font-size: 11px;
+            color: var(--text-faint);
+            text-align: center;
+            margin-bottom: 14px;
+        }
+        .team-info-section {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--text-faint);
+            padding-top: 12px;
+            margin-top: 12px;
+            border-top: 1px solid var(--border-light);
+            margin-bottom: 7px;
+        }
+        .team-info-tips {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .team-info-tips li {
+            font-size: 13px;
+            color: var(--text-dark);
+            padding: 3px 0 3px 16px;
+            position: relative;
+            line-height: 1.4;
+        }
+        .team-info-tips li::before {
+            content: '·';
+            position: absolute;
+            left: 4px;
+            color: var(--text-faint);
+            font-weight: 700;
+        }
+        .team-info-key {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px 12px;
+        }
+        .team-info-key-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            color: var(--text-dark);
+            white-space: nowrap;
+        }
+        .tv-key-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+            flex-shrink: 0;
+            border: 1px solid rgba(0,0,0,0.08);
+        }
+        .team-info-note {
+            font-size: 11px;
+            color: var(--text-faint);
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-light);
+            line-height: 1.5;
+        }
 
         /* ---- Pay lightbox — coming-soon panel ---- */
 
@@ -1710,7 +1874,7 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs, .tv-week-nav { display: none; }
+            .grade-tabs-row, .tv-week-nav, .team-overlay { display: none; }
             .team-table-wrap { overflow: visible; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th { background: var(--primary-blue) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -2221,13 +2385,44 @@
     </div>
 
     <!-- Team view coming-soon lightbox — shown to non-admin staff -->
-    <div id="teamComingSoonLightbox" role="dialog" aria-label="Team Week View — coming soon" aria-modal="true">
-        <button id="teamCsClose" aria-label="Close">✕</button>
-        <div class="team-cs-body">
-            <h2>👥 Team Week View</h2>
-            <p>This feature is coming soon. It will show you the whole team's shifts on one screen — one row per person, one column per day, just like the emailed weekly roster.</p>
-            <p>You'll be able to switch between CEA, CES, and Dispatcher rosters and move week by week. All shift types will be colour-coded the same way as your personal calendar.</p>
-            <button id="teamCsCloseBtn" class="lightbox-close-btn" style="width:100%">Got it</button>
+    <div id="teamComingSoonLightbox" class="team-overlay" role="dialog" aria-label="Team Week View — coming soon" aria-modal="true">
+        <div class="team-lb-card">
+            <button id="teamCsClose" class="team-lb-close" aria-label="Close">✕</button>
+            <div class="team-lb-title">👥 Team Week View</div>
+            <p class="team-cs-text">This feature is coming soon. It will show you the whole team's shifts on one screen — one row per person, one column per day, just like the emailed weekly roster.</p>
+            <p class="team-cs-text">You'll be able to switch between CEA, CES, and Dispatcher rosters and move week by week. All shift types will be colour-coded the same way as your personal calendar.</p>
+            <button id="teamCsCloseBtn" class="team-lb-got-it">Got it</button>
+        </div>
+    </div>
+
+    <!-- Team view info lightbox — tips, colour key, print -->
+    <div id="teamInfoLightbox" class="team-overlay" role="dialog" aria-label="Team Week View — help" aria-modal="true">
+        <div class="team-lb-card">
+            <button id="teamInfoClose" class="team-lb-close" aria-label="Close">✕</button>
+            <div class="team-lb-title">👥 Team Week View</div>
+            <button id="teamInfoPrint" class="team-info-print-btn">🖨️ Print this week's roster</button>
+            <p class="team-info-print-hint">Use landscape orientation in the print dialog for best results</p>
+            <div class="team-info-section">Tips</div>
+            <ul class="team-info-tips">
+                <li>Scroll the table left and right to see all 7 days</li>
+                <li>Use ← → to move between weeks</li>
+                <li>Tap CEA, CES or Dispatcher to switch grade</li>
+                <li>Tap 📋 to read today's Huddle briefing</li>
+                <li>Tap Today (📍) to jump back to the current week</li>
+            </ul>
+            <div class="team-info-section">Colour key</div>
+            <div class="team-info-key">
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--orange-light);border-color:var(--orange)"></span>☀️ Early</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--blue-light);border-color:var(--blue-sky)"></span>🌙 Late</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--night-cell-bg);border-color:var(--night-cell-border)"></span>🦉 Night</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--al-light);border-color:var(--al)"></span>🏖️ Annual leave</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rdw-light);border-color:var(--rdw)"></span>💼 Rest day worked</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--purple-light);border-color:var(--purple)"></span>📋 Spare</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--absence-light);border-color:var(--absence)"></span>🪑 Absence</div>
+                <div class="team-info-key-item"><span style="color:var(--text-faint);font-weight:700;font-size:14px;line-height:1">–</span> Rest day</div>
+            </div>
+            <p class="team-info-note">Shifts shown are base roster plus any recorded changes. Changes saved after this screen loaded appear on the next visit or week navigation.</p>
+            <button id="teamInfoCloseBtn" class="team-lb-got-it">Got it</button>
         </div>
     </div>
 
@@ -2351,7 +2546,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.26"></script>
+    <script type="module" src="./app.js?v=8.27"></script>
 
 </body>
 </html>
