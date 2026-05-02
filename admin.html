@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.09 -->
+<!-- MYB Roster Admin v8.11 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.09">
+    <link rel="manifest" href="manifest.json?v=8.11">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.09">
+    <link rel="stylesheet" href="shared.css?v=8.11">
 
     <style>
         body {
@@ -1953,8 +1953,8 @@
             .app-header              { grid-column: 1 / -1; }
             /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
             .container > .member-context-bar { grid-column: 1 / -1; }
-            /* Saved Changes table needs full width for its 8 columns */
-            #overridesCard           { grid-column: 1 / -1; }
+            /* Saved Changes sits below Update a Shift in the left column */
+            #overridesCard           { grid-column: 1; }
 
             /* Explicit column assignment — prevents auto-placement mis-ordering */
             .col-main { grid-column: 1; }
@@ -2628,6 +2628,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.09"></script>
+<script type="module" src="./admin-app.js?v=8.11"></script>
 </body>
 </html>

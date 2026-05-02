@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.09';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.09';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.11';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.11';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1672,6 +1672,7 @@ function handleEdit(e) {
 // TIME INPUT AUTO-FORMAT + INLINE VALIDATION
 // ============================================
 // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
+// Once the start time is complete (HH:MM), focus jumps to the end time.
 document.addEventListener('input', e => {
     if (!e.target.classList.contains('time-input')) return;
     const timeInput  = e.target;
@@ -1682,6 +1683,14 @@ document.addEventListener('input', e => {
         timeInput.value = raw.slice(0, 2) + ':' + raw.slice(2);
     } else {
         timeInput.value = raw;
+    }
+    // Auto-advance: start time complete → jump to end time
+    if (raw.length === 4) {
+        if (timeInput.classList.contains('day-start')) {
+            timeInput.closest('.day-row')?.querySelector('.day-end')?.focus();
+        } else if (timeInput.id === 'bulkStart') {
+            document.getElementById('bulkEnd')?.focus();
+        }
     }
 });
 
