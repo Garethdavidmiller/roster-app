@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.11';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.11';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.12';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.12';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1926,6 +1926,150 @@ alConfirmCancelBtn.addEventListener('click', () => {
 });
 
 // ============================================
+// ============================================
+// INLINE DATE-RANGE PICKER
+// ============================================
+/**
+ * Builds an inline date-range calendar inside #{prefix}RangePicker and wires
+ * it to the hidden <input type="date"> elements #{prefix}From / #{prefix}To.
+ * Returns { reset() } for post-save clearing.
+ * @param {string} prefix  'al' | 'sick'
+ */
+function buildRangePicker(prefix) {
+    const MONTHS = ['January','February','March','April','May','June',
+                    'July','August','September','October','November','December'];
+    const fromInput = document.getElementById(prefix + 'From');
+    const toInput   = document.getElementById(prefix + 'To');
+    const wrap      = document.getElementById(prefix + 'RangePicker');
+
+    let fromISO  = '', toISO = '', hoverISO = '';
+    let yr = new Date().getFullYear(), mo = new Date().getMonth();
+
+    wrap.innerHTML = `
+        <div class="rp-chips">
+            <div class="rp-chip" id="${prefix}RpFrom">Choose start</div>
+            <span class="rp-sep">→</span>
+            <div class="rp-chip" id="${prefix}RpTo">Choose end</div>
+        </div>
+        <div class="rp-nav">
+            <button class="rp-nav-btn" id="${prefix}RpPrev" aria-label="Previous month">‹</button>
+            <span class="rp-label" id="${prefix}RpLabel"></span>
+            <button class="rp-nav-btn" id="${prefix}RpNext" aria-label="Next month">›</button>
+        </div>
+        <div class="rp-grid" id="${prefix}RpGrid"></div>`;
+
+    const chipFrom = document.getElementById(prefix + 'RpFrom');
+    const chipTo   = document.getElementById(prefix + 'RpTo');
+    const label    = document.getElementById(prefix + 'RpLabel');
+    const grid     = document.getElementById(prefix + 'RpGrid');
+
+    document.getElementById(prefix + 'RpPrev').addEventListener('click', () => { if (--mo < 0) { mo = 11; yr--; } render(); });
+    document.getElementById(prefix + 'RpNext').addEventListener('click', () => { if (++mo > 11) { mo = 0; yr++; } render(); });
+
+    function fmt(iso) {
+        const d = new Date(iso + 'T12:00:00');
+        return `${DAY_NAMES[d.getDay()].slice(0,3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]}`;
+    }
+
+    function updateChips() {
+        chipFrom.textContent = fromISO ? fmt(fromISO) : 'Choose start';
+        chipFrom.classList.toggle('rp-chip-set', !!fromISO);
+        chipTo.textContent   = toISO   ? fmt(toISO)   : 'Choose end';
+        chipTo.classList.toggle('rp-chip-set', !!toISO);
+    }
+
+    function render() {
+        label.textContent    = `${MONTHS[mo]} ${yr}`;
+        const startOff       = (new Date(yr, mo, 1).getDay() + 6) % 7; // Mon = 0
+        const daysInMonth    = new Date(yr, mo + 1, 0).getDate();
+        const todayISO       = formatISO(new Date());
+        const previewEnd     = !toISO && fromISO && hoverISO > fromISO ? hoverISO : toISO;
+
+        grid.innerHTML = '';
+        ['M','T','W','T','F','S','S'].forEach(d => {
+            const el = document.createElement('div');
+            el.className = 'rp-dow';
+            el.textContent = d;
+            grid.appendChild(el);
+        });
+        for (let i = 0; i < startOff; i++) {
+            const el = document.createElement('div');
+            el.className = 'rp-day rp-filler';
+            grid.appendChild(el);
+        }
+        for (let d = 1; d <= daysInMonth; d++) {
+            const iso = `${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            const el  = document.createElement('div');
+            el.className  = 'rp-day';
+            el.textContent = d;
+            el.dataset.iso = iso;
+            el.tabIndex    = 0;
+            el.setAttribute('role', 'button');
+            if (iso === todayISO) el.classList.add('rp-today');
+            if (iso === fromISO)  el.classList.add('rp-from');
+            if (iso === toISO)    el.classList.add('rp-to');
+            if (fromISO && previewEnd && iso > fromISO && iso < previewEnd)
+                el.classList.add(toISO ? 'rp-in-range' : 'rp-preview');
+            if (!toISO && fromISO && iso === hoverISO && iso > fromISO)
+                el.classList.add('rp-preview', 'rp-preview-end');
+            grid.appendChild(el);
+        }
+    }
+
+    function commit() {
+        fromInput.value = fromISO;
+        toInput.value   = toISO;
+        if (toISO) toInput.dispatchEvent(new Event('change'));
+        updateChips();
+        render();
+    }
+
+    grid.addEventListener('click', e => {
+        const cell = e.target.closest('[data-iso]');
+        if (!cell) return;
+        const iso = cell.dataset.iso;
+        if (!fromISO || toISO)  { fromISO = iso; toISO = ''; }
+        else if (iso < fromISO) { fromISO = iso; toISO = ''; }
+        else                    { toISO   = iso; }
+        hoverISO = '';
+        commit();
+    });
+
+    grid.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); }
+    });
+
+    grid.addEventListener('mouseover', e => {
+        if (!fromISO || toISO) return;
+        const iso = e.target.closest('[data-iso]')?.dataset.iso || '';
+        if (iso === hoverISO) return;
+        hoverISO = iso;
+        render();
+    });
+
+    grid.addEventListener('mouseleave', () => {
+        if (!hoverISO) return;
+        hoverISO = '';
+        render();
+    });
+
+    render();
+    updateChips();
+
+    return {
+        reset() {
+            fromISO = toISO = hoverISO = '';
+            yr = new Date().getFullYear();
+            mo = new Date().getMonth();
+            fromInput.value = toInput.value = '';
+            toInput.dispatchEvent(new Event('change'));
+            render();
+            updateChips();
+        }
+    };
+}
+
+// ============================================
 // ANNUAL LEAVE BOOKING
 // ============================================
 const alMember   = document.getElementById('alMember');
@@ -2053,8 +2197,9 @@ function updateAlPreview() {
     alSaveBtn.disabled = workDays === 0;
 }
 
-alFrom.addEventListener('change',   () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
-alTo.addEventListener('change',     () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
+alFrom.addEventListener('change', () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
+alTo.addEventListener('change',   () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
+const alPicker = buildRangePicker('al');
 updateAlPreview();
 
 let _alBookingConfirmed = false;
@@ -2143,7 +2288,7 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.textContent = `✓ Recorded ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
         setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
 
-        alFrom.value = alTo.value = '';
+        alPicker.reset();
         updateAlPreview();
 
         // Update allOverrides in-memory — no Firestore round-trip needed
@@ -2276,6 +2421,7 @@ function updateSickPreview() {
 
 sickFrom.addEventListener('change', () => { updateSickPreview(); updateSickBookedBox(); });
 sickTo.addEventListener('change',   () => { updateSickPreview(); updateSickBookedBox(); });
+const sickPicker = buildRangePicker('sick');
 updateSickPreview();
 
 sickSaveBtn.addEventListener('click', async () => {
@@ -2333,7 +2479,7 @@ sickSaveBtn.addEventListener('click', async () => {
         sickFeedback.textContent = `✓ Recorded ${workingDates.length} absence day${workingDates.length > 1 ? 's' : ''} for ${member}`;
         setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
 
-        sickFrom.value = sickTo.value = '';
+        sickPicker.reset();
         updateSickPreview();
 
         // Update in-memory cache — no Firestore round-trip needed
