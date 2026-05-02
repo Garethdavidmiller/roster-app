@@ -1,0 +1,29 @@
+name: Deploy Firebase Hosting
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'functions/**'
+      - 'firestore.rules'
+      - '**/*.md'
+      - '.github/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Write service account key
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json
+
+      - name: Deploy to Firebase Hosting
+        run: firebase deploy --only hosting --project myb-roster
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json

@@ -310,8 +310,9 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
         try {
             await webpush.sendNotification({ endpoint, keys }, payload);
         } catch (err) {
-            if (err.statusCode === 410 || err.statusCode === 404) {
-                // Subscription expired or was revoked — clean it up silently
+            if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 401) {
+                // 410/404: expired or revoked. 401: VAPID key mismatch (key was rotated).
+                // All three mean this subscription can never receive messages — remove it.
                 await docSnap.ref.delete();
                 console.log(`[push] Removed dead subscription ${docSnap.id}`);
             } else {
@@ -384,7 +385,7 @@ exports.sendPayReminderNotification = onSchedule(
             try {
                 await webpush.sendNotification({ endpoint, keys }, payload);
             } catch (err) {
-                if (err.statusCode === 410 || err.statusCode === 404) {
+                if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 401) {
                     await docSnap.ref.delete();
                     console.log(`[payReminder] Removed dead subscription ${docSnap.id}`);
                 } else {

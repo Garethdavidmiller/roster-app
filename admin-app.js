@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.13';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.13';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.14';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.14';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3119,6 +3119,11 @@ if (overridesMonthFilter) {
         chevron.textContent = body.classList.contains('open') ? '▴' : '▾';
     });
 
+    // Fingerprint stored in localStorage so we can detect a VAPID key rotation.
+    // Value is just the first 12 chars of the public key — enough to spot a change.
+    const VAPID_VER_KEY  = 'myb_vapid_ver';
+    const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
+
     function vapidKey() {
         const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
         const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
@@ -3128,7 +3133,25 @@ if (overridesMonthFilter) {
     async function refreshUI() {
         const perm = Notification.permission;
         const reg  = await navigator.serviceWorker.ready;
-        const sub  = await reg.pushManager.getSubscription();
+        let sub    = await reg.pushManager.getSubscription();
+
+        // If the VAPID key has been rotated since this device subscribed, silently
+        // unsubscribe and re-subscribe with the current key. Staff never see this happen.
+        if (perm === 'granted' && sub && localStorage.getItem(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
+            try {
+                await sub.unsubscribe();
+                sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
+                await savePushSubscription(sub);
+                localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
+                console.log('[Notifications] Re-subscribed after VAPID key rotation');
+            } catch (err) {
+                console.warn('[Notifications] VAPID key refresh failed:', err);
+                sub = null;
+            }
+        } else if (perm === 'granted' && sub) {
+            localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
+        }
+
         const active = perm === 'granted' && !!sub;
 
         enableBtn.style.display  = 'none';
@@ -3160,6 +3183,7 @@ if (overridesMonthFilter) {
                     applicationServerKey: vapidKey(),
                 });
                 await savePushSubscription(sub);
+                localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
             }
         } catch (err) {
             console.warn('[Notifications] Enable failed:', err);
