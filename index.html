@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.15 -->
+<!-- MYB Roster Calendar - Version 8.16 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.15">
+    <link rel="manifest" href="manifest.json?v=8.16">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.15">
+    <link rel="stylesheet" href="shared.css?v=8.16">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -285,6 +285,25 @@
             pointer-events: none; user-select: none;
         }
         .swipe-hint.fade-out { opacity: 0; }
+
+        /* One-off notification prompt strip */
+        .notif-prompt {
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 8px; padding: 6px 12px 8px;
+            font-size: 12px; color: var(--text-mid);
+        }
+        .notif-prompt-text { flex: 1; }
+        .notif-prompt-enable {
+            background: var(--primary-blue); color: white;
+            border: none; border-radius: 6px; padding: 5px 10px;
+            font-size: 12px; font-weight: 700; cursor: pointer;
+            touch-action: manipulation; font-family: inherit; flex-shrink: 0;
+        }
+        .notif-prompt-dismiss {
+            background: none; border: none; padding: 4px 6px;
+            font-size: 16px; color: var(--text-faint); cursor: pointer;
+            touch-action: manipulation; flex-shrink: 0; line-height: 1;
+        }
 
         .controls button.al-btn {
             background: var(--al, #00897b);
@@ -2032,6 +2051,13 @@
             </div>
         </nav>
 
+        <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled -->
+        <div id="notifPrompt" class="notif-prompt" style="display:none">
+            <span class="notif-prompt-text">🔔 Get alerted when today's Huddle is ready</span>
+            <button class="notif-prompt-enable" id="notifPromptEnable">Enable</button>
+            <button class="notif-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
+        </div>
+
         <!-- Pay period strip: shows current period dates + link to pay calculator -->
         <div id="payPeriodStrip" class="pay-period-strip" aria-live="polite"></div>
 
@@ -2102,7 +2128,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.15"></script>
+    <script type="module" src="./app.js?v=8.16"></script>
 
 </body>
 </html>
