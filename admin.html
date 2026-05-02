@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.12 -->
+<!-- MYB Roster Admin v8.13 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.12">
+    <link rel="manifest" href="manifest.json?v=8.13">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.12">
+    <link rel="stylesheet" href="shared.css?v=8.13">
 
     <style>
         body {
@@ -1272,6 +1272,15 @@
             background: white;
         }
         .rp-sep { color: var(--text-light); font-size: 16px; flex-shrink: 0; }
+        .rp-clear {
+            display: none; flex-shrink: 0;
+            background: none; border: none; padding: 4px 6px;
+            font-size: 16px; color: var(--text-light); cursor: pointer;
+            touch-action: manipulation; line-height: 1;
+            border-radius: 50%; transition: color 0.15s, background 0.15s;
+        }
+        .rp-clear.visible { display: block; }
+        .rp-clear:active { color: var(--error-red); }
         .rp-nav {
             display: flex;
             align-items: center;
@@ -2702,6 +2711,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.12"></script>
+<script type="module" src="./admin-app.js?v=8.13"></script>
 </body>
 </html>

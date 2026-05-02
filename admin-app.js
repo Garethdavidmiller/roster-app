@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.12';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.12';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.13';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.13';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1678,7 +1678,11 @@ document.addEventListener('input', e => {
     const timeInput  = e.target;
     // Clear error while user is typing so the red border doesn't linger mid-edit
     timeInput.classList.remove('input-error');
-    const raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+    let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
+    // "630" → hour part "63" is invalid; treat as "0630"
+    if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) {
+        raw = '0' + raw;
+    }
     if (raw.length >= 3) {
         timeInput.value = raw.slice(0, 2) + ':' + raw.slice(2);
     } else {
@@ -1950,6 +1954,7 @@ function buildRangePicker(prefix) {
             <div class="rp-chip" id="${prefix}RpFrom">Choose start</div>
             <span class="rp-sep">→</span>
             <div class="rp-chip" id="${prefix}RpTo">Choose end</div>
+            <button class="rp-clear" id="${prefix}RpClear" aria-label="Clear dates">✕</button>
         </div>
         <div class="rp-nav">
             <button class="rp-nav-btn" id="${prefix}RpPrev" aria-label="Previous month">‹</button>
@@ -1958,13 +1963,21 @@ function buildRangePicker(prefix) {
         </div>
         <div class="rp-grid" id="${prefix}RpGrid"></div>`;
 
-    const chipFrom = document.getElementById(prefix + 'RpFrom');
-    const chipTo   = document.getElementById(prefix + 'RpTo');
-    const label    = document.getElementById(prefix + 'RpLabel');
-    const grid     = document.getElementById(prefix + 'RpGrid');
+    const chipFrom  = document.getElementById(prefix + 'RpFrom');
+    const chipTo    = document.getElementById(prefix + 'RpTo');
+    const clearBtn  = document.getElementById(prefix + 'RpClear');
+    const label     = document.getElementById(prefix + 'RpLabel');
+    const grid      = document.getElementById(prefix + 'RpGrid');
 
     document.getElementById(prefix + 'RpPrev').addEventListener('click', () => { if (--mo < 0) { mo = 11; yr--; } render(); });
     document.getElementById(prefix + 'RpNext').addEventListener('click', () => { if (++mo > 11) { mo = 0; yr++; } render(); });
+    clearBtn.addEventListener('click', () => {
+        fromISO = toISO = hoverISO = '';
+        fromInput.value = toInput.value = '';
+        toInput.dispatchEvent(new Event('change'));
+        render();
+        updateChips();
+    });
 
     function fmt(iso) {
         const d = new Date(iso + 'T12:00:00');
@@ -1976,6 +1989,7 @@ function buildRangePicker(prefix) {
         chipFrom.classList.toggle('rp-chip-set', !!fromISO);
         chipTo.textContent   = toISO   ? fmt(toISO)   : 'Choose end';
         chipTo.classList.toggle('rp-chip-set', !!toISO);
+        clearBtn.classList.toggle('visible', !!(fromISO || toISO));
     }
 
     function render() {
