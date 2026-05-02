@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.06';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.06';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.07';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.07';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -204,7 +204,7 @@ function initLoginOverlay() {
     /** Tips content keyed by data-card attribute on each .btn-card-tips button. */
     const CARD_TIPS = {
         'change-shift': {
-            title: 'Changing shifts',
+            title: 'Updating shifts',
             sections: [
                 { heading: 'One shift', items: [
                     { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top', adminOnly: true },
@@ -389,7 +389,7 @@ function initLoginOverlay() {
 const TYPES = {
     spare_shift:  { label: 'Spare shift',    fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',          fixed: false },
-    rdw:          { label: 'Rest Day Working', fixed: false },
+    rdw:          { label: 'Rest Day Worked',   fixed: false },
     annual_leave: { label: 'Annual Leave',   fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day', fixed: true,  fixedValue: 'RD' },
     sick:         { label: 'Absent',          fixed: true,  fixedValue: 'SICK' },
@@ -881,7 +881,7 @@ function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-day">
                 <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ' <span class="overwrite-badge">⚠ change saved</span>' : ''}</span>
+                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ' <span class="overwrite-badge">⚠ Already saved</span>' : ''}</span>
             </div>
             <div class="col-base">${shiftBadge(baseShift)}</div>
             <div class="col-pills">
@@ -3249,7 +3249,12 @@ if ('serviceWorker' in navigator) {
             });
 
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-                window.location.reload();
+                // If the admin has unsaved changes, wait until they navigate away
+                // before reloading so they don't lose their work mid-form.
+                if (!hasUnsavedChanges()) { window.location.reload(); return; }
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'hidden') window.location.reload();
+                }, { once: true });
             }, { once: true });
 
             let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);

@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.06';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.06';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.07';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.07';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -268,11 +268,15 @@ function onHhMm(hId, mId, warnId) {
     const warn  = document.getElementById(warnId);
     const curP  = getPeriods().find(x => x.num === currentPeriodNum());
     const contr = getEffectiveContr(curP);
-    warn.classList.toggle('show', hrs > contr);
     if (hrs > contr) {
       document.getElementById(hId).value = contr;
       document.getElementById(mId).value = 0;
+      warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`;
+      warn.classList.add('show');
+    } else if (hrs < contr) {
+      warn.classList.remove('show');
     }
+    // hrs === contr: warning stays as-is so it remains visible after clamping
   }
   calculate();
 }
