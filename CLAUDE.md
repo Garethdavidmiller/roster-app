@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `7.91` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `8.21` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -27,6 +27,7 @@
 
 **GitHub Actions workflows:**
 - `.github/workflows/deploy-functions.yml` — triggers on push to `main` when any file under `functions/` changes, or manually via `workflow_dispatch`. Deploys Cloud Functions only (not the PWA). Exit code from Firebase CLI is treated as success if the only error text is "cleanup policy" (a benign GCP Artifact Registry warning).
+- `.github/workflows/deploy-hosting.yml` — triggers on push to `main` when any PWA file changes (excludes `functions/`, `firestore.rules`, `*.md`, `.github/**`), or manually via `workflow_dispatch`. Deploys Firebase Hosting only (not Cloud Functions). Added v8.14 — was missing before, meaning live PWA files were stale after merges.
 
 ---
 
@@ -148,6 +149,14 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | Sync chip state machine in `app.js` | The chip follows: hidden → (800ms delay) → "↻ Updating your shifts…" → "✓ Up to date" (auto-removes after 1.5s) or "⚠ Couldn't update — tap to retry" (stays visible, 10s timeout). Never show raw error messages to staff. CSS classes: `sync-chip-ok` (green) / `sync-chip-error` (red, underlined, clickable). |
 | `_clearState` object in `paycalc.js` | Replaces the old `_clearPending` / `_clearTimer` pair. Adds `countdownTimer` for a live countdown in the button label ("Tap again to confirm (3)"). Pattern: one object groups all state for a two-tap destructive action so the state is easy to reset atomically. |
 | `CONDITIONAL_ROWS` in `paycalc.js` | Data-driven array that maps a condition function → row IDs → field IDs. `updateBhRows(p)` iterates it to show/hide bank holiday rows and clear their values. Adding future conditional rows means adding one entry to the array, not writing new show/hide logic. |
+| `touch-only` CSS class in `shared.css` | Elements with this class are hidden on pointer-fine (mouse/trackpad) devices via `@media (hover: hover) and (pointer: fine)`. Use it for any UI that only makes sense on touch screens — swipe tips, swipe hints, etc. Do not use inline display:none; apply the class instead so the rule is centralised. |
+| `window.matchMedia('(pointer: coarse)')` guard in `initSwipeHint()` | The swipe month-change hint is only shown on touch devices. Without this guard it appeared on desktop. Always add this check before showing any gesture-tutorial UI. |
+| VAPID fingerprint migration in `app.js` and `admin-app.js` | When the VAPID public key is rotated, existing push subscriptions become invalid (HTTP 401 from the push service). Both pages store the first 12 chars of the current VAPID public key in `localStorage('myb_vapid_ver')`. On load, if the stored fingerprint doesn't match the hardcoded key, the page silently unsubscribes → re-subscribes → updates the fingerprint. This is transparent to staff. The Cloud Function also treats 401 the same as 410/404 (stale subscription — delete the document). |
+| One-off notification prompt (`#notifPrompt`) in `index.html` | A small strip between `</nav>` and the pay-period strip appears once per device when `Notification.permission` is neither `'granted'` nor `'denied'` and `localStorage('myb_notif_prompt_done')` is unset. Enable button requests permission; × dismisses permanently. Both actions set the flag. The prompt never re-appears. Do not move it below the calendar — it must be visible without scrolling. |
+| PWA shortcuts in `manifest.json` | Three long-press shortcuts: Calendar (`index.html`), Pay (`paycalc.html`), Admin (`admin.html`). Max 4 shortcuts per Android spec. Changes require the app to be reinstalled (or the manifest to be refreshed) before taking effect — existing installs see old shortcuts until they reinstall. |
+| Sticky take-home bar (`#stickyTotal`) in `paycalc.html` | Fixed bar at bottom of viewport on mobile (hidden ≥1040px). Appears via `IntersectionObserver` when the `.result-card` scrolls off-screen. Tapping scrolls smoothly to the result card. `body.sticky-active` adds bottom padding to prevent content being hidden behind the bar. |
+| 3-digit time input auto-correction in `admin-app.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
+| Range picker clear button (`.rp-clear`) | A ✕ button appears inside the date range picker when any date is selected. It resets both `from` and `to` dates and hides itself. Built into `buildRangePicker()` in `admin-app.js`. |
 
 ---
 
@@ -288,6 +297,8 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 **#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is partially implemented (v7.61 — see "Firebase Auth migration" section below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` then deploying the updated rules. **Do not deploy the rules before accounts exist** — all Firestore writes will fail and the app will break for everyone.
 
+**ROSTER_SECRET exposed in page source** — The bearer token for `parseRosterPDF` is currently hardcoded as a constant in `admin-app.js` (visible in browser DevTools). Deferred as a known limitation. The correct long-term fix is to gate the Cloud Function on Firebase Auth custom claims (`request.auth.token.admin == true`) rather than a shared secret. Do not rotate the secret without also updating the hardcoded value and redeploying.
+
 **Override cache architecture (v7.84–7.91):** `rosterOverridesCache` in `app.js` is keyed `"memberName|date"` and stores overrides for ALL members — it is never cleared on member switch. `fetchOverridesForRange()` uses priority-based deduplication: `source: 'manual'` always beats `source: 'roster_import'`; same-source entries keep the newer `createdAt`. A `console.warn` is logged whenever a duplicate is detected — check DevTools Console if overrides still appear inconsistently. Swipe navigation calls `ensureOverridesCached()` after the animation completes (v7.86) so adjacent months are fetched even after a member switch clears `fetchedMonths`. Delete stale duplicate Firestore documents in the Firebase Console to clean up at source.
 
 ### 🟡 UX decisions on hold (needs discussion before implementing)
@@ -297,8 +308,9 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟢 UX ideas — explored but held back
 
-- **Bottom navigation bar** — Persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Prototyped at v7.66, reverted — felt like clutter at current scale. Reassessed: this is the single highest-return UX improvement available — the app currently has no persistent navigation between its three pages, which makes it feel like three separate apps. Approach: sticky bottom bar on mobile (≤600px), top nav strip on desktop. See ROADMAP.md → "UX experiments" for implementation notes.
-- **Glanceable summary strip** — Four chips on the calendar home screen: This week's shifts / Next RD / Leave remaining / Next payday. Prototyped at v7.66, reverted — adds visual noise between controls and calendar. The data is already computed; the question is presentation. Consider implementing as a collapsible strip or integrating into the month header rather than inserting between controls and grid.
+- **Bottom navigation bar** — Persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Prototyped at v7.66, reverted — felt like clutter at current scale. Reassessed: this is the single highest-return UX improvement available — the app currently has no persistent navigation between its three pages, which makes it feel like three separate apps. Approach: sticky bottom bar on mobile (≤600px), top nav strip on desktop. PWA shortcuts (long-press app icon) already provide Calendar / Pay / Admin — this is the in-app equivalent.
+- **Glanceable summary strip** — Four chips on the calendar home screen: This week's shifts / Next RD / Leave remaining / Next payday. Prototyped at v7.66, reverted — adds visual noise between controls and calendar. The data is already computed; the question is presentation. Consider implementing as a collapsible strip or integrating into the month header rather than inserting between controls and grid. Of the four chips, "Next payday" and "Next RD" are highest value — consider just those two.
+- **Pay result text hierarchy** — The £ amount on the pay result card is already 52px. The supporting text ("Estimated take-home", period dates) is small and grey. Slightly larger supporting text (13–14px, medium grey rather than faint) would improve scannability without a full redesign. Very low effort.
 
 ---
 
@@ -511,6 +523,7 @@ If `allow write: if false` blocks the Cloud Function, that is a misconfiguration
 - ✅ Cloud Function `ingestHuddle` deployed and live
 - ✅ PDF and DOCX upload via Power Automate — working end to end
 - ✅ Push notifications live (v6.11) — VAPID keys configured, Cloud Function `sendHuddlePushNotifications` deployed. Staff subscribed via admin.html receive a notification when a new Huddle is ingested.
+- ✅ VAPID key rotation handled (v8.14–8.16) — if the VAPID key changes, both `app.js` and `admin-app.js` detect the mismatch via `localStorage('myb_vapid_ver')` fingerprint and silently migrate subscriptions on next page load. Cloud Function treats 401 responses the same as 410/404 (deletes stale subscription documents).
 - ✅ Power Automate flow redesigned (v6.x): condition now only sets `huddleDate` (today vs tomorrow for afternoon emails). A single Filter Array after the condition accepts both `.pdf` and `.docx` using an OR expression on file extension. One HTTP action sends whichever attachment arrived — no time-based PDF/DOCX branching.
 - ✅ DOCX huddles open correctly in the `📋 Huddle` button (v6.95) — `fileType` field from Firestore used to construct the correct download URL.
 - ⏳ Huddle viewer history in admin.html — not yet built. Firestore `huddles` collection is populated and ready; the staff-facing `📋 Huddle` button in index.html already shows the latest huddle.
@@ -716,7 +729,7 @@ The disable option never deletes Firestore data — override history is preserve
 
 ---
 
-## Pay calculator — current reality (v7.91+)
+## Pay calculator — current reality (v8.21+)
 
 The pay calculator is primarily **manual-entry**. Staff enter their hours, and the calculator computes tax, NI, pension, and take-home pay.
 
@@ -740,6 +753,8 @@ The **roster-assist hint bar** ("Fill from roster →") is a convenience feature
 - Pre-filled fields turn gold; editing them removes the highlight
 
 The calculator is **not** a payslip replacement — it estimates take-home pay based on staff-entered data. Actual payslips from Chiltern may differ due to adjustments, arrears, and deductions not captured here.
+
+**Sticky take-home bar (v8.13):** On mobile a fixed bar at the bottom of the screen shows the estimated take-home amount when the result card has scrolled off screen. Implemented with `IntersectionObserver` in `paycalc.js`. Hidden on desktop (≥1040px). Tapping the bar scrolls to the result card.
 
 ---
 
