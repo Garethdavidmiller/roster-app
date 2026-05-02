@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.14';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.14';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.15';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.15';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1924,11 +1924,13 @@ function sanitiseHtml(html) {
 // PUSH NOTIFICATIONS — silent subscription renewal
 // ============================================
 // If the user has already granted permission, silently ensure their push
-// subscription is current. Subscriptions can expire or be cleared when
-// the browser reinstalls the service worker.
+// subscription is current. Detects VAPID key rotation via a localStorage
+// fingerprint — if the key changed, unsubscribes and re-subscribes invisibly.
 // Enable/disable UI lives in admin.html → initNotificationsCard().
 (function initNotifications() {
-    const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
+    const VAPID_PUBLIC_KEY  = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
+    const VAPID_VER_KEY     = 'myb_vapid_ver';
+    const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
     if (Notification.permission !== 'granted') return;
     function vapidKey() {
@@ -1936,9 +1938,22 @@ function sanitiseHtml(html) {
         const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
         return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
     }
-    navigator.serviceWorker.ready.then(reg =>
-        reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() })
-            .then(sub => savePushSubscription(sub))
-            .catch(err => console.warn('[Notifications] Renewal failed:', err.message))
-    );
+    navigator.serviceWorker.ready.then(async reg => {
+        try {
+            const sub = await reg.pushManager.getSubscription();
+            if (!sub) return; // not subscribed — subscribe UI is in admin.html
+            if (localStorage.getItem(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
+                // VAPID key was rotated — unsubscribe then re-subscribe silently
+                await sub.unsubscribe();
+                const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
+                await savePushSubscription(fresh);
+                localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
+            } else {
+                // Key is current — re-save to handle any browser-side expiry
+                await savePushSubscription(sub);
+            }
+        } catch (err) {
+            console.warn('[Notifications] Renewal failed:', err.message);
+        }
+    });
 })();
