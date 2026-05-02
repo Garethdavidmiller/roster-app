@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.23 -->
+<!-- MYB Roster Calendar - Version 8.24 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.23">
+    <link rel="manifest" href="manifest.json?v=8.24">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.23">
+    <link rel="stylesheet" href="shared.css?v=8.24">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1156,6 +1156,7 @@
             display: flex;
             gap: 6px;
             padding: 12px 14px 0;
+            justify-content: center;
         }
         .grade-tab {
             padding: 5px 14px;
@@ -1184,13 +1185,40 @@
         .team-week-row {
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            padding: 8px 14px 6px;
+            padding: 8px 4px 6px;
+        }
+        .team-week-center {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex: 1;
+            justify-content: center;
         }
         .team-week-text {
             font-size: 13px;
             font-weight: 600;
             color: var(--text-dark);
+        }
+        .tv-week-nav {
+            background: none;
+            border: none;
+            font-size: 22px;
+            font-weight: 300;
+            color: var(--primary-blue);
+            cursor: pointer;
+            padding: 2px 10px;
+            min-width: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            touch-action: manipulation;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .tv-week-nav:hover { background: var(--bg-soft); }
         }
         .team-table-wrap {
             overflow-x: auto;
@@ -1682,7 +1710,7 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs { display: none; }
+            .grade-tabs, .tv-week-nav { display: none; }
             .team-table-wrap { overflow: visible; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th { background: var(--primary-blue) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -2323,7 +2351,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.23"></script>
+    <script type="module" src="./app.js?v=8.24"></script>
 
 </body>
 </html>
