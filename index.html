@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.44 -->
+<!-- MYB Roster Calendar - Version 8.45 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.44">
+    <link rel="manifest" href="manifest.json?v=8.45">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.44">
+    <link rel="stylesheet" href="shared.css?v=8.45">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1209,6 +1209,57 @@
             text-align: center;
             padding: 3px 0 6px;
         }
+        /* ── "↩ This week" jump button — appears when browsing away from current week ── */
+        .tv-today-btn {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            background: none;
+            color: var(--primary-blue);
+            border: 1.5px solid var(--primary-blue);
+            padding: 2px 7px;
+            border-radius: 10px;
+            white-space: nowrap;
+            vertical-align: middle;
+            cursor: pointer;
+            font-family: inherit;
+            touch-action: manipulation;
+            transition: background 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .tv-today-btn:hover { background: var(--primary-blue); color: white; }
+        }
+        /* ── Summary row — person-day counts + override status ── */
+        .tv-summary-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 10px 5px;
+            border-bottom: 1px solid var(--border-light);
+            gap: 8px;
+        }
+        .tv-summary-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+        .tv-summary-chip {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        .tv-sum-working { background: var(--primary-blue); color: white; }
+        .tv-sum-al   { background: var(--al-light);      color: var(--al-deep);       border: 1px solid var(--al); }
+        .tv-sum-spare{ background: var(--purple-light);  color: var(--purple);        border: 1px solid var(--purple); }
+        .tv-sum-sick { background: var(--absence-light); color: var(--absence-text);  border: 1px solid var(--absence); }
+        /* ── Override status chip ── */
+        .tv-status-chip {
+            font-size: 10px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            color: var(--text-faint);
+        }
+        .tv-status-chip.fetching  { color: var(--text-light); }
+        .tv-status-chip.loaded    { color: var(--green); }
+        .tv-status-chip.base-only { color: var(--al-low); }
         .tv-empty {
             text-align: center;
             padding: 24px 10px;
@@ -1303,6 +1354,9 @@
             font-weight: 600;
             font-size: 11px;
             white-space: nowrap;
+            position: sticky;
+            top: 0;
+            z-index: 2;
         }
         .team-table th.tv-name-col,
         .team-table td.tv-name-col {
@@ -1315,7 +1369,8 @@
             padding-left: 10px;
         }
         .team-table thead th.tv-name-col {
-            z-index: 3;
+            top: 0;
+            z-index: 4;
             text-align: left;
         }
         .team-table td.tv-name-col {
@@ -1879,14 +1934,24 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .tv-week-nav, .tv-today-btn, .tv-status-chip, #teamInfoLightbox { display: none; }
             .team-table-wrap { overflow: visible; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
-            .team-table thead th { background: var(--primary-blue) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .team-table thead th {
+                background: var(--primary-blue) !important;
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+                position: static; /* remove sticky for print */
+            }
             .tv-cell { white-space: normal; }
             .team-table th.tv-name-col,
             .team-table td.tv-name-col { position: static; }
             .tv-early, .tv-late, .tv-night, .tv-spare, .tv-rdw, .tv-al, .tv-sick {
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
+            .tv-summary-chips .tv-sum-working,
+            .tv-summary-chips .tv-sum-al,
+            .tv-summary-chips .tv-sum-spare,
+            .tv-summary-chips .tv-sum-sick {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
         }
@@ -2544,7 +2609,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.44"></script>
+    <script type="module" src="./app.js?v=8.45"></script>
 
 </body>
 </html>
