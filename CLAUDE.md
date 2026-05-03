@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `8.21` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `8.40` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -157,6 +157,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | Sticky take-home bar (`#stickyTotal`) in `paycalc.html` | Fixed bar at bottom of viewport on mobile (hidden ≥1040px). Appears via `IntersectionObserver` when the `.result-card` scrolls off-screen. Tapping scrolls smoothly to the result card. `body.sticky-active` adds bottom padding to prevent content being hidden behind the bar. |
 | 3-digit time input auto-correction in `admin-app.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
 | Range picker clear button (`.rp-clear`) | A ✕ button appears inside the date range picker when any date is selected. It resets both `from` and `to` dates and hides itself. Built into `buildRangePicker()` in `admin-app.js`. |
+| Team Week View (`👥 Team` button) | Available to all logged-in staff (v8.40 — admin-only gate removed at v8.40; was admin-only v8.22–v8.39). Toggle managed by `toggleTeamView()`, `teamViewMode` flag, and `applyTeamViewChrome()`. Week runs Sun–Sat (Chiltern convention) via `getSunday(date)`. Grade state (`currentTeamGrade`) persists across re-renders. `fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken)` uses the week-start timestamp as a token — results whose token no longer matches `currentTeamWeekStart` are discarded, preventing stale Firestore data from overwriting the UI after rapid navigation. Grade-tabs row uses CSS grid (`1fr auto 1fr`) so the grade tabs stay centred regardless of how many utility buttons (📋 / ?) sit on the right. |
 
 ---
 
@@ -308,7 +309,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟢 UX ideas — explored but held back
 
-- **Bottom navigation bar** — Persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Prototyped at v7.66, reverted — felt like clutter at current scale. Reassessed: this is the single highest-return UX improvement available — the app currently has no persistent navigation between its three pages, which makes it feel like three separate apps. Approach: sticky bottom bar on mobile (≤600px), top nav strip on desktop. PWA shortcuts (long-press app icon) already provide Calendar / Pay / Admin — this is the in-app equivalent.
+- **Bottom navigation bar** — Persistent fixed tab bar (📅 Roster · 💷 Pay · 🔐 Admin) on mobile. Prototyped at v7.66, reverted — felt like clutter at current scale. The app has no persistent in-page navigation between its three pages (Calendar, Pay, Admin), which makes it feel like three separate apps. Team Week View (v8.22) is in-page navigation within the calendar — it does not address cross-page navigation. Approach if revisited: sticky bottom bar on mobile (≤600px), top nav strip on desktop. PWA shortcuts (long-press app icon) already provide Calendar / Pay / Admin — this would be the in-app equivalent.
 - **Glanceable summary strip** — Four chips on the calendar home screen: This week's shifts / Next RD / Leave remaining / Next payday. Prototyped at v7.66, reverted — adds visual noise between controls and calendar. The data is already computed; the question is presentation. Consider implementing as a collapsible strip or integrating into the month header rather than inserting between controls and grid. Of the four chips, "Next payday" and "Next RD" are highest value — consider just those two.
 - **Pay result text hierarchy** — The £ amount on the pay result card is already 52px. The supporting text ("Estimated take-home", period dates) is small and grey. Slightly larger supporting text (13–14px, medium grey rather than faint) would improve scannability without a full redesign. Very low effort.
 
