@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: April 2026 — v7.68*
+*Last updated: May 2026 — v8.40*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -70,6 +70,23 @@ Web Push notifications via Firebase Cloud Functions. When a new Huddle arrives, 
 
 **Still to assess:** Notification reliability in real daily use. If iOS delivery proves unreliable, consider native app (see "Native app" below).
 
+### Team Week View ✓ (v8.22–v8.40)
+
+All logged-in staff can view the whole team's shifts for any week directly from the calendar page. Tap **👥 Team** to switch from the personal monthly calendar to a week grid — one row per person, one column per day (Sun–Sat, following the Chiltern working week convention).
+
+- CEA, CES, and Dispatcher rosters are tab-selectable
+- Firestore overrides are fetched and overlaid on the base roster in real time
+- The 📋 Huddle button appears in the header so staff can open the day's briefing without leaving the view
+- Week navigation: Prev / Next buttons; the Today button snaps back to the current week
+- Shift cells are colour-coded identically to the personal calendar (☀️ early / 🌙 late / 🌃 night / 🏠 RD / 🏖️ AL / 💼 RDW etc.)
+- Print-ready — the table prints cleanly on A4 landscape
+
+**Key design decisions:**
+- Sun–Sat week via `getSunday(date)` (Chiltern convention — not Mon–Sun)
+- `fetchToken` pattern: rapid week navigation cancels stale Firestore results so the UI never shows data for the wrong week
+- Grade-tabs row uses CSS grid (`1fr auto 1fr`) to keep the tab group centred regardless of how many utility buttons sit on the right
+- Admin-only gate removed at v8.40 — the feature was admin-only (v8.22–v8.39) during development; all staff can now access it
+
 ---
 
 ## UX experiments — explored but held back
@@ -88,9 +105,11 @@ The active tab would be highlighted in gold; all three pages would share the sam
 The app currently has three pages and the existing entry points (the Admin and Pay buttons in the controls row, the back arrow on inner pages) are sufficient for the current use pattern. Adding a persistent nav bar makes the screen feel busier without a clear navigational payoff at three pages.
 
 **When to revisit:**
-- If a fourth or fifth page is added (e.g. a team schedule view, a notice board)
-- If staff report not knowing how to get between pages
+- If staff report not knowing how to get between the Calendar, Pay, and Admin pages
 - If the controls row is simplified and loses the dedicated Pay/Admin buttons
+- If a notice board or further page is added and navigation becomes genuinely confusing
+
+**Note:** Team Week View (v8.22) is an in-page view within the calendar — it does not replace cross-page navigation between Calendar / Pay / Admin.
 
 **Implementation notes (already written, can be restored):**
 - CSS lives in shared.css — `.bottom-nav`, `.bottom-nav-item`, `.bottom-nav-icon`
@@ -156,9 +175,11 @@ Each area is independent unless a dependency is noted.
 ### Operational visibility
 **What:** Daily deployment view — who is working, spare, or on AL across the whole team for any given day. Useful for supervisors planning cover.
 
+**Partially addressed:** Team Week View (v8.22) shows the whole team by week. A true daily view (single column for one date with a cover-status summary) would be a further step, but in practice the week view may be sufficient — supervisors can see the full week at a glance and identify gaps.
+
 **Depends on:** Nothing new. All data already in Firestore.
 
-**Worth doing if:** Supervisors currently do this manually from the calendar view.
+**Worth doing if:** Supervisors find the week view insufficient for daily cover planning and want a more condensed single-day format.
 
 ### Approval workflows
 **What:** Staff submit requests (shift swaps, overtime availability). Supervisor sees pending requests and approves or declines. Outcomes recorded in Firestore.
