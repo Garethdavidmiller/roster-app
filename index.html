@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.41 -->
+<!-- MYB Roster Calendar - Version 8.42 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.41">
+    <link rel="manifest" href="manifest.json?v=8.42">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.41">
+    <link rel="stylesheet" href="shared.css?v=8.42">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -2327,6 +2327,7 @@
             <div class="lightbox-app-name">Marylebone Roster</div>
             <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
             <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+            <div class="lightbox-badge" id="teamViewBadge" hidden>👥 Team Week View</div>
             <div class="lightbox-tips" id="calendarTips">
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
@@ -2342,13 +2343,9 @@
                 <div class="lightbox-tip"><span>Tap 📋 for today's Huddle briefing</span></div>
                 <div class="lightbox-tip"><span>Tap Today to jump back to the current week</span></div>
             </div>
-            <div class="lightbox-print-wrap" id="calPrintWrap">
+            <div class="lightbox-print-wrap">
                 <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
-                <span class="lightbox-print-hint">Prints the current month's calendar</span>
-            </div>
-            <div class="lightbox-print-wrap" id="teamPrintWrap" hidden>
-                <button id="teamLbPrintBtn" class="lightbox-print-btn">🖨️ Print this week's roster</button>
-                <span class="lightbox-print-hint">Use landscape orientation for best results</span>
+                <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
             <a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:4px">📖 View staff guide</a>
             <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
@@ -2547,7 +2544,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.41"></script>
+    <script type="module" src="./app.js?v=8.42"></script>
 
 </body>
 </html>
