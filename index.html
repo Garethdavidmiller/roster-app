@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.38 -->
+<!-- MYB Roster Calendar - Version 8.39 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.38">
+    <link rel="manifest" href="manifest.json?v=8.39">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.38">
+    <link rel="stylesheet" href="shared.css?v=8.39">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1201,6 +1201,7 @@
             padding: 2px 7px;
             border-radius: 10px;
             white-space: nowrap;
+            vertical-align: middle;
         }
         .tv-scroll-hint {
             font-size: 11px;
@@ -1247,11 +1248,11 @@
         }
         .team-week-center {
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 2px;
+            gap: 6px;
             flex: 1;
             justify-content: center;
+            flex-wrap: wrap;
         }
         .team-week-text {
             font-size: 16px;
@@ -2599,7 +2600,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.38"></script>
+    <script type="module" src="./app.js?v=8.39"></script>
 
 </body>
 </html>
