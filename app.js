@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.39';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.39';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.40';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.40';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -371,19 +371,8 @@ async function fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken) {
 
 /**
  * Toggles between personal calendar and team week view.
- * Admin users get the full team view; everyone else sees the coming-soon lightbox.
  */
 function toggleTeamView() {
-    const currentMember = getCurrentMember();
-    const isAdmin = CONFIG.ADMIN_NAMES.includes(currentMember.name);
-
-    if (!isAdmin) {
-        // Show coming-soon lightbox for non-admin staff
-        const lb = document.getElementById('teamComingSoonLightbox');
-        if (lb) lb.classList.add('visible');
-        return;
-    }
-
     teamViewMode = !teamViewMode;
     localStorage.setItem('myb_team_view', teamViewMode ? '1' : '');
 
@@ -1321,7 +1310,7 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && lb.classList.contains('visible')) close(); });
     }
 
-    wireOverlay('teamComingSoonLightbox', ['teamCsClose', 'teamCsCloseBtn']);
+
 
     wireOverlay('teamInfoLightbox', ['teamInfoClose', 'teamInfoCloseBtn']);
 
@@ -1353,15 +1342,9 @@ try {
 
         // Restore team view if the user was in it before the last refresh
         if (localStorage.getItem('myb_team_view') === '1') {
-            const currentMember = getCurrentMember();
-            if (CONFIG.ADMIN_NAMES.includes(currentMember.name)) {
-                teamViewMode = true;
-                applyTeamViewChrome();
-                renderTeamView(currentTeamGrade);
-            } else {
-                localStorage.removeItem('myb_team_view');
-                renderCalendar();
-            }
+            teamViewMode = true;
+            applyTeamViewChrome();
+            renderTeamView(currentTeamGrade);
         } else {
             renderCalendar();
         }
