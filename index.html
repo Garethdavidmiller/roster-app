@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.31 -->
+<!-- MYB Roster Calendar - Version 8.32 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.31">
+    <link rel="manifest" href="manifest.json?v=8.32">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.31">
+    <link rel="stylesheet" href="shared.css?v=8.32">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1187,6 +1187,7 @@
                 color: var(--primary-blue);
             }
         }
+        .grade-tab:active { opacity: 0.75; }
         .team-week-row {
             display: flex;
             align-items: center;
@@ -1209,11 +1210,10 @@
             color: white;
             border: 2px solid var(--primary-blue);
             border-radius: 10px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            padding: 9px 14px;
-            min-height: 36px;
+            padding: 5px 10px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1222,20 +1222,18 @@
             flex-shrink: 0;
             font-family: inherit;
             white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(0,30,60,0.2);
-            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
+            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1);
         }
         @media (hover: hover) and (pointer: fine) {
             .tv-week-nav:hover {
                 background: var(--primary-blue-dark);
                 border-color: var(--primary-blue-dark);
-                transform: translateY(-1px);
-                box-shadow: 0 4px 8px rgba(0,30,60,0.3);
             }
         }
         .team-table-wrap {
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
         }
         .team-table {
             border-collapse: collapse;
@@ -1273,6 +1271,9 @@
             color: var(--text-dark);
             border-right: 1px solid var(--border-light);
             padding-right: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .team-table tr:nth-child(even) td.tv-name-col {
             background: var(--bg-faint);
@@ -2545,7 +2546,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.31"></script>
+    <script type="module" src="./app.js?v=8.32"></script>
 
 </body>
 </html>
