@@ -1,5 +1,5 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.42';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.42';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.43';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.43';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -210,7 +210,7 @@ const HELP_CONTENT = {
     title: 'Match Your Payslip — why it helps',
     tips: [
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
-      'Entering <strong>Year to Date figures</strong> switches to the same calculation method your employer uses — significantly more accurate.',
+      'Entering <strong>Year to Date figures</strong> switches to a cumulative PAYE-style estimate — usually much closer to your payslip, especially later in the year.',
       'Find <strong>"Total taxable pay"</strong> and <strong>"Total tax deducted"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
       'Once your January payslip arrives with the confirmed Holiday Pay Premium amount, enter it in the <strong>Holiday Pay Premium</strong> card below to replace the running estimate.',
     ],
