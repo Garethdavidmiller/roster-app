@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.48';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.48';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.49';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.49';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.48';
+} from './paycalc-calc.js?v=8.49';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -122,7 +122,7 @@ const HELP_CONTENT = {
       '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). It tells HMRC how much tax-free income you get. Most Marylebone staff are on 1257L. A code starting with S means you pay Scottish income tax rates. If you\'re unsure, check your payslip or contact payroll.',
       '<strong>Pension contribution:</strong> your payslip calls this "Smart RPS CR Scheme" — it\'s the same thing. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
       '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one.',
-      '<strong>London Allowance (£276.16/period):</strong> a fixed supplement paid to all Marylebone staff. It\'s included automatically — you don\'t need to enter it.',
+      `<strong>London Allowance (£${CONFIG.LONDON_ALLOW.toFixed(2)}/period):</strong> a fixed supplement paid to all Marylebone staff (CEA and CES). It\'s included automatically — you don\'t need to enter it.`,
       'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
     ],
   },
@@ -229,37 +229,24 @@ function hasBoxingDay(p) {
 }
 
 // ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
-// England & Wales bank holidays for the covered period range (P37–P62, Apr 2025–Mar 2027).
-// Boxing Day (26 Dec) is handled separately by hasBoxingDay() at 3× rate.
-// ⚠️ Update each year with confirmed dates from gov.uk/bank-holidays
-const BANK_HOLIDAYS_EW = [
-  new Date(2025,  3, 18), // Good Friday 2025
-  new Date(2025,  3, 21), // Easter Monday 2025
-  new Date(2025,  4,  5), // Early May BH 2025
-  new Date(2025,  4, 26), // Spring BH 2025
-  new Date(2025,  7, 25), // Summer BH 2025
-  new Date(2025, 11, 25), // Christmas Day 2025
-  new Date(2026,  0,  1), // New Year's Day 2026
-  new Date(2026,  3,  3), // Good Friday 2026
-  new Date(2026,  3,  6), // Easter Monday 2026
-  new Date(2026,  4,  4), // Early May BH 2026
-  new Date(2026,  4, 25), // Spring BH 2026
-  new Date(2026,  7, 31), // Summer BH 2026
-  new Date(2026, 11, 25), // Christmas Day 2026
-  new Date(2026, 11, 28), // Boxing Day substitute 2026 (26 Dec is a Saturday → Mon 28 Dec)
-  new Date(2027,  0,  1), // New Year's Day 2027
-];
+// Uses getBankHolidays() from roster-data.js — calculated algorithmically, no
+// hardcoded dates to maintain. Boxing Day (26 Dec) is handled separately by
+// hasBoxingDay() at 3× rate, so it is excluded here.
+function _bhsForYear(year) {
+  return getBankHolidays(year).filter(d => !(d.getMonth() === 11 && d.getDate() === 26));
+}
 
 function hasBankHoliday(p) {
-  // Returns true if any E&W bank holiday (other than 26 Dec) falls in the period window
-  return BANK_HOLIDAYS_EW.some(bh => bh >= p.start && bh <= p.cutoff);
+  const years = new Set([p.start.getFullYear(), p.cutoff.getFullYear()]);
+  for (const y of years) {
+    if (_bhsForYear(y).some(bh => bh >= p.start && bh <= p.cutoff)) return true;
+  }
+  return false;
 }
 
 function isDateInBHList(d) {
-  return BANK_HOLIDAYS_EW.some(bh =>
-    bh.getFullYear() === d.getFullYear() &&
-    bh.getMonth()    === d.getMonth()    &&
-    bh.getDate()     === d.getDate()
+  return _bhsForYear(d.getFullYear()).some(bh =>
+    bh.getMonth() === d.getMonth() && bh.getDate() === d.getDate()
   );
 }
 
