@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.40 -->
+<!-- MYB Roster Calendar - Version 8.41 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.40">
+    <link rel="manifest" href="manifest.json?v=8.41">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.40">
+    <link rel="stylesheet" href="shared.css?v=8.41">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1355,8 +1355,8 @@
         .tv-al    { background: var(--al-light); }
         .tv-sick  { background: var(--absence-light); }
 
-        /* ---- Team view lightbox overlay (shared by coming-soon + info) ---- */
-        .team-overlay {
+        /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
+        #teamInfoLightbox {
             display: none;
             position: fixed;
             inset: 0;
@@ -1366,101 +1366,79 @@
             z-index: 8000;
             align-items: center;
             justify-content: center;
-            padding: 20px;
             cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s ease;
         }
-        .team-overlay.visible { display: flex; }
-        .team-lb-card {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            border-radius: 24px;
-            padding: 28px 28px 24px;
-            max-width: 340px;
-            width: 100%;
+        #teamInfoLightbox.visible { display: flex; }
+        #teamInfoLightbox.open    { opacity: 1; }
+        #teamInfoContent {
             position: relative;
-            max-height: 82vh;
-            overflow-y: auto;
+            background: rgba(255, 255, 255, 0.09);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 28px 24px 24px;
             cursor: default;
+            transform: scale(0.88);
+            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+            width: min(340px, 88vw);
+            max-height: 78vh;
+            overflow-y: auto;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior: contain;
         }
-        .team-lb-close {
+        #teamInfoLightbox.open #teamInfoContent { transform: scale(1); }
+        #teamInfoClose {
             position: absolute;
             top: 14px;
             right: 16px;
             background: none;
             border: none;
+            color: rgba(255, 255, 255, 0.45);
             font-size: 22px;
             line-height: 1;
             cursor: pointer;
-            color: rgba(255, 255, 255, 0.5);
             padding: 6px;
             touch-action: manipulation;
             transition: color 0.15s;
             font-family: inherit;
         }
         @media (hover: hover) and (pointer: fine) {
-            .team-lb-close:hover { color: white; }
+            #teamInfoClose:hover { color: white; }
         }
-        .team-lb-title {
-            font-size: 18px;
+        .team-help-title {
+            font-size: 16px;
             font-weight: 700;
             color: white;
-            margin-bottom: 16px;
-            padding-right: 32px;
-            text-align: center;
-        }
-        .team-lb-got-it {
-            display: block;
-            width: 100%;
-            margin-top: 16px;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            touch-action: manipulation;
-            text-align: center;
-            transition: background 0.15s;
-        }
-        .team-lb-got-it:active { background: rgba(255,255,255,0.2); }
-        @media (hover: hover) and (pointer: fine) {
-            .team-lb-got-it:hover { background: rgba(255,255,255,0.18); }
-        }
-        /* Info lightbox body */
-        .team-info-print-btn {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            width: 100%;
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 20px;
-            font-family: inherit;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            touch-action: manipulation;
-            margin-bottom: 4px;
-            transition: background 0.15s;
-        }
-        .team-info-print-btn:active { background: rgba(255,255,255,0.2); }
-        @media (hover: hover) and (pointer: fine) {
-            .team-info-print-btn:hover { background: rgba(255,255,255,0.18); }
-        }
-        .team-info-print-hint {
-            font-size: 11px;
-            color: rgba(255, 255, 255, 0.35);
-            text-align: center;
             margin-bottom: 14px;
+            padding-right: 22px;
+            line-height: 1.3;
         }
+        .team-help-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .team-help-list li {
+            color: rgba(255, 255, 255, 0.72);
+            font-size: 13px;
+            line-height: 1.6;
+            padding: 7px 0 7px 18px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+            position: relative;
+        }
+        .team-help-list li:last-child { border-bottom: none; padding-bottom: 0; }
+        .team-help-list li::before {
+            content: '·';
+            position: absolute;
+            left: 0;
+            top: 7px;
+            color: var(--accent-gold);
+            font-weight: 800;
+            font-size: 16px;
+            line-height: 1.3;
+        }
+        .team-help-list strong { color: rgba(255, 255, 255, 0.92); font-weight: 700; }
         .team-info-section {
             font-size: 11px;
             font-weight: 700;
@@ -1468,28 +1446,9 @@
             letter-spacing: 0.6px;
             color: rgba(255, 255, 255, 0.35);
             padding-top: 12px;
-            margin-top: 12px;
+            margin-top: 14px;
             border-top: 1px solid rgba(255, 255, 255, 0.12);
             margin-bottom: 7px;
-        }
-        .team-info-tips {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        .team-info-tips li {
-            font-size: 13px;
-            color: rgba(255, 255, 255, 0.65);
-            padding: 3px 0 3px 16px;
-            position: relative;
-            line-height: 1.4;
-        }
-        .team-info-tips li::before {
-            content: '·';
-            position: absolute;
-            left: 4px;
-            color: rgba(255, 255, 255, 0.35);
-            font-weight: 700;
         }
         .team-info-key {
             display: flex;
@@ -1920,7 +1879,7 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, .team-overlay { display: none; }
+            .grade-tabs-row, .tv-week-nav, #teamInfoLightbox { display: none; }
             .team-table-wrap { overflow: visible; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th { background: var(--primary-blue) !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -2368,7 +2327,7 @@
             <div class="lightbox-app-name">Marylebone Roster</div>
             <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
             <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-            <div class="lightbox-tips">
+            <div class="lightbox-tips" id="calendarTips">
                 <div class="lightbox-tips-title">Tips</div>
                 <div class="lightbox-tip touch-only"><span>Swipe left / right to change month</span></div>
                 <div class="lightbox-tip"><span>Tap the month heading to jump</span></div>
@@ -2376,9 +2335,20 @@
                 <div class="lightbox-tip keyboard-only"><span>Go to today</span><span class="lightbox-tip-key">T</span></div>
                 <div class="lightbox-tip keyboard-only"><span>Print</span><span class="lightbox-tip-key">P</span></div>
             </div>
-            <div class="lightbox-print-wrap">
+            <div class="lightbox-tips" id="teamViewTips" hidden>
+                <div class="lightbox-tips-title">Tips</div>
+                <div class="lightbox-tip touch-only"><span>Swipe the table to see all 7 days</span></div>
+                <div class="lightbox-tip"><span>Tap CEA, CES or Dispatcher to switch grade</span></div>
+                <div class="lightbox-tip"><span>Tap 📋 for today's Huddle briefing</span></div>
+                <div class="lightbox-tip"><span>Tap Today to jump back to the current week</span></div>
+            </div>
+            <div class="lightbox-print-wrap" id="calPrintWrap">
                 <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
                 <span class="lightbox-print-hint">Prints the current month's calendar</span>
+            </div>
+            <div class="lightbox-print-wrap" id="teamPrintWrap" hidden>
+                <button id="teamLbPrintBtn" class="lightbox-print-btn">🖨️ Print this week's roster</button>
+                <span class="lightbox-print-hint">Use landscape orientation for best results</span>
             </div>
             <a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:4px">📖 View staff guide</a>
             <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
@@ -2430,20 +2400,17 @@
         </div>
     </div>
 
-    <!-- Team view info lightbox — tips, colour key, print -->
-    <div id="teamInfoLightbox" class="team-overlay" role="dialog" aria-label="Team Week View — help" aria-modal="true">
-        <div class="team-lb-card">
-            <button id="teamInfoClose" class="team-lb-close" aria-label="Close">✕</button>
-            <div class="team-lb-title">👥 Team Week View</div>
-            <button id="teamInfoPrint" class="team-info-print-btn">🖨️ Print this week's roster</button>
-            <p class="team-info-print-hint">Use landscape orientation in the print dialog for best results</p>
-            <div class="team-info-section">Tips</div>
-            <ul class="team-info-tips">
-                <li>Scroll the table left and right to see all 7 days</li>
+    <!-- Team view help lightbox — opened by the ? button -->
+    <div id="teamInfoLightbox" role="dialog" aria-label="Team Week View — help" aria-modal="true">
+        <div id="teamInfoContent">
+            <button id="teamInfoClose" aria-label="Close">✕</button>
+            <div class="team-help-title">👥 Team Week View</div>
+            <ul class="team-help-list">
+                <li class="touch-only">Swipe the table left and right to see all 7 days</li>
                 <li>Use ← → to move between weeks</li>
-                <li>Tap CEA, CES or Dispatcher to switch grade</li>
+                <li>Tap <strong>CEA</strong>, <strong>CES</strong> or <strong>Dispatcher</strong> to switch grade</li>
                 <li>Tap 📋 to read today's Huddle briefing</li>
-                <li>Tap Today (📍) to jump back to the current week</li>
+                <li>Tap <strong>Today</strong> to jump back to the current week</li>
             </ul>
             <div class="team-info-section">Colour key</div>
             <div class="team-info-key">
@@ -2457,7 +2424,6 @@
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rest-day-bg);border-color:var(--border-mid)"></span>🏠 Rest day</div>
             </div>
             <p class="team-info-note">Shifts shown are base roster plus any recorded changes. Changes saved after this screen loaded appear on the next visit or week navigation.</p>
-            <button id="teamInfoCloseBtn" class="team-lb-got-it">Got it</button>
         </div>
     </div>
 
@@ -2581,7 +2547,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.40"></script>
+    <script type="module" src="./app.js?v=8.41"></script>
 
 </body>
 </html>
