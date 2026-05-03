@@ -1,5 +1,5 @@
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.46';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.46';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.47';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.47';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -167,10 +167,6 @@ let currentTeamGrade = (() => {
     } catch { return 'CEA'; }
 })();
 
-/** Override-fetch state for the current team view week.
- *  'fetching' | 'loaded' | 'none' | 'base-only'  */
-let _teamFetchState = 'fetching';
-
 /** Returns the Sunday of the week containing `date` (Chiltern week: Sun–Sat). */
 function getSunday(date) {
     const d = new Date(date);
@@ -188,26 +184,6 @@ function getTeamWeekDates(sunday) {
     });
 }
 
-/**
- * Updates the team view status chip text/class in-place (avoids full re-render
- * when only the status needs to change, e.g. after a background Firestore fetch).
- * Also keeps _teamFetchState in sync so the next renderTeamView reads the right value.
- * @param {'fetching'|'loaded'|'none'|'base-only'} state
- */
-function updateTeamStatusChip(state) {
-    _teamFetchState = state;
-    const chip = document.getElementById('tvStatusChip');
-    if (!chip) return;
-    const MAP = {
-        fetching:    { text: '↻ Checking changes…', cls: 'tv-status-chip fetching' },
-        loaded:      { text: '✓ Changes checked',   cls: 'tv-status-chip loaded'   },
-        none:        { text: '✓ Up to date',        cls: 'tv-status-chip loaded'   },
-        'base-only': { text: '⚠ Base roster only',  cls: 'tv-status-chip base-only'},
-    };
-    const cfg = MAP[state] || MAP['base-only'];
-    chip.textContent = cfg.text;
-    chip.className   = cfg.cls;
-}
 
 /**
  * Returns the effective shift display data for a member on a date,
@@ -268,10 +244,6 @@ function renderTeamView(grade, opts = {}) {
     currentTeamGrade = grade;
     const { skipFetch = false } = opts;
 
-    // Reset status to 'fetching' whenever a new Firestore request will be issued.
-    // Grade changes on the same week keep the existing state (data already in cache).
-    if (!skipFetch) _teamFetchState = 'fetching';
-
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
@@ -312,15 +284,6 @@ function renderTeamView(grade, opts = {}) {
         `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" data-grade="${g}">${g}</button>`
     ).join('');
 
-    // Status chip label is determined by the current _teamFetchState
-    const statusMap = {
-        fetching:    { text: '↻ Checking changes…', cls: 'tv-status-chip fetching' },
-        loaded:      { text: '✓ Changes checked',   cls: 'tv-status-chip loaded'   },
-        none:        { text: '✓ Up to date',        cls: 'tv-status-chip loaded'   },
-        'base-only': { text: '⚠ Base roster only',  cls: 'tv-status-chip base-only'},
-    };
-    const statusCfg = statusMap[_teamFetchState] || statusMap['base-only'];
-
     calendarDisplay.innerHTML = `
         <div class="team-view-container">
             <div class="grade-tabs-row">
@@ -337,9 +300,6 @@ function renderTeamView(grade, opts = {}) {
                     <span class="team-week-text">${weekLabel}</span>${currentBadge}
                 </div>
                 <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
-            </div>
-            <div class="tv-status-row">
-                <span id="tvStatusChip" class="${statusCfg.cls}">${statusCfg.text}</span>
             </div>
             <div class="team-table-wrap">
                 <table class="team-table" aria-label="Team roster — week of ${weekLabel}">
@@ -421,18 +381,9 @@ async function fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken) {
                 updated = true;
             }
         });
-        if (updated) {
-            // Re-render with changes applied; skipFetch prevents another fetch from firing.
-            // updateTeamStatusChip sets _teamFetchState first so the re-render reads 'loaded'.
-            updateTeamStatusChip('loaded');
-            renderTeamView(currentTeamGrade, { skipFetch: true });
-        } else {
-            // No new data — update the chip in-place without a full re-render.
-            updateTeamStatusChip(snap.size > 0 ? 'loaded' : 'none');
-        }
+        if (updated) renderTeamView(currentTeamGrade, { skipFetch: true });
     } catch (err) {
         console.warn('[TeamView] Could not fetch week overrides:', err);
-        updateTeamStatusChip('base-only');
     }
 }
 
