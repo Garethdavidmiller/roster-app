@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.47 -->
+<!-- MYB Roster Calendar - Version 8.48 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.47">
+    <link rel="manifest" href="manifest.json?v=8.48">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.47">
+    <link rel="stylesheet" href="shared.css?v=8.48">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1203,6 +1203,15 @@
             white-space: nowrap;
             vertical-align: middle;
         }
+        /* Today column — gold header matches calendar's today convention */
+        .team-table thead .tv-today-col {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+        }
+        .team-table tbody .tv-today-col {
+            border-left:  2px solid var(--accent-gold);
+            border-right: 2px solid var(--accent-gold);
+        }
         .tv-scroll-hint {
             font-size: 11px;
             color: var(--text-faint);
@@ -1911,6 +1920,10 @@
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
                 position: static; /* remove sticky for print */
             }
+            .team-table thead .tv-today-col {
+                background: var(--accent-gold) !important;
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
             .tv-cell { white-space: normal; }
             .team-table th.tv-name-col,
             .team-table td.tv-name-col { position: static; }
@@ -2572,7 +2585,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.47"></script>
+    <script type="module" src="./app.js?v=8.48"></script>
 
 </body>
 </html>

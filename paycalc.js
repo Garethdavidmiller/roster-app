@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.47';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.47';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.48';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.48';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.47';
+} from './paycalc-calc.js?v=8.48';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
