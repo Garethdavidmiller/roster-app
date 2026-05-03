@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.30 -->
+<!-- MYB Roster Calendar - Version 8.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.30">
+    <link rel="manifest" href="manifest.json?v=8.31">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.30">
+    <link rel="stylesheet" href="shared.css?v=8.31">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1200,9 +1200,9 @@
             justify-content: center;
         }
         .team-week-text {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-dark);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary-blue);
         }
         .tv-week-nav {
             background: var(--primary-blue);
@@ -2418,7 +2418,7 @@
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rdw-light);border-color:var(--rdw)"></span>💼 Rest day worked</div>
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--purple-light);border-color:var(--purple)"></span>📋 Spare</div>
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--absence-light);border-color:var(--absence)"></span>🪑 Absence</div>
-                <div class="team-info-key-item"><span style="color:var(--text-faint);font-weight:700;font-size:14px;line-height:1">–</span> Rest day</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rest-day-bg);border-color:var(--border-mid)"></span>🏠 Rest day</div>
             </div>
             <p class="team-info-note">Shifts shown are base roster plus any recorded changes. Changes saved after this screen loaded appear on the next visit or week navigation.</p>
             <button id="teamInfoCloseBtn" class="team-lb-got-it">Got it</button>
@@ -2545,7 +2545,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.30"></script>
+    <script type="module" src="./app.js?v=8.31"></script>
 
 </body>
 </html>
