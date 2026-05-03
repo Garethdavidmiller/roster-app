@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.37 -->
+<!-- MYB Roster Calendar - Version 8.38 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.37">
+    <link rel="manifest" href="manifest.json?v=8.38">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.37">
+    <link rel="stylesheet" href="shared.css?v=8.38">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1152,22 +1152,22 @@
             box-shadow: var(--shadow-2);
             overflow: hidden;
         }
-        /* Grade tab row: spacer + centred tabs + ? button keeps tabs truly centred */
+        /* Grade tab row: CSS grid keeps tabs truly centred regardless of right-side button count */
         .grade-tabs-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
             align-items: center;
             padding: 6px 10px 5px;
-            gap: 4px;
-        }
-        .grade-tabs-spacer {
-            width: 28px;
-            flex-shrink: 0;
         }
         .grade-tabs {
             display: flex;
             gap: 6px;
-            flex: 1;
-            justify-content: center;
+        }
+        .grade-tabs-actions {
+            display: flex;
+            gap: 4px;
+            justify-content: flex-end;
+            align-items: center;
         }
         .team-help-btn {
             width: 28px;
@@ -1200,8 +1200,6 @@
             color: var(--primary-blue);
             padding: 2px 7px;
             border-radius: 10px;
-            margin-left: 6px;
-            vertical-align: middle;
             white-space: nowrap;
         }
         .tv-scroll-hint {
@@ -1249,8 +1247,9 @@
         }
         .team-week-center {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 5px;
+            gap: 2px;
             flex: 1;
             justify-content: center;
         }
@@ -2600,7 +2599,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.37"></script>
+    <script type="module" src="./app.js?v=8.38"></script>
 
 </body>
 </html>
