@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.46 -->
+<!-- MYB Roster Calendar - Version 8.47 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.46">
+    <link rel="manifest" href="manifest.json?v=8.47">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.46">
+    <link rel="stylesheet" href="shared.css?v=8.47">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1229,23 +1229,6 @@
         @media (hover: hover) and (pointer: fine) {
             .tv-today-btn:hover { background: var(--primary-blue); color: white; }
         }
-        /* ── Override status row ── */
-        .tv-status-row {
-            display: flex;
-            justify-content: flex-end;
-            padding: 3px 10px 4px;
-            border-bottom: 1px solid var(--border-light);
-        }
-        /* ── Override status chip ── */
-        .tv-status-chip {
-            font-size: 10px;
-            white-space: nowrap;
-            flex-shrink: 0;
-            color: var(--text-faint);
-        }
-        .tv-status-chip.fetching  { color: var(--text-light); }
-        .tv-status-chip.loaded    { color: var(--green); }
-        .tv-status-chip.base-only { color: var(--al-low); }
         .tv-empty {
             text-align: center;
             padding: 24px 10px;
@@ -1920,7 +1903,7 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, .tv-today-btn, .tv-status-chip, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .tv-week-nav, .tv-today-btn, #teamInfoLightbox { display: none; }
             .team-table-wrap { overflow: visible; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th {
@@ -2589,7 +2572,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.46"></script>
+    <script type="module" src="./app.js?v=8.47"></script>
 
 </body>
 </html>
