@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.29 -->
+<!-- MYB Roster Calendar - Version 8.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.29">
+    <link rel="manifest" href="manifest.json?v=8.31">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.29">
+    <link rel="stylesheet" href="shared.css?v=8.31">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1152,43 +1152,16 @@
             box-shadow: var(--shadow-2);
             overflow: hidden;
         }
-        /* Grade tab row: spacer + centred tabs + ℹ button keeps tabs truly centred */
+        /* Grade tab row: tabs centred */
         .grade-tabs-row {
             display: flex;
             align-items: center;
+            justify-content: center;
             padding: 6px 10px 0;
-            gap: 4px;
-        }
-        .grade-tabs-spacer {
-            width: 28px;
-            flex-shrink: 0;
         }
         .grade-tabs {
             display: flex;
             gap: 6px;
-            flex: 1;
-            justify-content: center;
-        }
-        .team-info-btn {
-            width: 28px;
-            height: 28px;
-            flex-shrink: 0;
-            background: none;
-            border: none;
-            color: var(--text-faint);
-            font-size: 15px;
-            cursor: pointer;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            touch-action: manipulation;
-            transition: color 0.15s, background 0.15s;
-            line-height: 1;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .team-info-btn:hover { color: var(--primary-blue); background: var(--bg-soft); }
         }
         .grade-tab {
             padding: 5px 14px;
@@ -1227,20 +1200,19 @@
             justify-content: center;
         }
         .team-week-text {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-dark);
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary-blue);
         }
         .tv-week-nav {
-            background: white;
-            border: 2px solid var(--border-light);
+            background: var(--primary-blue);
+            color: white;
+            border: 2px solid var(--primary-blue);
             border-radius: 10px;
             font-size: 14px;
             font-weight: 600;
-            color: var(--primary-blue);
             cursor: pointer;
-            padding: 3px 10px;
-            min-width: 40px;
+            padding: 9px 14px;
             min-height: 36px;
             display: flex;
             align-items: center;
@@ -1249,13 +1221,16 @@
             line-height: 1;
             flex-shrink: 0;
             font-family: inherit;
-            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), color 0.2s cubic-bezier(0.4,0,0.2,1);
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,30,60,0.2);
+            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
         }
         @media (hover: hover) and (pointer: fine) {
             .tv-week-nav:hover {
-                background: var(--primary-blue);
-                border-color: var(--primary-blue);
-                color: white;
+                background: var(--primary-blue-dark);
+                border-color: var(--primary-blue-dark);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 8px rgba(0,30,60,0.3);
             }
         }
         .team-table-wrap {
@@ -1330,66 +1305,84 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 30, 60, 0.55);
-            z-index: 200;
+            background: rgba(0, 10, 20, 0.82);
+            -webkit-backdrop-filter: blur(6px);
+            backdrop-filter: blur(6px);
+            z-index: 8000;
             align-items: center;
             justify-content: center;
             padding: 20px;
+            cursor: pointer;
         }
         .team-overlay.visible { display: flex; }
         .team-lb-card {
-            background: white;
-            border-radius: var(--radius-lg);
-            padding: 20px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 24px;
+            padding: 28px 28px 24px;
             max-width: 340px;
             width: 100%;
             position: relative;
-            max-height: 88vh;
+            max-height: 82vh;
             overflow-y: auto;
+            cursor: default;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
         }
         .team-lb-close {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 14px;
+            right: 16px;
             background: none;
             border: none;
-            font-size: 17px;
-            cursor: pointer;
-            color: var(--text-mid);
-            padding: 4px 8px;
-            border-radius: 6px;
-            touch-action: manipulation;
+            font-size: 22px;
             line-height: 1;
+            cursor: pointer;
+            color: rgba(255, 255, 255, 0.5);
+            padding: 6px;
+            touch-action: manipulation;
+            transition: color 0.15s;
+            font-family: inherit;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .team-lb-close:hover { color: white; }
         }
         .team-lb-title {
-            font-size: 17px;
+            font-size: 18px;
             font-weight: 700;
-            color: var(--primary-blue);
-            margin-bottom: 12px;
-            padding-right: 28px;
+            color: white;
+            margin-bottom: 16px;
+            padding-right: 32px;
+            text-align: center;
         }
         /* Coming-soon body */
         .team-cs-text {
-            font-size: 14px;
+            font-size: 13px;
             line-height: 1.6;
-            color: var(--text-dark);
+            color: rgba(255, 255, 255, 0.7);
             margin-bottom: 10px;
+            text-align: center;
         }
         .team-lb-got-it {
             display: block;
             width: 100%;
-            margin-top: 6px;
-            padding: 10px;
-            background: white;
-            color: var(--primary-blue);
-            border: 2px solid var(--border-light);
-            border-radius: 10px;
+            margin-top: 16px;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
             font-family: inherit;
-            font-size: 14px;
-            font-weight: 700;
+            font-size: 13px;
+            font-weight: 600;
             cursor: pointer;
             touch-action: manipulation;
             text-align: center;
+            transition: background 0.15s;
+        }
+        .team-lb-got-it:active { background: rgba(255,255,255,0.2); }
+        @media (hover: hover) and (pointer: fine) {
+            .team-lb-got-it:hover { background: rgba(255,255,255,0.18); }
         }
         /* Info lightbox body */
         .team-info-print-btn {
@@ -1398,21 +1391,26 @@
             justify-content: center;
             gap: 6px;
             width: 100%;
-            padding: 10px;
-            background: var(--primary-blue);
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
             color: white;
-            border: none;
-            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
             font-family: inherit;
-            font-size: 14px;
-            font-weight: 700;
+            font-size: 13px;
+            font-weight: 600;
             cursor: pointer;
             touch-action: manipulation;
             margin-bottom: 4px;
+            transition: background 0.15s;
+        }
+        .team-info-print-btn:active { background: rgba(255,255,255,0.2); }
+        @media (hover: hover) and (pointer: fine) {
+            .team-info-print-btn:hover { background: rgba(255,255,255,0.18); }
         }
         .team-info-print-hint {
             font-size: 11px;
-            color: var(--text-faint);
+            color: rgba(255, 255, 255, 0.35);
             text-align: center;
             margin-bottom: 14px;
         }
@@ -1421,10 +1419,10 @@
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.6px;
-            color: var(--text-faint);
+            color: rgba(255, 255, 255, 0.35);
             padding-top: 12px;
             margin-top: 12px;
-            border-top: 1px solid var(--border-light);
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
             margin-bottom: 7px;
         }
         .team-info-tips {
@@ -1434,7 +1432,7 @@
         }
         .team-info-tips li {
             font-size: 13px;
-            color: var(--text-dark);
+            color: rgba(255, 255, 255, 0.65);
             padding: 3px 0 3px 16px;
             position: relative;
             line-height: 1.4;
@@ -1443,7 +1441,7 @@
             content: '·';
             position: absolute;
             left: 4px;
-            color: var(--text-faint);
+            color: rgba(255, 255, 255, 0.35);
             font-weight: 700;
         }
         .team-info-key {
@@ -1456,7 +1454,7 @@
             align-items: center;
             gap: 5px;
             font-size: 12px;
-            color: var(--text-dark);
+            color: rgba(255, 255, 255, 0.7);
             white-space: nowrap;
         }
         .tv-key-dot {
@@ -1464,14 +1462,14 @@
             height: 10px;
             border-radius: 3px;
             flex-shrink: 0;
-            border: 1px solid rgba(0,0,0,0.08);
+            border: 1px solid rgba(255,255,255,0.25);
         }
         .team-info-note {
             font-size: 11px;
-            color: var(--text-faint);
+            color: rgba(255, 255, 255, 0.35);
             margin-top: 12px;
             padding-top: 12px;
-            border-top: 1px solid var(--border-light);
+            border-top: 1px solid rgba(255, 255, 255, 0.12);
             line-height: 1.5;
         }
 
@@ -2420,7 +2418,7 @@
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rdw-light);border-color:var(--rdw)"></span>💼 Rest day worked</div>
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--purple-light);border-color:var(--purple)"></span>📋 Spare</div>
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--absence-light);border-color:var(--absence)"></span>🪑 Absence</div>
-                <div class="team-info-key-item"><span style="color:var(--text-faint);font-weight:700;font-size:14px;line-height:1">–</span> Rest day</div>
+                <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rest-day-bg);border-color:var(--border-mid)"></span>🏠 Rest day</div>
             </div>
             <p class="team-info-note">Shifts shown are base roster plus any recorded changes. Changes saved after this screen loaded appear on the next visit or week navigation.</p>
             <button id="teamInfoCloseBtn" class="team-lb-got-it">Got it</button>
@@ -2547,7 +2545,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.29"></script>
+    <script type="module" src="./app.js?v=8.31"></script>
 
 </body>
 </html>
