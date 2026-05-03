@@ -2,7 +2,7 @@
   "id": "/paycalc",
   "name": "MYB Pay Calculator — Chiltern Railways",
   "short_name": "MYB Pay",
-  "description": "Pay calculator for CEA grade staff at London Marylebone Station",
+  "description": "Pay calculator for CEA and CES staff at London Marylebone Station",
   "start_url": "./paycalc.html",
   "display": "standalone",
   "background_color": "#001e3c",
