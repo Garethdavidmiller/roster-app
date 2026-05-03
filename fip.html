@@ -325,6 +325,44 @@
             flex-shrink: 0;
             white-space: nowrap;
         }
+
+        /* ── Print ───────────────────────────────── */
+        @media print {
+            /* Remove screen-only chrome */
+            .page-header,
+            .country-jump,
+            .btn-primary,
+            .btn-secondary,
+            .btn-text-link { display: none !important; }
+
+            body { background: white; font-size: 13px; }
+
+            .content { max-width: 100%; padding: 0 0 16px; }
+
+            /* Expand all <details> without JS */
+            details { display: block !important; box-shadow: none; border: 1px solid var(--border); }
+            summary { display: none !important; }
+            .detail-body { display: block !important; }
+
+            /* Remove box shadows throughout */
+            .card { box-shadow: none; border: 1px solid var(--border); }
+
+            /* Keep tag/box colours — they carry semantic meaning in a reference doc */
+            .tag-yes  { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .tag-no   { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .tag-warn { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .box-yellow, .box-red, .box-blue {
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
+
+            /* Keep country cards together where possible */
+            details, .card { break-inside: avoid; }
+
+            /* Section headings start a new block but don't orphan */
+            .section-label { break-after: avoid; margin-top: 16px; }
+
+            hr { border-top-color: var(--border); margin: 12px 0; }
+        }
     </style>
 </head>
 <body>

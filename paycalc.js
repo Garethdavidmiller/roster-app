@@ -1,5 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.43';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.43';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=8.44';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.44';
+import {
+  P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
+  calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
+  computeGross, computeTax, computeNI, computeSL,
+} from './paycalc-calc.js?v=8.44';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -17,105 +22,20 @@ import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.
 })();
 
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-// Single source of truth for all app constants — matches MYB Roster pattern.
-// ⚠️  TAX YEAR ROLLOVER: Each April, update the following:
-//     ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET,
-//     and the TAX / NI / SL threshold values below.
+// Period arithmetic and app constants. Thresholds, tax years, and grades live in
+// paycalc-calc.js so they can be imported by the Node test runner.
+// ⚠️  TAX YEAR ROLLOVER: Each April, update ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET
+//     and the threshold tables in paycalc-calc.js.
 //     P48 anchor (13 Feb 2026) stays fixed as the offset reference point.
 const CONFIG = {
-  // Period arithmetic
   ANCHOR_DATE:    new Date(2026, 1, 13), // P48 payday: 13 Feb 2026 (fixed reference)
   PERIOD_DAYS:    28,
-  PERIODS_PER_YR: 13,
+  PERIODS_PER_YR: P_YR,
   CONTRACTED_HRS: 140,                   // default; per-grade value from GRADES object
   LONDON_ALLOW:   276.16,               // London Allowance per period (£3,590.08/yr)
   FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
   LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
-  // ── Tax year definitions ────────────────────────────────────────────────────
-  // "Tax year" here means: payday falls in that Apr→Mar window.
-  // 2025/26: P37 (paid ~11 Apr 2025) → P49 (paid ~13 Mar 2026)  offsets -11 to +1
-  // 2026/27: P50 (paid ~10 Apr 2026) → P62 (paid ~11 Mar 2027)  offsets  +2 to +14
-  // hppPaidJan = the January in which Chiltern pay that year's HPP lump sum
-  TAX_YEARS: [
-    // londonAllowPre=pre-award, londonAllow=post-award, londonAllowFrom=first payday at new rate
-    { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
-      londonAllow: 276.16, londonAllowPre: 267.12, londonAllowFrom: new Date(2025, 9, 24) },
-    { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028, londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when pay award confirmed
-  ],
-};
-
-// Convenience aliases (keeps calculation code readable)
-const P_YR   = CONFIG.PERIODS_PER_YR;
-
-// ── TAX & NI THRESHOLDS BY TAX YEAR ──────────────────────────────────────────
-// All annual figures ÷ 13 to give 4-weekly amounts.
-// Both years confirmed: personal allowance and band thresholds frozen at 2025/26 levels
-// until April 2028 (Autumn Budget 2024). NI rates and thresholds unchanged for 2026/27.
-// ⚠️  Review after each Autumn Budget and Spring Statement.
-const TAX_BY_YEAR = {
-  '2025/26': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 },
-  '2026/27': { pa: 12570/P_YR, b: 50270/P_YR, h: 125140/P_YR, r20:0.20, r40:0.40, r45:0.45 }, // confirmed frozen
-};
-// NI thresholds are set weekly by HMRC; the correct 4-weekly value is weekly × 4.
-// PT 2025/26: £242/wk × 4 = £968. UEL 2025/26: £967/wk × 4 = £3,868.
-// Using annual ÷ 13 (£966.97 / £3,867.70) would overstate NI by ~£0.09/period.
-const NI_BY_YEAR = {
-  '2025/26': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 },
-  '2026/27': { pt: 242 * 4, uel: 967 * 4, r8:0.08, r2:0.02 }, // confirmed unchanged
-};
-// Student loan thresholds by tax year — HMRC publishes these each April.
-// ⚠️ Review after each Autumn Budget and update next tax year's values.
-const SL_BY_YEAR = {
-  '2025/26': {
-    plan1:   { t: 24990/P_YR, r: 0.09 },
-    plan2:   { t: 27295/P_YR, r: 0.09 },
-    plan4:   { t: 31395/P_YR, r: 0.09 }, // Scotland
-    plan5:   { t: 25000/P_YR, r: 0.09 },
-    postgrad:{ t: 21000/P_YR, r: 0.06 },
-  },
-  '2026/27': {
-    plan1:   { t: 26900/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026
-    plan2:   { t: 29385/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026
-    plan4:   { t: 33795/P_YR, r: 0.09 }, // HMRC SL guidance Apr 2026 (Scotland)
-    plan5:   { t: 25000/P_YR, r: 0.09 }, // unchanged
-    postgrad:{ t: 21000/P_YR, r: 0.06 }, // unchanged
-  },
-};
-
-// Scottish income tax bands (Holyrood-set). Bands are stored as per-period
-// TAXABLE income tops (i.e. total income threshold minus PA, divided by P_YR).
-// PA is still set by Westminster (£12,570 both years).
-// Source: gov.scot Scottish Income Tax factsheets 2025/26 and 2026/27.
-// ⚠️ Update each year — especially starter and basic tops which Holyrood adjusts annually.
-const SCOTTISH_TAX_BY_YEAR = {
-  '2025/26': { pa: 12570/P_YR, bands: [
-    { top:  2827/P_YR, rate: 0.19 }, // Starter  19%  £12,571–£15,397
-    { top: 14921/P_YR, rate: 0.20 }, // Basic    20%  £15,397–£27,491
-    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £27,491–£43,662
-    { top: 62430/P_YR, rate: 0.42 }, // Higher   42%  £43,662–£75,000
-    { top: 112570/P_YR, rate: 0.45 }, // Advanced 45%  £75,000–£125,140
-    { top: Infinity,   rate: 0.48 }, // Top      48%  over £125,140
-  ]},
-  '2026/27': { pa: 12570/P_YR, bands: [
-    { top:  3967/P_YR, rate: 0.19 }, // Starter  19%  £12,571–£16,537
-    { top: 16956/P_YR, rate: 0.20 }, // Basic    20%  £16,537–£29,526
-    { top: 31092/P_YR, rate: 0.21 }, // Intermediate 21%  £29,526–£43,662
-    { top: 62430/P_YR, rate: 0.42 }, // Higher   42%  £43,662–£75,000
-    { top: 112570/P_YR, rate: 0.45 }, // Advanced 45%  £75,000–£125,140
-    { top: Infinity,   rate: 0.48 }, // Top      48%  over £125,140
-  ]},
-};
-
-// HPP: (Gross − Basic) × 4/52 — confirmed by Marie Firby, Chiltern payroll
-const HPP_FRACTION = 4 / 52;
-
-// ── GRADES — contractual data per grade ───────────────────────────────────────
-// Each grade entry drives contracted hours, default rate, and default pension.
-// 2026/27 rates: CES and CEA pay awards not yet confirmed — update when announced.
-const GRADES = {
-  cea: { label: 'CEA — £20.74/hr', rate: 20.74, contr: 140, pension: 154.77 },
-  ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 154.77 }, // 2025/26 rate; 2026/27 TBC
-  // dispatch: { label: 'Dispatch', rate: 0, contr: 0, pension: 0 }, // add when confirmed
+  TAX_YEARS,             // imported from paycalc-calc.js
 };
 
 /** Return contracted hours for the currently selected grade. */
@@ -361,55 +281,8 @@ function updateBhRows(p) {
   });
 }
 
-// ── TAX YEAR HELPERS ──────────────────────────────────────────────────────────
-function getTaxYearForOffset(offset) {
-  return CONFIG.TAX_YEARS.find(ty => offset >= ty.first && offset <= ty.last) || CONFIG.TAX_YEARS[0];
-}
-function getThresholds(yearLabel) {
-  const ty = CONFIG.TAX_YEARS.find(t => t.label === yearLabel) || CONFIG.TAX_YEARS[0];
-  if (!TAX_BY_YEAR[yearLabel]) console.warn(`[PayCalc] No tax data for ${yearLabel} — using 2025/26 thresholds. Update TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, and SCOTTISH_TAX_BY_YEAR.`);
-  return {
-    tax:         TAX_BY_YEAR[yearLabel]          || TAX_BY_YEAR['2025/26'],
-    scottishTax: SCOTTISH_TAX_BY_YEAR[yearLabel] || SCOTTISH_TAX_BY_YEAR['2025/26'],
-    ni:          NI_BY_YEAR[yearLabel]           || NI_BY_YEAR['2025/26'],
-    sl:          SL_BY_YEAR[yearLabel]           || SL_BY_YEAR['2025/26'],
-    londonAllow: ty.londonAllow,
-  };
-}
-/**
- * Return the London Allowance for a specific pay period.
- * When a pay award mid-year changes the allowance, periods before londonAllowFrom
- * use londonAllowPre; from londonAllowFrom onwards use londonAllow.
- * @param {{payday: Date}} p
- * @param {{londonAllow: number, londonAllowPre?: number, londonAllowFrom?: Date}} ty
- * @returns {number}
- */
-function getLondonAllowanceForPeriod(p, ty) {
-  if (ty.londonAllowPre && ty.londonAllowFrom && p.payday < ty.londonAllowFrom) {
-    return ty.londonAllowPre;
-  }
-  return ty.londonAllow;
-}
-
-
-/**
- * Apply progressive tax bands to a taxable amount.
- * @param {number} taxable - Taxable income (already after personal allowance).
- * @param {Array<{top: number, rate: number}>} bands - Bands with cumulative taxable tops.
- * @param {number} [scale=1] - Multiply all tops by this factor (for cumulative PAYE with N periods).
- * @returns {number} Tax due.
- */
-function calcBandedTax(taxable, bands, scale = 1) {
-  let tax = 0, prev = 0;
-  for (const band of bands) {
-    if (taxable <= prev) break;
-    const top   = band.top === Infinity ? Infinity : band.top * scale;
-    const slice = Math.min(taxable, top) - prev;
-    tax += slice * band.rate;
-    prev = top;
-  }
-  return tax;
-}
+// getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod, calcBandedTax
+// are imported from paycalc-calc.js above.
 
 // ── PERIOD SELECT ─────────────────────────────────────────────────────────────
 function buildPeriodSelect() {
@@ -1351,7 +1224,7 @@ function calculate() {
   const _pNum   = currentPeriodNum();
   const _curP   = getPeriods().find(x => x.num === _pNum);
   const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const { tax: TAX, scottishTax: SCOT, ni: NI, sl: SL } = getThresholds(_ty.label);
+  const thresholds = getThresholds(_ty.label);
   const LONDON = _curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow;
 
   const _calcGrade = localStorage.getItem(SK.grade);
@@ -1374,148 +1247,41 @@ function calculate() {
   const sHrs    = hhmmDec('sunH',  'sunM');
   const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
-  const _effContr  = getEffectiveContr(_curP);
-  const satCapped  = Math.min(satHrs, _effContr);
-  const normHrs    = _effContr - satCapped;      // non-Saturday contracted hours
-  const bhCapped   = Math.min(bhHrs, normHrs); // clamp to available non-Sat hours
-  const nonBhNorm  = normHrs - bhCapped;    // weekday non-BH contracted hours
+  const _effContr = getEffectiveContr(_curP);
+  const otherAdj  = parseFloat(document.getElementById('otherAdj').value) || 0;
 
-  const gBasicNorm = nonBhNorm  * rate;   // weekday non-BH pay at 1.0×
-  const gBasicSat  = satCapped  * r125;   // Saturday contracted pay at 1.25×
-  // Bank Holiday Rostered: full 1.25× pay for contracted shifts on bank holidays.
-  // Matches payslip line "Bank Holiday Rostered 1.25" exactly.
-  const gBankHol   = bhCapped   * r125;
-  const gBhOt      = bhOtHrs   * r125;
-  const gOvertime  = oHrs      * r125;
-  const gRdw       = rHrs      * r125;
-  const gSunday    = sHrs      * r150;
-  const gBoxing    = bHrs      * r300;
-  const gPeer      = peer * 2  * rate;
-  const otherAdj   = parseFloat(document.getElementById('otherAdj').value) || 0;
-  const gross      = gBasicNorm + gBasicSat + gBankHol + gBhOt + gOvertime + gRdw + gSunday + gBoxing + gPeer + LONDON + otherAdj;
+  // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
+  const { gross, satCapped, normHrs, bhCapped, nonBhNorm,
+          gBasicNorm, gBasicSat, gBankHol, gBhOt, gOvertime,
+          gRdw, gSunday, gBoxing, gPeer } = computeGross({
+    effContr: _effContr, rate, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,
+    peerDays: peer, otherAdj, london: LONDON,
+  });
 
   // Pension — salary sacrifice: deducted from gross before tax and NI are calculated.
-  // This reduces taxable pay and NI-able pay, saving the employee on both.
   const pension    = numVal('pensionAmt');
   const pensionWarn = document.getElementById('pensionWarn');
   if (pensionWarn) pensionWarn.classList.toggle('show', pension > gross && pension > 0);
-  const sacGross   = Math.max(0, gross - pension); // clamped — pension cannot exceed gross
+  const sacGross   = Math.max(0, gross - pension);
 
-  // Income Tax (on sacGross, not gross)
-  // Supports: nL, BR, D0, D1, NT, 0T, Kn, W1/M1/X suffix, S prefix (Scottish)
-  const rawCode   = (document.getElementById('taxCode').value || '1257L').toUpperCase().replace(/\s+/g, '');
-  const isNonCum  = /[WM]1$|X$/.test(rawCode);
-  const baseCode  = rawCode.replace(/[WM]1$|X$/, '');
-  const isScottish = /^S/.test(baseCode); // S-prefix → apply Holyrood bands
-  let tax = 0;
-  if (baseCode === 'NT') {
-    tax = 0;
-  } else if (baseCode === 'BR' || baseCode === 'SBR') {
-    tax = sacGross * (isScottish ? SCOT.bands[1].rate : TAX.r20); // basic rate (20% both)
-  } else if (baseCode === 'D0' || baseCode === 'SD0') {
-    tax = sacGross * (isScottish ? 0.42 : TAX.r40); // higher rate (42% Scotland, 40% rUK)
-  } else if (baseCode === 'D1' || baseCode === 'SD1') {
-    tax = sacGross * (isScottish ? 0.48 : TAX.r45); // top/additional rate (48% Scotland, 45% rUK)
-  } else {
-    // Banded calculation — resolve personal allowance first
-    let pa = (isScottish ? SCOT : TAX).pa; // standard allowance per period
-    if (baseCode === '0T' || baseCode === 'S0T') {
-      pa = 0;
-    } else {
-      const km = baseCode.match(/^[SC]?K(\d+)$/);
-      if (km) {
-        pa = -(parseInt(km[1]) * 10 / P_YR); // K code: negative allowance
-      } else {
-        const nm = baseCode.match(/^[SC]?(\d+)L$/);
-        if (nm) pa = parseInt(nm[1]) * 10 / P_YR;
-        // else: unrecognised code — falls back to standard allowance
-      }
-    }
-    // taxable = sacGross minus allowance (K codes: pa is negative, so taxable grows)
-    const taxable = Math.max(0, sacGross - pa);
-    if (isScottish) {
-      tax = calcBandedTax(taxable, SCOT.bands);
-    } else {
-      const basicBand = Math.max(0, TAX.b - Math.max(0, pa));
-      const highBand  = Math.max(0, TAX.h - TAX.b);
-      if      (taxable <= basicBand)            tax = taxable * TAX.r20;
-      else if (taxable <= basicBand + highBand) tax = basicBand * TAX.r20 + (taxable - basicBand) * TAX.r40;
-      else                                      tax = basicBand * TAX.r20 + highBand * TAX.r40 + (taxable - basicBand - highBand) * TAX.r45;
-    }
-  }
-
-  // ── CUMULATIVE PAYE ───────────────────────────────────────────────────────────
-  // When the user provides YTD figures from their last payslip, the app switches
-  // to HMRC's cumulative method: calculate total tax owed on all income since 6 April,
-  // then subtract what's already been collected. This corrects for overtime swings,
-  // back pay, and mid-year code changes. W1/M1/X (non-cumulative) codes are excluded.
+  // Income tax — cumulative PAYE when YTD figures provided (W1/M1/X excluded)
   const ytdP = numVal('ytdPay');
   const ytdT = numVal('ytdTax');
-  let usingCumulative = false;
+  const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
+  const { tax, usingCumulative } = computeTax(
+    sacGross, document.getElementById('taxCode').value, thresholds,
+    { ytdPay: ytdP, ytdTax: ytdT, periodN },
+  );
 
-  if ((ytdP > 0 || ytdT > 0) && !isNonCum && _curP) {
-    const N = (_curP.num - 48) - _ty.first + 1; // HMRC 4-weekly period number (1–13)
-    const cumGross = ytdP + sacGross;
+  // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases)
+  const ni = computeNI(sacGross, thresholds.ni);
 
-    // Resolve per-period PA — same logic as above, then scale to N periods
-    let paPerPeriod = (isScottish ? SCOT : TAX).pa;
-    if (baseCode === '0T' || baseCode === 'S0T') {
-      paPerPeriod = 0;
-    } else {
-      const km = baseCode.match(/^[SC]?K(\d+)$/);
-      if (km) {
-        paPerPeriod = -(parseInt(km[1]) * 10 / P_YR);
-      } else {
-        const nm = baseCode.match(/^[SC]?(\d+)L$/);
-        if (nm) paPerPeriod = parseInt(nm[1]) * 10 / P_YR;
-      }
-    }
-    const cumPa      = paPerPeriod * N;
-    const cumTaxable = Math.max(0, cumGross - cumPa);
-
-    let cumTaxDue = 0;
-    if (baseCode === 'NT') {
-      cumTaxDue = 0;
-    } else if (baseCode === 'BR' || baseCode === 'SBR') {
-      cumTaxDue = cumGross * (isScottish ? SCOT.bands[1].rate : TAX.r20);
-    } else if (baseCode === 'D0' || baseCode === 'SD0') {
-      cumTaxDue = cumGross * (isScottish ? 0.42 : TAX.r40);
-    } else if (baseCode === 'D1' || baseCode === 'SD1') {
-      cumTaxDue = cumGross * (isScottish ? 0.48 : TAX.r45);
-    } else if (isScottish) {
-      // Scottish cumulative: scale each band top by N periods
-      cumTaxDue = calcBandedTax(cumTaxable, SCOT.bands, N);
-    } else {
-      const cumBasicTop = TAX.b * N;
-      const cumHighTop  = TAX.h * N;
-      const cumBasicBnd = Math.max(0, cumBasicTop - Math.max(0, cumPa));
-      const cumHighBnd  = Math.max(0, cumHighTop - cumBasicTop);
-      if (cumTaxable <= cumBasicBnd) {
-        cumTaxDue = cumTaxable * TAX.r20;
-      } else if (cumTaxable <= cumBasicBnd + cumHighBnd) {
-        cumTaxDue = cumBasicBnd * TAX.r20 + (cumTaxable - cumBasicBnd) * TAX.r40;
-      } else {
-        cumTaxDue = cumBasicBnd * TAX.r20 + cumHighBnd * TAX.r40 + (cumTaxable - cumBasicBnd - cumHighBnd) * TAX.r45;
-      }
-    }
-    tax = Math.max(0, cumTaxDue - ytdT);
-    usingCumulative = true;
-  }
-
-  // NI (on sacGross)
-  const ni = sacGross <= NI.pt ? 0
-    : (Math.min(sacGross, NI.uel) - NI.pt) * NI.r8 + Math.max(0, sacGross - NI.uel) * NI.r2;
-
-  // Student Loan (on sacGross — HMRC applies SL on post-sacrifice earnings)
-  // Thresholds are looked up per tax year (they rise each April).
-  const plan    = document.getElementById('studentLoan').value;
-  const SL_PLAN = (SL || {})[plan];
-  const slSkip  = document.getElementById('slSkipCheck').checked;
-  // Show the "not deducted this period" toggle only when a plan is selected
+  const plan   = document.getElementById('studentLoan').value;
+  const slSkip = document.getElementById('slSkipCheck').checked;
   document.getElementById('slSkipRow').classList.toggle('hidden', plan === 'none');
-  const sl      = (SL_PLAN && !slSkip) ? Math.floor(Math.max(0, (sacGross - SL_PLAN.t) * SL_PLAN.r)) : 0;
+  const sl = computeSL(sacGross, plan, thresholds.sl, slSkip);
 
-  const net = sacGross - tax - ni - sl; // same as gross - pension - tax - ni - sl
+  const net = sacGross - tax - ni - sl;
 
   // UI
   document.getElementById('netDisplay').textContent = fmt(net);

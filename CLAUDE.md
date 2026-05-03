@@ -57,6 +57,7 @@
 | `paycalc.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
 | `paycalc.html` | `<link rel="manifest" href="./pay-manifest.json?v=...">` | `pay-manifest.json?v=4.95` |
 | `paycalc.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
+| `paycalc.js` | `import ... from './paycalc-calc.js?v=...'` | `paycalc-calc.js?v=4.95` |
 
 `CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
 
@@ -91,7 +92,8 @@ roster-app/
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html
 ├── admin-app.js            ← all JavaScript for admin.html
-├── paycalc.js              ← all JavaScript for paycalc.html
+├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
+├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds. Imported by paycalc.js and paycalc.test.mjs
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
@@ -108,7 +110,7 @@ roster-app/
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `paycalc.html`, `paycalc.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
