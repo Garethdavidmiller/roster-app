@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.49';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.49';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.50';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.50';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.49';
+} from './paycalc-calc.js?v=8.50';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
