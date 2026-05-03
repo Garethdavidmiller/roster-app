@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.34 -->
+<!-- MYB Roster Calendar - Version 8.35 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.34">
+    <link rel="manifest" href="manifest.json?v=8.35">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.34">
+    <link rel="stylesheet" href="shared.css?v=8.35">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1152,16 +1152,70 @@
             box-shadow: var(--shadow-2);
             overflow: hidden;
         }
-        /* Grade tab row: tabs centred */
+        /* Grade tab row: spacer + centred tabs + ? button keeps tabs truly centred */
         .grade-tabs-row {
             display: flex;
             align-items: center;
-            justify-content: center;
             padding: 6px 10px 5px;
+            gap: 4px;
+        }
+        .grade-tabs-spacer {
+            width: 28px;
+            flex-shrink: 0;
         }
         .grade-tabs {
             display: flex;
             gap: 6px;
+            flex: 1;
+            justify-content: center;
+        }
+        .team-help-btn {
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+            background: none;
+            border: 1.5px solid var(--border-mid);
+            color: var(--text-light);
+            font-size: 13px;
+            font-weight: 700;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            touch-action: manipulation;
+            line-height: 1;
+            font-family: inherit;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .team-help-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
+        }
+        .tv-current-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            padding: 2px 7px;
+            border-radius: 10px;
+            margin-left: 6px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+        .tv-scroll-hint {
+            font-size: 11px;
+            color: var(--text-faint);
+            text-align: center;
+            padding: 3px 0 6px;
+        }
+        .tv-empty {
+            text-align: center;
+            padding: 24px 10px;
+            color: var(--text-light);
+            font-size: 13px;
+            font-style: italic;
         }
         .grade-tab {
             padding: 5px 14px;
@@ -2388,9 +2442,9 @@
     <div id="teamComingSoonLightbox" class="team-overlay" role="dialog" aria-label="Team Week View — coming soon" aria-modal="true">
         <div class="team-lb-card">
             <button id="teamCsClose" class="team-lb-close" aria-label="Close">✕</button>
-            <div class="team-lb-title">👥 Team Week View</div>
-            <p class="team-cs-text">This feature is coming soon. It will show you the whole team's shifts on one screen — one row per person, one column per day, just like the emailed weekly roster.</p>
-            <p class="team-cs-text">You'll be able to switch between CEA, CES, and Dispatcher rosters and move week by week. All shift types will be colour-coded the same way as your personal calendar.</p>
+            <div class="team-lb-title">👥 Team View</div>
+            <p class="team-cs-text">This view shows the whole team's shifts on one screen — one row per person, one column per day, colour-coded the same way as your personal calendar.</p>
+            <p class="team-cs-text">It's currently available to team managers only. Speak to your manager if you think you need access.</p>
             <button id="teamCsCloseBtn" class="team-lb-got-it">Got it</button>
         </div>
     </div>
@@ -2546,7 +2600,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.34"></script>
+    <script type="module" src="./app.js?v=8.35"></script>
 
 </body>
 </html>
