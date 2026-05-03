@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.48 -->
+<!-- MYB Roster Admin v8.50 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.48">
+    <link rel="manifest" href="manifest.json?v=8.50">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.48">
+    <link rel="stylesheet" href="shared.css?v=8.50">
 
     <style>
         body {
@@ -2289,7 +2289,7 @@
     <div class="col-main">
     <div class="card">
         <div class="card-header">
-            <h2>Update a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for updating shifts">?</button></h2>
+            <h2>Record a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for recording a shift" title="Tips for recording a shift">?</button></h2>
             <span class="hint">Tap any day to expand it, choose a type, then save — or tick multiple days and use Apply to all below</span>
         </div>
         <div class="card-body">
@@ -2364,7 +2364,7 @@
     <!-- ==================== ANNUAL LEAVE BOOKING ==================== -->
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
-            <h2>🏖️ Record Annual Leave <button class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave">?</button></h2>
+            <h2>🏖️ Record Annual Leave <button class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave" title="Tips for recording annual leave">?</button></h2>
             <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
@@ -2429,7 +2429,7 @@
     <!-- ==================== ABSENCE ==================== -->
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
-            <h2>🪑 Record Absence <button class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence">?</button></h2>
+            <h2>🪑 Record Absence <button class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence" title="Tips for recording absence">?</button></h2>
             <span class="hint">Mark days when a team member isn't in — sickness, family, or any other reason</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
@@ -2471,7 +2471,7 @@
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="huddleUploadCard" style="display:none">
         <div class="card-header card-collapsible-header" id="huddleToggleHeader">
-            <h2>📋 Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle">?</button></h2>
+            <h2>📋 Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle" title="Tips for Daily Huddle">?</button></h2>
             <span class="hint">Upload today's Huddle PDF — staff will see a button in the main app</span>
             <span class="collapse-chevron" id="huddleChevron">▾</span>
         </div>
@@ -2493,7 +2493,7 @@
     <!-- Shown by JS only when currentIsAdmin is true -->
     <div class="card" id="rosterUploadCard" style="display:none">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
-            <h2>🗓️ Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload">?</button></h2>
+            <h2>🗓️ Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload" title="Tips for Weekly Roster upload">?</button></h2>
             <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
             <span class="collapse-chevron" id="rosterUploadChevron">▾</span>
         </div>
@@ -2548,7 +2548,7 @@
     <!-- ==================== FIP TRAVEL ==================== -->
     <div class="card" id="fipCard">
         <div class="card-header card-collapsible-header" id="fipToggleHeader">
-            <h2>🇪🇺 FIP Travel <button class="btn-card-tips" data-card="fip-travel" aria-label="Tips for FIP Travel">?</button></h2>
+            <h2>🇪🇺 FIP Travel <button class="btn-card-tips" data-card="fip-travel" aria-label="Tips for FIP Travel" title="Tips for FIP Travel">?</button></h2>
             <span class="hint">Half-price and free travel on European trains and ferries</span>
             <span class="collapse-chevron" id="fipChevron">▾</span>
         </div>
@@ -2563,7 +2563,7 @@
     <!-- Push notifications toggle — all staff -->
     <div class="card" id="notificationsCard">
         <div class="card-header card-collapsible-header" id="notifToggleHeader">
-            <h2>🔔 Notifications <button class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications">?</button></h2>
+            <h2>🔔 Notifications <button class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications" title="Tips for notifications">?</button></h2>
             <span class="hint">Get an alert when the daily Huddle is ready or payday is approaching</span>
             <span class="collapse-chevron" id="notifChevron">▾</span>
         </div>
@@ -2584,7 +2584,7 @@
     <!-- Cultural Calendar — all staff -->
     <div class="card" id="religiousCard">
         <div class="card-header card-religious-header" id="religiousToggleHeader">
-            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar">?</button></h2>
+            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar" title="Tips for cultural calendar">?</button></h2>
             <span class="hint">Optional date markers — one per person</span>
             <span class="religious-chevron" id="religiousChevron">▾</span>
         </div>
@@ -2651,7 +2651,7 @@
     <!-- Staff login accounts — admin only, hidden until JS reveals it -->
     <div class="card" id="authSetupCard" style="display:none">
         <div class="card-header card-collapsible-header" id="authSetupToggleHeader">
-            <h2>🔐 Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts">?</button></h2>
+            <h2>🔐 Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button></h2>
             <span class="hint">Create or update Firebase accounts for all current staff</span>
             <span class="collapse-chevron" id="authSetupChevron">▾</span>
         </div>
@@ -2675,7 +2675,7 @@
     <!-- ==================== EXISTING OVERRIDES — full-width: table needs room ==================== -->
     <div class="card" id="overridesCard">
         <div class="card-header card-collapsible-header" id="overridesToggleHeader">
-            <h2>📋 Saved Changes <button class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes">?</button></h2>
+            <h2>📋 Saved Changes <button class="btn-card-tips" data-card="saved-changes" aria-label="Tips for Saved Changes" title="Tips for Saved Changes">?</button></h2>
             <span class="hint">All recorded changes — tap any row to edit or delete</span>
             <span class="collapse-chevron" id="overridesChevron">▾</span>
         </div>
@@ -2711,6 +2711,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.48"></script>
+<script type="module" src="./admin-app.js?v=8.50"></script>
 </body>
 </html>
