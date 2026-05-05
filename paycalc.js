@@ -1,10 +1,20 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.60';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.60';
+/**
+ * paycalc.js — Pay Calculator UI layer.
+ *
+ * Owns: period select, form read/write, autosave, settings, HPP, sticky bar.
+ * Does NOT own: pay maths (paycalc-calc.js), override cache/suggestion engine
+ *   (paycalc-roster-suggestions.js), DOM for paycalc.html.
+ * Edit here for: UI behaviour, form logic, period helpers, HPP accumulation.
+ * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
+ */
+
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.61';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.60';
+} from './paycalc-calc.js?v=8.61';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.61';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -242,12 +252,6 @@ function hasBankHoliday(p) {
     if (_bhsForYear(y).some(bh => bh >= p.start && bh <= p.cutoff)) return true;
   }
   return false;
-}
-
-function isDateInBHList(d) {
-  return _bhsForYear(d.getFullYear()).some(bh =>
-    bh.getMonth() === d.getMonth() && bh.getDate() === d.getDate()
-  );
 }
 
 // Rows that are conditionally shown/hidden based on period content.
@@ -533,12 +537,9 @@ function onPeriodChange() {
   let session2;
   try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
 
-  // Clear the override cache before rendering the hint — without this, the first
-  // hint render uses override data from the previous period (stale Firestore results).
-  _overrideFetchToken++;
-  _overridesByDate = new Map();
-  // 'checking' if a Firestore fetch is about to start, 'base-only' if no session logged in.
-  _overridesFetchState = session2?.name ? 'checking' : 'base-only';
+  // Reset override cache before rendering the hint — clears stale data from the
+  // previous period and sets the initial fetch state.
+  resetOverrides(session2?.name ? 'checking' : 'base-only');
 
   // Collapse the day list on period change — reset before updateRosterHint so the
   // subsequent Firestore refresh doesn't close it again if the user opens it.
@@ -556,7 +557,18 @@ function onPeriodChange() {
   if (_rvl) _rvl.href = `./index.html?date=${formatISO(p.start)}`;
 
   // Fetch admin-added overrides from Firestore in the background.
-  if (session2?.name) fetchOverrideSpecialDaysForPeriod(p, session2.name);
+  if (session2?.name) {
+    fetchOverridesForPeriod(p, session2.name).then(status => {
+      if (status === 'cancelled') return;
+      updateRosterHint();
+      // Silently refresh any gold-highlighted fields filled during 'checking' state.
+      const _refreshP = getPeriods().find(x => x.num === currentPeriodNum());
+      if (_refreshP) {
+        const _refreshS = getRosterSuggestion(_refreshP);
+        if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
+      }
+    });
+  }
 
   // Load saved data for this period
   loadPeriodData(p.num);
@@ -866,242 +878,11 @@ function loadSettings() {
 }
 
 // ── ROSTER-AWARE FILL ─────────────────────────────────────────────────────────
-
-/**
- * Scan the period window using the logged-in member's base roster, merged
- * with any admin-entered overrides from Firestore. Overrides *replace* the
- * base shift for a day (so an AL/RD/SICK override on a Sunday correctly
- * suppresses that Sunday's base shift). Returns totals for Saturday, Sunday,
- * Bank Holiday, RDW, and Boxing Day shifts, or null if nothing applies.
- */
-
-// Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
-// Populated asynchronously by fetchOverrideSpecialDaysForPeriod(); read
-// synchronously by getRosterSuggestion(). Cleared on every period change so
-// stale data from the previous period can never leak into the current one.
-let _overridesByDate = new Map();
-
-// Monotonic request token — incremented on every period change. A Firestore
-// fetch only writes its results if its token is still the latest, so a slow
-// fetch from an earlier period can never overwrite the current period's data.
-let _overrideFetchToken = 0;
-
-// 'checking':  Firestore fetch in progress — overrides not yet applied.
-// 'base-only': No session logged in, or fetch failed — showing base roster only.
-// 'loaded':    Firestore succeeded — overrides applied to suggestions.
-let _overridesFetchState = 'base-only';
+// Override cache state, Firestore fetch, and getRosterSuggestion are owned by
+// paycalc-roster-suggestions.js. UI updates after the fetch promise resolves
+// are handled in onPeriodChange above.
 
 let _adjNegative = false; // tracks intended sign of otherAdj independently of value
-
-/**
- * Queries Firestore for override documents in the period window and stores
- * them in _overridesByDate keyed by ISO date. Non-work values (AL, RD, SICK,
- * SPARE) are kept — getRosterSuggestion needs to know about them to skip the
- * base shift on that day.
- *
- * Race protection: captures a fetch token on entry and discards the response
- * if a newer period change has superseded this fetch while it was in flight.
- *
- * Fires and forgets from onPeriodChange — if Firestore is unavailable the
- * map stays empty and the base-roster-only totals are shown instead.
- */
-async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
-  const thisToken = _overrideFetchToken; // onPeriodChange already incremented — just capture
-  _overridesByDate = new Map();
-  try {
-    // Query by date range only — no memberName equality filter. Adding memberName
-    // as an equality filter alongside a date range requires a composite Firestore
-    // index that doesn't exist in this project. app.js uses the same date-only
-    // pattern and filters by member client-side, so we do the same here.
-    const q = query(
-      collection(db, 'overrides'),
-      where('date', '>=', formatISO(p.start)),
-      where('date', '<=', formatISO(p.cutoff))
-    );
-    const snap = await getDocs(q);
-    // A newer period change has superseded this fetch — discard the result
-    if (thisToken !== _overrideFetchToken) return;
-    const map = new Map();
-    snap.forEach(doc => {
-      const d = doc.data();
-      if (!d.date || d.memberName !== memberName) return; // filter to current member
-      // If a date has multiple override docs, keep the most recently created one.
-      // createdAt is a Firestore server timestamp — toMillis() gives ms since epoch.
-      const existing = map.get(d.date);
-      const docTs    = d.createdAt?.toMillis?.() ?? 0;
-      const existTs  = existing?._ts ?? -1;
-      if (!existing || docTs > existTs) {
-        map.set(d.date, { type: d.type, value: d.value, _ts: docTs });
-      }
-    });
-    _overridesByDate = map;
-    _overridesFetchState = 'loaded';
-    updateRosterHint();
-    // Silently refresh any fields that were auto-filled during the 'checking' state.
-    // They still have the gold class, so _suggestIfBlank will update them with the
-    // override-adjusted values. Manually entered values (class removed) are untouched.
-    const _refreshP = getPeriods().find(x => x.num === currentPeriodNum());
-    if (_refreshP) {
-      const _refreshS = getRosterSuggestion(_refreshP);
-      if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
-    }
-  } catch {
-    _overridesFetchState = 'base-only';
-    updateRosterHint(); // re-render so state badge updates from loading → base-only
-  }
-}
-
-// Formats an overtime duration in minutes as "+Xh Ym" for the day breakdown list.
-const _fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h${mm ? ' ' + mm + 'm' : ''}`; };
-
-function getRosterSuggestion(p) {
-  let session;
-  try { session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { return null; }
-  if (!session?.name) return null;
-
-  const member = teamMembers.find(m => m.name === session.name);
-  if (!member) return null;
-
-  let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, otMins = 0, boxMins = 0, rdwMins = 0;
-  let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, otCount = 0, boxCount = 0, rdwCount = 0;
-  let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
-  const days = []; // individual dated shifts for the day list
-
-  const cur = new Date(p.start);
-  while (cur <= p.cutoff) {
-    const noon = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 12);
-    const iso  = formatISO(cur);
-    const ov   = _overridesByDate.get(iso);
-
-    // When an RDW override exists we still need the base shift to detect whether
-    // the person was already rostered to work that day (if so, the base hours go
-    // to bhRow and the overtime hours to bhOtRow rather than all going to bhOtRow).
-    const baseValue = getBaseShift(member, noon);
-    const effValue  = ov ? ov.value : baseValue;
-    const effType   = ov ? ov.type  : null;
-
-    if (effValue && effValue.includes('-') && effValue.includes(':')) {
-      const parts = effValue.split('-');
-      const [sh, sm] = parts[0].split(':').map(Number);
-      const [eh, em] = parts[1].split(':').map(Number);
-      let mins = (eh * 60 + em) - (sh * 60 + sm);
-      if (mins <= 0) mins += 24 * 60; // overnight shift
-
-      const dow      = cur.getDay(); // 0 = Sun, 6 = Sat
-      const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
-      const isBH     = !isBoxing && isDateInBHList(cur);
-      const fromOv   = !!ov;
-
-      // Pre-compute base duration so split logic can cap rostered hours and
-      // detect overtime whenever admin extends a shift beyond the base roster.
-      const baseWorked = baseValue && baseValue.includes('-') && baseValue.includes(':');
-      let baseMins = 0;
-      if (baseWorked) {
-        const [bst, ben] = baseValue.split('-');
-        const [bsh, bsm] = bst.split(':').map(Number);
-        const [beh, bem] = ben.split(':').map(Number);
-        baseMins = (beh * 60 + bem) - (bsh * 60 + bsm);
-        if (baseMins <= 0) baseMins += 24 * 60;
-      }
-
-      if (isBoxing) {
-        boxMins += mins; boxCount++;
-        if (fromOv) boxFromOv = true;
-        days.push({ date: new Date(cur), shift: effValue, type: 'box', source: fromOv ? 'override' : 'base' });
-
-      } else if (isBH) {
-        if (effType === 'rdw') {
-          // RDW override on a BH day. If the base also has a worked shift, the
-          // person was rostered AND did separate overtime — show both.
-          if (baseWorked) {
-            bhMins   += baseMins; bhCount++;
-            bhOtMins += mins;     bhOtCount++;
-            days.push({ date: new Date(cur), shift: baseValue, type: 'bh',   source: 'base'     });
-            days.push({ date: new Date(cur), shift: effValue,  type: 'bhOt', source: 'override' });
-          } else {
-            bhOtMins += mins; bhOtCount++;
-            days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
-          }
-        } else if (fromOv && baseWorked) {
-          // Shift override on a rostered BH day — cap at base duration, excess to bhOt.
-          // Admin records overtime by extending the shift time; the hours beyond the
-          // base roster are BH overtime, not additional rostered hours.
-          const rostered = Math.min(mins, baseMins);
-          const ot       = mins - rostered;
-          bhMins += rostered; bhCount++;
-          bhFromOv = true;
-          days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: 'override' });
-          if (ot > 0) {
-            bhOtMins += ot; bhOtCount++;
-            days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'bhOt', source: 'override' });
-          }
-        } else {
-          bhMins += mins; bhCount++;
-          if (fromOv) bhFromOv = true;
-          days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
-        }
-
-      } else if (dow === 0) {
-        // Sunday — same rate for all hours (no split needed)
-        sunMins += mins; sunCount++;
-        if (fromOv) sunFromOv = true;
-        days.push({ date: new Date(cur), shift: effValue, type: 'sun', source: fromOv ? 'override' : 'base' });
-
-      } else if (effType === 'rdw') {
-        rdwMins += mins; rdwCount++;
-        days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
-
-      } else if (dow === 6) {
-        // Saturday — cap at base duration, any excess is general overtime.
-        if (fromOv && baseWorked) {
-          const rostered = Math.min(mins, baseMins);
-          const ot       = mins - rostered;
-          satMins += rostered; satCount++;
-          satFromOv = true;
-          days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: 'override' });
-          if (ot > 0) {
-            otMins += ot; otCount++;
-            days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'ot', source: 'override' });
-          }
-        } else {
-          satMins += mins; satCount++;
-          if (fromOv) satFromOv = true;
-          days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: fromOv ? 'override' : 'base' });
-        }
-
-      } else {
-        // Mon–Fri non-BH, non-RDW: base hours are contracted basic pay.
-        // If a shift override extends beyond the base roster, the excess is overtime.
-        if (fromOv && baseWorked) {
-          const ot = Math.max(0, mins - baseMins);
-          if (ot > 0) {
-            otMins += ot; otCount++;
-            days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'ot', source: 'override' });
-          }
-        }
-      }
-    }
-    cur.setDate(cur.getDate() + 1);
-  }
-
-  if (!satCount && !sunCount && !bhCount && !bhOtCount && !otCount && !rdwCount && !boxCount) return null;
-
-  const allDays = days.sort((a, b) => a.date - b.date);
-
-  return {
-    satH:  Math.floor(satMins   / 60), satM:   satMins   % 60,
-    sunH:  Math.floor(sunMins   / 60), sunM:   sunMins   % 60,
-    bhH:   Math.floor(bhMins    / 60), bhM:    bhMins    % 60,
-    bhOtH: Math.floor(bhOtMins  / 60), bhOtM:  bhOtMins  % 60,
-    otH:   Math.floor(otMins    / 60), otM:    otMins    % 60,
-    rdwH:  Math.floor(rdwMins   / 60), rdwM:   rdwMins   % 60,
-    boxH:  Math.floor(boxMins   / 60), boxM:   boxMins   % 60,
-    satCount, sunCount, bhCount, bhOtCount, otCount, rdwCount, boxCount,
-    satFromOv, sunFromOv, bhFromOv, bhOtFromOv: true, boxFromOv, rdwFromOv: true,
-    memberName: member.name,
-    days: allDays,
-  };
-}
 
 /** Formats hours+minutes as a compact string: "7h 30m", "7h", or "30m". */
 function fmtH(h, m) {
@@ -1123,10 +904,10 @@ function updateRosterHint() {
   // State badge
   const badge = document.getElementById('rosterStateBadge');
   if (badge) {
-    if (_overridesFetchState === 'loaded') {
+    if (getOverridesFetchState() === 'loaded') {
       badge.textContent  = '✓ Roster + overrides';
       badge.className    = 'roster-state-badge loaded';
-    } else if (_overridesFetchState === 'checking') {
+    } else if (getOverridesFetchState() === 'checking') {
       badge.textContent  = '↻ Checking…';
       badge.className    = 'roster-state-badge checking';
     } else {
@@ -1151,7 +932,7 @@ function updateRosterHint() {
     rows.innerHTML = cats.map(r => {
       const total  = fmtH(r.h, r.m);
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
-      const src    = _overridesFetchState === 'loaded'
+      const src    = getOverridesFetchState() === 'loaded'
         ? (r.fromOv ? ' · Override' : ' · Base roster') : '';
       return `<button class="roster-row" type="button" data-cat="${r.cat}" ` +
           `aria-label="Fill ${r.label} hours from roster">` +
