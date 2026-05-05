@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.55 -->
+<!-- MYB Roster — Pay Calculator v8.56 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.55">
+  <link rel="stylesheet" href="./shared.css?v=8.56">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -953,6 +953,7 @@
   @media (hover: hover) and (pointer: fine) {
     .roster-row:hover { background: var(--bg-faint); }
   }
+  .roster-row:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; border-radius: 6px; }
   .roster-card-note {
     font-size: var(--type-micro); color: var(--text-faint);
     line-height: 1.4; margin: 0 0 8px;
@@ -987,7 +988,9 @@
   .roster-day-chip--sun { background: var(--blue-sky); color: white; }
   .roster-day-chip--bh  { background: #7b1fa2; color: white; }
   .roster-day-chip--box { background: var(--accent-gold); color: var(--primary-blue); }
-  .roster-day-chip--rdw { background: var(--rdw); color: white; }
+  .roster-day-chip--rdw  { background: var(--rdw); color: white; }
+  .roster-day-chip--bhOt { background: #ab47bc; color: white; }
+  .roster-day-chip--ot   { background: #f57c00; color: white; }
   .roster-view-link {
     display: block; margin-top: 8px;
     font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
@@ -998,7 +1001,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.55">
+  <link rel="manifest" href="./pay-manifest.json?v=8.56">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1640,6 +1643,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.55"></script>
+<script type="module" src="./paycalc.js?v=8.56"></script>
 </body>
 </html>
