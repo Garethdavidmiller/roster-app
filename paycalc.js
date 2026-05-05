@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.52';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.52';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.53';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.53';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.52';
+} from './paycalc-calc.js?v=8.53';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -944,8 +944,8 @@ function getRosterSuggestion(p) {
   const member = teamMembers.find(m => m.name === session.name);
   if (!member) return null;
 
-  let satMins = 0, sunMins = 0, bhMins = 0, boxMins = 0, rdwMins = 0;
-  let satCount = 0, sunCount = 0, bhCount = 0, boxCount = 0, rdwCount = 0;
+  let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, boxMins = 0, rdwMins = 0;
+  let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, boxCount = 0, rdwCount = 0;
   let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
   const days = []; // individual dated shifts for the day list
 
@@ -978,9 +978,15 @@ function getRosterSuggestion(p) {
         if (fromOv) boxFromOv = true;
         days.push({ date: new Date(cur), shift: effValue, type: 'box', source: fromOv ? 'override' : 'base' });
       } else if (isBH) {
-        bhMins += mins; bhCount++;
-        if (fromOv) bhFromOv = true;
-        days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
+        if (effType === 'rdw') {
+          // Rest day fell on a BH and was worked as overtime → BH RDW field
+          bhOtMins += mins; bhOtCount++;
+          days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
+        } else {
+          bhMins += mins; bhCount++;
+          if (fromOv) bhFromOv = true;
+          days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
+        }
       } else if (dow === 0) {
         // Sunday — the higher Sunday rate applies whether this is a base rostered
         // Sunday or an RDW override on a Sunday. Always tagged 'sun' so the day
@@ -1007,13 +1013,14 @@ function getRosterSuggestion(p) {
   const allDays = days.sort((a, b) => a.date - b.date);
 
   return {
-    satH: Math.floor(satMins / 60), satM: satMins % 60,
-    sunH: Math.floor(sunMins / 60), sunM: sunMins % 60,
-    bhH:  Math.floor(bhMins  / 60), bhM:  bhMins  % 60,
-    rdwH: Math.floor(rdwMins / 60), rdwM: rdwMins % 60,
-    boxH: Math.floor(boxMins / 60), boxM: boxMins % 60,
-    satCount, sunCount, bhCount, rdwCount, boxCount,
-    satFromOv, sunFromOv, bhFromOv, boxFromOv, rdwFromOv: true, // RDW is always an override
+    satH: Math.floor(satMins   / 60), satM:   satMins   % 60,
+    sunH: Math.floor(sunMins   / 60), sunM:   sunMins   % 60,
+    bhH:  Math.floor(bhMins    / 60), bhM:    bhMins    % 60,
+    bhOtH: Math.floor(bhOtMins / 60), bhOtM:  bhOtMins  % 60,
+    rdwH: Math.floor(rdwMins   / 60), rdwM:   rdwMins   % 60,
+    boxH: Math.floor(boxMins   / 60), boxM:   boxMins   % 60,
+    satCount, sunCount, bhCount, bhOtCount, rdwCount, boxCount,
+    satFromOv, sunFromOv, bhFromOv, bhOtFromOv: true, boxFromOv, rdwFromOv: true,
     memberName: member.name,
     days: allDays,
   };
@@ -1057,8 +1064,9 @@ function updateRosterHint() {
     const cats = [
       { cat: 'sat', icon: '🗓️', label: 'Rostered Sat', h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
       { cat: 'sun', icon: '☀️', label: 'Sunday',       h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
-      { cat: 'bh',  icon: '🏦', label: 'Bank holiday', h: s.bhH,  m: s.bhM,  count: s.bhCount,  fromOv: s.bhFromOv  },
-      { cat: 'rdw', icon: '💼', label: 'RDW',          h: s.rdwH, m: s.rdwM, count: s.rdwCount, fromOv: true        },
+      { cat: 'bh',   icon: '🏦', label: 'Bank holiday', h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv },
+      { cat: 'bhOt', icon: '🏦', label: 'BH RDW',       h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true       },
+      { cat: 'rdw',  icon: '💼', label: 'RDW',          h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true       },
       { cat: 'box', icon: '🎁', label: 'Boxing Day',   h: s.boxH, m: s.boxM, count: s.boxCount, fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
@@ -1092,7 +1100,7 @@ function updateRosterHint() {
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', box: 'Boxing Day', rdw: 'RDW' };
+const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH RDW', box: 'Boxing Day', rdw: 'RDW' };
 
 /**
  * Show (or hide) a notice when the logged-in member started mid-period,
@@ -1163,11 +1171,12 @@ function fillCategoryFromRoster(cat) {
   const s = getRosterSuggestion(p);
   if (!s) return;
   const map = {
-    sat: ['satH', 'satM', s.satH, s.satM],
-    sun: ['sunH', 'sunM', s.sunH, s.sunM],
-    bh:  ['bhH',  'bhM',  s.bhH,  s.bhM ],
-    rdw: ['rdwH', 'rdwM', s.rdwH, s.rdwM],
-    box: ['boxH', 'boxM', s.boxH, s.boxM],
+    sat:  ['satH',  'satM',  s.satH,  s.satM  ],
+    sun:  ['sunH',  'sunM',  s.sunH,  s.sunM  ],
+    bh:   ['bhH',   'bhM',   s.bhH,   s.bhM   ],
+    bhOt: ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM ],
+    rdw:  ['rdwH',  'rdwM',  s.rdwH,  s.rdwM  ],
+    box:  ['boxH',  'boxM',  s.boxH,  s.boxM  ],
   };
   const args = map[cat];
   if (args) { _suggestIfBlank(...args); autosave(); }
@@ -1179,11 +1188,12 @@ function fillFromRoster() {
   if (!p) return;
   const s = getRosterSuggestion(p);
   if (!s) return;
-  _suggestIfBlank('satH', 'satM', s.satH, s.satM);
-  _suggestIfBlank('sunH', 'sunM', s.sunH, s.sunM);
-  _suggestIfBlank('bhH',  'bhM',  s.bhH,  s.bhM);
-  _suggestIfBlank('rdwH', 'rdwM', s.rdwH, s.rdwM);
-  _suggestIfBlank('boxH', 'boxM', s.boxH, s.boxM);
+  _suggestIfBlank('satH',  'satM',  s.satH,  s.satM );
+  _suggestIfBlank('sunH',  'sunM',  s.sunH,  s.sunM );
+  _suggestIfBlank('bhH',   'bhM',   s.bhH,   s.bhM  );
+  _suggestIfBlank('bhOtH', 'bhOtM', s.bhOtH, s.bhOtM);
+  _suggestIfBlank('rdwH',  'rdwM',  s.rdwH,  s.rdwM );
+  _suggestIfBlank('boxH',  'boxM',  s.boxH,  s.boxM );
   autosave();
   // Brief confirmation — tap Clear all entries to undo
   const hint = document.getElementById('rosterHintText');
