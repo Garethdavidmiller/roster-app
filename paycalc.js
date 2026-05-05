@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.59';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.59';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.60';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.60';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.59';
+} from './paycalc-calc.js?v=8.60';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1893,12 +1893,17 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   const stickyBar  = document.getElementById('stickyTotal');
   const resultCard = document.querySelector('.result-card');
   if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
+  // Observe the £ amount display specifically, not the whole card.
+  // threshold:0 fires when it fully leaves the viewport; boundingClientRect.top < 0
+  // distinguishes "scrolled off the top" from "below the fold on load" (where top is
+  // positive and we must not show the bar).
+  const netDisplay = document.getElementById('netDisplay') || resultCard;
   const obs = new IntersectionObserver(([entry]) => {
-    const show = !entry.isIntersecting;
+    const show = !entry.isIntersecting && entry.boundingClientRect.top < 0;
     stickyBar.classList.toggle('visible', show);
     document.body.classList.toggle('sticky-active', show);
-  }, { threshold: 1 });
-  obs.observe(resultCard);
+  }, { threshold: 0 });
+  obs.observe(netDisplay);
   stickyBar.addEventListener('click', () =>
     resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
   );
