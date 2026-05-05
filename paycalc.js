@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.55';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.55';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.56';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.56';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.55';
+} from './paycalc-calc.js?v=8.56';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -936,6 +936,9 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
   }
 }
 
+// Formats an overtime duration in minutes as "+Xh Ym" for the day breakdown list.
+const _fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h${mm ? ' ' + mm + 'm' : ''}`; };
+
 function getRosterSuggestion(p) {
   let session;
   try { session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { return null; }
@@ -986,9 +989,6 @@ function getRosterSuggestion(p) {
         if (baseMins <= 0) baseMins += 24 * 60;
       }
 
-      // Helper: format an overtime duration as "+Xh Ym"
-      const fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h${mm ? ' ' + mm + 'm' : ''}`; };
-
       if (isBoxing) {
         boxMins += mins; boxCount++;
         if (fromOv) boxFromOv = true;
@@ -1018,7 +1018,7 @@ function getRosterSuggestion(p) {
           days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: 'override' });
           if (ot > 0) {
             bhOtMins += ot; bhOtCount++;
-            days.push({ date: new Date(cur), shift: fmtOt(ot), type: 'bhOt', source: 'override' });
+            days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'bhOt', source: 'override' });
           }
         } else {
           bhMins += mins; bhCount++;
@@ -1046,7 +1046,7 @@ function getRosterSuggestion(p) {
           days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: 'override' });
           if (ot > 0) {
             otMins += ot; otCount++;
-            days.push({ date: new Date(cur), shift: fmtOt(ot), type: 'ot', source: 'override' });
+            days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'ot', source: 'override' });
           }
         } else {
           satMins += mins; satCount++;
@@ -1061,7 +1061,7 @@ function getRosterSuggestion(p) {
           const ot = Math.max(0, mins - baseMins);
           if (ot > 0) {
             otMins += ot; otCount++;
-            days.push({ date: new Date(cur), shift: fmtOt(ot), type: 'ot', source: 'override' });
+            days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'ot', source: 'override' });
           }
         }
       }
@@ -1221,8 +1221,8 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   if (!elH || !elM) return;
   if (parseInt(elH.value) || parseInt(elM.value)) return; // already has a value — skip
   if (!hVal && !mVal) return;
-  elH.value = hVal || '';
-  elM.value = mVal || '';
+  elH.value = hVal ?? '';
+  elM.value = mVal ?? '';
   elH.classList.add('roster-suggested');
   elM.classList.add('roster-suggested');
 }
@@ -1896,7 +1896,7 @@ document.getElementById('rosterRows')?.addEventListener('click', e => {
 });
 
 // Remove roster-suggested highlight as soon as the user edits any hours input
-document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#sunH,#sunM,#boxH,#boxM').forEach(el => {
+document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#sunM,#rdwH,#rdwM,#boxH,#boxM').forEach(el => {
   el.addEventListener('input', () => el.classList.remove('roster-suggested'));
 });
 
