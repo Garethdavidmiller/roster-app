@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.58';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.58';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.59';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.59';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.58';
+} from './paycalc-calc.js?v=8.59';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1897,7 +1897,7 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
     const show = !entry.isIntersecting;
     stickyBar.classList.toggle('visible', show);
     document.body.classList.toggle('sticky-active', show);
-  }, { threshold: 0 });
+  }, { threshold: 1 });
   obs.observe(resultCard);
   stickyBar.addEventListener('click', () =>
     resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
