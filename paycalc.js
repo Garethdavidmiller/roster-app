@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.53';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.53';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.54';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.54';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.53';
+} from './paycalc-calc.js?v=8.54';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -955,11 +955,12 @@ function getRosterSuggestion(p) {
     const iso  = formatISO(cur);
     const ov   = _overridesByDate.get(iso);
 
-    // Replacement-aware: if an override exists for this date it wins over the
-    // base roster entirely. Non-work values (AL, RD, SICK, SPARE) fall through
-    // the HH:MM-HH:MM guard below and correctly suppress the day.
-    const effValue = ov ? ov.value : getBaseShift(member, noon);
-    const effType  = ov ? ov.type  : null;
+    // When an RDW override exists we still need the base shift to detect whether
+    // the person was already rostered to work that day (if so, the base hours go
+    // to bhRow and the overtime hours to bhOtRow rather than all going to bhOtRow).
+    const baseValue = getBaseShift(member, noon);
+    const effValue  = ov ? ov.value : baseValue;
+    const effType   = ov ? ov.type  : null;
 
     if (effValue && effValue.includes('-') && effValue.includes(':')) {
       const parts = effValue.split('-');
@@ -979,9 +980,25 @@ function getRosterSuggestion(p) {
         days.push({ date: new Date(cur), shift: effValue, type: 'box', source: fromOv ? 'override' : 'base' });
       } else if (isBH) {
         if (effType === 'rdw') {
-          // Rest day fell on a BH and was worked as overtime → BH RDW field
-          bhOtMins += mins; bhOtCount++;
-          days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
+          // RDW override on a BH day. Check whether the base roster also has a
+          // worked shift — if so the person was rostered AND did overtime, so we
+          // need both: rostered hours in bhRow, overtime hours in bhOtRow.
+          const baseWorked = baseValue && baseValue.includes('-') && baseValue.includes(':');
+          if (baseWorked) {
+            const [bst, ben] = baseValue.split('-');
+            const [bsh, bsm] = bst.split(':').map(Number);
+            const [beh, bem] = ben.split(':').map(Number);
+            let baseMins = (beh * 60 + bem) - (bsh * 60 + bsm);
+            if (baseMins <= 0) baseMins += 24 * 60;
+            bhMins   += baseMins; bhCount++;
+            bhOtMins += mins;     bhOtCount++;
+            days.push({ date: new Date(cur), shift: baseValue, type: 'bh',   source: 'base'     });
+            days.push({ date: new Date(cur), shift: effValue,  type: 'bhOt', source: 'override' });
+          } else {
+            // Rest day on a BH, worked as overtime only
+            bhOtMins += mins; bhOtCount++;
+            days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
+          }
         } else {
           bhMins += mins; bhCount++;
           if (fromOv) bhFromOv = true;
@@ -1075,14 +1092,14 @@ function updateRosterHint() {
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
       const src    = _overridesFetchState === 'loaded'
         ? (r.fromOv ? ' · Override' : ' · Base roster') : '';
-      return `<div class="roster-row">` +
-        `<span class="roster-row-icon">${r.icon}</span>` +
+      return `<button class="roster-row" type="button" data-cat="${r.cat}" ` +
+          `aria-label="Fill ${r.label} hours from roster">` +
+        `<span class="roster-row-icon" aria-hidden="true">${r.icon}</span>` +
         `<span class="roster-row-label">${r.label}</span>` +
         `<span class="roster-row-total">${total}</span>` +
         `<span class="roster-row-meta">${dayStr}${src}</span>` +
-        `<button class="roster-cat-btn" type="button" data-cat="${r.cat}" ` +
-          `aria-label="Fill ${r.label} hours from roster">Fill →</button>` +
-        `</div>`;
+        `<span class="roster-cat-arrow" aria-hidden="true">→</span>` +
+        `</button>`;
     }).join('');
   }
 
