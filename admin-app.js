@@ -1,6 +1,16 @@
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.60';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.60';
-import { initRosterUpload } from './admin-roster-upload.js?v=8.60';
+/**
+ * admin-app.js — Admin portal UI for admin.html.
+ *
+ * Owns: login flow, session management, override entry, week grid, bulk bar,
+ *   roster PDF review pipeline, Firebase Auth sign-in/out, Team Week View.
+ * Does NOT own: pay maths, calendar display (app.js), roster data (roster-data.js).
+ * Edit here for: override forms, admin UI, week grid, override review.
+ * Do not edit here for: roster data structure, pay calculator, shared CSS.
+ */
+
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.61';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.61';
+import { initRosterUpload } from './admin-roster-upload.js?v=8.61';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -3507,7 +3517,7 @@ const PARSE_ROSTER_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/par
 const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
 // ── Roster upload pipeline ───────────────────────────────────────────────────
-// Extracted to admin-roster-upload.js at v8.60. Passing ROSTER_SECRET_VALUE
+// Extracted to admin-roster-upload.js at v8.61. Passing ROSTER_SECRET_VALUE
 // here keeps the secret in one place — it is also used by initAuthSetup below.
 initRosterUpload({
     currentUser,
