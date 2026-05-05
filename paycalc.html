@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.50 -->
+<!-- MYB Roster — Pay Calculator v8.54 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.50">
+  <link rel="stylesheet" href="./shared.css?v=8.54">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -939,23 +939,19 @@
   .roster-state-badge.base-only { background: #fff8e1; color: #f57f17; }
   .roster-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 8px; }
   .roster-row {
-    display: flex; align-items: center; gap: 6px;
-    padding: 5px 0; border-bottom: 1px solid var(--border-light);
+    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
+    padding: 8px 6px; border: none; border-bottom: 1px solid var(--border-light);
+    background: none; font-family: inherit; text-align: left;
+    cursor: pointer; touch-action: manipulation; transition: background 0.12s;
   }
   .roster-row:last-child { border-bottom: none; }
   .roster-row-icon  { font-size: 14px; flex-shrink: 0; width: 20px; text-align: center; }
   .roster-row-label { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); white-space: nowrap; flex-shrink: 0; }
   .roster-row-total { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); min-width: 52px; flex-shrink: 0; }
   .roster-row-meta  { font-size: var(--type-micro); color: var(--text-faint); flex: 1; min-width: 0; }
-  .roster-cat-btn {
-    padding: 3px 9px; background: white; color: var(--primary-blue);
-    border: 1.5px solid var(--border-mid); border-radius: var(--radius-sm);
-    font-family: inherit; font-size: var(--type-micro); font-weight: 700;
-    cursor: pointer; touch-action: manipulation; flex-shrink: 0;
-    transition: background 0.12s;
-  }
+  .roster-cat-arrow { font-size: var(--type-small); font-weight: 700; color: var(--primary-blue); flex-shrink: 0; }
   @media (hover: hover) and (pointer: fine) {
-    .roster-cat-btn:hover { background: var(--bg-faint); }
+    .roster-row:hover { background: var(--bg-faint); }
   }
   .roster-card-note {
     font-size: var(--type-micro); color: var(--text-faint);
@@ -963,8 +959,8 @@
   }
   .roster-card-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .fill-roster-btn {
-    padding: 5px 12px; background: var(--primary-blue); color: white;
-    border: none; border-radius: var(--radius-sm);
+    padding: 10px 16px; background: var(--primary-blue); color: white;
+    border: none; border-radius: var(--radius-sm); min-height: 44px;
     font-family: inherit; font-size: var(--type-small); font-weight: 700;
     cursor: pointer; touch-action: manipulation; transition: background 0.15s;
   }
@@ -1002,7 +998,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.50">
+  <link rel="manifest" href="./pay-manifest.json?v=8.54">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1091,7 +1087,7 @@
       <div class="field">
         <label>Grade</label>
         <select id="gradeSelect">
-          <option value="cea">CEA — Customer Experience Adviser</option>
+          <option value="cea">CEA — Customer Experience Ambassador</option>
           <option value="ces">CES — Customer Experience Supervisor</option>
           <option value="dispatch" disabled>Dispatch (coming soon)</option>
         </select>
@@ -1644,6 +1640,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.50"></script>
+<script type="module" src="./paycalc.js?v=8.54"></script>
 </body>
 </html>
