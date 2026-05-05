@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.57';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.57';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.58';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.58';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.57';
+} from './paycalc-calc.js?v=8.58';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -540,6 +540,13 @@ function onPeriodChange() {
   // 'checking' if a Firestore fetch is about to start, 'base-only' if no session logged in.
   _overridesFetchState = session2?.name ? 'checking' : 'base-only';
 
+  // Collapse the day list on period change — reset before updateRosterHint so the
+  // subsequent Firestore refresh doesn't close it again if the user opens it.
+  const _dayListEl    = document.getElementById('rosterDayList');
+  const _daysToggleEl = document.getElementById('rosterDaysToggle');
+  if (_dayListEl)    _dayListEl.style.display = 'none';
+  if (_daysToggleEl) _daysToggleEl.textContent = 'Show days ▼';
+
   // Update roster suggestion card and joiner notice for this period.
   updateRosterHint();
   updateJoinerNotice(p);
@@ -930,6 +937,14 @@ async function fetchOverrideSpecialDaysForPeriod(p, memberName) {
     _overridesByDate = map;
     _overridesFetchState = 'loaded';
     updateRosterHint();
+    // Silently refresh any fields that were auto-filled during the 'checking' state.
+    // They still have the gold class, so _suggestIfBlank will update them with the
+    // override-adjusted values. Manually entered values (class removed) are untouched.
+    const _refreshP = getPeriods().find(x => x.num === currentPeriodNum());
+    if (_refreshP) {
+      const _refreshS = getRosterSuggestion(_refreshP);
+      if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
+    }
   } catch {
     _overridesFetchState = 'base-only';
     updateRosterHint(); // re-render so state badge updates from loading → base-only
@@ -1149,14 +1164,12 @@ function updateRosterHint() {
     }).join('');
   }
 
-  // Day list — reset to closed state on every period change
+  // Day list visibility — show/hide toggle based on whether there is any data.
+  // The list itself is only collapsed on period change (handled in onPeriodChange),
+  // so a Firestore refresh does not close an open day list mid-review.
   const dayList    = document.getElementById('rosterDayList');
   const daysToggle = document.getElementById('rosterDaysToggle');
-  if (dayList)    dayList.style.display = 'none';
-  if (daysToggle) {
-    daysToggle.textContent = 'Show days ▼';
-    daysToggle.style.display = s.days.length ? '' : 'none';
-  }
+  if (daysToggle) daysToggle.style.display = s.days.length ? '' : 'none';
   renderRosterDayList(s.days);
   card.style.display = '';
 }
@@ -1250,12 +1263,8 @@ function fillCategoryFromRoster(cat) {
   if (args) { _suggestIfBlank(...args); autosave(); }
 }
 
-/** Fills ALL categories from the current roster suggestion (blank fields only). */
-function fillFromRoster() {
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
-  if (!p) return;
-  const s = getRosterSuggestion(p);
-  if (!s) return;
+/** Applies a suggestion object to all H/M field pairs (blank or still-gold fields only). */
+function _applyRosterSuggestion(s) {
   _suggestIfBlank('satH',  'satM',  s.satH,  s.satM );
   _suggestIfBlank('sunH',  'sunM',  s.sunH,  s.sunM );
   _suggestIfBlank('bhH',   'bhM',   s.bhH,   s.bhM  );
@@ -1263,6 +1272,15 @@ function fillFromRoster() {
   _suggestIfBlank('otH',   'otM',   s.otH,   s.otM  );
   _suggestIfBlank('rdwH',  'rdwM',  s.rdwH,  s.rdwM );
   _suggestIfBlank('boxH',  'boxM',  s.boxH,  s.boxM );
+}
+
+/** Fills ALL categories from the current roster suggestion. Blank fields and previously auto-filled (gold) fields are updated; manually entered values are left alone. */
+function fillFromRoster() {
+  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  if (!p) return;
+  const s = getRosterSuggestion(p);
+  if (!s) return;
+  _applyRosterSuggestion(s);
   autosave();
   // Brief confirmation — tap Clear all entries to undo
   const hint = document.getElementById('rosterHintText');
