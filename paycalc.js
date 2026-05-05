@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.56';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.56';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.57';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.57';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.56';
+} from './paycalc-calc.js?v=8.57';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1219,8 +1219,12 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = document.getElementById(hId);
   const elM = document.getElementById(mId);
   if (!elH || !elM) return;
-  if (parseInt(elH.value) || parseInt(elM.value)) return; // already has a value — skip
-  if (!hVal && !mVal) return;
+  // Skip only if the field has a manually-entered value (gold class already removed).
+  // Fields that are blank, or still gold from a previous fill, are safe to overwrite.
+  const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
+  const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
+  if (hEdited || mEdited) return;
+  if (hVal == null && mVal == null) return;
   elH.value = hVal ?? '';
   elM.value = mVal ?? '';
   elH.classList.add('roster-suggested');
