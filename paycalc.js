@@ -1,10 +1,10 @@
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.54';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.54';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays, isBankHoliday } from './roster-data.js?v=8.55';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.55';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.54';
+} from './paycalc-calc.js?v=8.55';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -944,8 +944,8 @@ function getRosterSuggestion(p) {
   const member = teamMembers.find(m => m.name === session.name);
   if (!member) return null;
 
-  let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, boxMins = 0, rdwMins = 0;
-  let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, boxCount = 0, rdwCount = 0;
+  let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, otMins = 0, boxMins = 0, rdwMins = 0;
+  let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, otCount = 0, boxCount = 0, rdwCount = 0;
   let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
   const days = []; // individual dated shifts for the day list
 
@@ -972,71 +972,116 @@ function getRosterSuggestion(p) {
       const dow      = cur.getDay(); // 0 = Sun, 6 = Sat
       const isBoxing = cur.getMonth() === 11 && cur.getDate() === 26;
       const isBH     = !isBoxing && isDateInBHList(cur);
+      const fromOv   = !!ov;
 
-      const fromOv = !!ov; // true if this day came from a Firestore override
+      // Pre-compute base duration so split logic can cap rostered hours and
+      // detect overtime whenever admin extends a shift beyond the base roster.
+      const baseWorked = baseValue && baseValue.includes('-') && baseValue.includes(':');
+      let baseMins = 0;
+      if (baseWorked) {
+        const [bst, ben] = baseValue.split('-');
+        const [bsh, bsm] = bst.split(':').map(Number);
+        const [beh, bem] = ben.split(':').map(Number);
+        baseMins = (beh * 60 + bem) - (bsh * 60 + bsm);
+        if (baseMins <= 0) baseMins += 24 * 60;
+      }
+
+      // Helper: format an overtime duration as "+Xh Ym"
+      const fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h${mm ? ' ' + mm + 'm' : ''}`; };
+
       if (isBoxing) {
         boxMins += mins; boxCount++;
         if (fromOv) boxFromOv = true;
         days.push({ date: new Date(cur), shift: effValue, type: 'box', source: fromOv ? 'override' : 'base' });
+
       } else if (isBH) {
         if (effType === 'rdw') {
-          // RDW override on a BH day. Check whether the base roster also has a
-          // worked shift — if so the person was rostered AND did overtime, so we
-          // need both: rostered hours in bhRow, overtime hours in bhOtRow.
-          const baseWorked = baseValue && baseValue.includes('-') && baseValue.includes(':');
+          // RDW override on a BH day. If the base also has a worked shift, the
+          // person was rostered AND did separate overtime — show both.
           if (baseWorked) {
-            const [bst, ben] = baseValue.split('-');
-            const [bsh, bsm] = bst.split(':').map(Number);
-            const [beh, bem] = ben.split(':').map(Number);
-            let baseMins = (beh * 60 + bem) - (bsh * 60 + bsm);
-            if (baseMins <= 0) baseMins += 24 * 60;
             bhMins   += baseMins; bhCount++;
             bhOtMins += mins;     bhOtCount++;
             days.push({ date: new Date(cur), shift: baseValue, type: 'bh',   source: 'base'     });
             days.push({ date: new Date(cur), shift: effValue,  type: 'bhOt', source: 'override' });
           } else {
-            // Rest day on a BH, worked as overtime only
             bhOtMins += mins; bhOtCount++;
             days.push({ date: new Date(cur), shift: effValue, type: 'bhOt', source: 'override' });
+          }
+        } else if (fromOv && baseWorked) {
+          // Shift override on a rostered BH day — cap at base duration, excess to bhOt.
+          // Admin records overtime by extending the shift time; the hours beyond the
+          // base roster are BH overtime, not additional rostered hours.
+          const rostered = Math.min(mins, baseMins);
+          const ot       = mins - rostered;
+          bhMins += rostered; bhCount++;
+          bhFromOv = true;
+          days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: 'override' });
+          if (ot > 0) {
+            bhOtMins += ot; bhOtCount++;
+            days.push({ date: new Date(cur), shift: fmtOt(ot), type: 'bhOt', source: 'override' });
           }
         } else {
           bhMins += mins; bhCount++;
           if (fromOv) bhFromOv = true;
           days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
         }
+
       } else if (dow === 0) {
-        // Sunday — the higher Sunday rate applies whether this is a base rostered
-        // Sunday or an RDW override on a Sunday. Always tagged 'sun' so the day
-        // list chip matches the field it fills (Sunday, not RDW).
+        // Sunday — same rate for all hours (no split needed)
         sunMins += mins; sunCount++;
         if (fromOv) sunFromOv = true;
         days.push({ date: new Date(cur), shift: effValue, type: 'sun', source: fromOv ? 'override' : 'base' });
+
       } else if (effType === 'rdw') {
-        // Rest-day-worked on a weekday or Saturday — always an override
         rdwMins += mins; rdwCount++;
         days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
+
       } else if (dow === 6) {
-        satMins += mins; satCount++;
-        if (fromOv) satFromOv = true;
-        days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: fromOv ? 'override' : 'base' });
+        // Saturday — cap at base duration, any excess is general overtime.
+        if (fromOv && baseWorked) {
+          const rostered = Math.min(mins, baseMins);
+          const ot       = mins - rostered;
+          satMins += rostered; satCount++;
+          satFromOv = true;
+          days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: 'override' });
+          if (ot > 0) {
+            otMins += ot; otCount++;
+            days.push({ date: new Date(cur), shift: fmtOt(ot), type: 'ot', source: 'override' });
+          }
+        } else {
+          satMins += mins; satCount++;
+          if (fromOv) satFromOv = true;
+          days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: fromOv ? 'override' : 'base' });
+        }
+
+      } else {
+        // Mon–Fri non-BH, non-RDW: base hours are contracted basic pay.
+        // If a shift override extends beyond the base roster, the excess is overtime.
+        if (fromOv && baseWorked) {
+          const ot = Math.max(0, mins - baseMins);
+          if (ot > 0) {
+            otMins += ot; otCount++;
+            days.push({ date: new Date(cur), shift: fmtOt(ot), type: 'ot', source: 'override' });
+          }
+        }
       }
-      // Mon–Fri non-BH, non-RDW: already in contracted basic pay — nothing to fill
     }
     cur.setDate(cur.getDate() + 1);
   }
 
-  if (!satCount && !sunCount && !bhCount && !rdwCount && !boxCount) return null;
+  if (!satCount && !sunCount && !bhCount && !bhOtCount && !otCount && !rdwCount && !boxCount) return null;
 
   const allDays = days.sort((a, b) => a.date - b.date);
 
   return {
-    satH: Math.floor(satMins   / 60), satM:   satMins   % 60,
-    sunH: Math.floor(sunMins   / 60), sunM:   sunMins   % 60,
-    bhH:  Math.floor(bhMins    / 60), bhM:    bhMins    % 60,
-    bhOtH: Math.floor(bhOtMins / 60), bhOtM:  bhOtMins  % 60,
-    rdwH: Math.floor(rdwMins   / 60), rdwM:   rdwMins   % 60,
-    boxH: Math.floor(boxMins   / 60), boxM:   boxMins   % 60,
-    satCount, sunCount, bhCount, bhOtCount, rdwCount, boxCount,
+    satH:  Math.floor(satMins   / 60), satM:   satMins   % 60,
+    sunH:  Math.floor(sunMins   / 60), sunM:   sunMins   % 60,
+    bhH:   Math.floor(bhMins    / 60), bhM:    bhMins    % 60,
+    bhOtH: Math.floor(bhOtMins  / 60), bhOtM:  bhOtMins  % 60,
+    otH:   Math.floor(otMins    / 60), otM:    otMins    % 60,
+    rdwH:  Math.floor(rdwMins   / 60), rdwM:   rdwMins   % 60,
+    boxH:  Math.floor(boxMins   / 60), boxM:   boxMins   % 60,
+    satCount, sunCount, bhCount, bhOtCount, otCount, rdwCount, boxCount,
     satFromOv, sunFromOv, bhFromOv, bhOtFromOv: true, boxFromOv, rdwFromOv: true,
     memberName: member.name,
     days: allDays,
@@ -1082,7 +1127,8 @@ function updateRosterHint() {
       { cat: 'sat', icon: '🗓️', label: 'Rostered Sat', h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
       { cat: 'sun', icon: '☀️', label: 'Sunday',       h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
       { cat: 'bh',   icon: '🏦', label: 'Bank holiday', h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv },
-      { cat: 'bhOt', icon: '🏦', label: 'BH RDW',       h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true       },
+      { cat: 'bhOt', icon: '🏦', label: 'BH overtime',  h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true       },
+      { cat: 'ot',   icon: '⏰', label: 'Overtime',     h: s.otH,   m: s.otM,   count: s.otCount,   fromOv: true       },
       { cat: 'rdw',  icon: '💼', label: 'RDW',          h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true       },
       { cat: 'box', icon: '🎁', label: 'Boxing Day',   h: s.boxH, m: s.boxM, count: s.boxCount, fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
@@ -1117,7 +1163,7 @@ function updateRosterHint() {
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH RDW', box: 'Boxing Day', rdw: 'RDW' };
+const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW' };
 
 /**
  * Show (or hide) a notice when the logged-in member started mid-period,
@@ -1192,6 +1238,7 @@ function fillCategoryFromRoster(cat) {
     sun:  ['sunH',  'sunM',  s.sunH,  s.sunM  ],
     bh:   ['bhH',   'bhM',   s.bhH,   s.bhM   ],
     bhOt: ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM ],
+    ot:   ['otH',   'otM',   s.otH,   s.otM   ],
     rdw:  ['rdwH',  'rdwM',  s.rdwH,  s.rdwM  ],
     box:  ['boxH',  'boxM',  s.boxH,  s.boxM  ],
   };
@@ -1209,6 +1256,7 @@ function fillFromRoster() {
   _suggestIfBlank('sunH',  'sunM',  s.sunH,  s.sunM );
   _suggestIfBlank('bhH',   'bhM',   s.bhH,   s.bhM  );
   _suggestIfBlank('bhOtH', 'bhOtM', s.bhOtH, s.bhOtM);
+  _suggestIfBlank('otH',   'otM',   s.otH,   s.otM  );
   _suggestIfBlank('rdwH',  'rdwM',  s.rdwH,  s.rdwM );
   _suggestIfBlank('boxH',  'boxM',  s.boxH,  s.boxM );
   autosave();
