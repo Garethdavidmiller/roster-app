@@ -11,7 +11,7 @@ export const P_YR = 13; // 13 four-weekly pay periods per year
 // 2026/27: P50 → P62  (offsets  +2 to +14)
 export const TAX_YEARS = [
   { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
-    londonAllow: 276.16, londonAllowPre: 267.12, londonAllowFrom: new Date(2025, 9, 24) },
+    londonAllow: 276.16, londonAllowPre: 267.08, londonAllowFrom: new Date(2025, 9, 24) },
   { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028,
     londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when 2026/27 pay award confirmed
 ];
