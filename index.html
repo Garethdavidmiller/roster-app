@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.74 -->
+<!-- MYB Roster Calendar - Version 8.75 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.74">
+    <link rel="manifest" href="manifest.json?v=8.75">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.74">
+    <link rel="stylesheet" href="shared.css?v=8.75">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1139,52 +1139,10 @@
             opacity: 0.65;
             transition: opacity 0.15s;
             flex-shrink: 0;
-            position: relative;
         }
         .huddle-icon-btn:disabled { opacity: 0.25; cursor: default; }
         @media (hover: hover) and (pointer: fine) {
             .huddle-icon-btn:not(:disabled):hover { opacity: 1; }
-        }
-        /* Labelled variant — calendar view only */
-        .huddle-icon-btn--labelled {
-            opacity: 1;
-            border: 1.5px solid var(--border-mid);
-            border-radius: 10px;
-            padding: 3px 8px;
-            font-size: 13px;
-            color: var(--text-mid);
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            transition: border-color 0.15s, color 0.15s, opacity 0.15s;
-        }
-        .huddle-icon-btn--labelled:disabled {
-            opacity: 0.4;
-            border-color: var(--border-light);
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .huddle-icon-btn--labelled:not(:disabled):hover {
-                border-color: var(--primary-blue);
-                color: var(--primary-blue);
-                opacity: 1;
-            }
-        }
-        .huddle-label {
-            font-size: 12px;
-            font-weight: 600;
-            line-height: 1;
-        }
-        /* Unread dot — gold, sits top-right of the button */
-        .huddle-icon-btn.huddle-unread::after {
-            content: '';
-            position: absolute;
-            top: -3px;
-            right: -3px;
-            width: 8px;
-            height: 8px;
-            background: var(--accent-gold);
-            border-radius: 50%;
-            border: 1.5px solid white;
         }
 
         /* ---- Team week view — all styles here; not in shared.css because this is index.html-only ---- */
@@ -2627,7 +2585,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.74"></script>
+    <script type="module" src="./app.js?v=8.75"></script>
 
 </body>
 </html>
