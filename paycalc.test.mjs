@@ -109,12 +109,13 @@ describe('getTaxYearForOffset', () => {
 // ── getLondonAllowanceForPeriod ───────────────────────────────────────────────
 
 describe('getLondonAllowanceForPeriod', () => {
-  // 2025/26: award cut-over on 24 Oct 2025 — pre: 267.12, post: 276.16
+  // 2025/26: award cut-over on 24 Oct 2025 — pre: 267.08, post: 276.16
+  // (267.08 confirmed from payslips in v8.66 — was 267.12 before)
   const cutover = TY25.londonAllowFrom; // new Date(2025, 9, 24)
 
-  test('payday one day before cutover → pre-award rate (267.12)', () => {
+  test('payday one day before cutover → pre-award rate (267.08)', () => {
     const paydayBefore = new Date(cutover.getTime() - 86400000);
-    approx(getLondonAllowanceForPeriod({ payday: paydayBefore }, TY25), 267.12, 'pre-award');
+    approx(getLondonAllowanceForPeriod({ payday: paydayBefore }, TY25), 267.08, 'pre-award');
   });
 
   test('payday on cutover date → post-award rate (276.16)', () => {

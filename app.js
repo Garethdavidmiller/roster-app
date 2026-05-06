@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.71';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.71';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.72';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.72';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -212,12 +212,13 @@ function getTeamCellDisplay(member, date) {
         else if (override.type === 'sick')         shift = 'SICK';
         else if (override.type === 'correction')   shift = 'RD';
         else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
+        else if (override.type === 'spare_shift')  shift = 'SPARE';
         else if (override.value)                   shift = override.value;
     }
 
     if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest' };
     if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare' };
-    if (shift === 'AL')                    return { text: '🏖 AL', cls: 'tv-al' };
+    if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al' };
     if (shift === 'SICK')                  return { text: '🪑', cls: 'tv-sick' };
     if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw' };
     if (shift.startsWith('RDW|')) {
@@ -293,9 +294,10 @@ function renderTeamView(grade, opts = {}) {
             return `<tr><td class="tv-name-col">${escapeHtml(member.name)}</td>${cells}</tr>`;
         }).join('');
 
-    const gradeBtns = ['CEA', 'CES', 'Dispatcher'].map(g =>
-        `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" data-grade="${g}">${g}</button>`
-    ).join('');
+    const gradeBtns = ['CEA', 'CES', 'Dispatcher'].map(g => {
+        const count = teamMembers.filter(m => !m.hidden && m.role === g).length;
+        return `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" data-grade="${g}">${g} <span class="grade-tab-count">${count}</span></button>`;
+    }).join('');
 
     calendarDisplay.innerHTML = `
         <div class="team-view-container">
@@ -331,11 +333,6 @@ function renderTeamView(grade, opts = {}) {
         tab.addEventListener('click', () => renderTeamView(tab.dataset.grade, { skipFetch: true }))
     );
 
-    const helpBtn = calendarDisplay.querySelector('#teamHelpBtn');
-    if (helpBtn) helpBtn.addEventListener('click', () => {
-        if (window._openTeamInfoLightbox) window._openTeamInfoLightbox();
-    });
-
     const tvPrev  = calendarDisplay.querySelector('#tvPrevWeek');
     const tvNext  = calendarDisplay.querySelector('#tvNextWeek');
     const tvToday = calendarDisplay.querySelector('#tvToday');
@@ -344,19 +341,34 @@ function renderTeamView(grade, opts = {}) {
         d.setDate(d.getDate() - 7);
         currentTeamWeekStart = d;
         renderTeamView(currentTeamGrade);
+        announceTeamWeek();
     });
     if (tvNext) tvNext.addEventListener('click', () => {
         const d = new Date(currentTeamWeekStart);
         d.setDate(d.getDate() + 7);
         currentTeamWeekStart = d;
         renderTeamView(currentTeamGrade);
+        announceTeamWeek();
     });
     if (tvToday) tvToday.addEventListener('click', () => {
         currentTeamWeekStart = getSunday(new Date());
         renderTeamView(currentTeamGrade);
+        announceTeamWeek();
     });
 
     applyHuddleButtonState();
+
+    // Dismiss scroll hint permanently after the user scrolls the table once.
+    const tableWrap = calendarDisplay.querySelector('.team-table-wrap');
+    const scrollHint = calendarDisplay.querySelector('.tv-scroll-hint');
+    if (scrollHint && localStorage.getItem('myb_team_scroll_seen')) {
+        scrollHint.hidden = true;
+    } else if (tableWrap && scrollHint) {
+        tableWrap.addEventListener('scroll', () => {
+            scrollHint.hidden = true;
+            localStorage.setItem('myb_team_scroll_seen', '1');
+        }, { once: true });
+    }
 
     if (!skipFetch) {
         // Background Firestore fetch — updates cache and re-renders only if new data arrived.
@@ -1243,11 +1255,24 @@ function announceMonthChange() {
     });
 }
 
+function announceTeamWeek() {
+    const announcer = document.getElementById('ariaAnnouncer');
+    if (!announcer) return;
+    const dates = getTeamWeekDates(currentTeamWeekStart);
+    const s = dates[0], e = dates[6];
+    const label = s.getMonth() === e.getMonth()
+        ? `${s.getDate()}–${e.getDate()} ${monthNames[e.getMonth()]} ${e.getFullYear()}`
+        : `${s.getDate()} ${monthNames[s.getMonth()]} – ${e.getDate()} ${monthNames[e.getMonth()]} ${e.getFullYear()}`;
+    announcer.textContent = '';
+    requestAnimationFrame(() => { announcer.textContent = `Week of ${label}`; });
+}
+
 document.getElementById('todayBtn').addEventListener('click', () => {
     if (swipeCooldown) return;
     if (teamViewMode) {
         currentTeamWeekStart = getSunday(new Date());
         renderTeamView(currentTeamGrade);
+        announceTeamWeek();
     } else {
         const now = getToday();
         currentDisplayMonth = now.getMonth();
@@ -1348,8 +1373,10 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && lb.classList.contains('visible')) closeTeamInfo(); });
     if (content) content.addEventListener('click', e => e.stopPropagation());
 
-    // Expose so the ? button in renderTeamView() can open it
-    window._openTeamInfoLightbox = openTeamInfo;
+    // Event delegation — #teamHelpBtn is re-created on every renderTeamView() call.
+    document.addEventListener('click', e => {
+        if (e.target.closest('#teamHelpBtn')) openTeamInfo();
+    });
 })();
 
 // Modules are always deferred — the DOM is fully parsed before this code runs.
@@ -1485,7 +1512,7 @@ try {
             // the jank spike that occurred when panels were built mid-swipe. If the gesture turns out
             // to be a tap, discardPanels() in pointerup cleans them up with no visible effect.
             calendarDisplay.addEventListener('pointerdown', (e) => {
-                if (!e.isPrimary || swipeCooldown) return;
+                if (!e.isPrimary || swipeCooldown || teamViewMode) return;
 
                 gestureCurrentPanel = document.querySelector('.calendar-container:not(.carousel-panel)');
                 if (!gestureCurrentPanel) return;
