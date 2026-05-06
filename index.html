@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.71 -->
+<!-- MYB Roster Calendar - Version 8.73 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.71">
+    <link rel="manifest" href="manifest.json?v=8.73">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.71">
+    <link rel="stylesheet" href="shared.css?v=8.73">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1145,7 +1145,7 @@
             .huddle-icon-btn:not(:disabled):hover { opacity: 1; }
         }
 
-        /* ---- Team week view ---- */
+        /* ---- Team week view — all styles here; not in shared.css because this is index.html-only ---- */
         .team-view-container {
             background: white;
             border-radius: var(--radius-lg);
@@ -1296,7 +1296,7 @@
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            padding: 5px 10px;
+            padding: 4px 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1379,7 +1379,7 @@
             border-bottom: 1px solid var(--border-light);
         }
         /* Cell type colours — same variables as calendar-day cells */
-        .tv-rest  { color: var(--text-faint); }
+        .tv-rest  { background: var(--rest-day-bg); color: var(--text-faint); }
         .tv-early { background: var(--orange-light); }
         .tv-late  { background: var(--blue-light); }
         .tv-night { background: var(--night-cell-bg); }
@@ -2461,7 +2461,7 @@
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--absence-light);border-color:var(--absence)"></span>🪑 Absence</div>
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rest-day-bg);border-color:var(--border-mid)"></span>🏠 Rest day</div>
             </div>
-            <p class="team-info-note">Shifts shown are base roster plus any recorded changes. Changes saved after this screen loaded appear on the next visit or week navigation.</p>
+            <p class="team-info-note">Shifts shown are base roster plus any recorded changes. The view updates automatically when you navigate between weeks — changes saved right now in admin will appear when you next move to a different week and back.</p>
         </div>
     </div>
 
@@ -2585,7 +2585,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.71"></script>
+    <script type="module" src="./app.js?v=8.73"></script>
 
 </body>
 </html>
