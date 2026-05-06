@@ -423,8 +423,8 @@ The pay calculator is primarily **manual-entry**. Staff enter their hours, and t
 
 | Grade | 2025/26 rate | Contracted hrs | Pension | London Allowance |
 |-------|-------------|----------------|---------|-----------------|
-| CEA   | £20.74/hr   | 140/period     | £154.77 | £276.16         |
-| CES   | £21.81/hr   | 140/period     | £154.77 | £276.16         |
+| CEA   | £20.74/hr   | 140/period     | £147.36 (from P51 May 8 2026; £154.77 before) | £276.16 |
+| CES   | £21.81/hr   | 140/period     | £147.36 (from P51 May 8 2026; £154.77 before) | £276.16 |
 
 2026/27 rates: not yet confirmed for either grade — update `GRADES` in `paycalc.js` when announced.
 
@@ -433,10 +433,10 @@ Grade is auto-detected from the logged-in member's `role` field on first visit. 
 **Members with a `startDate`:** If a member started mid-period, the following are all scaled by `calcProRateFactor` for the joining period only:
 - **Contracted hours** (`getEffectiveContr`) — sets the basic pay ceiling and the Saturday/BH cap
 - **London Allowance** — fixed £276.16/period scaled to days worked
-- **Pension default** — £154.77/period scaled to days worked (only applied when pension hasn't been manually saved for that period)
+- **Pension default** — period-aware via `getPensionForPeriod(grade, payday)`: £154.77 before May 8 2026 (P51), £147.36 from P51 onwards. Scaled by pro-ration factor for the joining period. Only applied when pension hasn't been manually saved for that period.
 - **HPP variable pay accumulation** — London Allowance component in both the current-year and prior-year HPP loops
 
-`saveSettings` in `paycalc.js` guards the global pension default: when the user saves Settings while on a joining period, it writes `getPensionDefault()` (full £154.77) to `SK.pension` rather than the field value (which shows the pro-rated amount). Without this guard, saving Settings on the joining period would corrupt the default for all subsequent full periods.
+`saveSettings` in `paycalc.js` guards the global pension default: when the user saves Settings while on a joining period, it writes `getPensionDefault(curP)` (full period-specific rate) to `SK.pension` rather than the field value (which shows the pro-rated amount). Without this guard, saving Settings on the joining period would corrupt the default for all subsequent full periods.
 
 A notice banner in the Hours card explains the adjustment. All subsequent full periods use the standard amounts automatically.
 
