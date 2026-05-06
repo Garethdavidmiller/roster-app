@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `8.40` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `8.62` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -33,31 +33,28 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v6.63:** JS is now in separate files. You need to update **twenty** places:
+**As of v8.62:** JS is split across multiple modules. You need to update **all** of these:
 
-| File | Location | Example |
-|------|----------|---------|
-| `roster-data.js` | `export const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← **primary source** |
-| `service-worker.js` | Line 1 comment | `// MYB Roster — Service Worker v4.95` |
-| `service-worker.js` | `const APP_VERSION = '...'` | `APP_VERSION = '4.95'` ← must match |
-| `index.html` | Line 2 HTML comment | `<!-- MYB Roster Calendar - Version 4.95 -->` |
-| `index.html` | `<script src="./app.js?v=...">` | `app.js?v=4.95` |
-| `index.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
-| `index.html` | `<link rel="manifest" href="manifest.json?v=...">` | `manifest.json?v=4.95` |
-| `admin.html` | Line 2 HTML comment | `<!-- MYB Roster Admin v4.95 -->` |
-| `admin.html` | `<script src="./admin-app.js?v=...">` | `admin-app.js?v=4.95` |
-| `admin.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
-| `admin.html` | `<link rel="manifest" href="manifest.json?v=...">` | `manifest.json?v=4.95` |
-| `app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
-| `app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
-| `admin-app.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
-| `admin-app.js` | `import ... from './firebase-client.js?v=...'` | `firebase-client.js?v=4.95` |
-| `paycalc.html` | Line 2 HTML comment | `<!-- MYB Roster — Pay Calculator v4.95 -->` |
-| `paycalc.html` | `<script src="./paycalc.js?v=...">` | `paycalc.js?v=4.95` |
-| `paycalc.html` | `<link rel="stylesheet" href="./shared.css?v=...">` | `shared.css?v=4.95` |
-| `paycalc.html` | `<link rel="manifest" href="./pay-manifest.json?v=...">` | `pay-manifest.json?v=4.95` |
-| `paycalc.js` | `import ... from './roster-data.js?v=...'` | `roster-data.js?v=4.95` |
-| `paycalc.js` | `import ... from './paycalc-calc.js?v=...'` | `paycalc-calc.js?v=4.95` |
+| File | Location | Note |
+|------|----------|------|
+| `roster-data.js` | `export const APP_VERSION = '...'` | **primary source** |
+| `roster-data.js` | `import ... from './roster-cycle-data.js?v=...'` | |
+| `service-worker.js` | Line 1 comment | |
+| `service-worker.js` | `const APP_VERSION = '...'` | must match roster-data.js |
+| `index.html` | Line 2 HTML comment | |
+| `index.html` | `app.js?v=`, `shared.css?v=`, `manifest.json?v=` | 3 places |
+| `admin.html` | Line 2 HTML comment | |
+| `admin.html` | `admin-app.js?v=`, `shared.css?v=`, `manifest.json?v=` | 3 places |
+| `paycalc.html` | Line 2 HTML comment | |
+| `paycalc.html` | `paycalc.js?v=`, `shared.css?v=`, `pay-manifest.json?v=` | 3 places |
+| `app.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=` | 4 places |
+| `admin-overrides.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+| `admin-roster-upload.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+| `paycalc.js` | `roster-data.js?v=`, `paycalc-calc.js?v=`, `paycalc-roster-suggestions.js?v=` | 3 places |
+| `paycalc-roster-suggestions.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+
+**Tip:** `grep -rn "?v=<old>" *.js *.html` finds every stale reference in one command.
 
 `CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
 
@@ -92,25 +89,34 @@ roster-app/
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html
 ├── admin-app.js            ← all JavaScript for admin.html
+├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
+├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds. Imported by paycalc.js and paycalc.test.mjs
+├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion, fetchOverridesForPeriod
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
+├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
-├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v7.68
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.62
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
 ├── fip.html                ← FIP European travel guide for staff (linked from admin.html)
 ├── guide.html              ← printable staff + admin quick guide (update at major versions: v7, v8 …)
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── CLAUDE.md               ← architectural rules and context for Claude sessions (this file)
+├── OPERATIONS_REFERENCE.md ← Power Automate flow, Cloud Function request formats, Firebase Auth detail
+├── AI_MAP.md               ← routing guide: which file to read/edit for a given task
+├── KNOWN_LIMITATIONS.md    ← intentional constraints and deferred decisions
+├── ROADMAP.md              ← product history, future ideas, reverted experiments
 └── functions/
     ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF + setupRosterAuth
     └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
@@ -144,7 +150,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | Network-first service worker for app files | Ensures staff always receive roster updates on next open. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` must be used for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and any future base-shift logic. `buildCalendarContainer` used direct access until v6.28 — M. Okeke showed roster shifts before her start date as a result. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Two separate type pill lists in admin | Per-row pills are generated by `renderWeekGrid()` in `admin-app.js` (JS template string, line ~782). Bulk bar pills are in `admin.html` (static HTML, line ~2215). **Both lists must be kept in sync.** Adding a new type requires updating both. The order must also match. Current order: AL · Spare · Shift · RDW · Absence · Rest Day |
+| Two separate type pill lists in admin | Per-row pills are generated by `renderWeekGrid()` in `admin-overrides.js`. Bulk bar pills are in `admin.html` (static HTML, line ~2215). **Both lists must be kept in sync.** Adding a new type requires updating both. The order must also match. Current order: AL · Spare · Shift · RDW · Absence · Rest Day |
 | **`AL` pill label must stay as `AL`** | The pills are compact by design — mobile layout requires short labels. `AL` is the standard Chiltern abbreviation staff already know from their rosters. Do not expand to "Annual Leave" without discussing the layout impact first. |
 | **`🪑` is the absence emoji — do not change to `🤒` or any illness-specific icon** | Absence covers sickness, childcare, bereavement, and any other reason. Using 🤒 (sick face) would imply illness, which is a GDPR concern — the reason for absence is deliberately never stored. The neutral chair emoji was chosen for this reason. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `app.js` | When `getSelectedMemberIndex()` cannot find a saved name in `teamMembers`, it sets `_staleMemberName` to the old name, removes it from localStorage, and falls back to the default member. `renderCalendar()` checks this flag on its next run and shows a dismissible banner: "{name} is no longer in the roster — now showing {new name}'s calendar." The flag is cleared after the banner fires to avoid repeat shows. |
@@ -157,7 +163,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | One-off notification prompt (`#notifPrompt`) in `index.html` | A small strip between `</nav>` and the pay-period strip appears once per device when `Notification.permission` is neither `'granted'` nor `'denied'` and `localStorage('myb_notif_prompt_done')` is unset. Enable button requests permission; × dismisses permanently. Both actions set the flag. The prompt never re-appears. Do not move it below the calendar — it must be visible without scrolling. |
 | PWA shortcuts in `manifest.json` | Three long-press shortcuts: Calendar (`index.html`), Pay (`paycalc.html`), Admin (`admin.html`). Max 4 shortcuts per Android spec. Changes require the app to be reinstalled (or the manifest to be refreshed) before taking effect — existing installs see old shortcuts until they reinstall. |
 | Sticky take-home bar (`#stickyTotal`) in `paycalc.html` | Fixed bar at bottom of viewport on mobile (hidden ≥1040px). Appears via `IntersectionObserver` when the `.result-card` scrolls off-screen. Tapping scrolls smoothly to the result card. `body.sticky-active` adds bottom padding to prevent content being hidden behind the bar. |
-| 3-digit time input auto-correction in `admin-app.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
+| 3-digit time input auto-correction in `admin-overrides.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
 | Range picker clear button (`.rp-clear`) | A ✕ button appears inside the date range picker when any date is selected. It resets both `from` and `to` dates and hides itself. Built into `buildRangePicker()` in `admin-app.js`. |
 | Team Week View (`👥 Team` button) | Available to all logged-in staff (v8.40 — admin-only gate removed at v8.40; was admin-only v8.22–v8.39). Toggle managed by `toggleTeamView()`, `teamViewMode` flag, and `applyTeamViewChrome()`. Week runs Sun–Sat (Chiltern convention) via `getSunday(date)`. Grade state (`currentTeamGrade`) persists across re-renders. `fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken)` uses the week-start timestamp as a token — results whose token no longer matches `currentTeamWeekStart` are discarded, preventing stale Firestore data from overwriting the UI after rapid navigation. Grade-tabs row uses CSS grid (`1fr auto 1fr`) so the grade tabs stay centred regardless of how many utility buttons (📋 / ?) sit on the right. |
 
@@ -176,7 +182,8 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | Tests | `roster-data.test.mjs` — payday and cutoff tests passing |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
 | PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
-| `getRosterSuggestion(period)` | `paycalc.js` — reads the logged-in member from localStorage, calls `getBaseShift` for each day in the period window, returns counts of Saturday/Sunday/BH/Boxing Day shifts. Used by the "Fill from roster →" hint bar in the Hours card. Also reads Firestore overrides (via `fetchOverrideSpecialDaysForPeriod`) to detect RDW and updated shifts when online. |
+| `getRosterSuggestion(period)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides, counts Sat/Sun/BH/Boxing Day/RDW shifts. Used by the "Fill from roster →" hint bar. |
+| `fetchOverridesForPeriod(p, memberName)` | `paycalc-roster-suggestions.js` — fetches Firestore overrides for a pay period window. |
 | `getLoggedMember()` | `paycalc.js` — returns the `teamMembers` entry for the session user, or null. |
 | `getEffectiveContr(p)` | `paycalc.js` — returns contracted hours for the period, pro-rated if the member has a `startDate` that falls within it. Full contracted hours otherwise. Used by `calculate()`, HPP loop, and Saturday cap. |
 | Reference guide | `paycalc-guide.html` — printable/linkable pay calculator reference (linked from the about lightbox, added v6.64) |
@@ -319,340 +326,29 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ## Huddle ingest — automated briefing upload
 
-### What it does
+Daily Huddle PDF/DOCX arrives by email → Power Automate flow → `ingestHuddle` Cloud Function (`europe-west2`) → Firebase Storage (`huddles/YYYY-MM-DD.{ext}`) + Firestore `huddles` collection (doc ID = date, fields: `date`, `storageUrl`, `fileType`, `uploadedAt`, `uploadedBy`). Push notification sent to subscribed staff on each ingest.
 
-The daily Huddle briefing arrives as an email with a PDF or DOCX attachment. A Power Automate flow detects it, extracts the file, and calls a Firebase Cloud Function (`ingestHuddle`) which stores the file in Firebase Storage and writes a metadata record to Firestore. This mirrors what admin staff would otherwise do manually through admin.html.
+All working end-to-end. Pending: Huddle viewer history UI in admin.html (Firestore data is ready, UI not yet built — query `huddles` descending by `date`, show date + file type + `storageUrl` link, admin-only).
 
-### Files
-
-| File | Purpose |
-|------|---------|
-| `functions/index.js` | Three Cloud Functions: `ingestHuddle` (Power Automate upload), `parseRosterPDF` (AI roster parser), `sendHuddlePushNotifications` (fan-out Web Push on new Huddle) |
-| `functions/package.json` | Node 20; `firebase-admin`, `firebase-functions`, `@anthropic-ai/sdk` as dependencies |
-
-### Firebase Storage
-
-Files are stored at: `huddles/YYYY-MM-DD.pdf` or `huddles/YYYY-MM-DD.docx`
-
-Each file is uploaded with a custom `firebaseStorageDownloadTokens` metadata field so a stable direct download URL is available immediately after upload.
-
-Download URL format:
-```
-https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD.pdf?alt=media&token={uuid}
-```
-
-### Firestore — `huddles` collection
-
-Document ID = `YYYY-MM-DD` (the London date of the huddle).
-
-```
-date        string     "YYYY-MM-DD"
-storageUrl  string     Full Firebase Storage download URL (with token)
-fileType    string     "pdf" | "docx"
-uploadedAt  timestamp  Firestore server timestamp
-uploadedBy  string     "power-automate" (hardcoded — identifies automated uploads)
-```
-
-### Cloud Function — `ingestHuddle`
-
-- **Region:** `europe-west2` (London)
-- **Auth:** `Authorization: Bearer <HUDDLE_SECRET>` — secret stored in Firebase Secret Manager, accessed via `defineSecret('HUDDLE_SECRET')`
-- **Method:** POST only
-
-**Request format** (this is critical — do not change without updating the Power Automate flow):
-
-```
-Headers:
-  Authorization:      Bearer <secret>
-  Content-Type:       text/plain
-  X-Huddle-Date:      YYYY-MM-DD
-  X-Huddle-Filename:  original-name.pdf   (or .docx)
-
-Body:
-  Raw base64-encoded file content — plain text, no JSON wrapper
-```
-
-**Why plain-text body instead of JSON?**
-Power Automate's `@{body('...')?['contentBytes']}` template substitution in a JSON body has a practical size limit and silently truncates large base64 strings (a 190 KB PDF produces a ~256,000-char base64 string). Putting the file in the raw body as `text/plain` bypasses this entirely. Metadata goes in custom headers instead.
-
-**Body reading:** The function reads `req.rawBody` first (Firebase Functions runtime provides this); falls back to streaming the request if rawBody is unavailable. Never use an Express body-parser — it consumes the stream before the function can read it.
-
-**File type detection:** Based on the `X-Huddle-Filename` header extension (`.docx` → DOCX; anything else → PDF). Never rely on `Content-Type` from Power Automate as it sends `text/plain` for both.
-
-**Deploying the function:**
-
-Gareth's GitHub repo is **online-only** — he does not have a local clone. All deploys happen via GitHub Actions. To trigger a deploy of the Cloud Function, commit a change to any file under `functions/` and push to `main`. The workflow (`.github/workflows/deploy-functions.yml`) runs automatically.
-
-If the workflow shows "Skipped (No changes detected)" it means Firebase compared the deployed function hash with the local build and found no difference — this is normal and means the function is already up to date.
-
-For first-time secret setup (must be done once from a machine with `firebase-tools` installed, or via the Firebase Console):
-```bash
-firebase login
-firebase use myb-roster
-firebase functions:secrets:set HUDDLE_SECRET   # paste a strong random UUID when prompted
-cd functions && npm install
-```
-
-The `HUDDLE_SECRET` must exist in **two places**:
-1. Firebase Secret Manager (so the Cloud Function can read it at runtime)
-2. GitHub Actions secrets (not directly used by the function, but useful to have the same value documented)
-
-**Generating a secret:**
-```
-node -e "console.log(require('crypto').randomUUID())"
-```
-
-**Finding secrets in Firebase Console:**
-In Firebase Console, go to the project → Build → Functions → then look for "Secret Manager" in the left nav (it may be under Google Cloud Console → Security → Secret Manager for project `myb-roster`). The secret is named `HUDDLE_SECRET`.
-
-### Power Automate flow — "huddle ingest"
-
-The flow is built in Power Automate (Microsoft 365). Gareth's organisation provides access. The HTTP connector used is the **HTTP** (Premium) connector — not "Send an HTTP request (Office 365)".
-
-**Trigger:** "When a new email arrives (V3)" on the Huddle mailbox, filtered to emails with attachments.
-
-**Overall structure:**
-
-```
-Trigger: new email with attachment
-│
-├── Compose: London_time
-│   convertTimeZone(triggerOutputs()?['body/receivedDateTime'],
-│                   'UTC', 'GMT Standard Time', 'yyyy-MM-dd')
-│
-├── Set variable: huddleDate  ← outputs('London_time')
-│
-└── Condition: is it after noon? (to avoid duplicate early-morning emails)
-    │
-    ├── YES branch (afternoon/main email):
-    │   ├── Filter array: filter_array_1
-    │   │   From: triggerOutputs()?['body/attachments']
-    │   │   Condition: item()?['contentType']  is equal to  application/pdf
-    │   │             (LEFT = expression tab; RIGHT = value tab)
-    │   │
-    │   ├── Compose: attachment
-    │   │   body('filter_array_1')[0]?['contentBytes']
-    │   │
-    │   └── HTTP action (Premium)
-    │       Method: POST
-    │       URI: https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle
-    │         (URI goes in value tab, NOT expression tab)
-    │       Headers:
-    │         Authorization  →  Bearer <paste secret here>  (value tab)
-    │         Content-Type   →  text/plain                  (value tab)
-    │         X-Huddle-Date  →  @{variables('huddleDate')}  (value tab, @{} syntax)
-    │         X-Huddle-Filename → @{body('filter_array_1')[0]?['name']}  (value tab)
-    │       Body: @{outputs('attachment')}  (value tab, @{} syntax — NOT expression tab)
-    │
-    └── NO branch (morning/DOCX email):
-        ├── Filter array: filter_array_2
-        │   From: triggerOutputs()?['body/attachments']
-        │   Condition: item()?['contentType']  is equal to
-        │     application/vnd.openxmlformats-officedocument.wordprocessingml.document
-        │             (LEFT = expression tab; RIGHT = value tab)
-        │
-        ├── Compose: attachment
-        │   body('filter_array_2')[0]?['contentBytes']
-        │
-        └── HTTP action (Premium)
-            (same structure as YES branch but references filter_array_2 and filter_array_2's name)
-```
-
-### Critical Power Automate gotchas — read carefully
-
-**1. Expression tab vs value tab**
-Power Automate input fields have two modes: "Expression" (for dynamic functions/variables) and "Value" (for static text). Getting this wrong silently breaks the flow:
-
-| What you're entering | Which tab |
-|---------------------|-----------|
-| `item()?['contentType']` — left side of filter condition | Expression |
-| `application/pdf` — right side of filter condition | Value |
-| `application/vnd.openxmlformats-officedocument.wordprocessingml.document` — right side of DOCX filter | Value |
-| `body('filter_array_1')[0]?['contentBytes']` — Compose source | Expression |
-| The Cloud Function URL | Value |
-| `Bearer <secret>` — Authorization header value | Value |
-| `text/plain` — Content-Type header value | Value |
-| `@{variables('huddleDate')}` — X-Huddle-Date header value | Value (the @{} syntax works in value tab) |
-| `@{body('filter_array_1')[0]?['name']}` — X-Huddle-Filename | Value |
-| `@{outputs('attachment')}` — HTTP body | Value |
-
-**2. Filter array returning empty — the most common failure**
-If `body('filter_array_1')[0]` or `body('filter_array_2')[0]` throws "array index 0 cannot be selected from empty array", the filter returned nothing. Check:
-- Left side of condition is on the **expression** tab (if on value tab it compares literal string `"item()?['contentType']"` which never matches)
-- Right side MIME type has no typos — the DOCX one is 71 characters and easy to mistype
-- "From" field references `triggerOutputs()?['body/attachments']` directly — not a previous filter's output
-
-**3. London timezone**
-The Compose action that calculates the huddle date must be named `London_time` (underscore, not space). Power Automate action names with spaces are accessible via expressions but cause `InvalidTemplate` errors in some contexts. Always use underscores in action names.
-
-Expression used:
-```
-convertTimeZone(triggerOutputs()?['body/receivedDateTime'], 'UTC', 'GMT Standard Time', 'yyyy-MM-dd')
-```
-Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` (no spaces) is invalid.
-
-**4. `@{}` syntax in value tab**
-To reference a dynamic value in a header or body field while on the **value tab**, use `@{expression}` syntax — for example `@{variables('huddleDate')}`. Do not switch to expression tab for this; the @{} wrapper is how Power Automate interpolates expressions inside value-tab strings.
-
-**5. HTTP action references**
-The HTTP action body cannot reference a Compose action by name inside the action's own "inputs" scope. Always use a separate Compose action to prepare the value first, then reference it as `@{outputs('attachment')}` in the HTTP body.
-
-### Power Automate flow — condition logic
-
-The flow sends Huddle emails to the correct branch based on when they arrive:
-- **Yes branch (after noon):** Assumed to be the main/final PDF version. Filters for `application/pdf`.
-- **No branch (before noon):** Assumed to be the morning DOCX draft. Filters for the full DOCX MIME type.
-
-The condition expression checks the received time in London timezone:
-```
-greater(int(formatDateTime(outputs('London_time'), 'HH')), 12)
-```
-
-### Firestore Security Rules — `huddles` collection
-
-The `huddles` collection is written only by the Cloud Function (server-side, authenticated via service account — bypasses Security Rules). The Security Rules for client-side reads should be:
-
-```
-match /huddles/{docId} {
-  allow read: if true;   // all authenticated staff can read huddle links
-  allow write: if false; // writes only via Cloud Function (server-side)
-}
-```
-
-If `allow write: if false` blocks the Cloud Function, that is a misconfiguration — the Admin SDK bypasses Security Rules entirely. Client-side writes (from the browser) are correctly blocked.
-
-### Current status
-
-- ✅ Cloud Function `ingestHuddle` deployed and live
-- ✅ PDF and DOCX upload via Power Automate — working end to end
-- ✅ Push notifications live (v6.11) — VAPID keys configured, Cloud Function `sendHuddlePushNotifications` deployed. Staff subscribed via admin.html receive a notification when a new Huddle is ingested.
-- ✅ VAPID key rotation handled (v8.14–8.16) — if the VAPID key changes, both `app.js` and `admin-app.js` detect the mismatch via `localStorage('myb_vapid_ver')` fingerprint and silently migrate subscriptions on next page load. Cloud Function treats 401 responses the same as 410/404 (deletes stale subscription documents).
-- ✅ Power Automate flow redesigned (v6.x): condition now only sets `huddleDate` (today vs tomorrow for afternoon emails). A single Filter Array after the condition accepts both `.pdf` and `.docx` using an OR expression on file extension. One HTTP action sends whichever attachment arrived — no time-based PDF/DOCX branching.
-- ✅ DOCX huddles open correctly in the `📋 Huddle` button (v6.95) — `fileType` field from Firestore used to construct the correct download URL.
-- ⏳ Huddle viewer history in admin.html — not yet built. Firestore `huddles` collection is populated and ready; the staff-facing `📋 Huddle` button in index.html already shows the latest huddle.
-
-### Next steps for huddle viewer UI
-
-When building the viewer in admin.html:
-- Query the `huddles` Firestore collection, order by `date` descending
-- Display date, file type badge, and a download link using `storageUrl`
-- The `storageUrl` already contains the access token — open directly in a new tab
-- Admin-only section (check `CONFIG.ADMIN_NAMES.includes(currentUser)`)
-- Follow the existing file pattern — JS stays in `admin-app.js`, HTML/CSS in `admin.html`
+Full Power Automate flow diagram, request format, gotchas, secret setup, and Security Rules: see `OPERATIONS_REFERENCE.md`.
 
 ---
 
 ## Weekly Roster Upload
 
-### What it does
-
-Admin uploads the weekly PDF roster. A Cloud Function (`parseRosterPDF`) passes the PDF directly to Claude AI, which reads the table and returns each person's shifts as JSON. The app then compares those shifts against the base roster and any existing Firestore overrides, shows a per-person review UI, and saves only the changes the admin approves.
-
-### Files
+Admin uploads weekly PDF → `parseRosterPDF` Cloud Function (`europe-west2`, `claude-haiku-4-5-20251001`) → Claude AI reads the table → JSON of shifts → review UI → admin approves → saved to Firestore. All working for CEA/Bilingual, CES, and Dispatcher rosters.
 
 | File | Role |
 |------|------|
-| `functions/index.js` | `parseRosterPDF` Cloud Function — receives PDF, calls Claude AI, returns parsed shifts |
-| `admin-app.js` | Upload form, `computeCellStates()`, `renderReviewTable()`, `shiftDisplay()`, `shiftValueToOverrideType()` |
+| `functions/index.js` | `parseRosterPDF` Cloud Function |
+| `admin-roster-upload.js` | Upload form, `computeCellStates()`, `renderReviewTable()`, `shiftDisplay()`, `shiftValueToOverrideType()` |
 | `admin.html` | Weekly Roster card (admin-only, collapsible) |
 
-### Cloud Function — `parseRosterPDF`
+**Critical: `RDW|HH:MM-HH:MM` pipe encoding** — RDW shifts come back from the AI as `"RDW HH:MM-HH:MM"`, normalised to `"RDW|HH:MM-HH:MM"` in the review pipeline, then stripped to a plain time string when saved to Firestore (`type: 'rdw'`). Do not strip `RDW` from the AI return value — it is the only reliable RDW signal on SPARE-week days.
 
-- **Region:** `europe-west2` (London)
-- **Auth:** `Authorization: Bearer <ROSTER_SECRET>`
-- **Method:** POST only
-- **AI model:** `claude-haiku-4-5-20251001`, `max_tokens: 8192`
-- **Why direct PDF input:** The PDF is passed as a `type: 'document'` content block, not extracted text. Text extraction (pdf-parse) destroys the table column structure and causes day-column misalignment. Claude reads the visual layout directly.
+**`source: 'roster_import'`** — All roster-upload overrides carry this field. `computeCellStates()` uses it to show `COVERED` (unchanged re-upload), `DIFF` (changed), or `CONFLICT` (conflicts with a hand-entered override).
 
-**Request format:**
-
-```
-Headers:
-  Authorization:   Bearer <ROSTER_SECRET>
-  Content-Type:    text/plain
-  X-Week-Ending:   YYYY-MM-DD  (must be a Saturday — validated server-side)
-  X-Roster-Type:   cea | ces | dispatcher
-
-Body:
-  Raw base64-encoded PDF content (same pattern as ingestHuddle)
-```
-
-**Response format:**
-
-```json
-{
-  "weekEnding": "2026-04-05",
-  "rosterType": "cea",
-  "dates": ["2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-03", "2026-04-04", "2026-04-05"],
-  "parsed": [
-    {
-      "memberName": "G. Miller",
-      "shifts": {
-        "2026-03-30": "RD",
-        "2026-03-31": "06:00-14:00",
-        "2026-04-01": "RDW|14:30-22:00",
-        ...
-      }
-    }
-  ]
-}
-```
-
-### Critical encoding convention — `RDW|HH:MM-HH:MM`
-
-The roster PDF marks RDW cells as e.g. `"14:30-22:00 RDW"`. The AI is instructed to return `"RDW HH:MM-HH:MM"`. `normaliseShift()` in `functions/index.js` converts this to `"RDW|HH:MM-HH:MM"` — the pipe-encoded internal format.
-
-**Why this matters:** The previous approach stripped the RDW keyword and inferred it from `baseShift === 'RD'`. That failed on SPARE weeks (`baseShift = 'SPARE'`). The pipe encoding carries the RDW flag explicitly regardless of base shift.
-
-The `|` prefix is stripped before saving to Firestore — the stored value is always the plain time string (`"14:30-22:00"`), with `type: 'rdw'` carrying the meaning. The encoding only exists inside the review pipeline.
-
-### AI prompt key rules (do not weaken these without testing)
-
-- RDW cells: AI returns `"RDW HH:MM-HH:MM"` — **never strip RDW from the return value**
-- Blank/absent Sunday cells: return `"RD"` — do not copy Monday's shift
-- Duty/diagram codes on a second line in the same cell (e.g. `"CEA 16"`, `"CEA 18"`) — **ignore entirely**, only the first line contains the shift value
-- `"N/A"`, `"NA"`, `"NS"` all mean RD on any day
-- `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
-
-### Review pipeline (admin-app.js)
-
-```
-parsedResult (from Cloud Function)
-        ↓
-computeCellStates(parsedResult, existingOverrides)
-  — classifies each day:
-    MATCH    = PDF matches base roster, nothing to do
-    DIFF     = PDF differs from base roster, needs saving
-    CONFLICT = manual override already exists but differs from PDF
-    COVERED  = manual override already matches PDF, nothing to do
-        ↓
-renderReviewTable() — per-person card list
-  shiftDisplay(shiftStr, baseShift)
-    — detects "RDW|" prefix → shows 💼 RDW badge + time
-    — falls back to baseShift==='RD' detection for plain times
-        ↓
-Apply approved changes:
-  shiftValueToOverrideType(value, baseShift) → Firestore type field
-  Strip "RDW|" prefix → save plain time as value
-  source: 'roster_import' on all saved docs
-    (distinguishes auto-applied from hand-entered overrides)
-```
-
-### Cell state — `source` field
-
-Overrides saved by the roster upload have `source: 'roster_import'`. In `computeCellStates`, a previous import is compared against the new PDF value:
-- If the new PDF **matches** the previous import → `COVERED` (no re-approval needed)
-- If the new PDF **differs** from the previous import → `DIFF` (re-approve only the changed shifts)
-
-Only overrides with no `source` field (or any other value) are treated as manual and trigger the `CONFLICT` state.
-
-### Current status
-
-- ✅ Cloud Function deployed and live
-- ✅ PDF parsing via Claude AI — working end to end for CEA/Bilingual, CES, Dispatcher rosters
-- ✅ Review UI — per-person card list with approve/skip per day, conflict detection
-- ✅ RDW detection on both RD and SPARE base shifts
-- ✅ AL, Sick, Spare, RD correction all correctly mapped to override types
+Full request/response format, AI prompt rules, and review pipeline: see `OPERATIONS_REFERENCE.md`.
 
 ---
 
@@ -674,61 +370,20 @@ Jamaican, Congolese, and Portuguese calendars are **rule-based** (fixed-date or 
 
 ---
 
-## Firebase Auth migration (v7.61 — two-phase rollout)
+## Firebase Auth migration (v7.61 — phase 2 pending)
 
-### What was done (v7.61)
+Firebase Auth is wired in but `firestore.rules` not yet deployed. Existing localStorage sessions continue to work. `admin-app.js` fire-and-forgets a `signInWithEmailAndPassword` call after each localStorage login.
 
-Firebase Auth is now wired into the app, but the Firestore security rules haven't been deployed yet. The implementation is intentionally non-breaking — existing localStorage sessions continue to work exactly as before.
+**To complete the migration (2 steps, no CLI needed):**
+1. admin.html → **Staff Login Accounts** → **Set up accounts** — creates Firebase Auth accounts for all active members (idempotent, safe to re-run). Proceed only when "failed = 0".
+2. GitHub → Actions → **Deploy Firestore Rules** → Run workflow.
+**Do not run step 2 before step 1** — Firestore writes will fail for everyone.
 
-**Changes in v7.61:**
+**Adding a new staff member:** Add to `teamMembers` in `roster-data.js`, then run **Set up accounts** — existing accounts are skipped.
 
-- **`firebase-client.js`**: Added Firebase Auth SDK import. Exports `auth`, `signInWithEmailAndPassword`, `signOut`, and `nameToEmail(fullName)`.
-- **`admin-app.js`**: After a successful localStorage login, also calls `signInWithEmailAndPassword` with the Firebase Auth email and password (fire-and-forget — silently ignored if the account doesn't exist yet). Sign-out also calls Firebase `signOut`.
-- **`functions/index.js`**: New `setupRosterAuth` Cloud Function creates Firebase Auth accounts for all roster members (idempotent — safe to re-run).
-- **`firestore.rules`**: Updated to require `request.auth != null` for all writes and deletes. **Not yet deployed** — see deployment steps below.
+**Removing a staff member:** Set `hidden: true` in `teamMembers`, run **Set up accounts** with "Disable accounts for leavers" ticked. Firebase Auth account disabled; Firestore data preserved.
 
-### Email and password convention
-
-| Display name | Firebase email | Firebase password |
-|---|---|---|
-| G. Miller | g.miller@myb-roster.local | miller |
-| C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
-| L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
-
-Function: `nameToEmail(name)` in `firebase-client.js` and `nameToEmail(name)` / `nameToPassword(name)` in `functions/index.js` — both must stay in sync with `getSurname()` in `admin-app.js`.
-
-The `@myb-roster.local` domain is synthetic — these are not real email addresses. Firebase Auth accepts them as valid email format.
-
-### Phase 2 — completing the migration
-
-No curl commands or local tools required. Both steps are done through the browser or GitHub.
-
-**Step 1 — create all Firebase Auth accounts:**
-
-Open admin.html → scroll to **Staff Login Accounts** → click **Set up accounts**.
-
-The card reads active members directly from `teamMembers` and calls `setupRosterAuth`. It shows a summary: created / already existed / failed. Proceed only when failed is empty.
-
-**Step 2 — deploy Firestore rules:**
-
-Go to **GitHub → Actions → Deploy Firestore Rules → Run workflow**.
-
-The `deploy-rules.yml` workflow deploys `firestore.rules` to Firebase. No Firebase CLI needed — GitHub Actions handles it using the existing `FIREBASE_SERVICE_ACCOUNT` secret.
-
-**Do not run Step 2 before Step 1** — if staff accounts don't exist in Firebase Auth, all Firestore writes will fail and the app will break for everyone.
-
-### Adding a new staff member
-
-1. Add them to `teamMembers` in `roster-data.js` (always required — no other file needs updating)
-2. Open admin.html → **Staff Login Accounts** → **Set up accounts**. The card picks up the new name automatically. Existing accounts are skipped; only the new account is created.
-
-### Removing a staff member (leavers)
-
-1. Set `hidden: true` on their entry in `teamMembers`
-2. Open admin.html → **Staff Login Accounts** → tick **"Disable accounts for anyone no longer on the roster"** → **Set up accounts**. Their Firebase Auth account is disabled — they can no longer sign in.
-3. To permanently delete the account: Firebase Console → Authentication → Users → find and delete.
-
-The disable option never deletes Firestore data — override history is preserved.
+Email/password convention and full migration detail: see `OPERATIONS_REFERENCE.md`.
 
 ---
 
