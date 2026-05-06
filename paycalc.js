@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.64';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.65';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.64';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.64';
+} from './paycalc-calc.js?v=8.65';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.65';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1044,24 +1044,42 @@ function fillCategoryFromRoster(cat) {
   if (args) { _suggestIfBlank(...args); autosave(); }
 }
 
-/** Applies a suggestion object to all H/M field pairs (blank or still-gold fields only). */
-function _applyRosterSuggestion(s) {
-  _suggestIfBlank('satH',  'satM',  s.satH,  s.satM );
-  _suggestIfBlank('sunH',  'sunM',  s.sunH,  s.sunM );
-  _suggestIfBlank('bhH',   'bhM',   s.bhH,   s.bhM  );
-  _suggestIfBlank('bhOtH', 'bhOtM', s.bhOtH, s.bhOtM);
-  _suggestIfBlank('otH',   'otM',   s.otH,   s.otM  );
-  _suggestIfBlank('rdwH',  'rdwM',  s.rdwH,  s.rdwM );
-  _suggestIfBlank('boxH',  'boxM',  s.boxH,  s.boxM );
+/** Applies a suggestion object to all H/M field pairs.
+ *  force=false (default): skips fields already manually entered.
+ *  force=true: overwrites all fields — used by the "Fill from roster" button. */
+function _applyRosterSuggestion(s, force = false) {
+  const pairs = [
+    ['satH',  'satM',  s.satH,  s.satM ],
+    ['sunH',  'sunM',  s.sunH,  s.sunM ],
+    ['bhH',   'bhM',   s.bhH,   s.bhM  ],
+    ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM],
+    ['otH',   'otM',   s.otH,   s.otM  ],
+    ['rdwH',  'rdwM',  s.rdwH,  s.rdwM ],
+    ['boxH',  'boxM',  s.boxH,  s.boxM ],
+  ];
+  for (const [hId, mId, hVal, mVal] of pairs) {
+    if (force) {
+      const elH = document.getElementById(hId);
+      const elM = document.getElementById(mId);
+      if (!elH || !elM) continue;
+      if (hVal == null && mVal == null) continue;
+      elH.value = hVal ?? '';
+      elM.value = mVal ?? '';
+      elH.classList.add('roster-suggested');
+      elM.classList.add('roster-suggested');
+    } else {
+      _suggestIfBlank(hId, mId, hVal, mVal);
+    }
+  }
 }
 
-/** Fills ALL categories from the current roster suggestion. Blank fields and previously auto-filled (gold) fields are updated; manually entered values are left alone. */
+/** Fills ALL categories from the current roster suggestion, overwriting existing values. */
 function fillFromRoster() {
   const p = getPeriods().find(x => x.num === currentPeriodNum());
   if (!p) return;
   const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) return;
-  _applyRosterSuggestion(s);
+  _applyRosterSuggestion(s, true);
   autosave();
   // Brief confirmation — tap Clear all entries to undo
   const hint = document.getElementById('rosterHintText');
