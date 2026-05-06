@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, calcProRateFactor,
+  computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
 
 // Floating-point helper — within 1p is close enough for payroll
@@ -30,13 +30,13 @@ describe('constants', () => {
   test('GRADES.cea has correct rate and contracted hours', () => {
     assert.equal(GRADES.cea.rate, 20.74);
     assert.equal(GRADES.cea.contr, 140);
-    assert.equal(GRADES.cea.pension, 154.77);
+    assert.equal(GRADES.cea.pension, 147.36);
   });
 
   test('GRADES.ces has correct rate and contracted hours', () => {
     assert.equal(GRADES.ces.rate, 21.81);
     assert.equal(GRADES.ces.contr, 140);
-    assert.equal(GRADES.ces.pension, 154.77);
+    assert.equal(GRADES.ces.pension, 147.36);
   });
 
   test('TAX_YEARS has 2025/26 and 2026/27 entries', () => {
@@ -514,6 +514,43 @@ describe('integration fixture (CEA Period 8 2025/26)', () => {
 
   test('tax + NI < sacGross', () => {
     assert.ok(tax + ni < sacGross, `deductions (${(tax + ni).toFixed(2)}) should not exceed sacGross (${sacGross.toFixed(2)})`);
+  });
+});
+
+// ── getPensionForPeriod ───────────────────────────────────────────────────────
+// Pension changed £154.77 → £147.36 at the May 8 2026 payslip.
+// Periods before that date (P50 = Apr 10 2026 and earlier) must show £154.77.
+// Periods from May 8 2026 (P51) onwards must show £147.36.
+
+describe('getPensionForPeriod', () => {
+  const cutover = new Date(2026, 4, 8); // May 8 2026 — first payday at new rate
+
+  test('payday one day before May 8 2026 → pre-change rate £154.77', () => {
+    const before = new Date(cutover.getTime() - 86400000);
+    assert.equal(getPensionForPeriod('cea', before), 154.77);
+    assert.equal(getPensionForPeriod('ces', before), 154.77);
+  });
+
+  test('payday = May 8 2026 → new rate £147.36', () => {
+    assert.equal(getPensionForPeriod('cea', cutover), 147.36);
+    assert.equal(getPensionForPeriod('ces', cutover), 147.36);
+  });
+
+  test('payday well after May 8 2026 → new rate £147.36', () => {
+    assert.equal(getPensionForPeriod('cea', new Date(2026, 5, 5)), 147.36); // Jun 5
+  });
+
+  test('P50 payday (Apr 10 2026) → old rate £154.77', () => {
+    // P50 was the first period of 2026/27 but pension had not yet changed
+    assert.equal(getPensionForPeriod('cea', new Date(2026, 3, 10)), 154.77);
+  });
+
+  test('2025/26 payday → old rate £154.77', () => {
+    assert.equal(getPensionForPeriod('cea', new Date(2026, 2, 13)), 154.77); // Mar 13 = P49
+  });
+
+  test('unknown grade falls back to cea', () => {
+    assert.equal(getPensionForPeriod('dispatcher', cutover), 147.36);
   });
 });
 

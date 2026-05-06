@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.79';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.80';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, calcProRateFactor,
-} from './paycalc-calc.js?v=8.79';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.79';
+  computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
+} from './paycalc-calc.js?v=8.80';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.80';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -105,9 +105,13 @@ function getProRateFactor(p) {
 }
 
 /** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
-function getPensionDefault() {
+/** Full-period pension default for the current grade, period-aware.
+ *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
+function getPensionDefault(pObj) {
   const g = localStorage.getItem(SK.grade);
-  return GRADES[g && GRADES[g] ? g : 'cea']?.pension ?? '';
+  const grade = g && GRADES[g] ? g : 'cea';
+  if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
+  return GRADES[grade]?.pension ?? '';
 }
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
@@ -688,13 +692,14 @@ function loadPeriodData(pNum) {
     if (raw) d = JSON.parse(raw);
   } catch(e) { /* use empty */ }
   writeFormData(d);
-  // If this is a joining period and no pension has been manually saved for it,
-  // override the full-period default with the pro-rated equivalent.
+  // If no pension has been manually saved for this period, apply the period-specific
+  // default. This handles both: (a) pension rate cut-overs (old periods show the old
+  // rate, new periods show the new rate) and (b) joining-period pro-ration.
   const _pObj = getPeriods().find(x => x.num === pNum);
-  if (d.pension == null && getProRateFactor(_pObj) < 1) {
-    const pensionBase = parseFloat(localStorage.getItem(SK.pension) ?? getPensionDefault()) || 0;
+  if (d.pension == null && _pObj) {
+    const _fullPension = getPensionDefault(_pObj);
     const pa = document.getElementById('pensionAmt');
-    if (pa) pa.value = (pensionBase * getProRateFactor(_pObj)).toFixed(2);
+    if (pa) pa.value = (_fullPension * getProRateFactor(_pObj)).toFixed(2);
   }
   _adjNegative = (d.otherAdj || 0) < 0;
   updateAdjSign();
@@ -797,8 +802,10 @@ function saveSettings() {
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.
+  // Always write the full-period rate (not the field value when pro-rated) so
+  // the global default is correct for future full periods.
   const _pensionToSave = getProRateFactor(curP) < 1
-    ? getPensionDefault()
+    ? getPensionDefault(curP)
     : document.getElementById('pensionAmt').value;
   localStorage.setItem(SK.pension, _pensionToSave);
   localStorage.setItem(ytdPayKey(curTy), document.getElementById('ytdPay').value);
