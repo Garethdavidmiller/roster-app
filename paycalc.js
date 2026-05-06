@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.77';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.79';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.77';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.77';
+  computeGross, computeTax, computeNI, computeSL, calcProRateFactor,
+} from './paycalc-calc.js?v=8.79';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.79';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -90,32 +90,18 @@ function getLoggedMember() {
  * @returns {number} Contracted hours (full or pro-rated).
  */
 function getEffectiveContr(p) {
-  const base = getContr();
+  const base   = getContr();
   if (!p) return base;
-  const member = getLoggedMember();
-  if (!member?.startDate) return base;
-  const sd = member.startDate;
-  if (sd <= p.start) return base;          // started before this period — full hours
-  if (sd > p.cutoff) return 0;             // not yet employed in this period
-  const msPerDay     = 86400000;
-  const daysEmployed = Math.round((p.cutoff - sd) / msPerDay) + 1;
-  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
-  return Math.round(base * daysEmployed / totalDays);
+  const factor = calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
+  return factor === 1 ? base : Math.round(base * factor);
 }
 
 /** Returns the fraction of the period that the logged-in member was employed.
- *  1 for a full period, <1 for the joining period, 0 if not yet started. */
+ *  Delegates to calcProRateFactor (paycalc-calc.js) — see that function for
+ *  the formula invariant and why startDate must be midnight local time. */
 function getProRateFactor(p) {
   if (!p) return 1;
-  const member = getLoggedMember();
-  if (!member?.startDate) return 1;
-  const sd = member.startDate;
-  if (sd <= p.start) return 1;
-  if (sd > p.cutoff) return 0;
-  const msPerDay     = 86400000;
-  const daysEmployed = Math.round((p.cutoff - sd) / msPerDay) + 1;
-  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
-  return daysEmployed / totalDays;
+  return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
 }
 
 /** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
@@ -808,7 +794,13 @@ function saveSettings() {
   localStorage.setItem(SK.rate,      rateVal);
   localStorage.setItem(SK.code,      document.getElementById('taxCode').value);
   localStorage.setItem(SK.sl,        document.getElementById('studentLoan').value);
-  localStorage.setItem(SK.pension,   document.getElementById('pensionAmt').value);
+  // On a joining period the pension field shows the pro-rated amount.
+  // Always write the full-period default to SK.pension so future full periods
+  // don't inherit the pro-rated value as their default.
+  const _pensionToSave = getProRateFactor(curP) < 1
+    ? getPensionDefault()
+    : document.getElementById('pensionAmt').value;
+  localStorage.setItem(SK.pension, _pensionToSave);
   localStorage.setItem(ytdPayKey(curTy), document.getElementById('ytdPay').value);
   localStorage.setItem(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
   localStorage.setItem(SK.grade,         document.getElementById('gradeSelect').value);
@@ -1367,7 +1359,7 @@ function calcHPP() {
       // London Allowance (explicitly included per Chiltern payroll)
       // NOT peer training (extra basic, not variable)
       const _pTy    = getTaxYearForOffset(p.num - 48);
-      const pLondon = getLondonAllowanceForPeriod(p, _pTy);
+      const pLondon = getLondonAllowanceForPeriod(p, _pTy) * getProRateFactor(p);
       const varPay =
         satCapped * (rate * 0.25) +  // sat uplift above base rate
         bhCapped  * (rate * 0.25) +  // bank holiday rostered premium above base rate
@@ -1476,7 +1468,7 @@ function updatePriorHpp(ty) {
           const normHrs   = _effContr - satCapped;
           const bhCapped  = Math.min(bhHrs, normHrs);
           const _pTy      = getTaxYearForOffset(p.num - 48);
-          const pLondon   = getLondonAllowanceForPeriod(p, _pTy);
+          const pLondon   = getLondonAllowanceForPeriod(p, _pTy) * getProRateFactor(p);
           _priorVar +=
             satCapped * (rate * 0.25) +
             bhCapped  * (rate * 0.25) +

@@ -143,6 +143,37 @@ export function getLondonAllowanceForPeriod(p, ty) {
 }
 
 /**
+ * Calculate the pro-ration factor for a member who joined mid-period.
+ *
+ * FORMULA INVARIANT — must not be broken:
+ *   - periodCutoff is always at local noon (inherited from FIRST_PAYDAY in getPeriods()).
+ *   - startDate must always be midnight local time: new Date(year, month-1, day).
+ *   - The resulting 0.5-day offset means Math.round always resolves X.5 to X+1 (JS
+ *     rounds .5 up), giving the correct calendar-day count regardless of timezone.
+ *
+ * Example: M. Okeke, startDate = new Date(2026, 3, 20) = April 20 midnight.
+ *   raw = (May 2 noon − April 20 midnight) / msPerDay = 12.5
+ *   Math.round(12.5) = 13 → daysEmployed = 14 → factor = 14/28 = 0.5 (50%)
+ *   Verified against May 8 2026 payslip: London Allowance = £276.16 × 0.5 = £138.08. ✓
+ *
+ * DO NOT change startDate to noon — it would break the formula.
+ * DO NOT change Math.round to Math.floor — it would give 13/28 = 46.4% (wrong).
+ *
+ * @param {Date|null|undefined} startDate  - Member's start date (midnight local)
+ * @param {Date} periodStart               - Period start Sunday (noon local)
+ * @param {Date} periodCutoff              - Period cutoff Saturday (noon local)
+ * @returns {number} 0–1 fraction (1 = full period, 0 = not yet started)
+ */
+export function calcProRateFactor(startDate, periodStart, periodCutoff) {
+  if (!startDate || startDate <= periodStart) return 1;
+  if (startDate > periodCutoff) return 0;
+  const msPerDay     = 86400000;
+  const daysEmployed = Math.round((periodCutoff - startDate) / msPerDay) + 1;
+  const totalDays    = Math.round((periodCutoff - periodStart) / msPerDay) + 1;
+  return daysEmployed / totalDays;
+}
+
+/**
  * Compute gross pay and its named components from period inputs.
  * BH and Boxing Day hours must already be zeroed by the caller for periods that
  * don't contain those days — this function trusts the values it receives.

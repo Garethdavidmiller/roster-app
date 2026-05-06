@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '8.77';
+export const APP_VERSION = '8.79';
 
 // ============================================
 // CONFIGURATION
@@ -71,7 +71,7 @@ export const teamMembers = [
     { name: 'T. Bibi',                 currentWeek: 19, rosterType: 'main',       role: 'CEA' },
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA' },
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA' },
-    { name: 'M. Okeke',                currentWeek: 4,  rosterType: 'bilingual',  role: 'CEA', startDate: new Date(2026, 3, 19), proRatedAL: { 2026: 23 } },
+    { name: 'M. Okeke',                currentWeek: 4,  rosterType: 'bilingual',  role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 } },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA' },
     { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },  // Fixed Mon-Fri 12:00-19:00 (reasonable adjustments)
 
@@ -183,7 +183,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=8.77';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=8.79';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
