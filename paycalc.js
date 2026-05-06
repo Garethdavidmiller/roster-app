@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.68';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.69';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.68';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.68';
+} from './paycalc-calc.js?v=8.69';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.69';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1407,8 +1407,25 @@ function updatePriorHpp(ty) {
   const priorTy   = CONFIG.TAX_YEARS[tyIdx - 1];
   const estRaw    = localStorage.getItem(hppEstKey(priorTy));
   const actualRaw = localStorage.getItem(hppActualKey(priorTy));
-  const est       = estRaw    ? parseFloat(estRaw)    : 0;
+  let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   const actual    = actualRaw ? parseFloat(actualRaw) : 0;
+
+  // G. Miller: if no stored estimate yet, derive directly from payslip varPay
+  // so the prior-year HPP shows without needing to visit a 2025/26 period first.
+  if (est === 0 && !actual && getLoggedMember()?.name === 'G. Miller') {
+    const _priorPeriods = getPeriods().filter(p => {
+      const o = p.num - 48;
+      return o >= priorTy.first && o <= priorTy.last;
+    });
+    const _priorVar = _priorPeriods.reduce((sum, p) => {
+      const a = MILLER_ACTUALS[formatISO(p.payday)];
+      return a?.varPay != null ? sum + a.varPay : sum;
+    }, 0);
+    if (_priorVar > 0) {
+      est = _priorVar * HPP_FRACTION;
+      localStorage.setItem(hppEstKey(priorTy), est.toFixed(2));
+    }
+  }
 
   // Is the current period's payday in the January when prior-year HPP is paid?
   const pNum = currentPeriodNum();
