@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.66';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.67';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.66';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.66';
+} from './paycalc-calc.js?v=8.67';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.67';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -46,6 +46,26 @@ const CONFIG = {
   FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
   LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
   TAX_YEARS,             // imported from paycalc-calc.js
+};
+
+// ── G. MILLER ACTUAL PAYSLIP DATA ─────────────────────────────────────────────
+// Actual figures from Gareth Miller's 2025/26 payslips, keyed by ISO payday date.
+// gross = post-pension taxable pay (matches "Taxable Pay" line on payslip).
+// Only shown when 'G. Miller' is the logged-in member; no other member sees this.
+const MILLER_ACTUALS = {
+  '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35 },
+  '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56 },
+  '2025-06-06': { gross: 4340.23, tax:  769.20, ni: 241.46, sl: 210.00, net: 3119.57 },
+  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.00, net: 3386.05 },
+  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.00, net: 3169.51 },
+  '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18 },
+  '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36 },
+  '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28 },
+  '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35 },
+  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.57, sl:   0,    net: 3854.67 },
+  '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36 },
+  '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00 },
+  '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60 },
 };
 
 /** Return contracted hours for the currently selected grade. */
@@ -1213,11 +1233,45 @@ function calculate() {
     bd += `<div class="bd-row"><span class="b-lbl" style="font-style:italic;color:var(--text-faint)">Tax adjusted using Year to Date figures from your last payslip</span><span class="b-val"></span></div>`;
   document.getElementById('bdBody').innerHTML = bd;
 
-  const _peekBtn = document.getElementById('resultPeekBtn');
-  if (_peekBtn) _peekBtn.textContent = `↑ Estimated take-home: ${fmt(net)}`;
+  // ── G. Miller actual payslip override ──────────────────────────────────────
+  // If the logged-in member is G. Miller and this period has hardcoded payslip
+  // data, replace the estimate display with the actual figures. The breakdown
+  // section below still shows the estimate so the comparison is visible.
+  const _actualKey  = _curP ? formatISO(_curP.payday) : null;
+  const _actual     = _actualKey && getLoggedMember()?.name === 'G. Miller'
+    ? MILLER_ACTUALS[_actualKey] : null;
+  const _netLabel   = document.getElementById('netLabel');
 
-  const _stickyAmt = document.getElementById('stickyAmount');
-  if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+  if (_actual) {
+    if (_netLabel) _netLabel.textContent = '✅ Your Actual Take-Home Pay';
+    document.getElementById('netDisplay').textContent = fmt(_actual.net);
+    document.getElementById('payslipNote').style.display   = 'none';
+    document.getElementById('absenceCaveat').style.display = 'none';
+    document.getElementById('summary').innerHTML = `
+      <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>
+      <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(_actual.tax)}</span></div>
+      <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(_actual.ni)}</span></div>
+      ${_actual.sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(_actual.sl)}</span></div>` : ''}
+      <div class="sum-row sum-net"><span class="lbl">Actual take-home</span><span class="val">${fmt(_actual.net)}</span></div>
+      <div class="sum-row" style="border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px;font-size:var(--type-small);color:var(--text-faint)">
+        <span class="lbl">Calculator estimate</span><span class="val">${fmt(net)}</span>
+      </div>
+    `;
+    document.getElementById('bdBtn').innerHTML =
+      `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
+    const _peekBtn = document.getElementById('resultPeekBtn');
+    if (_peekBtn) _peekBtn.textContent = `↑ Actual take-home: ${fmt(_actual.net)}`;
+    const _stickyAmt = document.getElementById('stickyAmount');
+    if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
+  } else {
+    if (_netLabel) _netLabel.textContent = '💷 Estimated Take-Home Pay';
+    const _peekBtn = document.getElementById('resultPeekBtn');
+    if (_peekBtn) _peekBtn.textContent = `↑ Estimated take-home: ${fmt(net)}`;
+    const _stickyAmt = document.getElementById('stickyAmount');
+    if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+    document.getElementById('bdBtn').innerHTML =
+      `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
+  }
 
   calcHPP();
 }
