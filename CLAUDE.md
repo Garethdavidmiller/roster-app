@@ -64,6 +64,8 @@
 
 **CLAUDE.md update policy:** This file is updated every **0.10 version** (e.g. 7.90 → 8.00), not on every patch release. The version shown in "Project identity" above will routinely lag the live app by a few patch numbers — this is intentional, not documentation drift. Always treat `APP_VERSION` in `roster-data.js` as the authoritative version. Update CLAUDE.md between those checkpoints only if there is a major behavioural change: new pay grade, auth/Firestore model change, service worker strategy change, new page or module going to production, or a data model change.
 
+**Same-commit rule:** Any commit that adds, removes, or renames a JS module must also update the file structure in `CLAUDE.md` and the routing table in `AI_MAP.md` in the **same commit**. The pre-commit hook (`githooks/pre-commit`) enforces this — it blocks commits where a root `.js` file is not listed in both docs. To activate after a fresh clone: `git config core.hooksPath githooks`.
+
 ---
 
 ## How to work with the owner
