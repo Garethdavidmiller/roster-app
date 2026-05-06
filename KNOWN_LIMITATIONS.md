@@ -6,13 +6,12 @@ These are documented decisions, not oversights. Read before filing a bug or sugg
 
 ## Security
 
-### Authentication is client-side only (#14 — high priority)
-The `myb_admin_session` localStorage session can be forged via DevTools.
-Firebase Auth is wired in (`firebase-client.js`) but the Firestore security rules
-have not been deployed yet. Deploying the rules before running `setupRosterAuth`
-(admin.html → Staff Login Accounts → Set up accounts) would break all Firestore writes.
-
-**Safe order:** Set up accounts → deploy rules.
+### localStorage session can be forged for UI access (#14)
+The `myb_admin_session` localStorage session can be modified via DevTools to
+impersonate another user or gain the admin UI. Since v7.94, Firestore security
+rules are deployed and require a real Firebase Auth session for all writes — so a
+forged localStorage session can see the UI but cannot write to Firestore.
+Practical risk is low for a small known team.
 
 ### ROSTER_SECRET is visible in page source
 The bearer token for `parseRosterPDF` is hardcoded in `admin-app.js`.

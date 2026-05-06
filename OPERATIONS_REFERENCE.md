@@ -252,7 +252,7 @@ Apply approved changes:
 
 ---
 
-## Firebase Auth migration — full detail
+## Firebase Auth — full detail (migration complete at v7.94)
 
 ### Email and password convention
 
@@ -266,23 +266,7 @@ Apply approved changes:
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 
-### Phase 2 — completing the migration (step-by-step)
-
-**Step 1 — create all Firebase Auth accounts:**
-
-Open admin.html → scroll to **Staff Login Accounts** → click **Set up accounts**.
-
-Shows summary: created / already existed / failed. Proceed only when failed = 0.
-
-**Step 2 — deploy Firestore rules:**
-
-GitHub → Actions → **Deploy Firestore Rules** → Run workflow.
-
-Uses `deploy-rules.yml` and the existing `FIREBASE_SERVICE_ACCOUNT` secret. No Firebase CLI needed.
-
-**Do not run Step 2 before Step 1** — all Firestore writes will fail and the app breaks for everyone.
-
-### What was implemented in v7.61
+### What was implemented (v7.61 → v7.94)
 
 - **`firebase-client.js`**: Added Firebase Auth SDK. Exports `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail(fullName)`.
 - **`admin-app.js`**: After localStorage login, fire-and-forgets `signInWithEmailAndPassword`. Sign-out calls Firebase `signOut`.
