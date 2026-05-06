@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.81';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.82';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.81';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.81';
+} from './paycalc-calc.js?v=8.82';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.82';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@ import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRos
 //     and the threshold tables in paycalc-calc.js.
 //     P48 anchor (13 Feb 2026) stays fixed as the offset reference point.
 const CONFIG = {
-  ANCHOR_DATE:    new Date(2026, 1, 13), // P48 payday: 13 Feb 2026 (fixed reference)
+  ANCHOR_DATE:    new Date(2026, 1, 13, 12, 0, 0), // P48 payday: 13 Feb 2026, noon local — MUST be noon to preserve the calcProRateFactor half-day invariant
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
   CONTRACTED_HRS: 140,                   // default; per-grade value from GRADES object
@@ -917,24 +917,56 @@ function loadSettings() {
     localStorage.removeItem('cea_hpp_actual');
   }
 
-  // Migration (v8.81): update any P51+ periods that have the pre-v8.81 pension default
-  // (£154.77) saved — change them to £147.36 per the pensionFrom cut-over.
-  // Only patches the exact old default; any custom value the user entered is left alone.
-  if (!localStorage.getItem('cea_pension_v881_migrated')) {
+  // Migration (v8.82): two-part pension localStorage cleanup.
+  //
+  // Part A — pension rate cut-over (all users, P51+):
+  //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
+  //   default) is updated to £147.36. Only the exact old default is patched — custom
+  //   values are untouched.
+  //
+  // Part B — joining-period anchor bug (joiners only):
+  //   ANCHOR_DATE was midnight before v8.82; it must be noon to maintain the
+  //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
+  //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
+  //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
+  //   value (£77.39) is also stale. All three are fingerprint values that cannot
+  //   plausibly be intentional custom entries.
+  if (!localStorage.getItem('cea_pension_v882_migrated')) {
     const _pensionCutover = new Date(2026, 4, 8);
+    const _member = getLoggedMember();
+    const _joiningP = _member?.startDate
+      ? getPeriods().find(p => _member.startDate > p.start && _member.startDate <= p.cutoff)
+      : null;
+
     getPeriods().forEach(p => {
-      if (p.payday < _pensionCutover) return;
       const raw = localStorage.getItem(periodKey(p.num));
       if (!raw) return;
       try {
         const d = JSON.parse(raw);
-        if (d.pension === 154.77) {
+        let changed = false;
+
+        // Part A: full old-rate default on P51+
+        if (p.payday >= _pensionCutover && d.pension === 154.77) {
           d.pension = 147.36;
-          localStorage.setItem(periodKey(p.num), JSON.stringify(d));
+          changed = true;
         }
+
+        // Part B: stale joining-period pro-rated values (all three known fingerprints)
+        if (_joiningP && p.num === _joiningP.num && !changed) {
+          const _correctPension = parseFloat(
+            (getPensionDefault(p) * calcProRateFactor(_member.startDate, p.start, p.cutoff)).toFixed(2)
+          );
+          const _stale = new Set([71.86, 68.42, 77.39]); // auto-computed old values
+          if (_stale.has(d.pension) && d.pension !== _correctPension) {
+            d.pension = _correctPension;
+            changed = true;
+          }
+        }
+
+        if (changed) localStorage.setItem(periodKey(p.num), JSON.stringify(d));
       } catch(e) {}
     });
-    localStorage.setItem('cea_pension_v881_migrated', '1');
+    localStorage.setItem('cea_pension_v882_migrated', '1');
   }
 }
 
