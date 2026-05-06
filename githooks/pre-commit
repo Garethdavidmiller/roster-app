@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Checks that every root-level .js module is listed in both AI_MAP.md and CLAUDE.md.
+# Blocks the commit if any module is missing from either file.
+# To install: git config core.hooksPath githooks
+
+cd "$(git rev-parse --show-toplevel)"
+
+ERRORS=0
+
+for f in *.js; do
+  [[ "$f" == *test* ]] && continue
+
+  if ! grep -q "$f" AI_MAP.md 2>/dev/null; then
+    echo "  doc-check: $f not listed in AI_MAP.md"
+    ERRORS=$((ERRORS + 1))
+  fi
+
+  if ! grep -q "$f" CLAUDE.md 2>/dev/null; then
+    echo "  doc-check: $f not listed in CLAUDE.md"
+    ERRORS=$((ERRORS + 1))
+  fi
+done
+
+if [ "$ERRORS" -gt 0 ]; then
+  echo ""
+  echo "  Add the missing module(s) to AI_MAP.md and CLAUDE.md, then re-commit."
+  exit 1
+fi
