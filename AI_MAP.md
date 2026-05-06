@@ -11,7 +11,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 |------|----------------|
 | Roster data, team members, bank holidays, pay periods | `roster-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
-| Admin portal UI, override entry, week grid, roster upload review | `admin-app.js` + `admin.html` |
+| Admin portal UI, login, AL/sick sections | `admin-app.js` + `admin.html` |
+| Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
+| Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` |
 | Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -43,12 +45,27 @@ Everything that touches `index.html` at runtime.
 - Sync chip state machine
 
 ### `admin-app.js`
-Everything that touches `admin.html` at runtime.
-- Login flow, session management
-- Per-row override entry, bulk override bar
-- `renderWeekGrid()` — generates the per-row type pills (must stay in sync with `admin.html` bulk bar)
-- `computeCellStates()` / `renderReviewTable()` — roster PDF review pipeline
-- Firebase Auth sign-in/out
+Login, session management, AL section, sick section, and the glue that wires all admin modules together.
+- Login flow, Firebase Auth sign-in/out, session state
+- AL entry, sick entry, faith calendar, huddle viewer, push subscription
+- Calls `initOverrides()` from `admin-overrides.js` and `initRosterUpload()` from `admin-roster-upload.js`
+- Does **not** contain week grid, override list, bulk bar, or roster review pipeline — those are in the sub-modules
+
+### `admin-overrides.js`
+The Change a Shift module. Owns the week grid and override list entirely.
+- `initOverrides(opts)` — called once by `admin-app.js` after login; receives callbacks
+- `renderWeekGrid()` — generates per-row type pills (must stay in sync with `admin.html` bulk bar)
+- `loadOverrides()` / `renderTable()` — Saved Changes list
+- `executeSave()` — writes override to Firestore
+- `updateSaveBtn()` — exported so swipe carousel can call it
+- State accessors: `getAllOverrides()` / `setAllOverrides()` — used by AL/sick sections in `admin-app.js`
+
+### `admin-roster-upload.js`
+The Weekly Roster Upload pipeline.
+- `initRosterUpload(opts)` — called once by `admin-app.js` after login
+- `computeCellStates()` — classifies each day: MATCH / DIFF / CONFLICT / COVERED
+- `renderReviewTable()` — per-person card list with approve/skip
+- `shiftDisplay()`, `shiftValueToOverrideType()` — display and type helpers
 
 ### `paycalc.js`
 UI layer for `paycalc.html`. No pure pay maths here.
@@ -84,6 +101,9 @@ All CSS shared across the three pages.
 - Add any new JS/CSS/HTML file to both `NETWORK_FIRST_FILES` and `CORE_ASSETS`
 - Version string must match `APP_VERSION` in `roster-data.js`
 
+### `roster-cycle-data.js`
+Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
+
 ### `functions/index.js`
 Three Cloud Functions:
 - `ingestHuddle` — Power Automate → Firebase Storage + Firestore
@@ -102,12 +122,13 @@ Three Cloud Functions:
 | Hardcode hex colours | Use CSS variables — every colour lives in `:root` in `shared.css`. |
 | Import Firebase in `paycalc-calc.js` | Same reason as above — test-runner compatibility. |
 | Use `alert()` | Use `console.error()` for dev errors; never show raw errors to staff. |
-| Skip the version bump | Browsers will serve stale JS. Bump all 20+ places per `CLAUDE.md`. |
+| Skip the version bump | Browsers will serve stale JS. Bump all places listed in `CLAUDE.md`. |
 
 ---
 
 ## Version bump checklist (summary — full list in CLAUDE.md)
 
-Every commit that changes app behaviour requires updating the version in **twenty places**.
+Every commit that changes app behaviour requires updating the version string everywhere.
 The authoritative version is `APP_VERSION` in `roster-data.js`.
-Key files to remember: `service-worker.js` (×2), all three HTML files (comment + script + css `?v=`), all JS import `?v=` strings.
+Key files: `service-worker.js` (×2), all three HTML files (comment + script + css `?v=`), all JS module import `?v=` strings.
+**Tip:** `grep -rn "?v=<old>" *.js *.html` finds every stale reference.

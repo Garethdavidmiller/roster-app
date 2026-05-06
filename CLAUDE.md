@@ -90,18 +90,26 @@ roster-app/
 ├── app.js                  ← all JavaScript for index.html
 ├── admin-app.js            ← all JavaScript for admin.html
 ├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
+├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds. Imported by paycalc.js and paycalc.test.mjs
+├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion, fetchOverridesForPeriod
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
+├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
-├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v7.68
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.62
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
 ├── fip.html                ← FIP European travel guide for staff (linked from admin.html)
 ├── guide.html              ← printable staff + admin quick guide (update at major versions: v7, v8 …)
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── CLAUDE.md               ← architectural rules and context for Claude sessions (this file)
+├── OPERATIONS_REFERENCE.md ← Power Automate flow, Cloud Function request formats, Firebase Auth detail
+├── AI_MAP.md               ← routing guide: which file to read/edit for a given task
+├── KNOWN_LIMITATIONS.md    ← intentional constraints and deferred decisions
+├── ROADMAP.md              ← product history, future ideas, reverted experiments
 └── functions/
     ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF + setupRosterAuth
     └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
@@ -155,7 +163,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | One-off notification prompt (`#notifPrompt`) in `index.html` | A small strip between `</nav>` and the pay-period strip appears once per device when `Notification.permission` is neither `'granted'` nor `'denied'` and `localStorage('myb_notif_prompt_done')` is unset. Enable button requests permission; × dismisses permanently. Both actions set the flag. The prompt never re-appears. Do not move it below the calendar — it must be visible without scrolling. |
 | PWA shortcuts in `manifest.json` | Three long-press shortcuts: Calendar (`index.html`), Pay (`paycalc.html`), Admin (`admin.html`). Max 4 shortcuts per Android spec. Changes require the app to be reinstalled (or the manifest to be refreshed) before taking effect — existing installs see old shortcuts until they reinstall. |
 | Sticky take-home bar (`#stickyTotal`) in `paycalc.html` | Fixed bar at bottom of viewport on mobile (hidden ≥1040px). Appears via `IntersectionObserver` when the `.result-card` scrolls off-screen. Tapping scrolls smoothly to the result card. `body.sticky-active` adds bottom padding to prevent content being hidden behind the bar. |
-| 3-digit time input auto-correction in `admin-app.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
+| 3-digit time input auto-correction in `admin-overrides.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
 | Range picker clear button (`.rp-clear`) | A ✕ button appears inside the date range picker when any date is selected. It resets both `from` and `to` dates and hides itself. Built into `buildRangePicker()` in `admin-app.js`. |
 | Team Week View (`👥 Team` button) | Available to all logged-in staff (v8.40 — admin-only gate removed at v8.40; was admin-only v8.22–v8.39). Toggle managed by `toggleTeamView()`, `teamViewMode` flag, and `applyTeamViewChrome()`. Week runs Sun–Sat (Chiltern convention) via `getSunday(date)`. Grade state (`currentTeamGrade`) persists across re-renders. `fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken)` uses the week-start timestamp as a token — results whose token no longer matches `currentTeamWeekStart` are discarded, preventing stale Firestore data from overwriting the UI after rapid navigation. Grade-tabs row uses CSS grid (`1fr auto 1fr`) so the grade tabs stay centred regardless of how many utility buttons (📋 / ?) sit on the right. |
 
@@ -174,7 +182,8 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | Tests | `roster-data.test.mjs` — payday and cutoff tests passing |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
 | PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
-| `getRosterSuggestion(period)` | `paycalc.js` — reads the logged-in member from localStorage, calls `getBaseShift` for each day in the period window, returns counts of Saturday/Sunday/BH/Boxing Day shifts. Used by the "Fill from roster →" hint bar in the Hours card. Also reads Firestore overrides (via `fetchOverrideSpecialDaysForPeriod`) to detect RDW and updated shifts when online. |
+| `getRosterSuggestion(period)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides, counts Sat/Sun/BH/Boxing Day/RDW shifts. Used by the "Fill from roster →" hint bar. |
+| `fetchOverridesForPeriod(p, memberName)` | `paycalc-roster-suggestions.js` — fetches Firestore overrides for a pay period window. |
 | `getLoggedMember()` | `paycalc.js` — returns the `teamMembers` entry for the session user, or null. |
 | `getEffectiveContr(p)` | `paycalc.js` — returns contracted hours for the period, pro-rated if the member has a `startDate` that falls within it. Full contracted hours otherwise. Used by `calculate()`, HPP loop, and Saturday cap. |
 | Reference guide | `paycalc-guide.html` — printable/linkable pay calculator reference (linked from the about lightbox, added v6.64) |
