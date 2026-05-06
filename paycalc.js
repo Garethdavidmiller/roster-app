@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.75';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.76';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.75';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.75';
+} from './paycalc-calc.js?v=8.76';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.76';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -101,6 +101,21 @@ function getEffectiveContr(p) {
   const daysEmployed = Math.round((p.cutoff - sd) / msPerDay) + 1;
   const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
   return Math.round(base * daysEmployed / totalDays);
+}
+
+/** Returns the fraction of the period that the logged-in member was employed.
+ *  1 for a full period, <1 for the joining period, 0 if not yet started. */
+function getProRateFactor(p) {
+  if (!p) return 1;
+  const member = getLoggedMember();
+  if (!member?.startDate) return 1;
+  const sd = member.startDate;
+  if (sd <= p.start) return 1;
+  if (sd > p.cutoff) return 0;
+  const msPerDay     = 86400000;
+  const daysEmployed = Math.round((p.cutoff - sd) / msPerDay) + 1;
+  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
+  return daysEmployed / totalDays;
 }
 
 /** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
@@ -687,6 +702,14 @@ function loadPeriodData(pNum) {
     if (raw) d = JSON.parse(raw);
   } catch(e) { /* use empty */ }
   writeFormData(d);
+  // If this is a joining period and no pension has been manually saved for it,
+  // override the full-period default with the pro-rated equivalent.
+  const _pObj = getPeriods().find(x => x.num === pNum);
+  if (d.pension == null && getProRateFactor(_pObj) < 1) {
+    const pensionBase = parseFloat(localStorage.getItem(SK.pension) ?? getPensionDefault()) || 0;
+    const pa = document.getElementById('pensionAmt');
+    if (pa) pa.value = (pensionBase * getProRateFactor(_pObj)).toFixed(2);
+  }
   _adjNegative = (d.otherAdj || 0) < 0;
   updateAdjSign();
   // Auto-expand "more options" if this period has extras saved
@@ -996,7 +1019,7 @@ function updateJoinerNotice(p) {
   const proRated     = getEffectiveContr(p);
   const base         = getContr();
   const startFmt     = member.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  el.textContent = `📅 You joined on ${startFmt}. Your contracted hours for this period are ${proRated} of ${base} (${daysEmployed} of ${totalDays} days).`;
+  el.textContent = `📅 You joined on ${startFmt}. For this period: contracted hours ${proRated} of ${base}, London Allowance and pension contribution scaled to ${daysEmployed} of ${totalDays} days.`;
   el.style.display = '';
 }
 
@@ -1128,7 +1151,8 @@ function calculate() {
   const _curP   = getPeriods().find(x => x.num === _pNum);
   const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
   const thresholds = getThresholds(_ty.label);
-  const LONDON = _curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow;
+  const _proRateFactor = getProRateFactor(_curP);
+  const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
 
   const _calcGrade = localStorage.getItem(SK.grade);
   const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
