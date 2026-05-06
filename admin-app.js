@@ -8,9 +8,10 @@
  * Do not edit here for: roster data structure, pay calculator, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.61';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.61';
-import { initRosterUpload } from './admin-roster-upload.js?v=8.61';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.62';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.62';
+import { initRosterUpload } from './admin-roster-upload.js?v=8.62';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=8.62';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -396,27 +397,9 @@ function initLoginOverlay() {
     lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
 })();
 
-// Override type metadata
-const TYPES = {
-    spare_shift:  { label: 'Spare shift',    fixed: true,  fixedValue: 'SPARE' },
-    shift:        { label: 'Shift',          fixed: false },
-    rdw:          { label: 'Rest Day Worked',   fixed: false },
-    annual_leave: { label: 'Annual Leave',   fixed: true,  fixedValue: 'AL' },
-    correction:   { label: 'Set as Rest Day', fixed: true,  fixedValue: 'RD' },
-    sick:         { label: 'Absent',          fixed: true,  fixedValue: 'SICK' },
-    // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
-    allocated:    { label: 'Allocated shift', fixed: false },
-    overtime:     { label: 'Overtime',        fixed: false },
-    swap:         { label: 'Swap',            fixed: false },
-};
-
 // ============================================
 // ROSTER LOGIC
 // ============================================
-
-// getRosterData, getWeekNum, getBaseShift — imported from roster-data.js as getRosterForMember, getWeekNumberForDate, getBaseShift
-// shiftBadge — alias for getShiftBadge; layout direction controlled by admin.html CSS
-function shiftBadge(shift) { return getShiftBadge(shift); }
 
 // ============================================
 // DOM
@@ -425,22 +408,10 @@ const fieldMember  = document.getElementById('fieldMember');
 const fieldDate    = document.getElementById('fieldDate');
 const prevWeekBtn  = document.getElementById('prevWeekBtn');
 const nextWeekBtn  = document.getElementById('nextWeekBtn');
-const bulkBar      = document.getElementById('bulkBar');
-const bulkTypePills = document.getElementById('bulkTypePills');
-const bulkTimeGroup = document.getElementById('bulkTimeGroup');
-const bulkStart    = document.getElementById('bulkStart');
-const bulkEnd      = document.getElementById('bulkEnd');
-const bulkApplyBtn = document.getElementById('bulkApplyBtn');
 const weekGrid     = document.getElementById('weekGrid');
 const saveBtn      = document.getElementById('saveBtn');
 const formFeedback = document.getElementById('formFeedback');
-const tableBody    = document.getElementById('overrideTableBody');
-const listCount    = document.getElementById('listCount');
-const listFeedback          = document.getElementById('listFeedback');
 const shiftNote             = document.getElementById('shiftNote');
-const overridesMonthFilter  = document.getElementById('overridesMonthFilter');
-const selectAllOverrides    = document.getElementById('selectAllOverrides');
-const bulkDeleteBtn         = document.getElementById('bulkDeleteBtn');
 
 // On desktop, move the member-context-bar into col-side as the first card.
 // This replaces the full-width navy banner with a compact white sidebar card.
@@ -767,12 +738,12 @@ function updateALBanner() {
     if (!member)      { banner.hidden = true; return; }
 
     const yearStr     = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
-    const entitlement = getALEntitlement(member, parseInt(yearStr, 10), allOverrides);
+    const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
     const todayStr    = formatISO(new Date());
 
     let taken  = 0;
     let booked = 0;
-    allOverrides.forEach(o => {
+    getAllOverrides().forEach(o => {
         // Sundays are uncontracted — don't count Sunday AL entries against the entitlement
         if (o.memberName === memberName && o.type === 'annual_leave' && o.date && o.date.startsWith(yearStr) && !isSunday(o.date)) {
             if (o.date <= todayStr) taken++; else booked++;
@@ -808,415 +779,8 @@ function updateALBanner() {
 // ============================================
 // WEEK GRID
 // ============================================
-
-// Update the week nav label for a given ISO date string.
-// Extracted so swipe can update the label without a full re-render.
-/**
- * Updates the week navigation date label to show the Sun–Sat range that
- * contains dateStr, and highlights it if it is the current week.
- * @param {string} dateStr  YYYY-MM-DD
- */
-function updateWeekNavLabel(dateStr) {
-    if (!dateStr) return;
-    const _picked   = new Date(dateStr + 'T12:00:00');
-    const _sunday   = new Date(_picked);
-    _sunday.setDate(_picked.getDate() - _picked.getDay());
-    const _saturday = new Date(_sunday);
-    _saturday.setDate(_sunday.getDate() + 6);
-    const weekNavLabel = document.getElementById('weekNavLabel');
-    if (weekNavLabel) {
-        weekNavLabel.textContent =
-            `${_sunday.getDate()} ${MONTH_ABB[_sunday.getMonth()]} – ${_saturday.getDate()} ${MONTH_ABB[_saturday.getMonth()]} ${_saturday.getFullYear()}`;
-        const todaySun = new Date(); todaySun.setDate(todaySun.getDate() - todaySun.getDay());
-        weekNavLabel.classList.toggle('is-current-week',
-            _sunday.toDateString() === todaySun.toDateString());
-    }
-}
-
-/**
- * Builds a 7-day week grid (column header + one row per day) into container
- * for the week that contains dateStr.
- *
- * Reads fieldMember.value and allOverrides from module scope, but has NO
- * side-effects on fieldDate, userMadeChanges, bulkBar, or saveBtn —
- * safe to call for adjacent panels during carousel pre-building.
- *
- * @param {HTMLElement} container  DOM node to append the grid into
- * @param {string}      dateStr    YYYY-MM-DD — any date within the target week
- */
-function buildWeekGridInto(container, dateStr) {
-    const memberName = fieldMember.value;
-    const member     = teamMembers.find(m => m.name === memberName);
-    if (!member || !memberName || !dateStr) return;
-
-    const picked = new Date(dateStr + 'T12:00:00');
-    const sunday = new Date(picked);
-    sunday.setDate(picked.getDate() - picked.getDay());
-
-    const header = document.createElement('div');
-    header.className = 'week-grid-header';
-    header.innerHTML = `
-        <div class="hdr-check"></div>
-        <div class="hdr-day">Day</div>
-        <div class="hdr-base">Base roster</div>
-        <div class="hdr-pills">Change to</div>
-        <div class="hdr-time">Shift time</div>`;
-    container.appendChild(header);
-
-    // Read faith calendar opt-in for the selected member
-    const faithCalendar = document.querySelector('input[name="faithCalendar"]:checked')?.value || 'none';
-
-    for (let i = 0; i < 7; i++) {
-        const date      = new Date(sunday);
-        date.setDate(sunday.getDate() + i);
-        const dateISO   = formatISO(date);
-        const baseShift = getBaseShift(member, date);
-
-        // Special day badges (⭐ ✂️ 💷 🎄 🐣 and optional faith calendar markers)
-        const badges = getSpecialDayBadges(date, dateISO, faithCalendar);
-        const badgeHTML = badges.map(b => `<span class="day-badge" title="${b.title}">${b.icon}</span>`).join('');
-
-        // Check if an override already exists for this member + date
-        const existing  = allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
-
-        // --- Main row ---
-        const row = document.createElement('div');
-        const isToday = dateISO === formatISO(new Date());
-        row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
-        row.dataset.date = dateISO;
-        if (existing) row.dataset.existingId = existing.id;
-
-        row.innerHTML = `
-            <div class="col-check">
-                <input type="checkbox" class="day-cb" aria-label="${DAY_NAMES[date.getDay()]} ${date.getDate()} ${MONTH_ABB[date.getMonth()]}">
-            </div>
-            <div class="col-day">
-                <span class="day-name">${DAY_NAMES[date.getDay()]}</span>
-                <span class="day-date">${date.getDate()} ${MONTH_ABB[date.getMonth()]}${badgeHTML}${existing ? ' <span class="overwrite-badge">⚠ Saved</span>' : ''}</span>
-            </div>
-            <div class="col-base">${shiftBadge(baseShift)}</div>
-            <div class="col-pills">
-                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
-                <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
-                <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
-                <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
-                <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
-            </div>
-            <div class="col-time">
-                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20">
-                <span class="time-sep">–</span>
-                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour end time, e.g. 14:20">
-                <span class="time-note">No time needed</span>
-                <span class="time-hint">24h · max 12 hrs</span>
-                <span class="time-error-msg">Use HH:MM format (e.g. 07:00)</span>
-            </div>`;
-
-        container.appendChild(row);
-
-        // Sundays are uncontracted — disable the AL pill so it can't be selected
-        if (date.getDay() === 0) {
-            const alPill = row.querySelector('.pill-annual_leave');
-            if (alPill) {
-                alPill.disabled = true;
-                alPill.title    = 'Annual leave cannot be recorded on a Sunday — Sundays are not contracted days';
-            }
-        }
-
-        // Refs
-        const checkbox = row.querySelector('.day-cb');
-        const pills    = row.querySelectorAll('.type-pill-btn');
-        const startEl  = row.querySelector('.day-start');
-        const endEl    = row.querySelector('.day-end');
-
-        // Pre-fill with existing override if present.
-        // Mark as prefilled-existing so the save button doesn't light up until
-        // the user explicitly changes something — and so deactivation can trigger deletion.
-        if (existing) {
-            // Map legacy types to the new unified 'shift' type so the Shift pill
-            // highlights correctly and re-saving migrates the record to the new type.
-            const legacyToShift = { overtime: 'shift', swap: 'shift', allocated: 'shift' };
-            const prefillType = legacyToShift[existing.type] ?? existing.type;
-            const typeMeta = TYPES[prefillType];
-            activateRow(row, checkbox, pills, startEl, endEl, prefillType);
-            row.classList.add('prefilled-existing');
-            if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
-                const [s, e] = existing.value.split('-');
-                startEl.value = s;
-                endEl.value   = e;
-            }
-            if (existing.note && shiftNote) {
-                shiftNote.value = existing.note;
-            }
-        }
-
-        // Pill click: set type, activate row.
-        // Remove prefilled-existing so the row counts as a user change from here on.
-        pills.forEach(pill => {
-            pill.addEventListener('click', () => {
-                const type    = pill.dataset.type;
-                const already = pill.classList.contains('active');
-                row.classList.remove('prefilled-existing');
-                if (already) {
-                    deactivateRow(row, checkbox, pills, startEl, endEl);
-                } else {
-                    activateRow(row, checkbox, pills, startEl, endEl, type);
-                    const typeMeta = TYPES[type];
-                    if (typeMeta && !typeMeta.fixed) startEl.focus();
-                }
-                markChanged();
-                updateSaveBtn();
-            });
-        });
-
-        // Checkbox: syncs with pill state
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                if (!row.dataset.type) row.classList.add('selected');
-            } else {
-                row.classList.remove('prefilled-existing');
-                deactivateRow(row, checkbox, pills, startEl, endEl);
-            }
-            markChanged();
-            updateSaveBtn();
-            updateBulkSelCount();
-        });
-
-        // Time inputs: editing a pre-filled time marks the row as user-modified
-        startEl.addEventListener('change', () => { row.classList.remove('prefilled-existing'); markChanged(); updateSaveBtn(); });
-        endEl.addEventListener('change',   () => { row.classList.remove('prefilled-existing'); markChanged(); updateSaveBtn(); });
-
-    }
-}
-
-/**
- * Re-renders the full week grid for the currently selected member and date.
- * Resets unsaved-changes state, shows the bulk bar, and refreshes Save button.
- * Shows a placeholder message if either selector is empty.
- */
-function renderWeekGrid() {
-    userMadeChanges = false;
-    const memberName = fieldMember.value;
-    const dateStr    = fieldDate.value;
-
-    updateWeekNavLabel(dateStr);
-
-    if (!memberName || !dateStr) {
-        weekGrid.innerHTML = `<div class="week-empty">${currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
-        bulkBar.style.display = 'none';
-        saveBtn.disabled = true;
-        if (shiftNote) shiftNote.value = '';
-        return;
-    }
-
-    weekGrid.innerHTML = '';
-    if (shiftNote) shiftNote.value = '';
-
-    const member = teamMembers.find(m => m.name === memberName);
-    if (!member) {
-        bulkBar.style.display = 'none';
-        saveBtn.disabled = true;
-        return;
-    }
-    const panel = document.createElement('div');
-    panel.className = 'week-panel';
-    buildWeekGridInto(panel, dateStr);
-    weekGrid.appendChild(panel);
-
-    bulkBar.style.display = 'block';
-    resetBulkPills();
-    updateSaveBtn();
-    updateBulkSelCount();
-}
-
-/**
- * Activates a day row by checking the checkbox, highlighting the selected type pill,
- * and enabling or disabling the time inputs based on whether the type has fixed times.
- * @param {HTMLElement}         row     The .day-row element
- * @param {HTMLInputElement}    cb      The row's checkbox
- * @param {NodeList}            pills   All .type-pill-btn elements in the row
- * @param {HTMLInputElement}    startEl The shift-start time input
- * @param {HTMLInputElement}    endEl   The shift-end time input
- * @param {string}              type    Override type key (e.g. 'annual_leave', 'swap')
- */
-function activateRow(row, checkbox, pills, startEl, endEl, type) {
-    checkbox.checked = true;
-    row.classList.add('active');
-    row.classList.remove('selected');
-    pills.forEach(p => p.classList.toggle('active', p.dataset.type === type));
-    const typeMeta = TYPES[type];
-    if (typeMeta && typeMeta.fixed) {
-        row.classList.add('fixed-type');
-        startEl.tabIndex = -1;
-        endEl.tabIndex   = -1;
-    } else {
-        row.classList.remove('fixed-type');
-        startEl.tabIndex = 0;
-        endEl.tabIndex   = 0;
-    }
-    row.dataset.type = type;
-    const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ Updating';
-}
-
-/**
- * Deactivates a day row by unchecking the checkbox, clearing the active pill,
- * wiping time inputs, and removing all state classes.
- * @param {HTMLElement}      row     The .day-row element
- * @param {HTMLInputElement} cb      The row's checkbox
- * @param {NodeList}         pills   All .type-pill-btn elements in the row
- * @param {HTMLInputElement} startEl The shift-start time input
- * @param {HTMLInputElement} endEl   The shift-end time input
- */
-function deactivateRow(row, checkbox, pills, startEl, endEl) {
-    checkbox.checked = false;
-    row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
-    pills.forEach(p => p.classList.remove('active'));
-    startEl.value = endEl.value = '';
-    startEl.classList.remove('input-error');
-    endEl.classList.remove('input-error');
-    startEl.tabIndex = endEl.tabIndex = -1;
-    delete row.dataset.type;
-    const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ Saved';
-}
-
-/**
- * Updates the Save button — disabled when nothing has changed, enabled with a
- * summary hint ("2 days to save, 1 override to remove") when there are pending writes.
- */
-function updateSaveBtn() {
-    // Only count rows the user has explicitly changed (not pre-filled existing overrides).
-    // Pre-filled rows carry the prefilled-existing class until the user interacts with them.
-    const rows     = [...weekGrid.querySelectorAll('.day-row')];
-    const saveCount   = rows.filter(r => r.dataset.type && !r.classList.contains('prefilled-existing')).length;
-    const deleteCount = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
-    const total = saveCount + deleteCount;
-    saveBtn.disabled = total === 0;
-    const hint = document.getElementById('saveBtnHint');
-    if (hint) {
-        if (total > 0) {
-            const parts = [];
-            if (saveCount)   parts.push(`${saveCount} day${saveCount   > 1 ? 's' : ''} to save`);
-            if (deleteCount) parts.push(`${deleteCount} override${deleteCount > 1 ? 's' : ''} to remove`);
-            hint.textContent = `Ready — ${parts.join(', ')}`;
-        } else {
-            hint.textContent = 'Select a type on at least one day, then tap Save changes';
-        }
-    }
-}
-
-/** Updates the "N days selected" counter in the bulk bar. */
-function updateBulkSelCount() {
-    const selCountDisplay = document.getElementById('bulkSelCount');
-    if (!selCountDisplay) return;
-    const n = weekGrid.querySelectorAll('.day-cb:checked').length;
-    selCountDisplay.textContent = n > 0 ? `${n} day${n > 1 ? 's' : ''} selected` : '';
-}
-
-// ============================================
-// BULK BAR — type pills
-// ============================================
-let bulkActiveType = '';
-
-/** Clears the active bulk-bar type pill, hides the time inputs, and resets their values. */
-function resetBulkPills() {
-    bulkActiveType = '';
-    bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
-    bulkTimeGroup.style.display = 'none';
-    bulkStart.value = bulkEnd.value = '';
-}
-
-bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pill => {
-    pill.addEventListener('click', () => {
-        const type    = pill.dataset.type;
-        const already = pill.classList.contains('active');
-        if (already) { resetBulkPills(); return; }
-        bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
-        pill.classList.add('active');
-        bulkActiveType = type;
-        const typeMeta = TYPES[type];
-        bulkTimeGroup.style.display = (typeMeta && !typeMeta.fixed) ? 'flex' : 'none';
-        bulkStart.value = bulkEnd.value = '';
-    });
-});
-
-// Day selection shortcuts
-document.getElementById('bulkSelMonFri').addEventListener('click', () => {
-    weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const dayIdx   = new Date(row.dataset.date + 'T12:00:00').getDay();
-        const checkbox = row.querySelector('.day-cb');
-        if (!checkbox) return;
-        // Mon=1, Fri=5
-        if (dayIdx >= 1 && dayIdx <= 5) {
-            checkbox.checked = true;
-            if (!row.dataset.type) row.classList.add('selected');
-        } else {
-            const pills   = row.querySelectorAll('.type-pill-btn');
-            const startEl = row.querySelector('.day-start');
-            const endEl   = row.querySelector('.day-end');
-            deactivateRow(row, checkbox, pills, startEl, endEl);
-        }
-    });
-    updateSaveBtn();
-    updateBulkSelCount();
-});
-
-document.getElementById('bulkSelWorking').addEventListener('click', () => {
-    const memberName = fieldMember.value;
-    const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
-    weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const date     = new Date(row.dataset.date + 'T12:00:00');
-        const checkbox = row.querySelector('.day-cb');
-        if (!checkbox) return;
-        const base  = member ? getBaseShift(member, date) : 'RD';
-        const works = base !== 'RD' && base !== 'OFF';
-        if (works) {
-            checkbox.checked = true;
-            if (!row.dataset.type) row.classList.add('selected');
-        } else {
-            const pills   = row.querySelectorAll('.type-pill-btn');
-            const startEl = row.querySelector('.day-start');
-            const endEl   = row.querySelector('.day-end');
-            deactivateRow(row, checkbox, pills, startEl, endEl);
-        }
-    });
-    updateSaveBtn();
-    updateBulkSelCount();
-});
-
-document.getElementById('bulkSelAll').addEventListener('click', () => {
-    weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const checkbox = row.querySelector('.day-cb');
-        if (!checkbox) return;
-        checkbox.checked = true;
-        if (!row.dataset.type) row.classList.add('selected');
-    });
-    updateSaveBtn();
-    updateBulkSelCount();
-});
-
-// Apply bulk type + time to all active (checked) rows
-bulkApplyBtn.addEventListener('click', () => {
-    if (!bulkActiveType) { showError('Choose a type in step 2 first, then tap Apply.'); return; }
-    const typeMeta = TYPES[bulkActiveType];
-
-    weekGrid.querySelectorAll('.day-row').forEach(row => {
-        const checkbox = row.querySelector('.day-cb');
-        if (!checkbox || !checkbox.checked) return;
-        const pills   = row.querySelectorAll('.type-pill-btn');
-        const startEl = row.querySelector('.day-start');
-        const endEl   = row.querySelector('.day-end');
-        activateRow(row, checkbox, pills, startEl, endEl, bulkActiveType);
-        if (typeMeta && !typeMeta.fixed) {
-            if (bulkStart.value) startEl.value = bulkStart.value;
-            if (bulkEnd.value)   endEl.value   = bulkEnd.value;
-        }
-    });
-    markChanged();
-    updateSaveBtn();
-    updateBulkSelCount();
-});
+// updateWeekNavLabel, buildWeekGridInto, renderWeekGrid, activateRow,
+// deactivateRow, updateSaveBtn, updateBulkSelCount — imported from admin-overrides.js
 
 // ============================================
 // SAVE
@@ -1292,11 +856,11 @@ saveBtn.addEventListener('click', async () => {
         const member      = teamMembers.find(m => m.name === memberName);
         // Use the year of the AL dates being saved, not the current calendar year
         const yearStr     = alInBatch[0].date.substring(0, 4);
-        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), allOverrides);
+        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
         // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
         const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
         // Sundays are uncontracted — exclude from entitlement counts
-        const existingAL = allOverrides.filter(o =>
+        const existingAL = getAllOverrides().filter(o =>
             o.memberName === memberName &&
             o.type       === 'annual_leave' &&
             o.date       && o.date.startsWith(yearStr) &&
@@ -1324,85 +888,6 @@ saveBtn.addEventListener('click', async () => {
     }
 });
 
-/**
- * Writes a batch of override changes to Firestore and updates the in-memory cache.
- * Disables the Save button while running, then re-enables it in the finally block.
- * Shows success/error feedback in the week editor feedback area.
- * @param {Array<{memberName,date,type,value,note,existingId}>} toSave   Overrides to create (existingId means overwrite)
- * @param {string[]} toDelete  Firestore document IDs to delete
- */
-async function executeSave(toSave, toDelete = []) {
-    const memberName = fieldMember.value;
-    const overwrites = toSave.filter(e => e.existingId).length;
-    const creates    = toSave.length - overwrites;
-    const removes    = toDelete.length;
-    const total      = toSave.length + removes;
-
-    saveBtn.disabled    = true;
-    saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`;
-
-    try {
-        const batch   = writeBatch(db);
-        const newDocs = [];   // track new docs for in-memory update
-
-        // Process deletions first (deactivated pre-filled rows)
-        toDelete.forEach(id => batch.delete(doc(db, 'overrides', id)));
-
-        toSave.forEach(entry => {
-            // Delete existing first if overwriting, then add fresh doc
-            if (entry.existingId) {
-                batch.delete(doc(db, 'overrides', entry.existingId));
-            }
-            const { existingId: _, ...data } = entry;
-            const newRef = doc(collection(db, 'overrides'));
-            batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: currentUser });
-            // Capture the new ID so we can update allOverrides without a round-trip
-            newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
-        });
-        await batch.commit();
-
-        const parts = [];
-        if (creates    > 0) parts.push(`${creates} added`);
-        if (overwrites > 0) parts.push(`${overwrites} updated`);
-        if (removes    > 0) parts.push(`${removes} removed`);
-        showSuccess(`${parts.join(', ')} for ${memberName}`);
-        userMadeChanges = false;
-        if (shiftNote) shiftNote.value = '';
-
-        // Reset checked rows
-        weekGrid.querySelectorAll('.day-row').forEach(row => {
-            const checkbox = row.querySelector('.day-cb');
-            const pills    = row.querySelectorAll('.type-pill-btn');
-            const s        = row.querySelector('.day-start');
-            const e        = row.querySelector('.day-end');
-            if (checkbox) deactivateRow(row, checkbox, pills, s, e);
-        });
-
-        // Update allOverrides in-memory — no Firestore round-trip needed
-        const removedIds = new Set([
-            ...toDelete,
-            ...toSave.filter(e => e.existingId).map(e => e.existingId)
-        ]);
-        allOverrides = allOverrides.filter(o => !removedIds.has(o.id));
-        allOverrides.push(...newDocs);
-        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        renderTable();
-        updateALBanner();
-        updateALBookedBox();
-        updateSickBookedBox();
-        if (fieldMember.value && fieldDate.value) renderWeekGrid();
-
-    } catch (err) {
-        console.error('[Admin] Save failed:', err);
-        showError(err.code === 'permission-denied'
-            ? 'Permission denied — contact your admin to check Firestore rules.'
-            : 'Could not save — check your connection and try again.');
-    } finally {
-        saveBtn.disabled    = false;
-        saveBtn.textContent = 'Save changes';
-        updateSaveBtn();
-    }
-}
 
 fieldMember.addEventListener('change', () => {
     const chosen = fieldMember.value;
@@ -1441,221 +926,6 @@ fieldDate.addEventListener('change', () => {
 });
 
 // ============================================
-// OVERRIDES LIST
-// ============================================
-let allOverrides = [];
-
-
-
-/**
- * Loads all override documents from Firestore into the allOverrides module-level
- * array, then renders the table, week grid, and AL/sick summary boxes.
- * On failure shows an inline error with a reload link.
- */
-async function loadOverrides() {
-    tableBody.innerHTML = '<tr class="state-row"><td colspan="8"><span class="spinner"></span>Loading…</td></tr>';
-    try {
-        const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(2000)));
-        allOverrides = [];
-        snap.forEach(s => allOverrides.push({ id: s.id, ...s.data() }));
-        renderTable();
-        // Re-render week grid so existing-override detection is current
-        if (fieldMember.value && fieldDate.value) renderWeekGrid();
-        updateALBanner();
-        updateALBookedBox();
-        updateSickBookedBox();
-    } catch (err) {
-        console.error('[Admin] Load failed:', err);
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
-        document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
-        listCount.textContent = 'Error';
-    }
-}
-
-/**
- * Renders the Saved Changes table from the allOverrides in-memory array.
- * Filtered to the currently selected member (if one is chosen) and by the
- * selected month/year from the overridesMonthFilter dropdown.
- * Rebuilds the month dropdown options each time from available data.
- */
-function renderTable() {
-    const memberFilter = fieldMember.value;
-    const memberRows   = memberFilter
-        ? allOverrides.filter(o => o.memberName === memberFilter)
-        : allOverrides;
-
-    // Rebuild month dropdown from data available after the member filter
-    if (overridesMonthFilter) {
-        const months     = [...new Set(memberRows.map(o => (o.date || '').substring(0, 7)))]
-            .filter(Boolean)
-            .sort((a, b) => b.localeCompare(a));
-        const isFirstRender = !overridesMonthFilter.dataset.initialized;
-        const today         = new Date();
-        const currentMonth  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-        const prevValue     = isFirstRender ? currentMonth : overridesMonthFilter.value;
-        overridesMonthFilter.dataset.initialized = '1';
-        overridesMonthFilter.innerHTML = '<option value="">All months</option>';
-        months.forEach(ym => {
-            const [y, m] = ym.split('-');
-            const label  = `${new Date(+y, +m - 1, 1).toLocaleString('en-GB', { month: 'long' })} ${y}`;
-            const opt    = document.createElement('option');
-            opt.value    = ym;
-            opt.textContent = label;
-            if (ym === prevValue) opt.selected = true;
-            overridesMonthFilter.appendChild(opt);
-        });
-    }
-
-    const monthFilter = overridesMonthFilter ? overridesMonthFilter.value : '';
-    const rows = monthFilter
-        ? memberRows.filter(o => (o.date || '').startsWith(monthFilter))
-        : memberRows;
-    listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
-
-    if (!rows.length) {
-        tableBody.innerHTML = '<tr class="state-row"><td colspan="8">No saved changes.</td></tr>';
-        return;
-    }
-
-    tableBody.innerHTML = '';
-    if (selectAllOverrides) selectAllOverrides.checked = false;
-    if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
-    rows.forEach(o => {
-        const typeMeta = TYPES[o.type];
-        const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
-        const tr   = document.createElement('tr');
-        tr.innerHTML = `
-            <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${esc(o.memberName)} ${o.date}"></td>
-            <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
-            <td>${esc(o.memberName)}</td>
-            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : esc(o.type)}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}</td>
-            <td style="font-family:monospace;font-size:12px">${esc(o.value)}</td>
-            <td style="color:var(--text-light);font-style:italic">${esc(o.note)}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
-            <td>
-                <button class="btn-edit" data-member="${esc(o.memberName)}" data-date="${o.date}" aria-label="Edit ${esc(o.memberName)} ${o.date}">Edit</button>
-            </td>
-            <td>
-                <button class="btn-delete" data-id="${o.id}" aria-label="Delete ${esc(o.memberName)} ${o.date}">Delete</button>
-            </td>`;
-        tableBody.appendChild(tr);
-    });
-    tableBody.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', handleDelete));
-    tableBody.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', handleEdit));
-    tableBody.querySelectorAll('.row-select').forEach(checkbox => checkbox.addEventListener('change', updateBulkDeleteVisibility));
-}
-
-/** Shows or hides the "Delete selected" button based on how many rows are checked. */
-function updateBulkDeleteVisibility() {
-    const checkedCount = tableBody.querySelectorAll('.row-select:checked').length;
-    if (bulkDeleteBtn) bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
-    if (selectAllOverrides) {
-        const total = tableBody.querySelectorAll('.row-select').length;
-        selectAllOverrides.checked = total > 0 && checkedCount === total;
-        selectAllOverrides.indeterminate = checkedCount > 0 && checkedCount < total;
-    }
-}
-
-// Select-all checkbox — checks/unchecks every visible row and updates the button visibility.
-if (selectAllOverrides) {
-    selectAllOverrides.addEventListener('change', () => {
-        tableBody.querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selectAllOverrides.checked; });
-        updateBulkDeleteVisibility();
-    });
-}
-
-// Bulk delete — deletes all checked rows in one Firestore batch.
-if (bulkDeleteBtn) {
-    bulkDeleteBtn.addEventListener('click', async () => {
-        const checkedRows = [...tableBody.querySelectorAll('.row-select:checked')];
-        if (!checkedRows.length) return;
-        const ids = checkedRows.map(checkbox => checkbox.dataset.id);
-        bulkDeleteBtn.disabled = true;
-        bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
-        try {
-            const batch = writeBatch(db);
-            ids.forEach(id => batch.delete(doc(db, 'overrides', id)));
-            await batch.commit();
-            allOverrides = allOverrides.filter(o => !ids.includes(o.id));
-            renderTable();
-            updateALBanner();
-            updateALBookedBox();
-            updateSickBookedBox();
-            if (fieldMember.value && fieldDate.value) renderWeekGrid();
-            if (listFeedback) {
-                listFeedback.textContent = `✓ Deleted ${ids.length} saved change${ids.length !== 1 ? 's' : ''}`;
-                listFeedback.className = 'list-feedback success';
-                setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
-            }
-        } catch (err) {
-            console.error('[Admin] Bulk delete failed:', err);
-            bulkDeleteBtn.disabled = false;
-            bulkDeleteBtn.textContent = 'Delete selected';
-            if (listFeedback) {
-                const msg = err.code === 'unavailable'
-                    ? '⚠ You appear to be offline — reconnect and try again.'
-                    : '⚠ Bulk delete failed — check your connection and try again.';
-                listFeedback.textContent = msg;
-                listFeedback.className = 'list-feedback error';
-            }
-        }
-    });
-}
-
-/**
- * Handles delete button clicks in the Saved Changes table.
- * First click changes the label to "⚠ Delete?" (5 s to confirm); second click
- * deletes the document from Firestore and removes it from the in-memory cache.
- * @param {MouseEvent} e
- */
-async function handleDelete(e) {
-    const btn = e.currentTarget;
-    if (!btn.classList.contains('confirming')) {
-        btn.classList.add('confirming');
-        btn.textContent = '⚠ Delete?';
-        setTimeout(() => {
-            if (btn.classList.contains('confirming')) {
-                btn.classList.remove('confirming');
-                btn.textContent = 'Delete';
-            }
-        }, 5000);
-        return;
-    }
-
-    // Capture what we're deleting before removing it
-    const deleted = allOverrides.find(o => o.id === btn.dataset.id);
-
-    btn.disabled = true;
-    btn.textContent = '…';
-    try {
-        await deleteDoc(doc(db, 'overrides', btn.dataset.id));
-        allOverrides = allOverrides.filter(o => o.id !== btn.dataset.id);
-        renderTable();
-        updateALBanner();
-        updateALBookedBox();
-        updateSickBookedBox();
-        // Re-render week grid to clear the "change saved" badge if this date is visible
-        if (fieldMember.value && fieldDate.value) renderWeekGrid();
-        // Brief confirmation of what was removed
-        if (deleted && listFeedback) {
-            const typeMeta = TYPES[deleted.type];
-            listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`;
-            listFeedback.className = 'list-feedback success';
-            setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
-        }
-    } catch (err) {
-        console.error('[Admin] Delete failed:', err);
-        btn.disabled = false;
-        btn.classList.remove('confirming');
-        btn.textContent = 'Delete';
-        if (listFeedback) {
-            const msg = err.code === 'unavailable'
-                ? '⚠ You appear to be offline — reconnect and try again.'
-                : '⚠ Could not delete — check your connection and try again.';
-            listFeedback.textContent = msg;
-            listFeedback.className = 'list-feedback error';
-        }
-    }
-}
 
 /**
  * Handles edit button clicks in the Saved Changes table.
@@ -1679,180 +949,10 @@ function handleEdit(e) {
     if (confirmNavigate(go)) go();
 }
 
-// ============================================
-// TIME INPUT AUTO-FORMAT + INLINE VALIDATION
-// ============================================
-// Typing 4 digits auto-inserts the colon: "0730" → "07:30"
-// Once the start time is complete (HH:MM), focus jumps to the end time.
-document.addEventListener('input', e => {
-    if (!e.target.classList.contains('time-input')) return;
-    const timeInput  = e.target;
-    // Clear error while user is typing so the red border doesn't linger mid-edit
-    timeInput.classList.remove('input-error');
-    let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-    // "630" → hour part "63" is invalid; treat as "0630"
-    if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) {
-        raw = '0' + raw;
-    }
-    if (raw.length >= 3) {
-        timeInput.value = raw.slice(0, 2) + ':' + raw.slice(2);
-    } else {
-        timeInput.value = raw;
-    }
-    // Auto-advance: start time complete → jump to end time
-    if (raw.length === 4) {
-        if (timeInput.classList.contains('day-start')) {
-            timeInput.closest('.day-row')?.querySelector('.day-end')?.focus();
-        } else if (timeInput.id === 'bulkStart') {
-            document.getElementById('bulkEnd')?.focus();
-        }
-    }
-});
-
-// On blur: validate completed time and show inline error if malformed
-document.addEventListener('focusout', e => {
-    if (!e.target.classList.contains('time-input')) return;
-    const timeInput  = e.target;
-    const val = timeInput.value.trim();
-    if (!val) { timeInput.classList.remove('input-error'); return; } // empty is fine (caught on save)
-    const timeRe = /^([01]\d|2[0-3]):[0-5]\d$/;
-    if (!timeRe.test(val)) {
-        timeInput.classList.add('input-error');
-    } else {
-        timeInput.classList.remove('input-error');
-    }
-});
 
 // ============================================
 // UTILITIES
 // ============================================
-// formatISO and isSunday are imported from roster-data.js
-
-/** Formats YYYY-MM-DD as a readable date string: "18 Mar 2026".
- *  Returns "—" for empty/null input.
- *  @param {string} str  YYYY-MM-DD
- *  @returns {string} */
-
-// ---- Shift rule helpers ----
-
-// Parse "HH:MM" → total minutes from midnight
-function parseMinutes(timeStr) {
-    const [h, m] = timeStr.split(':').map(Number);
-    return h * 60 + m;
-}
-
-// Effective end in minutes from midnight of the START day.
-// Overnight shifts (end < start) add 24 h so gap maths stays consistent.
-function effectiveEndMins(startStr, endStr) {
-    const s = parseMinutes(startStr);
-    const e = parseMinutes(endStr);
-    return e >= s ? e : e + 24 * 60;
-}
-
-// Human-readable hours: 450 → "7.5h", 720 → "12h"
-function fmtHours(mins) {
-    const h = mins / 60;
-    return (Number.isInteger(h) ? h : h.toFixed(1)) + 'h';
-}
-
-// Return the effective shift value string for memberName on dateISO.
-// Checks the pending save batch first, then existing overrides, then base roster.
-/**
- * Returns the effective shift value for a member on a given date, checking
- * the pending save batch first, then allOverrides, then the base roster.
- * Used by validateShiftRules to calculate rest gaps across day boundaries.
- * @param {string}   memberName
- * @param {string}   dateISO  YYYY-MM-DD
- * @param {Array}    batch    The toSave array being validated (may override allOverrides)
- * @returns {string} shift value e.g. "07:00-15:00" or "RD"
- */
-function getEffectiveShift(memberName, dateISO, batch) {
-    const inBatch = batch.find(e => e.date === dateISO);
-    if (inBatch) return inBatch.value;
-    const inOverrides = allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
-    if (inOverrides) return inOverrides.value;
-    const member = teamMembers.find(m => m.name === memberName);
-    if (!member) return 'RD';
-    return getBaseShift(member, new Date(dateISO + 'T12:00:00'));
-}
-
-/**
- * Validates max shift duration (12 h) and minimum rest gap (12 h) between consecutive
- * shifts for all entries in toSave. Also marks failing rows with .row-error in the DOM.
- * @param {Array}  toSave      The pending save batch from the week editor
- * @param {string} memberName
- * @returns {string[]} Array of human-readable error strings (empty = no violations)
- */
-function validateShiftRules(toSave, memberName) {
-    const ruleErrors = [];
-
-    toSave.forEach(entry => {
-        const { date, value, type } = entry;
-        if (TYPES[type]?.fixed) return;           // AL / Make Rest Day — no times
-        if (!value || !value.includes('-')) return; // RD, SPARE, etc.
-
-        const [startStr, endStr] = value.split('-');
-        const startMins = parseMinutes(startStr);
-        const endMins   = effectiveEndMins(startStr, endStr); // may exceed 1440 for overnight
-
-        const markRow = () => {
-            const row = weekGrid.querySelector(`.day-row[data-date="${date}"]`);
-            if (row) row.classList.add('row-error');
-        };
-
-        // 1. Duration check (max 12 h)
-        const duration = endMins - startMins;
-        if (duration > 12 * 60) {
-            markRow();
-            ruleErrors.push(`${formatDisplay(date)}: shift is ${fmtHours(duration)} — max is 12h`);
-        }
-
-        // 2. Gap with previous calendar day (prev shift end → this shift start)
-        const prevDate = new Date(date + 'T12:00:00');
-        prevDate.setDate(prevDate.getDate() - 1);
-        const prevISO   = formatISO(prevDate);
-        const prevShift = getEffectiveShift(memberName, prevISO, toSave);
-
-        if (prevShift && prevShift.includes('-')) {
-            const [ps, pe] = prevShift.split('-');
-            const prevEffEnd = effectiveEndMins(ps, pe);
-            // This shift starts startMins into the *next* calendar day from prevShift's start
-            const gap = (startMins + 24 * 60) - prevEffEnd;
-            if (gap < 12 * 60) {
-                markRow();
-                ruleErrors.push(
-                    `${formatDisplay(date)}: only ${fmtHours(gap)} rest after ${formatDisplay(prevISO)} shift — need 12h`
-                );
-            }
-        }
-
-        // 3. Gap with next calendar day (this shift end → next shift start)
-        const nextDate = new Date(date + 'T12:00:00');
-        nextDate.setDate(nextDate.getDate() + 1);
-        const nextISO   = formatISO(nextDate);
-        const nextShift = getEffectiveShift(memberName, nextISO, toSave);
-
-        if (nextShift && nextShift.includes('-')) {
-            const [ns] = nextShift.split('-');
-            const nextStartMins = parseMinutes(ns);
-            const gap = (nextStartMins + 24 * 60) - endMins;
-            if (gap < 12 * 60) {
-                markRow();
-                ruleErrors.push(
-                    `${formatDisplay(date)}: only ${fmtHours(gap)} rest before ${formatDisplay(nextISO)} shift — need 12h`
-                );
-            }
-        }
-    });
-
-    return ruleErrors;
-}
-
-function formatDisplay(str) {
-    if (!str) return '—';
-    const [y, m, d] = str.split('-');
-    return `${parseInt(d,10)} ${MONTH_ABB[parseInt(m,10)-1]} ${y}`;
-}
 
 // escapeHtml — imported from roster-data.js; local alias preserves existing call sites
 const esc = escapeHtml;
@@ -2201,7 +1301,7 @@ function updateAlPreview() {
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') { restCount++; return; }
             // Also treat existing RD/OFF overrides as rest days (same logic as the booking filter)
-            const ov = allOverrides.find(o => o.memberName === memberObj.name && o.date === dateStr);
+            const ov = getAllOverrides().find(o => o.memberName === memberObj.name && o.date === dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
             // Sundays are uncontracted for all staff — skip, don't book AL
             if (isSunday(dateStr)) { restCount++; return; }
@@ -2238,9 +1338,9 @@ alSaveBtn.addEventListener('click', async () => {
     if (!_alBookingConfirmed) {
         // Use the year from the booking dates, not the current calendar year
         const yearStr        = alFrom.value ? alFrom.value.substring(0, 4) : String(new Date().getFullYear());
-        const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), allOverrides);
+        const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
         // Sundays are uncontracted — exclude from entitlement counts
-        const existingAL     = allOverrides.filter(o =>
+        const existingAL     = getAllOverrides().filter(o =>
             o.memberName === member &&
             o.type       === 'annual_leave' &&
             o.date       && o.date.startsWith(yearStr) && !isSunday(o.date)
@@ -2271,7 +1371,7 @@ alSaveBtn.addEventListener('click', async () => {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') return false;
-            const ov = allOverrides.find(o => o.memberName === member && o.date === dateStr);
+            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
             return true;
           })
@@ -2291,7 +1391,7 @@ alSaveBtn.addEventListener('click', async () => {
         const alBatch      = writeBatch(db);
         workingDates.forEach(date => {
             // Overwrite any existing override for this member+date
-            const existing = allOverrides.find(o => o.memberName === member && o.date === date);
+            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
             if (existing) { alBatch.delete(doc(db, 'overrides', existing.id)); alDeletedIds.add(existing.id); }
             const newRef = doc(collection(db, 'overrides'));
             alBatch.set(newRef, {
@@ -2316,10 +1416,11 @@ alSaveBtn.addEventListener('click', async () => {
         alPicker.reset();
         updateAlPreview();
 
-        // Update allOverrides in-memory — no Firestore round-trip needed
-        allOverrides = allOverrides.filter(o => !alDeletedIds.has(o.id));
-        allOverrides.push(...alNewDocs);
-        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        // Update in-memory cache — no Firestore round-trip needed
+        const alUpdated = getAllOverrides().filter(o => !alDeletedIds.has(o.id));
+        alUpdated.push(...alNewDocs);
+        alUpdated.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        setAllOverrides(alUpdated);
         renderTable();
         updateALBanner();
         updateALBookedBox();
@@ -2431,7 +1532,7 @@ function updateSickPreview() {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') { restCount++; return; }
-            const ov = allOverrides.find(o => o.memberName === memberObj.name && o.date === dateStr);
+            const ov = getAllOverrides().find(o => o.memberName === memberObj.name && o.date === dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) restCount++;
         });
     }
@@ -2462,7 +1563,7 @@ sickSaveBtn.addEventListener('click', async () => {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') return false;
-            const ov = allOverrides.find(o => o.memberName === member && o.date === dateStr);
+            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
             return true;
           })
@@ -2483,7 +1584,7 @@ sickSaveBtn.addEventListener('click', async () => {
         const sickDeletedIds = new Set();
         const sickBatch      = writeBatch(db);
         workingDates.forEach(date => {
-            const existing = allOverrides.find(o => o.memberName === member && o.date === date);
+            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
             if (existing) { sickBatch.delete(doc(db, 'overrides', existing.id)); sickDeletedIds.add(existing.id); }
             const newRef = doc(collection(db, 'overrides'));
             sickBatch.set(newRef, {
@@ -2508,9 +1609,10 @@ sickSaveBtn.addEventListener('click', async () => {
         updateSickPreview();
 
         // Update in-memory cache — no Firestore round-trip needed
-        allOverrides = allOverrides.filter(o => !sickDeletedIds.has(o.id));
-        allOverrides.push(...sickNewDocs);
-        allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const sickUpdated = getAllOverrides().filter(o => !sickDeletedIds.has(o.id));
+        sickUpdated.push(...sickNewDocs);
+        sickUpdated.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        setAllOverrides(sickUpdated);
         renderTable();
         updateSickBookedBox();
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
@@ -2540,7 +1642,7 @@ sickSaveBtn.addEventListener('click', async () => {
  * @param {HTMLElement} btn        The delete button (disabled during the request)
  */
 async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
-    const toDelete = allOverrides.filter(o =>
+    const toDelete = getAllOverrides().filter(o =>
         o.memberName === memberName &&
         o.type       === type &&
         o.date       >= start &&
@@ -2554,7 +1656,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
         toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
         await batch.commit();
         const ids = new Set(toDelete.map(o => o.id));
-        allOverrides = allOverrides.filter(o => !ids.has(o.id));
+        setAllOverrides(getAllOverrides().filter(o => !ids.has(o.id)));
         renderTable();
         updateALBanner();
         updateALBookedBox();
@@ -2589,7 +1691,7 @@ function updateSickBookedBox() {
     const memberName = sickMember.value;
     if (!memberName) { box.hidden = true; return; }
 
-    const entries = allOverrides.filter(o =>
+    const entries = getAllOverrides().filter(o =>
         o.memberName === memberName &&
         o.type       === 'sick' &&
         o.date
@@ -2764,7 +1866,7 @@ function updateALBookedBox() {
     const memberName = alMember.value;
     if (!memberName) { box.hidden = true; return; }
 
-    const entries = allOverrides.filter(o =>
+    const entries = getAllOverrides().filter(o =>
         o.memberName === memberName &&
         o.type       === 'annual_leave' &&
         o.date
@@ -3396,7 +2498,7 @@ async function purgeSundayAL() {
 
         // Refresh the in-memory cache so Saved Changes reflects the cleanup
         const removedIds = new Set(toDelete.map(d => d.id));
-        allOverrides = allOverrides.filter(o => !removedIds.has(o.id));
+        setAllOverrides(getAllOverrides().filter(o => !removedIds.has(o.id)));
         renderTable();
         updateALBanner();
         updateALBookedBox();
@@ -3413,6 +2515,20 @@ if (!isAuthenticated) {
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();
+    initOverrides({
+        currentUser,
+        currentIsAdmin,
+        showSuccess,
+        showError,
+        onAfterSave: () => {
+            userMadeChanges = false;
+            updateALBanner();
+            updateALBookedBox();
+            updateSickBookedBox();
+        },
+        markChanged,
+        onEditRow: handleEdit,
+    });
     loadOverrides(); // internally calls renderWeekGrid() after data loads
     if (currentIsAdmin) purgeSundayAL();
     if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value || currentUser);
