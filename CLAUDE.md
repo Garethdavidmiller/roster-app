@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `8.62` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `8.64` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -53,6 +53,7 @@
 | `admin-roster-upload.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `paycalc.js` | `roster-data.js?v=`, `paycalc-calc.js?v=`, `paycalc-roster-suggestions.js?v=` | 3 places |
 | `paycalc-roster-suggestions.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+| `paycalc-roster-suggestions.test.mjs` | `const V = '...'` at top of file | 1 place — must match firebase-client import version in paycalc-roster-suggestions.js |
 
 **Tip:** `grep -rn "?v=<old>" *.js *.html` finds every stale reference in one command.
 
@@ -95,12 +96,12 @@ roster-app/
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds. Imported by paycalc.js and paycalc.test.mjs
-├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion, fetchOverridesForPeriod
+├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion(p, member), fetchOverridesForPeriod, _setOverridesForTest
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
-├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.62
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.64
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
@@ -112,6 +113,9 @@ roster-app/
 ├── AI_MAP.md               ← routing guide: which file to read/edit for a given task
 ├── KNOWN_LIMITATIONS.md    ← intentional constraints and deferred decisions
 ├── ROADMAP.md              ← product history, future ideas, reverted experiments
+├── roster-data.test.mjs    ← Node test runner tests for roster-data.js (bank holidays, paydays, AL, etc.)
+├── paycalc.test.mjs        ← Node test runner tests for paycalc-calc.js (tax, NI, gross)
+├── paycalc-roster-suggestions.test.mjs ← Node test runner tests for paycalc-roster-suggestions.js. Requires --experimental-test-module-mocks to mock firebase-client.js
 └── functions/
     ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF + setupRosterAuth
     └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
@@ -181,10 +185,10 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | `isPayday(date)` / `isCutoffDate(date)` | `roster-data.js` — boolean helpers |
 | `FIRST_PAYDAY`, `PAYDAY_INTERVAL_DAYS` | `CONFIG` in `roster-data.js` |
 | 💷 / ✂️ calendar markers | `app.js` — `.payday` and `.cutoff` CSS classes applied per cell |
-| Tests | `roster-data.test.mjs` — payday and cutoff tests passing |
+| Tests | `roster-data.test.mjs` — payday and cutoff tests; `paycalc.test.mjs` — pay maths; `paycalc-roster-suggestions.test.mjs` — suggestion engine |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
 | PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
-| `getRosterSuggestion(period)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides, counts Sat/Sun/BH/Boxing Day/RDW shifts. Used by the "Fill from roster →" hint bar. |
+| `getRosterSuggestion(p, member)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides for the given member, counts Sat/Sun/BH/Boxing Day/RDW shifts. Caller passes `getLoggedMember()`. |
 | `fetchOverridesForPeriod(p, memberName)` | `paycalc-roster-suggestions.js` — fetches Firestore overrides for a pay period window. |
 | `getLoggedMember()` | `paycalc.js` — returns the `teamMembers` entry for the session user, or null. |
 | `getEffectiveContr(p)` | `paycalc.js` — returns contracted hours for the period, pro-rated if the member has a `startDate` that falls within it. Full contracted hours otherwise. Used by `calculate()`, HPP loop, and Saturday cap. |
