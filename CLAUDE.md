@@ -121,6 +121,12 @@ roster-app/
     └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
 ```
 
+**Running all tests:** Always use the combined command — `--experimental-test-module-mocks` is required by `paycalc-roster-suggestions.test.mjs` and is harmless for the others. Running plain `node --test` will fail on that file.
+
+```
+node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs
+```
+
 **Service worker caching strategy:**
 - Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
