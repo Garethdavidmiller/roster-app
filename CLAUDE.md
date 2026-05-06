@@ -307,9 +307,9 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟠 High priority
 
-**#14 — Authentication is client-side only.** The localStorage session can be forged via DevTools. Firebase Auth is partially implemented (v7.61 — see "Firebase Auth migration" section below), but the Firestore security rules haven't been deployed yet. Completing the migration requires running `setupRosterAuth` then deploying the updated rules. **Do not deploy the rules before accounts exist** — all Firestore writes will fail and the app will break for everyone.
-
 **ROSTER_SECRET exposed in page source** — The bearer token for `parseRosterPDF` is currently hardcoded as a constant in `admin-app.js` (visible in browser DevTools). Deferred as a known limitation. The correct long-term fix is to gate the Cloud Function on Firebase Auth custom claims (`request.auth.token.admin == true`) rather than a shared secret. Do not rotate the secret without also updating the hardcoded value and redeploying.
+
+**#14 — localStorage session can be forged for UI access.** DevTools can modify `myb_admin_session` to impersonate another user or gain the admin UI. However, since v7.94 the Firestore security rules are deployed and require a real Firebase Auth session (`request.auth != null`) for all writes — so a forged localStorage session can read the UI but cannot write to Firestore. Practical risk is low for a small known team.
 
 **Override cache architecture (v7.84–7.91):** `rosterOverridesCache` in `app.js` is keyed `"memberName|date"` and stores overrides for ALL members — it is never cleared on member switch. `fetchOverridesForRange()` uses priority-based deduplication: `source: 'manual'` always beats `source: 'roster_import'`; same-source entries keep the newer `createdAt`. A `console.warn` is logged whenever a duplicate is detected — check DevTools Console if overrides still appear inconsistently. Swipe navigation calls `ensureOverridesCached()` after the animation completes (v7.86) so adjacent months are fetched even after a member switch clears `fetchedMonths`. Delete stale duplicate Firestore documents in the Firebase Console to clean up at source.
 
@@ -372,20 +372,15 @@ Jamaican, Congolese, and Portuguese calendars are **rule-based** (fixed-date or 
 
 ---
 
-## Firebase Auth migration (v7.61 — phase 2 pending)
+## Firebase Auth (complete — v7.94)
 
-Firebase Auth is wired in but `firestore.rules` not yet deployed. Existing localStorage sessions continue to work. `admin-app.js` fire-and-forgets a `signInWithEmailAndPassword` call after each localStorage login.
+Firebase Auth accounts exist for all staff. Firestore security rules are deployed and require `request.auth != null` for all writes. `admin-app.js` signs in via Firebase Auth after each localStorage login — the localStorage session controls UI access, Firebase Auth controls Firestore write access.
 
-**To complete the migration (2 steps, no CLI needed):**
-1. admin.html → **Staff Login Accounts** → **Set up accounts** — creates Firebase Auth accounts for all active members (idempotent, safe to re-run). Proceed only when "failed = 0".
-2. GitHub → Actions → **Deploy Firestore Rules** → Run workflow.
-**Do not run step 2 before step 1** — Firestore writes will fail for everyone.
-
-**Adding a new staff member:** Add to `teamMembers` in `roster-data.js`, then run **Set up accounts** — existing accounts are skipped.
+**Adding a new staff member:** Add to `teamMembers` in `roster-data.js`, then open admin.html → **Staff Login Accounts** → **Set up accounts** — existing accounts are skipped, only the new one is created.
 
 **Removing a staff member:** Set `hidden: true` in `teamMembers`, run **Set up accounts** with "Disable accounts for leavers" ticked. Firebase Auth account disabled; Firestore data preserved.
 
-Email/password convention and full migration detail: see `OPERATIONS_REFERENCE.md`.
+Email/password convention: see `OPERATIONS_REFERENCE.md`.
 
 ---
 
