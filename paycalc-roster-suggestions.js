@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
  */
 
-import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=8.63';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.63';
+import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=8.64';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.64';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
@@ -19,6 +19,9 @@ import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.
 // getRosterSuggestion(). Cleared on every period change so stale data from the
 // previous period can never leak into the current one.
 let _overridesByDate = new Map();
+
+/** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. */
+export function _setOverridesForTest(map) { _overridesByDate = map; }
 
 // Monotonic request token — incremented on every period change. A Firestore
 // fetch only writes its results if its token is still the latest, so a slow
@@ -126,14 +129,10 @@ export async function fetchOverridesForPeriod(p, memberName) {
  * Returns null if there are no special-category shifts in the period.
  *
  * @param {{ start: Date, cutoff: Date }} p - Pay period object
+ * @param {object} member - teamMembers entry for the logged-in user (caller's responsibility)
  * @returns {object|null}
  */
-export function getRosterSuggestion(p) {
-  let session;
-  try { session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { return null; }
-  if (!session?.name) return null;
-
-  const member = teamMembers.find(m => m.name === session.name);
+export function getRosterSuggestion(p, member) {
   if (!member) return null;
 
   let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, otMins = 0, boxMins = 0, rdwMins = 0;

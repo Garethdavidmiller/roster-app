@@ -14,7 +14,7 @@ rules_version = '2';
 // The workflow (deploy-rules.yml) also runs automatically whenever this
 // file changes on the main branch.
 //
-// Last updated: v7.61 — added request.auth != null for all writes and deletes.
+// Last updated: v7.94 — rules deployed and active. Auth migration complete.
 
 service cloud.firestore {
   match /databases/{database}/documents {

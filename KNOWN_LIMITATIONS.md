@@ -105,3 +105,9 @@ and self-updating. See `CLAUDE.md` for the full list of datasets and sources.
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
 exist in older Firestore documents. They are displayed with their original labels in
 Saved Changes. Editing them re-saves as `"shift"`.
+
+The pay suggestion engine (`getRosterSuggestion` in `paycalc-roster-suggestions.js`)
+reads the `type` field to classify shifts. Legacy types are treated as plain `"shift"`
+overrides — they will not be miscounted, but any overtime/RDW semantics the original
+type implied are lost. Clean up legacy documents in the Firebase Console to replace
+them with the correct current types if the pay suggestion is producing wrong results.

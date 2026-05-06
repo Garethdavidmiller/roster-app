@@ -87,8 +87,10 @@ Owns the override cache and the suggestion engine. No DOM access.
 - Private state: `_overridesByDate`, `_overrideFetchToken`, `_overridesFetchState`
 - `resetOverrides(newState)` — called by `onPeriodChange` on every period switch
 - `fetchOverridesForPeriod(p, memberName)` — async Firestore fetch, returns Promise
-- `getRosterSuggestion(p)` — merges base roster + overrides, returns categorised totals
+- `getRosterSuggestion(p, member)` — merges base roster + overrides, returns categorised totals; member is passed by caller (no localStorage access)
+- `_setOverridesForTest(map)` — test-only hook to inject overrides without Firestore
 - Edit here for: overtime split rules, BH detection logic, override fetch behaviour
+- Covered by `paycalc-roster-suggestions.test.mjs` — run with `node --experimental-test-module-mocks --test paycalc-roster-suggestions.test.mjs`
 
 ### `shared.css`
 All CSS shared across the three pages.

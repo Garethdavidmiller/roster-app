@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.63';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.64';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.63';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.63';
+} from './paycalc-calc.js?v=8.64';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.64';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -564,7 +564,7 @@ function onPeriodChange() {
       // Silently refresh any gold-highlighted fields filled during 'checking' state.
       const _refreshP = getPeriods().find(x => x.num === currentPeriodNum());
       if (_refreshP) {
-        const _refreshS = getRosterSuggestion(_refreshP);
+        const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
         if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
       }
     });
@@ -898,7 +898,7 @@ function updateRosterHint() {
   const p = getPeriods().find(x => x.num === currentPeriodNum());
   if (!p) { card.style.display = 'none'; return; }
 
-  const s = getRosterSuggestion(p);
+  const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) { card.style.display = 'none'; return; }
 
   // State badge
@@ -1029,7 +1029,7 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
 function fillCategoryFromRoster(cat) {
   const p = getPeriods().find(x => x.num === currentPeriodNum());
   if (!p) return;
-  const s = getRosterSuggestion(p);
+  const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) return;
   const map = {
     sat:  ['satH',  'satM',  s.satH,  s.satM  ],
@@ -1059,7 +1059,7 @@ function _applyRosterSuggestion(s) {
 function fillFromRoster() {
   const p = getPeriods().find(x => x.num === currentPeriodNum());
   if (!p) return;
-  const s = getRosterSuggestion(p);
+  const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) return;
   _applyRosterSuggestion(s);
   autosave();
