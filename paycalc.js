@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.69';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.70';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.69';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.69';
+} from './paycalc-calc.js?v=8.70';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.70';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1410,21 +1410,64 @@ function updatePriorHpp(ty) {
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   const actual    = actualRaw ? parseFloat(actualRaw) : 0;
 
-  // G. Miller: if no stored estimate yet, derive directly from payslip varPay
-  // so the prior-year HPP shows without needing to visit a 2025/26 period first.
-  if (est === 0 && !actual && getLoggedMember()?.name === 'G. Miller') {
+  // If no stored estimate yet, compute it on the fly so the prior-year HPP
+  // section is populated on first login even before the user has visited a
+  // prior-year period. G. Miller uses payslip varPay; everyone else reads
+  // whatever period data they have entered in localStorage.
+  if (est === 0 && !actual) {
     const _priorPeriods = getPeriods().filter(p => {
       const o = p.num - 48;
       return o >= priorTy.first && o <= priorTy.last;
     });
-    const _priorVar = _priorPeriods.reduce((sum, p) => {
-      const a = MILLER_ACTUALS[formatISO(p.payday)];
-      return a?.varPay != null ? sum + a.varPay : sum;
-    }, 0);
-    if (_priorVar > 0) {
-      est = _priorVar * HPP_FRACTION;
-      localStorage.setItem(hppEstKey(priorTy), est.toFixed(2));
+
+    // G. Miller: derive from hardcoded payslip varPay figures
+    if (getLoggedMember()?.name === 'G. Miller') {
+      const _priorVar = _priorPeriods.reduce((sum, p) => {
+        const a = MILLER_ACTUALS[formatISO(p.payday)];
+        return a?.varPay != null ? sum + a.varPay : sum;
+      }, 0);
+      if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
+
+    } else {
+      // Everyone else: sum variable pay from localStorage period entries
+      const _hppGrade = localStorage.getItem(SK.grade);
+      const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
+      const r125 = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
+      let _priorVar = 0;
+      _priorPeriods.forEach(p => {
+        try {
+          const raw = localStorage.getItem(periodKey(p.num));
+          if (!raw) return;
+          const d = JSON.parse(raw);
+          if (isDataEmpty(d)) return;
+          const satHrs  = (d.satH  || 0) + (d.satM  || 0) / 60;
+          const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
+          const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
+          const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
+          const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
+          const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
+          const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
+          const _effContr = getEffectiveContr(p);
+          const satCapped = Math.min(satHrs, _effContr);
+          const normHrs   = _effContr - satCapped;
+          const bhCapped  = Math.min(bhHrs, normHrs);
+          const _pTy      = getTaxYearForOffset(p.num - 48);
+          const pLondon   = getLondonAllowanceForPeriod(p, _pTy);
+          _priorVar +=
+            satCapped * (rate * 0.25) +
+            bhCapped  * (rate * 0.25) +
+            bhOtHrs   * r125 +
+            otHrs     * r125 +
+            rdwHrs    * r125 +
+            sunHrs    * r150 +
+            boxHrs    * r300 +
+            pLondon;
+        } catch(e) {}
+      });
+      if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     }
+
+    if (est > 0) localStorage.setItem(hppEstKey(priorTy), est.toFixed(2));
   }
 
   // Is the current period's payday in the January when prior-year HPP is paid?
