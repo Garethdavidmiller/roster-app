@@ -13,7 +13,7 @@ import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // V must match the ?v= suffix inside paycalc-roster-suggestions.js imports.
-const V = '8.80';
+const V = '8.81';
 
 // Mutable getter — individual tests can swap this out via _setMockGetDocs().
 let _mockGetDocs = async () => ({ forEach: () => {} });

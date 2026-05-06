@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.80';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.81';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.80';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.80';
+} from './paycalc-calc.js?v=8.81';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.81';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -42,7 +42,6 @@ const CONFIG = {
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
   CONTRACTED_HRS: 140,                   // default; per-grade value from GRADES object
-  LONDON_ALLOW:   276.16,               // London Allowance per period (£3,590.08/yr)
   FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
   LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
   TAX_YEARS,             // imported from paycalc-calc.js
@@ -104,7 +103,6 @@ function getProRateFactor(p) {
   return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
 }
 
-/** Return the grade-level pension default, based on whatever grade is saved in localStorage. */
 /** Full-period pension default for the current grade, period-aware.
  *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
 function getPensionDefault(pObj) {
@@ -157,7 +155,7 @@ const HELP_CONTENT = {
       '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). It tells HMRC how much tax-free income you get. Most Marylebone staff are on 1257L. A code starting with S means you pay Scottish income tax rates. If you\'re unsure, check your payslip or contact payroll.',
       '<strong>Pension contribution:</strong> your payslip calls this "Smart RPS CR Scheme" — it\'s the same thing. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
       '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one.',
-      `<strong>London Allowance (£${CONFIG.LONDON_ALLOW.toFixed(2)}/period):</strong> a fixed supplement paid to all Marylebone staff (CEA and CES). It\'s included automatically — you don\'t need to enter it.`,
+      `<strong>London Allowance (£${TAX_YEARS[TAX_YEARS.length - 1].londonAllow.toFixed(2)}/period):</strong> a fixed supplement paid to all Marylebone staff (CEA and CES). It\'s included automatically — you don\'t need to enter it.`,
       'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
     ],
   },
@@ -644,17 +642,11 @@ function writeFormData(d) {
   document.getElementById('peerVal').textContent  = d.peer || 0;
   document.getElementById('slSkipCheck').checked  = d.slSkip || false;
   document.getElementById('otherAdj').value        = d.otherAdj || '';
-  // Restore pension from period data if saved; otherwise use the global Settings default.
-  // `d.pension != null` is intentionally loose-null so that pension = 0 (no deduction)
-  // is preserved correctly — 0 is falsy and would otherwise fall through to the default.
+  // Restore pension only when period data has a saved value; period-specific default is
+  // applied by the caller (loadPeriodData or clearPeriod) when d.pension is null.
+  // Loose != null so that pension = 0 (salary sacrifice opted out) is preserved correctly.
   const pa = document.getElementById('pensionAmt');
-  if (pa) {
-    if (d.pension != null) {
-      pa.value = d.pension;
-    } else {
-      pa.value = localStorage.getItem(SK.pension) ?? getPensionDefault();
-    }
-  }
+  if (pa && d.pension != null) pa.value = d.pension;
 }
 
 function updateAdjSign() {
@@ -768,6 +760,13 @@ function clearPeriod() {
   const pNum = currentPeriodNum();
   localStorage.removeItem(periodKey(pNum));
   writeFormData(emptyPeriodData());
+  // Apply the period-specific pension default (pro-rated for joining periods, rate-cut-over
+  // aware) — writeFormData no longer does this when d.pension is null.
+  const _clearP = getPeriods().find(x => x.num === currentPeriodNum());
+  if (_clearP) {
+    const _pa = document.getElementById('pensionAmt');
+    if (_pa) _pa.value = (getPensionDefault(_clearP) * getProRateFactor(_clearP)).toFixed(2);
+  }
   _adjNegative = false;
   updateAdjSign();
   updateSaveStatus(pNum);
@@ -916,6 +915,26 @@ function loadSettings() {
       localStorage.setItem(hppActualKey(firstTy), legacyHppActual);
     }
     localStorage.removeItem('cea_hpp_actual');
+  }
+
+  // Migration (v8.81): update any P51+ periods that have the pre-v8.81 pension default
+  // (£154.77) saved — change them to £147.36 per the pensionFrom cut-over.
+  // Only patches the exact old default; any custom value the user entered is left alone.
+  if (!localStorage.getItem('cea_pension_v881_migrated')) {
+    const _pensionCutover = new Date(2026, 4, 8);
+    getPeriods().forEach(p => {
+      if (p.payday < _pensionCutover) return;
+      const raw = localStorage.getItem(periodKey(p.num));
+      if (!raw) return;
+      try {
+        const d = JSON.parse(raw);
+        if (d.pension === 154.77) {
+          d.pension = 147.36;
+          localStorage.setItem(periodKey(p.num), JSON.stringify(d));
+        }
+      } catch(e) {}
+    });
+    localStorage.setItem('cea_pension_v881_migrated', '1');
   }
 }
 
@@ -1302,6 +1321,35 @@ function calculate() {
 // ── HPP ESTIMATOR ─────────────────────────────────────────────────────────────
 // Formula from Chiltern payroll (Marie Firby):
 // (Gross - Basic) × 4/52 = HPP
+
+// Compute variable pay for one period from saved data. Used by calcHPP and
+// updatePriorHpp to avoid duplicating the capping and London Allowance logic.
+// bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0
+// and the BH premium must not contribute to HPP (it wasn't in that period's gross).
+function _varPayForPeriod(p, d, rate) {
+  const r125      = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
+  const satHrs    = (d.satH  || 0) + (d.satM  || 0) / 60;
+  const bhHrs     = (d.bhH   || 0) + (d.bhM   || 0) / 60;
+  const bhOtHrs   = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
+  const otHrs     = (d.otH   || 0) + (d.otM   || 0) / 60;
+  const rdwHrs    = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
+  const sunHrs    = (d.sunH  || 0) + (d.sunM  || 0) / 60;
+  const boxHrs    = (d.boxH  || 0) + (d.boxM  || 0) / 60;
+  const effContr  = getEffectiveContr(p);
+  const satCapped = Math.min(satHrs, effContr);
+  const normHrs   = effContr - satCapped;
+  const bhCapped  = Math.min(bhHrs, normHrs);
+  const pTy       = getTaxYearForOffset(p.num - 48);
+  const pLondon   = getLondonAllowanceForPeriod(p, pTy) * getProRateFactor(p);
+  return satCapped * (rate * 0.25) +
+         bhCapped  * (rate * 0.25) +
+         bhOtHrs   * r125          +
+         otHrs     * r125          +
+         rdwHrs    * r125          +
+         sunHrs    * r150          +
+         boxHrs    * r300          +
+         pLondon;
+}
 // Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance
 // Does NOT include: peer training, basic pay, expenses, bonuses
 function calcHPP() {
@@ -1341,43 +1389,7 @@ function calcHPP() {
       const d = JSON.parse(raw);
       if (isDataEmpty(d)) return;
       pCount++;
-
-      const r125 = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
-      const satHrs  = (d.satH  || 0) + (d.satM  || 0) / 60;
-      const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
-      const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
-      const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
-      const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
-      const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
-      const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
-      // Mirror the capping logic from calculate() — bhCapped can be 0 when all
-      // contracted hours fall on Saturday, in which case the BH premium must not
-      // contribute to HPP either (it was not included in that period's gross pay).
-      // Use getEffectiveContr so joining periods use pro-rated hours consistently.
-      const _hppEffContr = getEffectiveContr(p);
-      const satCapped = Math.min(satHrs, _hppEffContr);
-      const normHrs   = _hppEffContr - satCapped;
-      const bhCapped  = Math.min(bhHrs, normHrs);
-
-      // Variable pay = Gross minus Basic:
-      // Saturday uplift (0.25× extra on contracted sat hours)
-      // Bank Holiday premium (0.25× extra on contracted BH hours)
-      // Full BH overtime, OT, RDW, Sunday, Boxing pay
-      // London Allowance (explicitly included per Chiltern payroll)
-      // NOT peer training (extra basic, not variable)
-      const _pTy    = getTaxYearForOffset(p.num - 48);
-      const pLondon = getLondonAllowanceForPeriod(p, _pTy) * getProRateFactor(p);
-      const varPay =
-        satCapped * (rate * 0.25) +  // sat uplift above base rate
-        bhCapped  * (rate * 0.25) +  // bank holiday rostered premium above base rate
-        bhOtHrs   * r125           +  // full BH overtime pay
-        otHrs     * r125           +  // full OT pay
-        rdwHrs    * r125           +  // full RDW pay
-        sunHrs    * r150           +  // full Sunday pay
-        boxHrs    * r300           +  // full Boxing Day pay
-        pLondon;                      // London Allowance per period (year-specific)
-
-      totalVar += varPay;
+      totalVar += _varPayForPeriod(p, d, rate);
     } catch(e) {}
   });
 
@@ -1455,7 +1467,6 @@ function updatePriorHpp(ty) {
       // Everyone else: sum variable pay from localStorage period entries
       const _hppGrade = localStorage.getItem(SK.grade);
       const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-      const r125 = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
       let _priorVar = 0;
       _priorPeriods.forEach(p => {
         try {
@@ -1463,28 +1474,7 @@ function updatePriorHpp(ty) {
           if (!raw) return;
           const d = JSON.parse(raw);
           if (isDataEmpty(d)) return;
-          const satHrs  = (d.satH  || 0) + (d.satM  || 0) / 60;
-          const bhHrs   = (d.bhH   || 0) + (d.bhM   || 0) / 60;
-          const bhOtHrs = (d.bhOtH || 0) + (d.bhOtM || 0) / 60;
-          const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
-          const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
-          const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
-          const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
-          const _effContr = getEffectiveContr(p);
-          const satCapped = Math.min(satHrs, _effContr);
-          const normHrs   = _effContr - satCapped;
-          const bhCapped  = Math.min(bhHrs, normHrs);
-          const _pTy      = getTaxYearForOffset(p.num - 48);
-          const pLondon   = getLondonAllowanceForPeriod(p, _pTy) * getProRateFactor(p);
-          _priorVar +=
-            satCapped * (rate * 0.25) +
-            bhCapped  * (rate * 0.25) +
-            bhOtHrs   * r125 +
-            otHrs     * r125 +
-            rdwHrs    * r125 +
-            sunHrs    * r150 +
-            boxHrs    * r300 +
-            pLondon;
+          _priorVar += _varPayForPeriod(p, d, rate);
         } catch(e) {}
       });
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
@@ -1635,12 +1625,14 @@ function calcBackPay() {
       const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
       const boxHrs  = (d.boxH  || 0) + (d.boxM  || 0) / 60;
       // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
-      const satCapped = Math.min(satHrs, getContr());
-      const normHrsBP = getContr() - satCapped;
+      // Use getEffectiveContr so joining periods use pro-rated hours.
+      const _bpEffContr = getEffectiveContr(p);
+      const satCapped = Math.min(satHrs, _bpEffContr);
+      const normHrsBP = _bpEffContr - satCapped;
       const bhCapped  = Math.min(bhHrs, normHrsBP);
 
       const ratePay =
-        getContr()     * rateDiff        +
+        _bpEffContr    * rateDiff        +
         satCapped * rateDiff * 0.25 +
         bhCapped  * rateDiff * 0.25 +
         bhOtHrs   * rateDiff * 1.25 +
