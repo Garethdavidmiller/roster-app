@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
  */
 
-import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=8.62';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.62';
+import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=8.63';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=8.63';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
@@ -93,13 +93,16 @@ export async function fetchOverridesForPeriod(p, memberName) {
     snap.forEach(doc => {
       const d = doc.data();
       if (!d.date || d.memberName !== memberName) return;
-      // If a date has multiple override docs, keep the most recently created one.
-      const existing = map.get(d.date);
-      const docTs    = d.createdAt?.toMillis?.() ?? 0;
-      const existTs  = existing?._ts ?? -1;
-      if (!existing || docTs > existTs) {
-        map.set(d.date, { type: d.type, value: d.value, _ts: docTs });
-      }
+      // Priority matches app.js calendar: manual always beats roster_import;
+      // within the same class, newer createdAt wins.
+      const existing     = map.get(d.date);
+      const docTs        = d.createdAt?.toMillis?.() ?? 0;
+      const isManual     = d.source !== 'roster_import';
+      const existManual  = existing?._manual ?? false;
+      const wins = !existing
+        || (isManual && !existManual)
+        || (isManual === existManual && docTs > (existing._ts ?? -1));
+      if (wins) map.set(d.date, { type: d.type, value: d.value, _ts: docTs, _manual: isManual });
     });
     _overridesByDate = map;
     _overridesFetchState = 'loaded';
