@@ -388,6 +388,15 @@ Firebase Auth accounts exist for all staff. Firestore security rules are deploye
 
 **Adding a new staff member:** Add to `teamMembers` in `roster-data.js`, then open admin.html → **Staff Login Accounts** → **Set up accounts** — existing accounts are skipped, only the new one is created.
 
+**Adding a mid-year joiner (started part-way through a pay period):** The following fields are required for correct pro-ration in the pay calculator. Missing any of them will cause the first-period estimate to be wrong.
+
+| Field | Example | Purpose |
+|-------|---------|---------|
+| `startDate` | `new Date(2026, 3, 19)` | Use midnight local time: `new Date(year, month-1, day)`. `getBaseShift` returns `'RD'` for dates before this. `getEffectiveContr`, `getProRateFactor` use it to scale hours, London Allowance, pension, and HPP for the joining period. |
+| `proRatedAL` | `{ 2026: 23 }` | Override AL entitlement for the joining year only. From the following year the standard entitlement applies automatically. Calculate from Chiltern's offer letter. |
+
+**Critical: confirm `startDate` against payroll records, not just the offer letter.** Chiltern payroll may use a different effective date (e.g. April 19 vs April 20) that affects all pro-rated components. If the first payslip is available, verify the pro-rate factor the app calculates (`daysEmployed / totalDays`) matches what appears on the payslip for London Allowance — it is the easiest component to check because it is a fixed amount with no other variables.
+
 **Removing a staff member:** Set `hidden: true` in `teamMembers`, run **Set up accounts** with "Disable accounts for leavers" ticked. Firebase Auth account disabled; Firestore data preserved.
 
 Email/password convention: see `OPERATIONS_REFERENCE.md`.
@@ -409,7 +418,13 @@ The pay calculator is primarily **manual-entry**. Staff enter their hours, and t
 
 Grade is auto-detected from the logged-in member's `role` field on first visit. CES staff get CES pre-selected; CEA is the default. Staff can change grade in Settings. All rate fallbacks (in `saveSettings`, `calculate`, HPP accumulation) use the selected grade default — never hardcoded CEA.
 
-**Members with a `startDate`:** If a member started mid-period, `getEffectiveContr(p)` pro-rates their contracted hours. A notice banner in the Hours card explains the adjustment. Subsequent full periods use the full 140 hours automatically.
+**Members with a `startDate`:** If a member started mid-period, the following are all scaled by `getProRateFactor(p)` = `daysEmployed / totalDays` for the joining period only:
+- **Contracted hours** (`getEffectiveContr`) — sets the basic pay ceiling and the Saturday/BH cap
+- **London Allowance** — fixed £276.16/period scaled to days worked
+- **Pension default** — £154.77/period scaled to days worked (only applied when pension hasn't been manually saved for that period)
+- **HPP variable pay accumulation** — London Allowance component in both the current-year and prior-year HPP loops
+
+A notice banner in the Hours card explains the adjustment. All subsequent full periods use the standard amounts automatically.
 
 The **roster-assist hint bar** ("Fill from roster →") is a convenience feature, not a data pipeline:
 - Reads **base roster** (`roster-data.js`) plus Firestore overrides (via `fetchOverrideSpecialDaysForPeriod`) for the current period — works offline on base roster, improves with overrides when online

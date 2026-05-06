@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.77';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.78';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL,
-} from './paycalc-calc.js?v=8.77';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.77';
+} from './paycalc-calc.js?v=8.78';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.78';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1367,7 +1367,7 @@ function calcHPP() {
       // London Allowance (explicitly included per Chiltern payroll)
       // NOT peer training (extra basic, not variable)
       const _pTy    = getTaxYearForOffset(p.num - 48);
-      const pLondon = getLondonAllowanceForPeriod(p, _pTy);
+      const pLondon = getLondonAllowanceForPeriod(p, _pTy) * getProRateFactor(p);
       const varPay =
         satCapped * (rate * 0.25) +  // sat uplift above base rate
         bhCapped  * (rate * 0.25) +  // bank holiday rostered premium above base rate
@@ -1476,7 +1476,7 @@ function updatePriorHpp(ty) {
           const normHrs   = _effContr - satCapped;
           const bhCapped  = Math.min(bhHrs, normHrs);
           const _pTy      = getTaxYearForOffset(p.num - 48);
-          const pLondon   = getLondonAllowanceForPeriod(p, _pTy);
+          const pLondon   = getLondonAllowanceForPeriod(p, _pTy) * getProRateFactor(p);
           _priorVar +=
             satCapped * (rate * 0.25) +
             bhCapped  * (rate * 0.25) +
