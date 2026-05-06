@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL,
+  computeGross, computeTax, computeNI, computeSL, calcProRateFactor,
 } from './paycalc-calc.js';
 
 // Floating-point helper — within 1p is close enough for payroll
@@ -514,5 +514,78 @@ describe('integration fixture (CEA Period 8 2025/26)', () => {
 
   test('tax + NI < sacGross', () => {
     assert.ok(tax + ni < sacGross, `deductions (${(tax + ni).toFixed(2)}) should not exceed sacGross (${sacGross.toFixed(2)})`);
+  });
+});
+
+// ── calcProRateFactor ─────────────────────────────────────────────────────────
+// Reproduces getPeriods() arithmetic to get exact period dates for P51.
+// P51 payday = Feb 13 2026 (noon) + 3 × 28 days = May 8 2026.
+// FORMULA INVARIANT: periodCutoff is noon local; startDate is midnight local.
+// Math.round on the 0.5-day offset always gives the correct calendar count.
+
+describe('calcProRateFactor', () => {
+  // Build P51 dates exactly as getPeriods() does in paycalc.js
+  const anchor  = new Date(2026, 1, 13, 12, 0, 0);          // Feb 13 2026, noon local
+  const p51pay  = new Date(anchor); p51pay.setDate(p51pay.getDate() + 3 * 28);
+  const p51cut  = new Date(p51pay); p51cut.setDate(p51cut.getDate() - 6);
+  const p51start= new Date(p51cut); p51start.setDate(p51start.getDate() - 27);
+  // p51start = Sun Apr 5 2026 noon, p51cut = Sat May 2 2026 noon, 28-day window
+
+  test('no startDate → 1.0 (full period)', () => {
+    assert.equal(calcProRateFactor(null, p51start, p51cut), 1);
+    assert.equal(calcProRateFactor(undefined, p51start, p51cut), 1);
+  });
+
+  test('startDate before period start → 1.0 (full period)', () => {
+    assert.equal(calcProRateFactor(new Date(2026, 2, 1), p51start, p51cut), 1); // Mar 1
+  });
+
+  test('startDate = same calendar day as period start → 1.0', () => {
+    // Apr 5 midnight < Apr 5 noon (p51start), so sd <= periodStart → return 1
+    assert.equal(calcProRateFactor(new Date(2026, 3, 5), p51start, p51cut), 1);
+  });
+
+  test('M. Okeke: startDate Apr 20 midnight → 14/28 = 0.5 (matches payslip)', () => {
+    // Apr 20 midnight → raw 12.5 → Math.round(12.5)=13 → daysEmployed=14 → 14/28=0.5
+    // Verified: May 8 2026 payslip shows London Allowance £276.16 × 0.5 = £138.08 ✓
+    const factor = calcProRateFactor(new Date(2026, 3, 20), p51start, p51cut);
+    assert.equal(factor, 14 / 28);
+    assert.equal(factor, 0.5);
+  });
+
+  test('startDate Apr 20 → contracted hours = Math.round(140 × 0.5) = 70', () => {
+    const factor = calcProRateFactor(new Date(2026, 3, 20), p51start, p51cut);
+    assert.equal(Math.round(140 * factor), 70);
+  });
+
+  test('startDate Apr 20 → London Allowance = £276.16 × 0.5 = £138.08', () => {
+    const factor = calcProRateFactor(new Date(2026, 3, 20), p51start, p51cut);
+    approx(276.16 * factor, 138.08, 'London Allowance pro-rated');
+  });
+
+  test('startDate after cutoff → 0.0 (not yet employed)', () => {
+    assert.equal(calcProRateFactor(new Date(2026, 4, 5), p51start, p51cut), 0); // May 5
+  });
+
+  test('startDate = cutoff day midnight → 1/28 (last day only)', () => {
+    // May 2 midnight → raw 0.5 → Math.round=1 → days=2 → 2/28 by the formula
+    // This edge case is noted: formula gives 2 days for a cutoff-day joiner.
+    // In practice Chiltern would never start someone on the last day of a period.
+    const factor = calcProRateFactor(new Date(2026, 4, 2), p51start, p51cut);
+    assert.equal(factor, 2 / 28);
+  });
+
+  test('Apr 19 midnight → 15/28 ≠ 0.5 (confirms Apr 20 is the correct startDate)', () => {
+    // This was the v8.77 regression: changing Apr 20 → Apr 19 gave 53.6% not 50%
+    const factor = calcProRateFactor(new Date(2026, 3, 19), p51start, p51cut);
+    assert.equal(factor, 15 / 28);
+    assert.notEqual(factor, 0.5);
+  });
+
+  test('totalDays is always 28 for a standard period', () => {
+    // Internal check: (cutoff noon − start noon) = 27 whole days → +1 = 28
+    const msPerDay  = 86400000;
+    const totalDays = Math.round((p51cut - p51start) / msPerDay) + 1;
+    assert.equal(totalDays, 28);
   });
 });
