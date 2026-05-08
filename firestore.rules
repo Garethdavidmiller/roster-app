@@ -14,12 +14,16 @@ rules_version = '2';
 // The workflow (deploy-rules.yml) also runs automatically whenever this
 // file changes on the main branch.
 //
-// Last updated: v7.94 — rules deployed and active. Auth migration complete.
+// Last updated: v8.94 — reads locked on memberSettings and huddles (personal data / internal content).
+//   overrides reads remain open: the calendar page (index.html) reads shift data without auth.
+//   This is acceptable — overrides contain operational data visible on the noticeboard.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /overrides/{document=**} {
+      // Intentionally open read: index.html (calendar) reads overrides without a Firebase Auth
+      // session. Shift data is operational / non-sensitive (same as the paper roster).
       allow read;
       allow create, update: if
         request.auth != null &&
@@ -36,7 +40,9 @@ service cloud.firestore {
     }
 
     match /memberSettings/{document=**} {
-      allow read;
+      // Faith calendar preferences are personal data — read requires auth.
+      // app.js degrades gracefully if this returns 403 (uses local/cached preferences).
+      allow read: if request.auth != null;
       allow create, update: if
         request.auth != null &&
         request.resource.data.keys().hasAll(['memberName', 'faithCalendar']) &&
@@ -49,7 +55,9 @@ service cloud.firestore {
     }
 
     match /huddles/{date} {
-      allow read;
+      // Internal briefing documents — read requires auth. Only admin.html reads huddles,
+      // and admin.html always establishes a Firebase Auth session on login.
+      allow read: if request.auth != null;
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
       // Browser writes (manual admin upload) require auth.
       allow create, update: if

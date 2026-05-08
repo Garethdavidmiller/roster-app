@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.93 -->
+<!-- MYB Roster — Pay Calculator v8.95 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.93">
+  <link rel="stylesheet" href="./shared.css?v=8.95">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -1006,6 +1006,12 @@
   /* Ambig row — clickable (fills RDW), styled amber as a prompt to review */
   .roster-row--ambig { background: var(--conf-possible-bg); }
   .roster-row--ambig .roster-row-total { color: var(--conf-possible-text); font-weight: 700; }
+  /* Inline "Add OT" link within the swap notice */
+  .roster-swap-ot-btn {
+    background: none; border: none; padding: 0; margin: 0;
+    color: var(--primary-blue); font-size: inherit; font-family: inherit;
+    cursor: pointer; text-decoration: underline; white-space: nowrap;
+  }
   .roster-card-note {
     font-size: var(--type-micro); color: var(--text-faint);
     line-height: 1.4; margin: 0 0 8px;
@@ -1065,7 +1071,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.93">
+  <link rel="manifest" href="./pay-manifest.json?v=8.95">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1708,6 +1714,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.93"></script>
+<script type="module" src="./paycalc.js?v=8.95"></script>
 </body>
 </html>

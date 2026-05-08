@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.93';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.95';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.93';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.93';
+} from './paycalc-calc.js?v=8.95';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.95';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1049,6 +1049,7 @@ function updateRosterHint() {
 
     // Swap notice — informational, non-fillable: worked a swap day on a base rest day.
     // No pay contribution (compensated by the day taken off instead).
+    // The "Add OT" inline button focuses the overtime field if the worker also earned OT.
     if (s.swapCount) {
       const dayStr = s.swapCount === 1 ? '1 day' : `${s.swapCount} days`;
       noticeRows.push(
@@ -1056,7 +1057,10 @@ function updateRosterHint() {
         `<span class="roster-row-icon" aria-hidden="true">🔄</span>` +
         `<span class="roster-row-label">Swap day</span>` +
         `<span class="roster-row-total">${fmtH(s.swapH, s.swapM)}</span>` +
-        `<span class="roster-row-meta">${dayStr} · no extra pay. Enter OT manually if you worked beyond your normal hours</span>` +
+        `<span class="roster-row-meta">${dayStr} · no extra pay. ` +
+        `<button class="roster-swap-ot-btn" type="button" data-action="focus-ot" ` +
+        `aria-label="Add overtime earned on swap day">Worked extra hours? Add OT →</button>` +
+        `</span>` +
         `</div>`
       );
     }
@@ -2012,8 +2016,12 @@ if (_fillBtn) _fillBtn.addEventListener('click', fillFromRoster);
 
 // Per-category fill buttons are dynamically rendered inside #rosterRows — use delegation
 document.getElementById('rosterRows')?.addEventListener('click', e => {
-  const btn = e.target.closest('[data-cat]');
-  if (btn) fillCategoryFromRoster(btn.dataset.cat);
+  const catBtn = e.target.closest('[data-cat]');
+  if (catBtn) { fillCategoryFromRoster(catBtn.dataset.cat); return; }
+  if (e.target.closest('[data-action="focus-ot"]')) {
+    const el = document.getElementById('otH');
+    if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }
 });
 
 // Remove roster-suggested highlight and refresh comparison state as user edits hours

@@ -454,9 +454,9 @@ function isPayCutoffDay(date) {
  */
 exports.parseRosterPDF = onRequest(
     {
-        secrets:        [ROSTER_SECRET, ANTHROPIC_API_KEY],
+        secrets:        [ANTHROPIC_API_KEY],
         region:         'europe-west2',
-        cors:           true,           // auth is handled by Bearer token — CORS origin restriction adds nothing
+        cors:           true,
         timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
@@ -468,10 +468,26 @@ exports.parseRosterPDF = onRequest(
             return;
         }
 
-        // ---- Auth ----
+        // ---- Auth: Firebase ID token with admin custom claim ----
+        // The browser sends the logged-in user's Firebase ID token.
+        // verifyIdToken checks the signature + expiry; the admin claim gates access
+        // so only Gareth's account can call this function.
         const authHeader = req.headers['authorization'] || '';
-        if (authHeader !== `Bearer ${ROSTER_SECRET.value()}`) {
+        if (!authHeader.startsWith('Bearer ')) {
             res.status(401).send('Unauthorised');
+            return;
+        }
+        const idToken = authHeader.slice('Bearer '.length);
+        let decodedToken;
+        try {
+            decodedToken = await admin.auth().verifyIdToken(idToken);
+        } catch (err) {
+            console.warn('[parseRosterPDF] Token verification failed:', err.message);
+            res.status(401).send('Unauthorised');
+            return;
+        }
+        if (decodedToken.admin !== true) {
+            res.status(403).send('Forbidden — admin access required');
             return;
         }
 
@@ -1013,27 +1029,48 @@ exports.setupRosterAuth = onRequest(
             return res.status(400).json({ error: '`members` array is required in the request body' });
         }
 
-        const removeOrphans = body.removeOrphans === true;
+        // adminMembers: names that should receive the Firebase Auth admin:true custom claim.
+        // This claim gates parseRosterPDF — it is set here so there is one place to manage membership.
+        const adminMembers   = Array.isArray(body.adminMembers) ? new Set(body.adminMembers) : new Set();
+        const removeOrphans  = body.removeOrphans === true;
         const created  = [];
         const skipped  = [];
         const disabled = [];
         const failed   = [];
 
-        // Create accounts for all current members
+        // Create accounts for all current members, then (re)apply custom claims.
         for (const name of members) {
             const email    = nameToEmail(name);
             const password = nameToPassword(name);
+            let uid;
             try {
-                await admin.auth().createUser({ email, password, displayName: name });
+                const user = await admin.auth().createUser({ email, password, displayName: name });
+                uid = user.uid;
                 created.push(name);
                 console.log(`[setupRosterAuth] Created: ${email}`);
             } catch (err) {
                 if (err.code === 'auth/email-already-exists') {
+                    // Fetch UID so we can still (re)apply claims on existing accounts
+                    try {
+                        const existing = await admin.auth().getUserByEmail(email);
+                        uid = existing.uid;
+                    } catch { /* ignore — claim update will be skipped */ }
                     skipped.push(name);
                 } else {
                     const reason = err.code || err.message || 'unknown';
                     failed.push(`${name} (${reason})`);
                     console.error(`[setupRosterAuth] Failed for ${name}: ${reason}`);
+                }
+            }
+
+            // Set or clear the admin custom claim — applies to both new and existing accounts.
+            if (uid) {
+                const isAdmin = adminMembers.has(name);
+                try {
+                    await admin.auth().setCustomUserClaims(uid, isAdmin ? { admin: true } : {});
+                    if (isAdmin) console.log(`[setupRosterAuth] Set admin claim: ${email}`);
+                } catch (claimErr) {
+                    console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);
                 }
             }
         }

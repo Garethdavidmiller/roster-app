@@ -8,10 +8,10 @@
  * Do not edit here for: roster data structure, pay calculator, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.93';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.93';
-import { initRosterUpload } from './admin-roster-upload.js?v=8.93';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=8.93';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.95';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=8.95';
+import { initRosterUpload } from './admin-roster-upload.js?v=8.95';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=8.95';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -2625,21 +2625,18 @@ if ('serviceWorker' in navigator) {
 // Replace with the actual deployed URL if it differs.
 const PARSE_ROSTER_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF';
 
-// ⚠ SECURITY NOTE: This secret is visible to anyone who views the page source.
-// It is embedded here because the current app has no server-side authentication (see CLAUDE.md #14).
-// If this value is ever leaked or the function is abused, rotate it immediately:
-//   firebase functions:secrets:set ROSTER_SECRET   (paste a new UUID when prompted)
-// Then update this constant to match the new value.
+// ROSTER_SECRET is still used by setupRosterAuth (the bootstrapping function that
+// creates Firebase Auth accounts). parseRosterPDF now uses Firebase ID token auth —
+// the browser sends auth.currentUser.getIdToken() as the Bearer token instead.
 const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
 // ── Roster upload pipeline ───────────────────────────────────────────────────
-// Extracted to admin-roster-upload.js at v8.61. Passing ROSTER_SECRET_VALUE
-// here keeps the secret in one place — it is also used by initAuthSetup below.
+// Extracted to admin-roster-upload.js at v8.61.
 initRosterUpload({
     currentUser,
     currentIsAdmin,
-    parseUrl:      PARSE_ROSTER_URL,
-    rosterSecret:  ROSTER_SECRET_VALUE,
+    parseUrl:     PARSE_ROSTER_URL,
+    getIdToken:   () => auth.currentUser?.getIdToken(),
     loadOverrides,
 });
 
@@ -2687,6 +2684,7 @@ initRosterUpload({
                 },
                 body: JSON.stringify({
                     members:       ACTIVE_MEMBERS,
+                    adminMembers:  CONFIG.ADMIN_NAMES,
                     removeOrphans: orphansCb.checked,
                 }),
             });

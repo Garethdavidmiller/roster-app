@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=8.93';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=8.93';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=8.95';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=8.95';
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -15,10 +15,10 @@ import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp
  * @param {string}   opts.currentUser    - Logged-in member name (written to changedBy on saves)
  * @param {boolean}  opts.currentIsAdmin - Whether the user has admin rights
  * @param {string}   opts.parseUrl       - Cloud Function URL for parseRosterPDF
- * @param {string}   opts.rosterSecret   - Bearer token for parseRosterPDF
+ * @param {Function} opts.getIdToken     - Async function returning the current user's Firebase ID token
  * @param {Function} opts.loadOverrides  - Refreshes the override cache and week grid after a save
  */
-export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, rosterSecret, loadOverrides }) {
+export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdToken, loadOverrides }) {
     if (!currentIsAdmin) return;
 
     const esc = escapeHtml;  // local alias
@@ -131,10 +131,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, roster
             parseFeedback.textContent = 'Reading the PDF — this takes about 15 seconds…';
             parseFeedback.className   = 'huddle-feedback';
 
+            const idToken = await getIdToken();
             const response = await fetch(parseUrl, {
                 method: 'POST',
                 headers: {
-                    'Authorization':  `Bearer ${rosterSecret}`,
+                    'Authorization':  `Bearer ${idToken}`,
                     'Content-Type':   'text/plain',
                     'X-Week-Ending':  weekEnding,
                     'X-Roster-Type':  rosterType,
