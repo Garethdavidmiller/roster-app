@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.91 -->
+<!-- MYB Roster Admin v8.93 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.91">
+    <link rel="manifest" href="manifest.json?v=8.93">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.91">
+    <link rel="stylesheet" href="shared.css?v=8.93">
 
     <style>
         body {
@@ -765,6 +765,18 @@
         .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
         .day-row.active.fixed-type .time-note { display: block; }
 
+        /* RD disambiguation hint — shown when Shift is chosen on a base rest day */
+        .col-rd-hint {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #fffbe6;
+            color: #7b5800;
+            line-height: 1.5;
+        }
+        .col-rd-hint[hidden] { display: none; }
+
         /* Shared note field — appears below the week grid, above the Save button */
         .shift-note-row {
             padding: 4px 0;
@@ -864,6 +876,7 @@
             left: 0;
             right: 0;
             z-index: 6000;
+            box-sizing: border-box;
             display: flex;
             align-items: flex-start;
             gap: 12px;
@@ -2050,6 +2063,12 @@
                 align-items: start;
             }
 
+            /* Align confirm bar padding with page content on wide screens */
+            .al-confirm-bar {
+                padding-left:  max(18px, calc((100vw - 1440px) / 2 + 20px));
+                padding-right: max(18px, calc((100vw - 1440px) / 2 + 20px));
+            }
+
             /* Full-width rows spanning both columns */
             .app-header              { grid-column: 1 / -1; }
             /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
@@ -2139,6 +2158,8 @@
             .btn-signout,
             .btn-back,
             .list-feedback,
+            .al-confirm-bar,
+            #saveToast,
             #huddleUploadCard,
             #rosterUploadCard { display: none !important; }
 
@@ -2331,6 +2352,7 @@
                         <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                         <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                         <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
+                        <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                         <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
                         <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
                         <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -2713,6 +2735,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.91"></script>
+<script type="module" src="./admin-app.js?v=8.93"></script>
 </body>
 </html>

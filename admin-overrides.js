@@ -11,14 +11,15 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=8.91';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=8.93';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=8.91';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=8.93';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
     spare_shift:  { label: 'Spare shift',      fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            fixed: false },
+    swap:         { label: 'Swap',             fixed: false },
     rdw:          { label: 'Rest Day Worked',  fixed: false },
     annual_leave: { label: 'Annual Leave',     fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day',  fixed: true,  fixedValue: 'RD' },
@@ -26,7 +27,6 @@ export const TYPES = {
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
-    swap:         { label: 'Swap',             fixed: false },
 };
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
@@ -141,6 +141,7 @@ export function buildWeekGridInto(container, dateStr) {
         const isToday = dateISO === formatISO(new Date());
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
+        row.dataset.baseIsRd = (baseShift === 'RD' || baseShift === 'OFF') ? '1' : '';
         if (existing) row.dataset.existingId = existing.id;
 
         row.innerHTML = `
@@ -156,6 +157,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
+                <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                 <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
                 <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
                 <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -167,7 +169,8 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-note">No time needed</span>
                 <span class="time-hint">24h · max 12 hrs</span>
                 <span class="time-error-msg">Use HH:MM format (e.g. 07:00)</span>
-            </div>`;
+            </div>
+            <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> for overtime pay, or <strong>Swap</strong> if exchanging shifts with another day</div>`;
 
         container.appendChild(row);
 
@@ -187,7 +190,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
         if (existing) {
-            const legacyToShift = { overtime: 'shift', swap: 'shift', allocated: 'shift' };
+            const legacyToShift = { overtime: 'shift', allocated: 'shift' };
             const prefillType   = legacyToShift[existing.type] ?? existing.type;
             const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
@@ -211,6 +214,9 @@ export function buildWeekGridInto(container, dateStr) {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
                     if (!TYPES[type]?.fixed) startEl.focus();
                 }
+                // Show RD hint when Shift is chosen on a base-rest day
+                const rdHint = row.querySelector('.col-rd-hint');
+                if (rdHint) rdHint.hidden = !(type === 'shift' && row.dataset.baseIsRd === '1' && !already);
                 _markChanged();
                 updateSaveBtn();
             });
@@ -594,7 +600,7 @@ export function renderTable() {
 
     rows.forEach(o => {
         const typeMeta    = TYPES[o.type];
-        const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
+        const isLegacyType = ['allocated', 'overtime'].includes(o.type);
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${escapeHtml(o.memberName)} ${o.date}"></td>

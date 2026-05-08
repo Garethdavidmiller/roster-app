@@ -26,3 +26,19 @@ if [ "$ERRORS" -gt 0 ]; then
   echo "  Add the missing module(s) to AI_MAP.md and CLAUDE.md, then re-commit."
   exit 1
 fi
+
+# Version reminder — warn when CLAUDE.md falls 0.10+ behind APP_VERSION
+APP_VER=$(grep "^export const APP_VERSION" roster-data.js 2>/dev/null | grep -oP "'[0-9.]+'" | tr -d "'")
+DOC_VER=$(grep -m1 "Current app version" CLAUDE.md 2>/dev/null | grep -oP '\`[0-9.]+\`' | tr -d '`')
+if [[ -n "$APP_VER" && -n "$DOC_VER" ]]; then
+  CUR_INT=$(echo "$APP_VER" | awk -F. '{printf "%d", $1*100+$2}')
+  DOC_INT=$(echo "$DOC_VER" | awk -F. '{printf "%d", $1*100+$2}')
+  DIFF=$((CUR_INT - DOC_INT))
+  if [ "$DIFF" -ge 10 ]; then
+    echo ""
+    echo "  Reminder: CLAUDE.md documents v${DOC_VER} — app is now v${APP_VER} (+${DIFF} patches)"
+    echo "  Update CLAUDE.md + AI_MAP.md if any architecture, module, or pay-grade changes occurred."
+    echo "  (Reminder only — commit proceeds.)"
+    echo ""
+  fi
+fi

@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.91';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.93';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.91';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.91';
+} from './paycalc-calc.js?v=8.93';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.93';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -996,6 +996,17 @@ function fmtH(h, m) {
   return `${m}m`;
 }
 
+/** Maps a suggestion category to a confidence badge descriptor.
+ *  ot/bhOt are inferred from extended shifts — not explicitly labelled as overtime.
+ *  rdw is always explicitly saved with type:'rdw' — definitively a recorded change.
+ *  Base roster sat/sun/bh/box are scheduled by contract — high confidence. */
+function _confBadge(cat, fromOv) {
+  if (cat === 'ot' || cat === 'bhOt') return { text: 'Possible overtime', cls: 'conf-possible' };
+  if (cat === 'rdw')  return { text: 'Recorded change', cls: 'conf-recorded' };
+  if (fromOv)         return { text: 'Recorded change', cls: 'conf-recorded' };
+  return { text: 'High confidence', cls: 'conf-high' };
+}
+
 function updateRosterHint() {
   const card = document.getElementById('rosterHintBar');
   if (!card) return;
@@ -1034,11 +1045,45 @@ function updateRosterHint() {
       { cat: 'box', icon: '🎁', label: 'Boxing Day',   h: s.boxH, m: s.boxM, count: s.boxCount, fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
+    const noticeRows = [];
+
+    // Swap notice — informational, non-fillable: worked a swap day on a base rest day.
+    // No pay contribution (compensated by the day taken off instead).
+    if (s.swapCount) {
+      const dayStr = s.swapCount === 1 ? '1 day' : `${s.swapCount} days`;
+      noticeRows.push(
+        `<div class="roster-row roster-row--notice" role="note">` +
+        `<span class="roster-row-icon" aria-hidden="true">🔄</span>` +
+        `<span class="roster-row-label">Swap day</span>` +
+        `<span class="roster-row-total">${fmtH(s.swapH, s.swapM)}</span>` +
+        `<span class="roster-row-meta">${dayStr} · no extra pay. Enter OT manually if you worked beyond your normal hours</span>` +
+        `</div>`
+      );
+    }
+
+    // Ambig notice — clickable: shift saved on a base rest day with ambiguous type.
+    // Tapping fills the RDW row with the total hours; user can adjust if it was a swap.
+    if (s.ambigCount) {
+      const dayStr   = s.ambigCount === 1 ? '1 day' : `${s.ambigCount} days`;
+      const confHtml = `<span class="conf-badge conf-possible">Needs review</span>`;
+      noticeRows.push(
+        `<button class="roster-row roster-row--ambig" type="button" data-cat="ambig" ` +
+        `aria-label="Shift on rest day: ${fmtH(s.ambigH, s.ambigM)} total — tap to fill as RDW">` +
+        `<span class="roster-row-icon" aria-hidden="true">❓</span>` +
+        `<span class="roster-row-label">Check manually</span>` +
+        `<span class="roster-row-total">${fmtH(s.ambigH, s.ambigM)} total</span>` +
+        `<span class="roster-row-meta">${dayStr} · ${confHtml} ` +
+        `If RDW → tap to fill · If swap, no action needed</span>` +
+        `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>` +
+        `</button>`
+      );
+    }
+
     rows.innerHTML = cats.map(r => {
       const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
-      const src    = getOverridesFetchState() === 'loaded'
-        ? (r.fromOv ? ' · Override' : ' · Base roster') : '';
+      const conf   = _confBadge(r.cat, r.fromOv);
+      const confHtml = `<span class="conf-badge ${conf.cls}">${conf.text}</span>`;
 
       // Read the current value in the matching form field pair (null = blank).
       const elH = document.getElementById(r.cat + 'H');
@@ -1053,14 +1098,14 @@ function updateRosterHint() {
         // Blank — ready to fill
         rowClass  = 'roster-row';
         totalText = fmtH(r.h, r.m);
-        metaText  = `${dayStr}${src}`;
+        metaText  = `${dayStr} · ${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
         ariaLabel = `Fill ${r.label} hours from roster`;
       } else if (enteredMins === suggestMins) {
         // Matched — entered value equals roster suggestion
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
-        metaText  = `${dayStr}${src}`;
+        metaText  = `${dayStr} · ${confHtml}`;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
         ariaLabel = `${r.label} matches roster: ${fmtH(r.h, r.m)}`;
       } else {
@@ -1068,7 +1113,7 @@ function updateRosterHint() {
         const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
         rowClass  = 'roster-row roster-row--differs';
         totalText = `${fmtH(entH, entM)} entered`;
-        metaText  = `Roster: ${fmtH(r.h, r.m)}`;
+        metaText  = `Roster: ${fmtH(r.h, r.m)} · ${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
         ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, roster says ${fmtH(r.h, r.m)}. Tap to use roster`;
       }
@@ -1081,7 +1126,7 @@ function updateRosterHint() {
         `<span class="roster-row-meta">${metaText}</span>` +
         arrowHtml +
         `</button>`;
-    }).join('');
+    }).join('') + noticeRows.join('');
   }
 
   // State-aware hint text — avoid claiming overrides are loaded when they aren't.
@@ -1107,7 +1152,7 @@ function updateRosterHint() {
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW' };
+const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'BH overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW', swap: 'Swap', ambig: 'Check manually' };
 
 /**
  * Show (or hide) a notice when the logged-in member started mid-period,
@@ -1183,13 +1228,15 @@ function fillCategoryFromRoster(cat) {
   const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) return;
   const map = {
-    sat:  ['satH',  'satM',  s.satH,  s.satM  ],
-    sun:  ['sunH',  'sunM',  s.sunH,  s.sunM  ],
-    bh:   ['bhH',   'bhM',   s.bhH,   s.bhM   ],
-    bhOt: ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM ],
-    ot:   ['otH',   'otM',   s.otH,   s.otM   ],
-    rdw:  ['rdwH',  'rdwM',  s.rdwH,  s.rdwM  ],
-    box:  ['boxH',  'boxM',  s.boxH,  s.boxM  ],
+    sat:   ['satH',  'satM',  s.satH,   s.satM   ],
+    sun:   ['sunH',  'sunM',  s.sunH,   s.sunM   ],
+    bh:    ['bhH',   'bhM',   s.bhH,    s.bhM    ],
+    bhOt:  ['bhOtH', 'bhOtM', s.bhOtH,  s.bhOtM  ],
+    ot:    ['otH',   'otM',   s.otH,    s.otM    ],
+    rdw:   ['rdwH',  'rdwM',  s.rdwH,   s.rdwM   ],
+    box:   ['boxH',  'boxM',  s.boxH,   s.boxM   ],
+    // ambig fills RDW fields — tapping the ambig row means "treat this as RDW"
+    ambig: ['rdwH',  'rdwM',  s.ambigH, s.ambigM ],
   };
   const args = map[cat];
   if (!args) return;
