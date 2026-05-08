@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.87';
-import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.87';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=8.88';
+import { db, collection, query, where, getDocs, getLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=8.88';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -295,7 +295,7 @@ function renderTeamView(grade, opts = {}) {
         }).join('');
 
     const gradeBtns = ['CEA', 'CES', 'Dispatcher'].map(g =>
-        `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" data-grade="${g}">${g}</button>`
+        `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" tabindex="${g === grade ? '0' : '-1'}" aria-controls="gradeTabPanel" data-grade="${g}">${g}</button>`
     ).join('');
 
     calendarDisplay.innerHTML = `
@@ -315,7 +315,7 @@ function renderTeamView(grade, opts = {}) {
                 </div>
                 <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
             </div>
-            <div class="team-table-wrap">
+            <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" aria-label="${grade} grade roster — week of ${weekLabel}">
                 <table class="team-table" aria-label="Team roster — week of ${weekLabel}">
                     <thead><tr>
                         <th class="tv-name-col">Name</th>${dayHeaders}
@@ -326,11 +326,26 @@ function renderTeamView(grade, opts = {}) {
             <p class="tv-scroll-hint touch-only">← Swipe table to see all 7 days →</p>
         </div>`;
 
-    // Grade tab clicks stay on the same week — no new Firestore fetch needed,
-    // data for this week is already in the override cache.
-    calendarDisplay.querySelectorAll('.grade-tab').forEach(tab =>
-        tab.addEventListener('click', () => renderTeamView(tab.dataset.grade, { skipFetch: true }))
-    );
+    // Grade tab interaction — click or arrow key switches grade without a new fetch.
+    // Arrow keys implement the ARIA tabs keyboard pattern (← → cycle between tabs).
+    // After re-render the newly active tab receives focus so keyboard users stay oriented.
+    const gradeTabList = calendarDisplay.querySelector('.grade-tabs');
+    if (gradeTabList) {
+        gradeTabList.addEventListener('click', e => {
+            const tab = e.target.closest('.grade-tab');
+            if (tab) renderTeamView(tab.dataset.grade, { skipFetch: true });
+        });
+        gradeTabList.addEventListener('keydown', e => {
+            if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+            e.preventDefault();
+            const tabs = [...gradeTabList.querySelectorAll('.grade-tab')];
+            const idx  = tabs.findIndex(t => t === document.activeElement);
+            if (idx === -1) return;
+            const next = tabs[(idx + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+            renderTeamView(next.dataset.grade, { skipFetch: true });
+            calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade}"]`)?.focus();
+        });
+    }
 
     const tvPrev  = calendarDisplay.querySelector('#tvPrevWeek');
     const tvNext  = calendarDisplay.querySelector('#tvNextWeek');
@@ -421,7 +436,9 @@ function toggleTeamView() {
     applyTeamViewChrome();
 
     if (teamViewMode) {
-        currentTeamWeekStart = getSunday(new Date());
+        // Preserve the week the user was viewing — only reset to current week on
+        // first open (currentTeamWeekStart is initialised to getSunday(new Date()) at
+        // module load, so new users always land on the current week).
         renderTeamView(currentTeamGrade);
     } else {
         renderCalendar();
@@ -1358,19 +1375,48 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
     const content = document.getElementById('teamInfoContent');
     if (!lb) return;
 
+    let _trigger = null; // element that opened the lightbox — restored on close
+
     function openTeamInfo() {
+        _trigger = document.activeElement;
         lb.classList.add('visible');
-        requestAnimationFrame(() => lb.classList.add('open'));
+        requestAnimationFrame(() => {
+            lb.classList.add('open');
+            document.getElementById('teamInfoClose')?.focus();
+        });
     }
     function closeTeamInfo() {
         lb.classList.remove('open');
-        lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+        lb.addEventListener('transitionend', () => {
+            lb.classList.remove('visible');
+            if (_trigger && typeof _trigger.focus === 'function') {
+                _trigger.focus();
+                _trigger = null;
+            }
+        }, { once: true });
     }
 
     document.getElementById('teamInfoClose')?.addEventListener('click', closeTeamInfo);
     lb.addEventListener('click', e => { if (e.target === lb) closeTeamInfo(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && lb.classList.contains('visible')) closeTeamInfo(); });
     if (content) content.addEventListener('click', e => e.stopPropagation());
+
+    document.addEventListener('keydown', e => {
+        if (!lb.classList.contains('visible')) return;
+        if (e.key === 'Escape') { closeTeamInfo(); return; }
+        // Focus trap — cycle through all focusable elements inside the lightbox
+        if (e.key === 'Tab') {
+            const focusable = [...lb.querySelectorAll(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            )].filter(el => !el.disabled);
+            if (focusable.length === 0) { e.preventDefault(); return; }
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) {
+                e.preventDefault(); last.focus();
+            } else if (!e.shiftKey && document.activeElement === last) {
+                e.preventDefault(); first.focus();
+            }
+        }
+    });
 
     // Event delegation — #teamHelpBtn is re-created on every renderTeamView() call.
     document.addEventListener('click', e => {
