@@ -250,10 +250,10 @@ describe('computeTax', () => {
     assert.equal(tax, 0);
   });
 
-  test('1257L: sacGross above PA → 20% on excess', () => {
+  test('1257L: sacGross above PA → 20% on excess (HMRC-floored)', () => {
     const sacGross = 1500;
     const pa = 12570 / P_YR;
-    const expected = (sacGross - pa) * 0.20;
+    const expected = Math.floor(sacGross - pa) * 0.20; // HMRC floors taxable to whole pounds
     const { tax } = computeTax(sacGross, '1257L', T25);
     approx(tax, expected, '1257L above PA');
   });
@@ -317,7 +317,7 @@ describe('computeTax', () => {
     const pa = 12570 / P_YR;
     const scaledPa = pa * 5;
     const cumGross = 4800 + 1200;
-    const taxable = Math.max(0, cumGross - scaledPa);
+    const taxable = Math.floor(Math.max(0, cumGross - scaledPa)); // HMRC floors
     const TAX = T25.tax;
     const basicBand = Math.max(0, TAX.b * 5 - Math.max(0, scaledPa));
     const cumTaxDue = taxable <= basicBand ? taxable * TAX.r20 : basicBand * TAX.r20 + (taxable - basicBand) * TAX.r40;
@@ -349,6 +349,17 @@ describe('computeTax', () => {
     const { tax: empty  } = computeTax(1500, '', T25);
     const { tax: normal } = computeTax(1500, '1257L', T25);
     approx(empty, normal, 'empty code fallback');
+  });
+
+  test('HMRC floor: G. Miller P20 (01/08/2025) and P28 (26/09/2025) payslip exact match', () => {
+    // P20: sacGross £4,441.60 → payslip tax £809.60
+    // P28: sacGross £4,810.43 → payslip tax £957.20
+    // Without floor: P20 = £809.87 (+27p), P28 = £957.40 (+20p)
+    // With floor:    P20 = £809.60 (exact), P28 = £957.20 (exact)
+    const { tax: taxP20 } = computeTax(4441.60, '1257L', T25);
+    const { tax: taxP28 } = computeTax(4810.43, '1257L', T25);
+    approx(taxP20, 809.60, 'P20 payslip tax', 0.005);
+    approx(taxP28, 957.20, 'P28 payslip tax', 0.005);
   });
 });
 

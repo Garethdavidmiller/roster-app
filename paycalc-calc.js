@@ -272,7 +272,9 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = 0, ytdTax = 0, perio
     if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? 0.48 : TAX.r45);
     const pa = resolvePA();
     const scaledPa = pa * (scale || 1);
-    const taxable = Math.max(0, amount - scaledPa);
+    // HMRC floors taxable income to the nearest whole pound before applying rates.
+    // Verified against G. Miller payslips P20 (01/08/2025) and P28 (26/09/2025).
+    const taxable = Math.floor(Math.max(0, amount - scaledPa));
     if (isScottish) return calcBandedTax(taxable, SCOT.bands, scale || 1);
     const basicBand = Math.max(0, TAX.b * (scale || 1) - Math.max(0, scaledPa));
     const highBand  = Math.max(0, TAX.h - TAX.b) * (scale || 1);
