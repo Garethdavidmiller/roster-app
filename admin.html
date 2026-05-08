@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.95 -->
+<!-- MYB Roster Admin v8.96 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.95">
+    <link rel="manifest" href="manifest.json?v=8.96">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.95">
+    <link rel="stylesheet" href="shared.css?v=8.96">
 
     <style>
         body {
@@ -2088,8 +2088,14 @@
                 gap: 16px;
             }
 
-            /* Fix 6: sticky sidebar — action cards stay visible as the week grid grows */
-            .col-side { position: sticky; top: 20px; }
+            /* Fix 6: sticky sidebar — action cards stay visible as the week grid grows.
+               max-height + overflow-y stops bottom cards being unreachable on short screens. */
+            .col-side {
+                position: sticky;
+                top: 20px;
+                max-height: calc(100dvh - 40px);
+                overflow-y: auto;
+            }
 
             /* Fix 1: member bar restyled as compact white card once JS moves it into col-side */
             .col-side .member-context-bar {
@@ -2108,7 +2114,16 @@
             /* Fix 3: constrain week nav — looks loose stretching across a 600px column */
             .week-nav { max-width: 480px; margin: 0 auto; }
 
-            /* Fix 4: desktop shift-row column zones */
+            /* Fix 4: desktop shift-row column zones.
+               At 1024–1199px the main column is ~620px — the wide template overflows it.
+               Use a tighter template at smaller desktop widths. */
+            .week-grid-header,
+            .day-row {
+                grid-template-columns: 32px 78px 96px minmax(200px, 1fr) 170px;
+                gap: 8px;
+            }
+        }
+        @media (min-width: 1200px) {
             .week-grid-header,
             .day-row {
                 grid-template-columns: 36px 90px 110px minmax(300px, 1fr) 190px;
@@ -2735,6 +2750,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.95"></script>
+<script type="module" src="./admin-app.js?v=8.96"></script>
 </body>
 </html>

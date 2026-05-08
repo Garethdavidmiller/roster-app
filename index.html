@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.95 -->
+<!-- MYB Roster Calendar - Version 8.96 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.95">
+    <link rel="manifest" href="manifest.json?v=8.96">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.95">
+    <link rel="stylesheet" href="shared.css?v=8.96">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1155,7 +1155,23 @@
         @media (min-width: 900px) {
             /* Cap the team table width on wide desktops so 7 columns don't stretch
                to fill the whole container and leave cells sparsely filled. */
-            .team-view-container { max-width: 860px; margin: 0 auto; }
+            .team-view-container { max-width: 1040px; margin: 0 auto; }
+        }
+        @media (min-width: 1025px) {
+            /* Desktop: body has overflow:hidden so the team container must own its
+               own scroll path, otherwise the table is clipped on short viewports. */
+            .team-view-container {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+                overflow: visible;
+            }
+            .team-table-wrap {
+                flex: 1;
+                min-height: 0;
+                overflow: auto;
+            }
         }
         /* Grade tab row: CSS grid keeps tabs truly centred regardless of right-side button count */
         .grade-tabs-row {
@@ -2629,7 +2645,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.95"></script>
+    <script type="module" src="./app.js?v=8.96"></script>
 
 </body>
 </html>

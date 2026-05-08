@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.95 -->
+<!-- MYB Roster — Pay Calculator v8.96 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.95">
+  <link rel="stylesheet" href="./shared.css?v=8.96">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -629,7 +629,7 @@
        Right column = settings + result + detail cards.
        grid-auto-flow: dense fills gaps independently so hiding/showing
        cards never leaves orphaned space or stretches the other column. */
-    @media (min-width: 1040px) {
+    @media (min-width: 1024px) {
       .app {
         max-width: 1400px;
         display: grid;
@@ -929,7 +929,7 @@
   #stickyTotal.visible { display: flex; }
   #stickyTotal .sticky-label { font-size: var(--type-small); opacity: 0.75; }
   #stickyTotal .sticky-amount { font-size: var(--type-large); font-weight: 700; letter-spacing: -0.02em; }
-  @media (min-width: 1040px) { #stickyTotal { display: none !important; } }
+  @media (min-width: 1024px) { #stickyTotal { display: none !important; } }
   /* Space so the disclaimer is never hidden behind the sticky bar */
   body.sticky-active { padding-bottom: max(70px, calc(60px + env(safe-area-inset-bottom))); }
 
@@ -1071,7 +1071,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.95">
+  <link rel="manifest" href="./pay-manifest.json?v=8.96">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1714,6 +1714,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.95"></script>
+<script type="module" src="./paycalc.js?v=8.96"></script>
 </body>
 </html>
