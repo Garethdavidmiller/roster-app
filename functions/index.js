@@ -60,7 +60,7 @@ const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FR
  */
 exports.ingestHuddle = onRequest(
     {
-        secrets:       [HUDDLE_SECRET],
+        secrets:       [HUDDLE_SECRET, VAPID_PRIVATE_KEY],
         region:        'europe-west2',
         cors:          false,
         timeoutSeconds: 60,
@@ -297,6 +297,7 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     const payload = JSON.stringify({
         title: 'Marylebone Roster',
         body:  `${dayLabel} Huddle is ready`,
+        url:   './admin.html',
     });
 
     const snapshot = await admin.firestore().collection('pushSubscriptions').get();

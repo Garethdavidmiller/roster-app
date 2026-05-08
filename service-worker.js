@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v8.83
+// MYB Roster — Service Worker v8.85
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '8.83';
+const APP_VERSION = '8.85';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -197,21 +197,28 @@ self.addEventListener("push", event => {
     );
 });
 
-// When staff tap the notification, open the correct page — Huddle goes to the
-// calendar, pay reminder goes directly to the pay calculator.
+// When staff tap the notification, open the correct page — Huddle goes to
+// admin.html, pay reminder goes to paycalc.html.
+// Priority: exact-URL match → navigate an existing window → open fresh.
+// The old approach fell back to client.focus() alone when client.navigate was
+// unavailable, which just focused whatever page was already open rather than
+// navigating to the target URL.
 self.addEventListener("notificationclick", event => {
     event.notification.close();
-    const url = (event.notification.data && event.notification.data.url) || "./";
+    const targetUrl = new URL(
+        (event.notification.data && event.notification.data.url) || "./",
+        self.location.origin
+    ).href;
     event.waitUntil(
         clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-            for (const client of list) {
-                if (client.url.startsWith(self.location.origin) && "focus" in client) {
-                    return client.navigate
-                        ? client.navigate(new URL(url, self.location.origin).href).then(() => client.focus())
-                        : client.focus();
-                }
-            }
-            return clients.openWindow(url);
+            // Already on the target page — just bring it to the front
+            const exact = list.find(c => c.url === targetUrl);
+            if (exact) return exact.focus();
+            // Navigate an existing window to the target URL
+            const any = list.find(c => "navigate" in c && "focus" in c);
+            if (any) return any.navigate(targetUrl).then(() => any.focus());
+            // No suitable window open — open a new one
+            return clients.openWindow(targetUrl);
         })
     );
 });

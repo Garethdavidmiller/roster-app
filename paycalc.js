@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.83';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.85';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.83';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.83';
+} from './paycalc-calc.js?v=8.85';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.85';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const MILLER_ACTUALS = {
   '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
   '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.57, sl:   0,    net: 3854.67, varPay: 2496.61 },
   '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
-  '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
+  '2026-02-13': { gross: 5188.85, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
 };
 
@@ -130,6 +130,10 @@ function ytdTaxKey(ty)    { return `cea_ytd_tax_${ty.label.replace('/', '_')}`; 
 // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
 // per browser session. Cleared on page reload. Uses tax year label as the key.
 const _settingsPrompted = new Set();
+
+// The default period num selected on page load (first upcoming payday). Used by
+// the ● today-period button to know when to show itself.
+let _defaultPeriodNum = null;
 
 // ── HELP CONTENT — per-card tip text ─────────────────────────────────────────
 // Keys match the data-help attribute on each .help-btn.
@@ -355,6 +359,7 @@ function buildPeriodSelect() {
   });
 
   sel.value = defPNum;
+  _defaultPeriodNum = defPNum;
   onPeriodChange();
   buildBackPayPeriodSelect();
 }
@@ -472,6 +477,12 @@ function onPeriodChange() {
   nextBtn.setAttribute('aria-label', idx >= periods.length - 1
     ? 'No later period available — this is the last one'
     : 'View later period');
+
+  // Show the ● today-period button only when not on the default (current) period
+  const todayPeriodBtn = document.getElementById('todayPeriodBtn');
+  if (todayPeriodBtn) {
+    todayPeriodBtn.classList.toggle('hidden', pNum === _defaultPeriodNum);
+  }
 
   // Meta row — two lines
   // Row 1: the shift dates (start → cutoff, not start → payday)
@@ -917,7 +928,7 @@ function loadSettings() {
     localStorage.removeItem('cea_hpp_actual');
   }
 
-  // Migration (v8.83): two-part pension localStorage cleanup.
+  // Migration (v8.85): two-part pension localStorage cleanup.
   //
   // Part A — pension rate cut-over (all users, P51+):
   //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
@@ -925,7 +936,7 @@ function loadSettings() {
   //   values are untouched.
   //
   // Part B — joining-period anchor bug (joiners only):
-  //   ANCHOR_DATE was midnight before v8.83; it must be noon to maintain the
+  //   ANCHOR_DATE was midnight before v8.85; it must be noon to maintain the
   //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
   //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
   //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
@@ -1812,6 +1823,11 @@ buildPeriodSelect();
 document.getElementById('periodSelect').addEventListener('change', onPeriodChange);
 document.getElementById('prevBtn').addEventListener('click', prevPeriod);
 document.getElementById('nextBtn').addEventListener('click', nextPeriod);
+document.getElementById('todayPeriodBtn').addEventListener('click', () => {
+  const sel = document.getElementById('periodSelect');
+  sel.value = _defaultPeriodNum;
+  onPeriodChange();
+});
 document.getElementById('clearBtn').addEventListener('click', clearPeriod);
 
 // Result breakdown toggle

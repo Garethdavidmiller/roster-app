@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.83 -->
+<!-- MYB Roster — Pay Calculator v8.85 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.83">
+  <link rel="stylesheet" href="./shared.css?v=8.85">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -109,6 +109,20 @@
     .nav-pill:disabled { opacity: 0.28; cursor: not-allowed; }
     @media (hover: hover) and (pointer: fine) {
       .nav-pill:hover:not(:disabled) { background: var(--primary-blue-dark); }
+    }
+    .nav-pill-today {
+      flex: 0 0 auto;
+      width: 38px; height: 38px; padding: 0;
+      background: var(--accent-gold); color: var(--primary-blue);
+      border: none; border-radius: var(--radius-md);
+      font-family: inherit; font-size: 10px; font-weight: 900;
+      cursor: pointer; touch-action: manipulation;
+      transition: background 0.15s, opacity 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .nav-pill-today.hidden { display: none; }
+    @media (hover: hover) and (pointer: fine) {
+      .nav-pill-today:hover { background: var(--accent-gold-dark); }
     }
     .period-hint   { margin: 4px 0 0; font-size: var(--type-micro); color: var(--text-faint); text-align: center; }
     .period-meta   { display: flex; flex-direction: column; gap: 3px; width: 100%; }
@@ -1001,7 +1015,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.83">
+  <link rel="manifest" href="./pay-manifest.json?v=8.85">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1114,6 +1128,7 @@
     <div class="period-nav">
       <button class="nav-pill" id="prevBtn">← Earlier</button>
       <button class="nav-pill" id="nextBtn">Later →</button>
+      <button class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current period">●</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -1643,6 +1658,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.83"></script>
+<script type="module" src="./paycalc.js?v=8.85"></script>
 </body>
 </html>
