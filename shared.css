@@ -394,6 +394,7 @@ body {
 
 /* Touch-only tips: hidden on desktop, shown on touch devices */
 @media (hover: hover) and (pointer: fine) {
+    .touch-only { display: none; }
     .lightbox-tip.touch-only { display: none; }
 }
 
