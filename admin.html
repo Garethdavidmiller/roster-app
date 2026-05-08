@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.92 -->
+<!-- MYB Roster Admin v8.93 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.92">
+    <link rel="manifest" href="manifest.json?v=8.93">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.92">
+    <link rel="stylesheet" href="shared.css?v=8.93">
 
     <style>
         body {
@@ -764,6 +764,18 @@
         .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
         .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
         .day-row.active.fixed-type .time-note { display: block; }
+
+        /* RD disambiguation hint — shown when Shift is chosen on a base rest day */
+        .col-rd-hint {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: #fffbe6;
+            color: #7b5800;
+            line-height: 1.5;
+        }
+        .col-rd-hint[hidden] { display: none; }
 
         /* Shared note field — appears below the week grid, above the Save button */
         .shift-note-row {
@@ -2340,6 +2352,7 @@
                         <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                         <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                         <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
+                        <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                         <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
                         <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
                         <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -2722,6 +2735,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.92"></script>
+<script type="module" src="./admin-app.js?v=8.93"></script>
 </body>
 </html>

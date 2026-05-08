@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.92 -->
+<!-- MYB Roster — Pay Calculator v8.93 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.92">
+  <link rel="stylesheet" href="./shared.css?v=8.93">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -990,6 +990,22 @@
   .conf-high     { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
+  /* Notice row — informational only (swap days), non-interactive */
+  .roster-row--notice {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: var(--conf-recorded-bg);
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: var(--type-small);
+    cursor: default;
+  }
+  /* Ambig row — clickable (fills RDW), styled amber as a prompt to review */
+  .roster-row--ambig { background: var(--conf-possible-bg); }
+  .roster-row--ambig .roster-row-total { color: var(--conf-possible-text); font-weight: 700; }
   .roster-card-note {
     font-size: var(--type-micro); color: var(--text-faint);
     line-height: 1.4; margin: 0 0 8px;
@@ -1035,8 +1051,10 @@
   .roster-day-chip--bh  { background: var(--chip-bh-bg);   color: white; }
   .roster-day-chip--box { background: var(--accent-gold);  color: var(--primary-blue); }
   .roster-day-chip--rdw { background: var(--rdw);          color: white; }
-  .roster-day-chip--bhOt { background: var(--chip-bhot-bg); color: white; }
-  .roster-day-chip--ot   { background: var(--chip-ot-bg);   color: white; }
+  .roster-day-chip--bhOt  { background: var(--chip-bhot-bg);    color: white; }
+  .roster-day-chip--ot    { background: var(--chip-ot-bg);      color: white; }
+  .roster-day-chip--swap  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
+  .roster-day-chip--ambig { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-view-link {
     display: block; margin-top: 8px;
     font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
@@ -1047,7 +1065,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.92">
+  <link rel="manifest" href="./pay-manifest.json?v=8.93">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1690,6 +1708,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.92"></script>
+<script type="module" src="./paycalc.js?v=8.93"></script>
 </body>
 </html>
