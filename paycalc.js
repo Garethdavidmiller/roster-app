@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.82';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.83';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.82';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.82';
+} from './paycalc-calc.js?v=8.83';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.83';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -917,7 +917,7 @@ function loadSettings() {
     localStorage.removeItem('cea_hpp_actual');
   }
 
-  // Migration (v8.82): two-part pension localStorage cleanup.
+  // Migration (v8.83): two-part pension localStorage cleanup.
   //
   // Part A — pension rate cut-over (all users, P51+):
   //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
@@ -925,7 +925,7 @@ function loadSettings() {
   //   values are untouched.
   //
   // Part B — joining-period anchor bug (joiners only):
-  //   ANCHOR_DATE was midnight before v8.82; it must be noon to maintain the
+  //   ANCHOR_DATE was midnight before v8.83; it must be noon to maintain the
   //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
   //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
   //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
