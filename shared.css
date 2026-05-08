@@ -217,6 +217,7 @@ body {
 
 /* Content card — sits above the overlay, not clickable-through */
 #iconLightboxContent {
+    position: relative;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -320,16 +321,17 @@ body {
    default browser chrome. index.html currently uses <span> — no harm having extra resets. */
 #iconLightboxClose {
     position: absolute;
-    top: 20px;
-    right: 20px;
+    top: 14px;
+    right: 14px;
     background: none;
     border: none;
+    -webkit-appearance: none;
     font-family: inherit;
     color: rgba(255,255,255,0.5);
-    font-size: 26px;
+    font-size: 22px;
     line-height: 1;
     cursor: pointer;
-    padding: 8px;
+    padding: 6px;
     transition: color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
 }

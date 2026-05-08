@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.85 -->
+<!-- MYB Roster Calendar - Version 8.86 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.85">
+    <link rel="manifest" href="manifest.json?v=8.86">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.85">
+    <link rel="stylesheet" href="shared.css?v=8.86">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1992,6 +1992,7 @@
         #alLightbox.open    { opacity: 1; }
 
         #alLightboxContent {
+            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -2012,14 +2013,15 @@
 
         #alLightboxClose {
             position: absolute;
-            top: 20px;
-            right: 20px;
+            top: 14px;
+            right: 14px;
             color: rgba(255,255,255,0.5);
-            font-size: 26px;
+            font-size: 22px;
             line-height: 1;
             cursor: pointer;
-            padding: 8px;
+            padding: 6px;
             transition: color 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         @media (hover: hover) and (pointer: fine) {
             #alLightboxClose:hover { color: white; }
@@ -2362,8 +2364,8 @@
     <!-- Icon lightbox / about panel — shown when the header icon is tapped.
          Shows app name, version, and live update status. -->
     <div id="iconLightbox" role="dialog" aria-label="About MYB Roster" aria-modal="true">
-        <button id="iconLightboxClose" aria-label="Close">✕</button>
         <div id="iconLightboxContent">
+        <button id="iconLightboxClose" aria-label="Close">✕</button>
             <img src="icon-192.png" alt="Chiltern Railways app icon">
             <div class="lightbox-app-name">Marylebone Roster</div>
             <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
@@ -2395,8 +2397,8 @@
 
     <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
     <div id="alLightbox" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
-        <span id="alLightboxClose" aria-label="Close">✕</span>
         <div id="alLightboxContent">
+        <span id="alLightboxClose" aria-label="Close">✕</span>
             <div class="al-lb-icon">🏖️</div>
             <div class="al-lb-title">Annual Leave</div>
             <div class="al-lb-year" id="alLbYear"></div>
@@ -2585,7 +2587,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.85"></script>
+    <script type="module" src="./app.js?v=8.86"></script>
 
 </body>
 </html>
