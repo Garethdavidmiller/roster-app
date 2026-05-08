@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 8.88 -->
+<!-- MYB Roster Calendar - Version 8.89 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=8.88">
+    <link rel="manifest" href="manifest.json?v=8.89">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.88">
+    <link rel="stylesheet" href="shared.css?v=8.89">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1179,7 +1179,7 @@
             height: 28px;
             flex-shrink: 0;
             background: none;
-            border: 1.5px solid var(--border-mid);
+            border: 2px solid var(--border-mid);
             color: var(--text-light);
             font-size: 13px;
             font-weight: 700;
@@ -1196,6 +1196,12 @@
         }
         @media (hover: hover) and (pointer: fine) {
             .team-help-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
+        }
+        .team-help-btn:active { opacity: 0.75; transform: scale(0.96); }
+        .team-help-btn:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
         .tv-current-badge {
             display: inline-block;
@@ -1230,7 +1236,7 @@
             font-weight: 700;
             background: none;
             color: var(--primary-blue);
-            border: 1.5px solid var(--primary-blue);
+            border: 2px solid var(--primary-blue);
             padding: 2px 7px;
             border-radius: 10px;
             white-space: nowrap;
@@ -1242,6 +1248,12 @@
         }
         @media (hover: hover) and (pointer: fine) {
             .tv-today-btn:hover { background: var(--primary-blue); color: white; }
+        }
+        .tv-today-btn:active { opacity: 0.75; transform: scale(0.96); }
+        .tv-today-btn:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
         .tv-empty {
             text-align: center;
@@ -1274,7 +1286,12 @@
                 color: var(--primary-blue);
             }
         }
-        .grade-tab:active { opacity: 0.75; }
+        .grade-tab:active { opacity: 0.75; transform: scale(0.96); }
+        .grade-tab:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+        }
         .team-week-row {
             display: flex;
             align-items: center;
@@ -1301,7 +1318,7 @@
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            padding: 4px 8px;
+            padding: 6px 10px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1310,13 +1327,26 @@
             flex-shrink: 0;
             font-family: inherit;
             white-space: nowrap;
-            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1);
+            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
+            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
         }
         @media (hover: hover) and (pointer: fine) {
             .tv-week-nav:hover {
                 background: var(--primary-blue-dark);
                 border-color: var(--primary-blue-dark);
+                transform: translateY(-1px);
+                box-shadow: 0 4px 8px rgba(0, 30, 60, 0.3);
             }
+        }
+        .tv-week-nav:active {
+            transform: scale(0.96);
+            opacity: 0.8;
+            box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
+        }
+        .tv-week-nav:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
         .team-table-wrap {
             overflow-x: auto;
@@ -2599,7 +2629,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=8.88"></script>
+    <script type="module" src="./app.js?v=8.89"></script>
 
 </body>
 </html>
