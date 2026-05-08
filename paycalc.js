@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.85';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.86';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.85';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.85';
+} from './paycalc-calc.js?v=8.86';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.86';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -63,7 +63,7 @@ const MILLER_ACTUALS = {
   '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
   '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.57, sl:   0,    net: 3854.67, varPay: 2496.61 },
   '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
-  '2026-02-13': { gross: 5188.85, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
+  '2026-02-13': { gross: 5188.86, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
 };
 
@@ -928,7 +928,7 @@ function loadSettings() {
     localStorage.removeItem('cea_hpp_actual');
   }
 
-  // Migration (v8.85): two-part pension localStorage cleanup.
+  // Migration (v8.86): two-part pension localStorage cleanup.
   //
   // Part A — pension rate cut-over (all users, P51+):
   //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
@@ -936,7 +936,7 @@ function loadSettings() {
   //   values are untouched.
   //
   // Part B — joining-period anchor bug (joiners only):
-  //   ANCHOR_DATE was midnight before v8.85; it must be noon to maintain the
+  //   ANCHOR_DATE was midnight before v8.86; it must be noon to maintain the
   //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
   //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
   //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor

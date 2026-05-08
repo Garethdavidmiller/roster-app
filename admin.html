@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.85 -->
+<!-- MYB Roster Admin v8.86 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.85">
+    <link rel="manifest" href="manifest.json?v=8.86">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.85">
+    <link rel="stylesheet" href="shared.css?v=8.86">
 
     <style>
         body {
@@ -79,6 +79,7 @@
         #tipsLightbox.open    { opacity: 1; }
 
         #tipsLightboxContent {
+            position: relative;
             background: white;
             border-radius: var(--radius-lg);
             padding: 28px 28px 24px;
@@ -120,19 +121,20 @@
         }
         .tips-lb-item:last-child { border-bottom: none; }
         .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
-        /* ✕ positioned in the overlay corner — matches iconLightboxClose pattern */
         #tipsLightboxClose {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            color: rgba(255,255,255,0.5);
-            font-size: 26px;
+            top: 14px;
+            right: 14px;
+            color: rgba(0,0,0,0.35);
+            font-size: 22px;
             cursor: pointer;
-            padding: 8px;
+            padding: 6px;
+            line-height: 1;
             transition: color 0.15s ease;
+            -webkit-tap-highlight-color: transparent;
         }
         @media (hover: hover) and (pointer: fine) {
-            #tipsLightboxClose:hover { color: white; }
+            #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
         }
 
         /* ---- Cards ---- */
@@ -2230,16 +2232,16 @@
 
 <!-- Lightbox — tap the header icon to open -->
 <div id="tipsLightbox" role="dialog" aria-label="Tips" aria-modal="true">
-    <span id="tipsLightboxClose" aria-label="Close">✕</span>
     <div id="tipsLightboxContent">
+    <span id="tipsLightboxClose" aria-label="Close">✕</span>
         <div class="tips-lb-title" id="tipsLbTitle"></div>
         <div id="tipsLbBody"></div>
     </div>
 </div>
 
 <div id="iconLightbox" role="dialog" aria-label="About MYB Roster" aria-modal="true">
-    <button id="iconLightboxClose" aria-label="Close">✕</button>
     <div id="iconLightboxContent">
+    <button id="iconLightboxClose" aria-label="Close">✕</button>
         <img src="icon-192.png" alt="Chiltern Railways app icon">
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
@@ -2711,6 +2713,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.85"></script>
+<script type="module" src="./admin-app.js?v=8.86"></script>
 </body>
 </html>
