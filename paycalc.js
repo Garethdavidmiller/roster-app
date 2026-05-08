@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.90';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.91';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.90';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.90';
+} from './paycalc-calc.js?v=8.91';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.91';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1035,17 +1035,51 @@ function updateRosterHint() {
     ].filter(r => r.count > 0);
 
     rows.innerHTML = cats.map(r => {
-      const total  = fmtH(r.h, r.m);
+      const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
       const src    = getOverridesFetchState() === 'loaded'
         ? (r.fromOv ? ' · Override' : ' · Base roster') : '';
-      return `<button class="roster-row" type="button" data-cat="${r.cat}" ` +
-          `aria-label="Fill ${r.label} hours from roster">` +
+
+      // Read the current value in the matching form field pair (null = blank).
+      const elH = document.getElementById(r.cat + 'H');
+      const elM = document.getElementById(r.cat + 'M');
+      const hv = elH?.value.trim() ?? '';
+      const mv = elM?.value.trim() ?? '';
+      const enteredMins = (hv === '' && mv === '') ? null
+        : (parseInt(hv) || 0) * 60 + (parseInt(mv) || 0);
+
+      let rowClass, totalText, metaText, arrowHtml, ariaLabel;
+      if (enteredMins === null) {
+        // Blank — ready to fill
+        rowClass  = 'roster-row';
+        totalText = fmtH(r.h, r.m);
+        metaText  = `${dayStr}${src}`;
+        arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
+        ariaLabel = `Fill ${r.label} hours from roster`;
+      } else if (enteredMins === suggestMins) {
+        // Matched — entered value equals roster suggestion
+        rowClass  = 'roster-row roster-row--matched';
+        totalText = fmtH(r.h, r.m);
+        metaText  = `${dayStr}${src}`;
+        arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
+        ariaLabel = `${r.label} matches roster: ${fmtH(r.h, r.m)}`;
+      } else {
+        // Differs — entered value doesn't match roster
+        const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
+        rowClass  = 'roster-row roster-row--differs';
+        totalText = `${fmtH(entH, entM)} entered`;
+        metaText  = `Roster: ${fmtH(r.h, r.m)}`;
+        arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
+        ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, roster says ${fmtH(r.h, r.m)}. Tap to use roster`;
+      }
+
+      return `<button class="${rowClass}" type="button" data-cat="${r.cat}" ` +
+          `aria-label="${ariaLabel}">` +
         `<span class="roster-row-icon" aria-hidden="true">${r.icon}</span>` +
         `<span class="roster-row-label">${r.label}</span>` +
-        `<span class="roster-row-total">${total}</span>` +
-        `<span class="roster-row-meta">${dayStr}${src}</span>` +
-        `<span class="roster-cat-arrow" aria-hidden="true">→</span>` +
+        `<span class="roster-row-total">${totalText}</span>` +
+        `<span class="roster-row-meta">${metaText}</span>` +
+        arrowHtml +
         `</button>`;
     }).join('');
   }
@@ -1141,7 +1175,8 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   elM.classList.add('roster-suggested');
 }
 
-/** Fills only the named category's hours from the current roster suggestion. */
+/** Fills only the named category's hours from the current roster suggestion. Force-fills
+ *  because a row tap is an explicit user action — "I want the roster value here". */
 function fillCategoryFromRoster(cat) {
   const p = getPeriods().find(x => x.num === currentPeriodNum());
   if (!p) return;
@@ -1157,7 +1192,17 @@ function fillCategoryFromRoster(cat) {
     box:  ['boxH',  'boxM',  s.boxH,  s.boxM  ],
   };
   const args = map[cat];
-  if (args) { _suggestIfBlank(...args); autosave(); }
+  if (!args) return;
+  const [hId, mId, hVal, mVal] = args;
+  const elH = document.getElementById(hId);
+  const elM = document.getElementById(mId);
+  if (elH && elM && hVal != null) {
+    elH.value = hVal ?? '';
+    elM.value = mVal ?? '';
+    elH.classList.add('roster-suggested');
+    elM.classList.add('roster-suggested');
+  }
+  autosave();
 }
 
 /** Applies a suggestion object to all H/M field pairs.
@@ -1924,9 +1969,12 @@ document.getElementById('rosterRows')?.addEventListener('click', e => {
   if (btn) fillCategoryFromRoster(btn.dataset.cat);
 });
 
-// Remove roster-suggested highlight as soon as the user edits any hours input
+// Remove roster-suggested highlight and refresh comparison state as user edits hours
 document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#sunM,#rdwH,#rdwM,#boxH,#boxM').forEach(el => {
-  el.addEventListener('input', () => el.classList.remove('roster-suggested'));
+  el.addEventListener('input', () => {
+    el.classList.remove('roster-suggested');
+    updateRosterHint();
+  });
 });
 
 // Tax year tabs
