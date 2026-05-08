@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.91';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.92';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.91';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.91';
+} from './paycalc-calc.js?v=8.92';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.92';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -996,6 +996,17 @@ function fmtH(h, m) {
   return `${m}m`;
 }
 
+/** Maps a suggestion category to a confidence badge descriptor.
+ *  ot/bhOt are inferred from extended shifts — not explicitly labelled as overtime.
+ *  rdw is always explicitly saved with type:'rdw' — definitively a recorded change.
+ *  Base roster sat/sun/bh/box are scheduled by contract — high confidence. */
+function _confBadge(cat, fromOv) {
+  if (cat === 'ot' || cat === 'bhOt') return { text: 'Possible overtime', cls: 'conf-possible' };
+  if (cat === 'rdw')  return { text: 'Recorded change', cls: 'conf-recorded' };
+  if (fromOv)         return { text: 'Recorded change', cls: 'conf-recorded' };
+  return { text: 'High confidence', cls: 'conf-high' };
+}
+
 function updateRosterHint() {
   const card = document.getElementById('rosterHintBar');
   if (!card) return;
@@ -1037,8 +1048,8 @@ function updateRosterHint() {
     rows.innerHTML = cats.map(r => {
       const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
-      const src    = getOverridesFetchState() === 'loaded'
-        ? (r.fromOv ? ' · Override' : ' · Base roster') : '';
+      const conf   = _confBadge(r.cat, r.fromOv);
+      const confHtml = `<span class="conf-badge ${conf.cls}">${conf.text}</span>`;
 
       // Read the current value in the matching form field pair (null = blank).
       const elH = document.getElementById(r.cat + 'H');
@@ -1053,14 +1064,14 @@ function updateRosterHint() {
         // Blank — ready to fill
         rowClass  = 'roster-row';
         totalText = fmtH(r.h, r.m);
-        metaText  = `${dayStr}${src}`;
+        metaText  = `${dayStr} · ${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
         ariaLabel = `Fill ${r.label} hours from roster`;
       } else if (enteredMins === suggestMins) {
         // Matched — entered value equals roster suggestion
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
-        metaText  = `${dayStr}${src}`;
+        metaText  = `${dayStr} · ${confHtml}`;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
         ariaLabel = `${r.label} matches roster: ${fmtH(r.h, r.m)}`;
       } else {
@@ -1068,7 +1079,7 @@ function updateRosterHint() {
         const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
         rowClass  = 'roster-row roster-row--differs';
         totalText = `${fmtH(entH, entM)} entered`;
-        metaText  = `Roster: ${fmtH(r.h, r.m)}`;
+        metaText  = `Roster: ${fmtH(r.h, r.m)} · ${confHtml}`;
         arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
         ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, roster says ${fmtH(r.h, r.m)}. Tap to use roster`;
       }

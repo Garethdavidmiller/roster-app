@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.91 -->
+<!-- MYB Roster — Pay Calculator v8.92 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.91">
+  <link rel="stylesheet" href="./shared.css?v=8.92">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -29,6 +29,12 @@
       --row-matched-bg:   rgba(46,125,50,0.07);
       --row-matched-text: #2e7d32;
       --row-differs-bg:   rgba(245,124,0,0.07);
+      --conf-high-bg:       #e8f5e9;
+      --conf-high-text:     #2e7d32;
+      --conf-recorded-bg:   #e3f2fd;
+      --conf-recorded-text: #1565c0;
+      --conf-possible-bg:   #fff3e0;
+      --conf-possible-text: #e65100;
     }
 
     body {
@@ -980,6 +986,10 @@
   .roster-cat-match { font-size: var(--type-small); font-weight: 700; color: var(--row-matched-text); flex-shrink: 0; }
   .roster-row--differs .roster-row-total { color: var(--chip-ot-bg); }
   .roster-cat-arrow--differs { color: var(--chip-ot-bg); }
+  .conf-badge { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: nowrap; }
+  .conf-high     { background: var(--conf-high-bg);     color: var(--conf-high-text); }
+  .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
+  .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-card-note {
     font-size: var(--type-micro); color: var(--text-faint);
     line-height: 1.4; margin: 0 0 8px;
@@ -1037,7 +1047,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.91">
+  <link rel="manifest" href="./pay-manifest.json?v=8.92">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1680,6 +1690,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.91"></script>
+<script type="module" src="./paycalc.js?v=8.92"></script>
 </body>
 </html>

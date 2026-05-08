@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `8.64` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `8.92` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -101,7 +101,7 @@ roster-app/
 ├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
-├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.64
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.92
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)

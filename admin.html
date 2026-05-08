@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v8.91 -->
+<!-- MYB Roster Admin v8.92 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=8.91">
+    <link rel="manifest" href="manifest.json?v=8.92">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=8.91">
+    <link rel="stylesheet" href="shared.css?v=8.92">
 
     <style>
         body {
@@ -864,6 +864,7 @@
             left: 0;
             right: 0;
             z-index: 6000;
+            box-sizing: border-box;
             display: flex;
             align-items: flex-start;
             gap: 12px;
@@ -2050,6 +2051,12 @@
                 align-items: start;
             }
 
+            /* Align confirm bar padding with page content on wide screens */
+            .al-confirm-bar {
+                padding-left:  max(18px, calc((100vw - 1440px) / 2 + 20px));
+                padding-right: max(18px, calc((100vw - 1440px) / 2 + 20px));
+            }
+
             /* Full-width rows spanning both columns */
             .app-header              { grid-column: 1 / -1; }
             /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
@@ -2139,6 +2146,8 @@
             .btn-signout,
             .btn-back,
             .list-feedback,
+            .al-confirm-bar,
+            #saveToast,
             #huddleUploadCard,
             #rosterUploadCard { display: none !important; }
 
@@ -2713,6 +2722,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=8.91"></script>
+<script type="module" src="./admin-app.js?v=8.92"></script>
 </body>
 </html>
