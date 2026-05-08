@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v8.89 -->
+<!-- MYB Roster — Pay Calculator v8.90 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=8.89">
+  <link rel="stylesheet" href="./shared.css?v=8.90">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -23,6 +23,9 @@
       --boxing-day-bg:   #fff8e1;
       --boxing-day-text: #bf6000;
       --notice-text:     #5a4000;
+      --chip-bh-bg:      #7b1fa2;
+      --chip-bhot-bg:    #ab47bc;
+      --chip-ot-bg:      #f57c00;
     }
 
     body {
@@ -680,7 +683,8 @@
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
-      #decimalConverterCard, .btn-back, .btn-signout { display: none !important; }
+      #decimalConverterCard, .btn-back, .btn-signout,
+      #rosterHintBar, .joiner-notice { display: none !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -982,11 +986,21 @@
   @media (hover: hover) and (pointer: fine) {
     .fill-roster-btn:hover { background: var(--primary-blue-dark); }
   }
+  .fill-roster-btn:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+  }
   .roster-days-toggle {
     background: none; border: none; padding: 0;
     font-family: inherit; font-size: var(--type-micro); font-weight: 700;
     color: var(--primary-blue); cursor: pointer; touch-action: manipulation;
     text-decoration: underline; text-underline-offset: 2px;
+  }
+  .roster-days-toggle:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 3px;
+    border-radius: 2px;
   }
   .roster-day-list {
     border-top: 1px solid var(--border-light); margin-top: 8px; padding-top: 8px;
@@ -1000,11 +1014,11 @@
   .roster-day-chip  { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 99px; white-space: nowrap; flex-shrink: 0; }
   .roster-day-chip--sat { background: var(--primary-blue); color: white; }
   .roster-day-chip--sun { background: var(--blue-sky); color: white; }
-  .roster-day-chip--bh  { background: #7b1fa2; color: white; }
-  .roster-day-chip--box { background: var(--accent-gold); color: var(--primary-blue); }
-  .roster-day-chip--rdw  { background: var(--rdw); color: white; }
-  .roster-day-chip--bhOt { background: #ab47bc; color: white; }
-  .roster-day-chip--ot   { background: #f57c00; color: white; }
+  .roster-day-chip--bh  { background: var(--chip-bh-bg);   color: white; }
+  .roster-day-chip--box { background: var(--accent-gold);  color: var(--primary-blue); }
+  .roster-day-chip--rdw { background: var(--rdw);          color: white; }
+  .roster-day-chip--bhOt { background: var(--chip-bhot-bg); color: white; }
+  .roster-day-chip--ot   { background: var(--chip-ot-bg);   color: white; }
   .roster-view-link {
     display: block; margin-top: 8px;
     font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
@@ -1015,7 +1029,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=8.89">
+  <link rel="manifest" href="./pay-manifest.json?v=8.90">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1658,6 +1672,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=8.89"></script>
+<script type="module" src="./paycalc.js?v=8.90"></script>
 </body>
 </html>
