@@ -11,15 +11,14 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.01';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.02';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.01';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.02';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
     spare_shift:  { label: 'Spare shift',      fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            fixed: false },
-    swap:         { label: 'Swap',             fixed: false },
     rdw:          { label: 'Rest Day Worked',  fixed: false },
     annual_leave: { label: 'Annual Leave',     fixed: true,  fixedValue: 'AL' },
     correction:   { label: 'Set as Rest Day',  fixed: true,  fixedValue: 'RD' },
@@ -27,6 +26,7 @@ export const TYPES = {
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
+    swap:         { label: 'Swap',             fixed: false },
 };
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
@@ -157,7 +157,6 @@ export function buildWeekGridInto(container, dateStr) {
                 <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
                 <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
                 <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
-                <button class="type-pill-btn pill-swap"         data-type="swap">Swap</button>
                 <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
                 <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
                 <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
@@ -170,7 +169,7 @@ export function buildWeekGridInto(container, dateStr) {
                 <span class="time-hint">24h · max 12 hrs</span>
                 <span class="time-error-msg">Use HH:MM format (e.g. 07:00)</span>
             </div>
-            <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> for overtime pay, or <strong>Swap</strong> if exchanging shifts with another day</div>`;
+            <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>`;
 
         container.appendChild(row);
 

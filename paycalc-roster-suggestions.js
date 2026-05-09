@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
  */
 
-import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.01';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.01';
+import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.02';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.02';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
@@ -136,9 +136,7 @@ export function getRosterSuggestion(p, member) {
   if (!member) return null;
 
   let satMins = 0, sunMins = 0, bhMins = 0, bhOtMins = 0, otMins = 0, boxMins = 0, rdwMins = 0;
-  let swapMins = 0, ambigMins = 0;
   let satCount = 0, sunCount = 0, bhCount = 0, bhOtCount = 0, otCount = 0, boxCount = 0, rdwCount = 0;
-  let swapCount = 0, ambigCount = 0;
   let satFromOv = false, sunFromOv = false, bhFromOv = false, boxFromOv = false;
   const days = [];
 
@@ -243,22 +241,13 @@ export function getRosterSuggestion(p, member) {
       } else {
         // Mon–Fri non-BH non-RDW: base hours are contracted basic pay.
         // Only the excess beyond the base roster counts as overtime.
+        // Rest-day weekday shifts via override (swaps, ambiguous types) are ignored here —
+        // they don't generate a predictable pay category and were causing false suggestions.
         if (fromOv && baseWorked) {
           const ot = Math.max(0, mins - baseMins);
           if (ot > 0) {
             otMins += ot; otCount++;
             days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'ot', source: 'override' });
-          }
-        } else if (fromOv && !baseWorked) {
-          // Worked a base-rest weekday via override. Two possible interpretations:
-          //   type:'swap'  — explicit day swap (whole shift = basic pay, compensated elsewhere)
-          //   other types  — ambiguous; may be RDW saved with wrong type, or a swap
-          if (effType === 'swap') {
-            swapMins += mins; swapCount++;
-            days.push({ date: new Date(cur), shift: effValue, type: 'swap', source: 'override' });
-          } else {
-            ambigMins += mins; ambigCount++;
-            days.push({ date: new Date(cur), shift: effValue, type: 'ambig', source: 'override' });
           }
         }
       }
@@ -266,19 +255,17 @@ export function getRosterSuggestion(p, member) {
     cur.setDate(cur.getDate() + 1);
   }
 
-  if (!satCount && !sunCount && !bhCount && !bhOtCount && !otCount && !rdwCount && !boxCount && !swapCount && !ambigCount) return null;
+  if (!satCount && !sunCount && !bhCount && !bhOtCount && !otCount && !rdwCount && !boxCount) return null;
 
   return {
-    satH:   Math.floor(satMins   / 60), satM:   satMins   % 60,
-    sunH:   Math.floor(sunMins   / 60), sunM:   sunMins   % 60,
-    bhH:    Math.floor(bhMins    / 60), bhM:    bhMins    % 60,
-    bhOtH:  Math.floor(bhOtMins  / 60), bhOtM:  bhOtMins  % 60,
-    otH:    Math.floor(otMins    / 60), otM:    otMins    % 60,
-    rdwH:   Math.floor(rdwMins   / 60), rdwM:   rdwMins   % 60,
-    boxH:   Math.floor(boxMins   / 60), boxM:   boxMins   % 60,
-    swapH:  Math.floor(swapMins  / 60), swapM:  swapMins  % 60,
-    ambigH: Math.floor(ambigMins / 60), ambigM: ambigMins % 60,
-    satCount, sunCount, bhCount, bhOtCount, otCount, rdwCount, boxCount, swapCount, ambigCount,
+    satH:  Math.floor(satMins  / 60), satM:  satMins  % 60,
+    sunH:  Math.floor(sunMins  / 60), sunM:  sunMins  % 60,
+    bhH:   Math.floor(bhMins   / 60), bhM:   bhMins   % 60,
+    bhOtH: Math.floor(bhOtMins / 60), bhOtM: bhOtMins % 60,
+    otH:   Math.floor(otMins   / 60), otM:   otMins   % 60,
+    rdwH:  Math.floor(rdwMins  / 60), rdwM:  rdwMins  % 60,
+    boxH:  Math.floor(boxMins  / 60), boxM:  boxMins  % 60,
+    satCount, sunCount, bhCount, bhOtCount, otCount, rdwCount, boxCount,
     satFromOv, sunFromOv, bhFromOv, bhOtFromOv: true, boxFromOv, rdwFromOv: true,
     memberName: member.name,
     days: days.sort((a, b) => a.date - b.date),
