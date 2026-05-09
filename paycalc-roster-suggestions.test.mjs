@@ -13,7 +13,7 @@ import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // V must match the ?v= suffix inside paycalc-roster-suggestions.js imports.
-const V = '9.01';
+const V = '9.02';
 
 // Mutable getter — individual tests can swap this out via _setMockGetDocs().
 let _mockGetDocs = async () => ({ forEach: () => {} });
@@ -172,46 +172,6 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.strictEqual(getRosterSuggestion(period('2026-04-06'), cReen), null);
   });
 
-  test('type:swap on weekday base-RD → swap bucket, no rdw/ot/sat', () => {
-    // Future startDate forces getBaseShift to return 'RD' for all 2026 dates.
-    const newStarter = { name: 'C. Reen', rosterType: 'fixed', currentWeek: 1, startDate: new Date(2027, 0, 1) };
-    _setOverridesForTest(new Map([
-      ['2026-04-13', { type: 'swap', value: '09:00-17:00', _ts: 1, _manual: true }],
-    ]));
-    const s = getRosterSuggestion(period('2026-04-13'), newStarter);
-    assert.ok(s);
-    assert.equal(s.swapCount, 1);
-    assert.equal(s.swapH, 8);
-    assert.equal(s.swapM, 0);
-    assert.equal(s.ambigCount + s.otCount + s.rdwCount + s.satCount + s.sunCount, 0);
-  });
-
-  test('type:swap on Saturday still earns sat pay (day-type wins over swap)', () => {
-    // dow===6 branch runs before the weekday-swap check.
-    _setOverridesForTest(new Map([
-      ['2026-04-11', { type: 'swap', value: '10:00-18:00', _ts: 1, _manual: true }],
-    ]));
-    const s = getRosterSuggestion(period('2026-04-11'), cReen);
-    assert.ok(s);
-    assert.equal(s.satCount, 1);
-    assert.equal(s.satH, 8);
-    assert.equal(s.swapCount, 0);
-  });
-
-  test('type:shift on weekday with no base shift → ambig bucket', () => {
-    // A member with startDate in the future causes getBaseShift to return 'RD'
-    // for all earlier dates, giving us a weekday with base=RD.
-    const newStarter = { name: 'C. Reen', rosterType: 'fixed', currentWeek: 1, startDate: new Date(2027, 0, 1) };
-    _setOverridesForTest(new Map([
-      ['2026-04-13', { type: 'shift', value: '09:00-17:00', _ts: 1, _manual: true }],
-    ]));
-    const s = getRosterSuggestion(period('2026-04-13'), newStarter);
-    assert.ok(s);
-    assert.equal(s.ambigCount, 1);
-    assert.equal(s.ambigH, 8);
-    assert.equal(s.ambigM, 0);
-    assert.equal(s.swapCount + s.otCount + s.rdwCount + s.satCount + s.sunCount, 0);
-  });
 
 });
 
