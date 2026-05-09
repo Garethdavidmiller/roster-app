@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.00';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.01';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.00';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.00';
+} from './paycalc-calc.js?v=9.01';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.01';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.20, ni: 241.46, sl: 210.00, net: 3119.57, varPay: 1692.94 },
-  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.00, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
+  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.01, net: 3386.05, varPay: 2236.49 },
+  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.01, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
@@ -1033,14 +1033,22 @@ function updateRosterHint() {
   // Category rows — only render rows that have data
   const rows = document.getElementById('rosterRows');
   if (rows) {
+    // Ambiguous rest-day shifts (saved as 'shift' type on a base rest day) are almost
+    // certainly RDW recorded with the wrong type. Fold them into the RDW total so staff
+    // see one combined RDW figure. Individual days are still visible in Show days.
+    const rdwTotalMins  = s.rdwH * 60 + s.rdwM + s.ambigH * 60 + s.ambigM;
+    const rdwTotalH     = Math.floor(rdwTotalMins / 60);
+    const rdwTotalM     = rdwTotalMins % 60;
+    const rdwTotalCount = s.rdwCount + s.ambigCount;
+
     const cats = [
-      { cat: 'sat', icon: '🗓️', label: 'Rostered Sat',      h: s.satH, m: s.satM, count: s.satCount, fromOv: s.satFromOv },
-      { cat: 'sun', icon: '☀️', label: 'Sunday',            h: s.sunH, m: s.sunM, count: s.sunCount, fromOv: s.sunFromOv },
-      { cat: 'bh',   icon: '🏦', label: 'Bank holiday',     h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv },
-      { cat: 'bhOt', icon: '🏦', label: 'Bank hol. overtime', h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true     },
-      { cat: 'ot',   icon: '⏰', label: 'Overtime',         h: s.otH,   m: s.otM,   count: s.otCount,   fromOv: true       },
-      { cat: 'rdw',  icon: '💼', label: 'RDW',              h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true       },
-      { cat: 'box', icon: '🎁', label: 'Boxing Day',        h: s.boxH, m: s.boxM, count: s.boxCount, fromOv: s.boxFromOv },
+      { cat: 'sat', icon: '🗓️', label: 'Rostered Sat',        h: s.satH,    m: s.satM,    count: s.satCount,    fromOv: s.satFromOv },
+      { cat: 'sun', icon: '☀️', label: 'Sunday',              h: s.sunH,    m: s.sunM,    count: s.sunCount,    fromOv: s.sunFromOv },
+      { cat: 'bh',   icon: '🏦', label: 'Bank holiday',       h: s.bhH,     m: s.bhM,     count: s.bhCount,     fromOv: s.bhFromOv  },
+      { cat: 'bhOt', icon: '🏦', label: 'Bank hol. overtime', h: s.bhOtH,   m: s.bhOtM,   count: s.bhOtCount,   fromOv: true        },
+      { cat: 'ot',   icon: '⏰', label: 'Overtime',           h: s.otH,     m: s.otM,     count: s.otCount,     fromOv: true        },
+      { cat: 'rdw',  icon: '💼', label: 'RDW',                h: rdwTotalH, m: rdwTotalM, count: rdwTotalCount, fromOv: true        },
+      { cat: 'box',  icon: '🎁', label: 'Boxing Day',         h: s.boxH,    m: s.boxM,    count: s.boxCount,    fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
     const noticeRows = [];
@@ -1060,23 +1068,6 @@ function updateRosterHint() {
         `aria-label="Add overtime earned on swap day">Worked extra hours? Add OT →</button>` +
         `</span>` +
         `</div>`
-      );
-    }
-
-    // Ambig notice — clickable: shift saved on a base rest day with ambiguous type.
-    // Tapping fills the RDW row with the total hours; user can adjust if it was a swap.
-    if (s.ambigCount) {
-      const dayStr   = s.ambigCount === 1 ? '1 day' : `${s.ambigCount} days`;
-      const confHtml = `<span class="conf-badge conf-possible">Needs review</span>`;
-      noticeRows.push(
-        `<button class="roster-row roster-row--ambig" type="button" data-cat="ambig" ` +
-        `aria-label="Shift on rest day: ${fmtH(s.ambigH, s.ambigM)} total — tap to fill as RDW">` +
-        `<span class="roster-row-icon" aria-hidden="true">❓</span>` +
-        `<span class="roster-row-label">Rest day worked?</span>` +
-        `<span class="roster-row-total">${fmtH(s.ambigH, s.ambigM)}</span>` +
-        `<span class="roster-row-meta">${dayStr} · ${confHtml}</span>` +
-        `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>` +
-        `</button>`
       );
     }
 
@@ -1225,16 +1216,16 @@ function fillCategoryFromRoster(cat) {
   if (!p) return;
   const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) return;
+  // RDW total includes ambiguous rest-day shifts (same as the summary card display).
+  const rdwTotalMins = s.rdwH * 60 + s.rdwM + s.ambigH * 60 + s.ambigM;
   const map = {
-    sat:   ['satH',  'satM',  s.satH,   s.satM   ],
-    sun:   ['sunH',  'sunM',  s.sunH,   s.sunM   ],
-    bh:    ['bhH',   'bhM',   s.bhH,    s.bhM    ],
-    bhOt:  ['bhOtH', 'bhOtM', s.bhOtH,  s.bhOtM  ],
-    ot:    ['otH',   'otM',   s.otH,    s.otM    ],
-    rdw:   ['rdwH',  'rdwM',  s.rdwH,   s.rdwM   ],
-    box:   ['boxH',  'boxM',  s.boxH,   s.boxM   ],
-    // ambig fills RDW fields — tapping the ambig row means "treat this as RDW"
-    ambig: ['rdwH',  'rdwM',  s.ambigH, s.ambigM ],
+    sat:  ['satH',  'satM',  s.satH,  s.satM ],
+    sun:  ['sunH',  'sunM',  s.sunH,  s.sunM ],
+    bh:   ['bhH',   'bhM',   s.bhH,   s.bhM  ],
+    bhOt: ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM],
+    ot:   ['otH',   'otM',   s.otH,   s.otM  ],
+    rdw:  ['rdwH',  'rdwM',  Math.floor(rdwTotalMins / 60), rdwTotalMins % 60],
+    box:  ['boxH',  'boxM',  s.boxH,  s.boxM ],
   };
   const args = map[cat];
   if (!args) return;
