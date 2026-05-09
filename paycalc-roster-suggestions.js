@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
  */
 
-import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.08';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.08';
+import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.09';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.09';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
@@ -266,7 +266,10 @@ export function getRosterSuggestion(p, member) {
     rdwH:  Math.floor(rdwMins  / 60), rdwM:  rdwMins  % 60,
     boxH:  Math.floor(boxMins  / 60), boxM:  boxMins  % 60,
     satCount, sunCount, bhCount, bhOtCount, otCount, rdwCount, boxCount,
-    satFromOv, sunFromOv, bhFromOv, bhOtFromOv: true, boxFromOv, rdwFromOv: true,
+    satFromOv, sunFromOv, bhFromOv,
+    // bhOtFromOv is always true: BH overtime only arises from an explicit override on a BH day,
+    // never from the base roster alone. rdwFromOv likewise — base roster never schedules RDW.
+    bhOtFromOv: true, boxFromOv, rdwFromOv: true,
     memberName: member.name,
     days: days.sort((a, b) => a.date - b.date),
   };
