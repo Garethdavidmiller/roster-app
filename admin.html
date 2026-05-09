@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.11 -->
+<!-- MYB Roster Admin v9.13 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.11">
+    <link rel="manifest" href="manifest.json?v=9.13">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.11">
+    <link rel="stylesheet" href="shared.css?v=9.13">
 
     <style>
         body {
@@ -666,6 +666,12 @@
                into the note button column */
             .day-row.active.fixed-type .col-time .time-input,
             .day-row.active.fixed-type .col-time .time-sep { display: none; }
+        }
+
+        /* Desktop: widen day and base columns so the date + badge have room */
+        @media (hover: hover) and (pointer: fine) {
+            .week-grid-header,
+            .day-row { grid-template-columns: 32px 130px 100px 1fr auto; }
         }
 
         .col-check {
@@ -2749,6 +2755,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.11"></script>
+<script type="module" src="./admin-app.js?v=9.13"></script>
 </body>
 </html>

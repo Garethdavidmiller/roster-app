@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.11';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.11';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.13';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.13';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -814,6 +814,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         dayCell.setAttribute('aria-label',
             `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${monthNames[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
         );
+        dayCell.setAttribute('tabindex', '-1');
+        const ttShift = shiftLabel + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
+        const ttParts = [ttShift];
+        if (extras) ttParts.push(extras);
+        if (overrideNote) ttParts.push(`"${overrideNote}"`);
+        dayCell.dataset.tooltip = ttParts.join(' · ');
 
         if (isSameDay(currentDate, today)) dayCell.classList.add('today');
         if (isBankHoliday(currentDate))    dayCell.classList.add('bank-holiday');
@@ -848,6 +854,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         adjacentMonthCell.innerHTML = `<div class="day-number">${i}</div>`;
         grid.appendChild(adjacentMonthCell);
     }
+
+    // Roving tabindex — today's cell is the keyboard entry point; others sit at -1
+    // so Tab reaches the calendar in one keystroke, then arrows move between days.
+    const rovingCells  = [...grid.querySelectorAll('.calendar-day:not(.other-month)')];
+    const rovingAnchor = rovingCells.find(c => c.classList.contains('today')) || rovingCells[0];
+    if (rovingAnchor) rovingAnchor.setAttribute('tabindex', '0');
 
     calendarContainer.appendChild(grid);
     return calendarContainer;
@@ -2446,3 +2458,76 @@ function sanitiseHtml(html) {
         localStorage.setItem(PROMPT_DISMISSED, '1');
     });
 })();
+
+// ============================================
+// CALENDAR HOVER TOOLTIP (desktop only)
+// ============================================
+// Creates a single floating div and repositions it on mousemove.
+// Reads data-tooltip set per cell in buildCalendarContainer().
+// Not initialised on touch devices (matchMedia guard).
+function initCalendarTooltip() {
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    const tip = document.createElement('div');
+    tip.id = 'calTooltip';
+    tip.hidden = true;
+    tip.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(tip);
+
+    document.addEventListener('mouseover', e => {
+        const cell = e.target.closest('.calendar-day[data-tooltip]');
+        if (!cell) { tip.hidden = true; return; }
+        tip.textContent = cell.dataset.tooltip;
+        tip.hidden = false;
+    });
+
+    document.addEventListener('mousemove', e => {
+        if (tip.hidden) return;
+        tip.style.left = '0';
+        tip.style.top  = '0';
+        const r = tip.getBoundingClientRect();
+        tip.style.left = Math.min(e.clientX + 14, window.innerWidth  - r.width  - 8) + 'px';
+        tip.style.top  = Math.min(e.clientY + 16, window.innerHeight - r.height - 8) + 'px';
+    });
+}
+
+// ============================================
+// CALENDAR KEYBOARD NAVIGATION
+// ============================================
+// Arrow keys move focus between day cells (roving tabindex).
+// PageUp / PageDown navigate months without touching the mouse.
+function initCalendarKeyboard() {
+    document.addEventListener('keydown', e => {
+        const focused = document.activeElement;
+        if (!focused?.classList.contains('calendar-day') || focused.classList.contains('other-month')) return;
+
+        const cells = [...document.querySelectorAll('.calendar-day:not(.other-month)')];
+        const idx   = cells.indexOf(focused);
+        if (idx === -1) return;
+
+        let next = null;
+        switch (e.key) {
+            case 'ArrowRight': next = cells[idx + 1]; break;
+            case 'ArrowLeft':  next = cells[idx - 1]; break;
+            case 'ArrowDown':  next = cells[idx + 7]; break;
+            case 'ArrowUp':    next = cells[idx - 7]; break;
+            case 'PageDown':
+                e.preventDefault();
+                document.getElementById('nextMonth')?.click();
+                return;
+            case 'PageUp':
+                e.preventDefault();
+                document.getElementById('prevMonth')?.click();
+                return;
+            default: return;
+        }
+
+        if (!next) return;
+        e.preventDefault();
+        focused.setAttribute('tabindex', '-1');
+        next.setAttribute('tabindex', '0');
+        next.focus();
+    });
+}
+
+initCalendarTooltip();
+initCalendarKeyboard();
