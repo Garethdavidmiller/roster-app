@@ -92,6 +92,16 @@ Owns the override cache and the suggestion engine. No DOM access.
 - Edit here for: overtime split rules, BH detection logic, override fetch behaviour
 - Covered by `paycalc-roster-suggestions.test.mjs` — run with `node --experimental-test-module-mocks --test paycalc-roster-suggestions.test.mjs`
 
+### `firebase-client.js`
+Single Firestore initialisation point — import `db` and Firestore helpers from here, never from the Firebase CDN directly.
+- `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
+- Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
+- `uploadHuddle(date, file, uploadedBy)` — writes to Firebase Storage + Firestore `huddles` collection
+- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh.
+- `getTodaysHuddle(date)` — one-time fetch for a specific date's huddle (used by admin)
+- `savePushSubscription` / `deletePushSubscription` — Web Push subscription management
+- `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
+
 ### `shared.css`
 All CSS shared across the three pages.
 - CSS custom properties (`--primary-blue`, `--accent-gold`, etc.) — **never hardcode hex**

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v8.40*
+*Last updated: May 2026 — v9.02*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -69,6 +69,22 @@ Web Push notifications via Firebase Cloud Functions. When a new Huddle arrives, 
 **iOS note:** Requires Safari and the app installed to the Home Screen. Android Chrome works via the browser.
 
 **Still to assess:** Notification reliability in real daily use. If iOS delivery proves unreliable, consider native app (see "Native app" below).
+
+### Huddle viewer improvements ✓ (v8.97)
+
+Two reliability fixes for the daily Huddle button:
+
+- **Removed Google Docs Viewer iframe** — PDFs now open directly via `window.open(storageUrl)`. Android Chrome's built-in PDF viewer handles it natively, eliminating the 3-round-trip lag that made the old viewer feel slow.
+- **Real-time listener** — replaced the one-time `getDocs` fetch at startup with an `onSnapshot` listener via `subscribeToLatestHuddle()` in `firebase-client.js`. The Huddle button now updates automatically when a new briefing arrives — staff no longer need to refresh the page.
+- **Offline persistence** — `firebase-client.js` now initialises Firestore with `persistentLocalCache()`, which stores query results in IndexedDB. The Huddle button shows the cached briefing instantly on repeat visits before the network confirms.
+
+### Pay calculator — roster pre-fill ✓ (v7.07, improved v8.93–v9.02)
+
+The roster pre-fill bar reads the member's base roster and Firestore overrides, then suggests Saturday/Sunday/bank holiday/RDW/Boxing Day hours in one tap.
+
+- **v8.93–v8.96**: Added per-category row UI (tap a row to fill just that category), confidence badges, day breakdown list.
+- **v8.96**: Desktop layout breakpoint refined; Checking… badge removed (cleaner state display).
+- **v9.02**: Reverted swap/ambig suggestion buckets — rest-day weekday overrides are ignored again (the categorisation was wrong more often than right). Simplified row labels and badge text for plain-English clarity.
 
 ### Team Week View ✓ (v8.22–v8.40)
 

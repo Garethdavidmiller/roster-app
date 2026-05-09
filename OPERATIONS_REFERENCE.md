@@ -271,4 +271,4 @@ The `@myb-roster.local` domain is synthetic — not real email addresses. Fireba
 - **`firebase-client.js`**: Added Firebase Auth SDK. Exports `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail(fullName)`.
 - **`admin-app.js`**: After localStorage login, fire-and-forgets `signInWithEmailAndPassword`. Sign-out calls Firebase `signOut`.
 - **`functions/index.js`**: `setupRosterAuth` Cloud Function creates accounts for all roster members (idempotent).
-- **`firestore.rules`**: Updated to require `request.auth != null` for all writes. **Not yet deployed.**
+- **`firestore.rules`**: Updated to require `request.auth != null` for all writes. Deployed at v7.94.
