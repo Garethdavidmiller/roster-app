@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.11 -->
+<!-- MYB Roster Calendar - Version 9.12 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.11">
+    <link rel="manifest" href="manifest.json?v=9.12">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.11">
+    <link rel="stylesheet" href="shared.css?v=9.12">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -435,7 +435,29 @@
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                 z-index: 2;
             }
+            .calendar-day:focus-visible {
+                outline: 2px solid var(--accent-gold);
+                outline-offset: -2px;
+                z-index: 3;
+            }
         }
+
+        /* Floating tooltip — positioned by initCalendarTooltip() on mousemove */
+        #calTooltip {
+            position: fixed;
+            background: var(--primary-blue);
+            color: #fff;
+            font-size: 11.5px;
+            line-height: 1.5;
+            padding: 6px 10px;
+            border-radius: 6px;
+            max-width: 210px;
+            z-index: 9999;
+            pointer-events: none;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.22);
+        }
+        #calTooltip[hidden] { display: none; }
+        @media print { #calTooltip { display: none !important; } }
 
         .calendar-day.other-month {
             opacity: 0.25;
@@ -1160,15 +1182,16 @@
             box-shadow: var(--shadow-2);
             overflow: hidden;
         }
-        @media (min-width: 900px) {
-            /* Cap the team table width on wide desktops so 7 columns don't stretch
-               to fill the whole container and leave cells sparsely filled. */
+        @media (min-width: 900px) and (max-width: 1024px) {
+            /* On tablet widths cap the team table so 7 columns don't stretch too wide. */
             .team-view-container { max-width: 1040px; margin: 0 auto; }
         }
         @media (min-width: 1025px) {
             /* Desktop: body has overflow:hidden so the team container must own its
                own scroll path, otherwise the table is clipped on short viewports. */
             .team-view-container {
+                max-width: var(--page-max-width);
+                margin: 0 auto;
                 flex: 1;
                 min-height: 0;
                 display: flex;
@@ -2659,7 +2682,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.11"></script>
+    <script type="module" src="./app.js?v=9.12"></script>
 
 </body>
 </html>
