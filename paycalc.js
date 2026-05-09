@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.02';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.04';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.02';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.02';
+} from './paycalc-calc.js?v=9.04';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.04';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.20, ni: 241.46, sl: 210.00, net: 3119.57, varPay: 1692.94 },
-  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.02, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.02, net: 3169.51, varPay: 1789.80 },
+  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.04, net: 3386.05, varPay: 2236.49 },
+  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.04, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
@@ -1034,10 +1034,10 @@ function updateRosterHint() {
   const rows = document.getElementById('rosterRows');
   if (rows) {
     const cats = [
-      { cat: 'sat',  icon: '🗓️', label: 'Rostered Sat',       h: s.satH,  m: s.satM,  count: s.satCount,  fromOv: s.satFromOv },
-      { cat: 'sun',  icon: '☀️', label: 'Sunday',             h: s.sunH,  m: s.sunM,  count: s.sunCount,  fromOv: s.sunFromOv },
-      { cat: 'bh',   icon: '🏦', label: 'Bank holiday',       h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv  },
-      { cat: 'bhOt', icon: '🏦', label: 'Bank hol. overtime', h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true        },
+      { cat: 'sat',  icon: '🗓️', label: 'Rostered Sat',         h: s.satH,  m: s.satM,  count: s.satCount,  fromOv: s.satFromOv },
+      { cat: 'sun',  icon: '☀️', label: 'Sunday',              h: s.sunH,  m: s.sunM,  count: s.sunCount,  fromOv: s.sunFromOv },
+      { cat: 'bh',   icon: '🏦', label: 'Bank holiday',        h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv  },
+      { cat: 'bhOt', icon: '🏦', label: 'Bank holiday overtime', h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true        },
       { cat: 'ot',   icon: '⏰', label: 'Overtime',           h: s.otH,   m: s.otM,   count: s.otCount,   fromOv: true        },
       { cat: 'rdw',  icon: '💼', label: 'RDW',                h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true        },
       { cat: 'box',  icon: '🎁', label: 'Boxing Day',         h: s.boxH,  m: s.boxM,  count: s.boxCount,  fromOv: s.boxFromOv },
@@ -1100,7 +1100,7 @@ function updateRosterHint() {
   if (hintTextEl) {
     hintTextEl.textContent = getOverridesFetchState() === 'loaded'
       ? 'Check these against what you actually worked before filling in.'
-      : 'Based on your scheduled roster only — check against what you actually worked.';
+      : 'Scheduled roster only — any recorded changes are not shown yet. Check before filling in.';
   }
 
   // Day list visibility — show/hide toggle based on whether there is any data.
@@ -1115,7 +1115,7 @@ function updateRosterHint() {
 
 const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'Bank hol. overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW' };
+const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'Bank holiday overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW' };
 
 /**
  * Show (or hide) a notice when the logged-in member started mid-period,
