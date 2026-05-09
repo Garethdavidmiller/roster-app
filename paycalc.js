@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.99';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.00';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.99';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.99';
+} from './paycalc-calc.js?v=9.00';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.00';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1073,7 +1073,7 @@ function updateRosterHint() {
         `aria-label="Shift on rest day: ${fmtH(s.ambigH, s.ambigM)} total — tap to fill as RDW">` +
         `<span class="roster-row-icon" aria-hidden="true">❓</span>` +
         `<span class="roster-row-label">Rest day worked?</span>` +
-        `<span class="roster-row-total">${fmtH(s.ambigH, s.ambigM)} total</span>` +
+        `<span class="roster-row-total">${fmtH(s.ambigH, s.ambigM)}</span>` +
         `<span class="roster-row-meta">${dayStr} · ${confHtml}</span>` +
         `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>` +
         `</button>`
@@ -1104,10 +1104,10 @@ function updateRosterHint() {
         arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
         ariaLabel = `Fill ${r.label} hours from roster`;
       } else if (enteredMins === suggestMins) {
-        // Matched — entered value equals roster suggestion
+        // Matched — entered value equals roster suggestion; source badge not needed
         rowClass  = 'roster-row roster-row--matched';
         totalText = fmtH(r.h, r.m);
-        metaText  = confHtml ? `${dayStr} · ${confHtml}` : dayStr;
+        metaText  = dayStr;
         arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
         ariaLabel = `${r.label} matches roster: ${fmtH(r.h, r.m)}`;
       } else {
@@ -1134,8 +1134,8 @@ function updateRosterHint() {
   const hintTextEl = document.getElementById('rosterHintText');
   if (hintTextEl) {
     hintTextEl.textContent = getOverridesFetchState() === 'loaded'
-      ? 'Based on your roster and any changes recorded by admin. Check against what you actually worked.'
-      : 'Based on your scheduled roster only. Check against what you actually worked.';
+      ? 'Check these against what you actually worked before filling in.'
+      : 'Based on your scheduled roster only — check against what you actually worked.';
   }
 
   // Day list visibility — show/hide toggle based on whether there is any data.
