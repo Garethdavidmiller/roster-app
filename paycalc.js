@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.97';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=8.98';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=8.97';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.97';
+} from './paycalc-calc.js?v=8.98';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=8.98';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -1017,18 +1017,18 @@ function updateRosterHint() {
   const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) { card.style.display = 'none'; return; }
 
-  // State badge
+  // State badge — only shown once the fetch has settled; hidden while checking
   const badge = document.getElementById('rosterStateBadge');
   if (badge) {
     if (getOverridesFetchState() === 'loaded') {
       badge.textContent  = '✓ Roster + overrides';
       badge.className    = 'roster-state-badge loaded';
-    } else if (getOverridesFetchState() === 'checking') {
-      badge.textContent  = '↻ Checking…';
-      badge.className    = 'roster-state-badge checking';
-    } else {
+    } else if (getOverridesFetchState() === 'base-only') {
       badge.textContent  = '⚠ Base roster only';
       badge.className    = 'roster-state-badge base-only';
+    } else {
+      badge.textContent  = '';
+      badge.className    = 'roster-state-badge';
     }
   }
 
@@ -1076,8 +1076,7 @@ function updateRosterHint() {
         `<span class="roster-row-icon" aria-hidden="true">❓</span>` +
         `<span class="roster-row-label">Check manually</span>` +
         `<span class="roster-row-total">${fmtH(s.ambigH, s.ambigM)} total</span>` +
-        `<span class="roster-row-meta">${dayStr} · ${confHtml} ` +
-        `If RDW → tap to fill · If swap, no action needed</span>` +
+        `<span class="roster-row-meta">${dayStr} · ${confHtml}</span>` +
         `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>` +
         `</button>`
       );
@@ -1133,15 +1132,11 @@ function updateRosterHint() {
     }).join('') + noticeRows.join('');
   }
 
-  // State-aware hint text — avoid claiming overrides are loaded when they aren't.
   const hintTextEl = document.getElementById('rosterHintText');
   if (hintTextEl) {
-    const fs = getOverridesFetchState();
-    hintTextEl.textContent = fs === 'loaded'
+    hintTextEl.textContent = getOverridesFetchState() === 'loaded'
       ? 'Suggested from your base roster plus any admin-recorded overrides. Check against what you actually worked.'
-      : fs === 'checking'
-      ? 'Checking for admin-recorded overrides… Suggested hours are from your base roster only for now.'
-      : 'Suggested from your base roster only — no overrides loaded. Check against what you actually worked.';
+      : 'Suggested from your base roster only. Check against what you actually worked.';
   }
 
   // Day list visibility — show/hide toggle based on whether there is any data.
