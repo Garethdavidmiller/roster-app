@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.10
+// MYB Roster — Service Worker v9.11
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.10';
+const APP_VERSION = '9.11';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -186,13 +186,13 @@ self.addEventListener("push", event => {
     const url = data.url || "./";
     const tag = url.includes('paycalc') ? 'pay-reminder' : 'huddle';
 
-    const iconUrl = `${self.location.origin}/icon-192.png`;
-
     event.waitUntil(
         self.registration.showNotification(data.title, {
-            body:     data.body,
-            icon:     iconUrl,
-            badge:    iconUrl,
+            body:    data.body,
+            // No 'icon' field — iOS always shows the installed PWA app icon on the
+            // right; adding 'icon' would duplicate it on the left. Android falls back
+            // to the app icon too. badge is the small status-bar icon on Android only.
+            badge:   `${self.location.origin}/icon-192.png`,
             tag,
             renotify: true,           // still vibrates/sounds even if replacing
             data:     { url },
