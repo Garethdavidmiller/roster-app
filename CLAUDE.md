@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `8.92` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `9.07` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -101,7 +101,7 @@ roster-app/
 ├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
-├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v8.92
+├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v9.07
 ├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
 ├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
@@ -177,9 +177,9 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | Sticky take-home bar (`#stickyTotal`) in `paycalc.html` | Fixed bar at bottom of viewport on mobile (hidden ≥1040px). Appears via `IntersectionObserver` when the `.result-card` scrolls off-screen. Tapping scrolls smoothly to the result card. `body.sticky-active` adds bottom padding to prevent content being hidden behind the bar. |
 | 3-digit time input auto-correction in `admin-overrides.js` | When a time input is blurred, raw digits are extracted and if length is 3 and `parseInt(raw.slice(0,2)) > 23`, a leading `'0'` is prepended before formatting. Without this, typing `"630"` produced `"63:0"` (invalid). |
 | Range picker clear button (`.rp-clear`) | A ✕ button appears inside the date range picker when any date is selected. It resets both `from` and `to` dates and hides itself. Built into `buildRangePicker()` in `admin-app.js`. |
-| Team Week View (`👥 Team` button) | Available to all logged-in staff (v8.40 — admin-only gate removed at v8.40; was admin-only v8.22–v8.39). Toggle managed by `toggleTeamView()`, `teamViewMode` flag, and `applyTeamViewChrome()`. Week runs Sun–Sat (Chiltern convention) via `getSunday(date)`. Grade state (`currentTeamGrade`) persists across re-renders. `fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken)` uses the week-start timestamp as a token — results whose token no longer matches `currentTeamWeekStart` are discarded, preventing stale Firestore data from overwriting the UI after rapid navigation. Grade-tabs row uses CSS grid (`1fr auto 1fr`) so the grade tabs stay centred regardless of how many utility buttons (📋 / ?) sit on the right. |
+| Team Week View (`👥 Team` button) | Available to all logged-in staff (v8.40 — admin-only gate removed at v8.40; was admin-only v8.22–v8.39). Toggle managed by `toggleTeamView()`, `teamViewMode` flag, and `applyTeamViewChrome()`. Week runs Sun–Sat (Chiltern convention) via `getSunday(date)`. Grade state (`currentTeamGrade`) persists across re-renders. `fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken)` uses the week-start timestamp as a token — results whose token no longer matches `currentTeamWeekStart` are discarded, preventing stale Firestore data from overwriting the UI after rapid navigation. Grade-tabs row uses CSS grid (`1fr auto 1fr`) so the grade tabs stay centred regardless of how many utility buttons (📋 / ?) sit on the right. **No override-load status indicator** — a "✓ Includes recorded changes / ⚠ Scheduled roster only" strip was considered and deliberately not added. This is a minimal-noise app; adding a loading-state label on a view that is fast in practice adds clutter for no real payoff. Do not add a status strip here. |
 | `persistentLocalCache()` in `firebase-client.js` (v8.97) | Firestore is initialised with `initializeFirestore(app, { localCache: persistentLocalCache() })` instead of the plain `getFirestore()`. This stores query results in IndexedDB so `onSnapshot` listeners return cached data immediately on repeat visits before the network responds. Do not revert to `getFirestore()` — the Huddle button and override cache depend on this for instant load. |
-| `subscribeToLatestHuddle` replaces `getLatestHuddle` (v8.97) | The Huddle button in `app.js` uses a persistent `onSnapshot` listener (`subscribeToLatestHuddle` in `firebase-client.js`) instead of a one-time `getDocs` call. This means the button updates automatically when a new Huddle arrives — staff do not need to refresh. The listener runs for the lifetime of the page; it is not unsubscribed. Do not replace this with a one-time fetch. |
+| `subscribeToLatestHuddle` in `firebase-client.js` (v8.97) | The Huddle button in `app.js` uses a persistent `onSnapshot` listener instead of a one-time `getDocs` call. This means the button updates automatically when a new Huddle arrives — staff do not need to refresh. The listener runs for the lifetime of the page; it is not unsubscribed. Do not replace this with a one-time fetch. `getLatestHuddle` (the old one-shot function) was removed at v9.09 — it had no callers. |
 
 ---
 
@@ -196,7 +196,7 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | Tests | `roster-data.test.mjs` — payday and cutoff tests; `paycalc.test.mjs` — pay maths; `paycalc-roster-suggestions.test.mjs` — suggestion engine |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
 | PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
-| `getRosterSuggestion(p, member)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides for the given member, counts Sat/Sun/BH/Boxing Day/RDW shifts. Caller passes `getLoggedMember()`. |
+| `getRosterSuggestion(p, member)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides for the given member, counts Sat/Sun/BH/Boxing Day/RDW shifts. Caller passes `getLoggedMember()`. **Conservatism policy (v9.02, permanent):** The suggestion engine does NOT infer ambiguous pay categories (swap shifts, rest-day weekday overrides, etc.). An experiment at v8.93–v9.01 tried to infer these; it was wrong more often than right and was fully reverted at v9.02. Do not re-add swap/ambig inference — the standing decision is to suggest only what can be determined with confidence. |
 | `fetchOverridesForPeriod(p, memberName)` | `paycalc-roster-suggestions.js` — fetches Firestore overrides for a pay period window. |
 | `getLoggedMember()` | `paycalc.js` — returns the `teamMembers` entry for the session user, or null. |
 | `getEffectiveContr(p)` | `paycalc.js` — returns contracted hours for the period, pro-rated if the member has a `startDate` that falls within it. Full contracted hours otherwise. Used by `calculate()`, HPP loop, and Saturday cap. |

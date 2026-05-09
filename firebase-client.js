@@ -126,22 +126,6 @@ export async function getTodaysHuddle(date) {
 }
 
 /**
- * Retrieve the most recently uploaded Huddle document from Firestore,
- * regardless of date. Used to keep the Huddle button always active —
- * staff can always access the latest briefing, not just today's.
- *
- * @returns {Promise<{date: string, storageUrl: string, uploadedBy: string}|null>}
- */
-export async function getLatestHuddle() {
-    const q    = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
-    const snap = await getDocs(q);
-    if (snap.empty) return null;
-    const data = snap.docs[0].data();
-    // Guard against a document that somehow has no storageUrl — opening undefined would fail silently
-    return data.storageUrl ? data : null;
-}
-
-/**
  * Subscribe to real-time updates for the latest Huddle document.
  * Fires immediately with cached data (IndexedDB) on repeat visits, then again
  * when the network confirms — so the Huddle button becomes active almost instantly.

@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.07';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.11';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.07';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.07';
+} from './paycalc-calc.js?v=9.11';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.11';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -55,8 +55,8 @@ const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.20, ni: 241.46, sl: 210.00, net: 3119.57, varPay: 1692.94 },
-  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.07, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.07, net: 3169.51, varPay: 1789.80 },
+  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.11, net: 3386.05, varPay: 2236.49 },
+  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.11, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
@@ -274,9 +274,13 @@ function _bhsForYear(year) {
 }
 
 function hasBankHoliday(p) {
-  const years = new Set([p.start.getFullYear(), p.cutoff.getFullYear()]);
+  // Normalise to midnight so a BH on the period-start day isn't missed.
+  // p.start/p.cutoff are noon local (inherited from FIRST_PAYDAY); BH dates are midnight local.
+  const start  = new Date(p.start.getFullYear(),  p.start.getMonth(),  p.start.getDate());
+  const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
+  const years  = new Set([start.getFullYear(), cutoff.getFullYear()]);
   for (const y of years) {
-    if (_bhsForYear(y).some(bh => bh >= p.start && bh <= p.cutoff)) return true;
+    if (_bhsForYear(y).some(bh => bh >= start && bh <= cutoff)) return true;
   }
   return false;
 }
@@ -2002,7 +2006,13 @@ document.getElementById('gradeSelect').addEventListener('change', () => {
 });
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
 document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
-document.getElementById('studentLoan').addEventListener('change',() => { saveSettings(); calculate(); });
+document.getElementById('studentLoan').addEventListener('change', () => {
+  if (document.getElementById('studentLoan').value === 'none') {
+    document.getElementById('slSkipCheck').checked = false;
+  }
+  saveSettings();
+  autosave(); // persists the cleared slSkip flag; autosave() calls calculate() internally
+});
 // pensionAmt: save global default AND lock pension to current period immediately.
 // autosave() calls calculate() internally, so no separate calculate() call needed.
 document.getElementById('pensionAmt').addEventListener('input',  () => { saveSettings(); autosave(); });
