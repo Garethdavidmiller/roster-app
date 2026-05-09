@@ -13,10 +13,10 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
-    getFirestore,
+    initializeFirestore, persistentLocalCache,
     collection, query, where, orderBy, limit,
     getDocs, getDoc, addDoc, setDoc, deleteDoc,
-    doc, serverTimestamp, writeBatch
+    doc, serverTimestamp, writeBatch, onSnapshot
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
 import {
@@ -36,11 +36,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-/** Shared Firestore database instance. */
-export const db = getFirestore(app);
+/**
+ * Shared Firestore database instance.
+ * persistentLocalCache stores query results in IndexedDB so the app can
+ * show last-seen data instantly on repeat visits while the network catches up.
+ */
+export const db = initializeFirestore(app, { localCache: persistentLocalCache() });
 
 // Re-export Firestore operation functions so callers import from one place.
-export { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch };
+export { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot };
 
 // ---- Firebase Authentication ----
 
@@ -135,6 +139,25 @@ export async function getLatestHuddle() {
     const data = snap.docs[0].data();
     // Guard against a document that somehow has no storageUrl — opening undefined would fail silently
     return data.storageUrl ? data : null;
+}
+
+/**
+ * Subscribe to real-time updates for the latest Huddle document.
+ * Fires immediately with cached data (IndexedDB) on repeat visits, then again
+ * when the network confirms — so the Huddle button becomes active almost instantly.
+ * Also fires whenever a new huddle arrives, so staff don't need to refresh.
+ *
+ * @param {function} onData  - Called with huddle data object or null (no huddle yet)
+ * @param {function} onError - Called with Firestore error if the listener fails
+ * @returns {function} Unsubscribe function (call to clean up the listener)
+ */
+export function subscribeToLatestHuddle(onData, onError) {
+    const q = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
+    return onSnapshot(q, (snap) => {
+        if (snap.empty) { onData(null); return; }
+        const data = snap.docs[0].data();
+        onData(data.storageUrl ? data : null);
+    }, onError);
 }
 
 // ---- Push Notification Subscriptions ----
