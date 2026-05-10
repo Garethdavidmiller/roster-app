@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.14 -->
+<!-- MYB Roster — Pay Calculator v9.15 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.14">
+  <link rel="stylesheet" href="./shared.css?v=9.15">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -630,7 +630,10 @@
        grid-auto-flow: dense fills gaps independently so hiding/showing
        cards never leaves orphaned space or stretches the other column. */
     @media (min-width: 1024px) {
-      .app { max-width: 1400px; }
+      /* 1100px gives left col ~636px — comfortable for form entry.
+         Right col is 440px. 1400px was too wide: left col reached 936px,
+         making description text unreadably long. */
+      .app { max-width: 1100px; }
 
       /* Grid lives on <main> — all cards are direct children of <main>, not .app */
       main {
@@ -668,6 +671,9 @@
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
       .net-period { font-size: 17px; }
+
+      /* Peek button is redundant on desktop — result card is sticky and always visible */
+      .result-peek-btn { display: none; }
 
       /* Buttons: fixed-width — no reason to span a wide card */
       .btn-primary { max-width: 240px; }
@@ -1079,7 +1085,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.14">
+  <link rel="manifest" href="./pay-manifest.json?v=9.15">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1722,6 +1728,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.14"></script>
+<script type="module" src="./paycalc.js?v=9.15"></script>
 </body>
 </html>
