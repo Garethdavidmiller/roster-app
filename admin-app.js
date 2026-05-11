@@ -13,10 +13,10 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.30';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.30';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.30';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.30';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.31';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.31';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.31';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.31';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1555,7 +1555,7 @@ syncSickMemberDisplay();
 /**
  * Returns an array of ISO date strings from sickFrom to sickTo inclusive,
  * or null if the range is invalid (to < from), or [] if either input is empty.
- * Maximum range is 60 days.
+ * Maximum range is 1 year (to allow for maternity/long-term absence).
  * @returns {string[]|null}
  */
 function getSickDates() {
@@ -1597,11 +1597,11 @@ function updateSickPreview() {
 
     const from  = new Date(sickFrom.value + 'T12:00:00');
     const maxTo = new Date(from);
-    maxTo.setMonth(maxTo.getMonth() + 6);
+    maxTo.setFullYear(maxTo.getFullYear() + 1);
     const to    = new Date(sickTo.value   + 'T12:00:00');
     if (to > maxTo) {
         sickPreview.className = 'al-preview sick-preview error';
-        sickPreview.textContent = 'Maximum range is 6 months.';
+        sickPreview.textContent = 'Maximum range is 1 year.';
         sickSaveBtn.disabled = true;
         return;
     }
