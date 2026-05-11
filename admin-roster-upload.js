@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.25';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.25';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.27';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.27';
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -369,6 +369,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // A manual override exists — check if it already matches the PDF
                     if (existing.value === parsedShift || existing.value === parsedValue) {
                         state = 'COVERED';   // manual is already correct — nothing to do
+                    } else if (existing.value === 'SICK' && parsedShift === 'RD') {
+                        // Absence override on a rest day — not a real conflict.
+                        // The calendar already suppresses absence display on base-RD days.
+                        state = 'COVERED';
                     } else {
                         state = 'CONFLICT';  // manual differs from PDF — flag it
                     }
@@ -435,9 +439,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 conflictCount++;
                 const [memberName, date] = key.split('|');
                 const dt = new Date(date + 'T12:00:00');
+                const savedLabel = s.manualValue === 'SICK' ? 'Absent' : s.manualValue;
                 conflictLines.push(
                     `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
-                    `saved <strong>${esc(s.manualValue)}</strong>, PDF says <strong>${esc(s.parsedShift.startsWith('RDW|') ? 'RDW ' + s.parsedShift.slice(4) : s.parsedShift)}</strong>`
+                    `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(s.parsedShift.startsWith('RDW|') ? 'RDW ' + s.parsedShift.slice(4) : s.parsedShift)}</strong>`
                 );
             }
         }
