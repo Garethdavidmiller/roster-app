@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v9.19*
+*Last updated: May 2026 — v9.35*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -11,7 +11,8 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 
 | Task | Primary file(s) |
 |------|----------------|
-| Roster data, team members, bank holidays, pay periods | `roster-data.js` |
+| Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
+| Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Admin portal UI, login, AL/sick sections | `admin-app.js` + `admin.html` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
