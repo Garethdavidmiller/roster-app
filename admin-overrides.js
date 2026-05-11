@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.28';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.29';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.28';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.29';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {

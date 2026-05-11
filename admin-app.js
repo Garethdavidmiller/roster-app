@@ -13,10 +13,10 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.28';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.28';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.28';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.28';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.29';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.29';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.29';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.29';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1627,6 +1627,20 @@ sickSaveBtn.addEventListener('click', async () => {
           })
         : dates;
 
+    // Sundays within the absence block that have a worked base shift need an explicit
+    // RD correction — otherwise the base roster shift still shows on the calendar.
+    const sundayCorrections = memberObj
+        ? dates.filter(dateStr => {
+            if (!isSunday(dateStr)) return false;
+            const d    = new Date(dateStr + 'T12:00:00');
+            const base = getBaseShift(memberObj, d);
+            if (base === 'RD' || base === 'OFF') return false;  // already a rest day
+            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;  // already corrected
+            return true;
+          })
+        : [];
+
     if (!workingDates.length) {
         sickFeedback.className = 'feedback error';
         sickFeedback.textContent = '⚠ No working days in that range — nothing to record.';
@@ -1656,6 +1670,22 @@ sickSaveBtn.addEventListener('click', async () => {
                 changedBy: currentUser
             });
             sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'sick', value: 'SICK', source: 'manual', note: '', createdAt: new Date() });
+        });
+        sundayCorrections.forEach(date => {
+            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
+            if (existing) { sickBatch.delete(doc(db, 'overrides', existing.id)); sickDeletedIds.add(existing.id); }
+            const newRef = doc(collection(db, 'overrides'));
+            sickBatch.set(newRef, {
+                memberName: member,
+                date,
+                type:      'correction',
+                value:     'RD',
+                note:      '',
+                source:    'manual',
+                createdAt: serverTimestamp(),
+                changedBy: currentUser
+            });
+            sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
         });
         await sickBatch.commit();
 
