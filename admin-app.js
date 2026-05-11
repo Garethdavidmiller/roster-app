@@ -13,10 +13,10 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.34';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.34';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.34';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.34';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.35';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.35';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.35';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.35';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -474,7 +474,13 @@ const shiftNote             = document.getElementById('shiftNote');
         if (isDesktop) {
             colSide.insertBefore(bar, colSide.firstChild);
         } else {
-            colMain.insertBefore(bar, colMain.firstChild);
+            // colMain is .container; insert bar after the header, not before it
+            const appHeader = colMain.querySelector('header.app-header');
+            if (appHeader) {
+                appHeader.after(bar);
+            } else {
+                colMain.insertBefore(bar, colMain.firstChild);
+            }
         }
     }
 
@@ -1271,7 +1277,7 @@ function buildRangePicker(prefix) {
             if (Math.abs(dy) >= Math.abs(dx)) { swListening = false; return; } // vertical — let browser scroll
             // Horizontal intent confirmed — build carousel
             swWidth = Math.ceil(clip.getBoundingClientRect().width);
-            clip.setPointerCapture(e.pointerId);
+            grid.setPointerCapture(e.pointerId);
             grid.style.transition = 'none';
             grid.style.willChange = 'transform';
             swPanelPrev = buildAdjPanel(-1);
@@ -1297,7 +1303,7 @@ function buildRangePicker(prefix) {
         swListening = false;
         if (!swDragging) return; // was a tap
         swDragging = false;
-        try { clip.releasePointerCapture(e.pointerId); } catch (_) {}
+        try { grid.releasePointerCapture(e.pointerId); } catch (_) {}
 
         const dx  = e.clientX - swStartX;
         const vel = e.timeStamp > swStartT ? Math.abs(dx) / (e.timeStamp - swStartT) : 0;
