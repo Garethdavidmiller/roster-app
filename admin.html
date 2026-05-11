@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.31 -->
+<!-- MYB Roster Admin v9.32 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.31">
+    <link rel="manifest" href="manifest.json?v=9.32">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.31">
+    <link rel="stylesheet" href="shared.css?v=9.32">
 
     <style>
         body {
@@ -1335,6 +1335,7 @@
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             margin-bottom: 8px;
+            touch-action: pan-y; /* allow vertical scroll; JS handles horizontal swipe */
         }
         .rp-dow {
             height: 28px;
@@ -2769,6 +2770,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.31"></script>
+<script type="module" src="./admin-app.js?v=9.32"></script>
 </body>
 </html>
