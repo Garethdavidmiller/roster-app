@@ -8,10 +8,10 @@
  * Do not edit here for: roster data structure, pay calculator, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.18';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.18';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.18';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.18';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.19';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.19';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.19';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.19';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -82,7 +82,8 @@ function clearSession() {
 const currentSession = getSession();
 const isAuthenticated = !!currentSession;
 const currentUser     = currentSession?.name ?? null;
-const currentIsAdmin  = CONFIG.ADMIN_NAMES.includes(currentUser);
+const currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
+const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
 // ---- Login overlay (shown when not authenticated) ----
 function initLoginOverlay() {
@@ -95,7 +96,7 @@ function initLoginOverlay() {
     if (!overlay) return;
     overlay.classList.add('visible');
 
-    // Populate name dropdown — exclude hidden members (vacancies)
+    // Populate name dropdown — regular staff first (by role), then management group at the bottom
     const loginRoles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
     loginRoles.forEach(role => {
         const grp = document.createElement('optgroup');
@@ -105,6 +106,14 @@ function initLoginOverlay() {
         });
         nameSelect.appendChild(grp);
     });
+    // Management & clerks — login-only accounts appended after staff groups
+    const managementMembers = teamMembers.filter(m => m.managerOnly);
+    if (managementMembers.length) {
+        const grp = document.createElement('optgroup');
+        grp.label = 'Management';
+        managementMembers.forEach(m => grp.appendChild(new Option(m.name, m.name)));
+        nameSelect.appendChild(grp);
+    }
 
     async function attempt() {
         const name = nameSelect.value;
@@ -1847,7 +1856,7 @@ document.querySelector('.btn-back').addEventListener('click', e => {
 });
 
 function applyPermissions() {
-    if (currentIsAdmin) return; // full access — nothing to restrict
+    if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
 
     // Non-admin: lock all member selectors to their own name
     fieldMember.value     = currentUser;
@@ -2544,7 +2553,7 @@ if (!isAuthenticated) {
         onEditRow: handleEdit,
     });
     loadOverrides(); // internally calls renderWeekGrid() after data loads
-    if (currentIsAdmin) purgeSundayAL();
+    if (currentIsAdmin || currentIsManager) purgeSundayAL();
     if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value || currentUser);
 
     // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
@@ -2677,9 +2686,9 @@ initRosterUpload({
         });
     }
 
-    // Active members: non-hidden staff with a real role (excludes vacancies and cultural calendar entries)
+    // Active members: non-hidden staff + management/clerk accounts (so they get Firebase Auth)
     const ACTIVE_MEMBERS = teamMembers
-        .filter(m => !m.hidden && ['CEA', 'CES', 'Dispatcher'].includes(m.role))
+        .filter(m => (!m.hidden && ['CEA', 'CES', 'Dispatcher'].includes(m.role)) || m.managerOnly)
         .map(m => m.name);
 
     const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';

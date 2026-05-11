@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.18';
+export const APP_VERSION = '9.19';
 
 // ============================================
 // CONFIGURATION
@@ -31,7 +31,8 @@ export const CONFIG = {
     EARLY_SHIFT_THRESHOLD:            11,                                        // Shifts starting 11:00–20:59 are Late
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
-    ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access — add names here to grant admin rights
+    ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
+    MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
@@ -44,8 +45,9 @@ export const CONFIG = {
 //   name           {string}  Display name
 //   currentWeek    {number}  Week number this member is on as of the reference date for their rosterType
 //   rosterType     {string}  'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
-//   role           {string}  'CEA' | 'CES' | 'Dispatcher' — controls dropdown grouping
+//   role           {string}  'CEA' | 'CES' | 'Dispatcher' | 'Management' — controls dropdown grouping
 //   hidden         {boolean} Optional. true = vacancy/removed; excluded from dropdown, data preserved
+//   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
 //                            suppresses shift time. Remove to restore normal roster display.
 
@@ -99,6 +101,14 @@ export const teamMembers = [
     { name: 'M. Bowler',               currentWeek: 8,  rosterType: 'ces',        role: 'CES' },
     { name: 'W. Cummings',             currentWeek: 9,  rosterType: 'ces',        role: 'CES' },
     { name: 'S. Horsman',              currentWeek: 10, rosterType: 'ces',        role: 'CES' },
+
+    // Management & clerks — login-only accounts; no roster of their own; hidden from the staff selector.
+    // They can view and edit all staff data via admin.html but cannot access upload or auth setup features.
+    { name: 'S. Stewart', currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    { name: 'D. Watts',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    { name: 'D. Harris',  currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    { name: 'S. Gumbo',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    { name: 'H. Croft',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
 ];
 
 // ============================================
@@ -183,7 +193,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.18';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.19';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
