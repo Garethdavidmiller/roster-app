@@ -8,10 +8,10 @@
  * Do not edit here for: roster data structure, pay calculator, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.19';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.19';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.19';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.19';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.20';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.20';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.20';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.20';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -87,39 +87,73 @@ const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
 // ---- Login overlay (shown when not authenticated) ----
 function initLoginOverlay() {
-    const overlay      = document.getElementById('loginOverlay');
-    const nameSelect   = document.getElementById('loginName');
+    const overlay       = document.getElementById('loginOverlay');
+    const gradeSelect   = document.getElementById('loginGrade');
+    const nameSelect    = document.getElementById('loginName');
     const passwordInput = document.getElementById('loginPassword');
-    const submitBtn    = document.getElementById('loginSubmit');
-    const errorEl      = document.getElementById('loginError');
+    const submitBtn     = document.getElementById('loginSubmit');
+    const errorEl       = document.getElementById('loginError');
 
     if (!overlay) return;
     overlay.classList.add('visible');
 
-    // Populate name dropdown — regular staff first (by role), then management group at the bottom
-    const loginRoles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
-    loginRoles.forEach(role => {
-        const grp = document.createElement('optgroup');
-        grp.label = role;
-        teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
-            grp.appendChild(new Option(m.name, m.name));
-        });
-        nameSelect.appendChild(grp);
-    });
-    // Management & clerks — login-only accounts appended after staff groups
-    const managementMembers = teamMembers.filter(m => m.managerOnly);
-    if (managementMembers.length) {
-        const grp = document.createElement('optgroup');
-        grp.label = 'Management';
-        managementMembers.forEach(m => grp.appendChild(new Option(m.name, m.name)));
-        nameSelect.appendChild(grp);
+    // Grade order — defines display sequence; Management always last
+    const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
+    const GRADE_KEY   = 'myb_login_grade';
+
+    // Populate grade dropdown
+    GRADE_ORDER.forEach(g => gradeSelect.appendChild(new Option(g, g)));
+
+    // Repopulate name dropdown whenever grade changes
+    function populateNames(grade) {
+        nameSelect.innerHTML = '';
+        if (!grade) {
+            nameSelect.appendChild(new Option('— Select grade first —', ''));
+            nameSelect.disabled = true;
+            return;
+        }
+        nameSelect.appendChild(new Option('— Select your name —', ''));
+        const members = grade === 'Management'
+            ? teamMembers.filter(m => m.managerOnly)
+            : teamMembers.filter(m => m.role === grade && !m.hidden && !m.managerOnly);
+        members.forEach(m => nameSelect.appendChild(new Option(m.name, m.name)));
+        nameSelect.disabled = false;
     }
+
+    // Restore last-used grade so returning users go straight to name → password
+    const savedGrade = localStorage.getItem(GRADE_KEY);
+    if (savedGrade && GRADE_ORDER.includes(savedGrade)) {
+        gradeSelect.value = savedGrade;
+        populateNames(savedGrade);
+    } else {
+        populateNames('');
+    }
+
+    gradeSelect.addEventListener('change', () => {
+        errorEl.classList.remove('visible');
+        passwordInput.value = '';
+        nameSelect.value = '';
+        populateNames(gradeSelect.value);
+        if (gradeSelect.value) nameSelect.focus();
+    });
+
+    nameSelect.addEventListener('change', () => {
+        errorEl.classList.remove('visible');
+        passwordInput.value = '';
+        if (nameSelect.value) passwordInput.focus();
+    });
 
     async function attempt() {
         const name = nameSelect.value;
         const pw   = passwordInput.value.trim().toLowerCase();
         errorEl.classList.remove('visible');
 
+        if (!gradeSelect.value) {
+            errorEl.textContent = 'Please select your grade.';
+            errorEl.classList.add('visible');
+            gradeSelect.focus();
+            return;
+        }
         if (!name) {
             errorEl.textContent = 'Please select your name.';
             errorEl.classList.add('visible');
@@ -132,6 +166,7 @@ function initLoginOverlay() {
             passwordInput.focus();
             return;
         }
+        localStorage.setItem(GRADE_KEY, gradeSelect.value);
         saveSession(name);
         // Authenticate with Firebase Auth so Firestore Security Rules can verify the session.
         // Must await before reloading — the page reload would otherwise cancel the async
@@ -154,11 +189,6 @@ function initLoginOverlay() {
 
     submitBtn.addEventListener('click', attempt);
     passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
-    nameSelect.addEventListener('change', () => {
-        errorEl.classList.remove('visible');
-        passwordInput.value = '';
-        if (nameSelect.value) passwordInput.focus();
-    });
 }
 
 // ---- Lightbox ----
