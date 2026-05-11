@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.17 -->
+<!-- MYB Roster Admin v9.18 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.17">
+    <link rel="manifest" href="manifest.json?v=9.18">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.17">
+    <link rel="stylesheet" href="shared.css?v=9.18">
 
     <style>
         body {
@@ -27,9 +27,15 @@
             padding-bottom: max(20px, env(safe-area-inset-bottom));
             padding-left:   max(20px, env(safe-area-inset-left));
             padding-right:  max(20px, env(safe-area-inset-right));
-            overflow-x: hidden;
+            overflow-x: clip;
             overscroll-behavior: none;
             color: var(--text-dark);
+        }
+        @media (max-width: 768px) {
+            body {
+                padding-left:  max(10px, env(safe-area-inset-left));
+                padding-right: max(10px, env(safe-area-inset-right));
+            }
         }
 
         /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
@@ -2755,6 +2761,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.17"></script>
+<script type="module" src="./admin-app.js?v=9.18"></script>
 </body>
 </html>
