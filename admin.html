@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.33 -->
+<!-- MYB Roster Admin v9.34 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.33">
+    <link rel="manifest" href="manifest.json?v=9.34">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.33">
+    <link rel="stylesheet" href="shared.css?v=9.34">
 
     <style>
         body {
@@ -1331,11 +1331,22 @@
         }
         @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover { background: var(--bg-light); } }
         .rp-label { font-size: 14px; font-weight: 700; color: var(--text-dark); }
+        .rp-clip {
+            position: relative;
+            overflow: hidden;  /* clips adjacent panels during carousel swipe */
+        }
         .rp-grid {
             display: grid;
             grid-template-columns: repeat(7, 1fr);
             margin-bottom: 8px;
             touch-action: pan-y; /* allow vertical scroll; JS handles horizontal swipe */
+        }
+        .rp-adj-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            pointer-events: none; /* off-screen panels must not intercept taps */
         }
         .rp-dow {
             height: 28px;
@@ -2770,6 +2781,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.33"></script>
+<script type="module" src="./admin-app.js?v=9.34"></script>
 </body>
 </html>
