@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.19 -->
+<!-- MYB Roster Admin v9.20 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.19">
+    <link rel="manifest" href="manifest.json?v=9.20">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.19">
+    <link rel="stylesheet" href="shared.css?v=9.20">
 
     <style>
         body {
@@ -1697,6 +1697,15 @@
         @media (hover: hover) and (pointer: fine) { #loginSubmit:hover { background: var(--primary-blue-dark); } }
         #loginSubmit:active { transform: scale(0.98); }
 
+        /* Name dropdown before grade is chosen — softer than the global disabled style */
+        #loginName:disabled {
+            background: white;
+            color: var(--text-light);
+            border-color: var(--border-light);
+            cursor: default;
+            opacity: 1;
+        }
+
         .login-back {
             font-size: 13px;
             color: var(--text-light);
@@ -2263,9 +2272,15 @@
         <div class="login-app-name">MYB Roster</div>
         <div class="login-subtitle">Admin · Sign in</div>
         <div class="login-field">
+            <label for="loginGrade">Grade</label>
+            <select id="loginGrade">
+                <option value="">— Select grade —</option>
+            </select>
+        </div>
+        <div class="login-field">
             <label for="loginName">Your name</label>
-            <select id="loginName">
-                <option value="">— Select your name —</option>
+            <select id="loginName" disabled>
+                <option value="">— Select grade first —</option>
             </select>
         </div>
         <div class="login-field">
@@ -2761,6 +2776,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.19"></script>
+<script type="module" src="./admin-app.js?v=9.20"></script>
 </body>
 </html>
