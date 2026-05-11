@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.25 -->
+<!-- MYB Roster Calendar - Version 9.26 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.25">
+    <link rel="manifest" href="manifest.json?v=9.26">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.25">
+    <link rel="stylesheet" href="shared.css?v=9.26">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -69,6 +69,8 @@
             background: var(--primary-blue);
             min-height: 100vh;  /* Fallback for browsers without dvh support */
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
+            display: flex;
+            flex-direction: column;
             /* Safe area insets baked in with max() — survives any breakpoint shorthand override.
                env() returns 0 on non-notched devices so this is always safe to apply. */
             padding-top:    max(20px, env(safe-area-inset-top));
@@ -83,6 +85,9 @@
             max-width: var(--page-max-width);
             margin: 0 auto;
             width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
 
         .header {
@@ -1134,11 +1139,22 @@
         }
 
         /* ---- Team week view — all styles here; not in shared.css because this is index.html-only ---- */
+        /* body gets this class via JS (applyTeamViewChrome) so the flex-fill chain
+           only applies in team view — the regular calendar card must NOT stretch. */
+        body.team-view-active #calendarDisplay {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
         .team-view-container {
             background: white;
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
             overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         @media (min-width: 900px) and (max-width: 1024px) {
             /* On tablet widths cap the team table so 7 columns don't stretch too wide. */
@@ -1357,6 +1373,7 @@
             overflow-x: auto;
             -webkit-overflow-scrolling: touch;
             overscroll-behavior-x: contain;
+            flex: 1;
         }
         .team-table {
             border-collapse: collapse;
@@ -2640,7 +2657,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.25"></script>
+    <script type="module" src="./app.js?v=9.26"></script>
 
 </body>
 </html>
