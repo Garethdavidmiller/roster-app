@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.15';
+export const APP_VERSION = '9.16';
 
 // ============================================
 // CONFIGURATION
@@ -62,7 +62,8 @@ export const teamMembers = [
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA' },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
-    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true }, // Left — vacancy to be filled
+    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true }, // Left
+    { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 } },
     { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA' },
     { name: 'S. Langley',              currentWeek: 16, rosterType: 'main',       role: 'CEA' },
@@ -71,7 +72,6 @@ export const teamMembers = [
     { name: 'T. Bibi',                 currentWeek: 19, rosterType: 'main',       role: 'CEA' },
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA' },
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA' },
-    { name: 'M. Okeke',                currentWeek: 4,  rosterType: 'bilingual',  role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 } },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA' },
     { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },  // Fixed Mon-Fri 12:00-19:00 (reasonable adjustments)
 
@@ -183,7 +183,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.15';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.16';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
