@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.17 -->
+<!-- MYB Roster — Pay Calculator v9.18 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.17">
+  <link rel="stylesheet" href="./shared.css?v=9.18">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -50,6 +50,12 @@
       padding-right:  max(20px, env(safe-area-inset-right));
       overflow-x: hidden; overscroll-behavior: none;
       font-size: var(--type-body); color: var(--text-dark);
+    }
+    @media (max-width: 768px) {
+      body {
+        padding-left:  max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+      }
     }
 
     .app { max-width: 480px; margin: 0 auto; }
@@ -1085,7 +1091,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.17">
+  <link rel="manifest" href="./pay-manifest.json?v=9.18">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1728,6 +1734,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.17"></script>
+<script type="module" src="./paycalc.js?v=9.18"></script>
 </body>
 </html>
