@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.20 -->
+<!-- MYB Roster — Pay Calculator v9.21 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.20">
+  <link rel="stylesheet" href="./shared.css?v=9.21">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -93,7 +93,7 @@
     .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
     /* ── PERIOD SELECTOR (controls card) ── */
-    .controls {
+    .period-controls {
       background: white; padding: 10px 16px;
       border-radius: var(--radius-lg); box-shadow: var(--shadow-2);
       margin-bottom: 16px;
@@ -604,7 +604,7 @@
       .app { max-width: 720px; }
 
       /* Period selector: pull nav pills onto same line as the dropdown */
-      .controls {
+      .period-controls {
         display: grid;
         grid-template-columns: 1fr auto;
         grid-template-areas:
@@ -658,7 +658,7 @@
       .disclaimer      { grid-column: 1 / -1; }
 
       /* Left column: period selector and hours entry — the main work area */
-      .controls,
+      .period-controls,
       #hoursCard       { grid-column: 1; }
 
       /* Right column: settings first, then result card, then all detail/archive cards.
@@ -702,7 +702,7 @@
         min-height: auto !important;
       }
       .app { max-width: 100% !important; display: block !important; }
-      #iconLightbox, #helpLightbox, .setup-banner, .controls, .save-row,
+      #iconLightbox, #helpLightbox, .setup-banner, .period-controls, .save-row,
       .bd-btn, .boxing-banner, .clear-btn, .stepper button, .help-btn,
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
@@ -1091,7 +1091,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.20">
+  <link rel="manifest" href="./pay-manifest.json?v=9.21">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1194,7 +1194,7 @@
   </div>
 
   <!-- PERIOD SELECTOR -->
-  <div class="controls">
+  <div class="period-controls">
     <div class="ty-tabs">
       <button class="ty-tab" id="tyTab0" data-ty="0">2025/26</button>
       <button class="ty-tab" id="tyTab1" data-ty="1">2026/27</button>
@@ -1734,6 +1734,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.20"></script>
+<script type="module" src="./paycalc.js?v=9.21"></script>
 </body>
 </html>

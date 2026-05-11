@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.20 -->
+<!-- MYB Roster Admin v9.21 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.20">
+    <link rel="manifest" href="manifest.json?v=9.21">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.20">
+    <link rel="stylesheet" href="shared.css?v=9.21">
 
     <style>
         body {
@@ -509,7 +509,7 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover { opacity: 0.75; } }
-        .type-pill-btn.active { color: white !important; }
+        .type-pill-btn.active { color: white; }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
         .pill-shift        { color: var(--ot);       } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
@@ -800,7 +800,7 @@
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 16px; /* 16px minimum — iOS Safari zooms viewport on focus below this */
             font-family: inherit;
             color: var(--text-dark);
             background: white;
@@ -887,7 +887,7 @@
             bottom: 0;
             left: 0;
             right: 0;
-            z-index: 6000;
+            z-index: 7600; /* above saveToast (7500), below lightboxes (8000) */
             box-sizing: border-box;
             display: flex;
             align-items: flex-start;
@@ -1099,13 +1099,13 @@
             cursor: pointer;
             white-space: nowrap;
         }
-        .btn-bulk-delete:hover { background: #b71c1c; }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-delete:hover { background: #b71c1c; } }
 
         .overrides-month-filter {
             padding: 6px 8px;
             border: 1.5px solid var(--border-light);
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 16px; /* 16px minimum — iOS Safari zooms viewport on focus below this */
             font-family: inherit;
             color: var(--text-dark);
             background: white;
@@ -1329,7 +1329,7 @@
             border-radius: 50%;
             -webkit-tap-highlight-color: transparent;
         }
-        .rp-nav-btn:hover { background: var(--bg-light); }
+        @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover { background: var(--bg-light); } }
         .rp-label { font-size: 14px; font-weight: 700; color: var(--text-dark); }
         .rp-grid {
             display: grid;
@@ -1357,9 +1357,11 @@
             -webkit-tap-highlight-color: transparent;
             position: relative;
         }
-        .rp-day:hover:not(.rp-from):not(.rp-to):not(.rp-in-range):not(.rp-filler) {
-            background: var(--bg-light);
-            border-radius: 50%;
+        @media (hover: hover) and (pointer: fine) {
+            .rp-day:hover:not(.rp-from):not(.rp-to):not(.rp-in-range):not(.rp-filler) {
+                background: var(--bg-light);
+                border-radius: 50%;
+            }
         }
         .rp-day:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; border-radius: 50%; }
         .rp-filler { cursor: default; pointer-events: none; }
@@ -1388,7 +1390,7 @@
         /* ---- Booked AL dates collapsible box ---- */
         .al-booked-box {
             margin-top: 10px;
-            border: 1px solid var(--border);
+            border: 1px solid var(--border-light);
             border-radius: 8px;
             overflow: hidden;
         }
@@ -1396,7 +1398,7 @@
             display: flex;
             align-items: center;
             padding: 10px 14px;
-            background: var(--surface2, #f5f7fa);
+            background: var(--bg-faint);
             cursor: pointer;
             user-select: none;
             -webkit-user-select: none;
@@ -1428,13 +1430,13 @@
             align-items: stretch;
             padding: 8px 0;
             gap: 5px;
-            border-bottom: 1px solid var(--border);
+            border-bottom: 1px solid var(--border-light);
         }
         .al-period-month > .al-period-row:last-child { border-bottom: none; }
         .al-period-dates {
             font-size: 13px;
             font-weight: 500;
-            color: var(--text);
+            color: var(--text-dark);
         }
         .al-period-row-meta {
             display: flex;
@@ -1471,7 +1473,7 @@
             cursor: pointer;
             white-space: nowrap;
         }
-        .btn-period-delete:hover { color: var(--absence); }
+        @media (hover: hover) and (pointer: fine) { .btn-period-delete:hover { color: var(--absence); } }
         .btn-period-delete.confirming {
             background: var(--absence);
             color: #fff;
@@ -2057,12 +2059,6 @@
             .card-header h2 { font-size: 14px; }
             .card-header .hint { font-size: 12px; }
 
-            /* Date-range rows side by side */
-            .al-dates,
-            .sick-dates { flex-direction: row; gap: 12px; }
-            .al-dates .date-input,
-            .sick-dates .date-input { flex: 1; }
-
             /* Override table: header text larger */
             .override-table th { font-size: 11px; }
             .override-table td { font-size: 13px; }
@@ -2232,9 +2228,6 @@
             .type-pill-btn.active {
                 border: 1px solid currentColor;
             }
-
-            /* Section cards */
-            .week-section { break-inside: avoid; margin-bottom: 16px; }
 
             /* Page title — populated by beforeprint listener */
             #printHeader {
@@ -2776,6 +2769,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.20"></script>
+<script type="module" src="./admin-app.js?v=9.21"></script>
 </body>
 </html>
