@@ -27,11 +27,14 @@ if [ "$ERRORS" -gt 0 ]; then
   exit 1
 fi
 
-# Version reminder — warn when CLAUDE.md falls 0.10+ behind APP_VERSION
+# Extract current app version once — shared by both reminder checks below
 APP_VER=$(grep "^export const APP_VERSION" roster-data.js 2>/dev/null | grep -oP "'[0-9.]+'" | tr -d "'")
+[[ -z "$APP_VER" ]] && exit 0
+CUR_INT=$(echo "$APP_VER" | awk -F. '{printf "%d", $1*100+$2}')
+
+# CLAUDE.md — remind when it falls 0.10+ behind APP_VERSION
 DOC_VER=$(grep -m1 "Current app version" CLAUDE.md 2>/dev/null | grep -oP '\`[0-9.]+\`' | tr -d '`')
-if [[ -n "$APP_VER" && -n "$DOC_VER" ]]; then
-  CUR_INT=$(echo "$APP_VER" | awk -F. '{printf "%d", $1*100+$2}')
+if [[ -n "$DOC_VER" ]]; then
   DOC_INT=$(echo "$DOC_VER" | awk -F. '{printf "%d", $1*100+$2}')
   DIFF=$((CUR_INT - DOC_INT))
   if [ "$DIFF" -ge 10 ]; then
@@ -42,3 +45,19 @@ if [[ -n "$APP_VER" && -n "$DOC_VER" ]]; then
     echo ""
   fi
 fi
+
+# AI_MAP.md, KNOWN_LIMITATIONS.md, ROADMAP.md, OPERATIONS_REFERENCE.md — remind when 0.20+ behind
+for doc in AI_MAP.md KNOWN_LIMITATIONS.md ROADMAP.md OPERATIONS_REFERENCE.md; do
+  [[ -f "$doc" ]] || continue
+  DOC_VER=$(grep -m1 "Last updated" "$doc" 2>/dev/null | grep -oP 'v[0-9]+\.[0-9]+' | tr -d 'v')
+  [[ -z "$DOC_VER" ]] && continue
+  DOC_INT=$(echo "$DOC_VER" | awk -F. '{printf "%d", $1*100+$2}')
+  DIFF=$((CUR_INT - DOC_INT))
+  if [ "$DIFF" -ge 20 ]; then
+    echo ""
+    echo "  Reminder: ${doc} documents v${DOC_VER} — app is now v${APP_VER} (+${DIFF} patches)"
+    echo "  Review ${doc} for any updates needed, then bump its 'Last updated' stamp."
+    echo "  (Reminder only — commit proceeds.)"
+    echo ""
+  fi
+done
