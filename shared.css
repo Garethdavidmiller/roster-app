@@ -179,6 +179,8 @@
 html {
     background-color: var(--primary-blue);
     color-scheme: light; /* prevents dark-mode scrollbars and form controls */
+    -webkit-text-size-adjust: 100%; /* prevents mobile browsers resizing text after layout changes */
+    text-size-adjust: 100%;
 }
 
 /* Safe-area padding — keeps content clear of the iOS notch and home indicator.
