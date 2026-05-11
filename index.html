@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.20 -->
+<!-- MYB Roster Calendar - Version 9.21 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.20">
+    <link rel="manifest" href="manifest.json?v=9.21">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.20">
+    <link rel="stylesheet" href="shared.css?v=9.21">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -884,7 +884,7 @@
             }
 
             /* Legend: wider spacing on desktop */
-            .legend { gap: 6px 20px; padding: 10px 24px; }
+            .legend { gap: 6px 20px; padding: 12px 24px; }
             .legend-text { font-size: 13px; }
         }
 
@@ -970,48 +970,6 @@
 
             /* Reduce the gap between the month heading and the day-name row. */
             .calendar-header { margin-bottom: 8px; padding-bottom: 7px; }
-        }
-
-        /* Desktop/Laptop - Larger icons for better visibility */
-        @media (min-width: 1025px) {
-            .calendar-day.bank-holiday::before {
-                font-size: 18px !important;
-                top: 5px !important;
-                right: 5px !important;
-            }
-
-            .calendar-day.easter-day::before {
-                font-size: 18px !important;
-                top: 5px !important;
-                right: 5px !important;
-            }
-
-            .day-faith {
-                font-size: 16px !important;
-                bottom: 6px !important;
-                right: 5px !important;
-            }
-
-            .calendar-day.payday::before {
-                font-size: 16px !important;
-                top: 5px !important;
-                left: 5px !important;
-            }
-
-            .calendar-day.cutoff::before {
-                font-size: 16px !important;
-                top: 5px !important;
-                left: 5px !important;
-            }
-
-            .calendar-day.christmas-day::after {
-                font-size: 20px !important;
-                bottom: 6px !important;
-            }
-
-            /* Legend: wider spacing at this breakpoint */
-            .legend { gap: 6px 20px; padding: 12px 24px; }
-            .legend-text { font-size: 13px; }
         }
 
         @media (max-width: 480px) {
@@ -2418,11 +2376,11 @@
             0%   { background-position: -400px 0; }
             100% { background-position:  400px 0; }
         }
-        .calendar-fetching .day-cell {
+        .calendar-fetching .calendar-day {
             position: relative;
             overflow: hidden;
         }
-        .calendar-fetching .day-cell::after {
+        .calendar-fetching .calendar-day::after {
             content: '';
             position: absolute;
             inset: 0;
@@ -2682,7 +2640,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.20"></script>
+    <script type="module" src="./app.js?v=9.21"></script>
 
 </body>
 </html>
