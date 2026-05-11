@@ -13,10 +13,10 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.31';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.31';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.31';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.31';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.32';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.32';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.32';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.32';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1207,7 +1207,36 @@ function buildRangePicker(prefix) {
         render();
     }
 
+    // Swipe state — horizontal swipe navigates months, matching main calendar behaviour.
+    let swStartX = 0, swStartY = 0, swT = 0, swActive = false, swFired = false;
+
+    grid.addEventListener('pointerdown', e => {
+        if (!e.isPrimary) return;
+        swStartX = e.clientX; swStartY = e.clientY; swT = Date.now();
+        swActive = false; swFired = false;
+    });
+    grid.addEventListener('pointermove', e => {
+        if (!e.isPrimary) return;
+        const dx = Math.abs(e.clientX - swStartX), dy = Math.abs(e.clientY - swStartY);
+        if (dx > 8 && dx > dy) swActive = true;
+    });
+    grid.addEventListener('pointerup', e => {
+        if (!e.isPrimary || !swActive) return;
+        const dx  = e.clientX - swStartX;
+        const dy  = Math.abs(e.clientY - swStartY);
+        const vel = Math.abs(dx) / Math.max(1, Date.now() - swT);
+        if (dy < 60 && (Math.abs(dx) >= SWIPE_THRESHOLD || vel >= SWIPE_VELOCITY)) {
+            if (dx < 0) { if (++mo > 11) { mo = 0; yr++; } }
+            else        { if (--mo < 0)  { mo = 11; yr--; } }
+            render();
+            swFired = true;
+        }
+        swActive = false;
+    });
+    grid.addEventListener('pointercancel', () => { swActive = swFired = false; });
+
     grid.addEventListener('click', e => {
+        if (swFired) { swFired = false; return; }  // swipe ended here — not a tap
         const cell = e.target.closest('[data-iso]');
         if (!cell) return;
         const iso = cell.dataset.iso;
@@ -1223,7 +1252,7 @@ function buildRangePicker(prefix) {
     });
 
     grid.addEventListener('mouseover', e => {
-        if (!fromISO || toISO) return;
+        if (swActive || !fromISO || toISO) return;
         const iso = e.target.closest('[data-iso]')?.dataset.iso || '';
         if (iso === hoverISO) return;
         hoverISO = iso;
