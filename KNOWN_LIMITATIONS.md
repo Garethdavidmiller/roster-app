@@ -103,6 +103,22 @@ extension, not from `Content-Type`.
 November/December. The Jamaican, Congolese, and Portuguese calendars are rule-based
 and self-updating. See `CLAUDE.md` for the full list of datasets and sources.
 
+### Cloud Function payday constant duplicated from `roster-data.js`
+`functions/index.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS` constants
+for the pay-reminder scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY`
+and `CONFIG.PAYDAY_INTERVAL_DAYS` in `roster-data.js`. If the pay schedule ever changes,
+both files must be updated. The correct long-term fix is a shared JSON config consumed by
+both, but the no-build constraint makes this awkward. For now: if you change payday config,
+search for `FIRST_PAYDAY_MS` in `functions/index.js` and update it in the same commit.
+
+### Cloud Function staff list duplicated from `roster-data.js`
+`functions/index.js` contains a hardcoded `STAFF_NAMES` object used by `parseRosterPDF`
+to name-match the AI-parsed roster output. This must stay in sync with `teamMembers` in
+`roster-data.js`. Every new starter or leaver needs updating in both files. The code
+comment in `functions/index.js` acknowledges this. For now: when adding or removing a
+member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
+in the same commit.
+
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
 exist in older Firestore documents. They are displayed with their original labels in

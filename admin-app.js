@@ -1,17 +1,22 @@
 /**
- * admin-app.js — Admin portal UI for admin.html.
+ * admin-app.js — Coordinator and primary feature file for admin.html.
  *
- * Owns: login flow, session management, override entry, week grid, bulk bar,
- *   roster PDF review pipeline, Firebase Auth sign-in/out, Team Week View.
- * Does NOT own: pay maths, calendar display (app.js), roster data (roster-data.js).
- * Edit here for: override forms, admin UI, week grid, override review.
- * Do not edit here for: roster data structure, pay calculator, shared CSS.
+ * Owns: login/session, AL booking, absence recording, huddle upload,
+ *   staff Firebase Auth setup, cultural calendar preferences, Team Week View,
+ *   page coordinator wiring (initialises modules on load).
+ * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
+ *   roster PDF upload/review (admin-roster-upload.js), pay maths (paycalc-calc.js),
+ *   calendar display (app.js), roster data (roster-data.js).
+ * Edit here for: login, AL/absence forms, huddle features, auth setup,
+ *   cultural calendar settings, Team Week View.
+ * Do not edit here for: shift override grid or forms, roster PDF pipeline,
+ *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.23';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.23';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.23';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.23';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.25';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.25';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.25';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.25';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -341,8 +346,8 @@ function initLoginOverlay() {
             sections: [
                 { items: [
                     { icon: '🃏', html: '<strong>FIP Card</strong> — gives you 50% off most European rail fares at station ticket offices' },
-                    { icon: '🎟️', html: '<strong>Free Coupons</strong> — a small annual allowance of completely free journeys on partner railways and ferries' },
-                    { icon: '👨‍👩‍👧', html: 'Both cover you, your spouse or partner, and dependent children' },
+                    { icon: '🎟️', html: '<strong>Free Coupons</strong> — a small annual allowance of free basic rail travel on participating operators; supplements or reservations may still apply' },
+                    { icon: '👨‍👩‍👧', html: 'Family eligibility varies by facility and country — check the FIP guide or speak to your manager' },
                     { icon: '✈️', html: 'Leisure travel only — not for commuting or any work purpose' },
                 ]},
             ],
