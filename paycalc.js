@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.24';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.25';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.24';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.24';
+} from './paycalc-calc.js?v=9.25';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.25';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -54,7 +54,7 @@ const CONFIG = {
 const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
-  '2025-06-06': { gross: 4340.23, tax:  769.24, ni: 241.46, sl: 210.00, net: 3119.57, varPay: 1692.94 },
+  '2025-06-06': { gross: 4340.23, tax:  769.25, ni: 241.46, sl: 210.00, net: 3119.57, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
   '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.12, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },

@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
  */
 
-import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.24';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.24';
+import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.25';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.25';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
