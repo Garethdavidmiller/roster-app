@@ -8,21 +8,26 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.40';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.41';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.40';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.40';
+} from './paycalc-calc.js?v=9.41';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.41';
 'use strict';
+
+// Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
+function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
+function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
 // Redirect unsigned-in users to admin.html to sign in, then return here.
 // Uses window.location.replace so the back button skips this page (avoids loops).
 (function () {
   try {
-    const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+    const session = JSON.parse(lsGet('myb_admin_session') || 'null');
     if (!(session && session.name)) {
       window.location.replace('./admin.html?redirect=paycalc');
     }
@@ -69,14 +74,14 @@ const MILLER_ACTUALS = {
 
 /** Return contracted hours for the currently selected grade. */
 function getContr() {
-  const g = localStorage.getItem(SK.grade);
+  const g = lsGet(SK.grade);
   return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
 }
 
 /** Return the teamMembers entry for the logged-in session user, or null. */
 function getLoggedMember() {
   try {
-    const sess = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
     if (!sess?.name) return null;
     return teamMembers.find(m => m.name === sess.name) || null;
   } catch { return null; }
@@ -106,7 +111,7 @@ function getProRateFactor(p) {
 /** Full-period pension default for the current grade, period-aware.
  *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
 function getPensionDefault(pObj) {
-  const g = localStorage.getItem(SK.grade);
+  const g = lsGet(SK.grade);
   const grade = g && GRADES[g] ? g : 'cea';
   if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
   return GRADES[grade]?.pension ?? '';
@@ -403,10 +408,10 @@ function buildBackPayPeriodSelect() {
 // Falls back to the legacy single rate, then to the current grade's default.
 function updateRateForPeriod(ty) {
   let rates = {};
-  try { rates = JSON.parse(localStorage.getItem(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted'); }
-  const g     = localStorage.getItem(SK.grade);
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted'); }
+  const g     = lsGet(SK.grade);
   const rate  = rates[ty.label]
-             || parseFloat(localStorage.getItem(SK.rate))
+             || parseFloat(lsGet(SK.rate))
              || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
   document.getElementById('hourlyRate').value = rate.toFixed(2);
   // Update label to show which tax year this rate applies to
@@ -420,8 +425,8 @@ function updateYtdForTaxYear(ty) {
   const payEl = document.getElementById('ytdPay');
   const taxEl = document.getElementById('ytdTax');
   if (!payEl || !taxEl) return;
-  if (document.activeElement !== payEl) payEl.value = localStorage.getItem(ytdPayKey(ty)) || '';
-  if (document.activeElement !== taxEl) taxEl.value = localStorage.getItem(ytdTaxKey(ty)) || '';
+  if (document.activeElement !== payEl) payEl.value = lsGet(ytdPayKey(ty)) || '';
+  if (document.activeElement !== taxEl) taxEl.value = lsGet(ytdTaxKey(ty)) || '';
 }
 
 // ── TAX YEAR TABS ─────────────────────────────────────────────────────────────
@@ -529,13 +534,13 @@ function onPeriodChange() {
   if (pensionPeriodLbl) pensionPeriodLbl.textContent = `for P${p.num}`;
 
   // Settings confirmation check for this tax year.
-  const tyConfirmed = localStorage.getItem(settingsKey(ty));
+  const tyConfirmed = lsGet(settingsKey(ty));
   // Always keep the title current so the hardcoded HTML default never shows stale text.
   document.getElementById('setupBannerTitle').textContent = `👋 Set up for ${ty.label}`;
   if (tyConfirmed) {
     // Confirmed — hide banner, update card header hint with saved values.
     document.getElementById('setupBanner').classList.add('hidden');
-    const _hdrGrade = localStorage.getItem(SK.grade);
+    const _hdrGrade = lsGet(SK.grade);
     const rate = parseFloat(document.getElementById('hourlyRate').value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
     const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
     document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
@@ -549,7 +554,7 @@ function onPeriodChange() {
     // already see the settings card open). Show the in-card notice for returning users.
     if (!_settingsPrompted.has(ty.label)) {
       _settingsPrompted.add(ty.label);
-      if (localStorage.getItem(SK.setup)) {
+      if (lsGet(SK.setup)) {
         document.getElementById('settingsToggle').classList.add('open');
         document.getElementById('settingsBody').classList.add('open');
         const notice = document.getElementById('settingsNewYearNotice');
@@ -570,7 +575,7 @@ function onPeriodChange() {
 
   // Read session now so we can set the correct initial fetch state
   let session2;
-  try { session2 = JSON.parse(localStorage.getItem('myb_admin_session') || 'null'); } catch { session2 = null; }
+  try { session2 = JSON.parse(lsGet('myb_admin_session') || 'null'); } catch { session2 = null; }
 
   // Reset override cache before rendering the hint — clears stale data from the
   // previous period and sets the initial fetch state.
@@ -684,7 +689,7 @@ function autosave() {
   const pNum = currentPeriodNum();
   const d    = readFormData();
   try {
-    localStorage.setItem(periodKey(pNum), JSON.stringify(d));
+    lsSet(periodKey(pNum), JSON.stringify(d));
     updateSaveStatus(pNum);
   } catch(e) { /* storage unavailable */ }
 }
@@ -692,7 +697,7 @@ function autosave() {
 function loadPeriodData(pNum) {
   let d = emptyPeriodData();
   try {
-    const raw = localStorage.getItem(periodKey(pNum));
+    const raw = lsGet(periodKey(pNum));
     if (raw) d = JSON.parse(raw);
   } catch(e) { /* use empty */ }
   writeFormData(d);
@@ -728,7 +733,7 @@ function loadPeriodData(pNum) {
 
 function updateSaveStatus(pNum) {
   const el  = document.getElementById('saveStatus');
-  const raw = localStorage.getItem(periodKey(pNum));
+  const raw = lsGet(periodKey(pNum));
   if (raw) {
     let d;
     try { d = JSON.parse(raw); } catch(e) { d = null; }
@@ -770,7 +775,7 @@ function clearPeriod() {
   btn.textContent = 'Clear all entries';
   btn.classList.remove('confirming');
   const pNum = currentPeriodNum();
-  localStorage.removeItem(periodKey(pNum));
+  lsDel(periodKey(pNum));
   writeFormData(emptyPeriodData());
   // Apply the period-specific pension default (pro-rated for joining periods, rate-cut-over
   // aware) — writeFormData no longer does this when d.pension is null.
@@ -802,14 +807,14 @@ function saveSettings() {
   const curP    = getPeriods().find(x => x.num === pNum);
   const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   let rates = {};
-  try { rates = JSON.parse(localStorage.getItem(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   const _savedGrade   = document.getElementById('gradeSelect').value;
   const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
   rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
-  localStorage.setItem(SK.rates,     JSON.stringify(rates));
-  localStorage.setItem(SK.rate,      rateVal);
-  localStorage.setItem(SK.code,      document.getElementById('taxCode').value);
-  localStorage.setItem(SK.sl,        document.getElementById('studentLoan').value);
+  lsSet(SK.rates,     JSON.stringify(rates));
+  lsSet(SK.rate,      rateVal);
+  lsSet(SK.code,      document.getElementById('taxCode').value);
+  lsSet(SK.sl,        document.getElementById('studentLoan').value);
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.
@@ -818,10 +823,10 @@ function saveSettings() {
   const _pensionToSave = getProRateFactor(curP) < 1
     ? getPensionDefault(curP)
     : document.getElementById('pensionAmt').value;
-  localStorage.setItem(SK.pension, _pensionToSave);
-  localStorage.setItem(ytdPayKey(curTy), document.getElementById('ytdPay').value);
-  localStorage.setItem(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
-  localStorage.setItem(SK.grade,         document.getElementById('gradeSelect').value);
+  lsSet(SK.pension, _pensionToSave);
+  lsSet(ytdPayKey(curTy), document.getElementById('ytdPay').value);
+  lsSet(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
+  lsSet(SK.grade,         document.getElementById('gradeSelect').value);
 }
 
 // confirmSettings: called by the Save button. Saves, marks this tax year as confirmed,
@@ -834,16 +839,16 @@ function confirmSettings() {
   // If this period already has saved hours, patch its pension value in-place.
   // We only update existing records — we don't create an hours-empty record just
   // because the user tapped Save settings.
-  const existingRaw = localStorage.getItem(periodKey(pNum));
+  const existingRaw = lsGet(periodKey(pNum));
   if (existingRaw) {
     try {
       const d = JSON.parse(existingRaw);
       d.pension = parseFloat(document.getElementById('pensionAmt').value) || 0;
-      localStorage.setItem(periodKey(pNum), JSON.stringify(d));
+      lsSet(periodKey(pNum), JSON.stringify(d));
     } catch(e) {}
   }
-  localStorage.setItem(settingsKey(curTy), '1');
-  localStorage.setItem(SK.setup, '1');
+  lsSet(settingsKey(curTy), '1');
+  lsSet(SK.setup, '1');
   document.getElementById('setupBanner').classList.add('hidden');
   document.getElementById('settingsNewYearNotice').classList.add('hidden');
   // Update header hint to show confirmed summary
@@ -864,27 +869,27 @@ function confirmSettings() {
 
 function loadSettings() {
   // Migrate legacy single rate to per-tax-year rates if not already done
-  if (!localStorage.getItem(SK.rates)) {
-    const legacyRate = localStorage.getItem(SK.rate);
+  if (!lsGet(SK.rates)) {
+    const legacyRate = lsGet(SK.rate);
     if (legacyRate) {
       const rates = {};
       CONFIG.TAX_YEARS.forEach(ty => { rates[ty.label] = parseFloat(legacyRate); });
-      localStorage.setItem(SK.rates, JSON.stringify(rates));
+      lsSet(SK.rates, JSON.stringify(rates));
     }
   }
   // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
   // no need to set it here; the field will update when buildPeriodSelect fires.
-  const code    = localStorage.getItem(SK.code);
-  const sl      = localStorage.getItem(SK.sl);
-  const pension = localStorage.getItem(SK.pension);
-  const done    = localStorage.getItem(SK.setup);
+  const code    = lsGet(SK.code);
+  const sl      = lsGet(SK.sl);
+  const pension = lsGet(SK.pension);
+  const done    = lsGet(SK.setup);
   if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
   if (sl)      document.getElementById('studentLoan').value = sl;
-  let grade = localStorage.getItem(SK.grade);
+  let grade = lsGet(SK.grade);
   if (!grade || !GRADES[grade]) {
     // Auto-detect from the logged-in member's role
     try {
-      const sess = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+      const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
       if (sess?.name) {
         const member = teamMembers.find(m => m.name === sess.name);
         if (member?.role === 'CES') grade = 'ces';
@@ -893,18 +898,18 @@ function loadSettings() {
   }
   if (grade && GRADES[grade]) {
     document.getElementById('gradeSelect').value = grade;
-    localStorage.setItem(SK.grade, grade);
+    lsSet(SK.grade, grade);
   }
   document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
   // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
-  const legacyYtdPay = localStorage.getItem(SK.ytdPay);
-  const legacyYtdTax = localStorage.getItem(SK.ytdTax);
+  const legacyYtdPay = lsGet(SK.ytdPay);
+  const legacyYtdTax = lsGet(SK.ytdTax);
   if (legacyYtdPay || legacyYtdTax) {
     const firstTy = CONFIG.TAX_YEARS[0];
-    if (!localStorage.getItem(ytdPayKey(firstTy))) localStorage.setItem(ytdPayKey(firstTy), legacyYtdPay || '');
-    if (!localStorage.getItem(ytdTaxKey(firstTy))) localStorage.setItem(ytdTaxKey(firstTy), legacyYtdTax || '');
-    localStorage.removeItem(SK.ytdPay);
-    localStorage.removeItem(SK.ytdTax);
+    if (!lsGet(ytdPayKey(firstTy))) lsSet(ytdPayKey(firstTy), legacyYtdPay || '');
+    if (!lsGet(ytdTaxKey(firstTy))) lsSet(ytdTaxKey(firstTy), legacyYtdTax || '');
+    lsDel(SK.ytdPay);
+    lsDel(SK.ytdTax);
   }
   // Settings card starts closed in HTML. Open it only for first-time users.
   // (Previously started open and was removed for returning users — caused a visible flash.)
@@ -914,19 +919,19 @@ function loadSettings() {
   } else {
     // Migration: mark all tax years confirmed if global setup flag already set (v1.13+)
     CONFIG.TAX_YEARS.forEach(ty => {
-      if (!localStorage.getItem(settingsKey(ty))) {
-        localStorage.setItem(settingsKey(ty), '1');
+      if (!lsGet(settingsKey(ty))) {
+        lsSet(settingsKey(ty), '1');
       }
     });
   }
   // Migration: copy legacy global hppActual (cea_hpp_actual) to per-year key if needed
-  const legacyHppActual = localStorage.getItem('cea_hpp_actual');
+  const legacyHppActual = lsGet('cea_hpp_actual');
   if (legacyHppActual) {
     const firstTy = CONFIG.TAX_YEARS[0];
-    if (!localStorage.getItem(hppActualKey(firstTy))) {
-      localStorage.setItem(hppActualKey(firstTy), legacyHppActual);
+    if (!lsGet(hppActualKey(firstTy))) {
+      lsSet(hppActualKey(firstTy), legacyHppActual);
     }
-    localStorage.removeItem('cea_hpp_actual');
+    lsDel('cea_hpp_actual');
   }
 
   // Migration (v8.88): two-part pension localStorage cleanup.
@@ -943,7 +948,7 @@ function loadSettings() {
   //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
   //   value (£77.39) is also stale. All three are fingerprint values that cannot
   //   plausibly be intentional custom entries.
-  if (!localStorage.getItem('cea_pension_v882_migrated')) {
+  if (!lsGet('cea_pension_v882_migrated')) {
     const _pensionCutover = new Date(2026, 4, 8);
     const _member = getLoggedMember();
     const _joiningP = _member?.startDate
@@ -951,7 +956,7 @@ function loadSettings() {
       : null;
 
     getPeriods().forEach(p => {
-      const raw = localStorage.getItem(periodKey(p.num));
+      const raw = lsGet(periodKey(p.num));
       if (!raw) return;
       try {
         const d = JSON.parse(raw);
@@ -975,10 +980,10 @@ function loadSettings() {
           }
         }
 
-        if (changed) localStorage.setItem(periodKey(p.num), JSON.stringify(d));
+        if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
       } catch(e) {}
     });
-    localStorage.setItem('cea_pension_v882_migrated', '1');
+    lsSet('cea_pension_v882_migrated', '1');
   }
 }
 
@@ -1280,7 +1285,7 @@ function calculate() {
   const _proRateFactor = getProRateFactor(_curP);
   const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
 
-  const _calcGrade = localStorage.getItem(SK.grade);
+  const _calcGrade = lsGet(SK.grade);
   const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
   const rate = numVal('hourlyRate') || _calcDefaultRate;
   updateBadges(rate);
@@ -1461,7 +1466,7 @@ function _varPayForPeriod(p, d, rate) {
 // Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance
 // Does NOT include: peer training, basic pay, expenses, bonuses
 function calcHPP() {
-  const _hppGrade       = localStorage.getItem(SK.grade);
+  const _hppGrade       = lsGet(SK.grade);
   const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
   const rate       = numVal('hourlyRate') || _hppDefaultRate;
   const allPeriods = getPeriods();
@@ -1492,7 +1497,7 @@ function calcHPP() {
         return;
       }
 
-      const raw = localStorage.getItem(periodKey(p.num));
+      const raw = lsGet(periodKey(p.num));
       if (!raw) return;
       const d = JSON.parse(raw);
       if (isDataEmpty(d)) return;
@@ -1508,7 +1513,7 @@ function calcHPP() {
 
   // Persist the running estimate so it survives when the user moves to the next tax year.
   // The prior year section reads this key to show the carry-forward amount.
-  if (hpp > 0) localStorage.setItem(hppEstKey(ty), hpp.toFixed(2));
+  if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
 
   // Current year always shows the estimate (the confirmed actual lives in the prior year section
   // once the user has moved to the following tax year).
@@ -1548,8 +1553,8 @@ function updatePriorHpp(ty) {
   }
 
   const priorTy   = CONFIG.TAX_YEARS[tyIdx - 1];
-  const estRaw    = localStorage.getItem(hppEstKey(priorTy));
-  const actualRaw = localStorage.getItem(hppActualKey(priorTy));
+  const estRaw    = lsGet(hppEstKey(priorTy));
+  const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
   const actual    = actualRaw ? parseFloat(actualRaw) : 0;
 
@@ -1573,12 +1578,12 @@ function updatePriorHpp(ty) {
 
     } else {
       // Everyone else: sum variable pay from localStorage period entries
-      const _hppGrade = localStorage.getItem(SK.grade);
+      const _hppGrade = lsGet(SK.grade);
       const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
       let _priorVar = 0;
       _priorPeriods.forEach(p => {
         try {
-          const raw = localStorage.getItem(periodKey(p.num));
+          const raw = lsGet(periodKey(p.num));
           if (!raw) return;
           const d = JSON.parse(raw);
           if (isDataEmpty(d)) return;
@@ -1588,7 +1593,7 @@ function updatePriorHpp(ty) {
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     }
 
-    if (est > 0) localStorage.setItem(hppEstKey(priorTy), est.toFixed(2));
+    if (est > 0) lsSet(hppEstKey(priorTy), est.toFixed(2));
   }
 
   // Is the current period's payday in the January when prior-year HPP is paid?
@@ -1720,7 +1725,7 @@ function calcBackPay() {
     try {
       if (fromPNum && p.num < fromPNum) return; // exclude before April
       if (bpPNum   && p.num > bpPNum)  return; // exclude after "paid in" period
-      const raw = localStorage.getItem(periodKey(p.num));
+      const raw = lsGet(periodKey(p.num));
       if (!raw) return;
       const d = JSON.parse(raw);
       if (isDataEmpty(d)) return;
@@ -2060,9 +2065,9 @@ document.getElementById('priorHppActualInput').addEventListener('input', () => {
   const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
   const val = document.getElementById('priorHppActualInput').value;
   if (val) {
-    localStorage.setItem(hppActualKey(priorTy), val);
+    lsSet(hppActualKey(priorTy), val);
   } else {
-    localStorage.removeItem(hppActualKey(priorTy));
+    lsDel(hppActualKey(priorTy));
   }
   updatePriorHpp(curTy);
 });
@@ -2213,7 +2218,7 @@ Device: ${navigator.userAgent}
   // Sign-out — clears admin session and returns to the main app.
   // AUTH_KEY matches admin-app.js so the same session is cleared.
   document.getElementById('signOutBtn').addEventListener('click', () => {
-    localStorage.removeItem('myb_admin_session');
+    lsDel('myb_admin_session');
     window.location.href = './index.html';
   });
 
@@ -2238,7 +2243,7 @@ Device: ${navigator.userAgent}
   function openWelcome() {
     const badge = document.getElementById('welcomeGradeBadge');
     if (badge) {
-      const g = localStorage.getItem(SK.grade);
+      const g = lsGet(SK.grade);
       badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
     }
     lb.classList.add('visible');
@@ -2247,7 +2252,7 @@ Device: ${navigator.userAgent}
   }
 
   function closeWelcome() {
-    localStorage.setItem(WELCOME_KEY, '1');
+    lsSet(WELCOME_KEY, '1');
     lb.classList.remove('open');
     lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
     document.removeEventListener('keydown', onKeyDown);
@@ -2260,7 +2265,7 @@ Device: ${navigator.userAgent}
   if (closeBtn)  closeBtn.addEventListener('click',  closeWelcome);
   if (guideLink) guideLink.addEventListener('click', closeWelcome);
 
-  if (!localStorage.getItem(WELCOME_KEY)) openWelcome();
+  if (!lsGet(WELCOME_KEY)) openWelcome();
 })();
 
 // ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────

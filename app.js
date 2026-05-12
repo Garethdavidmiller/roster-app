@@ -8,8 +8,13 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.40';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.40';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.41';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.41';
+
+// Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
+function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
+function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -118,8 +123,8 @@ let currentDisplayYear = getToday().getFullYear();
 
 // Restore last-viewed month from localStorage (if valid and within app bounds)
 (function restoreViewedMonth() {
-    const m = parseInt(localStorage.getItem('myb_roster_month'), 10);
-    const y = parseInt(localStorage.getItem('myb_roster_year'),  10);
+    const m = parseInt(lsGet('myb_roster_month'), 10);
+    const y = parseInt(lsGet('myb_roster_year'),  10);
     if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
         currentDisplayMonth = m;
         currentDisplayYear  = y;
@@ -374,12 +379,12 @@ function renderTeamView(grade, opts = {}) {
     // Dismiss scroll hint permanently after the user scrolls the table once.
     const tableWrap = calendarDisplay.querySelector('.team-table-wrap');
     const scrollHint = calendarDisplay.querySelector('.tv-scroll-hint');
-    if (scrollHint && localStorage.getItem('myb_team_scroll_seen')) {
+    if (scrollHint && lsGet('myb_team_scroll_seen')) {
         scrollHint.hidden = true;
     } else if (tableWrap && scrollHint) {
         tableWrap.addEventListener('scroll', () => {
             scrollHint.hidden = true;
-            localStorage.setItem('myb_team_scroll_seen', '1');
+            lsSet('myb_team_scroll_seen', '1');
         }, { once: true });
     }
 
@@ -430,7 +435,7 @@ async function fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken) {
  */
 function toggleTeamView() {
     teamViewMode = !teamViewMode;
-    localStorage.setItem('myb_team_view', teamViewMode ? '1' : '');
+    lsSet('myb_team_view', teamViewMode ? '1' : '');
 
     applyTeamViewChrome();
 
@@ -481,7 +486,7 @@ function changeMonth(delta) {
 // Only shown on touch devices — desktop users navigate with Prev/Next buttons.
 // Dismissed permanently on the first month navigation (swipe or button).
 (function initSwipeHint() {
-    if (localStorage.getItem('myb_swipe_hint_seen')) return;
+    if (lsGet('myb_swipe_hint_seen')) return;
     if (!window.matchMedia('(pointer: coarse)').matches) return;
     const hint = document.getElementById('swipeHint');
     if (!hint) return;
@@ -491,7 +496,7 @@ function changeMonth(delta) {
 function dismissSwipeHint() {
     const hint = document.getElementById('swipeHint');
     if (!hint || hint.style.display === 'none') return;
-    localStorage.setItem('myb_swipe_hint_seen', '1');
+    lsSet('myb_swipe_hint_seen', '1');
     hint.classList.add('fade-out');
     setTimeout(() => { hint.style.display = 'none'; hint.classList.remove('fade-out'); }, 400);
 }
@@ -506,20 +511,20 @@ function getDefaultMemberIndex() {
 
 // Selection is stored by name (not index) so it survives array reordering.
 function getSelectedMemberIndex() {
-    const savedName = localStorage.getItem('myb_roster_selected_member');
+    const savedName = lsGet('myb_roster_selected_member');
     if (savedName) {
         const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
         if (idx !== -1) return idx;
         // savedName stored but not found — stale entry from a removed member
         _staleMemberName = savedName;
-        localStorage.removeItem('myb_roster_selected_member');
+        lsDel('myb_roster_selected_member');
         return getDefaultMemberIndex();
     }
     // No saved selection (fresh device) — auto-select from the admin session if present
     // so the logged-in staff member sees their own calendar without triggering a
     // member-switch cache clear when they pick themselves from the dropdown.
     try {
-        const sess = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
         if (sess?.name) {
             const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
             if (idx !== -1) {
@@ -534,7 +539,7 @@ function getSelectedMemberIndex() {
 // Save selected team member by name
 function saveSelectedMember(index) {
     if (index >= 0 && index < teamMembers.length) {
-        localStorage.setItem('myb_roster_selected_member', teamMembers[index].name);
+        lsSet('myb_roster_selected_member', teamMembers[index].name);
     }
 }
 
@@ -835,7 +840,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             dayCell.style.cursor = 'pointer';
             dayCell.addEventListener('click', () => {
                 try {
-                    const sess = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+                    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
                     if (sess && sess.name) {
                         window.location.href = `./paycalc.html?payday=${dateStr}`;
                     } else {
@@ -1170,8 +1175,8 @@ function renderCalendar() {
         document.title = `MYB Roster — ${monthNames[currentDisplayMonth]} ${currentDisplayYear}`;
 
         // Persist so the user returns to the same month after closing the app
-        localStorage.setItem('myb_roster_month', currentDisplayMonth);
-        localStorage.setItem('myb_roster_year',  currentDisplayYear);
+        lsSet('myb_roster_month', currentDisplayMonth);
+        lsSet('myb_roster_year',  currentDisplayYear);
 
         const calendarContainer = buildCalendarContainer(); // uses defaults
         calendarDisplay.innerHTML = '';
@@ -1327,7 +1332,7 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
 document.getElementById('payBtn').addEventListener('click', () => {
     try {
-        const session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+        const session = JSON.parse(lsGet('myb_admin_session') || 'null');
         if (session && session.name) {
             const m = String(currentDisplayMonth + 1).padStart(2, '0');
             window.location.href = `./paycalc.html?month=${currentDisplayYear}-${m}`;
@@ -1351,7 +1356,7 @@ document.getElementById('lightboxPrintBtn').addEventListener('click', () => {
     if (!strip) return;
     let session;
     try {
-        session = JSON.parse(localStorage.getItem('myb_admin_session') || 'null');
+        session = JSON.parse(lsGet('myb_admin_session') || 'null');
     } catch { session = null; }
     if (!session?.name) return; // Not logged in — hide the strip entirely
 
@@ -1461,7 +1466,7 @@ try {
         updateLegend();
 
         // Restore team view if the user was in it before the last refresh
-        if (localStorage.getItem('myb_team_view') === '1') {
+        if (lsGet('myb_team_view') === '1') {
             teamViewMode = true;
             applyTeamViewChrome();
             renderTeamView(currentTeamGrade);
@@ -2216,7 +2221,7 @@ async function ensureOverridesCached(year, month) {
         // localStorage is same-origin so always readable here, and is
         // the authoritative store until Firestore rules allow memberSettings writes.
         teamMembers.forEach(m => {
-            const local = localStorage.getItem(`faithCalendar_${m.name}`);
+            const local = lsGet(`faithCalendar_${m.name}`);
             if (local) {
                 const existing = memberSettingsCache.get(m.name) || {};
                 memberSettingsCache.set(m.name, { ...existing, faithCalendar: local });
@@ -2413,8 +2418,8 @@ function sanitiseHtml(html) {
         const reg   = await navigator.serviceWorker.ready;
         const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
         await savePushSubscription(fresh);
-        localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
-        localStorage.setItem(PROMPT_DISMISSED, '1');
+        lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
+        lsSet(PROMPT_DISMISSED, '1');
     }
 
     // Already granted — silently renew, checking for VAPID key rotation
@@ -2423,7 +2428,7 @@ function sanitiseHtml(html) {
             try {
                 const sub = await reg.pushManager.getSubscription();
                 if (!sub) return;
-                if (localStorage.getItem(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
+                if (lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
                     await sub.unsubscribe();
                     await subscribe();
                 } else {
@@ -2438,7 +2443,7 @@ function sanitiseHtml(html) {
 
     // Permission not yet asked — show one-off prompt unless already dismissed
     if (Notification.permission === 'denied') return;
-    if (localStorage.getItem(PROMPT_DISMISSED)) return;
+    if (lsGet(PROMPT_DISMISSED)) return;
 
     const prompt      = document.getElementById('notifPrompt');
     const enableBtn   = document.getElementById('notifPromptEnable');
@@ -2454,7 +2459,7 @@ function sanitiseHtml(html) {
         try {
             const perm = await Notification.requestPermission();
             if (perm === 'granted') await subscribe();
-            else localStorage.setItem(PROMPT_DISMISSED, '1');
+            else lsSet(PROMPT_DISMISSED, '1');
         } catch (err) {
             console.warn('[Notifications] Enable failed:', err.message);
         }
@@ -2462,7 +2467,7 @@ function sanitiseHtml(html) {
 
     dismissBtn.addEventListener('click', () => {
         hide();
-        localStorage.setItem(PROMPT_DISMISSED, '1');
+        lsSet(PROMPT_DISMISSED, '1');
     });
 })();
 

@@ -13,10 +13,15 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.40';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.40';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.40';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.40';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.41';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, uploadHuddle, savePushSubscription, deletePushSubscription, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.41';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.41';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.41';
+
+// Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
+function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
+function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -55,23 +60,23 @@ function getSurname(fullName) {
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
 if (new URLSearchParams(location.search).has('logout')) {
-    localStorage.removeItem(AUTH_KEY);
+    lsDel(AUTH_KEY);
     history.replaceState(null, '', location.pathname); // remove ?logout from URL
 }
 
 function getSession() {
     try {
-        const raw = localStorage.getItem(AUTH_KEY);
+        const raw = lsGet(AUTH_KEY);
         if (!raw) return null;
         const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { localStorage.removeItem(AUTH_KEY); return null; }
-        if ((s.ver || 1) < SESSION_VER) { localStorage.removeItem(AUTH_KEY); return null; }
+        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
+        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
         return s;
     } catch { return null; }
 }
 
 function saveSession(name) {
-    localStorage.setItem(AUTH_KEY, JSON.stringify({
+    lsSet(AUTH_KEY, JSON.stringify({
         name,
         ver:    SESSION_VER,
         expiry: Date.now() + SESSION_MS
@@ -79,7 +84,7 @@ function saveSession(name) {
 }
 
 function clearSession() {
-    localStorage.removeItem(AUTH_KEY);
+    lsDel(AUTH_KEY);
     firebaseSignOut(auth).catch(() => {}); // fire-and-forget
 }
 
@@ -126,7 +131,7 @@ function initLoginOverlay() {
     }
 
     // Restore last-used grade so returning users go straight to name → password
-    const savedGrade = localStorage.getItem(GRADE_KEY);
+    const savedGrade = lsGet(GRADE_KEY);
     if (savedGrade && GRADE_ORDER.includes(savedGrade)) {
         gradeSelect.value = savedGrade;
         populateNames(savedGrade);
@@ -171,7 +176,7 @@ function initLoginOverlay() {
             passwordInput.focus();
             return;
         }
-        localStorage.setItem(GRADE_KEY, gradeSelect.value);
+        lsSet(GRADE_KEY, gradeSelect.value);
         saveSession(name);
         // Authenticate with Firebase Auth so Firestore Security Rules can verify the session.
         // Must await before reloading — the page reload would otherwise cancel the async
@@ -503,12 +508,12 @@ roles.forEach(role => {
 
 // Restore last used member — prefer the shared cross-page key (written by both index and admin)
 // so navigating between pages keeps the same person selected. Fall back to admin-only key.
-const lastMember = localStorage.getItem('myb_roster_selected_member') || localStorage.getItem('adminLastMember');
+const lastMember = lsGet('myb_roster_selected_member') || lsGet('adminLastMember');
 if (lastMember && teamMembers.find(m => m.name === lastMember)) {
     fieldMember.value = lastMember;
     // Keep both keys in sync so the reverse journey (admin → index) always works
-    localStorage.setItem('adminLastMember', lastMember);
-    localStorage.setItem('myb_roster_selected_member', lastMember);
+    lsSet('adminLastMember', lastMember);
+    lsSet('myb_roster_selected_member', lastMember);
 }
 
 // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
@@ -956,8 +961,8 @@ saveBtn.addEventListener('click', async () => {
 fieldMember.addEventListener('change', () => {
     const chosen = fieldMember.value;
     const go = () => {
-        localStorage.setItem('adminLastMember', chosen);
-        localStorage.setItem('myb_roster_selected_member', chosen);
+        lsSet('adminLastMember', chosen);
+        lsSet('myb_roster_selected_member', chosen);
         alMember.value   = chosen;
         sickMember.value = chosen;
         syncMemberDisplay();
@@ -971,7 +976,7 @@ fieldMember.addEventListener('change', () => {
     };
     if (confirmNavigate(go)) { go(); return; }
     // Revert the dropdown to the previously selected member while the banner waits
-    fieldMember.value = localStorage.getItem('myb_roster_selected_member') || localStorage.getItem('adminLastMember') || '';
+    fieldMember.value = lsGet('myb_roster_selected_member') || lsGet('adminLastMember') || '';
 });
 let lastFieldDate = fieldDate.value;
 fieldDate.addEventListener('change', () => {
@@ -1005,8 +1010,8 @@ function handleEdit(e) {
         fieldMember.value = memberName;
         fieldDate.value   = date;
         lastFieldDate     = date;
-        localStorage.setItem('adminLastMember', memberName);
-        localStorage.setItem('myb_roster_selected_member', memberName);
+        lsSet('adminLastMember', memberName);
+        lsSet('myb_roster_selected_member', memberName);
         renderWeekGrid();
         document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
@@ -1430,8 +1435,8 @@ alMember.addEventListener('change', () => {
         sickMember.value   = alMember.value;
         syncMemberDisplay();
         syncSickMemberDisplay();
-        localStorage.setItem('adminLastMember', alMember.value);
-        localStorage.setItem('myb_roster_selected_member', alMember.value);
+        lsSet('adminLastMember', alMember.value);
+        lsSet('myb_roster_selected_member', alMember.value);
         renderWeekGrid();
         renderTable();
     }
@@ -2081,8 +2086,8 @@ document.getElementById('signOutBtn').addEventListener('click', () => {
 document.querySelector('.btn-back').addEventListener('click', e => {
     if (fieldDate.value) {
         const d = new Date(fieldDate.value + 'T12:00:00');
-        localStorage.setItem('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
-        localStorage.setItem('myb_roster_year',  d.getFullYear());
+        lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
+        lsSet('myb_roster_year',  d.getFullYear());
     }
     // Let the <a> navigate normally
 });
@@ -2098,8 +2103,8 @@ function applyPermissions() {
     alMember.disabled     = true;
     sickMember.value      = currentUser;
     sickMember.disabled   = true;
-    localStorage.setItem('adminLastMember', currentUser);
-    localStorage.setItem('myb_roster_selected_member', currentUser);
+    lsSet('adminLastMember', currentUser);
+    lsSet('myb_roster_selected_member', currentUser);
 
     // Reword card hints to use first-person language for self-service users
     const alHint   = document.querySelector('#alToggleHeader .hint');
@@ -2407,7 +2412,7 @@ if (overridesMonthFilter) {
     // Load the setting for the given member. Reads localStorage first (instant,
     // no network), then tries Firestore so a cross-device value can override.
     async function loadReligiousSetting(userName) {
-        const local = localStorage.getItem(`faithCalendar_${userName}`) || 'none';
+        const local = lsGet(`faithCalendar_${userName}`) || 'none';
         radios.forEach(r => { r.checked = (r.value === local); });
         updateDisclaimer(local);
         updateActiveTag(local);
@@ -2415,7 +2420,7 @@ if (overridesMonthFilter) {
             const snap  = await getDoc(doc(db, 'memberSettings', userName));
             if (snap.exists()) {
                 const value = resolveFaithCalendar(snap.data());
-                localStorage.setItem(`faithCalendar_${userName}`, value);
+                lsSet(`faithCalendar_${userName}`, value);
                 radios.forEach(r => { r.checked = (r.value === value); });
                 updateDisclaimer(value);
                 updateActiveTag(value);
@@ -2436,7 +2441,7 @@ if (overridesMonthFilter) {
             saved.classList.remove('visible', 'error');
             const target = fieldMember.value || currentUser;
             // localStorage always succeeds and is readable by index.html on the same device.
-            localStorage.setItem(`faithCalendar_${target}`, radio.value);
+            lsSet(`faithCalendar_${target}`, radio.value);
             saved.textContent = '✓ Saved';
             saved.classList.add('visible');
             saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
@@ -2505,19 +2510,19 @@ if (overridesMonthFilter) {
 
         // If the VAPID key has been rotated since this device subscribed, silently
         // unsubscribe and re-subscribe with the current key. Staff never see this happen.
-        if (perm === 'granted' && sub && localStorage.getItem(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
+        if (perm === 'granted' && sub && lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
             try {
                 await sub.unsubscribe();
                 sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
                 await savePushSubscription(sub);
-                localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
+                lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
                 console.log('[Notifications] Re-subscribed after VAPID key rotation');
             } catch (err) {
                 console.warn('[Notifications] VAPID key refresh failed:', err);
                 sub = null;
             }
         } else if (perm === 'granted' && sub) {
-            localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
+            lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
         }
 
         const active = perm === 'granted' && !!sub;
@@ -2551,7 +2556,7 @@ if (overridesMonthFilter) {
                     applicationServerKey: vapidKey(),
                 });
                 await savePushSubscription(sub);
-                localStorage.setItem(VAPID_VER_KEY, VAPID_FINGERPRINT);
+                lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
             }
         } catch (err) {
             console.warn('[Notifications] Enable failed:', err);
@@ -2728,7 +2733,7 @@ window.addEventListener('beforeprint', () => {
  * Firestore scan on every subsequent page load.
  */
 async function purgeSundayAL() {
-    if (localStorage.getItem('purgeSundayAL_done') === '1') return;
+    if (lsGet('purgeSundayAL_done') === '1') return;
     try {
         const snap = await getDocs(query(
             collection(db, 'overrides'),
@@ -2739,7 +2744,7 @@ async function purgeSundayAL() {
 
         if (toDelete.length === 0) {
             console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
-            localStorage.setItem('purgeSundayAL_done', '1');
+            lsSet('purgeSundayAL_done', '1');
             return;
         }
 
@@ -2749,7 +2754,7 @@ async function purgeSundayAL() {
 
         console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,
             toDelete.map(d => `${d.data().memberName} ${d.data().date}`));
-        localStorage.setItem('purgeSundayAL_done', '1');
+        lsSet('purgeSundayAL_done', '1');
 
         // Refresh the in-memory cache so Saved Changes reflects the cleanup
         const removedIds = new Set(toDelete.map(d => d.id));
