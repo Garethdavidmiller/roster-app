@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.41';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.42';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.41';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.42';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -233,8 +233,15 @@ export function buildWeekGridInto(container, dateStr) {
             _updateBulkSelCount();
         });
 
-        startEl.addEventListener('change', () => { row.classList.remove('prefilled-existing'); _markChanged(); updateSaveBtn(); });
-        endEl.addEventListener('change',   () => { row.classList.remove('prefilled-existing'); _markChanged(); updateSaveBtn(); });
+        // 'input' is needed alongside 'change' because the auto-format handler in
+        // _initTimeInputs() programmatically sets element.value on each keystroke.
+        // On Safari/WebKit this resets the browser's change-detection baseline, so
+        // 'change' never fires when focus leaves (current value == last programmatic value).
+        const onTimeEdit = () => { row.classList.remove('prefilled-existing'); _markChanged(); updateSaveBtn(); };
+        startEl.addEventListener('input',  onTimeEdit);
+        startEl.addEventListener('change', onTimeEdit);
+        endEl.addEventListener('input',    onTimeEdit);
+        endEl.addEventListener('change',   onTimeEdit);
     }
 }
 
