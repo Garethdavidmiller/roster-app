@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.37 -->
+<!-- MYB Roster — Pay Calculator v9.38 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.37">
+  <link rel="stylesheet" href="./shared.css?v=9.38">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -27,12 +27,12 @@
       --chip-bhot-bg:    #ab47bc;
       --chip-ot-bg:      #f57c00;
       --row-matched-bg:   rgba(46,125,50,0.07);
-      --row-matched-text: #2e7d32;
+      --row-matched-text: var(--success-green);
       --row-differs-bg:   rgba(245,124,0,0.07);
-      --conf-high-bg:       #e8f5e9;
-      --conf-high-text:     #2e7d32;
-      --conf-recorded-bg:   #e3f2fd;
-      --conf-recorded-text: #1565c0;
+      --conf-high-bg:       var(--success-green-bg);
+      --conf-high-text:     var(--success-green);
+      --conf-recorded-bg:   var(--blue-light);
+      --conf-recorded-text: var(--blue-sky);
       --conf-possible-bg:   #fff3e0;
       --conf-possible-text: #e65100;
     }
@@ -975,8 +975,8 @@
     font-size: var(--type-micro); font-weight: 600; padding: 2px 8px;
     border-radius: 99px; white-space: nowrap;
   }
-  .roster-state-badge.loaded    { background: #e8f5e9; color: #2e7d32; }
-  .roster-state-badge.checking  { background: #e3f2fd; color: #1565c0; }
+  .roster-state-badge.loaded    { background: var(--conf-high-bg);     color: var(--conf-high-text); }
+  .roster-state-badge.checking  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .roster-state-badge.base-only { background: #fff8e1; color: #f57f17; }
   .roster-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 8px; }
   .roster-row {
@@ -1087,11 +1087,11 @@
   }
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
   .hhmm-field input.roster-suggested {
-    background: #fffce6; border-color: var(--accent-gold);
+    background: var(--roster-suggested-bg); border-color: var(--accent-gold);
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.37">
+  <link rel="manifest" href="./pay-manifest.json?v=9.38">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1734,6 +1734,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.37"></script>
+<script type="module" src="./paycalc.js?v=9.38"></script>
 </body>
 </html>
