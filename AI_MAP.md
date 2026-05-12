@@ -17,7 +17,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Admin portal UI, login, AL/sick sections | `admin-app.js` + `admin.html` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
-| Roster PDF parsing (Cloud Function) | `functions/index.js` |
+| Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
 | Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
@@ -120,10 +120,24 @@ All CSS shared across the three pages.
 Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
 
 ### `functions/index.js`
-Three Cloud Functions:
+Three Cloud Functions (Firebase-dependent shell — pure logic lives in `roster-parse-helpers.js`):
 - `ingestHuddle` — Power Automate → Firebase Storage + Firestore
 - `parseRosterPDF` — admin upload → Claude AI → parsed shifts JSON
 - `setupRosterAuth` — creates Firebase Auth accounts for all roster members
+
+### `functions/roster-parse-helpers.js`
+Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with Node's built-in test runner.
+- `normaliseShift(raw)` — AI shift value → canonical app format (time, RDW pipe encoding, keywords)
+- `buildWeekDates(weekEnding)` — Saturday ISO date → 7-date array Sun–Sat
+- `extractAIJson(text)` — strips preamble/fences from AI response, returns parsed object
+- `HEADER_TO_INDEX` — day-name → week-index map (0 = Sunday)
+- `mapColumnHeadersToDates(headers, dates)` — returns `{ columnDates, error }` — validates and maps AI column headers to ISO dates
+- `buildSafeEntries(parsedMembers, headers, dates)` — fills missing AI day keys with 'RD', normalises values
+- `applySundayScanCorrections(entries, sundayScan, hasSundayCol, dates)` — fixes blank-Sunday misreads (Case A) and RDW stripping (Case B)
+- `huddleDayLabel(huddleDate, nowLondon)` — "Today's" / "Tomorrow's" / "Thursday's"
+- `isPayCutoffDay(date)` — mirrors isCutoffDate() from roster-data.js
+- `nameToEmail(fullName)` / `nameToPassword(fullName)` — Firebase Auth credential derivation
+- Covered by `roster-parse-helpers.test.mjs` (76 tests)
 
 ---
 

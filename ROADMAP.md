@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v9.22*
+*Last updated: May 2026 — v9.39*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -233,6 +233,27 @@ Each area is independent unless a dependency is noted.
 **If pursued:** React Native. Same JavaScript language, Firebase carries over, only the UI layer needs rewriting. Requires Apple Developer account ($99/year) and Google Play ($25).
 
 Do not build speculatively. The PWA works well for the current use case.
+
+---
+
+## Build tooling — Vite (not yet, but likely eventually)
+
+**Current state:** No bundler or build step. Source files are served directly to the browser — what you write is what loads. GitHub Actions deploys the source tree as-is.
+
+**Why this is a constraint:** `roster-data.js` is a browser ES module; `functions/index.js` is Node.js CommonJS. The two module systems cannot import from each other. This forces duplication of any data needed by both sides — most visibly `teamMembers` / `STAFF_NAMES` (currently duplicated between `roster-data.js` and the Cloud Function). A build step would allow a shared source file to be compiled into both targets.
+
+**When the threshold is "probably worth it":**
+- A second Cloud Function also needs roster data and the duplication becomes a real bug risk (e.g. a new staff member is added to `roster-data.js` but not the Cloud Function)
+- TypeScript adoption is desired (meaningfully improves safety across the larger files)
+- Bundle size starts affecting load time on staff phones
+
+**Recommended tool when the time comes: Vite**
+- Minimal config; native ES modules; good Firebase and PWA plugin support
+- Output looks very similar to what you write today — the transition is not bewildering
+- GitHub Actions workflow change: add `npm run build` before the Firebase Hosting deploy; point the deploy at the `dist/` output directory rather than the source root
+- Cloud Functions remain separate (they have their own `functions/package.json` and are not bundled by Vite)
+
+**Do not add a bundler speculatively.** The current no-build setup is the right call while the app is small enough that every file is readable without tooling. Add complexity when the pain of not having it is concrete.
 
 ---
 
