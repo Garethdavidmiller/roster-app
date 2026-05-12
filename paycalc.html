@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.38 -->
+<!-- MYB Roster — Pay Calculator v9.39 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.38">
+  <link rel="stylesheet" href="./shared.css?v=9.39">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -267,30 +267,16 @@
   }
 
   /* ── HELP LIGHTBOX ── */
-  #helpLightbox {
-    display: none; position: fixed; inset: 0;
-    background: rgba(0,10,20,0.82);
-    z-index: 8500;
-    align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.2s ease;
-    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-    cursor: pointer;
-  }
-  #helpLightbox.visible { display: flex; }
-  #helpLightbox.open    { opacity: 1; }
+  /* #helpLightbox uses .lb-overlay; unique: higher z-index for pay calc context */
+  #helpLightbox { z-index: 8500; }
   #helpLightboxContent {
-    position: relative;
     background: rgba(255,255,255,0.09);
     border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 20px; padding: 28px 24px 24px;
-    cursor: default;
-    transform: scale(0.88);
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    border-radius: 20px;
+    padding: 28px 24px 24px;
     width: min(340px, 88vw);
-    max-height: 78vh; overflow-y: auto;
-    -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    max-height: 78vh;
   }
-  #helpLightbox.open #helpLightboxContent { transform: scale(1); }
   .help-lightbox-title {
     color: white; font-size: 16px; font-weight: 700;
     margin-bottom: 14px; padding-right: 22px; line-height: 1.3;
@@ -311,13 +297,7 @@
     color: var(--accent-gold); font-weight: 800; font-size: 16px; line-height: 1.3;
   }
   .help-lightbox-list strong { color: rgba(255,255,255,0.92); font-weight: 700; }
-  #helpLightboxClose {
-    position: absolute; top: 14px; right: 16px;
-    background: none; border: none;
-    color: rgba(255,255,255,0.45); font-size: 22px;
-    cursor: pointer; padding: 6px; line-height: 1;
-    touch-action: manipulation; transition: color 0.15s ease;
-  }
+  #helpLightboxClose { color: rgba(255,255,255,0.45); }
   #helpLightboxClose:active { color: white; }
   @media (hover: hover) and (pointer: fine) {
     #helpLightboxClose:hover { color: white; }
@@ -756,40 +736,18 @@
     }
 
     /* ── WELCOME LIGHTBOX (first-time only) ─────────────────────────── */
-    /* Follows the same pattern as #iconLightbox in shared.css */
-    #welcomeLightbox {
-      display: none; position: fixed; inset: 0;
-      background: rgba(0, 10, 20, 0.82);
-      z-index: 9000;
-      align-items: center; justify-content: center;
-      opacity: 0; transition: opacity 0.2s ease;
-      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-      cursor: pointer;
-    }
-    #welcomeLightbox.visible { display: flex; }
-    #welcomeLightbox.open    { opacity: 1; }
+    /* Uses .lb-overlay / .lb-content / .lb-close — unique: higher z-index */
+    #welcomeLightbox { z-index: 9000; }
     #welcomeLightboxContent {
-      position: relative;
       display: flex; flex-direction: column; align-items: center; gap: 8px;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 24px; padding: 36px 40px 32px;
-      cursor: default;
-      transform: scale(0.85);
-      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
       width: min(300px, 85vw); text-align: center;
-      max-height: 80vh; overflow-y: auto;
-      -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+      max-height: 80vh;
+      transform: scale(0.85);
     }
-    #welcomeLightbox.open #welcomeLightboxContent { transform: scale(1); }
-    #welcomeLightboxClose {
-      position: absolute; top: 14px; right: 16px;
-      background: none; border: none; font-family: inherit;
-      color: rgba(255,255,255,0.45); font-size: 22px;
-      cursor: pointer; padding: 6px; line-height: 1;
-      touch-action: manipulation; transition: color 0.15s ease;
-      -webkit-tap-highlight-color: transparent;
-    }
+    #welcomeLightboxClose { color: rgba(255,255,255,0.45); }
     #welcomeLightboxClose:active { color: white; }
     @media (hover: hover) and (pointer: fine) {
       #welcomeLightboxClose:hover { color: white; }
@@ -1091,7 +1049,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.38">
+  <link rel="manifest" href="./pay-manifest.json?v=9.39">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1696,9 +1654,9 @@
 </div>
 
 <!-- Help lightbox: opened by ? buttons on each card -->
-<div id="helpLightbox" role="dialog" aria-modal="true" aria-labelledby="helpLightboxTitle">
-  <div id="helpLightboxContent">
-    <button id="helpLightboxClose" aria-label="Close">✕</button>
+<div id="helpLightbox" class="lb-overlay" role="dialog" aria-modal="true" aria-labelledby="helpLightboxTitle">
+  <div id="helpLightboxContent" class="lb-content">
+    <button id="helpLightboxClose" class="lb-close" aria-label="Close">✕</button>
     <div class="help-lightbox-title" id="helpLightboxTitle"></div>
     <ul class="help-lightbox-list" id="helpLightboxList"></ul>
   </div>
@@ -1722,9 +1680,9 @@
 
 
 <!-- Welcome lightbox — shown on first-ever visit to the pay calculator; never shown again after close -->
-<div id="welcomeLightbox" role="dialog" aria-label="Welcome to Pay Calculator" aria-modal="true">
-  <div id="welcomeLightboxContent">
-  <button id="welcomeLightboxClose" aria-label="Close">✕</button>
+<div id="welcomeLightbox" class="lb-overlay" role="dialog" aria-label="Welcome to Pay Calculator" aria-modal="true">
+  <div id="welcomeLightboxContent" class="lb-content">
+  <button id="welcomeLightboxClose" class="lb-close" aria-label="Close">✕</button>
     <div class="welcome-emoji">💷</div>
     <div class="lightbox-app-name">Pay Calculator</div>
     <div class="welcome-grade-badge" id="welcomeGradeBadge">CEA &amp; CES grade</div>
@@ -1734,6 +1692,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.38"></script>
+<script type="module" src="./paycalc.js?v=9.39"></script>
 </body>
 </html>

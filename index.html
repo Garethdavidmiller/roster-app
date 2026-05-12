@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.38 -->
+<!-- MYB Roster Calendar - Version 9.39 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.38">
+    <link rel="manifest" href="manifest.json?v=9.39">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,7 +26,7 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.38">
+    <link rel="stylesheet" href="shared.css?v=9.39">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1404,53 +1404,16 @@
         .tv-sick  { background: var(--absence-light); }
 
         /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
-        #teamInfoLightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 10, 20, 0.82);
-            -webkit-backdrop-filter: blur(6px);
-            backdrop-filter: blur(6px);
-            z-index: 8000;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-        }
-        #teamInfoLightbox.visible { display: flex; }
-        #teamInfoLightbox.open    { opacity: 1; }
+        /* #teamInfoLightbox uses .lb-overlay — no unique properties */
         #teamInfoContent {
-            position: relative;
             background: rgba(255, 255, 255, 0.09);
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 20px;
             padding: 28px 24px 24px;
-            cursor: default;
-            transform: scale(0.88);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             width: min(340px, 88vw);
             max-height: 78vh;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
         }
-        #teamInfoLightbox.open #teamInfoContent { transform: scale(1); }
-        #teamInfoClose {
-            position: absolute;
-            top: 14px;
-            right: 16px;
-            background: none;
-            border: none;
-            color: rgba(255, 255, 255, 0.45);
-            font-size: 22px;
-            line-height: 1;
-            cursor: pointer;
-            padding: 6px;
-            touch-action: manipulation;
-            transition: color 0.15s;
-            font-family: inherit;
-        }
+        #teamInfoClose { color: rgba(255, 255, 255, 0.45); }
         @media (hover: hover) and (pointer: fine) {
             #teamInfoClose:hover { color: white; }
         }
@@ -1820,6 +1783,7 @@
             .badge-night {
                 background: var(--night) !important;
                 color: white !important;
+                border: none !important;
             }
 
             .badge-spare {
@@ -1834,6 +1798,16 @@
 
             .badge-al {
                 background: var(--al) !important;
+                color: white !important;
+            }
+
+            .badge-rest {
+                background: var(--charcoal) !important;
+                color: white !important;
+            }
+
+            .badge-sick {
+                background: var(--absence) !important;
                 color: white !important;
             }
 
@@ -1998,25 +1972,8 @@
             margin-top: -12px;
         }
         /* ---- Annual Leave lightbox ---- */
-        #alLightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 10, 20, 0.82);
-            z-index: 8000;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            -webkit-backdrop-filter: blur(6px);
-            backdrop-filter: blur(6px);
-            cursor: pointer;
-        }
-        #alLightbox.visible { display: flex; }
-        #alLightbox.open    { opacity: 1; }
-
+        /* #alLightbox uses .lb-overlay — no unique properties */
         #alLightboxContent {
-            position: relative;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -2025,28 +1982,11 @@
             border: 1px solid rgba(255,255,255,0.15);
             border-radius: 24px;
             padding: 32px 20px 28px;
-            cursor: default;
-            transform: scale(0.85);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             width: min(340px, 92vw);
             text-align: center;
-            -webkit-overflow-scrolling: touch;
-            overscroll-behavior: contain;
+            transform: scale(0.85);
         }
-        #alLightbox.open #alLightboxContent { transform: scale(1); }
-
-        #alLightboxClose {
-            position: absolute;
-            top: 14px;
-            right: 14px;
-            color: rgba(255,255,255,0.5);
-            font-size: 22px;
-            line-height: 1;
-            cursor: pointer;
-            padding: 6px;
-            transition: color 0.15s ease;
-            -webkit-tap-highlight-color: transparent;
-        }
+        #alLightboxClose { color: rgba(255,255,255,0.5); }
         @media (hover: hover) and (pointer: fine) {
             #alLightboxClose:hover { color: white; }
         }
@@ -2201,35 +2141,16 @@
         }
 
         /* ---- Month/year jump picker overlay ---- */
-        #monthJumpOverlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 10, 20, 0.82);
-            z-index: 7000;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.18s ease;
-            -webkit-backdrop-filter: blur(6px);
-            backdrop-filter: blur(6px);
-            cursor: pointer;
-        }
-        #monthJumpOverlay.visible { display: flex; }
-        #monthJumpOverlay.open    { opacity: 1; }
-
+        /* #monthJumpOverlay uses .lb-overlay; unique: lower z-index, slightly faster fade */
+        #monthJumpOverlay { z-index: 7000; transition: opacity 0.18s ease; }
         #monthJumpCard {
             background: white;
             border-radius: 20px;
             padding: 24px 28px 20px;
             min-width: 260px;
-            cursor: default;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-            transform: scale(0.88);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             text-align: center;
         }
-        #monthJumpOverlay.open #monthJumpCard { transform: scale(1); }
 
         #monthJumpCard h2 {
             font-size: 15px;
@@ -2387,9 +2308,9 @@
 
     <!-- Icon lightbox / about panel — shown when the header icon is tapped.
          Shows app name, version, and live update status. -->
-    <div id="iconLightbox" role="dialog" aria-label="About MYB Roster" aria-modal="true">
-        <div id="iconLightboxContent">
-        <button id="iconLightboxClose" aria-label="Close">✕</button>
+    <div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About MYB Roster" aria-modal="true">
+        <div id="iconLightboxContent" class="lb-content">
+        <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
             <img src="icon-192.png" alt="Chiltern Railways app icon">
             <div class="lightbox-app-name">Marylebone Roster</div>
             <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
@@ -2420,9 +2341,9 @@
     </div>
 
     <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
-    <div id="alLightbox" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
-        <div id="alLightboxContent">
-        <span id="alLightboxClose" aria-label="Close">✕</span>
+    <div id="alLightbox" class="lb-overlay" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
+        <div id="alLightboxContent" class="lb-content">
+        <span id="alLightboxClose" class="lb-close" aria-label="Close">✕</span>
             <div class="al-lb-icon">🏖️</div>
             <div class="al-lb-title">Annual Leave</div>
             <div class="al-lb-year" id="alLbYear"></div>
@@ -2450,8 +2371,8 @@
     </div>
 
     <!-- Month/year jump picker — opened by tapping the month-year heading -->
-    <div id="monthJumpOverlay" role="dialog" aria-label="Jump to month" aria-modal="true">
-        <div id="monthJumpCard" role="document">
+    <div id="monthJumpOverlay" class="lb-overlay" role="dialog" aria-label="Jump to month" aria-modal="true">
+        <div id="monthJumpCard" class="lb-content" role="document">
             <h2>Jump to month</h2>
             <div class="month-jump-selects">
                 <select id="monthJumpMonth" aria-label="Month"></select>
@@ -2465,9 +2386,9 @@
     </div>
 
     <!-- Team view help lightbox — opened by the ? button -->
-    <div id="teamInfoLightbox" role="dialog" aria-label="Team Week View — help" aria-modal="true">
-        <div id="teamInfoContent">
-            <button id="teamInfoClose" aria-label="Close">✕</button>
+    <div id="teamInfoLightbox" class="lb-overlay" role="dialog" aria-label="Team Week View — help" aria-modal="true">
+        <div id="teamInfoContent" class="lb-content">
+            <button id="teamInfoClose" class="lb-close" aria-label="Close">✕</button>
             <div class="team-help-title">👥 Team Week View</div>
             <ul class="team-help-list">
                 <li class="touch-only">Swipe the table left and right to see all 7 days</li>
@@ -2615,7 +2536,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.38"></script>
+    <script type="module" src="./app.js?v=9.39"></script>
 
 </body>
 </html>
