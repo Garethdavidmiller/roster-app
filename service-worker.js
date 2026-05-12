@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.40
+// MYB Roster — Service Worker v9.41
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.40';
+const APP_VERSION = '9.41';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -115,12 +115,13 @@ self.addEventListener("fetch", event => {
 
     if (isNetworkFirst) {
         // Network-first: fetch fresh (bypassing browser HTTP cache), update SW cache,
-        // fall back to cached copy if offline or the network hangs past 5 seconds.
+        // fall back to cached copy if offline or the network hangs past 2 seconds.
         // AbortController ensures the underlying fetch is actually cancelled on timeout
         // rather than completing silently in the background and writing stale data to cache.
         // Feature-detected: AbortController throws in service workers on iOS < 15.1.
+        // 2 s timeout: fast enough for 4G, short enough to serve cache quickly on poor signal.
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        const timeoutId  = controller ? setTimeout(() => controller.abort(), 5000) : null;
+        const timeoutId  = controller ? setTimeout(() => controller.abort(), 2000) : null;
         const fetchOpts  = controller ? { cache: 'no-store', signal: controller.signal } : { cache: 'no-store' };
         event.respondWith(
             fetch(event.request, fetchOpts)
