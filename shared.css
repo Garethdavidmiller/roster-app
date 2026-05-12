@@ -218,12 +218,15 @@ body {
 }
 
 /* ============================================================
-   ICON / ABOUT LIGHTBOX
-   Both pages show the same "About MYB Roster" panel when the
-   app icon is tapped. Page-specific additions (index: SW status
-   + tips; admin: role badge) live in each page's own <style>.
+   LIGHTBOX / MODAL BASE CLASSES
+   Structural rules shared by all floating overlays:
+     #iconLightbox, #tipsLightbox, #alLightbox, #teamInfoLightbox,
+     #helpLightbox, #monthJumpOverlay.
+   Add lb-overlay / lb-content / lb-close to the HTML element.
+   Keep theme-specific rules (colours, width, border-radius,
+   z-index overrides) in the element's own ID selector.
    ============================================================ */
-#iconLightbox {
+.lb-overlay {
     display: none;
     position: fixed;
     inset: 0;
@@ -237,13 +240,50 @@ body {
     backdrop-filter: blur(6px);
     cursor: pointer;
 }
+.lb-overlay.visible { display: flex; }
+.lb-overlay.open    { opacity: 1; }
 
-#iconLightbox.visible { display: flex; }
-#iconLightbox.open    { opacity: 1; }
-
-/* Content card — sits above the overlay, not clickable-through */
-#iconLightboxContent {
+/* Content panel — structural positioning and open animation.    */
+/* Theme: colours, padding, border-radius, width stay in ID.     */
+.lb-content {
     position: relative;
+    cursor: default;
+    transform: scale(0.88);
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
+.lb-overlay.open .lb-content { transform: scale(1); }
+
+/* Close button — structural only; colour stays in each ID. */
+.lb-close {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: none;
+    border: none;
+    -webkit-appearance: none;
+    font-family: inherit;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 6px;
+    transition: color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+/* ============================================================
+   ICON / ABOUT LIGHTBOX
+   Both pages show the same "About MYB Roster" panel when the
+   app icon is tapped. Page-specific additions (index: SW status
+   + tips; admin: role badge) live in each page's own <style>.
+   Uses .lb-overlay / .lb-content / .lb-close for structure.
+   ============================================================ */
+
+/* Content card — theme only; structural rules from .lb-content */
+#iconLightboxContent {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -252,19 +292,10 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 24px;
     padding: 36px 40px 32px;
-    cursor: default;
-    transform: scale(0.85);
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     width: min(300px, 85vw);
     text-align: center;
     max-height: 80vh;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-}
-
-#iconLightbox.open #iconLightboxContent {
-    transform: scale(1);
+    transform: scale(0.85);
 }
 
 /* Enlarged app icon */
@@ -342,25 +373,8 @@ body {
     text-align: center;
 }
 
-/* Close button — positioned absolute over the overlay.
-   Doubles as <button> reset so admin and paycalc (which use <button>) render without
-   default browser chrome. index.html currently uses <span> — no harm having extra resets. */
-#iconLightboxClose {
-    position: absolute;
-    top: 14px;
-    right: 14px;
-    background: none;
-    border: none;
-    -webkit-appearance: none;
-    font-family: inherit;
-    color: rgba(255,255,255,0.5);
-    font-size: 22px;
-    line-height: 1;
-    cursor: pointer;
-    padding: 6px;
-    transition: color 0.15s ease;
-    -webkit-tap-highlight-color: transparent;
-}
+/* Close button — colour only; structural rules from .lb-close */
+#iconLightboxClose { color: rgba(255,255,255,0.5); }
 
 @media (hover: hover) and (pointer: fine) {
     #iconLightboxClose:hover { color: white; }

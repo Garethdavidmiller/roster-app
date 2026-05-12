@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.38 -->
+<!-- MYB Roster Admin v9.39 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.38">
+    <link rel="manifest" href="manifest.json?v=9.39">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.38">
+    <link rel="stylesheet" href="shared.css?v=9.39">
 
     <style>
         body {
@@ -66,40 +66,17 @@
         @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
 
         /* ---- Tips lightbox ---- */
-        #tipsLightbox {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,10,20,0.82);
-            z-index: 8000;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            -webkit-backdrop-filter: blur(6px);
-            backdrop-filter: blur(6px);
-            cursor: pointer;
-        }
-        #tipsLightbox.visible { display: flex; }
-        #tipsLightbox.open    { opacity: 1; }
-
+        /* #tipsLightbox uses .lb-overlay; unique: extra padding for white-card feel */
+        #tipsLightbox { padding: 20px; }
         #tipsLightboxContent {
-            position: relative;
             background: white;
             border-radius: var(--radius-lg);
             padding: 28px 28px 24px;
             max-width: 360px;
             width: 100%;
             max-height: 85vh;
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            cursor: default;
-            transform: scale(0.88);
-            transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
             box-shadow: var(--shadow-3);
         }
-        #tipsLightbox.open #tipsLightboxContent { transform: scale(1); }
 
         .tips-lb-title {
             font-size: 17px;
@@ -127,18 +104,7 @@
         }
         .tips-lb-item:last-child { border-bottom: none; }
         .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
-        #tipsLightboxClose {
-            position: absolute;
-            top: 14px;
-            right: 14px;
-            color: rgba(0,0,0,0.35);
-            font-size: 22px;
-            cursor: pointer;
-            padding: 6px;
-            line-height: 1;
-            transition: color 0.15s ease;
-            -webkit-tap-highlight-color: transparent;
-        }
+        #tipsLightboxClose { color: rgba(0,0,0,0.35); }
         @media (hover: hover) and (pointer: fine) {
             #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
         }
@@ -2249,6 +2215,16 @@
                 margin-top: 3px;
                 color: #444;
             }
+
+            /* Shift badge colours — ensure they print with background */
+            .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
+            .badge-early { background: var(--orange)    !important; color: white !important; }
+            .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
+            .badge-night { background: var(--night)     !important; color: white !important; border: none !important; }
+            .badge-spare { background: var(--purple)    !important; color: white !important; }
+            .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
+            .badge-al    { background: var(--al)        !important; color: white !important; }
+            .badge-sick  { background: var(--absence)   !important; color: white !important; }
         }
     </style>
 </head>
@@ -2292,17 +2268,17 @@
 </div>
 
 <!-- Lightbox — tap the header icon to open -->
-<div id="tipsLightbox" role="dialog" aria-label="Tips" aria-modal="true">
-    <div id="tipsLightboxContent">
-    <span id="tipsLightboxClose" aria-label="Close">✕</span>
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+    <span id="tipsLightboxClose" class="lb-close" aria-label="Close">✕</span>
         <div class="tips-lb-title" id="tipsLbTitle"></div>
         <div id="tipsLbBody"></div>
     </div>
 </div>
 
-<div id="iconLightbox" role="dialog" aria-label="About MYB Roster" aria-modal="true">
-    <div id="iconLightboxContent">
-    <button id="iconLightboxClose" aria-label="Close">✕</button>
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About MYB Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+    <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
         <img src="icon-192.png" alt="Chiltern Railways app icon">
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
@@ -2774,6 +2750,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.38"></script>
+<script type="module" src="./admin-app.js?v=9.39"></script>
 </body>
 </html>

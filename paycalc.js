@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.38';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.39';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.38';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.38';
+} from './paycalc-calc.js?v=9.39';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.39';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
