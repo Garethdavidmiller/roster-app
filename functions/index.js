@@ -28,6 +28,19 @@ const crypto            = require('crypto');
 const { Anthropic }     = require('@anthropic-ai/sdk');
 const mammoth           = require('mammoth');
 const webpush           = require('web-push');
+const {
+    normaliseShift,
+    buildWeekDates,
+    extractAIJson,
+    HEADER_TO_INDEX,
+    mapColumnHeadersToDates,
+    buildSafeEntries,
+    applySundayScanCorrections,
+    huddleDayLabel,
+    isPayCutoffDay,
+    nameToEmail,
+    nameToPassword,
+} = require('./roster-parse-helpers');
 
 admin.initializeApp();
 
@@ -279,20 +292,8 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     );
 
     // Build smart day label — compare huddle date to today in London timezone
-    const nowLondon   = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-    const todayMs     = Date.UTC(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
-    const parts       = huddleDate.split('-').map(Number); // [YYYY, MM, DD]
-    const huddleMs    = Date.UTC(parts[0], parts[1] - 1, parts[2]);
-    const diffDays    = Math.round((huddleMs - todayMs) / 86_400_000);
-
-    let dayLabel;
-    if (diffDays === 0)      dayLabel = "Today's";
-    else if (diffDays === 1) dayLabel = "Tomorrow's";
-    else {
-        const dayName = new Intl.DateTimeFormat('en-GB', { weekday: 'long', timeZone: 'Europe/London' })
-            .format(new Date(huddleDate + 'T12:00:00Z'));
-        dayLabel = `${dayName}'s`;
-    }
+    const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    const dayLabel  = huddleDayLabel(huddleDate, nowLondon);
 
     const payload = JSON.stringify({
         title: 'Marylebone Roster',
@@ -399,24 +400,6 @@ exports.sendPayReminderNotification = onSchedule(
         console.log(`[payReminder] Notified ${snapshot.size} device(s)`);
     }
 );
-
-/**
- * Returns true if the given date is a pay cutoff day (Saturday before payday).
- * Mirrors isCutoffDate() in roster-data.js. FIRST_PAYDAY and INTERVAL_DAYS
- * must be kept in sync with CONFIG in roster-data.js.
- * @param {Date} date - midnight local date to check
- */
-function isPayCutoffDay(date) {
-    const FIRST_PAYDAY_MS = new Date(2026, 1, 13, 12, 0, 0).getTime(); // 13 Feb 2026
-    const INTERVAL_DAYS   = 28;
-    const MS_PER_DAY      = 86_400_000;
-    // Cutoff is 6 days before payday (Saturday before a Friday)
-    const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
-    candidate.setHours(12, 0, 0, 0);
-    const diff = candidate.getTime() - FIRST_PAYDAY_MS;
-    if (diff < 0) return false;
-    return Math.round(diff / MS_PER_DAY) % INTERVAL_DAYS === 0;
-}
 
 // ============================================================================
 // parseRosterPDF
@@ -560,14 +543,7 @@ exports.parseRosterPDF = onRequest(
 
         // ---- Build the 7 dates for this week (Sun → Sat) ----
         // weekEnding is always a Saturday (validated above).
-        // Subtract 6 days to get Sunday, then work forward to Saturday.
-        const weekEndDate = new Date(weekEnding + 'T12:00:00Z');
-        const dates = [];
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(weekEndDate);
-            d.setUTCDate(d.getUTCDate() - i);
-            dates.push(d.toISOString().slice(0, 10));
-        }
+        const dates = buildWeekDates(weekEnding);
         // dates[0] = Sunday, dates[6] = Saturday (= weekEnding)
 
         // ---- Build the staff name list relevant to this roster type ----
@@ -745,14 +721,8 @@ Every column header must appear as a key in every member object.`;
             const responseText = message.content[0]?.text || '';
             console.log(`[parseRosterPDF] Claude response length: ${responseText.length}`);
 
-            // Extract the JSON object robustly — find the first { and last } so any
-            // preamble, markdown fences, or trailing text is safely stripped.
-            const start = responseText.indexOf('{');
-            const end   = responseText.lastIndexOf('}');
-            if (start === -1 || end === -1 || end <= start) {
-                throw new SyntaxError('No JSON object found in AI response');
-            }
-            parsed = JSON.parse(responseText.slice(start, end + 1));
+            // Extract the JSON object robustly — strips any preamble, fences, or trailing text.
+            parsed = extractAIJson(responseText);
 
         } catch (err) {
             console.error('[parseRosterPDF] Claude AI call failed:', err.message);
@@ -776,82 +746,18 @@ Every column header must appear as a key in every member object.`;
         // ---- Map columnHeaders to dates (server owns all date assignment) ----
         // The AI only reads column headers left-to-right and cell values left-to-right.
         // The server maps "Mon" → dates[1], "Sun" → dates[0], etc.
-        // This removes date assignment from the AI entirely, closing the root cause of
-        // day-column misalignment bugs.
-        const HEADER_TO_INDEX = {
-            'sun': 0, 'sunday': 0,
-            'mon': 1, 'monday': 1,
-            'tue': 2, 'tues': 2, 'tuesday': 2,
-            'wed': 3, 'weds': 3, 'wednesday': 3,
-            'thu': 4, 'thur': 4, 'thurs': 4, 'thursday': 4,
-            'fri': 5, 'friday': 5,
-            'sat': 6, 'saturday': 6,
-        };
-
-        const columnDates = [];
-        for (const header of parsed.columnHeaders) {
-            const key = String(header).trim().toLowerCase();
-            // Try full key first, then first-3-chars abbreviation
-            const dayIndex = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
-            if (dayIndex === undefined) {
-                console.error(`[parseRosterPDF] Unrecognised column header: "${header}"`);
-                res.status(502).json({ error: `The AI returned an unrecognised column header: "${header}". Please try again.` });
-                return;
-            }
-            columnDates.push(dates[dayIndex]);
-        }
-
-        // Reject duplicate day columns (e.g. two "Mon" headers)
-        if (new Set(columnDates).size !== columnDates.length) {
-            console.error('[parseRosterPDF] Duplicate day columns in columnHeaders');
-            res.status(502).json({ error: 'The AI returned duplicate day columns — please try again.' });
+        const { columnDates, error: colError } = mapColumnHeadersToDates(parsed.columnHeaders, dates);
+        if (colError) {
+            console.error(`[parseRosterPDF] Column mapping error: ${colError}`);
+            res.status(502).json({ error: colError });
             return;
         }
 
         console.log(`[parseRosterPDF] Columns: ${parsed.columnHeaders.join(', ')} → ${columnDates.join(', ')}`);
 
         // ---- Build safe entries — map named day keys to dated shifts ----
-        // The AI returns each member as an object with day-name keys (e.g. "Sun": "RD")
-        // rather than a position-indexed array. This makes blank-cell omission structurally
-        // much harder: the AI must write "Sun": before deciding the value, which forces it
-        // to acknowledge the column. Any key the AI still omits is filled with "RD" here
-        // (blank = RD by definition), so a missing key is corrected rather than fatal.
-        const safeEntries = [];
-        for (const entry of parsed.parsed) {
-            if (typeof entry.memberName !== 'string' || !entry.memberName.trim()) continue;
-
-            // All dates default to RD first — covers any day not mentioned by the AI
-            const shifts = {};
-            for (const date of dates) shifts[date] = 'RD';
-
-            const missingKeys = [];
-            for (let i = 0; i < parsed.columnHeaders.length; i++) {
-                const header    = parsed.columnHeaders[i];
-                const key       = String(header).trim().toLowerCase();
-                const dayIndex  = HEADER_TO_INDEX[key] ?? HEADER_TO_INDEX[key.slice(0, 3)];
-                if (dayIndex === undefined) continue; // unrecognised header already caught above
-
-                const date  = dates[dayIndex];
-                const raw   = entry[header];              // named key lookup
-                const value = (raw !== undefined && raw !== null && String(raw).trim() !== '')
-                    ? String(raw).trim()
-                    : 'RD';
-
-                if (raw === undefined || raw === null || String(raw).trim() === '') {
-                    missingKeys.push(header);
-                }
-
-                shifts[date] = normaliseShift(value);
-            }
-
-            if (missingKeys.length > 0) {
-                // Log the gap but continue — filling with RD is always safe because
-                // blank cells on this roster always mean rest day.
-                console.warn(`[parseRosterPDF] ${entry.memberName}: AI omitted key(s) [${missingKeys.join(', ')}] — filled with RD`);
-            }
-
-            safeEntries.push({ memberName: entry.memberName.trim(), shifts });
-        }
+        // Any missing key is filled with 'RD' (blank = rest day by definition).
+        const safeEntries = buildSafeEntries(parsed.parsed, parsed.columnHeaders, dates);
 
         if (safeEntries.length === 0) {
             res.status(502).json({ error: 'The AI found no recognisable staff members — check the roster type is correct and try again' });
@@ -859,41 +765,9 @@ Every column header must appear as a key in every member object.`;
         }
 
         // ---- Post-processing: validate Sunday values using sundayScan ----
-        // The AI commits to what it sees in each Sunday cell via the sundayScan field
-        // before producing the full parsed output. This lets the server catch two failure
-        // modes that are otherwise indistinguishable:
-        //   A) Blank Sunday misread as Monday — sundayScan says "blank" but parsed has a time
-        //   B) Worked Sunday with RDW stripped — sundayScan says "RDW HH:MM" but parsed has plain time
-        //
-        // Both are corrected here. Without sundayScan, these cases look identical (Sun = Mon value)
-        // so any heuristic that uses Sun=Mon equality causes false positives on genuine Sunday shifts.
+        // Catches blank-misread-as-Monday (Case A) and RDW-stripped (Case B).
         const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
-        if (parsed.sundayScan && typeof parsed.sundayScan === 'object' && hasSundayColumn && dates.length >= 2) {
-            const sunDate    = dates[0]; // Sunday is always index 0
-            const isPlainTime = v => /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(v);
-
-            for (const entry of safeEntries) {
-                const scanRaw = parsed.sundayScan[entry.memberName];
-                if (scanRaw === undefined || scanRaw === null) continue;
-
-                const scanStr  = String(scanRaw).trim().toUpperCase();
-                const sunShift = entry.shifts[sunDate];
-
-                // Case A: scan says this Sunday was blank but parsed has a plain time → blank misread
-                const isBlank = ['BLANK', '', 'RD', 'EMPTY', '-', 'N/A', 'NA'].includes(scanStr);
-                if (isBlank && isPlainTime(sunShift)) {
-                    console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (blank) but parsed Sunday="${sunShift}" — correcting to RD`);
-                    entry.shifts[sunDate] = 'RD';
-                    continue;
-                }
-
-                // Case B: scan says this Sunday was an RDW shift but AI stripped the RDW prefix
-                if (scanStr.includes('RDW') && isPlainTime(sunShift)) {
-                    console.warn(`[parseRosterPDF] ${entry.memberName}: sundayScan="${scanRaw}" (RDW) but parsed Sunday="${sunShift}" (plain time) — adding RDW prefix`);
-                    entry.shifts[sunDate] = `RDW|${sunShift}`;
-                }
-            }
-        }
+        applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
 
         console.log(`[parseRosterPDF] Returning ${safeEntries.length} parsed members for week ${weekEnding}`);
 
@@ -906,79 +780,7 @@ Every column header must appear as a key in every member object.`;
     }
 );
 
-/**
- * Normalise a shift value returned by the AI into the canonical app format.
- *
- * Handles common variations:
- *   "0530-1130"   → "05:30-11:30"
- *   "05:30-11:30" → "05:30-11:30"  (already correct)
- *   "05.30-11.30" → "05:30-11:30"
- *   "RD", "AL", "SPARE", "SICK" → unchanged (uppercase)
- *   "RDW" → should not appear (prompt instructs AI to return the time instead)
- *
- * @param {string} raw - Shift value from Claude AI
- * @returns {string}   - Normalised shift value
- */
-function normaliseShift(raw) {
-    if (typeof raw !== 'string') return 'RD';
-    const s = raw.trim().toUpperCase();
-
-    // Normalise "SP" → "SPARE" (prompt says both are valid in source PDFs)
-    if (s === 'SP') return 'SPARE';
-
-    // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00"
-    // The pipe-separated format carries both the RDW flag and the time through the
-    // review pipeline so RDW is identified correctly regardless of the base shift
-    // (e.g. a SPARE week where baseShift is not 'RD').
-    const rdwMatch = s.match(/^RDW\s+(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
-    if (rdwMatch) return `RDW|${rdwMatch[1]}:${rdwMatch[2]}-${rdwMatch[3]}:${rdwMatch[4]}`;
-
-    // Known keyword values — return as-is
-    // OFF is treated as RD by the app; keeping both here so either passes through cleanly.
-    // Plain "RDW" (no time) is kept as sentinel in case the AI ignores the format instruction.
-    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK', 'RDW'].includes(s)) return s;
-
-    // Try to match a plain time range: four digits, separator, four digits
-    // Covers "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130"
-    const match = s.match(/^(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
-    if (match) {
-        return `${match[1]}:${match[2]}-${match[3]}:${match[4]}`;
-    }
-
-    // Unrecognised — default to RD rather than storing garbage
-    console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
-    return 'RD';
-}
-
 // ── Firebase Auth account setup ──────────────────────────────────────────────
-
-/**
- * Derive the Firebase Auth email from a teamMembers display name.
- * Must stay in sync with nameToEmail() in firebase-client.js.
- *
- * @param {string} fullName - e.g. "G. Miller" → "g.miller@myb-roster.local"
- */
-function nameToEmail(fullName) {
-    const parts   = fullName.split(' ');
-    const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
-    const surname = parts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-    return `${initial}.${surname}@myb-roster.local`;
-}
-
-/**
- * Derive the Firebase Auth password from a teamMembers display name.
- * Firebase requires a minimum of 6 characters, so short surnames are padded
- * by repeating the surname until it reaches 6 chars (e.g. "tuck" → "tucktu").
- * Staff never type this into Firebase directly — the localStorage login uses
- * the raw surname. Both createUser and signInWithEmailAndPassword must use
- * this same function so the password always matches.
- *
- * @param {string} fullName - e.g. "G. Miller" → "miller", "N. Tuck" → "tucktu"
- */
-function nameToPassword(fullName) {
-    const surname = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-    return surname.length >= 6 ? surname : surname.padEnd(6, surname);
-}
 
 /**
  * POST /setupRosterAuth

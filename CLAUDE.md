@@ -116,15 +116,17 @@ roster-app/
 ├── roster-data.test.mjs    ← Node test runner tests for roster-data.js (bank holidays, paydays, AL, etc.)
 ├── paycalc.test.mjs        ← Node test runner tests for paycalc-calc.js (tax, NI, gross)
 ├── paycalc-roster-suggestions.test.mjs ← Node test runner tests for paycalc-roster-suggestions.js. Requires --experimental-test-module-mocks to mock firebase-client.js
+├── roster-parse-helpers.test.mjs ← Node test runner tests for functions/roster-parse-helpers.js (normaliseShift, buildWeekDates, mapColumnHeadersToDates, isPayCutoffDay, etc.)
 └── functions/
-    ├── index.js            ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF + setupRosterAuth
-    └── package.json        ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
+    ├── index.js                  ← Firebase Cloud Functions: ingestHuddle + parseRosterPDF + setupRosterAuth (Firebase-dependent shell only)
+    ├── roster-parse-helpers.js   ← Pure helper functions extracted from index.js: normaliseShift, buildWeekDates, extractAIJson, mapColumnHeadersToDates, buildSafeEntries, applySundayScanCorrections, huddleDayLabel, isPayCutoffDay, nameToEmail, nameToPassword. No Firebase — testable with Node test runner.
+    └── package.json              ← Node 20; firebase-admin, firebase-functions, @anthropic-ai/sdk
 ```
 
 **Running all tests:** Always use the combined command — `--experimental-test-module-mocks` is required by `paycalc-roster-suggestions.test.mjs` and is harmless for the others. Running plain `node --test` will fail on that file.
 
 ```
-node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs
+node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
 ```
 
 **Service worker caching strategy:**
