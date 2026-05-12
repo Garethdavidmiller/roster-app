@@ -99,6 +99,30 @@
     --al-confirm-bg:     #fff8e1;
     --al-confirm-accent: #f9a825;
 
+    /* Success (online/ok states) */
+    --success-green:     #2e7d32;   /* sync chip ok, huddle ok, roster upload ok */
+    --success-green-bg:  #e8f5e9;   /* same as --green-light; alias for semantic clarity */
+
+    /* Delete / destructive actions */
+    --delete-red-dark:   #b71c1c;   /* bulk-delete button hover */
+
+    /* Unsaved-changes banner */
+    --warning-amber:     #7a3a00;   /* amber-brown banner background and text */
+
+    /* Roster conflict text (admin weekly upload review) */
+    --conflict-strong:   #6d4000;   /* strong label colour */
+    --conflict-text:     #7a5200;   /* paragraph colour */
+
+    /* Covered / superseded shift display (admin) */
+    --val-dim-bg:        #f0f0f0;   /* struck-through "before" value cell */
+
+    /* Roster pre-fill suggestion highlight (pay calculator) */
+    --roster-suggested-bg: #fffce6; /* gold-tinted highlight on pre-filled hour fields */
+
+    /* Page header gradient (index.html team week / stat strip) */
+    --header-grad-from:  #0a2240;   /* deeper navy — gradient start */
+    --header-grad-to:    #001630;   /* deepest navy — gradient end */
+
     /* Admin override list */
     --correction-text:   #e65100;   /* correction pill — burnt orange */
 
@@ -596,3 +620,13 @@ body {
     .title-mobile { display: none; }
     .title-desktop { display: inline; }
 }
+
+/* ---- Shift / override type badges — shared across calendar, admin, and pay calculator ---- */
+.badge-rest  { background: var(--charcoal);  color: white; }
+.badge-early { background: var(--orange);    color: white; }
+.badge-late  { background: var(--blue-sky);  color: white; }
+.badge-night { background: white; color: var(--night); border: 2px solid var(--night); }
+.badge-spare { background: var(--purple);    color: white; }
+.badge-rdw   { background: var(--rdw);       color: white; }
+.badge-al    { background: var(--al);        color: white; }
+.badge-sick  { background: var(--absence);   color: white; }

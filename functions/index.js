@@ -69,14 +69,14 @@ exports.ingestHuddle = onRequest(
 
         // ---- Method check ----
         if (req.method !== 'POST') {
-            res.status(405).send('Method not allowed');
+            res.status(405).json({ error: 'Method not allowed' });
             return;
         }
 
         // ---- Authentication ----
         const authHeader = req.headers['authorization'] || '';
         if (authHeader !== `Bearer ${HUDDLE_SECRET.value()}`) {
-            res.status(401).send('Unauthorised');
+            res.status(401).json({ error: 'Unauthorised' });
             return;
         }
 
@@ -464,7 +464,7 @@ exports.parseRosterPDF = onRequest(
 
         // ---- Method check ----
         if (req.method !== 'POST') {
-            res.status(405).send('Method not allowed');
+            res.status(405).json({ error: 'Method not allowed' });
             return;
         }
 
@@ -474,7 +474,7 @@ exports.parseRosterPDF = onRequest(
         // so only Gareth's account can call this function.
         const authHeader = req.headers['authorization'] || '';
         if (!authHeader.startsWith('Bearer ')) {
-            res.status(401).send('Unauthorised');
+            res.status(401).json({ error: 'Unauthorised' });
             return;
         }
         const idToken = authHeader.slice('Bearer '.length);
@@ -483,11 +483,11 @@ exports.parseRosterPDF = onRequest(
             decodedToken = await admin.auth().verifyIdToken(idToken);
         } catch (err) {
             console.warn('[parseRosterPDF] Token verification failed:', err.message);
-            res.status(401).send('Unauthorised');
+            res.status(401).json({ error: 'Unauthorised' });
             return;
         }
         if (decodedToken.admin !== true) {
-            res.status(403).send('Forbidden — admin access required');
+            res.status(403).json({ error: 'Forbidden — admin access required' });
             return;
         }
 
@@ -1015,7 +1015,7 @@ exports.setupRosterAuth = onRequest(
     },
     async (req, res) => {
         if (req.method !== 'POST') {
-            return res.status(405).send('Method not allowed');
+            return res.status(405).json({ error: 'Method not allowed' });
         }
 
         const authHeader = req.headers['authorization'] || '';

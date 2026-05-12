@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, getBankHolidays } from './roster-data.js?v=9.37';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.38';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.37';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js?v=9.37';
+} from './paycalc-calc.js?v=9.38';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.38';
 'use strict';
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
@@ -266,13 +266,9 @@ function hasBoxingDay(p) {
 }
 
 // ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
-// Uses getBankHolidays() from roster-data.js — calculated algorithmically, no
-// hardcoded dates to maintain. Boxing Day (26 Dec) is handled separately by
-// hasBoxingDay() at 3× rate, so it is excluded here.
-function _bhsForYear(year) {
-  return getBankHolidays(year).filter(d => !(d.getMonth() === 11 && d.getDate() === 26));
-}
-
+// bhsForYear is exported from paycalc-roster-suggestions.js — one definition
+// shared with the suggestion engine. Boxing Day (26 Dec) excluded; handled
+// separately by hasBoxingDay() at 3× rate.
 function hasBankHoliday(p) {
   // Normalise to midnight so a BH on the period-start day isn't missed.
   // p.start/p.cutoff are noon local (inherited from FIRST_PAYDAY); BH dates are midnight local.
@@ -280,7 +276,7 @@ function hasBankHoliday(p) {
   const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
   const years  = new Set([start.getFullYear(), cutoff.getFullYear()]);
   for (const y of years) {
-    if (_bhsForYear(y).some(bh => bh >= start && bh <= cutoff)) return true;
+    if (bhsForYear(y).some(bh => bh >= start && bh <= cutoff)) return true;
   }
   return false;
 }

@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
  */
 
-import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.37';
-import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.37';
+import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js?v=9.38';
+import { db, collection, query, where, getDocs } from './firebase-client.js?v=9.38';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
@@ -47,12 +47,12 @@ export function getOverridesFetchState() {
 
 // ── BANK HOLIDAY HELPERS ──────────────────────────────────────────────────────
 // Boxing Day (26 Dec) is handled separately at 3× rate, so it is excluded here.
-function _bhsForYear(year) {
+export function bhsForYear(year) {
   return getBankHolidays(year).filter(d => !(d.getMonth() === 11 && d.getDate() === 26));
 }
 
 function _isDateBH(d) {
-  return _bhsForYear(d.getFullYear()).some(bh =>
+  return bhsForYear(d.getFullYear()).some(bh =>
     bh.getMonth() === d.getMonth() && bh.getDate() === d.getDate()
   );
 }
@@ -110,7 +110,8 @@ export async function fetchOverridesForPeriod(p, memberName) {
     _overridesByDate = map;
     _overridesFetchState = 'loaded';
     return 'loaded';
-  } catch {
+  } catch (err) {
+    console.warn('[paycalc-roster-suggestions] fetchOverridesForPeriod failed — using base roster only:', err?.message ?? err);
     _overridesFetchState = 'base-only';
     return 'base-only';
   }

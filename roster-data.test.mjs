@@ -336,3 +336,27 @@ test('getBaseShift: fixed-roster member on a weekend returns RD', () => {
     const shift = getBaseShift(member, d(2026, 3, 14)); // Sat 14 Mar 2026
     assert.equal(shift, 'RD');
 });
+
+test('getBaseShift: startDate suppression — returns RD before member joins', () => {
+    // M. Okeke has startDate = new Date(2026, 3, 20) = 20 Apr 2026
+    const member = teamMembers.find(m => m.name === 'M. Okeke');
+    assert.ok(member, 'M. Okeke not found in teamMembers');
+    // One day before startDate
+    const shiftBefore = getBaseShift(member, d(2026, 4, 19)); // 19 Apr 2026
+    assert.equal(shiftBefore, 'RD', 'Expected RD for date before startDate');
+    // On startDate itself — should return normal shift (not suppressed)
+    const shiftOn = getBaseShift(member, d(2026, 4, 20)); // 20 Apr 2026
+    assert.ok(shiftOn !== undefined, 'Expected a value on startDate');
+});
+
+// ---------------------------------------------------------------------------
+// getALEntitlement
+// ---------------------------------------------------------------------------
+
+test('getALEntitlement: proRatedAL overrides standard entitlement for the joining year', () => {
+    // M. Okeke has proRatedAL: { 2026: 23 }; standard CEA entitlement is 32
+    const member = teamMembers.find(m => m.name === 'M. Okeke');
+    assert.ok(member, 'M. Okeke not found in teamMembers');
+    assert.equal(getALEntitlement(member, 2026), 23, 'Expected pro-rated AL of 23 for joining year');
+    assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
+});

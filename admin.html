@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.37 -->
+<!-- MYB Roster Admin v9.38 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.37">
+    <link rel="manifest" href="manifest.json?v=9.38">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.37">
+    <link rel="stylesheet" href="shared.css?v=9.38">
 
     <style>
         body {
@@ -410,14 +410,7 @@
             white-space: nowrap;
         }
 
-        .badge-rest  { background: var(--charcoal);   color: white; }
-        .badge-early { background: var(--orange);   color: white; }
-        .badge-late  { background: var(--blue-sky); color: white; }
-        .badge-night { background: var(--night);      color: white; }
-        .badge-spare { background: var(--purple);   color: white; }
-        .badge-rdw   { background: var(--rdw);      color: white; }
-        .badge-al    { background: var(--al);        color: white; }
-        .badge-sick  { background: var(--absence);      color: white; }
+        /* shift badge colours live in shared.css */
 
         /* ---- Bulk bar ---- */
         .bulk-bar {
@@ -1092,14 +1085,14 @@
             padding: 5px 12px;
             border: none;
             border-radius: 8px;
-            background: #c62828;
+            background: var(--error-banner);
             color: #fff;
             font-size: 12px;
             font-family: inherit;
             cursor: pointer;
             white-space: nowrap;
         }
-        @media (hover: hover) and (pointer: fine) { .btn-bulk-delete:hover { background: #b71c1c; } }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-delete:hover { background: var(--delete-red-dark); } }
 
         .overrides-month-filter {
             padding: 6px 8px;
@@ -1181,8 +1174,8 @@
             font-weight: 700;
             padding: 1px 5px;
             border-radius: 8px;
-            background: #e3f2fd;
-            color: #1565c0;
+            background: var(--blue-light);
+            color: var(--blue-sky);
             margin-left: 5px;
             vertical-align: middle;
             white-space: nowrap;
@@ -1597,7 +1590,7 @@
         #unsavedBanner {
             position: fixed;
             top: 0; left: 0; right: 0;
-            background: #7a3a00;
+            background: var(--warning-amber);
             color: white;
             padding: 12px 16px;
             display: flex;
@@ -1611,7 +1604,7 @@
         #unsavedBannerMsg { flex: 1; min-width: 160px; }
         .unsaved-banner-btns { display: flex; gap: 8px; }
         .unsaved-discard-btn {
-            background: white; color: #7a3a00;
+            background: white; color: var(--warning-amber);
             border: none; border-radius: var(--radius-sm);
             padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
         }
@@ -1822,7 +1815,7 @@
             margin-top: 10px;
             font-size: 13px;
         }
-        .huddle-feedback--ok  { color: #2e7d32; }
+        .huddle-feedback--ok  { color: var(--success-green); }
         .huddle-feedback--err { color: var(--error-red); }
 
         /* ---- Roster upload card ---- */
@@ -1857,8 +1850,8 @@
         }
         .roster-conflict-icon { font-size: 18px; line-height: 1.2; flex-shrink: 0; }
         .roster-conflict-text { font-size: 13px; line-height: 1.5; }
-        .roster-conflict-text strong { display: block; margin-bottom: 2px; color: #6d4000; }
-        .roster-conflict-text p { margin: 0; color: #7a5200; }
+        .roster-conflict-text strong { display: block; margin-bottom: 2px; color: var(--conflict-strong); }
+        .roster-conflict-text p { margin: 0; color: var(--conflict-text); }
 
         /* Summary label */
         .roster-review-label {
@@ -1975,7 +1968,7 @@
         }
         .roster-vs-sep { font-size: 11px; color: var(--text-light); }
         .val-active { background: var(--primary-blue); color: white; }
-        .val-dim    { background: #f0f0f0; color: #999; text-decoration: line-through; }
+        .val-dim    { background: var(--val-dim-bg); color: var(--text-light); text-decoration: line-through; }
 
         /* Save/Skip toggle button on DIFF rows */
         .roster-approve-btn {
@@ -2032,7 +2025,7 @@
             text-align: center;
             font-size: 13px;
             font-weight: 600;
-            color: #2e7d32;
+            color: var(--success-green);
             background: #f1f8e9;
             border-radius: var(--radius-md);
             border: 1px solid #a5d6a7;
@@ -2781,6 +2774,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.37"></script>
+<script type="module" src="./admin-app.js?v=9.38"></script>
 </body>
 </html>

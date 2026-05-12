@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.37';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.38';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.37';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.38';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -174,7 +174,7 @@ export function buildWeekGridInto(container, dateStr) {
         container.appendChild(row);
 
         // Sundays are uncontracted — disable the AL pill
-        if (date.getDay() === 0) {
+        if (isSunday(dateISO)) {
             const alPill = row.querySelector('.pill-annual_leave');
             if (alPill) {
                 alPill.disabled = true;
@@ -509,7 +509,7 @@ export async function executeSave(toSave, toDelete = []) {
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);
-        _showError(err.code === 'permission-denied'
+        _showError(err?.code === 'permission-denied'
             ? 'Permission denied — contact your admin to check Firestore rules.'
             : 'Could not save — check your connection and try again.');
     } finally {
@@ -663,7 +663,7 @@ async function _handleDelete(e) {
         btn.classList.remove('confirming');
         btn.textContent = 'Delete';
         if (listFeedback) {
-            listFeedback.textContent = err.code === 'unavailable'
+            listFeedback.textContent = err?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
                 : '⚠ Could not delete — check your connection and try again.';
             listFeedback.className = 'list-feedback error';
@@ -712,7 +712,7 @@ function _initOverridesTable() {
                 bulkDeleteBtn.disabled = false;
                 bulkDeleteBtn.textContent = 'Delete selected';
                 if (listFeedback) {
-                    listFeedback.textContent = err.code === 'unavailable'
+                    listFeedback.textContent = err?.code === 'unavailable'
                         ? '⚠ You appear to be offline — reconnect and try again.'
                         : '⚠ Bulk delete failed — check your connection and try again.';
                     listFeedback.className = 'list-feedback error';
