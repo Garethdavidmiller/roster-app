@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.44 -->
+<!-- MYB Roster Calendar - Version 9.46 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.44">
+    <link rel="manifest" href="manifest.json?v=9.46">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,12 +26,12 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
-    <link rel="modulepreload" href="./app.js?v=9.44">
-    <link rel="modulepreload" href="./roster-data.js?v=9.44">
-    <link rel="modulepreload" href="./firebase-client.js?v=9.44">
+    <link rel="modulepreload" href="./app.js?v=9.46">
+    <link rel="modulepreload" href="./roster-data.js?v=9.46">
+    <link rel="modulepreload" href="./firebase-client.js?v=9.46">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.44">
+    <link rel="stylesheet" href="shared.css?v=9.46">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -302,7 +302,7 @@
             transition: opacity 0.4s ease;
             pointer-events: none; user-select: none;
         }
-        .swipe-hint.fade-out { opacity: 0; }
+        .swipe-hint.fade-out { opacity: 0; pointer-events: none; }
 
         /* One-off notification prompt strip */
         .notif-prompt {
@@ -313,14 +313,16 @@
         .notif-prompt-text { flex: 1; }
         .notif-prompt-enable {
             background: var(--primary-blue); color: white;
-            border: none; border-radius: 6px; padding: 5px 10px;
+            border: none; border-radius: 6px; padding: 9px 14px;
             font-size: 12px; font-weight: 700; cursor: pointer;
             touch-action: manipulation; font-family: inherit; flex-shrink: 0;
+            min-height: 36px;
         }
         .notif-prompt-dismiss {
-            background: none; border: none; padding: 4px 6px;
-            font-size: 16px; color: var(--text-faint); cursor: pointer;
+            background: none; border: none; padding: 8px 10px;
+            font-size: 18px; color: var(--text-faint); cursor: pointer;
             touch-action: manipulation; flex-shrink: 0; line-height: 1;
+            min-height: 36px;
         }
 
         .controls button.al-btn {
@@ -1159,8 +1161,8 @@
             align-items: center;
         }
         .team-help-btn {
-            width: 28px;
-            height: 28px;
+            width: 36px;
+            height: 36px;
             flex-shrink: 0;
             background: none;
             border: 2px solid var(--border-mid);
@@ -2541,7 +2543,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.44"></script>
+    <script type="module" src="./app.js?v=9.46"></script>
 
 </body>
 </html>
