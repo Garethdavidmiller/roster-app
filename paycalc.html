@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.55 -->
+<!-- MYB Roster — Pay Calculator v9.56 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.55">
+  <link rel="stylesheet" href="./shared.css?v=9.56">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -201,6 +201,12 @@
     .sum-row.sum-net .val  { font-weight: 800; color: var(--primary-blue); font-size: 16px; }
     .sum-row.sum-bp .lbl  { color: var(--text-mid); }
     .sum-row.sum-bp .val  { font-weight: 700; color: var(--success-green); }
+    .bp-active-banner {
+      margin: 0 16px 0; padding: 8px 12px; border-radius: 6px;
+      background: var(--success-green-bg); border: 1px solid var(--success-green);
+      font-size: var(--type-small); color: var(--success-text); line-height: 1.4;
+    }
+    .bp-active-banner a { color: var(--success-text); font-weight: 700; text-decoration: underline; cursor: pointer; }
 
     /* Payslip gross note */
     .payslip-note {
@@ -1037,7 +1043,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.55">
+  <link rel="manifest" href="./pay-manifest.json?v=9.56">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1173,6 +1179,7 @@
       <div class="net-hint" id="netHint">Enter your hours below — the estimate updates as you type</div>
     </div>
     <div class="summary" id="summary"></div>
+    <div class="bp-active-banner" id="bpActiveBanner" style="display:none"></div>
     <div class="payslip-note" id="payslipNote" style="display:none">
       ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure will be lower than the total above. This is normal.
     </div>
@@ -1678,6 +1685,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.55"></script>
+<script type="module" src="./paycalc.js?v=9.56"></script>
 </body>
 </html>
