@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.46';
+export const APP_VERSION = '9.48';
 
 // ============================================
 // CONFIGURATION
@@ -193,7 +193,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.46';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.48';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
