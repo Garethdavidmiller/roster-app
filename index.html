@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.49 -->
+<!-- MYB Roster Calendar - Version 9.50 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.49">
+    <link rel="manifest" href="manifest.json?v=9.50">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,12 +26,12 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
-    <link rel="modulepreload" href="./app.js?v=9.49">
-    <link rel="modulepreload" href="./roster-data.js?v=9.49">
-    <link rel="modulepreload" href="./firebase-client.js?v=9.49">
+    <link rel="modulepreload" href="./app.js?v=9.50">
+    <link rel="modulepreload" href="./roster-data.js?v=9.50">
+    <link rel="modulepreload" href="./firebase-client.js?v=9.50">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.49">
+    <link rel="stylesheet" href="shared.css?v=9.50">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -177,6 +177,11 @@
             gap: 6px;
             align-items: center;
             flex-shrink: 0;
+        }
+        .control-group--stacked {
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
         }
 
         .controls button {
@@ -2387,7 +2392,7 @@
             </div>
             <div class="month-jump-actions">
                 <button id="monthJumpCancel">Cancel</button>
-                <button id="monthJumpConfirm">Go →</button>
+                <button id="monthJumpConfirm">Go to month</button>
             </div>
         </div>
     </div>
@@ -2445,7 +2450,7 @@
                 <div class="control-group">
                     <button id="prevMonth" aria-label="Previous month">← Prev</button>
                 </div>
-                <div class="control-group" style="flex-direction:column;align-items:center;gap:2px;">
+                <div class="control-group control-group--stacked">
                     <label for="teamMemberSelect" class="visually-hidden">Team Member:</label>
                     <select id="teamMemberSelect">
                         <!-- Options populated by JavaScript -->
@@ -2468,7 +2473,7 @@
 
         <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled -->
         <div id="notifPrompt" class="notif-prompt" style="display:none">
-            <span class="notif-prompt-text">🔔 Enable notifications</span>
+            <span class="notif-prompt-text">🔔 Get notified when your Huddle briefing arrives</span>
             <button class="notif-prompt-enable" id="notifPromptEnable">Enable</button>
             <button class="notif-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
         </div>
@@ -2543,7 +2548,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.49"></script>
+    <script type="module" src="./app.js?v=9.50"></script>
 
 </body>
 </html>
