@@ -42,6 +42,18 @@ Chiltern may differ due to arrears, adjustments, and deductions not captured her
 `GRADES` in `paycalc-calc.js` has placeholder 2026/27 rates. Update when the pay
 award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 periods.
 
+### Back pay lump sum not included in HPP estimate
+The back pay card (added v9.55) adds the lump sum to gross for the paid-in period's
+take-home calculation, but `calcHPP()` does not include the back pay amount in its
+variable pay total. Whether back pay counts toward HPP depends on how Chiltern's payroll
+classifies it: as retroactive basic pay (HPP impact = zero) or as variable pay (HPP impact
+= back pay × 7.69%). This was not confirmed with payroll at the time of writing.
+
+**To check:** After the first back pay payslip arrives, compare the January HPP payslip
+against the calculator's HPP estimate. If they differ by roughly `back pay amount × 7.69%`,
+Chiltern are including it in variable pay and `_varPayForPeriod()` in `paycalc.js` should
+add `_bpAmount` for the paid-in period. If they match, no change needed.
+
 ### Dispatcher grade not supported
 Pay rates for Dispatchers are not confirmed. The grade is not in the `GRADES` object.
 Do not add it until the rates are verified.
