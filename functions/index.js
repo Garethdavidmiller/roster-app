@@ -163,22 +163,32 @@ exports.ingestHuddle = onRequest(
             : 'application/pdf';
 
         // ---- Upload to Firebase Storage ----
-        const storagePath   = `huddles/${date}.${fileType}`;
-        const downloadToken = crypto.randomUUID();
+        const storagePath = `huddles/${date}.${fileType}`;
 
         try {
             const bucket = admin.storage().bucket();
             const file   = bucket.file(storagePath);
 
-            await file.save(fileBuffer, {
-                contentType: mimeType,
-                metadata: {
-                    metadata: { firebaseStorageDownloadTokens: downloadToken },
-                },
-            });
+            await file.save(fileBuffer, { contentType: mimeType });
 
-            const encodedPath = encodeURIComponent(storagePath);
-            const storageUrl  = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+            // Prefer a time-limited signed URL (v4, 1 year). Falls back to a
+            // permanent download token if the service account lacks the
+            // iam.serviceAccountTokenCreator role needed to sign URLs.
+            let storageUrl;
+            try {
+                const [signedUrl] = await file.getSignedUrl({
+                    version: 'v4',
+                    action:  'read',
+                    expires: Date.now() + 365 * 24 * 60 * 60 * 1000,
+                });
+                storageUrl = signedUrl;
+            } catch (signErr) {
+                console.warn('[ingestHuddle] getSignedUrl unavailable, falling back to download token:', signErr.message);
+                const downloadToken = crypto.randomUUID();
+                await file.setMetadata({ metadata: { firebaseStorageDownloadTokens: downloadToken } });
+                const encodedPath = encodeURIComponent(storagePath);
+                storageUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/${encodedPath}?alt=media&token=${downloadToken}`;
+            }
 
             // ---- Convert DOCX to HTML for in-app viewing ----
             // mammoth converts the Word document to clean HTML at upload time so the
@@ -439,7 +449,7 @@ exports.parseRosterPDF = onRequest(
     {
         secrets:        [ANTHROPIC_API_KEY],
         region:         'europe-west2',
-        cors:           true,
+        cors:           ['https://myb-roster.firebaseapp.com', 'https://myb-roster.web.app'],
         timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
@@ -813,7 +823,7 @@ exports.setupRosterAuth = onRequest(
         region:        'europe-west2',
         secrets:       [ROSTER_SECRET],
         timeoutSeconds: 120,
-        cors:          true,
+        cors:          ['https://myb-roster.firebaseapp.com', 'https://myb-roster.web.app'],
     },
     async (req, res) => {
         if (req.method !== 'POST') {
