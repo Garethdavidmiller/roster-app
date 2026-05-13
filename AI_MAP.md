@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v9.44*
+*Last updated: May 2026 — v9.54 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -15,6 +15,8 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Admin portal UI, login, AL/sick sections | `admin-app.js` + `admin.html` |
+| Huddle upload card, push notifications, Huddle card toggle | `admin-huddle.js` |
+| Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
@@ -50,9 +52,9 @@ Everything that touches `index.html` at runtime.
 ### `admin-app.js`
 Login, session management, AL section, sick section, and the glue that wires all admin modules together.
 - Login flow, Firebase Auth sign-in/out, session state
-- AL entry, sick entry, faith calendar, huddle viewer, push subscription
-- Calls `initOverrides()` from `admin-overrides.js` and `initRosterUpload()` from `admin-roster-upload.js`
-- Does **not** contain week grid, override list, bulk bar, or roster review pipeline — those are in the sub-modules
+- AL entry, sick entry, faith calendar settings, cultural calendar
+- Calls `initOverrides()`, `initRosterUpload()`, `initHuddleCards()`, `initAuthSetup()` to initialise sub-modules
+- Does **not** contain week grid, override list, bulk bar, roster review pipeline, Huddle upload, push notifications, or auth setup — those are in the sub-modules
 
 ### `admin-overrides.js`
 The Change a Shift module. Owns the week grid and override list entirely.
@@ -62,6 +64,19 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `executeSave()` — writes override to Firestore
 - `updateSaveBtn()` — exported so swipe carousel can call it
 - State accessors: `getAllOverrides()` / `setAllOverrides()` — used by AL/sick sections in `admin-app.js`
+
+### `admin-huddle.js`
+Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
+- `initHuddleCards(opts)` — called once by `admin-app.js` after login
+- Notifications card: VAPID key handling, fingerprint-based re-subscription on key rotation
+- Huddle upload: file validation, DOCX conversion via mammoth.js, upload to Firebase Storage via `uploadHuddle`
+- Huddle card: collapse/expand toggle
+
+### `admin-auth.js`
+Staff Firebase Auth account setup (admin only).
+- `initAuthSetup(opts)` — called once by `admin-app.js` after login
+- Wires up the Staff Login Accounts card; calls `setupRosterAuth` Cloud Function
+- ⚠ Contains `ROSTER_SECRET_VALUE` — known limitation, visible in page source (see CLAUDE.md)
 
 ### `admin-roster-upload.js`
 The Weekly Roster Upload pipeline.

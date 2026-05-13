@@ -20,7 +20,7 @@
 |-------------|-----------|
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON of a Firebase service account key with Functions deploy permissions |
 | `HUDDLE_SECRET` | Bearer token Power Automate sends to `ingestHuddle` — must also be in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
-| `ROSTER_SECRET` | Bearer token the admin page sends to `parseRosterPDF` — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET`. **⚠ The current value is hardcoded in `admin-app.js` (visible in page source — known limitation, see issue #14). Rotate it if the function is ever abused.** |
+| `ROSTER_SECRET` | Bearer token for `setupRosterAuth` — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET`. **⚠ The current value is hardcoded in `admin-auth.js` (visible in page source — known limitation). `parseRosterPDF` now uses Firebase ID token auth instead. Rotate if ever abused.** |
 | `ANTHROPIC_API_KEY` | API key for Claude AI (used by `parseRosterPDF` to read the roster PDF) — Firebase Secret Manager only, not needed in GitHub Actions: `firebase functions:secrets:set ANTHROPIC_API_KEY` |
 | `VAPID_PUBLIC_KEY` | Web Push public key for Huddle push notifications — Firebase Secret Manager only: `firebase functions:secrets:set VAPID_PUBLIC_KEY` |
 | `VAPID_PRIVATE_KEY` | Web Push private key — Firebase Secret Manager only: `firebase functions:secrets:set VAPID_PRIVATE_KEY` |
@@ -48,9 +48,11 @@
 | `paycalc.html` | Line 2 HTML comment | |
 | `paycalc.html` | `paycalc.js?v=`, `shared.css?v=`, `pay-manifest.json?v=` | 3 places |
 | `app.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=` | 4 places |
+| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=`, `admin-huddle.js?v=`, `admin-auth.js?v=` | 6 places |
 | `admin-overrides.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `admin-roster-upload.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+| `admin-huddle.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
+| `admin-auth.js` | `roster-data.js?v=` | 1 place |
 | `paycalc.js` | `roster-data.js?v=`, `paycalc-calc.js?v=`, `paycalc-roster-suggestions.js?v=` | 3 places |
 | `paycalc-roster-suggestions.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `paycalc-roster-suggestions.test.mjs` | `const V = '...'` at top of file | 1 place — must match firebase-client import version in paycalc-roster-suggestions.js |
@@ -63,7 +65,14 @@
 - The `?v=` cache-busting strings **must** be updated manually (browsers use them to bust the module cache)
 - Tell the user the new version number in your reply after committing
 
-**CLAUDE.md update policy:** This file is updated every **0.10 version** (e.g. 7.90 → 8.00), not on every patch release. The version shown in "Project identity" above will routinely lag the live app by a few patch numbers — this is intentional, not documentation drift. Always treat `APP_VERSION` in `roster-data.js` as the authoritative version. Update CLAUDE.md between those checkpoints only if there is a major behavioural change: new pay grade, auth/Firestore model change, service worker strategy change, new page or module going to production, or a data model change.
+**Documentation update policy:** All four documentation files follow the same cadence — updated every **0.10 version** (e.g. 9.50 → 9.60), not on every patch release. Always treat `APP_VERSION` in `roster-data.js` as the authoritative version. Update between checkpoints only when a major behavioural change occurs: new pay grade, auth/Firestore model change, service worker strategy change, new page or module going to production, or a data model change. Each file carries `· Updated every 0.10 version` in its header as a reminder.
+
+| File | What it covers |
+|------|---------------|
+| `CLAUDE.md` | Architecture rules, version bump checklist, module ownership |
+| `AI_MAP.md` | Routing guide — which file to edit for a given task |
+| `OPERATIONS_REFERENCE.md` | Power Automate, Cloud Function request formats, Firebase Auth |
+| `KNOWN_LIMITATIONS.md` | Intentional constraints, deferred decisions, security notes |
 
 **Same-commit rule:** Any commit that adds, removes, or renames a JS module must also update the file structure in `CLAUDE.md` and the routing table in `AI_MAP.md` in the **same commit**. The pre-commit hook (`githooks/pre-commit`) enforces this — it blocks commits where a root `.js` file is not listed in both docs. To activate after a fresh clone: `git config core.hooksPath githooks`.
 
@@ -91,7 +100,9 @@ roster-app/
 ├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html
-├── admin-app.js            ← all JavaScript for admin.html
+├── admin-app.js            ← coordinator for admin.html: login, AL/sick, cultural calendar, module wiring
+├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
+├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
@@ -130,7 +141,7 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
@@ -176,7 +187,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | **Do not gate layout changes on `(hover: hover) and (pointer: fine)` alone** | Some Android devices incorrectly report `hover: hover`, causing desktop-only layout rules to fire on narrow mobile screens. For layout breakpoints (column widths, grid templates), always use `min-width` — not hover/pointer media features. Hover/pointer queries are only safe for cosmetic things like `:hover` colour transitions (v9.17 — fixed admin day-row overflow caused by this exact mistake). |
 | `paycalc.html` desktop grid is on `<main>`, not `.app` | All pay calculator cards are children of `<main>` (not direct children of `.app`). CSS grid only applies to direct children, so the two-column layout must be declared on `main { display: grid }`. `.app` only holds `max-width` and `margin: 0 auto`. Do not move the grid back to `.app`. (v9.14 — fixed a silent bug where the two-column layout had never worked.) |
 | `lsGet` / `lsSet` / `lsDel` wrappers in `app.js`, `admin-app.js`, `paycalc.js` | iOS Safari in private-browsing mode throws a `SecurityError` on any `localStorage` access — even a simple `getItem`. All three files define identical `lsGet(k)` / `lsSet(k,v)` / `lsDel(k)` helpers that wrap every `localStorage` call in a try/catch and return `null` on failure. **Never call `localStorage` directly** in these files — always use the wrappers. (v9.41) |
-| VAPID fingerprint migration in `app.js` and `admin-app.js` | When the VAPID public key is rotated, existing push subscriptions become invalid (HTTP 401 from the push service). Both pages store the first 12 chars of the current VAPID public key in `localStorage('myb_vapid_ver')`. On load, if the stored fingerprint doesn't match the hardcoded key, the page silently unsubscribes → re-subscribes → updates the fingerprint. This is transparent to staff. The Cloud Function also treats 401 the same as 410/404 (stale subscription — delete the document). |
+| VAPID fingerprint migration in `app.js` and `admin-huddle.js` | When the VAPID public key is rotated, existing push subscriptions become invalid (HTTP 401 from the push service). Both pages store the first 12 chars of the current VAPID public key in `localStorage('myb_vapid_ver')`. On load, if the stored fingerprint doesn't match the hardcoded key, the page silently unsubscribes → re-subscribes → updates the fingerprint. This is transparent to staff. The Cloud Function also treats 401 the same as 410/404 (stale subscription — delete the document). The VAPID key and fingerprint logic live in `admin-huddle.js` (extracted from `admin-app.js` at v9.54). |
 | One-off notification prompt (`#notifPrompt`) in `index.html` | A small strip between `</nav>` and the pay-period strip appears once per device when `Notification.permission` is neither `'granted'` nor `'denied'` and `localStorage('myb_notif_prompt_done')` is unset. Enable button requests permission; × dismisses permanently. Both actions set the flag. The prompt never re-appears. Do not move it below the calendar — it must be visible without scrolling. |
 | PWA shortcuts in `manifest.json` | Three long-press shortcuts: Calendar (`index.html`), Pay (`paycalc.html`), Admin (`admin.html`). Max 4 shortcuts per Android spec. Changes require the app to be reinstalled (or the manifest to be refreshed) before taking effect — existing installs see old shortcuts until they reinstall. |
 | Sticky take-home bar (`#stickyTotal`) in `paycalc.html` | Fixed bar at bottom of viewport on mobile (hidden ≥1040px). Appears via `IntersectionObserver` when the `.result-card` scrolls off-screen. Tapping scrolls smoothly to the result card. `body.sticky-active` adds bottom padding to prevent content being hidden behind the bar. |
@@ -328,7 +339,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟠 High priority
 
-**ROSTER_SECRET exposed in page source** — The bearer token for `parseRosterPDF` is currently hardcoded as a constant in `admin-app.js` (visible in browser DevTools). Deferred as a known limitation. The correct long-term fix is to gate the Cloud Function on Firebase Auth custom claims (`request.auth.token.admin == true`) rather than a shared secret. Do not rotate the secret without also updating the hardcoded value and redeploying.
+**ROSTER_SECRET exposed in page source** — The bearer token for `setupRosterAuth` is hardcoded in `admin-auth.js` (visible in browser DevTools). `parseRosterPDF` was migrated to Firebase ID token auth at v9.53 and no longer uses this secret. The correct long-term fix for `setupRosterAuth` is Firebase Auth custom claims (`request.auth.token.admin == true`). Deferred as known limitation. Do not rotate the secret without updating `admin-auth.js` and redeploying.
 
 **#14 — localStorage session can be forged for UI access.** DevTools can modify `myb_admin_session` to impersonate another user or gain the admin UI. However, since v7.94 the Firestore security rules are deployed and require a real Firebase Auth session (`request.auth != null`) for all writes — so a forged localStorage session can read the UI but cannot write to Firestore. Practical risk is low for a small known team.
 
