@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: May 2026 — v9.19*
+*Last updated: May 2026 — v9.54 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -12,9 +12,16 @@ Operational detail that is rarely needed in day-to-day development sessions. Ref
 
 Files stored at: `huddles/YYYY-MM-DD.pdf` or `huddles/YYYY-MM-DD.docx`
 
-Each file is uploaded with a custom `firebaseStorageDownloadTokens` metadata field so a stable direct download URL is available immediately after upload.
+Storage URL strategy (v9.53+): `ingestHuddle` generates a time-limited v4 signed URL (1 year).
+Falls back to a permanent `firebaseStorageDownloadTokens` download URL if the service account
+lacks `iam.serviceAccountTokenCreator` role. Either way the URL lands in `storageUrl`.
 
-Download URL format:
+Signed URL format:
+```
+https://storage.googleapis.com/myb-roster.appspot.com/huddles%2FYYYY-MM-DD.pdf?X-Goog-...
+```
+
+Download token fallback format:
 ```
 https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD.pdf?alt=media&token={uuid}
 ```
@@ -24,11 +31,14 @@ https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD.pdf?
 Document ID = `YYYY-MM-DD` (the London date of the huddle).
 
 ```
-date        string     "YYYY-MM-DD"
-storageUrl  string     Full Firebase Storage download URL (with token)
-fileType    string     "pdf" | "docx"
-uploadedAt  timestamp  Firestore server timestamp
-uploadedBy  string     "power-automate" (hardcoded — identifies automated uploads)
+date         string     "YYYY-MM-DD"
+storageUrl   string     Signed URL or download-token URL (see above)
+fileType     string     "pdf" | "docx"
+uploadedAt   timestamp  Firestore server timestamp
+uploadedBy   string     "power-automate" | Firebase Auth UID (manual admin upload)
+htmlContent  string     (optional) DOCX converted to HTML by mammoth.js at upload time.
+                        Present for DOCX files only. Missing for PDFs and large DOCX
+                        conversions (> 800 KB). Viewer falls back to storageUrl if absent.
 ```
 
 ### Cloud Function — `ingestHuddle` request format
@@ -184,7 +194,8 @@ When building the viewer in admin.html:
 ### Cloud Function — `parseRosterPDF`
 
 - **Region:** `europe-west2` (London)
-- **Auth:** `Authorization: Bearer <ROSTER_SECRET>`
+- **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. ROSTER_SECRET is no longer used here (it's only used by `setupRosterAuth`).
+- **CORS:** Restricted to `https://myb-roster.firebaseapp.com` and `https://myb-roster.web.app` (v9.53+)
 - **AI model:** `claude-haiku-4-5-20251001`, `max_tokens: 8192`
 - **Why direct PDF input:** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
@@ -192,7 +203,7 @@ When building the viewer in admin.html:
 
 ```
 Headers:
-  Authorization:   Bearer <ROSTER_SECRET>
+  Authorization:   Bearer <Firebase ID token>
   Content-Type:    text/plain
   X-Week-Ending:   YYYY-MM-DD  (must be a Saturday — validated server-side)
   X-Roster-Type:   cea | ces | dispatcher

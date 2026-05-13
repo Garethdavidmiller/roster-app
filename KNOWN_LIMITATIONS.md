@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v9.44*
+*Last updated: May 2026 — v9.54 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -16,10 +16,19 @@ forged localStorage session can see the UI but cannot write to Firestore.
 Practical risk is low for a small known team.
 
 ### ROSTER_SECRET is visible in page source
-The bearer token for `parseRosterPDF` is hardcoded in `admin-app.js`.
-The long-term fix is Firebase Auth custom claims (`request.auth.token.admin == true`).
+The bearer token for `setupRosterAuth` is hardcoded in `admin-auth.js` (v9.54+ — was in `admin-app.js`).
+`parseRosterPDF` has been migrated to Firebase ID token auth and no longer uses this secret.
+The long-term fix for `setupRosterAuth` is Firebase Auth custom claims (`request.auth.token.admin == true`).
 Deferred as a known limitation. Do not rotate the secret without updating the hardcoded
-value and redeploying.
+value in `admin-auth.js` and redeploying.
+
+### Firebase web API key not restricted to HTTP referrers
+The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
+restriction it could theoretically be used to brute-force Firebase Auth from any origin.
+Risk is low: Firestore rules require a valid Auth session for all writes, and login rate
+limiting (v9.53) is in place.
+**To fix:** GCP Console → APIs & Services → Credentials → restrict the Firebase web API key
+to `myb-roster.firebaseapp.com` and `myb-roster.web.app` HTTP referrers.
 
 ---
 
