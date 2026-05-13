@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.49 -->
+<!-- MYB Roster — Pay Calculator v9.51 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=yes, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.49">
+  <link rel="stylesheet" href="./shared.css?v=9.51">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -21,6 +21,7 @@
     /* ── Pay-calculator-specific design tokens (all shared tokens come from shared.css) ── */
     :root {
       --boxing-day-bg:   #fff8e1;
+      --badge-pending-text: #f57f17;
       --boxing-day-text: #bf6000;
       --notice-text:     #5a4000;
       --chip-bh-bg:      #7b1fa2;
@@ -250,21 +251,6 @@
     margin-bottom: 12px; line-height: 1.5;
   }
   .settings-notice.hidden { display: none; }
-
-  /* ── HELP BUTTON (? circle on each card header) ── */
-  .help-btn {
-    width: 20px; height: 20px; border-radius: 50%;
-    background: var(--bg-faint); border: 1.5px solid var(--border-mid);
-    color: var(--text-light); font-size: 11px; font-weight: 700;
-    display: inline-flex; align-items: center; justify-content: center;
-    cursor: pointer; flex-shrink: 0; touch-action: manipulation;
-    font-family: inherit; line-height: 1;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
-  }
-  .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-  @media (hover: hover) and (pointer: fine) {
-    .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-  }
 
   /* ── HELP LIGHTBOX ── */
   /* #helpLightbox uses .lb-overlay; unique: higher z-index for pay calc context */
@@ -935,7 +921,7 @@
   }
   .roster-state-badge.loaded    { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .roster-state-badge.checking  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
-  .roster-state-badge.base-only { background: #fff8e1; color: #f57f17; }
+  .roster-state-badge.base-only { background: var(--boxing-day-bg); color: var(--badge-pending-text); }
   .roster-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 8px; }
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
@@ -1049,7 +1035,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.49">
+  <link rel="manifest" href="./pay-manifest.json?v=9.51">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1140,9 +1126,7 @@
         <select id="gradeSelect">
           <option value="cea">CEA — Customer Experience Ambassador</option>
           <option value="ces">CES — Customer Experience Supervisor</option>
-          <option value="dispatch" disabled>Dispatch (coming soon)</option>
         </select>
-        <div class="field-hint">Dispatch will be added in a future update.</div>
       </div>
 
       <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
@@ -1223,7 +1207,7 @@
         <p class="roster-card-note" id="rosterHintText">Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are not pre-filled. Swaps or unusual changes may need adjusting.</p>
         <div class="roster-card-actions">
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from roster</button>
-          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
+          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show all days ▼</button>
         </div>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
@@ -1238,7 +1222,7 @@
           <div class="h-title">🗓️ Rostered Saturday Hours</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
           <div class="h-sub">A Saturday shift from your roster. If Saturday is your rest day that week, use Rest Day Working below instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
-          <div class="val-warn" id="satWarn">⚠ Capped at your contracted maximum for this period</div>
+          <div class="val-warn" id="satWarn">⚠ You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1307,7 +1291,7 @@
         <div class="h-info">
           <div class="h-title">⏰ Overtime</div>
           <span class="rate-badge badge-ot" id="badge-ot">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub" id="overtimeSub">Hours beyond your roster this period. Shows as "Overtime 1.25" on your payslip.</div>
+          <div class="h-sub" id="overtimeSub">Extra hours worked on top of your roster this period. Shows as "Overtime 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1692,6 +1676,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.49"></script>
+<script type="module" src="./paycalc.js?v=9.51"></script>
 </body>
 </html>

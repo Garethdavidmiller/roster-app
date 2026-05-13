@@ -635,6 +635,25 @@ body {
     .title-desktop { display: inline; }
 }
 
+/* ---- Utility ---- */
+.hidden { display: none !important; }
+
+/* ---- Help button (? circle on card headers) — used across all pages ---- */
+.help-btn {
+    width: 20px; height: 20px; border-radius: 50%;
+    background: var(--bg-faint); border: 1.5px solid var(--border-mid);
+    color: var(--text-light); font-size: 11px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+    cursor: pointer; flex-shrink: 0; touch-action: manipulation;
+    font-family: inherit; line-height: 1;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    vertical-align: middle; margin-left: 5px;
+}
+.help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+@media (hover: hover) and (pointer: fine) {
+    .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+}
+
 /* ---- Shift / override type badges — shared across calendar, admin, and pay calculator ---- */
 .badge-rest  { background: var(--charcoal);  color: white; }
 .badge-early { background: var(--orange);    color: white; }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.49 -->
+<!-- MYB Roster Admin v9.51 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.49">
+    <link rel="manifest" href="manifest.json?v=9.51">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.49">
+    <link rel="stylesheet" href="shared.css?v=9.51">
 
     <style>
         body {
@@ -51,19 +51,21 @@
         /* Small ? button inside each card heading */
         .btn-card-tips {
             display: inline-flex; align-items: center; justify-content: center;
-            width: 16px; height: 16px;
+            width: 20px; height: 20px;
             border-radius: 50%;
-            border: 1.5px solid var(--text-mid);
-            background: transparent;
-            color: var(--text-mid);
-            font-size: 10px; font-weight: 700;
+            border: 1.5px solid var(--border-mid);
+            background: var(--bg-faint);
+            color: var(--text-light);
+            font-size: 11px; font-weight: 700;
             cursor: pointer;
             vertical-align: middle;
             flex-shrink: 0;
             margin-left: 5px;
-            transition: border-color 0.15s, color 0.15s;
+            touch-action: manipulation;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
-        @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
+        .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); } }
 
         /* ---- Tips lightbox ---- */
         /* #tipsLightbox uses .lb-overlay; unique: extra padding for white-card feel */
@@ -2389,7 +2391,7 @@
             </div>
 
             <div class="shift-note-row">
-                <input type="text" id="shiftNote" class="shift-note-input" placeholder="Note (optional)">
+                <input type="text" id="shiftNote" class="shift-note-input" placeholder="Note (optional)" aria-label="Optional note for this shift change">
             </div>
             <button class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
@@ -2433,7 +2435,7 @@
                         <span class="stat-breakdown" id="alBannerBreakdown" hidden></span>
                     </div>
                 </div>
-                <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Limit reached</span>
+                <span class="al-banner-warning-msg" id="alBannerWarn" hidden>Annual leave allowance used up</span>
             </div>
             <div class="al-form">
                 <!-- alMember is hidden but kept for JS compatibility; member is set via the top bar -->
@@ -2750,6 +2752,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.49"></script>
+<script type="module" src="./admin-app.js?v=9.51"></script>
 </body>
 </html>

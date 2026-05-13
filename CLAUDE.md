@@ -351,6 +351,8 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 Daily Huddle PDF/DOCX arrives by email → Power Automate flow → `ingestHuddle` Cloud Function (`europe-west2`) → Firebase Storage (`huddles/YYYY-MM-DD.{ext}`) + Firestore `huddles` collection (doc ID = date, fields: `date`, `storageUrl`, `fileType`, `uploadedAt`, `uploadedBy`). Push notification sent to subscribed staff on each ingest.
 
+The Huddle upload button in admin.html is labelled **"Choose file"** (not "Choose PDF"). This is intentional — the Huddle can be either a PDF or a DOCX depending on how it was sent. Do not change the label to "Choose PDF".
+
 All working end-to-end. Pending: Huddle viewer history UI in admin.html (Firestore data is ready, UI not yet built — query `huddles` descending by `date`, show date + file type + `storageUrl` link, admin-only).
 
 Full Power Automate flow diagram, request format, gotchas, secret setup, and Security Rules: see `OPERATIONS_REFERENCE.md`.
