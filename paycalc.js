@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.54';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.57';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.54';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.54';
+} from './paycalc-calc.js?v=9.57';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.57';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -61,14 +61,14 @@ const MILLER_ACTUALS = {
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.57, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.12, net: 3169.54, varPay: 1789.80 },
+  '2025-08-01': { gross: 4441.60, tax:  809.60, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
-  '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.34, varPay: 2137.60 },
+  '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
   '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
   '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.57, sl:   0,    net: 3854.67, varPay: 2496.61 },
   '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
-  '2026-02-13': { gross: 5188.88, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
+  '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
 };
 
@@ -122,7 +122,13 @@ const SK = { rate:'cea_rate', rates:'cea_rates', code:'cea_code', sl:'cea_sl', p
 // cea_rates is a JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
 // Separate rate per tax year so updating for a pay award doesn't distort historical periods.
 
-// Per-tax-year HPP storage — keyed by tax year label so prior-year data survives TY rollover.
+// ── BACK PAY STATE ────────────────────────────────────────────────────────────
+// Set by calcBackPay() when a "paid in" period is chosen. Read by calculate()
+// to add the lump sum into that period's gross before computing tax/NI.
+let _bpAmount = 0; // gross back pay for the "paid in" period (0 = none)
+let _bpPNum   = 0; // period number that receives the back pay (0 = none)
+
+
 // cea_hpp_est_2025_26  — running/final estimate, written on every calcHPP() call
 // cea_hpp_actual_2025_26 — confirmed amount from January payslip, written by user
 function hppEstKey(ty)    { return `cea_hpp_est_${ty.label.replace('/', '_')}`; }
@@ -1317,11 +1323,28 @@ function calculate() {
     peerDays: peer, otherAdj, london: LONDON,
   });
 
+  // Add back pay if this is the period the lump sum is paid in.
+  const _bpThisPeriod = (_bpPNum > 0 && _bpPNum === _pNum) ? _bpAmount : 0;
+
+  // Add HPP estimate/actual if this is the January period where HPP is paid.
+  // Finds the tax year whose hppPaidJan matches this period's payday year.
+  // The estimate is pre-computed by calcHPP() and stored in localStorage whenever
+  // the user views any period in that tax year — by end of April it is essentially final.
+  const _hppTy = _curP ? TAX_YEARS.find(t =>
+      _curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0
+  ) : null;
+  const _hppActualAmt  = _hppTy ? parseFloat(lsGet(hppActualKey(_hppTy)) || '0') : 0;
+  const _hppEstAmt     = _hppTy ? parseFloat(lsGet(hppEstKey(_hppTy))    || '0') : 0;
+  const _hppForPeriod  = _hppActualAmt > 0 ? _hppActualAmt : (_hppEstAmt || 0);
+  const _hppIsEstimate = _hppTy && _hppForPeriod > 0 && !(_hppActualAmt > 0);
+
+  const grossWithBp = gross + _bpThisPeriod + _hppForPeriod;
+
   // Pension — salary sacrifice: deducted from gross before tax and NI are calculated.
   const pension    = numVal('pensionAmt');
   const pensionWarn = document.getElementById('pensionWarn');
-  if (pensionWarn) pensionWarn.classList.toggle('show', pension > gross && pension > 0);
-  const sacGross   = Math.max(0, gross - pension);
+  if (pensionWarn) pensionWarn.classList.toggle('show', pension > grossWithBp && pension > 0);
+  const sacGross   = Math.max(0, grossWithBp - pension);
 
   // Income tax — cumulative PAYE when YTD figures provided (W1/M1/X excluded)
   const ytdP = numVal('ytdPay');
@@ -1349,13 +1372,18 @@ function calculate() {
   document.getElementById('absenceCaveat').style.display = 'block';
 
   document.getElementById('summary').innerHTML = `
-    <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>
+    ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
+      ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>
+         ${_bpThisPeriod > 0 ? `<div class="sum-row sum-bp"><span class="lbl">Back pay lump sum (pay award)</span><span class="val">+${fmt(_bpThisPeriod)}</span></div>` : ''}
+         ${_hppForPeriod > 0 ? `<div class="sum-row sum-hpp"><span class="lbl">Holiday Pay Premium${_hppIsEstimate ? ' <span class="sum-est">(estimated)</span>' : ''}</span><span class="val">+${fmt(_hppForPeriod)}</span></div>` : ''}
+         <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(grossWithBp)}</span></div>`
+      : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
     ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
     ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
     <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:10px;font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
     <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
     ${sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>` : ''}
-    <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay</span><span class="val">${fmt(net)}</span></div>
+    <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ' (inc. back pay & HPP)' : _bpThisPeriod > 0 ? ' (inc. back pay)' : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
   `;
 
   const fh = h => {
@@ -1420,13 +1448,31 @@ function calculate() {
     const _stickyAmt = document.getElementById('stickyAmount');
     if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
   } else {
-    if (_netLabel) _netLabel.textContent = '💷 Estimated Take-Home Pay';
+    if (_netLabel) _netLabel.textContent =
+        _bpThisPeriod > 0 && _hppForPeriod > 0 ? '💷 Estimated Take-Home Pay (inc. back pay & HPP)'
+        : _bpThisPeriod > 0 ? '💷 Estimated Take-Home Pay (inc. back pay)'
+        : _hppForPeriod > 0 ? `💷 Estimated Take-Home Pay (inc. HPP${_hppIsEstimate ? ' estimate' : ''})`
+        : '💷 Estimated Take-Home Pay';
     const _peekBtn = document.getElementById('resultPeekBtn');
-    if (_peekBtn) _peekBtn.textContent = `↑ Estimated take-home: ${fmt(net)}`;
+    if (_peekBtn) _peekBtn.textContent =
+        _bpThisPeriod > 0 && _hppForPeriod > 0 ? `↑ Estimated take-home (inc. back pay & HPP): ${fmt(net)}`
+        : _bpThisPeriod > 0 ? `↑ Estimated take-home (inc. back pay): ${fmt(net)}`
+        : _hppForPeriod > 0 ? `↑ Estimated take-home (inc. HPP): ${fmt(net)}`
+        : `↑ Estimated take-home: ${fmt(net)}`;
     const _stickyAmt = document.getElementById('stickyAmount');
     if (_stickyAmt) _stickyAmt.textContent = fmt(net);
     document.getElementById('bdBtn').innerHTML =
       `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
+  }
+
+  const _bannerEl = document.getElementById('bpActiveBanner');
+  if (_bannerEl) {
+    if (_bpThisPeriod > 0) {
+      _bannerEl.innerHTML = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} &middot; <a onclick="document.getElementById('backPayCard').scrollIntoView({behavior:'smooth'})">view back pay card</a>`;
+      _bannerEl.style.display = '';
+    } else {
+      _bannerEl.style.display = 'none';
+    }
   }
 
   calcHPP();
@@ -1820,6 +1866,16 @@ function calcBackPay() {
     if (periodWrap) periodWrap.style.display = 'none';
     if (applyWrap)  applyWrap.style.display  = 'none';
     rowsEl.innerHTML = '<p style="font-size:13px;color:var(--text-light);padding:8px 0">No saved periods found. Enter hours for each period first.</p>';
+  }
+
+  // Update the back pay state used by calculate() and re-run if needed.
+  // Only associate with a period when the user has explicitly chosen one.
+  const newBpPNum = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
+  const newBpAmt  = newBpPNum > 0 ? grandTotal : 0;
+  if (newBpPNum !== _bpPNum || Math.abs(newBpAmt - _bpAmount) > 0.001) {
+    _bpAmount = newBpAmt;
+    _bpPNum   = newBpPNum;
+    calculate();
   }
 }
 
