@@ -11,7 +11,7 @@
  *   Do not rotate without updating this value and redeploying.
  */
 
-import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.56';
+import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.57';
 
 const SETUP_AUTH_URL      = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
