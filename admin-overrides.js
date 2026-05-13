@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.58';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.59';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.58';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.59';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -105,7 +105,6 @@ export function updateWeekNavLabel(dateStr) {
  */
 export function buildWeekGridInto(container, dateStr) {
     const fieldMember = document.getElementById('fieldMember');
-    const shiftNote   = document.getElementById('shiftNote');
     const memberName  = fieldMember?.value;
     const member      = teamMembers.find(m => m.name === memberName);
     if (!member || !memberName || !dateStr) return;
@@ -199,7 +198,6 @@ export function buildWeekGridInto(container, dateStr) {
                 startEl.value = s;
                 endEl.value   = e;
             }
-            if (existing.note && shiftNote) shiftNote.value = existing.note;
         }
 
         pills.forEach(pill => {
@@ -255,7 +253,6 @@ export function renderWeekGrid() {
     const weekGrid    = document.getElementById('weekGrid');
     const bulkBar     = document.getElementById('bulkBar');
     const saveBtn     = document.getElementById('saveBtn');
-    const shiftNote   = document.getElementById('shiftNote');
     const memberName  = fieldMember?.value;
     const dateStr     = fieldDate?.value;
 
@@ -265,12 +262,10 @@ export function renderWeekGrid() {
         if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
         if (bulkBar)  bulkBar.style.display = 'none';
         if (saveBtn)  saveBtn.disabled = true;
-        if (shiftNote) shiftNote.value = '';
         return;
     }
 
     if (weekGrid) weekGrid.innerHTML = '';
-    if (shiftNote) shiftNote.value = '';
 
     if (!teamMembers.find(m => m.name === memberName)) {
         if (bulkBar) bulkBar.style.display = 'none';
@@ -465,7 +460,6 @@ export async function executeSave(toSave, toDelete = []) {
     const fieldDate   = document.getElementById('fieldDate');
     const weekGrid    = document.getElementById('weekGrid');
     const saveBtn     = document.getElementById('saveBtn');
-    const shiftNote   = document.getElementById('shiftNote');
     const memberName  = fieldMember?.value;
     const overwrites  = toSave.filter(e => e.existingId).length;
     const creates     = toSave.length - overwrites;
@@ -494,7 +488,6 @@ export async function executeSave(toSave, toDelete = []) {
         if (overwrites > 0) parts.push(`${overwrites} updated`);
         if (removes    > 0) parts.push(`${removes} removed`);
         _showSuccess(`${parts.join(', ')} for ${memberName}`);
-        if (shiftNote) shiftNote.value = '';
 
         // Reset checked rows in the grid
         weekGrid?.querySelectorAll('.day-row').forEach(row => {
@@ -612,9 +605,8 @@ export function renderTable() {
             <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${escapeHtml(o.memberName)} ${o.date}"></td>
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
             <td>${escapeHtml(o.memberName)}</td>
-            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : escapeHtml(o.type)}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}</td>
+            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : escapeHtml(o.type)}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
             <td style="font-family:monospace;font-size:12px">${escapeHtml(o.value)}</td>
-            <td style="color:var(--text-light);font-style:italic">${escapeHtml(o.note)}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
             <td><button class="btn-edit" data-member="${escapeHtml(o.memberName)}" data-date="${o.date}" aria-label="Edit ${escapeHtml(o.memberName)} ${o.date}">Edit</button></td>
             <td><button class="btn-delete" data-id="${o.id}" aria-label="Delete ${escapeHtml(o.memberName)} ${o.date}">Delete</button></td>`;
         if (tableBody) tableBody.appendChild(tr);
