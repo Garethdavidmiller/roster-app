@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.45';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.46';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.45';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.46';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -699,6 +699,21 @@ function _initOverridesTable() {
             const checkedRows = [...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])];
             if (!checkedRows.length) return;
             const ids = checkedRows.map(cb => cb.dataset.id);
+
+            // Two-tap confirmation — matches single-delete pattern
+            if (!bulkDeleteBtn.classList.contains('confirming')) {
+                bulkDeleteBtn.classList.add('confirming');
+                bulkDeleteBtn.textContent = `⚠ Delete ${ids.length}?`;
+                setTimeout(() => {
+                    if (bulkDeleteBtn.classList.contains('confirming')) {
+                        bulkDeleteBtn.classList.remove('confirming');
+                        bulkDeleteBtn.textContent = 'Delete selected';
+                    }
+                }, 5000);
+                return;
+            }
+            bulkDeleteBtn.classList.remove('confirming');
+
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
             try {

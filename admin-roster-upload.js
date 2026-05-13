@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.45';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.45';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.46';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.46';
 
 /**
  * Initialise the weekly roster upload pipeline.
