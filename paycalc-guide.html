@@ -3,7 +3,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Pay Guide">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
     <title>MYB Roster — Pay Calculator Guide</title>
     <style>
         /* ── Print setup ─────────────────────────────────────── */
@@ -21,6 +28,10 @@
             .guide-header { padding: 10px 14px; margin-bottom: 14px; }
             .guide-footer { margin-top: 10px; padding-top: 7px; }
             .cols { gap: 16px; }
+            thead th, .guide-header, .steps li::before, .version-pill {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
 
         /* ── Variables ───────────────────────────────────────── */
@@ -68,12 +79,15 @@
             background: var(--navy);
             color: white;
             border: none;
-            padding: 9px 18px;
+            padding: 12px 18px;
             border-radius: 8px;
             font-size: 13px;
             font-weight: 700;
             cursor: pointer;
             font-family: inherit;
+            min-height: 44px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn-print:hover { background: #00152a; }
         .action-hint { font-size: 12px; color: var(--mid); }

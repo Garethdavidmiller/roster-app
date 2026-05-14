@@ -9,8 +9,8 @@
  *   Huddle file upload form, Huddle card toggle.
  */
 
-import { formatISO } from './roster-data.js?v=9.63';
-import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.63';
+import { formatISO } from './roster-data.js?v=9.64';
+import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.64';
 
 /**
  * Initialises all three Huddle-related cards. Call once after authentication resolves.
@@ -27,6 +27,15 @@ export function initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet }) {
 // ============================================
 // Lets staff enable or disable Huddle and pay-reminder push notifications.
 // Shows current permission state and provides appropriate action buttons.
+function isIOS() {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function isStandalonePWA() {
+    return window.matchMedia?.('(display-mode: standalone)').matches ||
+           window.navigator.standalone === true;
+}
+
 function _initNotificationsCard(lsGet, lsSet) {
     const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
@@ -51,6 +60,15 @@ function _initNotificationsCard(lsGet, lsSet) {
         body.classList.toggle('open');
         chevron.textContent = body.classList.contains('open') ? '▴' : '▾';
     });
+
+    // iOS only supports Web Push when installed as a Home Screen PWA. Show a
+    // clear instruction instead of an Enable button that would silently fail.
+    if (isIOS() && !isStandalonePWA()) {
+        if (statusMsg) statusMsg.textContent = 'On iPhone/iPad, notifications only work when the app is added to your Home Screen. Tap Share → Add to Home Screen, then open from your Home Screen and return here.';
+        if (enableBtn)  enableBtn.style.display  = 'none';
+        if (disableBtn) disableBtn.style.display = 'none';
+        return;
+    }
 
     // Fingerprint stored in localStorage so we can detect a VAPID key rotation.
     // Value is just the first 12 chars of the public key — enough to spot a change.

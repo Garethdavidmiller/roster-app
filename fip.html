@@ -3,7 +3,14 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="FIP Guide">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
     <title>FIP Travel Guide — MYB Roster</title>
     <style>
         :root {
@@ -41,6 +48,9 @@
             background: var(--navy);
             color: white;
             padding: 14px 16px 16px;
+            padding-top: max(14px, env(safe-area-inset-top));
+            padding-left: max(16px, env(safe-area-inset-left));
+            padding-right: max(16px, env(safe-area-inset-right));
             display: flex;
             align-items: flex-start;
             gap: 10px;
@@ -269,6 +279,9 @@
             text-decoration: underline;
             background: none;
             border: none;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
         }
 
         /* ── Divider ─────────────────────────────── */
@@ -301,13 +314,14 @@
         }
         .country-jump a {
             font-size: 12px;
-            padding: 3px 9px;
+            padding: 8px 12px;
             background: var(--white);
             border: 1px solid var(--divider);
             border-radius: 20px;
             text-decoration: none;
             color: var(--text);
             white-space: nowrap;
+            touch-action: manipulation;
         }
         .country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
         .country-jump a.not-fip { opacity: 0.45; }

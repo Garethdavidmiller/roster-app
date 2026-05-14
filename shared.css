@@ -205,6 +205,7 @@ html {
     color-scheme: light; /* prevents dark-mode scrollbars and form controls */
     -webkit-text-size-adjust: none; /* prevents iOS Dynamic Type from scaling the PWA layout */
     text-size-adjust: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 /* Safe-area padding — keeps content clear of the iOS notch and home indicator.
@@ -243,6 +244,18 @@ body {
 .lb-overlay.visible { display: flex; }
 .lb-overlay.open    { opacity: 1; }
 
+/* iOS Safari ignores overflow:hidden on body — position:fixed is required to prevent
+   the page from scrolling behind an open lightbox. */
+body.lb-open {
+    position: fixed;
+    top: var(--lb-scroll-y, 0);
+    left: 0;
+    right: 0;
+    width: 100%;
+    overflow: hidden;
+}
+body.lb-open #stickyTotal { display: none !important; }
+
 /* Content panel — structural positioning and open animation.    */
 /* Theme: colours, padding, border-radius, width stay in ID.     */
 .lb-content {
@@ -272,6 +285,11 @@ body {
     transition: color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* ============================================================
@@ -295,6 +313,7 @@ body {
     width: min(300px, 85vw);
     text-align: center;
     max-height: 80vh;
+    max-height: 80dvh;
     transform: scale(0.85);
 }
 
@@ -569,6 +588,7 @@ body {
     font-size: 11px;
     font-weight: 700;
     padding: 5px 10px;
+    min-height: 36px;
     border-radius: 8px;
     cursor: pointer;
     font-family: inherit;
@@ -648,6 +668,12 @@ body {
     font-family: inherit; line-height: 1;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
     vertical-align: middle; margin-left: 5px;
+    position: relative;
+}
+.help-btn::before {
+    content: '';
+    position: absolute;
+    inset: -12px;
 }
 .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 @media (hover: hover) and (pointer: fine) {

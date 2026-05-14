@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.63';
+export const APP_VERSION = '9.64';
 
 // ============================================
 // CONFIGURATION
@@ -193,7 +193,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.63';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.64';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
@@ -265,7 +265,7 @@ function easterOffset(offsetDays) {
     for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR + 1; y++) {
         const d = computeEaster(y);
         d.setDate(d.getDate() + offsetDays);
-        s.add(d.toISOString().slice(0, 10));
+        s.add(formatISO(d));
     }
     return s;
 }
@@ -284,7 +284,7 @@ function nthWeekdayOfMonth(weekday, n, month) {
         const first  = new Date(y, month, 1);
         const offset = (weekday - first.getDay() + 7) % 7;
         const date   = new Date(y, month, 1 + offset + (n - 1) * 7);
-        s.add(date.toISOString().slice(0, 10));
+        s.add(formatISO(date));
     }
     return s;
 }

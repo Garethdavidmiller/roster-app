@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.63 -->
+<!-- MYB Roster Admin v9.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.63">
+    <link rel="manifest" href="manifest.json?v=9.64">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.63">
+    <link rel="stylesheet" href="shared.css?v=9.64">
 
     <style>
         body {
@@ -63,6 +63,14 @@
             margin-left: 5px;
             touch-action: manipulation;
             transition: background 0.15s, border-color 0.15s, color 0.15s;
+            position: relative;
+        }
+        /* Invisible expanded hit area — the visible button is tiny but the tap region
+           extends 12px in every direction so it's reliably tappable. */
+        .btn-card-tips::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
         }
         .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
         @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); } }
@@ -152,6 +160,9 @@
             letter-spacing: 0.5px;
             white-space: nowrap;
             flex-shrink: 0;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
         }
         .member-context-bar select {
             flex: 1;
@@ -1246,8 +1257,12 @@
             font-size: 16px; color: var(--text-light); cursor: pointer;
             touch-action: manipulation; line-height: 1;
             border-radius: 50%; transition: color 0.15s, background 0.15s;
+            min-width: 44px;
+            min-height: 44px;
+            align-items: center;
+            justify-content: center;
         }
-        .rp-clear.visible { display: block; }
+        .rp-clear.visible { display: inline-flex; }
         .rp-clear:active { color: var(--error-red); }
         .rp-nav {
             display: flex;
@@ -1299,7 +1314,8 @@
             color: var(--text-light);
         }
         .rp-day {
-            height: 40px;
+            height: 44px;
+            min-height: 44px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -1317,7 +1333,7 @@
             }
         }
         .rp-day:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; border-radius: 50%; }
-        .rp-filler { cursor: default; pointer-events: none; }
+        .rp-filler { cursor: default; pointer-events: none; min-height: 44px; }
         .rp-today { color: var(--primary-blue); font-weight: 700; }
         .rp-today::after {
             content: '';
@@ -1554,12 +1570,12 @@
         .unsaved-discard-btn {
             background: white; color: var(--warning-amber);
             border: none; border-radius: var(--radius-sm);
-            padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+            padding: 10px 16px; min-height: 36px; font-size: 13px; font-weight: 600; cursor: pointer;
         }
         .unsaved-keep-btn {
             background: transparent; color: white;
             border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-sm);
-            padding: 7px 14px; font-size: 13px; cursor: pointer;
+            padding: 10px 16px; min-height: 36px; font-size: 13px; cursor: pointer;
         }
 
         #loginOverlay {
@@ -1568,8 +1584,10 @@
             inset: 0;
             background: var(--primary-blue);
             z-index: 9000;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
             padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
         }
         #loginOverlay.visible { display: flex; }
@@ -1580,6 +1598,7 @@
             padding: 36px 32px 28px;
             max-width: 340px;
             width: 100%;
+            margin: auto;
             text-align: center;
             box-shadow: var(--shadow-3);
         }
@@ -1717,9 +1736,10 @@
             flex: 1;
             min-width: 0;
             padding: 8px 10px;
+            min-height: 44px;
             border: 1.5px solid var(--border-light);
             border-radius: var(--radius-sm);
-            font-size: 14px;
+            font-size: 16px;
             background: var(--bg-light);
             color: var(--text-dark);
             box-sizing: border-box;
@@ -1759,6 +1779,38 @@
         }
         @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
         .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* ---- Generic action button utility classes ---- */
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 44px;
+            padding: 11px 16px;
+            border-radius: var(--radius-sm, 8px);
+            font-size: 16px;
+            font-weight: 700;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            touch-action: manipulation;
+            font-family: inherit;
+            transition: background 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+        .btn-action + .btn-action { margin-top: 8px; }
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+        }
+        .btn-primary:active { background: var(--primary-blue-dark); }
+        .btn-secondary {
+            background: white;
+            color: var(--primary-blue);
+            border-color: var(--border-mid, #d0d5dd);
+        }
+        .btn-secondary:active { background: var(--bg-light, #f5f7fa); }
         .huddle-feedback {
             margin-top: 10px;
             font-size: 13px;
@@ -1773,7 +1825,7 @@
             padding: 8px 10px;
             border: 1.5px solid var(--border-light);
             border-radius: var(--radius-sm);
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 600;
             background: var(--bg-light);
             color: var(--text-dark);
@@ -2063,8 +2115,10 @@
             .col-side {
                 position: sticky;
                 top: 20px;
+                max-height: calc(100vh - 40px);
                 max-height: calc(100dvh - 40px);
                 overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
             }
 
             /* Fix 1: member bar restyled as compact white card once JS moves it into col-side */
@@ -2241,7 +2295,7 @@
         </div>
         <div class="login-field">
             <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password">
+            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button id="loginSubmit">Sign in →</button>
@@ -2498,7 +2552,7 @@
                 <div class="huddle-row">
                     <input type="date" id="huddleDate" aria-label="Huddle date">
                     <label for="huddleFileInput" class="huddle-file-label">Choose file</label>
-                    <input type="file" id="huddleFileInput" accept="application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" aria-label="Choose huddle PDF or Word document">
+                    <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" aria-label="Choose huddle PDF or Word document">
                 </div>
                 <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
                 <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
@@ -2528,7 +2582,7 @@
                         </select>
                         <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
                         <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
-                        <input type="file" id="rosterFileInput" accept="application/pdf" style="display:none" aria-label="Choose roster PDF">
+                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" style="display:none" aria-label="Choose roster PDF">
                     </div>
                     <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
                     <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
@@ -2728,6 +2782,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.63"></script>
+<script type="module" src="./admin-app.js?v=9.64"></script>
 </body>
 </html>

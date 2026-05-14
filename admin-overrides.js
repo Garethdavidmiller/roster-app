@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.63';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.64';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.63';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.64';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -39,6 +39,11 @@ let _showError        = () => {};
 let _onAfterSave      = () => {};  // refresh AL/sick banners after any write
 let _markChanged      = () => {};
 let _onEditRow        = () => {};  // handleEdit lives in admin-app.js; passed as callback
+
+// Re-entry guard for the time-input formatter: assigning to `value` inside an
+// `input` listener triggers another `input` event on iOS Safari (but not on
+// Android Chrome). Without this guard the handler reformats its own output.
+let _formattingTime = false;
 
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
@@ -744,12 +749,14 @@ function _initOverridesTable() {
 function _initTimeInputs() {
     // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
     document.addEventListener('input', e => {
-        if (!e.target.classList.contains('time-input')) return;
+        if (_formattingTime || !e.target.classList.contains('time-input')) return;
         const timeInput = e.target;
         timeInput.classList.remove('input-error');
         let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
         if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw;
+        _formattingTime = true;
         timeInput.value = raw.length >= 3 ? raw.slice(0, 2) + ':' + raw.slice(2) : raw;
+        _formattingTime = false;
         if (raw.length === 4) {
             if (timeInput.classList.contains('day-start')) {
                 timeInput.closest('.day-row')?.querySelector('.day-end')?.focus();

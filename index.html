@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.63 -->
+<!-- MYB Roster Calendar - Version 9.64 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.63">
+    <link rel="manifest" href="manifest.json?v=9.64">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,12 +26,12 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
-    <link rel="modulepreload" href="./app.js?v=9.63">
-    <link rel="modulepreload" href="./roster-data.js?v=9.63">
-    <link rel="modulepreload" href="./firebase-client.js?v=9.63">
+    <link rel="modulepreload" href="./app.js?v=9.64">
+    <link rel="modulepreload" href="./roster-data.js?v=9.64">
+    <link rel="modulepreload" href="./firebase-client.js?v=9.64">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.63">
+    <link rel="stylesheet" href="shared.css?v=9.64">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -73,6 +73,7 @@
             -moz-osx-font-smoothing: grayscale;
             background: var(--primary-blue);
             min-height: 100vh;  /* Fallback for browsers without dvh support */
+            min-height: 100svh;
             min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
             display: flex;
             flex-direction: column;
@@ -82,7 +83,8 @@
             padding-bottom: max(20px, env(safe-area-inset-bottom));
             padding-left:   max(20px, env(safe-area-inset-left));
             padding-right:  max(20px, env(safe-area-inset-right));
-            overflow-x: hidden;
+            overflow-x: hidden; /* iOS 15 fallback */
+            overflow-x: clip;   /* does not create a scroll container — prevents iOS rubber-band */
             overscroll-behavior: none;
         }
 
@@ -444,6 +446,7 @@
             align-items: center;
             justify-content: flex-start;
             text-align: center;
+            touch-action: manipulation;
         }
 
         @media (hover: hover) and (pointer: fine) {
@@ -1121,7 +1124,8 @@
             background: white;
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
-            overflow: hidden;
+            /* overflow:hidden creates a sticky containing block on iOS, breaking position:sticky on the team table headers */
+            overflow: visible;
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -1372,11 +1376,15 @@
             max-width: 88px;
             text-align: left;
             padding-left: 10px;
+            touch-action: manipulation;
         }
         .team-table thead th.tv-name-col {
+            position: sticky;
             top: 0;
+            left: 0;
             z-index: 4;
             text-align: left;
+            background: var(--primary-blue);
         }
         .team-table td.tv-name-col {
             background: white;
@@ -1404,6 +1412,7 @@
             font-size: 11px;
             white-space: nowrap;
             border-bottom: 1px solid var(--border-light);
+            touch-action: manipulation;
         }
         /* Cell type colours — same variables as calendar-day cells */
         .tv-rest  { background: var(--rest-day-bg); color: var(--text-faint); }
@@ -2183,7 +2192,7 @@
             padding: 8px 10px;
             border: 2px solid var(--border-light);
             border-radius: 10px;
-            font-size: 14px;
+            font-size: 16px;
             font-weight: 600;
             font-family: inherit;
             color: var(--primary-blue);
@@ -2549,7 +2558,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.63"></script>
+    <script type="module" src="./app.js?v=9.64"></script>
 
 </body>
 </html>

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.63 -->
+<!-- MYB Roster — Pay Calculator v9.64 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.63">
+  <link rel="stylesheet" href="./shared.css?v=9.64">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -182,7 +182,11 @@
       font-size: var(--type-micro); font-weight: 700; color: rgba(255,255,255,0.68);
       text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
     }
-    .net-amount { font-size: 52px; font-weight: 800; color: white; letter-spacing: -2px; line-height: 1; }
+    .net-amount {
+      font-size: 52px; font-weight: 800; color: white; letter-spacing: -2px; line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
     .net-period { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
 
@@ -193,7 +197,11 @@
     }
     .sum-row:last-child { border-bottom: none; }
     .sum-row .lbl { color: var(--text-mid); }
-    .sum-row .val { font-weight: 700; color: var(--text-dark); }
+    .sum-row .val {
+      font-weight: 700; color: var(--text-dark);
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
     .sum-row.sum-gross .lbl { font-weight: 700; color: var(--text-dark); }
     .sum-row.sum-gross .val { font-size: 15px; }
     .sum-row.sum-ded .val  { color: var(--error-red); }
@@ -238,7 +246,11 @@
     }
     .bd-row:last-child { border-bottom: none; }
     .bd-row .b-lbl { color: var(--text-light); flex: 1; }
-    .bd-row .b-val { color: var(--text-mid); font-weight: 600; white-space: nowrap; }
+    .bd-row .b-val {
+      color: var(--text-mid); font-weight: 600; white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
     .bd-row.bd-extra .b-lbl { color: var(--text-mid); }
     .bd-row.bd-extra .b-val { color: var(--success-green); }
 
@@ -457,7 +469,7 @@
     }
     .pfx input { padding-left: 26px; width: 100%; }
     .adj-sign-btn {
-      width: 36px; height: 36px; flex-shrink: 0;
+      width: 44px; height: 44px; flex-shrink: 0;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
       background: white; color: var(--text-dark);
       font-family: inherit; font-size: 18px; font-weight: 700;
@@ -545,6 +557,8 @@
     .hpp-amount {
       font-size: 36px; font-weight: 800; color: var(--primary-blue);
       letter-spacing: -1px; line-height: 1;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
     }
     .hpp-basis {
       font-size: var(--type-small); color: var(--text-light); margin-top: 4px; line-height: 1.4;
@@ -565,7 +579,11 @@
     }
     .bp-row:last-child { border-bottom: none; }
     .bp-row .bp-lbl { color: var(--text-mid); }
-    .bp-row .bp-val { font-weight: 700; color: var(--primary-blue); }
+    .bp-row .bp-val {
+      font-weight: 700; color: var(--primary-blue);
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: 'tnum' 1;
+    }
 
   /* ── CLEAR BUTTON confirming state ── */
   .clear-btn.confirming { color: var(--error-red) !important; }
@@ -899,7 +917,13 @@
   }
   #stickyTotal.visible { display: flex; }
   #stickyTotal .sticky-label { font-size: var(--type-small); opacity: 0.75; }
-  #stickyTotal .sticky-amount { font-size: var(--type-large); font-weight: 700; letter-spacing: -0.02em; }
+  #stickyTotal .sticky-amount {
+    font-size: var(--type-large); font-weight: 700; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+  /* iOS soft keyboard hides the sticky bar (driven by visualViewport listener in paycalc.js) */
+  #stickyTotal.keyboard-up { display: none !important; }
   @media (min-width: 1024px) { #stickyTotal { display: none !important; } }
   /* Space so the disclaimer is never hidden behind the sticky bar */
   body.sticky-active { padding-bottom: max(70px, calc(60px + env(safe-area-inset-bottom))); }
@@ -1048,7 +1072,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.63">
+  <link rel="manifest" href="./pay-manifest.json?v=9.64">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1099,7 +1123,7 @@
         <label>Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
-          <input type="number" id="hourlyRate" step="0.01" min="0" value="20.74" inputmode="decimal">
+          <input type="number" id="hourlyRate" step="0.01" min="0" value="20.74" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">Check your latest payslip. Default is the current rate for your selected grade (CEA: £20.74, CES: £21.81). The app stores a separate rate per tax year — updating here won't affect other years.</div>
         <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ 2026/27 pay award not yet confirmed — the default rate shown may be out of date. Update it here once your payslip reflects the new rate (awards are often announced mid-year and backdated to April).</div>
@@ -1107,7 +1131,7 @@
 
       <div class="field">
         <label>Tax Code</label>
-        <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" style="text-transform:uppercase">
+        <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
         <div class="field-hint">Most people are 1257L. Check your payslip or P60.</div>
       </div>
 
@@ -1115,7 +1139,7 @@
         <label>Pension contribution <span class="note">Smart RPS CR Scheme</span> <span id="pensionPeriodLabel" class="rate-year-label"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
-          <input type="number" id="pensionAmt" step="0.01" min="0" value="147.36" inputmode="decimal">
+          <input type="number" id="pensionAmt" step="0.01" min="0" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — it's the same thing. <strong>Saved per period</strong> — update here when your pension changes and past periods will keep their own amount automatically.</div>
         <div id="pensionWarn" class="val-warn">⚠ Pension exceeds gross pay — check the amount</div>
@@ -1143,7 +1167,7 @@
       </div>
 
       <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
-      <div id="settingsSaveFeedback" style="font-size:var(--type-small);color:var(--success-text);text-align:center;min-height:18px;margin-top:6px"></div>
+      <div id="settingsSaveFeedback" role="status" aria-live="polite" style="font-size:var(--type-small);color:var(--success-text);text-align:center;min-height:18px;margin-top:6px"></div>
 
     </div>
   </div>
@@ -1241,12 +1265,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="satH" min="0" max="140" placeholder="0" inputmode="numeric">
+              <input type="number" id="satH" min="0" max="140" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="satM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="satM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1263,12 +1287,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="bhH" min="0" max="99" placeholder="0" inputmode="numeric">
+              <input type="number" id="bhH" min="0" max="99" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="bhM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="bhM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1285,12 +1309,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="bhOtH" min="0" max="99" placeholder="0" inputmode="numeric">
+              <input type="number" id="bhOtH" min="0" max="99" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="bhOtM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="bhOtM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1310,12 +1334,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="otH" min="0" max="99" placeholder="0" inputmode="numeric">
+              <input type="number" id="otH" min="0" max="99" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="otM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="otM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1332,12 +1356,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="rdwH" min="0" max="99" placeholder="0" inputmode="numeric">
+              <input type="number" id="rdwH" min="0" max="99" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="rdwM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="rdwM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1354,12 +1378,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="sunH" min="0" max="99" placeholder="0" inputmode="numeric">
+              <input type="number" id="sunH" min="0" max="99" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="sunM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="sunM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1376,12 +1400,12 @@
         <div>
           <div class="hhmm-wrap">
             <div class="hhmm-field">
-              <input type="number" id="boxH" min="0" max="24" placeholder="0" inputmode="numeric">
+              <input type="number" id="boxH" min="0" max="24" placeholder="0" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">hrs</span>
             </div>
             <span class="hhmm-sep">:</span>
             <div class="hhmm-field">
-              <input type="number" id="boxM" min="0" max="59" placeholder="00" inputmode="numeric">
+              <input type="number" id="boxM" min="0" max="59" placeholder="00" inputmode="numeric" autocomplete="off" enterkeyhint="done">
               <span class="hhmm-lbl">mins</span>
             </div>
           </div>
@@ -1427,7 +1451,7 @@
             <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>
             <div class="pfx" style="width:90px">
               <span class="pfx-sym">£</span>
-              <input type="number" id="otherAdj" step="0.01" placeholder="0.00" inputmode="decimal" style="text-align:right">
+              <input type="number" id="otherAdj" step="0.01" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done" style="text-align:right">
             </div>
           </div>
         </div>
@@ -1457,14 +1481,14 @@
             <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Taxable pay — year to date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="number" id="ytdPay" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+              <input type="number" id="ytdPay" step="0.01" min="0" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
           <div style="flex:1;min-width:0">
             <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Tax deducted — year to date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
-              <input type="number" id="ytdTax" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+              <input type="number" id="ytdTax" step="0.01" min="0" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
         </div>
@@ -1505,7 +1529,7 @@
           <label>Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
-            <input type="number" id="priorHppActualInput" step="0.01" min="0" placeholder="0.00" inputmode="decimal">
+            <input type="number" id="priorHppActualInput" step="0.01" min="0" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div class="field-hint">Enter the HPP lump sum from your January payslip to replace the estimate above.</div>
         </div>
@@ -1554,12 +1578,12 @@
         <div style="display:flex; gap:8px;">
           <div class="pfx" style="flex:1;min-width:0">
             <span class="pfx-sym">£</span>
-            <input type="number" id="oldRate" step="0.01" min="0" placeholder="Old" inputmode="decimal">
+            <input type="number" id="oldRate" step="0.01" min="0" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div style="display:flex; align-items:center; font-size:18px; color:var(--text-light); flex-shrink:0">→</div>
           <div class="pfx" style="flex:1;min-width:0">
             <span class="pfx-sym">£</span>
-            <input type="number" id="newRateInput" step="0.01" min="0" placeholder="New" inputmode="decimal">
+            <input type="number" id="newRateInput" step="0.01" min="0" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
         </div>
       </div>
@@ -1569,12 +1593,12 @@
         <div style="display:flex; gap:8px;">
           <div class="pfx" style="flex:1;min-width:0">
             <span class="pfx-sym">£</span>
-            <input type="number" id="oldLondon" step="0.01" min="0" placeholder="Old" inputmode="decimal">
+            <input type="number" id="oldLondon" step="0.01" min="0" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div style="display:flex; align-items:center; font-size:18px; color:var(--text-light); flex-shrink:0">→</div>
           <div class="pfx" style="flex:1;min-width:0">
             <span class="pfx-sym">£</span>
-            <input type="number" id="newLondon" step="0.01" min="0" placeholder="New" inputmode="decimal">
+            <input type="number" id="newLondon" step="0.01" min="0" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
         </div>
       </div>
@@ -1622,7 +1646,7 @@
       <div class="decimal-conv-row">
         <div class="decimal-conv-field">
           <label for="decimalHrsInput">Decimal from payslip</label>
-          <input type="number" id="decimalHrsInput" class="decimal-hrs-input" min="0" step="0.01" placeholder="e.g. 7.5" inputmode="decimal">
+          <input type="number" id="decimalHrsInput" class="decimal-hrs-input" min="0" step="0.01" placeholder="e.g. 7.5" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="decimal-conv-equals">=</div>
         <div class="decimal-conv-result" id="decimalHrsResult" aria-live="polite">–</div>
@@ -1690,6 +1714,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.63"></script>
+<script type="module" src="./paycalc.js?v=9.64"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.63
+// MYB Roster — Service Worker v9.64
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.63';
+const APP_VERSION = '9.64';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -139,7 +139,14 @@ self.addEventListener("fetch", event => {
                     clearTimeout(timeoutId);
                     console.log(`[SW ${APP_VERSION}] Offline/timeout — serving from cache:`, path);
                     const fallback = path.includes('paycalc') ? './paycalc.html' : path.includes('admin') ? './admin.html' : './index.html';
-                    return caches.match(event.request).then(r => r || caches.match(fallback));
+                    // iOS can evict the entire Cache Storage under storage pressure —
+                    // synthesise a minimal offline page so the request still resolves.
+                    return caches.match(event.request)
+                        .then(r => r || caches.match(fallback))
+                        .then(r => r || new Response(
+                            '<h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">Cache was cleared. Please reconnect and reload.</p>',
+                            { headers: { 'Content-Type': 'text/html' }, status: 503 }
+                        ));
                 })
         );
     } else {
@@ -192,9 +199,9 @@ self.addEventListener("push", event => {
     event.waitUntil(
         self.registration.showNotification(data.title, {
             body:    data.body,
-            // No 'icon' field — iOS always shows the installed PWA app icon on the
-            // right; adding 'icon' would duplicate it on the left. Android falls back
-            // to the app icon too. badge is the small status-bar icon on Android only.
+            // iOS Notification Centre uses 'icon' when the notification is reviewed
+            // later — without it, iOS shows a generic globe glyph.
+            icon:    `${self.location.origin}/icon-192.png`,
             badge:   `${self.location.origin}/icon-192.png`,
             tag,
             renotify: true,           // still vibrates/sounds even if replacing
@@ -222,12 +229,16 @@ self.addEventListener("notificationclick", event => {
             // Find any open window belonging to this app
             const win = list.find(c => c.url.startsWith(self.location.origin));
             if (win) {
-                // Focus first (iOS requirement), then navigate if on a different page
-                return win.focus().then(() =>
-                    win.url !== targetUrl && 'navigate' in win
-                        ? win.navigate(targetUrl)
-                        : null
-                );
+                // Focus first (iOS requirement), then navigate if on a different page.
+                // If focus() rejects (iOS can leave matchAll returning a stale handle
+                // when the PWA is fully backgrounded) fall back to opening a new window.
+                return win.focus().then(focusedClient => {
+                    if (focusedClient && focusedClient.url !== targetUrl && 'navigate' in focusedClient) {
+                        return focusedClient.navigate(targetUrl)
+                            .catch(() => clients.openWindow(targetUrl));
+                    }
+                    return focusedClient;
+                }).catch(() => clients.openWindow(targetUrl));
             }
             return clients.openWindow(targetUrl);
         })
