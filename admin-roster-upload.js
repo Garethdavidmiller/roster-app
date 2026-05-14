@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.63';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.63';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.64';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.64';
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -132,16 +132,26 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             parseFeedback.className   = 'huddle-feedback';
 
             const idToken = await getIdToken();
-            const response = await fetch(parseUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization':  `Bearer ${idToken}`,
-                    'Content-Type':   'text/plain',
-                    'X-Week-Ending':  weekEnding,
-                    'X-Roster-Type':  rosterType,
-                },
-                body: base64,
-            });
+            // iOS Safari aborts uncontrolled fetches at around 60s — explicit
+            // AbortController gives us a known 90s window and a typed AbortError.
+            const abortCtrl  = new AbortController();
+            const abortTimer = setTimeout(() => abortCtrl.abort(), 90_000);
+            let response;
+            try {
+                response = await fetch(parseUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization':  `Bearer ${idToken}`,
+                        'Content-Type':   'text/plain',
+                        'X-Week-Ending':  weekEnding,
+                        'X-Roster-Type':  rosterType,
+                    },
+                    body: base64,
+                    signal: abortCtrl.signal,
+                });
+            } finally {
+                clearTimeout(abortTimer);
+            }
 
             if (!response.ok) {
                 const errData = await response.json().catch(() => ({}));
@@ -162,9 +172,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         } catch (err) {
             console.error('[RosterUpload] Parse failed:', err);
-            const userMsg = (err instanceof TypeError && err.message === 'Failed to fetch')
-                ? 'Could not reach the server — check your internet connection or try again later.'
-                : 'Unexpected error — please try again or contact support.';
+            let userMsg;
+            if (err.name === 'AbortError' || (err.name === 'TypeError' && err.message.includes('Load failed'))) {
+                userMsg = 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
+            } else if (err instanceof TypeError && err.message === 'Failed to fetch') {
+                userMsg = 'Could not reach the server — check your internet connection or try again later.';
+            } else {
+                userMsg = 'Unexpected error — please try again or contact support.';
+            }
             parseFeedback.textContent = `Could not read the roster: ${userMsg}`;
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
         } finally {

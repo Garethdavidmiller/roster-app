@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.63';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.63';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.64';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.64';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -57,6 +57,20 @@ let _staleMemberName = null;
 // the initial 3-month load is already in flight. Set true before the IIFE
 // await, cleared in its finally block.
 let _initialFetchInProgress = false;
+
+// Body scroll lock for lightboxes — iOS Safari ignores overflow:hidden on body,
+// so we pin position:fixed at the current scroll offset and restore on close.
+let _lbScrollY = 0;
+function lockBodyScroll() {
+    _lbScrollY = window.scrollY;
+    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
+    document.body.classList.add('lb-open');
+}
+function unlockBodyScroll() {
+    document.body.classList.remove('lb-open');
+    document.body.style.removeProperty('--lb-scroll-y');
+    window.scrollTo(0, _lbScrollY);
+}
 
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -922,13 +936,17 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     function openALLightbox() {
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
+        lockBodyScroll();
         document.addEventListener('keydown', onKey);
         loadALStats();
     }
 
     function closeALLightbox() {
         lb.classList.remove('open');
-        lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+        lb.addEventListener('transitionend', () => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, { once: true });
         document.removeEventListener('keydown', onKey);
     }
 
@@ -1437,11 +1455,13 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
             lb.classList.add('open');
             document.getElementById('teamInfoClose')?.focus();
         });
+        lockBodyScroll();
     }
     function closeTeamInfo() {
         lb.classList.remove('open');
         lb.addEventListener('transitionend', () => {
             lb.classList.remove('visible');
+            unlockBodyScroll();
             if (_trigger && typeof _trigger.focus === 'function') {
                 _trigger.focus();
                 _trigger = null;
@@ -1513,7 +1533,12 @@ try {
         if (splash) {
             requestAnimationFrame(() => {
                 splash.classList.add('hidden');
-                splash.addEventListener('transitionend', () => splash.remove(), { once: true });
+                // Fallback timer — iOS may not fire transitionend if the tab is backgrounded mid-fade.
+                const splashFallback = setTimeout(() => splash.remove(), 1000);
+                splash.addEventListener('transitionend', () => {
+                    clearTimeout(splashFallback);
+                    splash.remove();
+                }, { once: true });
             });
         }
 
@@ -1896,6 +1921,13 @@ try {
                             swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
                         }
                     });
+                    // iOS does not always fire visibilitychange when the tab is suspended/restored.
+                    // pagehide/pageshow are more reliable triggers for the same lifecycle.
+                    window.addEventListener('pagehide', () => clearInterval(swUpdateInterval));
+                    window.addEventListener('pageshow', () => {
+                        clearInterval(swUpdateInterval);
+                        swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+                    });
                 });
             }
 
@@ -1928,6 +1960,7 @@ try {
                 }
                 lightbox.classList.add('visible');
                 requestAnimationFrame(() => lightbox.classList.add('open'));
+                lockBodyScroll();
                 document.addEventListener('keydown', onKeyDown);
             }
 
@@ -1935,6 +1968,7 @@ try {
                 lightbox.classList.remove('open');
                 lightbox.addEventListener('transitionend', () => {
                     lightbox.classList.remove('visible');
+                    unlockBodyScroll();
                 }, { once: true });
                 document.removeEventListener('keydown', onKeyDown);
             }
@@ -1988,11 +2022,15 @@ try {
                 selYear.value  = currentDisplayYear;
                 overlay.classList.add('visible');
                 requestAnimationFrame(() => overlay.classList.add('open'));
+                lockBodyScroll();
             }
 
             function closePicker() {
                 overlay.classList.remove('open');
-                overlay.addEventListener('transitionend', () => overlay.classList.remove('visible'), { once: true });
+                overlay.addEventListener('transitionend', () => {
+                    overlay.classList.remove('visible');
+                    unlockBodyScroll();
+                }, { once: true });
             }
 
             // Delegated click: any .month-year element (rebuilt on each render)
@@ -2284,15 +2322,28 @@ async function ensureOverridesCached(year, month) {
     }
 })();
 
+// If the tab is suspended on iOS during the initial fetch and then restored,
+// re-render from whatever cached data we have so the calendar is not blank.
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && _initialFetchInProgress) {
+        if (!teamViewMode) renderCalendar();
+    }
+});
+
 // Register service worker for PWA functionality
 // ============================================
 // PRINT HEADER — stamp timestamp before printing
 // ============================================
-window.addEventListener('beforeprint', () => {
+// iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
+// eagerly on load. The beforeprint handler is kept for desktop browsers, where it
+// updates the timestamp to the moment of printing.
+function stampPrintDate() {
     const now    = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
     const header = document.querySelector('.header');
     if (header) header.setAttribute('data-print-date', `Printed: ${now}`);
-});
+}
+stampPrintDate();
+window.addEventListener('beforeprint', stampPrintDate);
 
 if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
@@ -2338,6 +2389,7 @@ function sanitiseHtml(html) {
     function openViewer() {
         viewer.classList.add('visible');
         requestAnimationFrame(() => viewer.classList.add('open'));
+        lockBodyScroll();
         document.addEventListener('keydown', onKey);
     }
     function closeViewer() {
@@ -2345,13 +2397,13 @@ function sanitiseHtml(html) {
         viewer.addEventListener('transitionend', () => {
             viewer.classList.remove('visible');
             body.classList.remove('has-iframe');
+            unlockBodyScroll();
         }, { once: true });
         document.removeEventListener('keydown', onKey);
     }
     function onKey(e) { if (e.key === 'Escape') closeViewer(); }
 
     if (close) {
-        close.addEventListener('touchend', (e) => { e.preventDefault(); closeViewer(); });
         close.addEventListener('click', closeViewer);
     }
 
@@ -2386,22 +2438,42 @@ function sanitiseHtml(html) {
     // Real-time listener — fires from IndexedDB cache on repeat visits (near-instant)
     // then again when the server confirms. Also fires when a new huddle is uploaded,
     // so staff don't need to refresh the page.
-    subscribeToLatestHuddle(
-        (huddle) => {
-            if (!huddle) {
-                _huddleState = 'none';
-            } else {
-                _huddleData  = huddle;
-                _huddleState = 'ready';
+    function startHuddleSubscription() {
+        subscribeToLatestHuddle(
+            (huddle) => {
+                if (!huddle) {
+                    _huddleState = 'none';
+                } else {
+                    _huddleData  = huddle;
+                    _huddleState = 'ready';
+                }
+                applyHuddleButtonState();
+            },
+            (err) => {
+                _huddleState = 'error';
+                console.warn('[Huddle] Could not fetch latest huddle:', err);
+                applyHuddleButtonState();
             }
-            applyHuddleButtonState();
-        },
-        (err) => {
+        );
+    }
+    startHuddleSubscription();
+
+    // If the tab was discarded while still loading, re-subscribe on return so
+    // the Huddle button doesn't stay stuck in 'loading'.
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden && _huddleState === 'loading') {
+            startHuddleSubscription();
+        }
+    });
+
+    // Safety timeout — don't leave the button in 'loading' forever if the
+    // listener never fires (offline, blocked, etc.).
+    setTimeout(() => {
+        if (_huddleState === 'loading') {
             _huddleState = 'error';
-            console.warn('[Huddle] Could not fetch latest huddle:', err);
             applyHuddleButtonState();
         }
-    );
+    }, 8000);
 })();
 
 // ============================================
@@ -2454,6 +2526,12 @@ function sanitiseHtml(html) {
     // Permission not yet asked — show one-off prompt unless already dismissed
     if (Notification.permission === 'denied') return;
     if (lsGet(PROMPT_DISMISSED)) return;
+
+    // On iOS, Web Push only works inside a Home Screen PWA. In regular Safari the
+    // permission request always fails silently, so showing the prompt would mislead.
+    const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    const _isStandalonePWA = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+    if (_isIOS && !_isStandalonePWA) return;
 
     const prompt      = document.getElementById('notifPrompt');
     const enableBtn   = document.getElementById('notifPromptEnable');

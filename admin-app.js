@@ -12,17 +12,32 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.63';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.63';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.63';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.63';
-import { initHuddleCards } from './admin-huddle.js?v=9.63';
-import { initAuthSetup } from './admin-auth.js?v=9.63';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.64';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.64';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.64';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.64';
+import { initHuddleCards } from './admin-huddle.js?v=9.64';
+import { initAuthSetup } from './admin-auth.js?v=9.64';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
 function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
+
+// Lock/unlock body scroll for lightbox/overlay. iOS Safari otherwise scrolls
+// the page underneath an open overlay; the .lb-open class fixes the body and
+// preserves the scroll position so the page is restored on close.
+let _lbScrollY = 0;
+function lockBodyScroll() {
+    _lbScrollY = window.scrollY;
+    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
+    document.body.classList.add('lb-open');
+}
+function unlockBodyScroll() {
+    document.body.classList.remove('lb-open');
+    document.body.style.removeProperty('--lb-scroll-y');
+    window.scrollTo(0, _lbScrollY);
+}
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -107,6 +122,7 @@ function initLoginOverlay() {
 
     if (!overlay) return;
     overlay.classList.add('visible');
+    lockBodyScroll();
 
     // Grade order — defines display sequence; Management always last
     const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
@@ -182,7 +198,7 @@ function initLoginOverlay() {
                 submitBtn.textContent = 'Try again in 30s';
                 setTimeout(() => {
                     submitBtn.disabled = false;
-                    submitBtn.textContent = 'Log in';
+                    submitBtn.textContent = 'Sign in →';
                     _failCount = 0;
                     _lockedUntil = 0;
                 }, 30_000);
@@ -246,12 +262,14 @@ function initLoginOverlay() {
         }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
+        lockBodyScroll();
         document.addEventListener('keydown', onKey);
     }
 
     function closeLightbox() {
         lightbox.classList.remove('open');
         lightbox.addEventListener('transitionend', () => lightbox.classList.remove('visible'), { once: true });
+        unlockBodyScroll();
         document.removeEventListener('keydown', onKey);
     }
 
@@ -440,12 +458,14 @@ function initLoginOverlay() {
         bodyEl.innerHTML = html;
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
+        lockBodyScroll();
         document.addEventListener('keydown', onKey);
     }
 
     function closeTips() {
         lb.classList.remove('open');
         lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+        unlockBodyScroll();
         document.removeEventListener('keydown', onKey);
     }
 
@@ -682,6 +702,7 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
 
     // pointerdown: record start position only — no capture, no panel building yet.
     weekGrid.addEventListener('pointerdown', e => {
+        if (e.clientX < 24) return; // leave iOS system back-swipe region
         if (!e.isPrimary || swipeCooldown) return;
         if (userMadeChanges) return;
         if (!fieldMember.value || !fieldDate.value) return;
@@ -1358,9 +1379,16 @@ function buildRangePicker(prefix) {
         }
     });
 
-    grid.addEventListener('pointercancel', () => {
-        swListening = swDragging = false;
-        snapBack();
+    grid.addEventListener('pointercancel', e => {
+        if (!e.isPrimary || !swListening) return;
+        swListening = false;
+        try { grid.releasePointerCapture(e.pointerId); } catch (_) {}
+        if (swDragging) {
+            swDragging = false;
+            snapBack();
+        } else {
+            swCooldown = false;
+        }
     });
 
     grid.addEventListener('click', e => {
@@ -1379,19 +1407,24 @@ function buildRangePicker(prefix) {
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); }
     });
 
-    grid.addEventListener('mouseover', e => {
-        if (swDragging || !fromISO || toISO) return;
-        const iso = e.target.closest('[data-iso]')?.dataset.iso || '';
-        if (iso === hoverISO) return;
-        hoverISO = iso;
-        renderGrid(grid);
-    });
+    // Hover preview only on devices with a real cursor — guards iOS from firing
+    // mouseover on touch and showing a stale preview range.
+    const _supportsHover = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+    if (_supportsHover) {
+        grid.addEventListener('mouseover', e => {
+            if (swDragging || !fromISO || toISO) return;
+            const iso = e.target.closest('[data-iso]')?.dataset.iso || '';
+            if (iso === hoverISO) return;
+            hoverISO = iso;
+            renderGrid(grid);
+        });
 
-    grid.addEventListener('mouseleave', () => {
-        if (!hoverISO) return;
-        hoverISO = '';
-        renderGrid(grid);
-    });
+        grid.addEventListener('mouseleave', () => {
+            if (!hoverISO) return;
+            hoverISO = '';
+            renderGrid(grid);
+        });
+    }
 
     render();
     updateChips();
@@ -2655,9 +2688,9 @@ initRosterUpload({
 });
 
 // ── Huddle upload, notifications, Huddle card ────────────────────────────────
-// Extracted to admin-huddle.js at v9.63.
+// Extracted to admin-huddle.js at v9.64.
 initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 
 // ── Staff login accounts setup ───────────────────────────────────────────────
-// Extracted to admin-auth.js at v9.63.
+// Extracted to admin-auth.js at v9.64.
 initAuthSetup({ currentIsAdmin });

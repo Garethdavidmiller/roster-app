@@ -8,19 +8,35 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.63';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.64';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.63';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.63';
+} from './paycalc-calc.js?v=9.64';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.64';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
 function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
 function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
+
+// Body-scroll lock for lightboxes — iOS Safari otherwise lets the page underneath
+// scroll/drag when a fixed overlay is open. position:fixed is applied via the
+// body.lb-open class (defined in shared.css) and the scroll position is restored
+// on close.
+let _lbScrollY = 0;
+function lockBodyScroll() {
+    _lbScrollY = window.scrollY;
+    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
+    document.body.classList.add('lb-open');
+}
+function unlockBodyScroll() {
+    document.body.classList.remove('lb-open');
+    document.body.style.removeProperty('--lb-scroll-y');
+    window.scrollTo(0, _lbScrollY);
+}
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
 // Redirect unsigned-in users to admin.html to sign in, then return here.
@@ -59,14 +75,14 @@ const CONFIG = {
 const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
-  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.63, varPay: 1692.94 },
+  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.64, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.63, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
+  '2025-08-01': { gross: 4441.60, tax:  809.64, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
   '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
-  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.63, sl:   0,    net: 3854.67, varPay: 2496.61 },
+  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.64, sl:   0,    net: 3854.67, varPay: 2496.61 },
   '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
   '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
@@ -219,7 +235,17 @@ const fdShort = d => d.toLocaleDateString('en-GB', {
 const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ── INPUT HELPERS ─────────────────────────────────────────────────────────────
-function numVal(id)    { return parseFloat(document.getElementById(id).value) || 0; }
+function numVal(id) {
+    // iOS keyboards can insert smart hyphens/minus and curly quotes; strip them
+    // so parseFloat doesn't silently return NaN on otherwise-valid user input.
+    const v = document.getElementById(id)?.value ?? '';
+    if (!v) return 0;
+    const cleaned = v
+        .replace(/[‐-―−−]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .trim();
+    return parseFloat(cleaned) || 0;
+}
 function intVal(id)    { return parseInt(document.getElementById(id).value)   || 0; }
 function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
 
@@ -755,6 +781,24 @@ function updateSaveStatus(pNum) {
 }
 
 const _clearState = { pending: false, timer: null, countdownTimer: null };
+
+// iOS suspends timers when a tab is backgrounded; on resume the queued setTimeout
+// fires immediately, which could turn the "Tap again to confirm" prompt into an
+// accidental wipe. Reset the confirm state whenever the tab becomes hidden.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && _clearState.pending) {
+    clearTimeout(_clearState.timer);
+    clearInterval(_clearState.countdownTimer);
+    _clearState.pending = false;
+    _clearState.timer = null;
+    _clearState.countdownTimer = null;
+    const btn = document.getElementById('clearBtn');
+    if (btn) {
+      btn.textContent = 'Clear all entries';
+      btn.classList.remove('confirming');
+    }
+  }
+});
 
 function clearPeriod() {
   const btn = document.getElementById('clearBtn');
@@ -2014,17 +2058,38 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   const stickyBar  = document.getElementById('stickyTotal');
   const resultCard = document.querySelector('.result-card');
   if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
+  // Guard against bfcache double-init: if the page is restored from the back/forward
+  // cache, this IIFE runs again — without this flag a second IntersectionObserver
+  // would be created and leak listeners.
+  if (stickyBar.dataset.obsInit) return;
+  stickyBar.dataset.obsInit = '1';
   // Observe the £ amount display specifically, not the whole card.
   // threshold:0 fires when it fully leaves the viewport; boundingClientRect.top < 0
   // distinguishes "scrolled off the top" from "below the fold on load" (where top is
   // positive and we must not show the bar).
   const netDisplay = document.getElementById('netDisplay') || resultCard;
+  // rAF wrapper prevents class-toggle flicker during iOS momentum scroll, where
+  // IntersectionObserver can fire repeatedly within a single frame.
   const obs = new IntersectionObserver(([entry]) => {
-    const show = !entry.isIntersecting && entry.boundingClientRect.top < 0;
-    stickyBar.classList.toggle('visible', show);
-    document.body.classList.toggle('sticky-active', show);
-  }, { threshold: 0 });
+    requestAnimationFrame(() => {
+      const show = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+      stickyBar.classList.toggle('visible', show);
+      document.body.classList.toggle('sticky-active', show);
+    });
+  }, { threshold: 0, rootMargin: '-8px 0px 0px 0px' });
   obs.observe(netDisplay);
+  // Disconnect on pagehide so a bfcache restore doesn't end up with two observers.
+  window.addEventListener('pagehide', () => obs.disconnect(), { once: false });
+  // Hide the sticky bar while the iOS soft keyboard is up, otherwise it covers
+  // the field the user is typing into. visualViewport shrinks when the keyboard
+  // appears; a >150px drop is a reliable keyboard signal.
+  if (window.visualViewport) {
+    const _baseVVH = window.visualViewport.height;
+    window.visualViewport.addEventListener('resize', () => {
+      const keyboardUp = (_baseVVH - window.visualViewport.height) > 150;
+      stickyBar.classList.toggle('keyboard-up', keyboardUp);
+    }, { passive: true });
+  }
   stickyBar.addEventListener('click', () =>
     resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
   );
@@ -2108,7 +2173,9 @@ document.getElementById('otherAdj').addEventListener('input', () => {
   }
   const btn = document.getElementById('adjSignBtn');
   let touchFired = false;
-  btn.addEventListener('touchend', (e) => { e.preventDefault(); touchFired = true; toggleAdjSign(); });
+  // passive:false is required so preventDefault() actually suppresses the
+  // synthesised click — iOS treats touchend as passive by default.
+  btn.addEventListener('touchend', (e) => { e.preventDefault(); touchFired = true; toggleAdjSign(); }, { passive: false });
   btn.addEventListener('click', () => { if (touchFired) { touchFired = false; return; } toggleAdjSign(); });
 })();
 
@@ -2193,8 +2260,10 @@ Device: ${navigator.userAgent}
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
           clearInterval(updateInterval);
-        } else {
-          clearInterval(updateInterval);
+          updateInterval = null;
+        } else if (!updateInterval) {
+          // Null-guard so rapid visibilitychange events on iOS can't spawn
+          // multiple concurrent intervals.
           updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
         }
       });
@@ -2203,13 +2272,20 @@ Device: ${navigator.userAgent}
 
   function openLightbox() {
     checkUpdateStatus();
+    lockBodyScroll();
     lightbox.classList.add('visible');
     requestAnimationFrame(() => lightbox.classList.add('open'));
     document.addEventListener('keydown', onKeyDown);
   }
   function closeLightbox() {
     lightbox.classList.remove('open');
+    // Safety fallback: if transitionend never fires (e.g. tab backgrounded on iOS
+    // during the close animation), still unlock after the transition would have
+    // completed.
+    const unlockTimer = setTimeout(unlockBodyScroll, 500);
     lightbox.addEventListener('transitionend', () => {
+      clearTimeout(unlockTimer);
+      unlockBodyScroll();
       lightbox.classList.remove('visible');
     }, { once: true });
     document.removeEventListener('keydown', onKeyDown);
@@ -2237,6 +2313,7 @@ Device: ${navigator.userAgent}
     if (!data) return;
     titleEl.textContent = data.title;
     listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
+    lockBodyScroll();
     lb.classList.add('visible');
     requestAnimationFrame(() => lb.classList.add('open'));
     document.addEventListener('keydown', onKey);
@@ -2244,7 +2321,12 @@ Device: ${navigator.userAgent}
 
   function closeHelp() {
     lb.classList.remove('open');
-    lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+    const unlockTimer = setTimeout(unlockBodyScroll, 500);
+    lb.addEventListener('transitionend', () => {
+      clearTimeout(unlockTimer);
+      unlockBodyScroll();
+      lb.classList.remove('visible');
+    }, { once: true });
     document.removeEventListener('keydown', onKey);
   }
 
@@ -2307,6 +2389,9 @@ Device: ${navigator.userAgent}
       const g = lsGet(SK.grade);
       badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
     }
+    // Lock synchronously — calling this inside requestAnimationFrame lets iOS
+    // briefly scroll the page during the open animation.
+    lockBodyScroll();
     lb.classList.add('visible');
     requestAnimationFrame(() => lb.classList.add('open'));
     document.addEventListener('keydown', onKeyDown);
@@ -2315,7 +2400,12 @@ Device: ${navigator.userAgent}
   function closeWelcome() {
     lsSet(WELCOME_KEY, '1');
     lb.classList.remove('open');
-    lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+    const unlockTimer = setTimeout(unlockBodyScroll, 500);
+    lb.addEventListener('transitionend', () => {
+      clearTimeout(unlockTimer);
+      unlockBodyScroll();
+      lb.classList.remove('visible');
+    }, { once: true });
     document.removeEventListener('keydown', onKeyDown);
   }
 
