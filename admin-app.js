@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.60';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.60';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.60';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.60';
-import { initHuddleCards } from './admin-huddle.js?v=9.60';
-import { initAuthSetup } from './admin-auth.js?v=9.60';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.61';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.61';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.61';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.61';
+import { initHuddleCards } from './admin-huddle.js?v=9.61';
+import { initAuthSetup } from './admin-auth.js?v=9.61';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -2655,9 +2655,9 @@ initRosterUpload({
 });
 
 // ── Huddle upload, notifications, Huddle card ────────────────────────────────
-// Extracted to admin-huddle.js at v9.60.
+// Extracted to admin-huddle.js at v9.61.
 initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 
 // ── Staff login accounts setup ───────────────────────────────────────────────
-// Extracted to admin-auth.js at v9.60.
+// Extracted to admin-auth.js at v9.61.
 initAuthSetup({ currentIsAdmin });
