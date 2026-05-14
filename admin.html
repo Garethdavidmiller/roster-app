@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.58 -->
+<!-- MYB Roster Admin v9.59 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.58">
+    <link rel="manifest" href="manifest.json?v=9.59">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.58">
+    <link rel="stylesheet" href="shared.css?v=9.59">
 
     <style>
         body {
@@ -750,27 +750,7 @@
         }
         .col-rd-hint[hidden] { display: none; }
 
-        /* Shared note field — appears below the week grid, above the Save button */
-        .shift-note-row {
-            padding: 4px 0;
-        }
 
-        .shift-note-input {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 8px 10px;
-            border: 1.5px solid var(--border-light);
-            border-radius: 8px;
-            font-size: 16px; /* 16px minimum — iOS Safari zooms viewport on focus below this */
-            font-family: inherit;
-            color: var(--text-dark);
-            background: white;
-        }
-
-        .shift-note-input:focus {
-            border-color: var(--blue-sky);
-            outline: none;
-        }
 
         /* "Has override" badge — shown when a day already has a saved override.
            Turns blue-teal when the row is active (about to replace that override). */
@@ -2158,7 +2138,7 @@
             .btn-delete,
             .btn-edit,
             .col-check,
-            .shift-note-row,
+
             .overrides-month-filter,
             .btn-signout,
             .btn-back,
@@ -2390,9 +2370,6 @@
                 <div class="week-empty">Select a staff member and date above to load the week.</div>
             </div>
 
-            <div class="shift-note-row">
-                <input type="text" id="shiftNote" class="shift-note-input" placeholder="Note (optional)" aria-label="Optional note for this shift change">
-            </div>
             <button class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
             <div class="feedback" id="formFeedback"></div>
@@ -2737,7 +2714,6 @@
                         <th>Member</th>
                         <th>Type</th>
                         <th>Shift time</th>
-                        <th>Note</th>
                         <th colspan="2"></th>
                     </tr>
                 </thead>
@@ -2752,6 +2728,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.58"></script>
+<script type="module" src="./admin-app.js?v=9.59"></script>
 </body>
 </html>

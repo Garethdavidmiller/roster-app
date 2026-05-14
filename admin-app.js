@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.58';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.58';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.58';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.58';
-import { initHuddleCards } from './admin-huddle.js?v=9.58';
-import { initAuthSetup } from './admin-auth.js?v=9.58';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.59';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.59';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.59';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.59';
+import { initHuddleCards } from './admin-huddle.js?v=9.59';
+import { initAuthSetup } from './admin-auth.js?v=9.59';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -410,7 +410,7 @@ function initLoginOverlay() {
                     { icon: '📅', html: 'Use the <strong>month filter</strong> to narrow down to a specific month — defaults to the current month' },
                 ]},
                 { heading: 'Editing and deleting', items: [
-                    { icon: '✏️', html: 'Tap any row to open it for editing — change the shift type, time, or note, then tap <strong>Save changes</strong>' },
+                    { icon: '✏️', html: 'Tap any row to open it for editing — change the shift type or time, then tap <strong>Save changes</strong>' },
                     { icon: '🗑️', html: 'To remove a change, open it and tap <strong>Delete</strong> — the day goes back to the original scheduled shift' },
                 ]},
                 { heading: 'Sources', adminOnly: true, items: [
@@ -477,7 +477,6 @@ const nextWeekBtn  = document.getElementById('nextWeekBtn');
 const weekGrid     = document.getElementById('weekGrid');
 const saveBtn      = document.getElementById('saveBtn');
 const formFeedback = document.getElementById('formFeedback');
-const shiftNote             = document.getElementById('shiftNote');
 
 // On desktop, move the member-context-bar into col-side as the first card.
 // This replaces the full-width navy banner with a compact white sidebar card.
@@ -759,7 +758,6 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
             updateALBookedBox();
             updateSickBookedBox();
             userMadeChanges = false;
-            if (shiftNote) shiftNote.value = '';
 
             swipePanelCurrent.style.transition = TRANSITION;
             swipePanelCurrent.style.transform  = `translate3d(${goLeft ? -swipePanelWidth : swipePanelWidth}px, 0, 0)`;
@@ -881,7 +879,6 @@ saveBtn.addEventListener('click', async () => {
     weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
 
     const toSave = [], toDelete = [], errors = [];
-    const batchNote = shiftNote ? shiftNote.value.trim() : '';
 
     weekGrid.querySelectorAll('.day-row').forEach(row => {
         if (!row.dataset.type) {
@@ -904,7 +901,7 @@ saveBtn.addEventListener('click', async () => {
         const typeMeta    = TYPES[type];
         const startEl = row.querySelector('.day-start');
         const endEl   = row.querySelector('.day-end');
-        const note    = batchNote;
+        const note    = '';
 
         let value;
         if (typeMeta && typeMeta.fixed) {
@@ -2658,9 +2655,9 @@ initRosterUpload({
 });
 
 // ── Huddle upload, notifications, Huddle card ────────────────────────────────
-// Extracted to admin-huddle.js at v9.58.
+// Extracted to admin-huddle.js at v9.59.
 initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 
 // ── Staff login accounts setup ───────────────────────────────────────────────
-// Extracted to admin-auth.js at v9.58.
+// Extracted to admin-auth.js at v9.59.
 initAuthSetup({ currentIsAdmin });

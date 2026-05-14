@@ -308,7 +308,7 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     const payload = JSON.stringify({
         title: 'Marylebone Roster',
         body:  `${dayLabel} Huddle is ready`,
-        url:   './index.html',
+        url:   'https://myb-roster.web.app/',
     });
 
     const snapshot = await admin.firestore().collection('pushSubscriptions').get();
@@ -383,7 +383,7 @@ exports.sendPayReminderNotification = onSchedule(
         const payload = JSON.stringify({
             title: '💷 Payday is Friday!',
             body:  `Hours cutoff today — tap to calculate what lands in your account on ${paydayFormatted} 🎉`,
-            url:   './paycalc.html',
+            url:   'https://myb-roster.web.app/paycalc.html',
         });
 
         const snapshot = await admin.firestore().collection('pushSubscriptions').get();
