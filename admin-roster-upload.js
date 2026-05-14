@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.64';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.64';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.65';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.65';
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -95,10 +95,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             fileInput.value           = '';
             return;
         }
-        if (file.size > 20 * 1024 * 1024) {
+        if (file.size > 10 * 1024 * 1024) {
             fileNameEl.style.display = 'none';
             parseBtn.disabled        = true;
-            parseFeedback.textContent = 'File too large — maximum 20 MB';
+            parseFeedback.textContent = 'File too large — maximum 10 MB';
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             fileInput.value           = '';
             return;

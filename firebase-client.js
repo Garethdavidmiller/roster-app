@@ -44,15 +44,19 @@ const app = initializeApp(firebaseConfig);
  * Shared Firestore database instance.
  * persistentLocalCache stores query results in IndexedDB so the app can
  * show last-seen data instantly on repeat visits while the network catches up.
+ *
+ * iOS Safari Private Browsing exposes `indexedDB` but operations may still
+ * fail at init time. Wrap the call in try/catch so we fall back to the
+ * default memory cache rather than breaking the whole app.
  */
-// IndexedDB is unavailable in iOS Safari Private Browsing — fall back to
-// in-memory cache so Firestore still initialises rather than throwing.
-const _hasIndexedDB = (() => {
-    try { return typeof indexedDB !== 'undefined' && indexedDB !== null; }
-    catch (_) { return false; }
-})();
-
-export const db = initializeFirestore(app, _hasIndexedDB ? { localCache: persistentLocalCache() } : {});
+let db;
+try {
+    db = initializeFirestore(app, { localCache: persistentLocalCache() });
+} catch (err) {
+    console.warn('[Firebase] Persistent cache unavailable; using memory cache:', err);
+    db = initializeFirestore(app, {});
+}
+export { db };
 
 // Re-export Firestore operation functions so callers import from one place.
 export { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot };
@@ -64,10 +68,12 @@ export const auth = getAuth(app);
 
 // Explicit persistence chain: IndexedDB (longest-lived) → localStorage → sessionStorage.
 // iOS ITP can evict IndexedDB after 7 days of no PWA use, causing silent sign-outs.
-setPersistence(auth, indexedDBLocalPersistence)
+// Exported so callers can `await authReady` before signing in — guarantees persistence
+// is configured before the auth token is written, otherwise iOS may drop the session.
+export const authReady = setPersistence(auth, indexedDBLocalPersistence)
     .catch(() => setPersistence(auth, browserLocalPersistence))
     .catch(() => setPersistence(auth, browserSessionPersistence))
-    .catch(err => console.warn('[Auth] persistence setup failed:', err));
+    .catch(err => { console.warn('[Auth] persistence setup failed:', err); });
 
 // Re-export auth operations so callers import from one place.
 export { signInWithEmailAndPassword, signOut };

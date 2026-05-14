@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.64';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.64';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.65';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.65';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -943,7 +943,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
 
     function closeALLightbox() {
         lb.classList.remove('open');
+        const _alUnlockTimer = setTimeout(() => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, 500);
         lb.addEventListener('transitionend', () => {
+            clearTimeout(_alUnlockTimer);
             lb.classList.remove('visible');
             unlockBodyScroll();
         }, { once: true });
@@ -1459,7 +1464,16 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
     }
     function closeTeamInfo() {
         lb.classList.remove('open');
+        const _teamInfoUnlockTimer = setTimeout(() => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+            if (_trigger && typeof _trigger.focus === 'function') {
+                _trigger.focus();
+                _trigger = null;
+            }
+        }, 500);
         lb.addEventListener('transitionend', () => {
+            clearTimeout(_teamInfoUnlockTimer);
             lb.classList.remove('visible');
             unlockBodyScroll();
             if (_trigger && typeof _trigger.focus === 'function') {
@@ -1966,7 +1980,12 @@ try {
 
             function closeLightbox() {
                 lightbox.classList.remove('open');
+                const _aboutUnlockTimer = setTimeout(() => {
+                    lightbox.classList.remove('visible');
+                    unlockBodyScroll();
+                }, 500);
                 lightbox.addEventListener('transitionend', () => {
+                    clearTimeout(_aboutUnlockTimer);
                     lightbox.classList.remove('visible');
                     unlockBodyScroll();
                 }, { once: true });
@@ -2027,7 +2046,12 @@ try {
 
             function closePicker() {
                 overlay.classList.remove('open');
+                const _pickerUnlockTimer = setTimeout(() => {
+                    overlay.classList.remove('visible');
+                    unlockBodyScroll();
+                }, 500);
                 overlay.addEventListener('transitionend', () => {
+                    clearTimeout(_pickerUnlockTimer);
                     overlay.classList.remove('visible');
                     unlockBodyScroll();
                 }, { once: true });
@@ -2394,7 +2418,13 @@ function sanitiseHtml(html) {
     }
     function closeViewer() {
         viewer.classList.remove('open');
+        const _huddleUnlockTimer = setTimeout(() => {
+            viewer.classList.remove('visible');
+            body.classList.remove('has-iframe');
+            unlockBodyScroll();
+        }, 500);
         viewer.addEventListener('transitionend', () => {
+            clearTimeout(_huddleUnlockTimer);
             viewer.classList.remove('visible');
             body.classList.remove('has-iframe');
             unlockBodyScroll();
