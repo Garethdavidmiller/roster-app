@@ -9,8 +9,8 @@
  *   Huddle file upload form, Huddle card toggle.
  */
 
-import { formatISO } from './roster-data.js?v=9.64';
-import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.64';
+import { formatISO } from './roster-data.js?v=9.66';
+import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.66';
 
 /**
  * Initialises all three Huddle-related cards. Call once after authentication resolves.
@@ -39,12 +39,6 @@ function isStandalonePWA() {
 function _initNotificationsCard(lsGet, lsSet) {
     const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
-    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        const statusMsg = document.getElementById('notifStatusMsg');
-        if (statusMsg) statusMsg.textContent = 'Push notifications are not supported on this device or browser.';
-        return;
-    }
-
     const header     = document.getElementById('notifToggleHeader');
     const body       = document.getElementById('notifBody');
     const chevron    = document.getElementById('notifChevron');
@@ -63,8 +57,19 @@ function _initNotificationsCard(lsGet, lsSet) {
 
     // iOS only supports Web Push when installed as a Home Screen PWA. Show a
     // clear instruction instead of an Enable button that would silently fail.
+    // Must run before the generic feature check below — on iOS <16.4 the Push
+    // APIs are missing in a Safari tab, so the feature check would otherwise
+    // show "not supported" instead of the helpful Add-to-Home-Screen message.
     if (isIOS() && !isStandalonePWA()) {
         if (statusMsg) statusMsg.textContent = 'On iPhone/iPad, notifications only work when the app is added to your Home Screen. Tap Share → Add to Home Screen, then open from your Home Screen and return here.';
+        if (enableBtn)  enableBtn.style.display  = 'none';
+        if (disableBtn) disableBtn.style.display = 'none';
+        return;
+    }
+
+    // Generic feature detection
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+        if (statusMsg) statusMsg.textContent = 'Push notifications are not supported on this device or browser.';
         if (enableBtn)  enableBtn.style.display  = 'none';
         if (disableBtn) disableBtn.style.display = 'none';
         return;

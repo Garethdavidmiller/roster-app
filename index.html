@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.64 -->
+<!-- MYB Roster Calendar - Version 9.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <title>MYB Roster</title>
     
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.64">
+    <link rel="manifest" href="manifest.json?v=9.66">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,12 +26,12 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
-    <link rel="modulepreload" href="./app.js?v=9.64">
-    <link rel="modulepreload" href="./roster-data.js?v=9.64">
-    <link rel="modulepreload" href="./firebase-client.js?v=9.64">
+    <link rel="modulepreload" href="./app.js?v=9.66">
+    <link rel="modulepreload" href="./roster-data.js?v=9.66">
+    <link rel="modulepreload" href="./firebase-client.js?v=9.66">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.64">
+    <link rel="stylesheet" href="shared.css?v=9.66">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1029,8 +1029,8 @@
         }
 
         /* ── Mobile landscape (phones on their side) ─────────────────────── */
-        /* Trigger only on short screens (phones) — tablets in landscape are fine as-is */
-        @media (orientation: landscape) and (max-height: 500px) {
+        /* max-width: 1024px prevents this firing on a short desktop browser window */
+        @media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) {
             body {
                 padding-top:    max(6px, env(safe-area-inset-top));
                 padding-bottom: max(6px, env(safe-area-inset-bottom));
@@ -1922,10 +1922,20 @@
             }
         }
 
+        /* Print-only grade/week heading for Team View (hidden on screen) */
+        .tv-print-header { display: none; }
+
         /* ---- Team view print layout ---- */
         @media print {
             .grade-tabs-row, .tv-week-nav, .tv-today-btn, #teamInfoLightbox { display: none; }
             .tv-scroll-hint { display: none; }
+            .tv-print-header {
+                display: block;
+                font-size: 14px;
+                font-weight: 700;
+                color: var(--primary-blue);
+                margin-bottom: 6px;
+            }
             .team-table-wrap { overflow: visible; }
             .team-table { min-width: 0; width: 100%; font-size: 9px; }
             .team-table thead th {
@@ -2558,7 +2568,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.64"></script>
+    <script type="module" src="./app.js?v=9.66"></script>
 
 </body>
 </html>

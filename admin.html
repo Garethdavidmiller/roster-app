@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.64 -->
+<!-- MYB Roster Admin v9.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <meta name="color-scheme" content="light">
     <meta name="theme-color" content="#001e3c">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.64">
+    <link rel="manifest" href="manifest.json?v=9.66">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.64">
+    <link rel="stylesheet" href="shared.css?v=9.66">
 
     <style>
         body {
@@ -2138,14 +2138,25 @@
             /* Fix 3: constrain week nav — looks loose stretching across a 600px column */
             .week-nav { max-width: 480px; margin: 0 auto; }
 
-            /* Fix 4: desktop shift-row column zones.
-               At 1024–1199px the main column is ~620px — the wide template overflows it.
-               Use a tighter template at smaller desktop widths. */
-            .week-grid-header,
-            .day-row {
-                grid-template-columns: 32px 78px 96px minmax(200px, 1fr) 170px;
-                gap: 8px;
+        }
+        /* At 1024–1199px the left column is ~564px — the 5-col template (608px min) overflows.
+           Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
+           Pills and time are always visible here (unlike narrow mobile where they're hidden). */
+        @media (min-width: 1024px) and (max-width: 1199px) {
+            .week-grid-header {
+                grid-template-columns: 32px 1fr auto;
             }
+            .week-grid-header .hdr-pills,
+            .week-grid-header .hdr-time { display: none; }
+            .day-row {
+                grid-template-columns: 32px 1fr auto;
+                grid-template-rows: auto auto auto;
+            }
+            .day-row .col-check { grid-column: 1; grid-row: 1; }
+            .day-row .col-day   { grid-column: 2; grid-row: 1; }
+            .day-row .col-base  { grid-column: 3; grid-row: 1; justify-self: end; }
+            .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
+            .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
         }
         @media (min-width: 1200px) {
             .week-grid-header,
@@ -2782,6 +2793,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.64"></script>
+<script type="module" src="./admin-app.js?v=9.66"></script>
 </body>
 </html>
