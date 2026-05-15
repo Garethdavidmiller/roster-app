@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.71';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.71';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.72';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.72';
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -232,29 +232,32 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         applyFeedback.textContent = '';
 
         try {
-            const batch = writeBatch(db);
-
-            for (const { memberName, date, value, baseShift } of toWrite) {
-                // Map shift value to override type — pass date so Sunday shifts are
-                // correctly saved as 'rdw' and explicit RDW| prefix is honoured
-                const type = shiftValueToOverrideType(value, baseShift, date);
-                // Strip the internal "RDW|" encoding before saving — Firestore stores
-                // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
-                const savedValue = value.startsWith('RDW|') ? value.slice(4) : value;
-                const ref  = doc(collection(db, 'overrides'));
-                batch.set(ref, {
-                    memberName,
-                    date,
-                    type,
-                    value: savedValue,
-                    note:       '',
-                    source:     'roster_import',   // marks this as auto-applied, not hand-entered
-                    createdAt:  serverTimestamp(),
-                    changedBy:  currentUser,
-                });
+            // Firestore batches are capped at 500 ops. Chunk at 400 to stay safe.
+            const CHUNK = 400;
+            for (let i = 0; i < toWrite.length; i += CHUNK) {
+                const chunk = toWrite.slice(i, i + CHUNK);
+                const batch = writeBatch(db);
+                for (const { memberName, date, value, baseShift } of chunk) {
+                    // Map shift value to override type — pass date so Sunday shifts are
+                    // correctly saved as 'rdw' and explicit RDW| prefix is honoured
+                    const type = shiftValueToOverrideType(value, baseShift, date);
+                    // Strip the internal "RDW|" encoding before saving — Firestore stores
+                    // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
+                    const savedValue = value.startsWith('RDW|') ? value.slice(4) : value;
+                    const ref  = doc(collection(db, 'overrides'));
+                    batch.set(ref, {
+                        memberName,
+                        date,
+                        type,
+                        value: savedValue,
+                        note:       '',
+                        source:     'roster_import',   // marks this as auto-applied, not hand-entered
+                        createdAt:  serverTimestamp(),
+                        changedBy:  currentUser,
+                    });
+                }
+                await batch.commit();
             }
-
-            await batch.commit();
 
             // Update the in-memory override cache so the week grid and table refresh
             // without a round-trip to Firestore.  We don't know the new doc IDs but

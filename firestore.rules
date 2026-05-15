@@ -30,12 +30,17 @@ service cloud.firestore {
         request.resource.data.keys().hasAll(['date', 'memberName', 'type', 'value', 'note']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
+        request.resource.data.memberName is string &&
+        request.resource.data.memberName.size() > 0 &&
+        request.resource.data.memberName.size() < 100 &&
         request.resource.data.type in [
           'spare_shift', 'shift', 'allocated', 'overtime', 'rdw', 'swap',
           'annual_leave', 'correction', 'sick'
         ] &&
         request.resource.data.value is string &&
-        request.resource.data.value.size() > 0;
+        request.resource.data.value.size() > 0 &&
+        request.resource.data.note is string &&
+        request.resource.data.note.size() < 500;
       allow delete: if request.auth != null;
     }
 

@@ -205,6 +205,13 @@ exports.ingestHuddle = onRequest(
                     const result = await mammoth.convertToHtml({ buffer: fileBuffer });
                     htmlContent  = result.value || null;
                     console.log(`[ingestHuddle] DOCX converted to HTML (${htmlContent ? htmlContent.length : 0} chars)`);
+                    // Cap at 200 KB — a Huddle is a short daily briefing. A larger HTML blob
+                    // indicates something unexpected (a giant document, a conversion anomaly).
+                    // Store the file in Storage and let staff download it directly instead.
+                    if (htmlContent && htmlContent.length > 200_000) {
+                        console.warn(`[ingestHuddle] HTML too large (${htmlContent.length} chars) — discarding, staff will download from Storage`);
+                        htmlContent = null;
+                    }
                 } catch (mammothErr) {
                     // Conversion failure is non-fatal — file still saved to Storage
                     console.warn('[ingestHuddle] mammoth conversion failed:', mammothErr.message);
@@ -783,13 +790,23 @@ Every column header must appear as a key in every member object.`;
         const hasSundayColumn = parsed.columnHeaders.some(h => ['sun', 'sunday'].includes(h.trim().toLowerCase()));
         applySundayScanCorrections(safeEntries, parsed.sundayScan, hasSundayColumn, dates);
 
-        console.log(`[parseRosterPDF] Returning ${safeEntries.length} parsed members for week ${weekEnding}`);
+        // ---- Filter to known staff names only ----
+        // The AI could hallucinate a name not in the prompt list — strip any entry
+        // whose memberName is not in the relevant staff list for this roster type.
+        const knownNamesSet = new Set(relevantNames);
+        const filteredEntries = safeEntries.filter(e => knownNamesSet.has(e.memberName));
+        if (filteredEntries.length < safeEntries.length) {
+            const dropped = safeEntries.filter(e => !knownNamesSet.has(e.memberName)).map(e => e.memberName);
+            console.warn(`[parseRosterPDF] Dropped ${dropped.length} unknown member(s): ${dropped.join(', ')}`);
+        }
+
+        console.log(`[parseRosterPDF] Returning ${filteredEntries.length} parsed members for week ${weekEnding}`);
 
         res.status(200).json({
             weekEnding,
             rosterType,
             dates,
-            parsed: safeEntries,
+            parsed: filteredEntries,
         });
     }
 );
