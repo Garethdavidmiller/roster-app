@@ -89,7 +89,10 @@ exports.ingestHuddle = onRequest(
 
         // ---- Authentication ----
         const authHeader = req.headers['authorization'] || '';
-        if (authHeader !== `Bearer ${HUDDLE_SECRET.value()}`) {
+        const expected   = `Bearer ${HUDDLE_SECRET.value()}`;
+        const match = authHeader.length === expected.length &&
+            crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+        if (!match) {
             res.status(401).json({ error: 'Unauthorised' });
             return;
         }
@@ -831,8 +834,11 @@ exports.setupRosterAuth = onRequest(
             return res.status(405).json({ error: 'Method not allowed' });
         }
 
-        const authHeader = req.headers['authorization'] || '';
-        if (authHeader !== `Bearer ${ROSTER_SECRET.value()}`) {
+        const authHeader  = req.headers['authorization'] || '';
+        const expectedRs  = `Bearer ${ROSTER_SECRET.value()}`;
+        const matchRs = authHeader.length === expectedRs.length &&
+            crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedRs));
+        if (!matchRs) {
             return res.status(403).json({ error: 'Forbidden' });
         }
 

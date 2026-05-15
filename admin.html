@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.69 -->
+<!-- MYB Roster Admin v9.70 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.69">
+    <link rel="manifest" href="manifest.json?v=9.70">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.69">
+    <link rel="stylesheet" href="shared.css?v=9.70">
 
     <style>
         body {
@@ -755,8 +755,8 @@
             font-size: 11px;
             padding: 4px 8px;
             border-radius: 4px;
-            background: #fffbe6;
-            color: #7b5800;
+            background: var(--rd-hint-bg);
+            color: var(--rd-hint-text);
             line-height: 1.5;
         }
         .col-rd-hint[hidden] { display: none; }
@@ -1119,8 +1119,8 @@
             font-weight: 700;
             padding: 1px 5px;
             border-radius: 8px;
-            background: #f5f5f5;
-            color: #888;
+            background: var(--bg-faint);
+            color: var(--text-light);
             margin-left: 5px;
             vertical-align: middle;
             white-space: nowrap;
@@ -1842,8 +1842,8 @@
             display: flex;
             gap: 10px;
             align-items: flex-start;
-            background: #fff8e1;
-            border: 1.5px solid #f9a825;
+            background: var(--al-confirm-bg);
+            border: 1.5px solid var(--al-confirm-accent);
             border-radius: var(--radius-md);
             padding: 12px 14px;
             margin-bottom: 12px;
@@ -2026,9 +2026,9 @@
             font-size: 13px;
             font-weight: 600;
             color: var(--success-green);
-            background: #f1f8e9;
+            background: var(--roster-success-bg);
             border-radius: var(--radius-md);
-            border: 1px solid #a5d6a7;
+            border: 1px solid var(--success-green-border);
             margin-bottom: 14px;
         }
 
@@ -2793,6 +2793,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.69"></script>
+<script type="module" src="./admin-app.js?v=9.70"></script>
 </body>
 </html>

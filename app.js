@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.69';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.69';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.70';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.70';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -1966,6 +1966,7 @@ try {
                         if (document.hidden) {
                             clearInterval(swUpdateInterval);
                         } else {
+                            clearInterval(swUpdateInterval);
                             registration.update();
                             swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
                         }
@@ -2509,8 +2510,10 @@ function sanitiseHtml(html) {
     // Real-time listener — fires from IndexedDB cache on repeat visits (near-instant)
     // then again when the server confirms. Also fires when a new huddle is uploaded,
     // so staff don't need to refresh the page.
+    let _unsubHuddle = null;
     function startHuddleSubscription() {
-        subscribeToLatestHuddle(
+        if (_unsubHuddle) _unsubHuddle();
+        _unsubHuddle = subscribeToLatestHuddle(
             (huddle) => {
                 if (!huddle) {
                     _huddleState = 'none';
@@ -2644,20 +2647,22 @@ function initCalendarTooltip() {
     tip.setAttribute('aria-hidden', 'true');
     document.body.appendChild(tip);
 
+    let _tipW = 0, _tipH = 0;
     document.addEventListener('mouseover', e => {
         const cell = e.target.closest('.calendar-day[data-tooltip]');
         if (!cell) { tip.hidden = true; return; }
         tip.textContent = cell.dataset.tooltip;
         tip.hidden = false;
+        // Cache dimensions once after content changes — avoids forced reflow on every mousemove.
+        const r = tip.getBoundingClientRect();
+        _tipW = r.width;
+        _tipH = r.height;
     });
 
     document.addEventListener('mousemove', e => {
         if (tip.hidden) return;
-        tip.style.left = '0';
-        tip.style.top  = '0';
-        const r = tip.getBoundingClientRect();
-        tip.style.left = Math.min(e.clientX + 14, window.innerWidth  - r.width  - 8) + 'px';
-        tip.style.top  = Math.min(e.clientY + 16, window.innerHeight - r.height - 8) + 'px';
+        tip.style.left = Math.min(e.clientX + 14, window.innerWidth  - _tipW - 8) + 'px';
+        tip.style.top  = Math.min(e.clientY + 16, window.innerHeight - _tipH - 8) + 'px';
     });
 }
 

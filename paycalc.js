@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.69';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.70';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.69';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.69';
+} from './paycalc-calc.js?v=9.70';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.70';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -100,14 +100,14 @@ const CONFIG = {
 const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
-  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.69, varPay: 1692.94 },
+  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.70, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.69, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
+  '2025-08-01': { gross: 4441.60, tax:  809.70, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
   '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
-  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.69, sl:   0,    net: 3854.67, varPay: 2496.61 },
+  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.70, sl:   0,    net: 3854.67, varPay: 2496.61 },
   '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
   '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
@@ -656,11 +656,15 @@ function onPeriodChange() {
 
   // Fetch admin-added overrides from Firestore in the background.
   if (session2?.name) {
+    const _fetchedPNum = p.num;
     fetchOverridesForPeriod(p, session2.name).then(status => {
       if (status === 'cancelled') return;
+      // Guard: if the user switched period before the fetch resolved, do not
+      // autosave override data from the old period into the new period.
+      if (currentPeriodNum() !== _fetchedPNum) return;
       updateRosterHint();
       // Silently refresh any gold-highlighted fields filled during 'checking' state.
-      const _refreshP = getPeriods().find(x => x.num === currentPeriodNum());
+      const _refreshP = getPeriods().find(x => x.num === _fetchedPNum);
       if (_refreshP) {
         const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
         if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
@@ -2083,6 +2087,9 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   const stickyBar  = document.getElementById('stickyTotal');
   const resultCard = document.querySelector('.result-card');
   if (!stickyBar || !resultCard || !('IntersectionObserver' in window)) return;
+  // Skip on desktop — CSS hides the bar at ≥1024px, but the observer would still
+  // toggle body.sticky-active (which adds bottom padding), causing layout shift.
+  if (window.matchMedia('(min-width: 1024px)').matches) return;
   // Guard against bfcache double-init: if the page is restored from the back/forward
   // cache, this IIFE runs again — without this flag a second IntersectionObserver
   // would be created and leak listeners.
@@ -2104,7 +2111,7 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   }, { threshold: 0, rootMargin: '-8px 0px 0px 0px' });
   obs.observe(netDisplay);
   // Disconnect on pagehide so a bfcache restore doesn't end up with two observers.
-  window.addEventListener('pagehide', () => obs.disconnect(), { once: false });
+  window.addEventListener('pagehide', () => obs.disconnect(), { once: true });
   // Hide the sticky bar while the iOS soft keyboard is up, otherwise it covers
   // the field the user is typing into. visualViewport shrinks when the keyboard
   // appears; a >150px drop is a reliable keyboard signal.

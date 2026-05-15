@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.69 -->
+<!-- MYB Roster — Pay Calculator v9.70 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.69">
+  <link rel="stylesheet" href="./shared.css?v=9.70">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -429,7 +429,7 @@
 
     /* Joiner notice — shown when the member started mid-period */
     .joiner-notice {
-      background: #fff8e1; border: 1px solid var(--accent-gold);
+      background: var(--al-confirm-bg); border: 1px solid var(--accent-gold);
       border-radius: var(--radius-sm); padding: 10px 12px;
       font-size: var(--type-small); color: var(--primary-blue);
       margin-bottom: 10px;
@@ -750,6 +750,14 @@
         box-shadow: none !important; font-size: 10px !important;
         border-left: 3px solid var(--primary-blue) !important;
       }
+      /* Rate badge colours — ensure they print with background */
+      .badge-sat  { background: var(--orange-light)    !important; color: var(--orange)   !important; }
+      .badge-bh   { background: var(--al-light)        !important; color: var(--al)       !important; }
+      .badge-ot   { background: var(--ot-light)        !important; color: var(--ot)       !important; }
+      .badge-rdw  { background: var(--rdw-light)       !important; color: var(--rdw-text) !important; }
+      .badge-sun  { background: var(--blue-light)      !important; color: var(--blue-sky) !important; }
+      .badge-box  { background: var(--boxing-day-bg)   !important; color: var(--boxing-day-text) !important; }
+      .badge-peer { background: var(--green-light)     !important; color: var(--green)    !important; }
     }
 
     /* ── WELCOME LIGHTBOX (first-time only) ─────────────────────────── */
@@ -1072,7 +1080,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.69">
+  <link rel="manifest" href="./pay-manifest.json?v=9.70">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1714,6 +1722,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.69"></script>
+<script type="module" src="./paycalc.js?v=9.70"></script>
 </body>
 </html>

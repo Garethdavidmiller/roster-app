@@ -100,8 +100,14 @@
     --al-confirm-accent: #f9a825;
 
     /* Success (online/ok states) */
-    --success-green:     #2e7d32;   /* sync chip ok, huddle ok, roster upload ok */
-    --success-green-bg:  #e8f5e9;   /* same as --green-light; alias for semantic clarity */
+    --success-green:        #2e7d32;   /* sync chip ok, huddle ok, roster upload ok */
+    --success-green-bg:     #e8f5e9;   /* same as --green-light; alias for semantic clarity */
+    --success-green-border: #a5d6a7;   /* border on success/confirmation banners */
+    --roster-success-bg:    #f1f8e9;   /* roster upload success banner background */
+
+    /* Override grid — rest-day hint strip */
+    --rd-hint-bg:   #fffbe6;   /* pale warm yellow — RD hint row in week grid */
+    --rd-hint-text: #7b5800;   /* warm brown on --rd-hint-bg */
 
     /* Delete / destructive actions */
     --delete-red-dark:   #b71c1c;   /* bulk-delete button hover */
@@ -676,6 +682,7 @@ body.lb-open #stickyTotal { display: none !important; }
     inset: -12px;
 }
 .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+.help-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 @media (hover: hover) and (pointer: fine) {
     .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 }
