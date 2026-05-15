@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.70
+// MYB Roster — Service Worker v9.71
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.70';
+const APP_VERSION = '9.71';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -232,12 +232,15 @@ self.addEventListener("notificationclick", event => {
                 // Focus first (iOS requirement), then navigate if on a different page.
                 // If focus() rejects (iOS can leave matchAll returning a stale handle
                 // when the PWA is fully backgrounded) fall back to opening a new window.
+                // If focus() resolves to null (Android battery-frozen window: the call
+                // succeeds but the OS didn't hand back a live client handle) also fall
+                // back to openWindow so the app still comes to the foreground.
                 return win.focus().then(focusedClient => {
-                    if (focusedClient && focusedClient.url !== targetUrl && 'navigate' in focusedClient) {
+                    if (!focusedClient) return clients.openWindow(targetUrl);
+                    if (focusedClient.url !== targetUrl && 'navigate' in focusedClient) {
                         return focusedClient.navigate(targetUrl)
                             .catch(() => clients.openWindow(targetUrl));
                     }
-                    return focusedClient;
                 }).catch(() => clients.openWindow(targetUrl));
             }
             return clients.openWindow(targetUrl);
