@@ -4,8 +4,8 @@
 // Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
 // Called by admin-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.69';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.69';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js?v=9.70';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.70';
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -202,6 +202,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
     // ---- "Apply approved changes" button ----
     applyBtn.addEventListener('click', async () => {
+        if (applyBtn.disabled) return;
         if (!_parsedResult || !_cellStates) return;
 
         // Collect all DIFF cells that are ticked (approved) + any CONFLICT cells
