@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: May 2026 — v9.54 · Updated every 0.10 version*
+*Last updated: May 2026 — v9.69 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -195,7 +195,7 @@ When building the viewer in admin.html:
 
 - **Region:** `europe-west2` (London)
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. ROSTER_SECRET is no longer used here (it's only used by `setupRosterAuth`).
-- **CORS:** Restricted to `https://myb-roster.firebaseapp.com` and `https://myb-roster.web.app` (v9.53+)
+- **CORS:** `cors: true` — all origins allowed (v9.69). Previously restricted to `[firebaseapp.com, web.app]` (v9.53–v9.68), but firebase-functions v6 with `cors: [array]` does not consistently set `Access-Control-Allow-Headers` on OPTIONS preflight responses, causing browsers to block the POST. Because auth is handled entirely by the Firebase ID token + admin claim, open CORS adds no attack surface. `setupRosterAuth` uses the same `cors: true` setting for the same reason.
 - **AI model:** `claude-haiku-4-5-20251001`, `max_tokens: 8192`
 - **Why direct PDF input:** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
