@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.66';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.66';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.66';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.66';
-import { initHuddleCards } from './admin-huddle.js?v=9.66';
-import { initAuthSetup } from './admin-auth.js?v=9.66';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.67';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.67';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.67';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.67';
+import { initHuddleCards } from './admin-huddle.js?v=9.67';
+import { initAuthSetup } from './admin-auth.js?v=9.67';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -38,6 +38,31 @@ function unlockBodyScroll() {
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
 }
+
+// Android Back button — overlay support (same pattern as app.js).
+let _overlayHistoryPushed = false;
+let _backHandler = null;
+function _pushOverlayState(closeHandler) {
+    if (!_overlayHistoryPushed) {
+        history.pushState({ mybOverlay: true }, '');
+        _overlayHistoryPushed = true;
+    }
+    _backHandler = closeHandler;
+}
+function _clearOverlayHistory() {
+    if (_overlayHistoryPushed) {
+        _overlayHistoryPushed = false;
+        _backHandler = null;
+        history.back();
+    }
+}
+window.addEventListener('popstate', () => {
+    if (!_overlayHistoryPushed) return;
+    _overlayHistoryPushed = false;
+    const fn = _backHandler;
+    _backHandler = null;
+    fn?.();
+});
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -264,10 +289,12 @@ function initLoginOverlay() {
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
         lockBodyScroll();
+        _pushOverlayState(closeLightbox);
         document.addEventListener('keydown', onKey);
     }
 
     function closeLightbox() {
+        _clearOverlayHistory();
         lightbox.classList.remove('open');
         lightbox.addEventListener('transitionend', () => lightbox.classList.remove('visible'), { once: true });
         unlockBodyScroll();
@@ -460,10 +487,12 @@ function initLoginOverlay() {
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
         lockBodyScroll();
+        _pushOverlayState(closeTips);
         document.addEventListener('keydown', onKey);
     }
 
     function closeTips() {
+        _clearOverlayHistory();
         lb.classList.remove('open');
         lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
         unlockBodyScroll();
@@ -2689,9 +2718,9 @@ initRosterUpload({
 });
 
 // ── Huddle upload, notifications, Huddle card ────────────────────────────────
-// Extracted to admin-huddle.js at v9.66.
+// Extracted to admin-huddle.js at v9.67.
 initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 
 // ── Staff login accounts setup ───────────────────────────────────────────────
-// Extracted to admin-auth.js at v9.66.
+// Extracted to admin-auth.js at v9.67.
 initAuthSetup({ currentIsAdmin });
