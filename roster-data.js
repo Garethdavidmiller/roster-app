@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.72';
+export const APP_VERSION = '9.73';
 
 // ============================================
 // CONFIGURATION
@@ -193,7 +193,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.72';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.73';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
@@ -276,6 +276,7 @@ function easterOffset(offsetDays) {
  * @param {number} weekday  0 = Sunday … 6 = Saturday
  * @param {number} n        1-based ordinal (1 = first, 3 = third …)
  * @param {number} month    0-based month (0 = January, 9 = October …)
+ *                          ⚠ Note: fixedAnnualDate() uses 1-based months — the conventions differ.
  * @returns {Set<string>}
  */
 function nthWeekdayOfMonth(weekday, n, month) {
@@ -823,8 +824,8 @@ export const CONGOLESE_LABELS = {
 };
 
 export const CONGOLESE_ICONS = {
-    'drc-martyrs':     '🕊️',
-    'drc-liberation':  '✊',
+    'drc-martyrs':     '🕯️',
+    'drc-liberation':  '🔓',
     'drc-heroes':      '🏅',
     'drc-independence':'🇨🇩',
 };
@@ -857,6 +858,31 @@ export const PORTUGUESE_ICONS = {
 // FAITH BADGE LOOKUP — single source of truth for cultural calendar markers
 // ============================================
 
+// Human-readable display names for each cultural calendar option.
+// Exported so app.js and admin-app.js share one definition.
+export const CALENDAR_NAMES = {
+    islamic:    '🌙 Islamic',
+    hindu:      '🪔 Hindu',
+    chinese:    '🧧 Chinese',
+    jamaican:   '🇯🇲 Jamaican',
+    congolese:  '🇨🇩 Congolese',
+    portuguese: '🇵🇹 Portuguese',
+};
+
+/**
+ * Resolve which faith calendar a member has opted in to.
+ * Handles backward compat: old Firestore docs stored islamicMarkers:true
+ * rather than faithCalendar. Exported so app.js and admin-app.js share
+ * a single implementation.
+ * @param {object|undefined} settings  Firestore memberSettings document data
+ * @returns {string}  faithCalendar value, or 'none'
+ */
+export function resolveFaithCalendar(settings) {
+    if (!settings) return 'none';
+    if (settings.faithCalendar) return settings.faithCalendar;
+    return settings.islamicMarkers ? 'islamic' : 'none';
+}
+
 /**
  * Returns the cultural calendar marker for a date, or null if none matches.
  * This is the canonical lookup — both app.js and getSpecialDayBadges use it
@@ -867,51 +893,54 @@ export const PORTUGUESE_ICONS = {
  * @returns {{ icon: string, label: string }|null}
  */
 export function getFaithBadge(dateStr, faithCalendar) {
-    if (faithCalendar === 'islamic') {
-        if (RAMADAN_STARTS.has(dateStr))         return { icon: ISLAMIC_ICONS['ramadan'],    label: ISLAMIC_LABELS['ramadan']    };
-        if (EID_FITR_DATES.has(dateStr))         return { icon: ISLAMIC_ICONS['eid-fitr'],   label: ISLAMIC_LABELS['eid-fitr']   };
-        if (EID_ADHA_DATES.has(dateStr))         return { icon: ISLAMIC_ICONS['eid-adha'],   label: ISLAMIC_LABELS['eid-adha']   };
-        if (ISLAMIC_NEW_YEAR_DATES.has(dateStr)) return { icon: ISLAMIC_ICONS['islamic-ny'], label: ISLAMIC_LABELS['islamic-ny'] };
-        if (MAWLID_DATES.has(dateStr))           return { icon: ISLAMIC_ICONS['mawlid'],     label: ISLAMIC_LABELS['mawlid']     };
-    }
-    if (faithCalendar === 'hindu') {
-        if (HOLI_DATES.has(dateStr))           return { icon: HINDU_ICONS['holi'],    label: HINDU_LABELS['holi']    };
-        if (NAVRATRI_DATES.has(dateStr))       return { icon: HINDU_ICONS['navratri'], label: HINDU_LABELS['navratri'] };
-        if (DUSSEHRA_DATES.has(dateStr))       return { icon: HINDU_ICONS['dussehra'], label: HINDU_LABELS['dussehra'] };
-        if (DIWALI_DATES.has(dateStr))         return { icon: HINDU_ICONS['diwali'],   label: HINDU_LABELS['diwali']   };
-        if (RAKSHA_BANDHAN_DATES.has(dateStr)) return { icon: HINDU_ICONS['raksha'],   label: HINDU_LABELS['raksha']   };
-    }
-    if (faithCalendar === 'chinese') {
-        const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
-        if (cny)                                 return { icon: cny.icon,                    label: cny.label                    };
-        if (LANTERN_FESTIVAL_DATES.has(dateStr)) return { icon: CHINESE_ICONS['lantern'],     label: CHINESE_LABELS['lantern']     };
-        if (QINGMING_DATES.has(dateStr))         return { icon: CHINESE_ICONS['qingming'],    label: CHINESE_LABELS['qingming']    };
-        if (DRAGON_BOAT_DATES.has(dateStr))      return { icon: CHINESE_ICONS['dragon-boat'], label: CHINESE_LABELS['dragon-boat'] };
-        if (MID_AUTUMN_DATES.has(dateStr))       return { icon: CHINESE_ICONS['mid-autumn'],  label: CHINESE_LABELS['mid-autumn']  };
-    }
-    if (faithCalendar === 'jamaican') {
-        if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) return { icon: JAMAICAN_ICONS['ash-wednesday'], label: JAMAICAN_LABELS['ash-wednesday'] };
-        if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    return { icon: JAMAICAN_ICONS['labour-day'],    label: JAMAICAN_LABELS['labour-day']    };
-        if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: JAMAICAN_ICONS['emancipation'],  label: JAMAICAN_LABELS['emancipation']  };
-        if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: JAMAICAN_ICONS['independence'],  label: JAMAICAN_LABELS['independence']  };
-        if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: JAMAICAN_ICONS['heroes-day'],    label: JAMAICAN_LABELS['heroes-day']    };
-    }
-    if (faithCalendar === 'congolese') {
-        if (CONGOLESE_MARTYRS_DATES.has(dateStr))      return { icon: CONGOLESE_ICONS['drc-martyrs'],      label: CONGOLESE_LABELS['drc-martyrs']      };
-        if (CONGOLESE_LIBERATION_DATES.has(dateStr))   return { icon: CONGOLESE_ICONS['drc-liberation'],   label: CONGOLESE_LABELS['drc-liberation']   };
-        if (CONGOLESE_HEROES_DATES.has(dateStr))       return { icon: CONGOLESE_ICONS['drc-heroes'],       label: CONGOLESE_LABELS['drc-heroes']       };
-        if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) return { icon: CONGOLESE_ICONS['drc-independence'], label: CONGOLESE_LABELS['drc-independence']  };
-    }
-    if (faithCalendar === 'portuguese') {
-        if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))       return { icon: PORTUGUESE_ICONS['pt-carnival'],     label: PORTUGUESE_LABELS['pt-carnival']     };
-        if (PORTUGUESE_FREEDOM_DATES.has(dateStr))        return { icon: PORTUGUESE_ICONS['pt-freedom'],      label: PORTUGUESE_LABELS['pt-freedom']      };
-        if (PORTUGUESE_LABOUR_DATES.has(dateStr))         return { icon: PORTUGUESE_ICONS['pt-labour'],       label: PORTUGUESE_LABELS['pt-labour']       };
-        if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))   return { icon: PORTUGUESE_ICONS['pt-portugal-day'], label: PORTUGUESE_LABELS['pt-portugal-day']  };
-        if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr)) return { icon: PORTUGUESE_ICONS['pt-corpus'],       label: PORTUGUESE_LABELS['pt-corpus']       };
-        if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))     return { icon: PORTUGUESE_ICONS['pt-assumption'],   label: PORTUGUESE_LABELS['pt-assumption']   };
-        if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))       return { icon: PORTUGUESE_ICONS['pt-republic'],     label: PORTUGUESE_LABELS['pt-republic']     };
-        if (PORTUGUESE_RESTORATION_DATES.has(dateStr))    return { icon: PORTUGUESE_ICONS['pt-restoration'],  label: PORTUGUESE_LABELS['pt-restoration']  };
-        if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))     return { icon: PORTUGUESE_ICONS['pt-immaculate'],   label: PORTUGUESE_LABELS['pt-immaculate']   };
+    switch (faithCalendar) {
+        case 'islamic':
+            if (RAMADAN_STARTS.has(dateStr))         return { icon: ISLAMIC_ICONS['ramadan'],    label: ISLAMIC_LABELS['ramadan']    };
+            if (EID_FITR_DATES.has(dateStr))         return { icon: ISLAMIC_ICONS['eid-fitr'],   label: ISLAMIC_LABELS['eid-fitr']   };
+            if (EID_ADHA_DATES.has(dateStr))         return { icon: ISLAMIC_ICONS['eid-adha'],   label: ISLAMIC_LABELS['eid-adha']   };
+            if (ISLAMIC_NEW_YEAR_DATES.has(dateStr)) return { icon: ISLAMIC_ICONS['islamic-ny'], label: ISLAMIC_LABELS['islamic-ny'] };
+            if (MAWLID_DATES.has(dateStr))           return { icon: ISLAMIC_ICONS['mawlid'],     label: ISLAMIC_LABELS['mawlid']     };
+            break;
+        case 'hindu':
+            if (HOLI_DATES.has(dateStr))             return { icon: HINDU_ICONS['holi'],     label: HINDU_LABELS['holi']     };
+            if (NAVRATRI_DATES.has(dateStr))         return { icon: HINDU_ICONS['navratri'], label: HINDU_LABELS['navratri'] };
+            if (DUSSEHRA_DATES.has(dateStr))         return { icon: HINDU_ICONS['dussehra'], label: HINDU_LABELS['dussehra'] };
+            if (DIWALI_DATES.has(dateStr))           return { icon: HINDU_ICONS['diwali'],   label: HINDU_LABELS['diwali']   };
+            if (RAKSHA_BANDHAN_DATES.has(dateStr))   return { icon: HINDU_ICONS['raksha'],   label: HINDU_LABELS['raksha']   };
+            break;
+        case 'chinese': {
+            const cny = CHINESE_NEW_YEAR_DATES.get(dateStr);
+            if (cny)                                 return { icon: cny.icon,                    label: cny.label                    };
+            if (LANTERN_FESTIVAL_DATES.has(dateStr)) return { icon: CHINESE_ICONS['lantern'],     label: CHINESE_LABELS['lantern']     };
+            if (QINGMING_DATES.has(dateStr))         return { icon: CHINESE_ICONS['qingming'],    label: CHINESE_LABELS['qingming']    };
+            if (DRAGON_BOAT_DATES.has(dateStr))      return { icon: CHINESE_ICONS['dragon-boat'], label: CHINESE_LABELS['dragon-boat'] };
+            if (MID_AUTUMN_DATES.has(dateStr))       return { icon: CHINESE_ICONS['mid-autumn'],  label: CHINESE_LABELS['mid-autumn']  };
+            break;
+        }
+        case 'jamaican':
+            if (JAMAICAN_ASH_WEDNESDAY_DATES.has(dateStr)) return { icon: JAMAICAN_ICONS['ash-wednesday'], label: JAMAICAN_LABELS['ash-wednesday'] };
+            if (JAMAICAN_LABOUR_DAY_DATES.has(dateStr))    return { icon: JAMAICAN_ICONS['labour-day'],    label: JAMAICAN_LABELS['labour-day']    };
+            if (JAMAICAN_EMANCIPATION_DATES.has(dateStr))  return { icon: JAMAICAN_ICONS['emancipation'],  label: JAMAICAN_LABELS['emancipation']  };
+            if (JAMAICAN_INDEPENDENCE_DATES.has(dateStr))  return { icon: JAMAICAN_ICONS['independence'],  label: JAMAICAN_LABELS['independence']  };
+            if (JAMAICAN_HEROES_DAY_DATES.has(dateStr))    return { icon: JAMAICAN_ICONS['heroes-day'],    label: JAMAICAN_LABELS['heroes-day']    };
+            break;
+        case 'congolese':
+            if (CONGOLESE_MARTYRS_DATES.has(dateStr))      return { icon: CONGOLESE_ICONS['drc-martyrs'],      label: CONGOLESE_LABELS['drc-martyrs']      };
+            if (CONGOLESE_LIBERATION_DATES.has(dateStr))   return { icon: CONGOLESE_ICONS['drc-liberation'],   label: CONGOLESE_LABELS['drc-liberation']   };
+            if (CONGOLESE_HEROES_DATES.has(dateStr))       return { icon: CONGOLESE_ICONS['drc-heroes'],       label: CONGOLESE_LABELS['drc-heroes']       };
+            if (CONGOLESE_INDEPENDENCE_DATES.has(dateStr)) return { icon: CONGOLESE_ICONS['drc-independence'], label: CONGOLESE_LABELS['drc-independence']  };
+            break;
+        case 'portuguese':
+            if (PORTUGUESE_CARNIVAL_DATES.has(dateStr))       return { icon: PORTUGUESE_ICONS['pt-carnival'],     label: PORTUGUESE_LABELS['pt-carnival']     };
+            if (PORTUGUESE_FREEDOM_DATES.has(dateStr))        return { icon: PORTUGUESE_ICONS['pt-freedom'],      label: PORTUGUESE_LABELS['pt-freedom']      };
+            if (PORTUGUESE_LABOUR_DATES.has(dateStr))         return { icon: PORTUGUESE_ICONS['pt-labour'],       label: PORTUGUESE_LABELS['pt-labour']       };
+            if (PORTUGUESE_PORTUGAL_DAY_DATES.has(dateStr))   return { icon: PORTUGUESE_ICONS['pt-portugal-day'], label: PORTUGUESE_LABELS['pt-portugal-day']  };
+            if (PORTUGUESE_CORPUS_CHRISTI_DATES.has(dateStr)) return { icon: PORTUGUESE_ICONS['pt-corpus'],       label: PORTUGUESE_LABELS['pt-corpus']       };
+            if (PORTUGUESE_ASSUMPTION_DATES.has(dateStr))     return { icon: PORTUGUESE_ICONS['pt-assumption'],   label: PORTUGUESE_LABELS['pt-assumption']   };
+            if (PORTUGUESE_REPUBLIC_DATES.has(dateStr))       return { icon: PORTUGUESE_ICONS['pt-republic'],     label: PORTUGUESE_LABELS['pt-republic']     };
+            if (PORTUGUESE_RESTORATION_DATES.has(dateStr))    return { icon: PORTUGUESE_ICONS['pt-restoration'],  label: PORTUGUESE_LABELS['pt-restoration']  };
+            if (PORTUGUESE_IMMACULATE_DATES.has(dateStr))     return { icon: PORTUGUESE_ICONS['pt-immaculate'],   label: PORTUGUESE_LABELS['pt-immaculate']   };
+            break;
     }
     return null;
 }
@@ -974,9 +1003,10 @@ export function validateRosterPatterns() {
 }
 
 /**
- * Warn if any active cultural/faith calendar has no entries for the current year.
+ * Warn if any lunar/lunisolar cultural calendar dataset has no entries for the current year.
  * Missing entries silently remove all markers for that calendar — this warning surfaces the gap.
- * Only checks the primary Islamic calendar as a representative sample; extend as needed.
+ * Checks all 15 datasets that require manual annual updates (Islamic, Hindu, Chinese lunisolar).
+ * Fixed-date and Easter-relative datasets are auto-computed and excluded from this check.
  */
 export function warnIfCulturalCalendarMissingYear() {
     const year    = new Date().getFullYear();

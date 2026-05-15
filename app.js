@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.72';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.72';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.73';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.73';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -705,13 +705,7 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 // FAITH CALENDAR HELPERS
 // ============================================
 
-// Resolve which faith calendar the member has opted in to.
-// Handles backward compat: old Firestore docs stored islamicMarkers:true.
-function resolveFaithCalendar(settings) {
-    if (!settings) return 'none';
-    if (settings.faithCalendar) return settings.faithCalendar;
-    return settings.islamicMarkers ? 'islamic' : 'none';
-}
+// resolveFaithCalendar and CALENDAR_NAMES are imported from roster-data.js.
 
 // Returns { icon, label } for the faith marker on this date, or null if none.
 // Delegates the lookup to getFaithBadge() in roster-data.js — the single source
@@ -1151,10 +1145,11 @@ function updateLegend() {
 
     function faithInMonth(dateSet, requiredCalendar) {
         if (faithCalendar !== requiredCalendar) return false;
-        return [...dateSet].some(d => {
+        for (const d of dateSet) {
             const [faithYear, faithMonth] = d.split('-').map(Number);
-            return faithYear === y && (faithMonth - 1) === m;
-        });
+            if (faithYear === y && (faithMonth - 1) === m) return true;
+        }
+        return false;
     }
 
     const legendIds = {
@@ -1328,16 +1323,8 @@ function updateFaithHint() {
     const hint = document.getElementById('faithHint');
     if (!hint) return;
     const cal = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
-    const CALENDAR_NAMES = {
-        islamic:    '🌙 Islamic calendar',
-        hindu:      '🪔 Hindu calendar',
-        chinese:    '🧧 Chinese calendar',
-        jamaican:   '🇯🇲 Jamaican calendar',
-        congolese:  '🇨🇩 Congolese calendar',
-        portuguese: '🇵🇹 Portuguese calendar',
-    };
     if (cal !== 'none') {
-        hint.textContent = (CALENDAR_NAMES[cal] || 'Cultural calendar') + ' markers active';
+        hint.textContent = (CALENDAR_NAMES[cal] || 'Cultural') + ' calendar markers active';
         hint.style.display = '';
     } else {
         hint.style.display = 'none';
