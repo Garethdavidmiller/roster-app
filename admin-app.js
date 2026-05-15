@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.72';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.72';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.72';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.72';
-import { initHuddleCards } from './admin-huddle.js?v=9.72';
-import { initAuthSetup } from './admin-auth.js?v=9.72';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.74';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.74';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.74';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.74';
+import { initHuddleCards } from './admin-huddle.js?v=9.74';
+import { initAuthSetup } from './admin-auth.js?v=9.74';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -2435,15 +2435,7 @@ if (overridesMonthFilter) {
     const radios     = document.querySelectorAll('input[name="faithCalendar"]');
     if (!header || !body || !chevron || !saved || !radios.length) return;
 
-    // Human-readable names for each calendar option.
-    const CALENDAR_NAMES = {
-        islamic:    '🌙 Islamic',
-        hindu:      '🪔 Hindu',
-        chinese:    '🧧 Chinese',
-        jamaican:   '🇯🇲 Jamaican',
-        congolese:  '🇨🇩 Congolese',
-        portuguese: '🇵🇹 Portuguese',
-    };
+    // CALENDAR_NAMES imported from roster-data.js.
 
     // Update the "active calendar" tag shown in the card header.
     function updateActiveTag(value) {
@@ -2458,13 +2450,12 @@ if (overridesMonthFilter) {
 
     // Disclaimer text per calendar — shown only for the active selection.
     const DISCLAIMERS = {
-        islamic:  'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting). Mawlid al-Nabi is observed by most UK Muslim communities but not all denominations.',
-        hindu:    'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
-        chinese:  'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
+        islamic:    'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting). Mawlid al-Nabi is observed by most UK Muslim communities but not all denominations.',
+        hindu:      'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
+        chinese:    'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
         jamaican:   'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
-        congolese:   'Congolese national public holidays (DRC). All four dates are fixed each year.',
-        portuguese:  'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May (coincides with the UK Early May back holiday only when 1 May falls on a Monday). Carnival Tuesday is widely observed but discretionary. All other dates are fixed or calculated from Easter.',
-        none:        '',
+        congolese:  'Congolese national public holidays (DRC). All four dates are fixed each year.',
+        portuguese: 'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May (coincides with the UK Early May back holiday only when 1 May falls on a Monday). Carnival Tuesday is widely observed but discretionary. All other dates are fixed or calculated from Easter.',
     };
 
     function updateDisclaimer(value) {
@@ -2479,13 +2470,7 @@ if (overridesMonthFilter) {
         chevron.classList.toggle('open', isOpen);
     });
 
-    // Derive the faith calendar value from Firestore data.
-    // Handles backward compat: old docs stored islamicMarkers:true rather than faithCalendar.
-    function resolveFaithCalendar(data) {
-        if (!data) return 'none';
-        if (data.faithCalendar) return data.faithCalendar;
-        return data.islamicMarkers ? 'islamic' : 'none';
-    }
+    // resolveFaithCalendar imported from roster-data.js (handles islamicMarkers backward compat).
 
     // Load the setting for the given member. Reads localStorage first (instant,
     // no network), then tries Firestore so a cross-device value can override.
@@ -2718,9 +2703,9 @@ initRosterUpload({
 });
 
 // ── Huddle upload, notifications, Huddle card ────────────────────────────────
-// Extracted to admin-huddle.js at v9.72.
+// Extracted to admin-huddle.js at v9.74.
 initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 
 // ── Staff login accounts setup ───────────────────────────────────────────────
-// Extracted to admin-auth.js at v9.72.
+// Extracted to admin-auth.js at v9.74.
 initAuthSetup({ currentIsAdmin });
