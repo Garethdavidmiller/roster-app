@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.66';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.66';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.67';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.67';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -71,6 +71,34 @@ function unlockBodyScroll() {
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
 }
+
+// Android Back button — overlay/Team View support.
+// Opening any overlay pushes a shallow history entry; Back dismisses it
+// instead of navigating away. Closing via a button clears the entry via
+// history.back(), which fires popstate but the flag is already false by then.
+let _overlayHistoryPushed = false;
+let _backHandler = null;
+function _pushOverlayState(closeHandler) {
+    if (!_overlayHistoryPushed) {
+        history.pushState({ mybOverlay: true }, '');
+        _overlayHistoryPushed = true;
+    }
+    _backHandler = closeHandler;
+}
+function _clearOverlayHistory() {
+    if (_overlayHistoryPushed) {
+        _overlayHistoryPushed = false;
+        _backHandler = null;
+        history.back();
+    }
+}
+window.addEventListener('popstate', () => {
+    if (!_overlayHistoryPushed) return;
+    _overlayHistoryPushed = false;
+    const fn = _backHandler;
+    _backHandler = null;
+    fn?.();
+});
 
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -472,9 +500,11 @@ function toggleTeamView() {
     applyTeamViewChrome();
 
     if (teamViewMode) {
+        _pushOverlayState(toggleTeamView); // Back returns to calendar
         currentTeamWeekStart = getSunday(new Date());
         renderTeamView(currentTeamGrade);
     } else {
+        _clearOverlayHistory(); // Remove pushed entry when exiting via button
         renderCalendar();
     }
 }
@@ -938,11 +968,13 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
         lockBodyScroll();
+        _pushOverlayState(closeALLightbox);
         document.addEventListener('keydown', onKey);
         loadALStats();
     }
 
     function closeALLightbox() {
+        _clearOverlayHistory();
         lb.classList.remove('open');
         const _alUnlockTimer = setTimeout(() => {
             lb.classList.remove('visible');
@@ -1462,8 +1494,10 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
             document.getElementById('teamInfoClose')?.focus();
         });
         lockBodyScroll();
+        _pushOverlayState(closeTeamInfo);
     }
     function closeTeamInfo() {
+        _clearOverlayHistory();
         lb.classList.remove('open');
         const _teamInfoUnlockTimer = setTimeout(() => {
             lb.classList.remove('visible');
@@ -1976,10 +2010,12 @@ try {
                 lightbox.classList.add('visible');
                 requestAnimationFrame(() => lightbox.classList.add('open'));
                 lockBodyScroll();
+                _pushOverlayState(closeLightbox);
                 document.addEventListener('keydown', onKeyDown);
             }
 
             function closeLightbox() {
+                _clearOverlayHistory();
                 lightbox.classList.remove('open');
                 const _aboutUnlockTimer = setTimeout(() => {
                     lightbox.classList.remove('visible');
@@ -2043,9 +2079,11 @@ try {
                 overlay.classList.add('visible');
                 requestAnimationFrame(() => overlay.classList.add('open'));
                 lockBodyScroll();
+                _pushOverlayState(closePicker);
             }
 
             function closePicker() {
+                _clearOverlayHistory();
                 overlay.classList.remove('open');
                 const _pickerUnlockTimer = setTimeout(() => {
                     overlay.classList.remove('visible');
@@ -2415,9 +2453,11 @@ function sanitiseHtml(html) {
         viewer.classList.add('visible');
         requestAnimationFrame(() => viewer.classList.add('open'));
         lockBodyScroll();
+        _pushOverlayState(closeViewer);
         document.addEventListener('keydown', onKey);
     }
     function closeViewer() {
+        _clearOverlayHistory();
         viewer.classList.remove('open');
         const _huddleUnlockTimer = setTimeout(() => {
             viewer.classList.remove('visible');

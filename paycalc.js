@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.66';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.67';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.66';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.66';
+} from './paycalc-calc.js?v=9.67';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.67';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -37,6 +37,31 @@ function unlockBodyScroll() {
     document.body.style.removeProperty('--lb-scroll-y');
     window.scrollTo(0, _lbScrollY);
 }
+
+// Android Back button — overlay support (same pattern as app.js).
+let _overlayHistoryPushed = false;
+let _backHandler = null;
+function _pushOverlayState(closeHandler) {
+    if (!_overlayHistoryPushed) {
+        history.pushState({ mybOverlay: true }, '');
+        _overlayHistoryPushed = true;
+    }
+    _backHandler = closeHandler;
+}
+function _clearOverlayHistory() {
+    if (_overlayHistoryPushed) {
+        _overlayHistoryPushed = false;
+        _backHandler = null;
+        history.back();
+    }
+}
+window.addEventListener('popstate', () => {
+    if (!_overlayHistoryPushed) return;
+    _overlayHistoryPushed = false;
+    const fn = _backHandler;
+    _backHandler = null;
+    fn?.();
+});
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
 // Redirect unsigned-in users to admin.html to sign in, then return here.
@@ -75,14 +100,14 @@ const CONFIG = {
 const MILLER_ACTUALS = {
   '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.86, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
-  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.66, varPay: 1692.94 },
+  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.67, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.66, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
+  '2025-08-01': { gross: 4441.60, tax:  809.67, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
   '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
-  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.66, sl:   0,    net: 3854.67, varPay: 2496.61 },
+  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.67, sl:   0,    net: 3854.67, varPay: 2496.61 },
   '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
   '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
@@ -2288,11 +2313,13 @@ Device: ${navigator.userAgent}
   function openLightbox() {
     checkUpdateStatus();
     lockBodyScroll();
+    _pushOverlayState(closeLightbox);
     lightbox.classList.add('visible');
     requestAnimationFrame(() => lightbox.classList.add('open'));
     document.addEventListener('keydown', onKeyDown);
   }
   function closeLightbox() {
+    _clearOverlayHistory();
     lightbox.classList.remove('open');
     // Safety fallback: if transitionend never fires (e.g. tab backgrounded on iOS
     // during the close animation), still unlock after the transition would have
@@ -2329,12 +2356,14 @@ Device: ${navigator.userAgent}
     titleEl.textContent = data.title;
     listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
     lockBodyScroll();
+    _pushOverlayState(closeHelp);
     lb.classList.add('visible');
     requestAnimationFrame(() => lb.classList.add('open'));
     document.addEventListener('keydown', onKey);
   }
 
   function closeHelp() {
+    _clearOverlayHistory();
     lb.classList.remove('open');
     const unlockTimer = setTimeout(unlockBodyScroll, 500);
     lb.addEventListener('transitionend', () => {
@@ -2407,12 +2436,14 @@ Device: ${navigator.userAgent}
     // Lock synchronously — calling this inside requestAnimationFrame lets iOS
     // briefly scroll the page during the open animation.
     lockBodyScroll();
+    _pushOverlayState(closeWelcome);
     lb.classList.add('visible');
     requestAnimationFrame(() => lb.classList.add('open'));
     document.addEventListener('keydown', onKeyDown);
   }
 
   function closeWelcome() {
+    _clearOverlayHistory();
     lsSet(WELCOME_KEY, '1');
     lb.classList.remove('open');
     const unlockTimer = setTimeout(unlockBodyScroll, 500);
