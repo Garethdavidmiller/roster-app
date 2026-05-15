@@ -49,6 +49,26 @@ const ROSTER_SECRET      = defineSecret('ROSTER_SECRET');
 const ANTHROPIC_API_KEY  = defineSecret('ANTHROPIC_API_KEY');
 const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
 
+// ── CORS helper ───────────────────────────────────────────────────────────────
+// firebase-functions v6 with cors: [array] does not consistently reflect
+// Access-Control-Request-Headers back as Access-Control-Allow-Headers. This
+// causes browsers to block the POST after a successful OPTIONS 204, because
+// 'Authorization' is not listed as an allowed header. Handle CORS manually so
+// the allowed headers are always explicit rather than relying on reflection.
+const _CORS_ORIGINS = ['https://myb-roster.firebaseapp.com', 'https://myb-roster.web.app'];
+function _applyCors(req, res, allowedHeaders) {
+    const origin = req.headers.origin || '';
+    if (_CORS_ORIGINS.includes(origin)) {
+        res.set('Access-Control-Allow-Origin', origin);
+        res.set('Vary', 'Origin');
+    }
+    res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.set('Access-Control-Allow-Headers', allowedHeaders);
+    res.set('Access-Control-Max-Age', '3600');
+    if (req.method === 'OPTIONS') { res.status(204).send(''); return true; }
+    return false;
+}
+
 // VAPID public key — safe to expose, matches the private key stored in Secret Manager.
 // Staff browsers use this to encrypt push payloads so only this server can read them.
 const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
@@ -449,11 +469,12 @@ exports.parseRosterPDF = onRequest(
     {
         secrets:        [ANTHROPIC_API_KEY],
         region:         'europe-west2',
-        cors:           ['https://myb-roster.firebaseapp.com', 'https://myb-roster.web.app'],
+        cors:           false,
         timeoutSeconds: 120,            // PDF parse + AI call can take up to ~30s
         memory:         '512MiB',       // pdf-parse needs a little headroom
     },
     async (req, res) => {
+        if (_applyCors(req, res, 'Authorization, Content-Type, X-Week-Ending, X-Roster-Type')) return;
 
         // ---- Method check ----
         if (req.method !== 'POST') {
@@ -823,9 +844,10 @@ exports.setupRosterAuth = onRequest(
         region:        'europe-west2',
         secrets:       [ROSTER_SECRET],
         timeoutSeconds: 120,
-        cors:          ['https://myb-roster.firebaseapp.com', 'https://myb-roster.web.app'],
+        cors:          false,
     },
     async (req, res) => {
+        if (_applyCors(req, res, 'Authorization, Content-Type')) return;
         if (req.method !== 'POST') {
             return res.status(405).json({ error: 'Method not allowed' });
         }
