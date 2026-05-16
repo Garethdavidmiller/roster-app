@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.82 -->
+<!-- MYB Roster — Pay Calculator v9.83 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.82">
+  <link rel="stylesheet" href="./shared.css?v=9.83">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -995,34 +995,6 @@
   .conf-high     { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
-  /* Notice row — informational only (swap days), non-interactive */
-  .roster-row--notice {
-    display: grid;
-    grid-template-columns: auto auto 1fr auto;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    background: var(--conf-recorded-bg);
-    border-radius: 6px;
-    font-family: inherit;
-    font-size: var(--type-small);
-    cursor: default;
-  }
-  /* Ambig row — clickable (fills RDW), styled amber as a prompt to review */
-  .roster-row--ambig {
-    display: grid;
-    grid-template-columns: auto auto auto 1fr auto;
-    align-items: center;
-    gap: 10px;
-    background: var(--conf-possible-bg);
-  }
-  .roster-row--ambig .roster-row-total { color: var(--conf-possible-text); font-weight: 700; }
-  /* Inline "Add OT" link within the swap notice */
-  .roster-swap-ot-btn {
-    background: none; border: none; padding: 0; margin: 0;
-    color: var(--primary-blue); font-size: inherit; font-family: inherit;
-    cursor: pointer; text-decoration: underline; white-space: nowrap;
-  }
   .roster-card-note {
     font-size: var(--type-micro); color: var(--text-faint);
     line-height: 1.4; margin: 0 0 8px;
@@ -1070,8 +1042,6 @@
   .roster-day-chip--rdw { background: var(--rdw);          color: white; }
   .roster-day-chip--bhOt  { background: var(--chip-bhot-bg);    color: white; }
   .roster-day-chip--ot    { background: var(--chip-ot-bg);      color: white; }
-  .roster-day-chip--swap  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
-  .roster-day-chip--ambig { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-view-link {
     display: block; margin-top: 8px;
     font-size: var(--type-micro); color: var(--primary-blue); text-decoration: none;
@@ -1082,7 +1052,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.82">
+  <link rel="manifest" href="./pay-manifest.json?v=9.83">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1255,7 +1225,7 @@
         <p class="roster-card-note" id="rosterHintText">Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are not pre-filled. Swaps or unusual changes may need adjusting.</p>
         <div class="roster-card-actions">
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from roster</button>
-          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show all days ▼</button>
+          <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
         </div>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
@@ -1728,6 +1698,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.82"></script>
+<script type="module" src="./paycalc.js?v=9.83"></script>
 </body>
 </html>

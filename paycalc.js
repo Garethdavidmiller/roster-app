@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.82';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.83';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.82';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.82';
+} from './paycalc-calc.js?v=9.83';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.83';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -675,16 +675,7 @@ function onPeriodChange() {
   // Load saved data for this period
   loadPeriodData(p.num);
 
-  // Set data attribute for print header annotation
-  const hdr = document.querySelector('.app-header');
-  if (hdr) {
-    const now = new Date().toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
-    hdr.setAttribute('data-print-line',
-      `Period P${p.num} · Paid ${fdShort(p.payday)}  ·  Printed ${now}`
-    );
-  }
+  stampPaycalcPrintLine();
 }
 
 // ── PERIOD DATA SAVE / LOAD ───────────────────────────────────────────────────
@@ -1128,8 +1119,6 @@ function updateRosterHint() {
       { cat: 'box',  icon: '🎁', label: 'Boxing Day',         h: s.boxH,  m: s.boxM,  count: s.boxCount,  fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
-    const noticeRows = [];
-
     rows.innerHTML = cats.map(r => {
       const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
@@ -1178,7 +1167,7 @@ function updateRosterHint() {
         `<span class="roster-row-meta">${metaText}</span>` +
         arrowHtml +
         `</button>`;
-    }).join('') + noticeRows.join('');
+    }).join('');
   }
 
   const hintTextEl = document.getElementById('rosterHintText');
@@ -2507,7 +2496,7 @@ Device: ${navigator.userAgent}
 // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
 // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
 // eagerly on load. The beforeprint handler is kept for desktop browsers.
-// calculate() also stamps on every recalc so the period info is always current.
+// onPeriodChange() also calls this so the stamp is always current when printing.
 function stampPaycalcPrintLine() {
   const hdr = document.querySelector('.app-header');
   if (!hdr) return;
