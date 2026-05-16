@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.75';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.75';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, TEAM_GRADES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.76';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.76';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -221,7 +221,7 @@ let currentTeamGrade = (() => {
     try {
         const idx  = getSelectedMemberIndex();
         const role = idx >= 0 ? teamMembers[idx].role : 'CEA';
-        return (role === 'CES' || role === 'Dispatcher') ? role : 'CEA';
+        return TEAM_GRADES.includes(role) ? role : 'CEA';
     } catch { return 'CEA'; }
 })();
 
@@ -270,23 +270,27 @@ function getTeamCellDisplay(member, date) {
     if (shift === 'SICK')                  return { text: '🪑', cls: 'tv-sick' };
     if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw' };
     if (shift.startsWith('RDW|')) {
-        return { text: `💼 ${shift.slice(4)}`, cls: 'tv-rdw' };
+        return { text: `💼 ${escapeHtml(shift.slice(4)) || 'RDW'}`, cls: 'tv-rdw' };
     }
     if (SHIFT_TIME_REGEX.test(shift)) {
-        let emoji = '🌙';
-        if      (member.permanentShift === 'early') emoji = '☀️';
-        else if (member.permanentShift === 'late')  emoji = '🌙';
-        else if (isNightShift(shift))               emoji = '🦉';
-        else if (isEarlyShift(shift))               emoji = '☀️';
-
-        const cls = member.permanentShift === 'early' ? 'tv-early'
-                  : member.permanentShift === 'late'  ? 'tv-late'
-                  : isNightShift(shift)               ? 'tv-night'
-                  : isEarlyShift(shift)               ? 'tv-early'
-                  : 'tv-late';
-        return { text: `${emoji} ${shift}`, cls };
+        const shiftKind = member.permanentShift === 'early' ? 'early'
+                        : member.permanentShift === 'late'  ? 'late'
+                        : isNightShift(shift)               ? 'night'
+                        : isEarlyShift(shift)               ? 'early'
+                        :                                     'late';
+        const EMOJI = { early: '☀️', late: '🌙', night: '🦉' };
+        return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}` };
     }
     return { text: escapeHtml(shift), cls: '' };
+}
+
+/** Formats a Sunday-anchored week as "19–25 May 2026" or "28 Apr – 4 May 2026". */
+function formatTeamWeekLabel(sunday) {
+    const dates = getTeamWeekDates(sunday);
+    const s = dates[0], e = dates[6];
+    return s.getMonth() === e.getMonth()
+        ? `${s.getDate()}–${e.getDate()} ${monthNames[e.getMonth()]} ${e.getFullYear()}`
+        : `${s.getDate()} ${monthNames[s.getMonth()]} – ${e.getDate()} ${monthNames[e.getMonth()]} ${e.getFullYear()}`;
 }
 
 /**
@@ -306,17 +310,19 @@ function renderTeamView(grade, opts = {}) {
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
-    const weekDates = getTeamWeekDates(currentTeamWeekStart);
-    const weekStart = weekDates[0];
-    const weekEnd   = weekDates[6];
+    const weekDates  = getTeamWeekDates(currentTeamWeekStart);
+    const weekLabel  = formatTeamWeekLabel(currentTeamWeekStart);
 
-    // Week label: "19–25 May 2026" or "28 Apr – 4 May 2026" for cross-month weeks
-    const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
-    const weekLabel = sameMonth
-        ? `${weekStart.getDate()}–${weekEnd.getDate()} ${monthNames[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`
-        : `${weekStart.getDate()} ${monthNames[weekStart.getMonth()]} – ${weekEnd.getDate()} ${monthNames[weekEnd.getMonth()]} ${weekEnd.getFullYear()}`;
+    // Save scroll position before innerHTML wipe so it can be restored when skipFetch
+    // (grade tab switch or Firestore callback re-render). Week navigation intentionally
+    // resets scroll to today, so prevScrollLeft stays 0 in that case.
+    const prevScrollLeft = skipFetch
+        ? (calendarDisplay.querySelector('.team-table-wrap')?.scrollLeft ?? 0)
+        : 0;
 
-    const gradeMembers = teamMembers.filter(m => !m.hidden && m.role === grade);
+    const gradeMembers = teamMembers
+        .filter(m => !m.hidden && m.role === grade)
+        .sort((a, b) => a.name.localeCompare(b.name));
 
     const isCurrentWeek = currentTeamWeekStart.getTime() === getSunday(new Date()).getTime();
     // "This week" badge when on the current week; "↩ This week" nav button when browsing away.
@@ -324,13 +330,16 @@ function renderTeamView(grade, opts = {}) {
         ? '<span class="tv-current-badge">This week</span>'
         : '<button class="tv-today-btn" id="tvToday" aria-label="Jump to current week">↩ This week</button>';
 
-    const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
     const todayIndex = weekDates.findIndex(d => d.getTime() === todayMidnight.getTime());
 
     const dayHeaders = weekDates.map((d, i) =>
-        `<th class="tv-day-header${i === todayIndex ? ' tv-today-col' : ''}">${dayLabels[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
+        `<th class="tv-day-header${i === todayIndex ? ' tv-today-col' : ''}">${DAY_NAMES[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
     ).join('');
+
+    // Identify the logged-in member so their row can be visually distinguished.
+    const myIdx  = getSelectedMemberIndex();
+    const myName = myIdx >= 0 ? teamMembers[myIdx].name : null;
 
     const tableBody = gradeMembers.length === 0
         ? `<tr><td colspan="8" class="tv-empty">No staff in this grade</td></tr>`
@@ -339,10 +348,11 @@ function renderTeamView(grade, opts = {}) {
                 const { text, cls } = getTeamCellDisplay(member, date);
                 return `<td class="tv-cell ${cls}${i === todayIndex ? ' tv-today-col' : ''}">${text}</td>`;
             }).join('');
-            return `<tr><td class="tv-name-col">${escapeHtml(member.name)}</td>${cells}</tr>`;
+            const myRow = member.name === myName ? ' class="tv-my-row"' : '';
+            return `<tr${myRow}><td class="tv-name-col">${escapeHtml(member.name)}</td>${cells}</tr>`;
         }).join('');
 
-    const gradeBtns = ['CEA', 'CES', 'Dispatcher'].map(g =>
+    const gradeBtns = TEAM_GRADES.map(g =>
         `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" tabindex="${g === grade ? '0' : '-1'}" aria-controls="gradeTabPanel" data-grade="${g}">${g}</button>`
     ).join('');
 
@@ -353,6 +363,7 @@ function renderTeamView(grade, opts = {}) {
                 <div></div>
                 <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>
                 <div class="grade-tabs-actions">
+                    <button class="team-print-btn" id="teamPrintBtn" aria-label="Print week roster">🖨️</button>
                     <button class="team-help-btn" id="teamHelpBtn" aria-label="Team view tips and colour key">?</button>
                 </div>
             </div>
@@ -364,7 +375,7 @@ function renderTeamView(grade, opts = {}) {
                 <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
             </div>
             <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" aria-label="${grade} grade roster — week of ${weekLabel}">
-                <table class="team-table" aria-label="Team roster — week of ${weekLabel}">
+                <table class="team-table">
                     <thead><tr>
                         <th class="tv-name-col">Name</th>${dayHeaders}
                     </tr></thead>
@@ -418,6 +429,8 @@ function renderTeamView(grade, opts = {}) {
         announceTeamWeek();
     });
 
+    calendarDisplay.querySelector('#teamPrintBtn')?.addEventListener('click', () => window.print());
+
     applyHuddleButtonState();
 
     // Dismiss scroll hint permanently after the user scrolls the table once.
@@ -432,20 +445,23 @@ function renderTeamView(grade, opts = {}) {
         }, { once: true, passive: true });
     }
 
-    // Scroll today's column to the left edge of the visible area (right of the sticky
-    // name column) so it's immediately visible on open without needing to swipe.
-    // Only applies when today falls within the displayed week (todayIndex >= 0).
-    if (todayIndex >= 0 && tableWrap) {
-        requestAnimationFrame(() => {
-            const todayTh = tableWrap.querySelector('th.tv-today-col');
-            const nameTh  = tableWrap.querySelector('th.tv-name-col');
-            if (todayTh && nameTh) {
-                const wrapLeft  = tableWrap.getBoundingClientRect().left;
-                const cellLeft  = todayTh.getBoundingClientRect().left;
-                const nameWidth = nameTh.getBoundingClientRect().width;
-                tableWrap.scrollLeft += cellLeft - wrapLeft - nameWidth;
-            }
-        });
+    // Restore previous scroll position when re-rendering without changing week (grade tab
+    // switch, Firestore callback re-render). For week navigation, scroll today into view instead.
+    if (tableWrap) {
+        if (skipFetch && prevScrollLeft > 0) {
+            tableWrap.scrollLeft = prevScrollLeft;
+        } else if (todayIndex >= 0) {
+            requestAnimationFrame(() => {
+                const todayTh = tableWrap.querySelector('th.tv-today-col');
+                const nameTh  = tableWrap.querySelector('th.tv-name-col');
+                if (todayTh && nameTh) {
+                    const wrapLeft  = tableWrap.getBoundingClientRect().left;
+                    const cellLeft  = todayTh.getBoundingClientRect().left;
+                    const nameWidth = nameTh.getBoundingClientRect().width;
+                    tableWrap.scrollLeft = cellLeft - wrapLeft - nameWidth;
+                }
+            });
+        }
     }
 
     if (!skipFetch) {
@@ -480,6 +496,9 @@ async function fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken) {
             if (!existing ||
                 (newManual && !exManual) ||
                 (newManual === exManual && (d.createdAt?.toMillis?.() ?? 0) > (existing?.createdAt?.toMillis?.() ?? 0))) {
+                // Skip re-render if the display-relevant fields haven't changed
+                // (common when IndexedDB and Firestore return identical data on repeat visits)
+                if (existing && existing.type === d.type && existing.value === d.value) return;
                 rosterOverridesCache.set(cacheKey, d);
                 updated = true;
             }
@@ -1370,13 +1389,8 @@ function announceMonthChange() {
 function announceTeamWeek() {
     const announcer = document.getElementById('ariaAnnouncer');
     if (!announcer) return;
-    const dates = getTeamWeekDates(currentTeamWeekStart);
-    const s = dates[0], e = dates[6];
-    const label = s.getMonth() === e.getMonth()
-        ? `${s.getDate()}–${e.getDate()} ${monthNames[e.getMonth()]} ${e.getFullYear()}`
-        : `${s.getDate()} ${monthNames[s.getMonth()]} – ${e.getDate()} ${monthNames[e.getMonth()]} ${e.getFullYear()}`;
     announcer.textContent = '';
-    requestAnimationFrame(() => { announcer.textContent = `Week of ${label}`; });
+    requestAnimationFrame(() => { announcer.textContent = `Week of ${formatTeamWeekLabel(currentTeamWeekStart)}`; });
 }
 
 document.getElementById('todayBtn').addEventListener('click', () => {
@@ -1507,7 +1521,6 @@ document.getElementById('teamViewBtn').addEventListener('click', toggleTeamView)
 
     document.getElementById('teamInfoClose')?.addEventListener('click', closeTeamInfo);
     lb.addEventListener('click', e => { if (e.target === lb) closeTeamInfo(); });
-    if (content) content.addEventListener('click', e => e.stopPropagation());
 
     document.addEventListener('keydown', e => {
         if (!lb.classList.contains('visible')) return;

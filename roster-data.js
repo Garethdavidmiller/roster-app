@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.75';
+export const APP_VERSION = '9.76';
 
 // ============================================
 // CONFIGURATION
@@ -193,16 +193,17 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.75';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.76';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
 // SHARED CONSTANTS
 // ============================================
 
-export const DAY_KEYS  = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-export const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-export const MONTH_ABB = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const DAY_KEYS    = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+export const DAY_NAMES   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+export const MONTH_ABB   = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const TEAM_GRADES = ['CEA', 'CES', 'Dispatcher'];
 
 // Swipe gesture thresholds — shared by app.js and admin-app.js so tuning
 // in one place applies to both pages.
