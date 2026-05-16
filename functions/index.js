@@ -852,11 +852,31 @@ exports.setupRosterAuth = onRequest(
             return res.status(405).json({ error: 'Method not allowed' });
         }
 
-        const authHeader  = req.headers['authorization'] || '';
-        const expectedRs  = `Bearer ${ROSTER_SECRET.value()}`;
-        const matchRs = authHeader.length === expectedRs.length &&
-            crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedRs));
-        if (!matchRs) {
+        const authHeader = req.headers['authorization'] || '';
+        const bearer     = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+        // Dual auth: Firebase ID token (preferred, post-bootstrap) or ROSTER_SECRET (bootstrap fallback).
+        // On first run the admin has no custom claim yet, so ROSTER_SECRET is accepted; the function
+        // then sets the admin claim so all subsequent calls can use the ID token instead.
+        let authOk = false;
+        try {
+            const decoded = await admin.auth().verifyIdToken(bearer);
+            if (!decoded.admin) {
+                return res.status(403).json({ error: 'Forbidden — admin claim required' });
+            }
+            authOk = true;
+        } catch (_) {
+            // Not a valid ID token. Only fall through to ROSTER_SECRET if the bearer
+            // doesn't look like a JWT (dots = JWT segments). This prevents a compromised
+            // or expired JWT from accidentally matching the secret comparison.
+            if (!bearer.includes('.')) {
+                const expectedRs = `Bearer ${ROSTER_SECRET.value()}`;
+                const match = authHeader.length === expectedRs.length &&
+                    crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expectedRs));
+                if (match) authOk = true;
+            }
+        }
+        if (!authOk) {
             return res.status(403).json({ error: 'Forbidden' });
         }
 
