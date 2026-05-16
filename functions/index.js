@@ -319,7 +319,7 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     const payload = JSON.stringify({
         title: 'Marylebone Roster',
         body:  `${dayLabel} Huddle is ready`,
-        url:   'https://myb-roster.web.app/',
+        url:   'https://myb-roster.web.app/#huddle',
     });
 
     const snapshot = await admin.firestore().collection('pushSubscriptions').get();
