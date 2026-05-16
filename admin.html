@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.81 -->
+<!-- MYB Roster Admin v9.85 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.81">
+    <link rel="manifest" href="manifest.json?v=9.85">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.81">
+    <link rel="stylesheet" href="shared.css?v=9.85">
 
     <style>
         body {
@@ -932,18 +932,7 @@
         .collapse-chevron.open { transform: rotate(180deg); }
 
         /* ---- Religious calendar card ---- */
-        .card-religious-header {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            grid-template-rows: auto auto;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        .card-religious-header h2           { grid-column: 1; grid-row: 1; color: var(--text-mid); font-weight: 600; }
-        .card-religious-header .hint        { grid-column: 1; grid-row: 2; }
-        .card-religious-header .religious-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+        #religiousToggleHeader h2 { color: var(--text-mid); font-weight: 600; }
         .calendar-active-tag {
             display: inline-flex;
             align-items: center;
@@ -958,17 +947,6 @@
             margin-left: 8px;
             vertical-align: middle;
         }
-        .card-religious-body {
-            padding: 16px;
-            display: none; /* collapsed by default */
-        }
-        .card-religious-body.open { display: block; }
-        .religious-chevron {
-            font-size: 12px;
-            color: var(--text-light);
-            transition: transform 0.2s ease;
-        }
-        .religious-chevron.open { transform: rotate(180deg); }
         .religious-intro {
             font-size: 13px;
             color: var(--text-mid);
@@ -2661,12 +2639,12 @@
 
     <!-- Cultural Calendar — all staff -->
     <div class="card" id="religiousCard">
-        <div class="card-header card-religious-header" id="religiousToggleHeader">
+        <div class="card-header card-collapsible-header" id="religiousToggleHeader">
             <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar" title="Tips for cultural calendar">?</button></h2>
             <span class="hint">Optional date markers — one per person</span>
-            <span class="religious-chevron" id="religiousChevron">▾</span>
+            <span class="collapse-chevron" id="religiousChevron">▾</span>
         </div>
-        <div class="card-religious-body" id="religiousBody">
+        <div class="card-collapsible-body" id="religiousBody" style="padding:16px">
             <p class="religious-intro">
                 Choose a calendar to show key dates as small icons on matching days
                 in your roster. Only one calendar can be active at a time.
@@ -2788,6 +2766,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.81"></script>
+<script type="module" src="./admin-app.js?v=9.85"></script>
 </body>
 </html>

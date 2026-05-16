@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.81';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.85';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.81';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.81';
+} from './paycalc-calc.js?v=9.85';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.85';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -102,7 +102,7 @@ const MILLER_ACTUALS = {
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.71, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.71, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.81 },
+  '2025-08-01': { gross: 4441.60, tax:  809.71, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.82 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
@@ -675,16 +675,7 @@ function onPeriodChange() {
   // Load saved data for this period
   loadPeriodData(p.num);
 
-  // Set data attribute for print header annotation
-  const hdr = document.querySelector('.app-header');
-  if (hdr) {
-    const now = new Date().toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric'
-    });
-    hdr.setAttribute('data-print-line',
-      `Period P${p.num} · Paid ${fdShort(p.payday)}  ·  Printed ${now}`
-    );
-  }
+  stampPaycalcPrintLine();
 }
 
 // ── PERIOD DATA SAVE / LOAD ───────────────────────────────────────────────────
@@ -1128,8 +1119,6 @@ function updateRosterHint() {
       { cat: 'box',  icon: '🎁', label: 'Boxing Day',         h: s.boxH,  m: s.boxM,  count: s.boxCount,  fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
-    const noticeRows = [];
-
     rows.innerHTML = cats.map(r => {
       const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
@@ -1178,7 +1167,7 @@ function updateRosterHint() {
         `<span class="roster-row-meta">${metaText}</span>` +
         arrowHtml +
         `</button>`;
-    }).join('') + noticeRows.join('');
+    }).join('');
   }
 
   const hintTextEl = document.getElementById('rosterHintText');
@@ -1545,7 +1534,13 @@ function calculate() {
   const _bannerEl = document.getElementById('bpActiveBanner');
   if (_bannerEl) {
     if (_bpThisPeriod > 0) {
-      _bannerEl.innerHTML = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} &middot; <a onclick="document.getElementById('backPayCard').scrollIntoView({behavior:'smooth'})">view back pay card</a>`;
+      _bannerEl.textContent = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `;
+      const _bpLink = document.createElement('a');
+      _bpLink.textContent = 'view back pay card';
+      _bpLink.addEventListener('click', () => {
+        document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth' });
+      });
+      _bannerEl.appendChild(_bpLink);
       _bannerEl.style.display = '';
     } else {
       _bannerEl.style.display = 'none';
@@ -2507,7 +2502,7 @@ Device: ${navigator.userAgent}
 // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
 // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
 // eagerly on load. The beforeprint handler is kept for desktop browsers.
-// calculate() also stamps on every recalc so the period info is always current.
+// onPeriodChange() also calls this so the stamp is always current when printing.
 function stampPaycalcPrintLine() {
   const hdr = document.querySelector('.app-header');
   if (!hdr) return;

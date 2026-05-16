@@ -11,7 +11,7 @@
  *   Do not rotate without updating this value and redeploying.
  */
 
-import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.81';
+import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.85';
 
 const SETUP_AUTH_URL      = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
@@ -84,7 +84,7 @@ export function initAuthSetup({ currentIsAdmin }) {
             resultEl.innerHTML = lines.map(l => `<p style="margin:0 0 6px">${escapeHtml(l)}</p>`).join('');
             resultEl.style.display = 'block';
         } catch (err) {
-            resultEl.innerHTML = `<p style="color:var(--error)">❌ ${escapeHtml(err.message)}</p>`;
+            resultEl.innerHTML = `<p style="color:var(--error-red)">❌ ${escapeHtml(err.message)}</p>`;
             resultEl.style.display = 'block';
             console.error('[authSetup]', err);
         } finally {

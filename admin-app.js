@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.81';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.81';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.81';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.81';
-import { initHuddleCards } from './admin-huddle.js?v=9.81';
-import { initAuthSetup } from './admin-auth.js?v=9.81';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.85';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.85';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.85';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.85';
+import { initHuddleCards } from './admin-huddle.js?v=9.85';
+import { initAuthSetup } from './admin-auth.js?v=9.85';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -296,8 +296,10 @@ function initLoginOverlay() {
     function closeLightbox() {
         _clearOverlayHistory();
         lightbox.classList.remove('open');
-        lightbox.addEventListener('transitionend', () => lightbox.classList.remove('visible'), { once: true });
-        unlockBodyScroll();
+        lightbox.addEventListener('transitionend', () => {
+            lightbox.classList.remove('visible');
+            unlockBodyScroll();
+        }, { once: true });
         document.removeEventListener('keydown', onKey);
     }
 
@@ -507,8 +509,10 @@ function initLoginOverlay() {
     function closeTips() {
         _clearOverlayHistory();
         lb.classList.remove('open');
-        lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
-        unlockBodyScroll();
+        lb.addEventListener('transitionend', () => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, { once: true });
         document.removeEventListener('keydown', onKey);
     }
 
@@ -576,14 +580,19 @@ const formFeedback = document.getElementById('formFeedback');
 // POPULATE MEMBER DROPDOWNS
 // ============================================
 const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
-roles.forEach(role => {
-    const roleGroup = document.createElement('optgroup');
-    roleGroup.label = role;
-    teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
-        roleGroup.appendChild(new Option(m.name, m.name));
+
+function populateMemberDropdown(select) {
+    roles.forEach(role => {
+        const grp = document.createElement('optgroup');
+        grp.label = role;
+        teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
+            grp.appendChild(new Option(m.name, m.name));
+        });
+        select.appendChild(grp);
     });
-    fieldMember.appendChild(roleGroup);
-});
+}
+
+populateMemberDropdown(fieldMember);
 
 // Restore last used member — prefer the shared cross-page key (written by both index and admin)
 // so navigating between pages keeps the same person selected. Fall back to admin-only key.
@@ -1185,7 +1194,7 @@ alConfirmSaveBtn.addEventListener('click', async () => {
 alConfirmCancelBtn.addEventListener('click', () => {
     hideALConfirm();
     saveBtn.disabled    = false;
-    saveBtn.textContent = 'Save Changes';
+    saveBtn.textContent = 'Save changes';
 });
 
 // ============================================
@@ -1495,15 +1504,7 @@ const alPreview  = document.getElementById('alPreview');
 const alSaveBtn  = document.getElementById('alSaveBtn');
 const alFeedback = document.getElementById('alFeedback');
 
-// Populate alMember dropdown — same grouped list, excluding vacancies
-roles.forEach(role => {
-    const grp = document.createElement('optgroup');
-    grp.label = role;
-    teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
-        grp.appendChild(new Option(m.name, m.name));
-    });
-    alMember.appendChild(grp);
-});
+populateMemberDropdown(alMember);
 
 // Restore last used member
 if (lastMember) alMember.value = lastMember;
@@ -1767,15 +1768,7 @@ const sickPreview  = document.getElementById('sickPreview');
 const sickSaveBtn  = document.getElementById('sickSaveBtn');
 const sickFeedback = document.getElementById('sickFeedback');
 
-// Populate sickMember dropdown (hidden, mirrors fieldMember)
-roles.forEach(role => {
-    const grp = document.createElement('optgroup');
-    grp.label = role;
-    teamMembers.filter(m => m.role === role && !m.hidden).forEach(m => {
-        grp.appendChild(new Option(m.name, m.name));
-    });
-    sickMember.appendChild(grp);
-});
+populateMemberDropdown(sickMember);
 if (lastMember) sickMember.value = lastMember;
 
 /** Keep the sick section's read-only member display in sync with fieldMember. */
@@ -2034,63 +2027,70 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     }
 }
 
-function updateSickBookedBox() {
-    const box  = document.getElementById('sickBookedBox');
-    const body = document.getElementById('sickBookedBody');
+// ── Shared helpers for AL and sick booked-box rendering ──────────────────────
+
+function _addDays(dateStr, n) {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return formatISO(d);
+}
+
+function _isRestGap(dateStr, memberObj) {
+    if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
+    if (!memberObj) return false;
+    const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+    return shift === 'RD' || shift === 'OFF';
+}
+
+function _fmtPeriodDate(d) {
+    const dt = new Date(d + 'T12:00:00');
+    return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
+}
+
+function _fmtPeriodRange(start, end) {
+    const ds = new Date(start + 'T12:00:00');
+    const de = new Date(end   + 'T12:00:00');
+    if (ds.getMonth() === de.getMonth()) {
+        return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
+    }
+    return `${_fmtPeriodDate(start)} – ${_fmtPeriodDate(end)}`;
+}
+
+/**
+ * Shared renderer for AL and sick booked-dates boxes.
+ * @param {{ type: string, memberName: string, boxId: string, bodyId: string,
+ *           countFn: (n: number) => string, countClass: string, feedbackId: string }} cfg
+ */
+function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countClass, feedbackId }) {
+    const box  = document.getElementById(boxId);
+    const body = document.getElementById(bodyId);
     if (!box || !body) return;
 
-    const memberName = sickMember.value;
     if (!memberName) { box.hidden = true; return; }
 
     const entries = getAllOverrides().filter(o =>
         o.memberName === memberName &&
-        o.type       === 'sick' &&
+        o.type       === type &&
         o.date
     ).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
 
     if (!entries.length) { box.hidden = true; return; }
 
-    const memberObj  = teamMembers.find(m => m.name === memberName);
-    const sickDateSet = new Set(entries.map(e => e.date));
-
-    function addDays(dateStr, n) {
-        const d = new Date(dateStr + 'T12:00:00');
-        d.setDate(d.getDate() + n);
-        return formatISO(d);
-    }
-    function isRestGap(dateStr) {
-        if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
-        if (!memberObj) return false;
-        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-        return shift === 'RD' || shift === 'OFF';
-    }
-    function fmtDate(d) {
-        const dt = new Date(d + 'T12:00:00');
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-    }
-    function fmtRange(start, end) {
-        const ds = new Date(start + 'T12:00:00');
-        const de = new Date(end   + 'T12:00:00');
-        if (ds.getMonth() === de.getMonth()) {
-            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
-        }
-        return `${fmtDate(start)} – ${fmtDate(end)}`;
-    }
-
-    // Sundays excluded from count (uncontracted) but still bridge via isRestGap
-    const dateList = [...sickDateSet].filter(d => !isSunday(d)).sort();
-    const periods  = [];
+    const memberObj = teamMembers.find(m => m.name === memberName);
+    const dateList  = [...new Set(entries.map(e => e.date))].filter(d => !isSunday(d)).sort();
+    const periods   = [];
     let periodStart = dateList[0];
     let periodEnd   = dateList[0];
     let count       = 1;
+
     for (let i = 1; i < dateList.length; i++) {
         const prev = dateList[i - 1];
         const curr = dateList[i];
         let gapAllRest = true;
-        let cursor = addDays(prev, 1);
+        let cursor = _addDays(prev, 1);
         while (cursor < curr) {
-            if (!isRestGap(cursor)) { gapAllRest = false; break; }
-            cursor = addDays(cursor, 1);
+            if (!_isRestGap(cursor, memberObj)) { gapAllRest = false; break; }
+            cursor = _addDays(cursor, 1);
         }
         if (gapAllRest) {
             periodEnd = curr;
@@ -2110,24 +2110,22 @@ function updateSickBookedBox() {
         (byMonth[key] = byMonth[key] || []).push(p);
     }
 
-    // Render — use createElement so delete buttons can have direct event listeners
     body.innerHTML = '';
-    const sickFeedbackEl = document.getElementById('sickFeedback');
+    const feedbackEl = document.getElementById(feedbackId);
     for (const key of Object.keys(byMonth).sort()) {
         const [yr, mo] = key.split('-');
         const monthDiv = document.createElement('div');
         monthDiv.className = 'al-period-month';
         monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
-            const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
-            const countStr = `${p.count} absence day${p.count !== 1 ? 's' : ''}`;
-            const row = document.createElement('div');
+            const dateStr = p.start === p.end ? _fmtPeriodDate(p.start) : _fmtPeriodRange(p.start, p.end);
+            const row     = document.createElement('div');
             row.className = 'al-period-row';
             row.innerHTML = `<span class="al-period-dates">${dateStr}</span>`;
-            const meta = document.createElement('div');
+            const meta    = document.createElement('div');
             meta.className = 'al-period-row-meta';
-            meta.innerHTML = `<span class="sick-period-count">${countStr}</span>`;
-            const btn = document.createElement('button');
+            meta.innerHTML = `<span class="${countClass}">${countFn(p.count)}</span>`;
+            const btn     = document.createElement('button');
             btn.className   = 'btn-period-delete';
             btn.textContent = 'Delete';
             btn.addEventListener('click', () => {
@@ -2142,7 +2140,7 @@ function updateSickBookedBox() {
                     }, 5000);
                     return;
                 }
-                deletePeriodOverrides('sick', memberName, p.start, p.end, sickFeedbackEl, btn);
+                deletePeriodOverrides(type, memberName, p.start, p.end, feedbackEl, btn);
             });
             meta.appendChild(btn);
             row.appendChild(meta);
@@ -2153,16 +2151,30 @@ function updateSickBookedBox() {
     box.hidden = false;
 }
 
-(function initSickBookedToggle() {
-    const toggle  = document.getElementById('sickBookedToggle');
-    const body    = document.getElementById('sickBookedBody');
-    const chevron = document.getElementById('sickBookedChevron');
-    if (!toggle || !body || !chevron) return;
-    toggle.addEventListener('click', () => {
+function updateSickBookedBox() {
+    _renderBookedPeriods({
+        type:       'sick',
+        memberName: sickMember.value,
+        boxId:      'sickBookedBox',
+        bodyId:     'sickBookedBody',
+        countFn:    n => `${n} absence day${n !== 1 ? 's' : ''}`,
+        countClass: 'sick-period-count',
+        feedbackId: 'sickFeedback',
+    });
+}
+
+function initCardCollapse(triggerId, bodyId, chevronId) {
+    const trigger = document.getElementById(triggerId);
+    const body    = document.getElementById(bodyId);
+    const chevron = document.getElementById(chevronId);
+    if (!trigger || !body || !chevron) return;
+    trigger.addEventListener('click', () => {
         const isOpen = body.classList.toggle('open');
         chevron.classList.toggle('open', isOpen);
     });
-})();
+}
+
+initCardCollapse('sickBookedToggle', 'sickBookedBody', 'sickBookedChevron');
 
 // ============================================
 // INIT — runs last so all dropdowns are populated
@@ -2210,243 +2222,36 @@ function applyPermissions() {
 // ANNUAL LEAVE — booked dates collapsible box
 // ============================================
 function updateALBookedBox() {
-    const box  = document.getElementById('alBookedBox');
-    const body = document.getElementById('alBookedBody');
-    if (!box || !body) return;
-
-    const memberName = alMember.value;
-    if (!memberName) { box.hidden = true; return; }
-
-    const entries = getAllOverrides().filter(o =>
-        o.memberName === memberName &&
-        o.type       === 'annual_leave' &&
-        o.date
-    ).sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
-
-    if (!entries.length) { box.hidden = true; return; }
-
-    const memberObj = teamMembers.find(m => m.name === memberName);
-    const alDateSet = new Set(entries.map(e => e.date));
-
-    /**
-     * Return a date string N days after the given date string.
-     * @param {string} dateStr YYYY-MM-DD
-     * @param {number} n
-     * @returns {string}
-     */
-    function addDays(dateStr, n) {
-        const d = new Date(dateStr + 'T12:00:00');
-        d.setDate(d.getDate() + n);
-        return formatISO(d);
-    }
-
-    /**
-     * Return true if the date is a non-working day and should bridge AL periods.
-     * Sundays are always a rest gap (uncontracted for all staff).
-     * @param {string} dateStr YYYY-MM-DD
-     * @returns {boolean}
-     */
-    function isRestGap(dateStr) {
-        if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
-        if (!memberObj) return false;
-        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-        return shift === 'RD' || shift === 'OFF';
-    }
-
-    /**
-     * Format a date string as "Mon 9 Mar".
-     * @param {string} d YYYY-MM-DD
-     * @returns {string}
-     */
-    function fmtDate(d) {
-        const dt = new Date(d + 'T12:00:00');
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-    }
-
-    /**
-     * Format a date range. Same-month ranges omit the month on the start date:
-     * "Mon 9 – Fri 13 Mar". Cross-month ranges show both: "Mon 30 Mar – Wed 1 Apr".
-     * @param {string} start YYYY-MM-DD
-     * @param {string} end   YYYY-MM-DD
-     * @returns {string}
-     */
-    function fmtRange(start, end) {
-        const ds = new Date(start + 'T12:00:00');
-        const de = new Date(end   + 'T12:00:00');
-        if (ds.getMonth() === de.getMonth()) {
-            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
-        }
-        return `${fmtDate(start)} – ${fmtDate(end)}`;
-    }
-
-    // Merge sorted AL dates into consecutive periods, bridging gaps that are
-    // entirely rest days on the base roster. Sundays are excluded from the count
-    // (uncontracted) but still act as bridge days via isRestGap.
-    const dateList = [...alDateSet].filter(d => !isSunday(d)).sort();
-    const periods  = []; // { start, end, count }
-    let periodStart = dateList[0];
-    let periodEnd   = dateList[0];
-    let count       = 1;
-
-    for (let i = 1; i < dateList.length; i++) {
-        const prev = dateList[i - 1];
-        const curr = dateList[i];
-
-        // Walk every day in the gap; if all are rest days, the period continues
-        let gapAllRest = true;
-        let cursor = addDays(prev, 1);
-        while (cursor < curr) {
-            if (!isRestGap(cursor)) { gapAllRest = false; break; }
-            cursor = addDays(cursor, 1);
-        }
-
-        if (gapAllRest) {
-            periodEnd = curr;
-            count++;
-        } else {
-            periods.push({ start: periodStart, end: periodEnd, count });
-            periodStart = curr;
-            periodEnd   = curr;
-            count       = 1;
-        }
-    }
-    periods.push({ start: periodStart, end: periodEnd, count });
-
-    // Group periods by the month of their start date
-    const byMonth = {};
-    for (const p of periods) {
-        const key = p.start.slice(0, 7); // "YYYY-MM"
-        (byMonth[key] = byMonth[key] || []).push(p);
-    }
-
-    // Render — use createElement so delete buttons can have direct event listeners
-    body.innerHTML = '';
-    const alFeedbackEl = document.getElementById('alFeedback');
-    for (const key of Object.keys(byMonth).sort()) {
-        const [yr, mo] = key.split('-');
-        const monthDiv = document.createElement('div');
-        monthDiv.className = 'al-period-month';
-        monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
-        for (const p of byMonth[key]) {
-            const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
-            const countStr = `${p.count} day${p.count !== 1 ? 's' : ''} AL`;
-            const row = document.createElement('div');
-            row.className = 'al-period-row';
-            row.innerHTML = `<span class="al-period-dates">${dateStr}</span>`;
-            const meta = document.createElement('div');
-            meta.className = 'al-period-row-meta';
-            meta.innerHTML = `<span class="al-period-count">${countStr}</span>`;
-            const btn = document.createElement('button');
-            btn.className   = 'btn-period-delete';
-            btn.textContent = 'Delete';
-            btn.addEventListener('click', () => {
-                if (!btn.classList.contains('confirming')) {
-                    btn.classList.add('confirming');
-                    btn.textContent = '⚠ Confirm?';
-                    setTimeout(() => {
-                        if (btn.classList.contains('confirming')) {
-                            btn.classList.remove('confirming');
-                            btn.textContent = 'Delete';
-                        }
-                    }, 5000);
-                    return;
-                }
-                deletePeriodOverrides('annual_leave', memberName, p.start, p.end, alFeedbackEl, btn);
-            });
-            meta.appendChild(btn);
-            row.appendChild(meta);
-            monthDiv.appendChild(row);
-        }
-        body.appendChild(monthDiv);
-    }
-    box.hidden = false;
+    _renderBookedPeriods({
+        type:       'annual_leave',
+        memberName: alMember.value,
+        boxId:      'alBookedBox',
+        bodyId:     'alBookedBody',
+        countFn:    n => `${n} day${n !== 1 ? 's' : ''} AL`,
+        countClass: 'al-period-count',
+        feedbackId: 'alFeedback',
+    });
 }
 
-(function initALBookedToggle() {
-    const toggle  = document.getElementById('alBookedToggle');
-    const body    = document.getElementById('alBookedBody');
-    const chevron = document.getElementById('alBookedChevron');
-    if (!toggle || !body || !chevron) return;
-    toggle.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-})();
+initCardCollapse('alBookedToggle',      'alBookedBody',   'alBookedChevron');
 
 // ============================================
-// ANNUAL LEAVE CARD — collapse/expand
+// CARD COLLAPSE — AL, Sick, FIP, Overrides
 // ============================================
-(function initALCard() {
-    const header  = document.getElementById('alToggleHeader');
-    const body    = document.getElementById('alBody');
-    const chevron = document.getElementById('alChevron');
-    if (!header || !body || !chevron) return;
-    header.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-})();
-
-// ============================================
-// SICK DAYS CARD — collapse/expand
-// ============================================
-(function initSickCard() {
-    const header  = document.getElementById('sickToggleHeader');
-    const body    = document.getElementById('sickBody');
-    const chevron = document.getElementById('sickChevron');
-    if (!header || !body || !chevron) return;
-    header.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-})();
-
-// ============================================
-// Month filter re-renders the table when changed
-if (overridesMonthFilter) {
-    overridesMonthFilter.addEventListener('change', renderTable);
-}
-
-// ============================================
-// FIP TRAVEL CARD — collapse/expand
-// ============================================
-(function initFipCard() {
-    const header  = document.getElementById('fipToggleHeader');
-    const body    = document.getElementById('fipBody');
-    const chevron = document.getElementById('fipChevron');
-    if (!header || !body || !chevron) return;
-    header.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-})();
-
-// ============================================
-// EXISTING OVERRIDES CARD — collapse/expand
-// ============================================
-(function initOverridesCard() {
-    const header  = document.getElementById('overridesToggleHeader');
-    const body    = document.getElementById('overridesBody');
-    const chevron = document.getElementById('overridesChevron');
-    if (!header || !body || !chevron) return;
-    header.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-})();
+initCardCollapse('alToggleHeader',       'alBody',         'alChevron');
+initCardCollapse('sickToggleHeader',     'sickBody',       'sickChevron');
+initCardCollapse('fipToggleHeader',      'fipBody',        'fipChevron');
+initCardCollapse('overridesToggleHeader','overridesBody',  'overridesChevron');
 
 // ============================================
 // CULTURAL CALENDAR CARD — collapse/expand + Firestore opt-in
 // ============================================
 (function initReligiousCard() {
-    const header     = document.getElementById('religiousToggleHeader');
-    const body       = document.getElementById('religiousBody');
-    const chevron    = document.getElementById('religiousChevron');
     const saved      = document.getElementById('religiousSaved');
     const disclaimer = document.getElementById('calendarDisclaimer');
     const activeTag  = document.getElementById('calendarActiveTag');
     const radios     = document.querySelectorAll('input[name="faithCalendar"]');
-    if (!header || !body || !chevron || !saved || !radios.length) return;
+    if (!saved || !radios.length) return;
 
     // CALENDAR_NAMES imported from roster-data.js.
 
@@ -2477,11 +2282,7 @@ if (overridesMonthFilter) {
         disclaimer.style.display = text ? '' : 'none';
     }
 
-    // Collapse / expand
-    header.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
+    initCardCollapse('religiousToggleHeader', 'religiousBody', 'religiousChevron');
 
     // resolveFaithCalendar imported from roster-data.js (handles islamicMarkers backward compat).
 

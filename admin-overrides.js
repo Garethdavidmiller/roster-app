@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.81';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.85';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.81';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.85';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -531,7 +531,7 @@ export async function executeSave(toSave, toDelete = []) {
 export async function loadOverrides() {
     const tableBody = document.getElementById('overrideTableBody');
     const listCount = document.getElementById('listCount');
-    if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="8"><span class="spinner"></span>Loading…</td></tr>';
+    if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
     try {
         const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(2000)));
         _allOverrides = [];
@@ -544,7 +544,7 @@ export async function loadOverrides() {
     } catch (err) {
         console.error('[Admin] Load failed:', err);
         if (tableBody) {
-            tableBody.innerHTML = '<tr class="state-row"><td colspan="8">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
+            tableBody.innerHTML = '<tr class="state-row"><td colspan="7">Couldn\'t load saved changes.<br><span class="reload-link" id="reloadLink">↻ Reload page</span></td></tr>';
             document.getElementById('reloadLink')?.addEventListener('click', () => location.reload());
         }
         if (listCount) listCount.textContent = 'Error';
@@ -594,7 +594,7 @@ export function renderTable() {
     if (listCount) listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
 
     if (!rows.length) {
-        if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="8">No saved changes.</td></tr>';
+        if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7">No saved changes.</td></tr>';
         return;
     }
 
@@ -846,8 +846,7 @@ export function validateShiftRules(toSave, memberName) {
             if (!adjShift || !adjShift.includes('-')) return;
             const [adjStart, adjEnd] = adjShift.split('-');
             if (delta === -1) {
-                const prevEnd  = _effectiveEndMins(adjStart, adjEnd);
-                const prevMins = _parseMinutes(adjStart);
+                const prevEnd = _effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
                 if (gap < 12 * 60) {
                     markRow();
