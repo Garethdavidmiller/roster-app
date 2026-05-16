@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.76
+// MYB Roster — Service Worker v9.78
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.76';
+const APP_VERSION = '9.78';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -182,19 +182,20 @@ self.addEventListener("message", event => {
 });
 
 // ============================================
-// PUSH — Huddle upload notifications
+// PUSH — incoming notifications (Huddle + Pay reminder)
 // ============================================
-// The ingestHuddle Cloud Function fans out a Web Push to every subscribed
-// device when a new Huddle is uploaded. The payload is JSON with:
-//   { title: "Marylebone Roster", body: "Tomorrow's Huddle is ready" }
-// The notification tag "huddle" replaces any previous unread huddle
-// notification rather than stacking them.
+// Payload shape (sent by Cloud Functions):
+//   { title, body, url, tag }
+// tag is either 'huddle' or 'pay-reminder'. Using the same tag for repeat
+// notifications of the same type means the new one replaces the old one in
+// the Notification Centre rather than stacking.
 self.addEventListener("push", event => {
     let data = { title: "Marylebone Roster", body: "Huddle is ready" };
     try { if (event.data) data = event.data.json(); } catch (_) {}
 
     const url = data.url || "./";
-    const tag = url.includes('paycalc') ? 'pay-reminder' : 'huddle';
+    // Prefer explicit tag from payload; fall back to URL inference for legacy payloads.
+    const tag = data.tag || (url.includes('paycalc') ? 'pay-reminder' : 'huddle');
 
     event.waitUntil(
         self.registration.showNotification(data.title, {
