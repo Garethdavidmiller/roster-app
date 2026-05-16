@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.85';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.86';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.85';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.85';
+} from './paycalc-calc.js?v=9.86';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.86';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -278,6 +278,20 @@ function clampMins(mId) {
   const el = document.getElementById(mId);
   const v  = parseInt(el.value);
   if (!isNaN(v)) { if (v > 59) el.value = 59; if (v < 0) el.value = 0; }
+}
+
+// If someone types "7.5" into an hours field, split it into 7 hrs 30 mins
+// automatically on blur rather than silently truncating to 7.
+function autoDecimalHours(hId, mId) {
+  const raw = document.getElementById(hId).value;
+  if (!raw.includes('.')) return;
+  const val = parseFloat(raw);
+  if (isNaN(val) || val < 0) return;
+  const h = Math.floor(val);
+  const m = Math.round((val - h) * 60);
+  document.getElementById(hId).value = h || '';
+  document.getElementById(mId).value = m || '';
+  calculate();
 }
 
 function onHhMm(hId, mId, warnId) {
@@ -1874,7 +1888,9 @@ function calcBackPay() {
         boxHrs   * rateDiff * 3.00 +
         (d.peer || 0) * 2 * rateDiff;
 
-      const backPay = ratePay + londonDiff;
+      // Pro-rate londonDiff for joining periods the same way contracted hours are.
+      const _bpScale = getContr() ? _bpEffContr / getContr() : 1;
+      const backPay = ratePay + londonDiff * _bpScale;
 
       if (backPay > 0) {
         grandTotal += backPay;
@@ -2045,6 +2061,12 @@ document.getElementById('satM').addEventListener('input', () => { clampMins('sat
 });
 ['bhM','bhOtM','otM','rdwM','sunM','boxM'].forEach(id => {
   document.getElementById(id).addEventListener('input', () => { clampMins(id); autosave(); });
+});
+
+// Decimal auto-correction — if someone types "7.5" into an hours field, split it
+// into 7h 30m on blur instead of silently truncating to 7.
+[['satH','satM'],['bhH','bhM'],['bhOtH','bhOtM'],['otH','otM'],['rdwH','rdwM'],['sunH','sunM'],['boxH','boxM']].forEach(([h,m]) => {
+  document.getElementById(h).addEventListener('blur', () => autoDecimalHours(h, m));
 });
 
 // Peer training stepper
@@ -2312,7 +2334,9 @@ Device: ${navigator.userAgent}
     });
   }
 
+  let _lbFocusReturn = null;
   function openLightbox() {
+    _lbFocusReturn = document.activeElement;
     checkUpdateStatus();
     lockBodyScroll();
     _pushOverlayState(closeLightbox);
@@ -2333,6 +2357,8 @@ Device: ${navigator.userAgent}
       lightbox.classList.remove('visible');
     }, { once: true });
     document.removeEventListener('keydown', onKeyDown);
+    _lbFocusReturn?.focus();
+    _lbFocusReturn = null;
   }
   function onKeyDown(e) { if (e.key === 'Escape') closeLightbox(); }
 
@@ -2352,9 +2378,11 @@ Device: ${navigator.userAgent}
   const closeBtn = document.getElementById('helpLightboxClose');
   if (!lb) return;
 
+  let _helpFocusReturn = null;
   function openHelp(key) {
     const data = HELP_CONTENT[key];
     if (!data) return;
+    _helpFocusReturn = document.activeElement;
     titleEl.textContent = data.title;
     listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
     lockBodyScroll();
@@ -2374,6 +2402,8 @@ Device: ${navigator.userAgent}
       lb.classList.remove('visible');
     }, { once: true });
     document.removeEventListener('keydown', onKey);
+    _helpFocusReturn?.focus();
+    _helpFocusReturn = null;
   }
 
   function onKey(e) { if (e.key === 'Escape') closeHelp(); }

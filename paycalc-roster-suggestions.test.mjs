@@ -13,7 +13,7 @@ import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
 // V must match the ?v= suffix inside paycalc-roster-suggestions.js imports.
-const V = '9.85';
+const V = '9.86';
 
 // Mutable getter — individual tests can swap this out via _setMockGetDocs().
 let _mockGetDocs = async () => ({ forEach: () => {} });
@@ -172,6 +172,23 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.strictEqual(getRosterSuggestion(period('2026-04-06'), cReen), null);
   });
 
+  test('RDW override on rostered BH → base hours to bh, rdw hours to bhOt', () => {
+    // Easter Monday 2026 (2026-04-06): C. Reen base 12:00-19:00 (7h worked).
+    // Admin records an rdw override (extra block, e.g. 20:00-22:00 = 2h).
+    // Expected: base 7h → bh bucket, rdw 2h → bhOt bucket. No rdw bucket.
+    _setOverridesForTest(new Map([
+      ['2026-04-06', { type: 'rdw', value: '20:00-22:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-04-06'), cReen);
+    assert.ok(s, 'expected a suggestion');
+    assert.equal(s.bhCount,   1);
+    assert.equal(s.bhH,       7); // base shift 12:00-19:00
+    assert.equal(s.bhM,       0);
+    assert.equal(s.bhOtCount, 1);
+    assert.equal(s.bhOtH,     2); // rdw override 20:00-22:00
+    assert.equal(s.bhOtM,     0);
+    assert.equal(s.satCount + s.sunCount + s.rdwCount + s.otCount + s.boxCount, 0);
+  });
 
 });
 
