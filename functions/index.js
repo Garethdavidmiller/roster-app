@@ -293,59 +293,99 @@ exports.onHuddleCreated = onDocumentCreated(
     }
 );
 
-/**
- * Fan out Web Push notifications to all subscribed devices.
- * Builds a smart day label in London time:
- *   Same day as huddleDate  → "Today's Huddle is ready"
- *   Day after huddleDate    → "Tomorrow's Huddle is ready"
- *   Any other day           → "Thursday's Huddle is ready" (weekday name)
- *
- * Dead subscriptions (HTTP 410 Gone) are silently deleted from Firestore.
- *
- * @param {string}       huddleDate    YYYY-MM-DD — the date the huddle is FOR
- * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
- */
-async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
+/** Configures web-push VAPID credentials for this invocation. */
+function setupWebPush(vapidPrivate) {
     webpush.setVapidDetails(
         'mailto:noreply@myb-roster.web.app',
         VAPID_PUBLIC_KEY,
         vapidPrivate.value(),
     );
+}
 
-    // Build smart day label — compare huddle date to today in London timezone
-    const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-    const dayLabel  = huddleDayLabel(huddleDate, nowLondon);
-
-    const payload = JSON.stringify({
-        title: 'Marylebone Roster',
-        body:  `${dayLabel} Huddle is ready`,
-        url:   'https://myb-roster.web.app/#huddle',
-    });
-
+/**
+ * Fan out Web Push notifications to all subscribed devices for a given JSON payload.
+ * Dead subscriptions (HTTP 410/404/401) are silently deleted from Firestore.
+ *
+ * @param {object} payload   Object that will be JSON.stringify'd — must include title, body, url, tag
+ * @param {string} logTag    Short string for console log lines, e.g. '[push]'
+ */
+async function fanOutPush(payload, logTag) {
     const snapshot = await admin.firestore().collection('pushSubscriptions').get();
     if (snapshot.empty) {
-        console.log('[push] No subscriptions — skipping');
+        console.log(`${logTag} No subscriptions — skipping`);
         return;
     }
 
+    const payloadStr = JSON.stringify(payload);
     const sends = snapshot.docs.map(async docSnap => {
         const { endpoint, keys } = docSnap.data();
         try {
-            await webpush.sendNotification({ endpoint, keys }, payload);
+            await webpush.sendNotification({ endpoint, keys }, payloadStr);
         } catch (err) {
             if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 401) {
-                // 410/404: expired or revoked. 401: VAPID key mismatch (key was rotated).
-                // All three mean this subscription can never receive messages — remove it.
                 await docSnap.ref.delete();
-                console.log(`[push] Removed dead subscription ${docSnap.id}`);
+                console.log(`${logTag} Removed dead subscription ${docSnap.id}`);
             } else {
-                console.warn(`[push] Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
+                console.warn(`${logTag} Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
             }
         }
     });
 
     await Promise.allSettled(sends);
-    console.log(`[push] Notified ${snapshot.size} device(s) — "${dayLabel} Huddle is ready"`);
+    console.log(`${logTag} Notified ${snapshot.size} device(s)`);
+}
+
+/**
+ * Fan out Huddle push notifications.
+ * Builds a smart day label in London time:
+ *   Same day as huddleDate  → "Today's Huddle is ready"
+ *   Day after huddleDate    → "Tomorrow's Huddle is ready"
+ *   Any other day           → "Thursday's Huddle is ready" (weekday name)
+ *
+ * @param {string}       huddleDate    YYYY-MM-DD — the date the huddle is FOR
+ * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
+ */
+async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
+    setupWebPush(vapidPrivate);
+
+    // Build smart day label — compare huddle date to today in London timezone
+    const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+    const dayLabel  = huddleDayLabel(huddleDate, nowLondon);
+
+    await fanOutPush({
+        title: 'Marylebone Roster',
+        body:  `${dayLabel} Huddle is ready`,
+        tag:   'huddle',
+        url:   'https://myb-roster.web.app/#huddle',
+    }, '[push]');
+    console.log(`[push] "${dayLabel} Huddle is ready" sent`);
+}
+
+/**
+ * Fan out pay reminder push notifications.
+ * URL includes ?payday=YYYY-MM-DD so the Pay Calculator opens on the correct period.
+ *
+ * @param {Date}         payday        The upcoming payday date
+ * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
+ */
+async function sendPayPushNotifications(payday, vapidPrivate) {
+    setupWebPush(vapidPrivate);
+
+    const y  = payday.getFullYear();
+    const m  = String(payday.getMonth() + 1).padStart(2, '0');
+    const d  = String(payday.getDate()).padStart(2, '0');
+    const paydayISO = `${y}-${m}-${d}`;
+
+    const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
+    const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
+
+    await fanOutPush({
+        title: `💷 Payday is ${paydayDay}!`,
+        body:  `Hours cutoff today — open the Pay Calculator to estimate your ${paydayFmt} pay`,
+        tag:   'pay-reminder',
+        url:   `https://myb-roster.web.app/paycalc.html?payday=${paydayISO}`,
+    }, '[payReminder]');
+    console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
 }
 
 // ============================================================================
@@ -376,49 +416,10 @@ exports.sendPayReminderNotification = onSchedule(
             return;
         }
 
-        // Payday is 6 days after the Saturday cutoff
         const payday = new Date(today);
         payday.setDate(today.getDate() + 6);
-        const paydayFormatted = payday.toLocaleDateString('en-GB', {
-            day: 'numeric', month: 'long', timeZone: 'Europe/London',
-        });
-
-        console.log(`[payReminder] Cutoff day — fanning out pay reminder for payday ${paydayFormatted}`);
-
-        webpush.setVapidDetails(
-            'mailto:noreply@myb-roster.web.app',
-            VAPID_PUBLIC_KEY,
-            VAPID_PRIVATE_KEY.value(),
-        );
-
-        const payload = JSON.stringify({
-            title: '💷 Payday is Friday!',
-            body:  `Hours cutoff today — tap to calculate what lands in your account on ${paydayFormatted} 🎉`,
-            url:   'https://myb-roster.web.app/paycalc.html',
-        });
-
-        const snapshot = await admin.firestore().collection('pushSubscriptions').get();
-        if (snapshot.empty) {
-            console.log('[payReminder] No subscriptions — skipping');
-            return;
-        }
-
-        const sends = snapshot.docs.map(async docSnap => {
-            const { endpoint, keys } = docSnap.data();
-            try {
-                await webpush.sendNotification({ endpoint, keys }, payload);
-            } catch (err) {
-                if (err.statusCode === 410 || err.statusCode === 404 || err.statusCode === 401) {
-                    await docSnap.ref.delete();
-                    console.log(`[payReminder] Removed dead subscription ${docSnap.id}`);
-                } else {
-                    console.warn(`[payReminder] Failed for ${docSnap.id}: HTTP ${err.statusCode} — ${err.message}`);
-                }
-            }
-        });
-
-        await Promise.allSettled(sends);
-        console.log(`[payReminder] Notified ${snapshot.size} device(s)`);
+        console.log(`[payReminder] Cutoff day — sending pay reminder`);
+        await sendPayPushNotifications(payday, VAPID_PRIVATE_KEY);
     }
 );
 
