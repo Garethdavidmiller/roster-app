@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.81';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.82';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.81';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.82';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -846,8 +846,7 @@ export function validateShiftRules(toSave, memberName) {
             if (!adjShift || !adjShift.includes('-')) return;
             const [adjStart, adjEnd] = adjShift.split('-');
             if (delta === -1) {
-                const prevEnd  = _effectiveEndMins(adjStart, adjEnd);
-                const prevMins = _parseMinutes(adjStart);
+                const prevEnd = _effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
                 if (gap < 12 * 60) {
                     markRow();

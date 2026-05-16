@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.81';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.81';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.81';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.81';
-import { initHuddleCards } from './admin-huddle.js?v=9.81';
-import { initAuthSetup } from './admin-auth.js?v=9.81';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.82';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.82';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.82';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.82';
+import { initHuddleCards } from './admin-huddle.js?v=9.82';
+import { initAuthSetup } from './admin-auth.js?v=9.82';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -1185,7 +1185,7 @@ alConfirmSaveBtn.addEventListener('click', async () => {
 alConfirmCancelBtn.addEventListener('click', () => {
     hideALConfirm();
     saveBtn.disabled    = false;
-    saveBtn.textContent = 'Save Changes';
+    saveBtn.textContent = 'Save changes';
 });
 
 // ============================================
@@ -2034,6 +2034,35 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     }
 }
 
+// ── Shared helpers for AL and sick booked-box rendering ──────────────────────
+
+function _addDays(dateStr, n) {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() + n);
+    return formatISO(d);
+}
+
+function _isRestGap(dateStr, memberObj) {
+    if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
+    if (!memberObj) return false;
+    const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+    return shift === 'RD' || shift === 'OFF';
+}
+
+function _fmtPeriodDate(d) {
+    const dt = new Date(d + 'T12:00:00');
+    return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
+}
+
+function _fmtPeriodRange(start, end) {
+    const ds = new Date(start + 'T12:00:00');
+    const de = new Date(end   + 'T12:00:00');
+    if (ds.getMonth() === de.getMonth()) {
+        return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
+    }
+    return `${_fmtPeriodDate(start)} – ${_fmtPeriodDate(end)}`;
+}
+
 function updateSickBookedBox() {
     const box  = document.getElementById('sickBookedBox');
     const body = document.getElementById('sickBookedBody');
@@ -2053,30 +2082,6 @@ function updateSickBookedBox() {
     const memberObj  = teamMembers.find(m => m.name === memberName);
     const sickDateSet = new Set(entries.map(e => e.date));
 
-    function addDays(dateStr, n) {
-        const d = new Date(dateStr + 'T12:00:00');
-        d.setDate(d.getDate() + n);
-        return formatISO(d);
-    }
-    function isRestGap(dateStr) {
-        if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
-        if (!memberObj) return false;
-        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-        return shift === 'RD' || shift === 'OFF';
-    }
-    function fmtDate(d) {
-        const dt = new Date(d + 'T12:00:00');
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-    }
-    function fmtRange(start, end) {
-        const ds = new Date(start + 'T12:00:00');
-        const de = new Date(end   + 'T12:00:00');
-        if (ds.getMonth() === de.getMonth()) {
-            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
-        }
-        return `${fmtDate(start)} – ${fmtDate(end)}`;
-    }
-
     // Sundays excluded from count (uncontracted) but still bridge via isRestGap
     const dateList = [...sickDateSet].filter(d => !isSunday(d)).sort();
     const periods  = [];
@@ -2087,10 +2092,10 @@ function updateSickBookedBox() {
         const prev = dateList[i - 1];
         const curr = dateList[i];
         let gapAllRest = true;
-        let cursor = addDays(prev, 1);
+        let cursor = _addDays(prev, 1);
         while (cursor < curr) {
-            if (!isRestGap(cursor)) { gapAllRest = false; break; }
-            cursor = addDays(cursor, 1);
+            if (!_isRestGap(cursor, memberObj)) { gapAllRest = false; break; }
+            cursor = _addDays(cursor, 1);
         }
         if (gapAllRest) {
             periodEnd = curr;
@@ -2119,7 +2124,7 @@ function updateSickBookedBox() {
         monthDiv.className = 'al-period-month';
         monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
-            const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
+            const dateStr  = p.start === p.end ? _fmtPeriodDate(p.start) : _fmtPeriodRange(p.start, p.end);
             const countStr = `${p.count} absence day${p.count !== 1 ? 's' : ''}`;
             const row = document.createElement('div');
             row.className = 'al-period-row';
@@ -2228,60 +2233,9 @@ function updateALBookedBox() {
     const memberObj = teamMembers.find(m => m.name === memberName);
     const alDateSet = new Set(entries.map(e => e.date));
 
-    /**
-     * Return a date string N days after the given date string.
-     * @param {string} dateStr YYYY-MM-DD
-     * @param {number} n
-     * @returns {string}
-     */
-    function addDays(dateStr, n) {
-        const d = new Date(dateStr + 'T12:00:00');
-        d.setDate(d.getDate() + n);
-        return formatISO(d);
-    }
-
-    /**
-     * Return true if the date is a non-working day and should bridge AL periods.
-     * Sundays are always a rest gap (uncontracted for all staff).
-     * @param {string} dateStr YYYY-MM-DD
-     * @returns {boolean}
-     */
-    function isRestGap(dateStr) {
-        if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
-        if (!memberObj) return false;
-        const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-        return shift === 'RD' || shift === 'OFF';
-    }
-
-    /**
-     * Format a date string as "Mon 9 Mar".
-     * @param {string} d YYYY-MM-DD
-     * @returns {string}
-     */
-    function fmtDate(d) {
-        const dt = new Date(d + 'T12:00:00');
-        return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
-    }
-
-    /**
-     * Format a date range. Same-month ranges omit the month on the start date:
-     * "Mon 9 – Fri 13 Mar". Cross-month ranges show both: "Mon 30 Mar – Wed 1 Apr".
-     * @param {string} start YYYY-MM-DD
-     * @param {string} end   YYYY-MM-DD
-     * @returns {string}
-     */
-    function fmtRange(start, end) {
-        const ds = new Date(start + 'T12:00:00');
-        const de = new Date(end   + 'T12:00:00');
-        if (ds.getMonth() === de.getMonth()) {
-            return `${DAY_NAMES[ds.getDay()]} ${ds.getDate()} – ${DAY_NAMES[de.getDay()]} ${de.getDate()} ${MONTH_ABB[de.getMonth()]}`;
-        }
-        return `${fmtDate(start)} – ${fmtDate(end)}`;
-    }
-
     // Merge sorted AL dates into consecutive periods, bridging gaps that are
     // entirely rest days on the base roster. Sundays are excluded from the count
-    // (uncontracted) but still act as bridge days via isRestGap.
+    // (uncontracted) but still act as bridge days via _isRestGap.
     const dateList = [...alDateSet].filter(d => !isSunday(d)).sort();
     const periods  = []; // { start, end, count }
     let periodStart = dateList[0];
@@ -2294,10 +2248,10 @@ function updateALBookedBox() {
 
         // Walk every day in the gap; if all are rest days, the period continues
         let gapAllRest = true;
-        let cursor = addDays(prev, 1);
+        let cursor = _addDays(prev, 1);
         while (cursor < curr) {
-            if (!isRestGap(cursor)) { gapAllRest = false; break; }
-            cursor = addDays(cursor, 1);
+            if (!_isRestGap(cursor, memberObj)) { gapAllRest = false; break; }
+            cursor = _addDays(cursor, 1);
         }
 
         if (gapAllRest) {
@@ -2328,7 +2282,7 @@ function updateALBookedBox() {
         monthDiv.className = 'al-period-month';
         monthDiv.innerHTML = `<div class="al-period-month-hdr">${MONTH_ABB[parseInt(mo, 10) - 1]} ${yr}</div>`;
         for (const p of byMonth[key]) {
-            const dateStr  = p.start === p.end ? fmtDate(p.start) : fmtRange(p.start, p.end);
+            const dateStr  = p.start === p.end ? _fmtPeriodDate(p.start) : _fmtPeriodRange(p.start, p.end);
             const countStr = `${p.count} day${p.count !== 1 ? 's' : ''} AL`;
             const row = document.createElement('div');
             row.className = 'al-period-row';
@@ -2400,12 +2354,6 @@ function updateALBookedBox() {
         chevron.classList.toggle('open', isOpen);
     });
 })();
-
-// ============================================
-// Month filter re-renders the table when changed
-if (overridesMonthFilter) {
-    overridesMonthFilter.addEventListener('change', renderTable);
-}
 
 // ============================================
 // FIP TRAVEL CARD — collapse/expand

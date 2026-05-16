@@ -9,8 +9,8 @@
  *   Huddle file upload form, Huddle card toggle.
  */
 
-import { formatISO } from './roster-data.js?v=9.81';
-import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.81';
+import { formatISO } from './roster-data.js?v=9.82';
+import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.82';
 
 /**
  * Initialises all three Huddle-related cards. Call once after authentication resolves.
@@ -51,8 +51,8 @@ function _initNotificationsCard(lsGet, lsSet) {
 
     // Collapse/expand
     header.addEventListener('click', () => {
-        body.classList.toggle('open');
-        chevron.textContent = body.classList.contains('open') ? '▴' : '▾';
+        const isOpen = body.classList.toggle('open');
+        chevron.classList.toggle('open', isOpen);
     });
 
     // iOS only supports Web Push when installed as a Home Screen PWA. Show a
