@@ -9,8 +9,8 @@
  *   Huddle file upload form, Huddle card toggle.
  */
 
-import { formatISO } from './roster-data.js?v=9.84';
-import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.84';
+import { formatISO } from './roster-data.js?v=9.85';
+import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.85';
 
 /**
  * Initialises all three Huddle-related cards. Call once after authentication resolves.

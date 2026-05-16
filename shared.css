@@ -187,7 +187,7 @@
     /* ── Button colour intent ────────────────────────────────────
        Primary action   = navy (--primary-blue) fill, white text
        Secondary action = white/outline, navy text
-       Destructive      = red (--error) fill or text
+       Destructive      = red (--error-red) fill or text
        Contextual       = per-section accent (gold today-btn, green AL-btn, etc.)
        Back/navigation  = outline only (.btn-back)
        Never use plain blue for interactive elements — it clashes with Firestore
