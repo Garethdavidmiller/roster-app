@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.80';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.80';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.80';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.80';
-import { initHuddleCards } from './admin-huddle.js?v=9.80';
-import { initAuthSetup } from './admin-auth.js?v=9.80';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.81';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.81';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.81';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.81';
+import { initHuddleCards } from './admin-huddle.js?v=9.81';
+import { initAuthSetup } from './admin-auth.js?v=9.81';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -312,6 +312,19 @@ function initLoginOverlay() {
 
     // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
+
+    // Print — close lightbox first so it doesn't appear in the output.
+    const printBtn  = document.getElementById('lightboxPrintBtn');
+    if (printBtn) printBtn.addEventListener('click', () => {
+        closeLightbox();
+        let printed = false;
+        const doPrint = () => { if (!printed) { printed = true; window.print(); } };
+        lightbox.addEventListener('transitionend', doPrint, { once: true });
+        setTimeout(() => {
+            lightbox.removeEventListener('transitionend', doPrint);
+            doPrint();
+        }, 550);
+    });
 })();
 
 // ---- Per-card tips lightbox ----
@@ -2528,13 +2541,18 @@ if (overridesMonthFilter) {
 // ============================================
 // PRINT HEADER — member name, week, timestamp
 // ============================================
-window.addEventListener('beforeprint', () => {
+// iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
+// eagerly on load. The beforeprint handler is kept for desktop browsers, where it
+// fires reliably just before the print dialog opens.
+function stampAdminPrintHeader() {
     const member    = fieldMember.value || 'All members';
     const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
     const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
-    const printHeaderEl        = document.getElementById('printHeader');
-    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster \u2014 ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} \u00b7 Printed: ${esc(now)}</span>`;
-});
+    const printHeaderEl = document.getElementById('printHeader');
+    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster — ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} · Printed: ${esc(now)}</span>`;
+}
+stampAdminPrintHeader();
+window.addEventListener('beforeprint', stampAdminPrintHeader);
 
 /**
  * One-time cleanup: finds and deletes any annual_leave overrides that fall on

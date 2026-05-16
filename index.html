@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.80 -->
+<!-- MYB Roster Calendar - Version 9.81 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.80">
+    <link rel="manifest" href="manifest.json?v=9.81">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,12 +26,12 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
-    <link rel="modulepreload" href="./app.js?v=9.80">
-    <link rel="modulepreload" href="./roster-data.js?v=9.80">
-    <link rel="modulepreload" href="./firebase-client.js?v=9.80">
+    <link rel="modulepreload" href="./app.js?v=9.81">
+    <link rel="modulepreload" href="./roster-data.js?v=9.81">
+    <link rel="modulepreload" href="./firebase-client.js?v=9.81">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.80">
+    <link rel="stylesheet" href="shared.css?v=9.81">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1429,34 +1429,6 @@
             color: var(--primary-blue);
             font-weight: 700;
         }
-        /* Print button — matches team-help-btn but wider to fit the emoji */
-        .team-print-btn {
-            height: 20px;
-            flex-shrink: 0;
-            background: none;
-            border: 1.5px solid var(--border-mid);
-            color: var(--text-light);
-            font-size: 12px;
-            cursor: pointer;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 3px;
-            touch-action: manipulation;
-            line-height: 1;
-            font-family: inherit;
-            transition: color 0.15s, border-color 0.15s;
-        }
-        @media (hover: hover) and (pointer: fine) {
-            .team-print-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
-        }
-        .team-print-btn:active { opacity: 0.75; transform: scale(0.96); }
-        .team-print-btn:focus-visible {
-            outline: 2px solid var(--accent-gold);
-            outline-offset: 2px;
-        }
-
         /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
         /* #teamInfoLightbox uses .lb-overlay — no unique properties */
         #teamInfoContent {
@@ -1587,7 +1559,7 @@
                 page-break-after: avoid !important;
             }
 
-            .controls {
+            .controls, #payPeriodStrip, .notif-prompt {
                 display: none !important;
             }
 
@@ -1709,8 +1681,6 @@
                 break-inside: avoid !important;
                 page-break-inside: avoid !important;
                 min-height: 60px !important;
-                max-height: 60px !important;
-                height: 60px !important;
                 padding: 4px 2px !important;
                 margin: 0 !important;
                 display: flex !important;
@@ -1824,47 +1794,6 @@
                 height: 12px !important;
             }
 
-            .badge-early {
-                background: var(--orange) !important;
-                color: white !important;
-            }
-
-            .badge-late {
-                background: var(--blue-sky) !important;
-                color: white !important;
-            }
-
-            .badge-night {
-                background: var(--night) !important;
-                color: white !important;
-                border: none !important;
-            }
-
-            .badge-spare {
-                background: var(--purple) !important;
-                color: white !important;
-            }
-
-            .badge-rdw {
-                background: var(--rdw) !important;
-                color: white !important;
-            }
-
-            .badge-al {
-                background: var(--al) !important;
-                color: white !important;
-            }
-
-            .badge-rest {
-                background: var(--charcoal) !important;
-                color: white !important;
-            }
-
-            .badge-sick {
-                background: var(--absence) !important;
-                color: white !important;
-            }
-
             .calendar-day.bank-holiday::before {
                 content: '⭐' !important;
                 position: absolute !important;
@@ -1916,51 +1845,12 @@
 
         }
 
-        /* Landscape print orientation */
-        @media print and (orientation: landscape) {
-            @page {
-                size: A4 landscape;
-                margin: 1cm;
-            }
-
-            body {
-                width: 100% !important;
-                height: auto !important;
-            }
-
-            .calendar-day {
-                min-height: 45px !important;
-                max-height: 45px !important;
-                height: 45px !important;
-            }
-
-            .day-number {
-                font-size: 9px !important;
-            }
-
-            .shift-badge {
-                font-size: 6px !important;
-            }
-
-            .shift-time {
-                font-size: 7px !important;
-            }
-
-            .header h1 {
-                font-size: 18px !important;
-            }
-
-            .month-year {
-                font-size: 16px !important;
-            }
-        }
-
         /* Print-only grade/week heading for Team View (hidden on screen) */
         .tv-print-header { display: none; }
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, .tv-today-btn, .team-print-btn, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .tv-week-nav, .tv-today-btn, #teamInfoLightbox { display: none; }
             .tv-scroll-hint { display: none; }
             .tv-print-header {
                 display: block;
@@ -2601,7 +2491,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.80"></script>
+    <script type="module" src="./app.js?v=9.81"></script>
 
 </body>
 </html>

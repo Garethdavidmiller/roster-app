@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v9.80 -->
+<!-- MYB Roster Admin v9.81 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9,11 +9,11 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Admin">
-    <link rel="manifest" href="manifest.json?v=9.80">
+    <link rel="manifest" href="manifest.json?v=9.81">
     <title>MYB Roster — Admin</title>
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.80">
+    <link rel="stylesheet" href="shared.css?v=9.81">
 
     <style>
         body {
@@ -2263,15 +2263,6 @@
                 color: #444;
             }
 
-            /* Shift badge colours — ensure they print with background */
-            .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
-            .badge-early { background: var(--orange)    !important; color: white !important; }
-            .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
-            .badge-night { background: var(--night)     !important; color: white !important; border: none !important; }
-            .badge-spare { background: var(--purple)    !important; color: white !important; }
-            .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
-            .badge-al    { background: var(--al)        !important; color: white !important; }
-            .badge-sick  { background: var(--absence)   !important; color: white !important; }
         }
     </style>
 </head>
@@ -2334,6 +2325,10 @@
 <a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:14px">📖 View quick guide</a>
         <a href="./index.html" class="lightbox-bug-link">📅 View staff roster</a>
         <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+        <div class="lightbox-print-wrap">
+            <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
+            <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current week view</span>
+        </div>
     </div>
 </div>
 
@@ -2793,6 +2788,6 @@
 
 </div><!-- /container -->
 
-<script type="module" src="./admin-app.js?v=9.80"></script>
+<script type="module" src="./admin-app.js?v=9.81"></script>
 </body>
 </html>
