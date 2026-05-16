@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 9.75 -->
+<!-- MYB Roster Calendar - Version 9.76 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -13,7 +13,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Roster">
-    <link rel="manifest" href="manifest.json?v=9.75">
+    <link rel="manifest" href="manifest.json?v=9.76">
     
     <!-- Apple Touch Icons for iOS -->
     <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
@@ -26,12 +26,12 @@
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
-    <link rel="modulepreload" href="./app.js?v=9.75">
-    <link rel="modulepreload" href="./roster-data.js?v=9.75">
-    <link rel="modulepreload" href="./firebase-client.js?v=9.75">
+    <link rel="modulepreload" href="./app.js?v=9.76">
+    <link rel="modulepreload" href="./roster-data.js?v=9.76">
+    <link rel="modulepreload" href="./firebase-client.js?v=9.76">
 
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
-    <link rel="stylesheet" href="shared.css?v=9.75">
+    <link rel="stylesheet" href="shared.css?v=9.76">
 
     <style>
         /* In-app error banner (replaces alert()) */
@@ -1423,6 +1423,39 @@
         .tv-rdw   { background: var(--rdw-light); }
         .tv-al    { background: var(--al-light); }
         .tv-sick  { background: var(--absence-light); }
+        /* Logged-in member's row — subtle navy left accent and bolder name */
+        .team-table tr.tv-my-row td.tv-name-col {
+            border-left: 3px solid var(--primary-blue);
+            color: var(--primary-blue);
+            font-weight: 700;
+        }
+        /* Print button — matches team-help-btn but wider to fit the emoji */
+        .team-print-btn {
+            height: 20px;
+            flex-shrink: 0;
+            background: none;
+            border: 1.5px solid var(--border-mid);
+            color: var(--text-light);
+            font-size: 12px;
+            cursor: pointer;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 3px;
+            touch-action: manipulation;
+            line-height: 1;
+            font-family: inherit;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .team-print-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
+        }
+        .team-print-btn:active { opacity: 0.75; transform: scale(0.96); }
+        .team-print-btn:focus-visible {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: 2px;
+        }
 
         /* ---- Team info (?) lightbox — help/guide panel, matches helpLightbox pattern ---- */
         /* #teamInfoLightbox uses .lb-overlay — no unique properties */
@@ -1927,7 +1960,7 @@
 
         /* ---- Team view print layout ---- */
         @media print {
-            .grade-tabs-row, .tv-week-nav, .tv-today-btn, #teamInfoLightbox { display: none; }
+            .grade-tabs-row, .tv-week-nav, .tv-today-btn, .team-print-btn, #teamInfoLightbox { display: none; }
             .tv-scroll-hint { display: none; }
             .tv-print-header {
                 display: block;
@@ -2568,7 +2601,7 @@
         </div>
     </div>
 
-    <script type="module" src="./app.js?v=9.75"></script>
+    <script type="module" src="./app.js?v=9.76"></script>
 
 </body>
 </html>
