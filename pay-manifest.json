@@ -5,6 +5,7 @@
   "description": "Pay calculator for CEA and CES staff at London Marylebone Station",
   "start_url": "./paycalc.html",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#001e3c",
   "theme_color": "#001e3c",
   "orientation": "portrait-primary",
