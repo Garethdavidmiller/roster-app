@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.80';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.81';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.80';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.80';
+} from './paycalc-calc.js?v=9.81';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.81';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -102,7 +102,7 @@ const MILLER_ACTUALS = {
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.71, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.71, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.80 },
+  '2025-08-01': { gross: 4441.60, tax:  809.71, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.81 },
   '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
   '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
   '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
@@ -2502,4 +2502,38 @@ Device: ${navigator.userAgent}
   }
 
   input.addEventListener('input', convert);
+})();
+
+// ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
+// iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
+// eagerly on load. The beforeprint handler is kept for desktop browsers.
+// calculate() also stamps on every recalc so the period info is always current.
+function stampPaycalcPrintLine() {
+  const hdr = document.querySelector('.app-header');
+  if (!hdr) return;
+  const periodSel = document.getElementById('periodSelect');
+  const p = periodSel ? getPeriods().find(x => x.num === +periodSel.value) : null;
+  const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const label = p ? `Period P${p.num} · Paid ${fdShort(p.payday)} · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
+  hdr.setAttribute('data-print-line', label);
+}
+stampPaycalcPrintLine();
+window.addEventListener('beforeprint', stampPaycalcPrintLine);
+
+// ── LIGHTBOX PRINT BUTTON ─────────────────────────────────────────────────────
+(function () {
+  const lightbox = document.getElementById('iconLightbox');
+  const printBtn = document.getElementById('lightboxPrintBtn');
+  if (!lightbox || !printBtn) return;
+  printBtn.addEventListener('click', () => {
+    // Close lightbox before printing so it doesn't appear in the output
+    lightbox.classList.remove('open');
+    let printed = false;
+    const doPrint = () => { if (!printed) { printed = true; window.print(); } };
+    lightbox.addEventListener('transitionend', doPrint, { once: true });
+    setTimeout(() => {
+      lightbox.removeEventListener('transitionend', doPrint);
+      doPrint();
+    }, 550);
+  });
 })();

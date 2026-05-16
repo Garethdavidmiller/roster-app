@@ -16,6 +16,7 @@
         /* ── Print setup ─────────────────────────────────────── */
         @page { size: A4; margin: 14mm 13mm; }
         @media print {
+            * { orphans: 2; widows: 2; }
             body  { background: white; padding: 0; font-size: 11px; }
             .page { max-width: 100%; margin: 0; padding: 18px 18px 14px; box-shadow: none; border-radius: 0; }
             .no-print { display: none !important; }

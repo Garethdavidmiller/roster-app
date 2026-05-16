@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v9.80 -->
+<!-- MYB Roster — Pay Calculator v9.81 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#001e3c">
-  <link rel="stylesheet" href="./shared.css?v=9.80">
+  <link rel="stylesheet" href="./shared.css?v=9.81">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="MYB Pay">
@@ -692,6 +692,8 @@
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
         box-sizing: border-box !important;
+        orphans: 2;
+        widows: 2;
       }
       html, body {
         background: white !important; padding: 0 !important;
@@ -704,7 +706,7 @@
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
       #decimalConverterCard, .btn-back, .btn-signout,
-      #rosterHintBar, .joiner-notice { display: none !important; }
+      #rosterHintBar, .joiner-notice, #stickyTotal { display: none !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -1080,7 +1082,7 @@
   }
 
   </style>
-  <link rel="manifest" href="./pay-manifest.json?v=9.80">
+  <link rel="manifest" href="./pay-manifest.json?v=9.81">
   <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
   <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
   <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
@@ -1704,6 +1706,10 @@
     <div class="lightbox-privacy">Pay data stays on this device only — never shared.</div>
     <a href="./paycalc-guide.html" target="_blank" class="lightbox-bug-link">📖 View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+    <div class="lightbox-print-wrap">
+      <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
+      <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current pay calculator view</span>
+    </div>
   </div>
 </div>
 
@@ -1722,6 +1728,6 @@
   </div>
 </div>
 
-<script type="module" src="./paycalc.js?v=9.80"></script>
+<script type="module" src="./paycalc.js?v=9.81"></script>
 </body>
 </html>
