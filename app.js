@@ -8,8 +8,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, TEAM_GRADES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.88';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.88';
+import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, TEAM_GRADES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.89';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js?v=9.89';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -2491,7 +2491,9 @@ function sanitiseHtml(html) {
 
     // Detect notification tap — SW appends #huddle to the URL so we know to
     // auto-open the viewer once the Firestore subscription delivers data.
-    const _autoOpen = window.location.hash === '#huddle';
+    // _autoOpen is mutable so the hashchange handler below can set it when the
+    // page was already open and the SW navigated it to #huddle (vs. a fresh load).
+    let _autoOpen = window.location.hash === '#huddle';
     if (_autoOpen) history.replaceState(null, '', window.location.pathname);
     let _autoOpened = false;
 
@@ -2556,6 +2558,33 @@ function sanitiseHtml(html) {
         }
     });
 
+    function _triggerAutoOpen(huddle) {
+        _autoOpened = true;
+        try {
+            if (huddle.htmlContent) {
+                body.innerHTML = sanitiseHtml(huddle.htmlContent);
+                openViewer();
+                close.focus();
+            } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
+                window.open(huddle.storageUrl, '_blank', 'noopener');
+            }
+        } catch (err) {
+            console.error('[Huddle] Auto-open error:', err);
+        }
+    }
+
+    // When the page is already open and the SW navigates it to #huddle (hash-only
+    // navigation, no page reload), the IIFE has already run with _autoOpen=false.
+    // The hashchange event fires instead — set _autoOpen and open immediately if
+    // data is already loaded, or let the subscription callback catch it.
+    window.addEventListener('hashchange', () => {
+        if (window.location.hash !== '#huddle') return;
+        history.replaceState(null, '', window.location.pathname);
+        _autoOpen   = true;
+        _autoOpened = false;
+        if (_huddleState === 'ready' && _huddleData) _triggerAutoOpen(_huddleData);
+    });
+
     // Real-time listener — fires from IndexedDB cache on repeat visits (near-instant)
     // then again when the server confirms. Also fires when a new huddle is uploaded,
     // so staff don't need to refresh the page.
@@ -2569,20 +2598,7 @@ function sanitiseHtml(html) {
                 } else {
                     _huddleData  = huddle;
                     _huddleState = 'ready';
-                    if (_autoOpen && !_autoOpened) {
-                        _autoOpened = true;
-                        try {
-                            if (huddle.htmlContent) {
-                                body.innerHTML = sanitiseHtml(huddle.htmlContent);
-                                openViewer();
-                                close.focus();
-                            } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
-                                window.open(huddle.storageUrl, '_blank', 'noopener');
-                            }
-                        } catch (err) {
-                            console.error('[Huddle] Auto-open error:', err);
-                        }
-                    }
+                    if (_autoOpen && !_autoOpened) _triggerAutoOpen(huddle);
                 }
                 applyHuddleButtonState();
             },
