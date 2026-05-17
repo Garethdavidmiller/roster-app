@@ -20,7 +20,7 @@
 |-------------|-----------|
 | `FIREBASE_SERVICE_ACCOUNT` | Full JSON of a Firebase service account key with Functions deploy permissions |
 | `HUDDLE_SECRET` | Bearer token Power Automate sends to `ingestHuddle` — must also be in Firebase Secret Manager: `firebase functions:secrets:set HUDDLE_SECRET` |
-| `ROSTER_SECRET` | Bearer token for `setupRosterAuth` bootstrap — must also be in Firebase Secret Manager: `firebase functions:secrets:set ROSTER_SECRET`. **As of v9.87, `setupRosterAuth` uses Firebase ID token auth (admin custom claim) as the primary method. The secret is only sent on the very first "Set up accounts" click (when no admin claim exists yet); all subsequent calls use the ID token. The value remains hardcoded in `admin-auth.js` as a bootstrap fallback — remove it once all admin accounts are confirmed to have the claim.** |
+| `ROSTER_SECRET` | ~~No longer used in browser code as of v9.88~~ — `setupRosterAuth` now uses Firebase ID token auth exclusively. The Secret Manager entry can be deleted. |
 | `ANTHROPIC_API_KEY` | API key for Claude AI (used by `parseRosterPDF` to read the roster PDF) — Firebase Secret Manager only, not needed in GitHub Actions: `firebase functions:secrets:set ANTHROPIC_API_KEY` |
 | `VAPID_PUBLIC_KEY` | Web Push public key for Huddle push notifications — Firebase Secret Manager only: `firebase functions:secrets:set VAPID_PUBLIC_KEY` |
 | `VAPID_PRIVATE_KEY` | Web Push private key — Firebase Secret Manager only: `firebase functions:secrets:set VAPID_PRIVATE_KEY` |
@@ -342,7 +342,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟠 High priority
 
-**ROSTER_SECRET — bootstrap fallback only (v9.87)** — `setupRosterAuth` now uses Firebase ID token auth as the primary method (admin custom claim). The ROSTER_SECRET is retained in `admin-auth.js` only as a first-run bootstrap: on first click (when no admin has the claim yet), the secret is sent; the Cloud Function sets the admin claim and all subsequent calls use the ID token. The secret is still visible in page source but is never sent again after the first successful call. Next step: remove `ROSTER_SECRET_VALUE` from `admin-auth.js` and the secret fallback from the Cloud Function once all admin accounts are confirmed to have the claim.
+**ROSTER_SECRET — fully removed (v9.88)** — `setupRosterAuth` uses Firebase ID token auth exclusively. No secret is hardcoded in `admin-auth.js`. The Cloud Function verifies the admin custom claim via Firebase Admin SDK `verifyIdToken`. The `ROSTER_SECRET` Secret Manager entry can be deleted.
 
 **#14 — localStorage session can be forged for UI access.** DevTools can modify `myb_admin_session` to impersonate another user or gain the admin UI. However, since v7.94 the Firestore security rules are deployed and require a real Firebase Auth session (`request.auth != null`) for all writes — so a forged localStorage session can read the UI but cannot write to Firestore. Practical risk is low for a small known team.
 

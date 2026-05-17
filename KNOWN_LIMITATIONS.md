@@ -15,14 +15,12 @@ rules are deployed and require a real Firebase Auth session for all writes — s
 forged localStorage session can see the UI but cannot write to Firestore.
 Practical risk is low for a small known team.
 
-### ROSTER_SECRET — partially migrated (v9.87)
-`setupRosterAuth` now uses Firebase ID token auth as the primary method. On first run
-(when no admin custom claim exists) `admin-auth.js` falls back to ROSTER_SECRET, which
-causes the Cloud Function to set the `admin: true` claim on all admin accounts. All
-subsequent calls use the ID token — the secret is never sent again after that first click.
-The hardcoded `ROSTER_SECRET_VALUE` remains in `admin-auth.js` as a bootstrap fallback
-and is still visible in page source, but it is no longer sent in requests once the claim
-is set. Full removal is the next step once all admin accounts are confirmed to have the claim.
+### ROSTER_SECRET — resolved (v9.88)
+`setupRosterAuth` now uses Firebase ID token auth exclusively. No secret is hardcoded
+in browser code. `admin-auth.js` calls `getIdTokenResult(true)` to get a fresh signed
+JWT from Firebase and sends that as the bearer token. The Cloud Function verifies it
+server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
+Manager can be deleted if no longer needed for other purposes.
 
 ### Firebase web API key not restricted to HTTP referrers
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
