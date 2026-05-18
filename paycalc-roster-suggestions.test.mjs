@@ -4,22 +4,17 @@
  * Run with: node --experimental-test-module-mocks --test paycalc-roster-suggestions.test.mjs
  *
  * firebase-client.js is mocked via mock.module() because it imports Firebase
- * from CDN URLs that are unreachable in Node. The version constant V must match
- * the ?v= string used inside paycalc-roster-suggestions.js — update both together
- * when bumping the app version.
+ * from CDN URLs that are unreachable in Node.
  */
 
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
-// V must match the ?v= suffix inside paycalc-roster-suggestions.js imports.
-const V = '9.93';
-
 // Mutable getter — individual tests can swap this out via _setMockGetDocs().
 let _mockGetDocs = async () => ({ forEach: () => {} });
 
 // mock.module must be called before the module under test is imported.
-mock.module(`./firebase-client.js?v=${V}`, {
+mock.module('./firebase-client.js', {
   namedExports: {
     db:         null,
     collection: () => null,

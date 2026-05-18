@@ -4,11 +4,12 @@
 //   import { CONFIG, APP_VERSION, teamMembers, weeklyRoster, ... } from './roster-data.js';
 //
 // APP_VERSION is the single authoritative version number. Both HTML files read it at runtime
-// via CONFIG.APP_VERSION (set below). The only manual version step remaining is updating the
-// import cache-busting query strings in index.html and admin.html when the version changes.
+// via CONFIG.APP_VERSION (set below). Browser HTTP cache is handled by Cache-Control: no-cache
+// headers in firebase.json — no ?v= query strings needed. Service worker cache is invalidated
+// automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.93';
+export const APP_VERSION = '9.94';
 
 // ============================================
 // CONFIGURATION
@@ -193,7 +194,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.93';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================

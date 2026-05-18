@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `9.93` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `9.94` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -33,38 +33,20 @@
 
 ## Version bumping (MANDATORY on every change)
 
-**As of v8.62:** JS is split across multiple modules. You need to update **all** of these:
+As of v9.94, `?v=` cache-busting query strings have been removed from all JS `import` statements and HTML `<script>`/`<link>` tags. Browser HTTP cache freshness is now handled by `Cache-Control: no-cache` headers in `firebase.json`. **Only 6 places need updating per version bump:**
 
 | File | Location | Note |
 |------|----------|------|
 | `roster-data.js` | `export const APP_VERSION = '...'` | **primary source** |
-| `roster-data.js` | `import ... from './roster-cycle-data.js?v=...'` | |
 | `service-worker.js` | Line 1 comment | |
 | `service-worker.js` | `const APP_VERSION = '...'` | must match roster-data.js |
 | `index.html` | Line 2 HTML comment | |
-| `index.html` | `app.js?v=`, `shared.css?v=`, `manifest.json?v=` | 3 places |
 | `admin.html` | Line 2 HTML comment | |
-| `admin.html` | `admin-app.js?v=`, `shared.css?v=`, `manifest.json?v=` | 3 places |
 | `paycalc.html` | Line 2 HTML comment | |
-| `paycalc.html` | `paycalc.js?v=`, `shared.css?v=`, `pay-manifest.json?v=` | 3 places |
-| `app.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=`, `admin-huddle.js?v=`, `admin-auth.js?v=`, `admin-al.js?v=`, `admin-sick.js?v=` | 8 places |
-| `admin-al.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-overrides.js?v=` | 3 places |
-| `admin-sick.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-overrides.js?v=` | 3 places |
-| `admin-overrides.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-roster-upload.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-huddle.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-auth.js` | `roster-data.js?v=` | 1 place |
-| `paycalc.js` | `roster-data.js?v=`, `paycalc-calc.js?v=`, `paycalc-roster-suggestions.js?v=` | 3 places |
-| `paycalc-roster-suggestions.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `paycalc-roster-suggestions.test.mjs` | `const V = '...'` at top of file | 1 place — must match firebase-client import version in paycalc-roster-suggestions.js |
 
-**Tip:** `grep -rn "?v=<old>" *.js *.html` finds every stale reference in one command.
-
-`CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those.
+`CONFIG.APP_VERSION` and `ADMIN_VERSION` read from `CONFIG.APP_VERSION` which is set inside `roster-data.js` — no manual update needed for those. The service worker cache name embeds `APP_VERSION` and auto-invalidates on version bump.
 
 - Increment the patch number for every commit that touches app behaviour
-- The `?v=` cache-busting strings **must** be updated manually (browsers use them to bust the module cache)
 - Tell the user the new version number in your reply after committing
 
 **Documentation update policy:** All four documentation files follow the same cadence — updated every **0.10 version** (e.g. 9.50 → 9.60), not on every patch release. Always treat `APP_VERSION` in `roster-data.js` as the authoritative version. Update between checkpoints only when a major behavioural change occurs: new pay grade, auth/Firestore model change, service worker strategy change, new page or module going to production, or a data model change. Each file carries `· Updated every 0.10 version` in its header as a reminder.
@@ -77,8 +59,6 @@
 | `KNOWN_LIMITATIONS.md` | Intentional constraints, deferred decisions, security notes |
 
 **Same-commit rule:** Any commit that adds, removes, or renames a JS module must also update the file structure in `CLAUDE.md` and the routing table in `AI_MAP.md` in the **same commit**. The pre-commit hook (`githooks/pre-commit`) enforces this — it blocks commits where a root `.js` file is not listed in both docs. To activate after a fresh clone: `git config core.hooksPath githooks`.
-
-**Pre-commit `?v=` check (added v9.90):** The same hook also blocks commits where any `?v=` cache-busting string in `*.js` or `*.html` does not match `APP_VERSION`. If the hook rejects a commit with "Version mismatch", update all `?v=` strings to the new version before retrying.
 
 ---
 
