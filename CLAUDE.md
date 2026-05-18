@@ -97,6 +97,7 @@ roster-app/
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
+├── ls.js                   ← shared localStorage wrappers: lsGet, lsSet, lsDel — iOS Safari safe. Imported by app.js, admin-app.js, paycalc.js
 ├── shared.css              ← CSS shared by all three pages
 ├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v9.07
 ├── manifest.json           ← PWA manifest for all pages (index.html, admin.html, paycalc.html)
@@ -126,7 +127,7 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `ls.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.

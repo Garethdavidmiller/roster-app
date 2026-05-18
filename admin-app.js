@@ -20,11 +20,7 @@ import { initHuddleCards } from './admin-huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
-
-// Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
-function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
-function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
+import { lsGet, lsSet, lsDel } from './ls.js';
 
 // Lock/unlock body scroll for lightbox/overlay. iOS Safari otherwise scrolls
 // the page underneath an open overlay; the .lb-open class fixes the body and

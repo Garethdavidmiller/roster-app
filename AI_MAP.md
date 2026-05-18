@@ -28,6 +28,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
+| localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 
 ---

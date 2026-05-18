@@ -15,12 +15,8 @@ import {
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
+import { lsGet, lsSet, lsDel } from './ls.js';
 'use strict';
-
-// Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
-function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
-function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
 
 // Body-scroll lock for lightboxes — iOS Safari otherwise lets the page underneath
 // scroll/drag when a fixed overlay is open. position:fixed is applied via the
