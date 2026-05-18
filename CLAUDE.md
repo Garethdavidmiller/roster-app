@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `9.94` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `9.96` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -99,8 +99,7 @@ roster-app/
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
 ├── shared.css              ← CSS shared by all three pages
 ├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v9.07
-├── manifest.json           ← PWA manifest for main app (index.html + admin.html)
-├── pay-manifest.json       ← PWA manifest for pay calculator (paycalc.html)
+├── manifest.json           ← PWA manifest for all pages (index.html, admin.html, paycalc.html)
 ├── paycalc-guide.html      ← printable pay calculator reference guide (linked from pay calculator about lightbox)
 ├── fip.html                ← FIP European travel guide for staff (linked from admin.html)
 ├── guide.html              ← printable staff + admin quick guide (update at major versions: v7, v8 …)
@@ -128,7 +127,7 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 
 **Service worker caching strategy:**
 - Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
-- Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
+- Cache-first: icons (cached individually), `manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
 
@@ -186,7 +185,7 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | `subscribeToLatestHuddle` in `firebase-client.js` (v8.97) | The Huddle button in `app.js` uses a persistent `onSnapshot` listener instead of a one-time `getDocs` call. This means the button updates automatically when a new Huddle arrives — staff do not need to refresh. The listener runs for the lifetime of the page; it is not unsubscribed. Do not replace this with a one-time fetch. `getLatestHuddle` (the old one-shot function) was removed at v9.09 — it had no callers. |
 | `cors: true` on `parseRosterPDF` and `setupRosterAuth` (v9.69) | firebase-functions v6 with `cors: [array]` does not consistently set `Access-Control-Allow-Headers` on OPTIONS preflight responses — browsers received a 204 but blocked the subsequent POST because `Authorization` was absent from the allow-list. Both functions carry their own auth (`parseRosterPDF` → Firebase ID token + admin claim; `setupRosterAuth` → Firebase ID token + admin claim, v9.87+), so wildcard origin adds no attack surface. `ingestHuddle` keeps `cors: false` because it is called by Power Automate server-to-server, not by a browser. |
 | Android Back button overlay pattern in `app.js`, `admin-app.js`, `paycalc.js` | Overlays (lightboxes, team view, settings panel) push a history entry via `history.pushState({ mybOverlay: true }, '')` when opening, then close on `popstate`. Helpers: `_pushOverlayState(closeHandler)` registers the handler; `_clearOverlayHistory()` calls `history.back()` without triggering the close handler (used when the overlay is closed programmatically). Without this, tapping Android's Back button would exit the PWA instead of closing the overlay. |
-| Maskable icons in `manifest.json` and `pay-manifest.json` | The 512px icon entry uses `"purpose": "any maskable"` so Android can apply adaptive icon shapes (squircle, circle, etc.) without cropping the logo. The smaller icons omit this because Android only uses the largest available icon for adaptive shapes. |
+| Maskable icons in `manifest.json` | The 512px icon entry uses `"purpose": "any maskable"` so Android can apply adaptive icon shapes (squircle, circle, etc.) without cropping the logo. The smaller icons omit this because Android only uses the largest available icon for adaptive shapes. |
 | **Chiltern payroll: any Saturday worked → `sat` bucket at 1.25×, regardless of base** | At Chiltern Railways the 1.25× Saturday enhanced rate applies to any Saturday shift, whether the day was originally rostered as a working day or a rest day. The suggestion engine correctly puts Saturday overrides (RD → shift) into the `sat` pay bucket. Do not reclassify these as `rdw` on the assumption that "unrostered Saturday = rest-day-worked" — that is a different payroll model. Tests assert this explicitly and must not be changed without a confirmed payroll-rule change from Gareth. Reviews that flag this as uncertain are wrong. |
 | **BH + `rdw` override on the same day is additive, not a replacement** | When an `rdw` override exists on a day where the base roster already has a worked bank holiday shift, the suggestion engine adds both: base hours → `bh` bucket, override hours → `bhOt` (bank holiday overtime). This represents an admin-recorded extra RDW shift on top of a base BH — not a time change to the same shift. The engine only does this when explicit `rdw` override data is present; it is conservative by design. The scenario is extremely rare in practice. Do not change to "override replaces base" without confirming the specific document means replacement rather than addition. |
 | `initALSection()` / `initSickSection()` in `admin-app.js` (v9.91) | The Annual Leave Booking and Sick Days Recording setup blocks are wrapped in named functions so their boundaries are self-contained and explicit. `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` are hoisted to module scope **above** the `fieldMember` change handler because that handler references them. Do not move these four declarations inside either init function — the fieldMember handler fires before init is called. `deletePeriodOverrides` stays at module scope (shared by both sections via `_renderBookedPeriods`). |
@@ -207,7 +206,7 @@ The pay calculator is a fully integrated page of the app. It lives at `paycalc.h
 | 💷 / ✂️ calendar markers | `app.js` — `.payday` and `.cutoff` CSS classes applied per cell |
 | Tests | `roster-data.test.mjs` — payday and cutoff tests; `paycalc.test.mjs` — pay maths; `paycalc-roster-suggestions.test.mjs` — suggestion engine |
 | UI | `paycalc.html` + `paycalc.js` — reads base roster and Firestore overrides, shows shift breakdown per pay period |
-| PWA manifest | `pay-manifest.json` — separate manifest so the calculator can be installed independently |
+| PWA manifest | `manifest.json` — single manifest covering all three pages. `paycalc.html` previously used a separate `pay-manifest.json` (removed v9.96) to allow independent installation, but this was never used in practice. |
 | `getRosterSuggestion(p, member)` | `paycalc-roster-suggestions.js` — reads base roster + Firestore overrides for the given member, counts Sat/Sun/BH/Boxing Day/RDW shifts. Caller passes `getLoggedMember()`. **Conservatism policy (v9.02, permanent):** The suggestion engine does NOT infer ambiguous pay categories (swap shifts, rest-day weekday overrides, etc.). An experiment at v8.93–v9.01 tried to infer these; it was wrong more often than right and was fully reverted at v9.02. Do not re-add swap/ambig inference — the standing decision is to suggest only what can be determined with confidence. |
 | `fetchOverridesForPeriod(p, memberName)` | `paycalc-roster-suggestions.js` — fetches Firestore overrides for a pay period window. |
 | `getLoggedMember()` | `paycalc.js` — returns the `teamMembers` entry for the session user, or null. |

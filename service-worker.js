@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.95
+// MYB Roster — Service Worker v9.96
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.95';
+const APP_VERSION = '9.96';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -51,7 +51,6 @@ const CORE_ASSETS = [
     "./firebase-client.js",
     "./shared.css",
     "./manifest.json",
-    "./pay-manifest.json",
     "./paycalc.html",
     "./paycalc.js",
     "./paycalc-calc.js",
