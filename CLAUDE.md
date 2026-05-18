@@ -83,7 +83,9 @@ roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── app.js                  ← all JavaScript for index.html
+├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
+├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
+├── app-override-utils.js   ← override priority helpers: tsToMillis, shouldReplaceOverride. Shared by app.js and app-team-view.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
 ├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
@@ -97,6 +99,7 @@ roster-app/
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays (weeklyRoster, bilingualRoster, cesRoster, etc.) — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init (one place), exports db + all Firestore functions
+├── ls.js                   ← shared localStorage wrappers: lsGet, lsSet, lsDel — iOS Safari safe. Imported by app.js, admin-app.js, paycalc.js
 ├── shared.css              ← CSS shared by all three pages
 ├── service-worker.js       ← single SW for all pages; cache name includes app version, e.g. myb-roster-v9.07
 ├── manifest.json           ← PWA manifest for all pages (index.html, admin.html, paycalc.html)
@@ -109,6 +112,7 @@ roster-app/
 ├── AI_MAP.md               ← routing guide: which file to read/edit for a given task
 ├── KNOWN_LIMITATIONS.md    ← intentional constraints and deferred decisions
 ├── ROADMAP.md              ← product history, future ideas, reverted experiments
+├── app.test.mjs            ← Node test runner tests for app-override-utils.js (tsToMillis, shouldReplaceOverride)
 ├── roster-data.test.mjs    ← Node test runner tests for roster-data.js (bank holidays, paydays, AL, etc.)
 ├── paycalc.test.mjs        ← Node test runner tests for paycalc-calc.js (tax, NI, gross)
 ├── paycalc-roster-suggestions.test.mjs ← Node test runner tests for paycalc-roster-suggestions.js. Requires --experimental-test-module-mocks to mock firebase-client.js
@@ -122,11 +126,11 @@ roster-app/
 **Running all tests:** Always use the combined command — `--experimental-test-module-mocks` is required by `paycalc-roster-suggestions.test.mjs` and is harmless for the others. Running plain `node --test` will fail on that file.
 
 ```
-node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
+node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `app-team-view.js`, `app-override-utils.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `ls.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
@@ -342,7 +346,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟡 UX decisions on hold (needs discussion before implementing)
 
-- **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming (e.g. "My Shifts") or splitting into separate staff and admin entry points. Requires discussion about branding and URL structure before changing.
+- **Admin button label** — "Admin" stands for administration (the section where staff manage their account, leave, and notifications), not administrator (implying manager-only access). The label is intentional and correct — do not rename it.
 - **Shift type count** — The admin type selector has 8 types. RDW/Overtime/Swap/Allocated are subtly different and create cognitive load for infrequent users. Consider whether any can be merged or renamed for clarity. Requires discussion about operational use before changing.
 
 ### 🟢 UX ideas — explored but held back

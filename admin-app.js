@@ -20,11 +20,7 @@ import { initHuddleCards } from './admin-huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
-
-// Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
-function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch {} }
-function lsDel(k)    { try { localStorage.removeItem(k); }        catch {} }
+import { lsGet, lsSet, lsDel } from './ls.js';
 
 // Lock/unlock body scroll for lightbox/overlay. iOS Safari otherwise scrolls
 // the page underneath an open overlay; the .lb-open class fixes the body and
@@ -2086,3 +2082,34 @@ initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 // ── Staff login accounts setup ───────────────────────────────────────────────
 // Extracted to admin-auth.js at v9.78.
 initAuthSetup({ currentIsAdmin });
+
+// ── Cultural calendar annual update reminder ──────────────────────────────────
+// In November and December, remind the admin to update the 15 lunar/lunisolar
+// datasets before the new year begins. Only shown to the admin user.
+// Data sources and dataset list: CLAUDE.md → "Annual maintenance reminder".
+if (currentIsAdmin && new Date().getMonth() >= 10) {
+    const nextYear = new Date().getFullYear() + 1;
+    const banner   = document.createElement('div');
+    banner.id      = 'culturalCalReminder';
+    banner.setAttribute('style', [
+        'background: var(--accent-gold)',
+        'color: var(--primary-blue)',
+        'border-radius: 8px',
+        'padding: 12px 16px',
+        'margin: 0 0 16px',
+        'font-size: 13px',
+        'font-weight: 500',
+        'display: flex',
+        'align-items: flex-start',
+        'gap: 10px',
+    ].join(';'));
+    banner.innerHTML = `
+        <span style="font-size:18px;flex-shrink:0" aria-hidden="true">📅</span>
+        <span style="flex:1"><strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.</span>
+        <button onclick="document.getElementById('culturalCalReminder').remove()"
+                style="background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:0;color:var(--primary-blue);flex-shrink:0"
+                aria-label="Dismiss reminder">×</button>
+    `;
+    const anchor = document.querySelector('.card') || document.querySelector('main') || document.body;
+    anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
+}

@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "overrides",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "memberName", "order": "ASCENDING" },
+        { "fieldPath": "date", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

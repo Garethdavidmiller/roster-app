@@ -82,11 +82,9 @@ const _fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h$
 export async function fetchOverridesForPeriod(p, memberName) {
   const thisToken = _overrideFetchToken;
   try {
-    // Query by date range only — no memberName equality filter. Adding memberName
-    // as an equality filter alongside a date range requires a composite Firestore
-    // index that doesn't exist in this project.
     const q = query(
       collection(db, 'overrides'),
+      where('memberName', '==', memberName),
       where('date', '>=', formatISO(p.start)),
       where('date', '<=', formatISO(p.cutoff))
     );

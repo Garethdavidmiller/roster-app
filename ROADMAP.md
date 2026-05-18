@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v9.39*
+*Last updated: May 2026 — v10.04*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -38,7 +38,7 @@ The daily Huddle PDF arrives by email and appears automatically in the `📋 Hud
 - ✅ Both PDF and DOCX file types supported (v6.95)
 - ✅ Push notifications when a new Huddle arrives (v6.11, v6.61)
 
-**Still to build:** History viewer in admin.html — a list of past Huddles by date with tap-to-open links. The `huddles` Firestore collection is already populated; query by date descending. Admin-only section (`CONFIG.ADMIN_NAMES.includes(currentUser)`). See CLAUDE.md → "Huddle ingest" for schema.
+**Not needed:** A Huddle history viewer was previously listed here as still to build. The Huddle is a daily operational briefing — its value is knowing your duties on the day in question. Historical browsing is not a real use case for staff.
 
 ### Weekly Roster Upload ✓ (v5.77–v5.91)
 
@@ -68,7 +68,7 @@ Web Push notifications via Firebase Cloud Functions. When a new Huddle arrives, 
 
 **iOS note:** Requires Safari and the app installed to the Home Screen. Android Chrome works via the browser.
 
-**Still to assess:** Notification reliability in real daily use. If iOS delivery proves unreliable, consider native app (see "Native app" below).
+**iOS notification delivery confirmed (v10.04):** Staff on iOS are receiving Huddle push notifications reliably in real daily use. Native app is not required for this reason.
 
 ### Huddle viewer improvements ✓ (v8.97)
 
@@ -195,6 +195,15 @@ A full design review was run against a generic 10-point modernisation list. The 
 
 Each area is independent unless a dependency is noted.
 
+### Dispatcher pay calculator support
+**What:** Add Dispatcher pay rates to the `GRADES` object in `paycalc-calc.js` so Dispatcher staff can use the pay calculator.
+
+**Blocked on:** Confirmed Dispatcher pay rates from Chiltern payroll. Do not add placeholder rates — the calculator must be accurate or it misleads staff.
+
+**Action needed:** Once Gareth has confirmed the Dispatcher hourly rate, contracted hours, and pension contribution, add a `dispatcher` entry to `GRADES` in `paycalc-calc.js` and update the grade-selection UI in `paycalc.js` to offer Dispatcher as an option.
+
+---
+
 ### Operational visibility
 **What:** Daily deployment view — who is working, spare, or on AL across the whole team for any given day. Useful for supervisors planning cover.
 
@@ -223,13 +232,26 @@ Each area is independent unless a dependency is noted.
 
 **Important caveat:** Chiltern Railways has an official HR system for leave management. Building a parallel approval process risks conflict between the two systems. This capability should remain clearly informational unless there is explicit agreement with management that the app's approval carries official weight.
 
-### Calendar export
-**What:** Staff shifts available in their phone calendar.
+### Calendar export — WebCal subscription
+**What:** Staff subscribe to a URL; their phone calendar (Google Calendar, Apple Calendar,
+Outlook) polls it automatically and shows shifts as events, kept up to date as overrides change.
 
-**Two routes — do the simpler one first:**
+**Why not a static .ics download:** A one-off file export becomes stale the moment any
+override is recorded. Re-importing creates duplicate events in most calendar apps. A static
+export of the base cycle only avoids this but omits the things most worth having (RDW, AL,
+swaps). The static route was considered and rejected.
 
-- **.ics file export** (simple): One-click download, staff import into any calendar app manually. Re-import needed when roster changes, but the base roster is stable. Build this first and assess whether demand for automatic sync is real.
-- **Automatic calendar sync** (complex): Shifts pushed directly to Google Calendar, Apple Calendar, or Outlook whenever the roster changes. Requires Firebase Cloud Functions and three separate calendar APIs. Microsoft Graph requires Chiltern IT involvement.
+**The right approach — dynamic WebCal endpoint (Cloud Function):**
+A Cloud Function returns a fresh .ics built from base roster + current Firestore overrides
+for a given member on every request. Calendar apps poll automatically (typically every 24
+hours). New override types appear without any change to the subscription. The URL would be
+member-specific with a short-lived or HMAC-signed token to prevent one member reading another's calendar.
+
+**Effort:** ~1 day. Cloud Function to generate .ics, token generation in admin.html,
+subscribe button/URL display for staff.
+
+**Build when:** At least a few staff ask for it. The existing roster and override data is
+already the right shape — no data model changes needed.
 
 ### Native app (conditional)
 **Only pursue if one of these is true:**

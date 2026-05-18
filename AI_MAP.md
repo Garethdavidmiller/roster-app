@@ -14,6 +14,8 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
+| Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
+| Override priority logic — tsToMillis, shouldReplaceOverride | `app-override-utils.js` |
 | Admin portal UI, login, cultural calendar, module wiring | `admin-app.js` + `admin.html` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |
@@ -28,6 +30,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
+| localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 
 ---

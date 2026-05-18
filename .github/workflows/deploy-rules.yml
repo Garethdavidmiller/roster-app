@@ -1,4 +1,4 @@
-name: Deploy Firestore Rules
+name: Deploy Firestore and Storage Rules
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'storage.rules'
   workflow_dispatch:
 
 jobs:
@@ -22,8 +24,8 @@ jobs:
       - name: Write service account key
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json
 
-      - name: Deploy Firestore rules
+      - name: Deploy Firestore rules, indexes, and Storage rules
         run: |
-          firebase deploy --only firestore:rules --project myb-roster
+          firebase deploy --only firestore:rules,firestore:indexes,storage --project myb-roster
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json

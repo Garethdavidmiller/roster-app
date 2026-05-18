@@ -22,16 +22,48 @@ JWT from Firebase and sends that as the bearer token. The Cloud Function verifie
 server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
 Manager can be deleted if no longer needed for other purposes.
 
-### Firebase web API key not restricted to HTTP referrers
+### ⏰ Three tasks scheduled for v10.5
+
+Do all three together when the app reaches v10.5.
+
+**1. Firebase web API key — restrict to HTTP referrers**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
 restriction it could theoretically be used to brute-force Firebase Auth from any origin.
 Risk is low: Firestore rules require a valid Auth session for all writes, and login rate
 limiting (v9.53) is in place.
-**To fix:** GCP Console → APIs & Services → Credentials → restrict the Firebase web API key
-to `myb-roster.firebaseapp.com` and `myb-roster.web.app` HTTP referrers.
-**⏰ Scheduled: do this when the app reaches v10.5.** (5-minute manual step in the GCP
-Console — cannot be done by Claude. Log in, find the Firebase web API key under APIs &
-Services → Credentials, and add the two domains as HTTP referrer restrictions.)
+**To fix (5-minute manual step — cannot be done by Claude):** GCP Console → APIs & Services
+→ Credentials → find the Firebase web API key → add `myb-roster.firebaseapp.com` and
+`myb-roster.web.app` as HTTP referrer restrictions.
+
+**2. Firestore security rules — member write isolation**
+Any logged-in staff member can currently write or delete overrides for any other member's
+name. The rule checks `request.auth != null` but not whose session it is.
+**To fix (Claude-implementable, ~half a day):**
+- Add `request.resource.data.memberName == request.auth.token.name` to the `overrides`
+  and `memberSettings` write rules, with an admin custom-claim bypass for G. Miller
+- Add the same guard to `allow delete` on `overrides`
+- Add `source` field validation: `in ['manual', 'roster_import']`
+- Test that the admin custom claim correctly bypasses member restrictions before deploying
+
+**3. Back pay HPP — check variable pay split against a payslip**
+Back pay covers both basic pay/London Allowance (no HPP) and variable components
+(overtime, RDW, Sundays — which do accrue HPP). The calculator adds the full lump sum
+to gross for take-home but does not include any of it in the HPP accumulator, so the
+HPP estimate will be slightly low after a back pay event.
+**To check (human action — requires a payslip):** After the next back pay event, check
+whether Chiltern's payslip shows a breakdown of the lump sum between basic and variable
+components. If it does, a "Variable pay portion" field can be added to the back pay card
+to feed the variable amount into HPP. If Chiltern show only a single back pay line with
+no breakdown, the calculator cannot do better than it currently does.
+
+**4. Pay reminder push notification — confirm it fires correctly**
+`sendPayReminderNotification` in `functions/index.js` is a scheduled Cloud Function that
+sends a push notification to subscribed staff the day before each payday. It has not yet
+been observed firing on a real payday — first payday after this was written is the first
+opportunity to verify it.
+**To check (human action — requires a payday):** On the eve of a payday, confirm that
+subscribed staff receive a pay reminder push notification. If nothing arrives, check the
+Cloud Function logs in the Firebase Console for any errors.
 
 ---
 
@@ -44,33 +76,25 @@ Chiltern may differ due to arrears, adjustments, and deductions not captured her
 ### 2026/27 pay rates not confirmed
 `GRADES` in `paycalc-calc.js` has placeholder 2026/27 rates. Update when the pay
 award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 periods.
+Pay awards at Chiltern are typically not decided until August — do not expect confirmed
+rates before then.
 
-### Back pay lump sum not included in HPP estimate
-The back pay card (added v9.55) adds the lump sum to gross for the paid-in period's
-take-home calculation, but `calcHPP()` does not include the back pay amount in its
-variable pay total. Whether back pay counts toward HPP depends on how Chiltern's payroll
-classifies it: as retroactive basic pay (HPP impact = zero) or as variable pay (HPP impact
-= back pay × 7.69%). This was not confirmed with payroll at the time of writing.
-
-**To check:** After the first back pay payslip arrives, compare the January HPP payslip
-against the calculator's HPP estimate. If they differ by roughly `back pay amount × 7.69%`,
-Chiltern are including it in variable pay and `_varPayForPeriod()` in `paycalc.js` should
-add `_bpAmount` for the paid-in period. If they match, no change needed.
-
-### Dispatcher grade not supported
-Pay rates for Dispatchers are not confirmed. The grade is not in the `GRADES` object.
-Do not add it until the rates are verified.
+### Back pay lump sum not fully included in HPP estimate
+The back pay card adds the lump sum to gross for the paid-in period's take-home
+calculation, but `calcHPP()` does not include any of it in the HPP accumulator.
+Back pay covers both basic/London Allowance (no HPP) and variable components
+(overtime, RDW, Sundays — which do accrue HPP), so the HPP estimate will be slightly
+low after a back pay event. See the v10.5 task block above for the check and fix plan.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
-### Firestore composite index not present
-`fetchOverridesForPeriod` queries by date range only (no memberName equality filter)
-because adding memberName as an equality filter alongside a date range requires a
-composite Firestore index that has not been created. The function filters by member
-client-side instead.
+### Firestore composite index — resolved (v10.05)
+`fetchOverridesForPeriod` now queries with `memberName == memberName AND date >= start AND date <= cutoff`.
+The required composite index on `overrides` (memberName ASC, date ASC) is defined in
+`firestore.indexes.json` and deployed via the `deploy-rules.yml` workflow.
 
 ---
 
@@ -88,10 +112,10 @@ If a date has multiple override documents for the same member, the cache keeps t
 most recently created one (by `createdAt` timestamp). Duplicates are logged via
 `console.warn`. Clean up at source in the Firebase Console.
 
-### `startDate` suppression is base-roster only
-`getBaseShift()` returns `'RD'` for dates before a member's `startDate`.
-Firestore overrides entered before the start date are not suppressed — if an admin
-enters a shift override before a member's official start, it will appear in the calendar.
+### `startDate` suppression — resolved (v10.04)
+`getBaseShift()` returns `'RD'` for dates before a member's `startDate`. Firestore
+overrides are now also suppressed before that date in all three calendar read paths
+(personal calendar, Team Week View, and shift-type month summary) in `app.js`.
 
 ---
 
