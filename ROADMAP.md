@@ -110,7 +110,7 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 Ideas that were prototyped and reverted. Implementation notes preserved here so they can be restored quickly if the case for them changes.
 
 ### Bottom navigation bar
-**Status:** Prototyped at v7.66, reverted — felt like clutter at current scale
+**Status:** Prototyped at v7.66, reverted — felt like clutter at current scale. Case reassessed v10.01 — not needed, navigation is complete without it.
 
 A fixed tab bar at the bottom of the screen on mobile with three items:
 📅 Roster · 💷 Pay · 🔐 Admin
@@ -118,12 +118,19 @@ A fixed tab bar at the bottom of the screen on mobile with three items:
 The active tab would be highlighted in gold; all three pages would share the same bar via shared.css.
 
 **Why it was held back:**
-The app currently has three pages and the existing entry points (the Admin and Pay buttons in the controls row, the back arrow on inner pages) are sufficient for the current use pattern. Adding a persistent nav bar makes the screen feel busier without a clear navigational payoff at three pages.
+Cross-page navigation is already complete without a universal nav bar:
+- The calendar controls row has dedicated **Pay** and **Admin** buttons
+- Both the pay calculator and admin pages have a **back button** that returns to the calendar
+- PWA long-press shortcuts cover Calendar / Pay / Admin for installed users
+
+Adding a persistent nav bar introduces two layout problems with no navigational payoff:
+1. **Calendar screen real estate** — a fixed bottom bar on mobile takes ~50px from the calendar grid, which is the primary content staff use every day
+2. **Sticky pay total conflict** — the pay calculator already has a fixed bar at the bottom showing the take-home total. Two competing fixed bars at the bottom of the same page is poor UX
 
 **When to revisit:**
-- If staff report not knowing how to get between the Calendar, Pay, and Admin pages
 - If the controls row is simplified and loses the dedicated Pay/Admin buttons
-- If a notice board or further page is added and navigation becomes genuinely confusing
+- If a new page is added that doesn't fit the current hub-and-spoke pattern
+- If the sticky pay total bar is removed or redesigned
 
 **Note:** Team Week View (v8.22) is an in-page view within the calendar — it does not replace cross-page navigation between Calendar / Pay / Admin.
 
