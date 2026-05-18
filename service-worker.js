@@ -1,10 +1,10 @@
-// MYB Roster — Service Worker v9.93
+// MYB Roster — Service Worker v9.96
 // Strategy:
-//   index.html, admin.html, roster-data.js
+//   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
 //                 staff on next open. Falls back to cache when offline.
-//   All assets  → Cache-first: icons and manifest never change between versions,
-//                 serving from cache is always correct and faster.
+//   Icons, manifests, reference guides
+//               → Cache-first: stable assets served instantly; fetched on miss.
 //
 // self.skipWaiting() on install activates the new SW immediately.
 // self.clients.claim() makes the new SW take control of all open tabs at once.
@@ -15,11 +15,24 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.93';
+const APP_VERSION = '9.96';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
-// Files that contain roster data — always fetched fresh (network-first).
-const NETWORK_FIRST_FILES = ['index.html', 'admin.html', 'app.js', 'admin-app.js', 'admin-huddle.js', 'admin-auth.js', 'admin-roster-upload.js', 'admin-overrides.js', 'admin-al.js', 'admin-sick.js', 'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'shared.css', 'paycalc.html', 'paycalc.js', 'paycalc-calc.js', 'paycalc-roster-suggestions.js', 'paycalc-guide.html', 'fip.html', 'guide.html'];
+// All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
+// Note: matching uses path.endsWith(filename), which is a suffix check, not an
+// exact path check. This is intentional — all these files live at the root of
+// the PWA origin so partial suffix matches never collide in practice.
+const NETWORK_FIRST_FILES = [
+    'index.html', 'admin.html',
+    'app.js', 'admin-app.js', 'admin-huddle.js', 'admin-auth.js',
+    'admin-roster-upload.js', 'admin-overrides.js',
+    'admin-al.js', 'admin-sick.js',
+    'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js',
+    'shared.css',
+    'paycalc.html', 'paycalc.js', 'paycalc-calc.js',
+    'paycalc-roster-suggestions.js', 'paycalc-guide.html',
+    'fip.html', 'guide.html',
+];
 
 // Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
 const CORE_ASSETS = [
@@ -38,25 +51,27 @@ const CORE_ASSETS = [
     "./firebase-client.js",
     "./shared.css",
     "./manifest.json",
-    "./pay-manifest.json",
     "./paycalc.html",
     "./paycalc.js",
     "./paycalc-calc.js",
     "./paycalc-roster-suggestions.js",
-    "./paycalc-guide.html",
-    "./fip.html",
-    "./guide.html"
 ];
 
-// Icons — cached individually so a transient network error on one icon does not
-// block the whole service worker from installing (addAll is all-or-nothing).
+// Reference guides and icons — cached individually so a transient network error
+// on any one file does not block the whole service worker from installing.
+const SUPPLEMENTARY_ASSETS = [
+    "./paycalc-guide.html",
+    "./fip.html",
+    "./guide.html",
+];
+
 const ICON_ASSETS = [
     "./icon-120.png",
     "./icon-152.png",
     "./icon-167.png",
     "./icon-180.png",
     "./icon-192.png",
-    "./icon-512.png"
+    "./icon-512.png",
 ];
 
 // ============================================
@@ -65,20 +80,21 @@ const ICON_ASSETS = [
 self.addEventListener("install", event => {
     console.log(`[SW ${APP_VERSION}] Installing`);
     event.waitUntil(
-        caches.open(CACHE_NAME)
-            .then(cache => cache.addAll(CORE_ASSETS))
-            .then(() => caches.open(CACHE_NAME).then(cache =>
-                // Cache icons one at a time — a missing icon won't block activation
-                Promise.all(ICON_ASSETS.map(icon =>
-                    cache.add(icon).catch(err =>
-                        console.warn(`[SW ${APP_VERSION}] Icon cache skipped (${icon}):`, err)
+        caches.open(CACHE_NAME).then(cache =>
+            cache.addAll(CORE_ASSETS)
+                .then(() => Promise.all([
+                    ...SUPPLEMENTARY_ASSETS,
+                    ...ICON_ASSETS,
+                ].map(asset =>
+                    cache.add(asset).catch(err =>
+                        console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err)
                     )
-                ))
-            ))
-            .then(() => {
-                console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
-                return self.skipWaiting();
-            })
+                )))
+                .then(() => {
+                    console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
+                    return self.skipWaiting();
+                })
+        )
     );
 });
 
@@ -111,10 +127,10 @@ self.addEventListener("fetch", event => {
     // Only handle same-origin GET requests
     if (event.request.method !== "GET") return;
     const url = new URL(event.request.url);
-    if (url.origin !== location.origin) return;
+    if (url.origin !== self.location.origin) return;
 
     const path = url.pathname;
-    const isNetworkFirst = path.endsWith("/") || path === "/"
+    const isNetworkFirst = path.endsWith("/")
         || NETWORK_FIRST_FILES.some(f => path.endsWith(f));
 
     if (isNetworkFirst) {
@@ -193,7 +209,7 @@ self.addEventListener("message", event => {
 // the Notification Centre rather than stacking.
 self.addEventListener("push", event => {
     let data = { title: "Marylebone Roster", body: "Huddle is ready" };
-    try { if (event.data) data = event.data.json(); } catch (_) {}
+    try { if (event.data) Object.assign(data, event.data.json()); } catch (_) {}
 
     const url = data.url || "./";
     // Prefer explicit tag from payload; fall back to URL inference for legacy payloads.

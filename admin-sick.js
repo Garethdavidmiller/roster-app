@@ -4,9 +4,9 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles
 // and shared functions via initSickSection(deps) to avoid circular imports.
 
-import { teamMembers, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js?v=9.93';
-import { db, collection, doc, writeBatch, serverTimestamp } from './firebase-client.js?v=9.93';
-import { getAllOverrides, setAllOverrides, renderWeekGrid, renderTable, formatDisplay } from './admin-overrides.js?v=9.93';
+import { teamMembers, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
+import { db, collection, doc, writeBatch, serverTimestamp } from './firebase-client.js';
+import { getAllOverrides, setAllOverrides, renderWeekGrid, renderTable, formatDisplay } from './admin-overrides.js';
 
 const esc = escapeHtml;
 
