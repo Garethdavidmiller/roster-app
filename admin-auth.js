@@ -11,8 +11,8 @@
  * No hardcoded secret — the request uses a short-lived signed JWT from Firebase Auth.
  */
 
-import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.92';
-import { auth } from './firebase-client.js?v=9.92';
+import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.93';
+import { auth } from './firebase-client.js?v=9.93';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 

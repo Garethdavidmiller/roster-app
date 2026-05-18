@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `9.92` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `9.93` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -48,7 +48,9 @@
 | `paycalc.html` | Line 2 HTML comment | |
 | `paycalc.html` | `paycalc.js?v=`, `shared.css?v=`, `pay-manifest.json?v=` | 3 places |
 | `app.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=`, `admin-huddle.js?v=`, `admin-auth.js?v=` | 6 places |
+| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=`, `admin-huddle.js?v=`, `admin-auth.js?v=`, `admin-al.js?v=`, `admin-sick.js?v=` | 8 places |
+| `admin-al.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-overrides.js?v=` | 3 places |
+| `admin-sick.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-overrides.js?v=` | 3 places |
 | `admin-overrides.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `admin-roster-upload.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `admin-huddle.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
@@ -102,9 +104,11 @@ roster-app/
 ├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html
-├── admin-app.js            ← coordinator for admin.html: login, AL/sick, cultural calendar, module wiring
+├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
 ├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
+├── admin-al.js             ← Annual Leave Booking section: date picker, preview, entitlement check, Firestore save (extracted v9.93). Exports initALSection(deps) and triggerConfirmedALSave()
+├── admin-sick.js           ← Sick Days Recording section: date picker, preview, Firestore save (extracted v9.93). Exports initSickSection(deps)
 ├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
@@ -143,7 +147,7 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.

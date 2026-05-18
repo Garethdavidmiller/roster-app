@@ -14,7 +14,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
-| Admin portal UI, login, AL/sick sections | `admin-app.js` + `admin.html` |
+| Admin portal UI, login, cultural calendar, module wiring | `admin-app.js` + `admin.html` |
+| Annual Leave Booking section | `admin-al.js` |
+| Sick Days Recording section | `admin-sick.js` |
 | Huddle upload card, push notifications, Huddle card toggle | `admin-huddle.js` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
@@ -50,11 +52,25 @@ Everything that touches `index.html` at runtime.
 - Sync chip state machine
 
 ### `admin-app.js`
-Login, session management, AL section, sick section, and the glue that wires all admin modules together.
+Login, session management, shared DOM handles, and the glue that wires all admin modules together.
 - Login flow, Firebase Auth sign-in/out, session state
-- AL entry, sick entry, faith calendar settings, cultural calendar
-- Calls `initOverrides()`, `initRosterUpload()`, `initHuddleCards()`, `initAuthSetup()` to initialise sub-modules
-- Does **not** contain week grid, override list, bulk bar, roster review pipeline, Huddle upload, push notifications, or auth setup — those are in the sub-modules
+- `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` — declared here (module scope) because the `fieldMember` change handler references them before `admin-al.js` / `admin-sick.js` init runs
+- `fieldMember` change handler, `fieldDate` change handler — keep AL/sick/overrides in sync
+- AL over-entitlement confirm bar (`alConfirmBar`) — calls `triggerConfirmedALSave()` from `admin-al.js` for the AL booking path
+- Faith calendar settings, cultural calendar, booked-period helpers (`_renderBookedPeriods`, `deletePeriodOverrides`, `updateALBookedBox`, `updateSickBookedBox`)
+- Calls `initALSection()`, `initSickSection()`, `initOverrides()`, `initRosterUpload()`, `initHuddleCards()`, `initAuthSetup()` to initialise all sections
+- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, push notifications, or auth setup — those are in sub-modules
+
+### `admin-al.js`
+Annual Leave Booking section (extracted v9.93).
+- `initALSection(deps)` — sets up date picker, preview, entitlement check, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
+- `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking over their AL entitlement; sets internal flag and re-fires the save button.
+- Imports `teamMembers`, `getALEntitlement`, `getBaseShift`, `formatISO`, `isSunday`, `escapeHtml` from `roster-data.js`; `writeBatch`, `db`, etc. from `firebase-client.js`; `getAllOverrides`, `setAllOverrides`, `renderWeekGrid`, `renderTable`, `formatDisplay` from `admin-overrides.js`.
+
+### `admin-sick.js`
+Sick Days Recording section (extracted v9.93).
+- `initSickSection(deps)` — sets up date picker, preview, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
+- Same direct imports as `admin-al.js` (roster-data, firebase-client, admin-overrides). No `lsSet` or `confirmNavigate` needed — the sick section has no member-change handler.
 
 ### `admin-overrides.js`
 The Change a Shift module. Owns the week grid and override list entirely.
@@ -63,7 +79,7 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `loadOverrides()` / `renderTable()` — Saved Changes list
 - `executeSave()` — writes override to Firestore
 - `updateSaveBtn()` — exported so swipe carousel can call it
-- State accessors: `getAllOverrides()` / `setAllOverrides()` — used by AL/sick sections in `admin-app.js`
+- State accessors: `getAllOverrides()` / `setAllOverrides()` — used by `admin-al.js` and `admin-sick.js`
 
 ### `admin-huddle.js`
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
