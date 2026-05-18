@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.91';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.92';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.91';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.91';
+} from './paycalc-calc.js?v=9.92';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.92';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -642,7 +642,7 @@ function onPeriodChange() {
   updateBhRows(p);
 
   // Show rate-unconfirmed notices when in a period where the pay award isn't finalised.
-  // Two locations: one inside ⚙️ Settings (existing), one on the result card (new in v9.91)
+  // Two locations: one inside ⚙️ Settings (existing), one on the result card (new in v9.92)
   // so the warning is visible even when the Settings card is collapsed.
   const _is2627 = ty.label === '2026/27';
   const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
