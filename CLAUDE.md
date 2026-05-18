@@ -342,7 +342,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 ### 🟡 UX decisions on hold (needs discussion before implementing)
 
-- **Admin button label** — The 🔒 Admin button implies manager-only access, but all staff need it to record their own AL and enable notifications. Consider renaming (e.g. "My Shifts") or splitting into separate staff and admin entry points. Requires discussion about branding and URL structure before changing.
+- **Admin button label** — "Admin" stands for administration (the section where staff manage their account, leave, and notifications), not administrator (implying manager-only access). The label is intentional and correct — do not rename it.
 - **Shift type count** — The admin type selector has 8 types. RDW/Overtime/Swap/Allocated are subtly different and create cognitive load for infrequent users. Consider whether any can be merged or renamed for clarity. Requires discussion about operational use before changing.
 
 ### 🟢 UX ideas — explored but held back

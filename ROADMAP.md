@@ -38,7 +38,7 @@ The daily Huddle PDF arrives by email and appears automatically in the `📋 Hud
 - ✅ Both PDF and DOCX file types supported (v6.95)
 - ✅ Push notifications when a new Huddle arrives (v6.11, v6.61)
 
-**Still to build:** History viewer in admin.html — a list of past Huddles by date with tap-to-open links. The `huddles` Firestore collection is already populated; query by date descending. Admin-only section (`CONFIG.ADMIN_NAMES.includes(currentUser)`). See CLAUDE.md → "Huddle ingest" for schema.
+**Not needed:** A Huddle history viewer was previously listed here as still to build. The Huddle is a daily operational briefing — its value is knowing your duties on the day in question. Historical browsing is not a real use case for staff.
 
 ### Weekly Roster Upload ✓ (v5.77–v5.91)
 

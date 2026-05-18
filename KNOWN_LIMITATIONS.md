@@ -44,6 +44,8 @@ Chiltern may differ due to arrears, adjustments, and deductions not captured her
 ### 2026/27 pay rates not confirmed
 `GRADES` in `paycalc-calc.js` has placeholder 2026/27 rates. Update when the pay
 award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 periods.
+Pay awards at Chiltern are typically not decided until August — do not expect confirmed
+rates before then.
 
 ### Back pay lump sum not included in HPP estimate
 The back pay card (added v9.55) adds the lump sum to gross for the paid-in period's
