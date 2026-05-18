@@ -91,16 +91,18 @@ describe('getRosterSuggestion — overrides via _setOverridesForTest', () => {
     assert.equal(s.bhOtM, 0);
   });
 
-  test('Saturday override → sat bucket, no overtime when base is RD', () => {
-    // C. Reen base Sat=RD → no base duration to split against.
+  test('Saturday override when base is RD → rdw bucket (confirmed payroll rule)', () => {
+    // C. Reen base Sat=RD → rest day worked, goes to RDW not Saturday enhanced rate.
+    // Gareth confirmed May 2026: unrostered Saturday = Rest Day Working.
     _setOverridesForTest(new Map([
       ['2026-04-11', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],
     ]));
     const s = getRosterSuggestion(period('2026-04-11'), cReen);
     assert.ok(s);
-    assert.equal(s.satCount, 1);
-    assert.equal(s.satH, 8);
-    assert.equal(s.satM, 0);
+    assert.equal(s.rdwCount, 1);
+    assert.equal(s.rdwH, 8);
+    assert.equal(s.rdwM, 0);
+    assert.equal(s.satCount, 0);
     assert.equal(s.otCount, 0);
   });
 
@@ -199,10 +201,11 @@ describe('fetchOverridesForPeriod — override priority', () => {
     ]);
     resetOverrides('checking');
     await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
-    // manual value (10:00-19:00 = 9h) wins despite lower timestamp
+    // manual value (10:00-19:00 = 9h) wins despite lower timestamp.
+    // 2026-04-11 is a Saturday with C. Reen base=RD → rdw bucket (not sat).
     const s = getRosterSuggestion(period(date), cReen);
     assert.ok(s);
-    assert.equal(s.satH, 9); // 10:00-19:00 = 9h
+    assert.equal(s.rdwH, 9); // 10:00-19:00 = 9h
   });
 
   test('within same class, newer createdAt wins', async () => {
@@ -213,9 +216,10 @@ describe('fetchOverridesForPeriod — override priority', () => {
     ]);
     resetOverrides('checking');
     await fetchOverridesForPeriod({ start: new Date(date), cutoff: new Date(date) }, 'C. Reen');
+    // 2026-04-11 is a Saturday with C. Reen base=RD → rdw bucket (not sat).
     const s = getRosterSuggestion(period(date), cReen);
     assert.ok(s);
-    assert.equal(s.satH, 9); // newer (9h) wins over older (8h)
+    assert.equal(s.rdwH, 9); // newer (9h) wins over older (8h)
   });
 
   test('docs for other members are ignored', async () => {

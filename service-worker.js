@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v10.14
+// MYB Roster — Service Worker v10.15
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -159,14 +159,22 @@ self.addEventListener("fetch", event => {
                 .catch(() => {
                     clearTimeout(timeoutId);
                     console.log(`[SW ${APP_VERSION}] Offline/timeout — serving from cache:`, path);
-                    const fallback = path.includes('paycalc') ? './paycalc.html' : path.includes('admin') ? './admin.html' : './index.html';
+                    // Only use an HTML page as a fallback for document (navigation) requests.
+                    // Serving HTML for a JS/CSS request causes a MIME type error in the browser.
+                    const isDoc = event.request.destination === 'document';
+                    const fallback = isDoc
+                        ? (path.includes('paycalc') ? './paycalc.html' : path.includes('admin') ? './admin.html' : './index.html')
+                        : null;
                     // iOS can evict the entire Cache Storage under storage pressure —
                     // synthesise a minimal offline page so the request still resolves.
                     return caches.match(event.request)
-                        .then(r => r || caches.match(fallback))
-                        .then(r => r || new Response(
-                            '<h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">Cache was cleared. Please reconnect and reload.</p>',
-                            { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
+                        .then(r => r || (fallback ? caches.match(fallback) : null))
+                        .then(r => r || (isDoc
+                            ? new Response(
+                                '<h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">Cache was cleared. Please reconnect and reload.</p>',
+                                { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
+                              )
+                            : Response.error()
                         ));
                 })
         );

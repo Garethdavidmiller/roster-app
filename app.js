@@ -408,9 +408,10 @@ function getFaithMarker(dateStr, memberName) {
 
 function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '', faithMarker = null) {
     let badge;
-    if (isWorkedDay && permanentShift === 'late') {
+    // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
+    if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
         badge = '<span class="shift-badge badge-late"><span>🌙</span><span>Late</span></span>';
-    } else if (isWorkedDay && permanentShift === 'early') {
+    } else if (shift !== 'RDW' && isWorkedDay && permanentShift === 'early') {
         badge = '<span class="shift-badge badge-early"><span>☀️</span><span>Early</span></span>';
     } else {
         badge = getShiftBadge(shift);
@@ -1841,7 +1842,11 @@ try {
             // Don't fire if user is typing in an input
             if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
             if (swipeCooldown) return; // Don't interrupt a swipe animation
-            if (teamView.isTeamViewMode()) return;
+            if (teamView.isTeamViewMode()) {
+                if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
+                if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
+                return;
+            }
             if (e.key === 'ArrowLeft')  { changeMonth(-1); renderCalendar(); announceMonthChange(); }
             if (e.key === 'ArrowRight') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
             if (e.key === 't' || e.key === 'T') { const now = getToday(); currentDisplayMonth = now.getMonth(); currentDisplayYear = now.getFullYear(); renderCalendar(); pulseToday(); announceMonthChange(); }
@@ -2048,8 +2053,12 @@ async function ensureOverridesCached(year, month) {
         if (!teamView.isTeamViewMode()) renderCalendar();
         updateFaithHint();
 
-        // Briefly show "✓ Up to date" then fade the chip away
+        // Briefly show "✓ Up to date" then fade the chip away.
+        // renderCalendar() replaces .calendar-header innerHTML, detaching the chip —
+        // re-append it to the new header before updating the text.
         if (syncChip) {
+            const newHeader = document.querySelector('.calendar-header');
+            if (newHeader && !newHeader.contains(syncChip)) newHeader.appendChild(syncChip);
             syncChip.textContent = '✓ Up to date';
             syncChip.className = 'sync-chip sync-chip-ok';
             setTimeout(() => syncChip?.remove(), 1500);

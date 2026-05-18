@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '10.14';
+export const APP_VERSION = '10.15';
 
 // ============================================
 // CONFIGURATION
@@ -180,11 +180,11 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
     if (!member) return 32;
+    // Pro-rated entitlement takes priority for joiners, regardless of role
+    if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
     if (member.rosterType === 'fixed') return 34; // C. Reen — reasonable adjustments
-    // Pro-rated entitlement for members who joined part-way through the year
-    if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     return 32;
 }
 

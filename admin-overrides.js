@@ -605,7 +605,7 @@ export function renderTable() {
 
     rows.forEach(o => {
         const typeMeta    = TYPES[o.type];
-        const isLegacyType = ['allocated', 'overtime'].includes(o.type);
+        const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
         const tr = document.createElement('tr');
         tr.innerHTML = `
             <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${escapeHtml(o.memberName)} ${o.date}"></td>

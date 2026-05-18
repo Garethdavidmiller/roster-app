@@ -454,12 +454,19 @@ body.lb-open #stickyTotal { display: none !important; }
     color: rgba(255,255,255,0.55);
 }
 
-/* Keyboard-only tips visible on pointer devices; touch-only tips hidden on pointer devices */
+/* Keyboard-only tips: visible on pointer devices only */
 .lightbox-tip.keyboard-only { display: none; }
 @media (hover: hover) and (pointer: fine) {
     .lightbox-tip.keyboard-only { display: flex; justify-content: space-between; }
-    .touch-only { display: none; }
-    .lightbox-tip.touch-only { display: none; }
+}
+/* touch-only: hidden by default, revealed on coarse-pointer devices.
+   Using pointer:coarse rather than (hover:hover and pointer:fine) inverted,
+   because some Android devices misreport hover:hover and would hide touch hints. */
+.touch-only { display: none; }
+.lightbox-tip.touch-only { display: none; }
+@media (pointer: coarse) {
+    .touch-only { display: revert; }
+    .lightbox-tip.touch-only { display: flex; justify-content: space-between; }
 }
 
 .lightbox-tip-key {
