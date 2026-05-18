@@ -61,3 +61,22 @@ for doc in AI_MAP.md KNOWN_LIMITATIONS.md ROADMAP.md OPERATIONS_REFERENCE.md; do
     echo ""
   fi
 done
+
+# Block commit if any ?v= cache-bust string doesn't match APP_VERSION.
+# A missed version bump causes browsers to serve stale cached JS/CSS silently.
+if [[ -n "$APP_VER" ]]; then
+  STALE=$(grep -rn "?v=" *.js *.html 2>/dev/null \
+    | grep -v "?v=${APP_VER}" \
+    | grep -v "\.test\.\|^Binary" \
+    | grep "?v=" \
+    | head -6)
+  if [[ -n "$STALE" ]]; then
+    echo ""
+    echo "  Version mismatch — these ?v= references don't match APP_VERSION (${APP_VER}):"
+    echo "$STALE" | sed 's/^/    /'
+    echo ""
+    echo "  Update all ?v= strings to ?v=${APP_VER} before committing."
+    echo "  Quick fix: sed -i 's/?v=[0-9.]*/?v=${APP_VER}/g' *.js *.html"
+    exit 1
+  fi
+fi

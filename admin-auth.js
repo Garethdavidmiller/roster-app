@@ -7,21 +7,14 @@
  *   account credential derivation (firebase-client.js nameToEmail / nameToPassword).
  * Edit here for: account setup UI.
  *
- * Auth strategy (v9.87):
- *   - If the logged-in user already has the Firebase Auth admin custom claim, the
- *     request uses their Firebase ID token as the bearer — no secret in the request.
- *   - If the claim is not yet set (first ever run), the ROSTER_SECRET is sent instead.
- *     The Cloud Function sets the admin claim during that call, so all subsequent
- *     calls use the ID token. Once confirmed, ROSTER_SECRET_VALUE can be removed.
+ * Auth: Firebase ID token with admin custom claim (set by setupRosterAuth on first run).
+ * No hardcoded secret — the request uses a short-lived signed JWT from Firebase Auth.
  */
 
-import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.87';
-import { auth } from './firebase-client.js?v=9.87';
+import { teamMembers, CONFIG, escapeHtml } from './roster-data.js?v=9.90';
+import { auth } from './firebase-client.js?v=9.90';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
-// Bootstrap fallback — only sent when the admin custom claim is not yet on the account.
-// After one successful "Set up accounts" call the claim is set and this is never sent again.
-const ROSTER_SECRET_VALUE = 'a7f3d2e1-9b4c-4f8a-b6e5-3c1d0a2f5e8b';
 
 /**
  * Initialises the Staff Login Accounts setup card (admin only). Call once after
@@ -61,26 +54,21 @@ export function initAuthSetup({ currentIsAdmin }) {
         resultEl.style.display = 'none';
 
         try {
-            // Prefer Firebase ID token auth if the admin custom claim is already set.
-            // forceRefresh:true fetches a fresh token from Firebase, picking up any claim
-            // changes (e.g. the admin claim that was just set by the previous call).
-            // Falls back to ROSTER_SECRET on first run when the claim is not yet present.
-            let authHeader;
             const currentUser = auth.currentUser;
-            if (currentUser) {
-                const tokenResult = await currentUser.getIdTokenResult(/* forceRefresh */ true);
-                if (tokenResult.claims.admin) {
-                    authHeader = `Bearer ${tokenResult.token}`;
-                }
+            if (!currentUser) {
+                throw new Error('Not signed in — please refresh the page and sign in again');
             }
-            if (!authHeader) {
-                authHeader = `Bearer ${ROSTER_SECRET_VALUE}`;
+            // forceRefresh:true fetches a fresh token from Firebase so any recent
+            // claim changes are included. The token is short-lived and signed by Firebase.
+            const tokenResult = await currentUser.getIdTokenResult(/* forceRefresh */ true);
+            if (!tokenResult.claims.admin) {
+                throw new Error('Admin claim not found — try signing out and back in, then click again');
             }
 
             const resp = await fetch(SETUP_AUTH_URL, {
                 method:  'POST',
                 headers: {
-                    'Authorization': authHeader,
+                    'Authorization': `Bearer ${tokenResult.token}`,
                     'Content-Type':  'application/json',
                 },
                 body: JSON.stringify({

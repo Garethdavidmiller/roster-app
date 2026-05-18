@@ -8,13 +8,13 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.87';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js?v=9.90';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
-} from './paycalc-calc.js?v=9.87';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.87';
+} from './paycalc-calc.js?v=9.90';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js?v=9.90';
 'use strict';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
@@ -98,7 +98,7 @@ const CONFIG = {
 // gross = post-pension taxable pay (matches "Taxable Pay" line on payslip).
 // Only shown when 'G. Miller' is the logged-in member; no other member sees this.
 const MILLER_ACTUALS = {
-  '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.87, sl: 202.00, net: 3081.35, varPay: 1612.73 },
+  '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.90, sl: 202.00, net: 3081.35, varPay: 1612.73 },
   '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
   '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.71, varPay: 1692.94 },
   '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
@@ -641,9 +641,14 @@ function onPeriodChange() {
   // Show/hide bank holiday rows based on whether this period has any
   updateBhRows(p);
 
-  // Show rate-unconfirmed notice when in a period where the pay award isn't finalised
+  // Show rate-unconfirmed notices when in a period where the pay award isn't finalised.
+  // Two locations: one inside ⚙️ Settings (existing), one on the result card (new in v9.90)
+  // so the warning is visible even when the Settings card is collapsed.
+  const _is2627 = ty.label === '2026/27';
   const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
-  if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', ty.label !== '2026/27');
+  if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_is2627);
+  const _resultRateNotice = document.getElementById('resultRateNotice');
+  if (_resultRateNotice) _resultRateNotice.style.display = _is2627 ? '' : 'none';
 
   // Read session now so we can set the correct initial fetch state
   let session2;
