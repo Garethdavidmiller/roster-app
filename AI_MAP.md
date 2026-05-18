@@ -15,6 +15,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
+| Override priority logic — tsToMillis, shouldReplaceOverride | `app-override-utils.js` |
 | Admin portal UI, login, cultural calendar, module wiring | `admin-app.js` + `admin.html` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |

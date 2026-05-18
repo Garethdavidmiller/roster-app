@@ -13,6 +13,7 @@ import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePus
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initTeamView } from './app-team-view.js';
+import { tsToMillis, shouldReplaceOverride } from './app-override-utils.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -1894,36 +1895,6 @@ function monthKey(year, month) {
  * @param {string} startStr - 'YYYY-MM-DD' inclusive start
  * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
  */
-/** Convert a Firestore Timestamp (or plain {seconds, nanoseconds} object) to milliseconds. */
-function _tsToMillis(ts) {
-    if (!ts) return 0;
-    if (typeof ts.toMillis === 'function') return ts.toMillis();
-    if (typeof ts.seconds === 'number') return ts.seconds * 1000;
-    return 0;
-}
-
-/**
- * Decide whether an incoming override document should replace the existing
- * cached entry for the same member|date key.
- *
- * Priority rules (highest first):
- *   1. Manual overrides (no source field) always beat roster_import entries.
- *   2. Among entries of equal source-priority, the newer createdAt wins.
- *
- * This ensures a human-entered correction survives a roster re-import, and
- * that if two imports exist for the same date the most recent one is used.
- */
-function _shouldReplaceOverride(existing, incoming) {
-    if (!existing) return true;
-    const existingIsImport = (existing.source || '') === 'roster_import';
-    const incomingIsImport = (incoming.source || '') === 'roster_import';
-    // Manual beats import
-    if (existingIsImport && !incomingIsImport) return true;
-    if (!existingIsImport && incomingIsImport) return false;
-    // Same class — newer timestamp wins
-    return _tsToMillis(incoming.createdAt) >= _tsToMillis(existing.createdAt);
-}
-
 async function fetchOverridesForRange(startStr, endStr) {
     const q = query(
         collection(db, 'overrides'),
@@ -1949,10 +1920,10 @@ async function fetchOverridesForRange(startStr, endStr) {
         const existing = rosterOverridesCache.get(key);
         if (existing) {
             console.warn('[Firestore] Duplicate override for', key,
-                '— keeping', _shouldReplaceOverride(existing, incoming) ? 'incoming' : 'existing',
+                '— keeping', shouldReplaceOverride(existing, incoming) ? 'incoming' : 'existing',
                 { existing, incoming });
         }
-        if (_shouldReplaceOverride(existing, incoming)) {
+        if (shouldReplaceOverride(existing, incoming)) {
             rosterOverridesCache.set(key, incoming);
         }
     });

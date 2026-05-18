@@ -85,6 +85,7 @@ roster-app/
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
+├── app-override-utils.js   ← override priority helpers: tsToMillis, shouldReplaceOverride. Shared by app.js and app-team-view.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
 ├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
@@ -111,6 +112,7 @@ roster-app/
 ├── AI_MAP.md               ← routing guide: which file to read/edit for a given task
 ├── KNOWN_LIMITATIONS.md    ← intentional constraints and deferred decisions
 ├── ROADMAP.md              ← product history, future ideas, reverted experiments
+├── app.test.mjs            ← Node test runner tests for app-override-utils.js (tsToMillis, shouldReplaceOverride)
 ├── roster-data.test.mjs    ← Node test runner tests for roster-data.js (bank holidays, paydays, AL, etc.)
 ├── paycalc.test.mjs        ← Node test runner tests for paycalc-calc.js (tax, NI, gross)
 ├── paycalc-roster-suggestions.test.mjs ← Node test runner tests for paycalc-roster-suggestions.js. Requires --experimental-test-module-mocks to mock firebase-client.js
@@ -124,11 +126,11 @@ roster-app/
 **Running all tests:** Always use the combined command — `--experimental-test-module-mocks` is required by `paycalc-roster-suggestions.test.mjs` and is harmless for the others. Running plain `node --test` will fail on that file.
 
 ```
-node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
+node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `app-team-view.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `ls.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `app-team-view.js`, `app-override-utils.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `ls.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.

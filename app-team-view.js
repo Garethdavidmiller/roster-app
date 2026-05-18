@@ -13,6 +13,7 @@ import { teamMembers, DAY_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatIS
          SHIFT_TIME_REGEX, isEarlyShift, isNightShift } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
+import { shouldReplaceOverride } from './app-override-utils.js';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
                      'July', 'August', 'September', 'October', 'November', 'December'];
@@ -302,11 +303,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
                 const d          = doc.data();
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);
-                const newManual  = (d.source        || '') !== 'roster_import';
-                const exManual   = existing && (existing.source || '') !== 'roster_import';
-                if (!existing ||
-                    (newManual && !exManual) ||
-                    (newManual === exManual && (d.createdAt?.toMillis?.() ?? 0) > (existing?.createdAt?.toMillis?.() ?? 0))) {
+                if (shouldReplaceOverride(existing, d)) {
                     // Skip re-render if the display-relevant fields haven't changed
                     // (common when IndexedDB and Firestore return identical data on repeat visits)
                     if (existing && existing.type === d.type && existing.value === d.value) return;
