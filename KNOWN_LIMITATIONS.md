@@ -90,10 +90,10 @@ If a date has multiple override documents for the same member, the cache keeps t
 most recently created one (by `createdAt` timestamp). Duplicates are logged via
 `console.warn`. Clean up at source in the Firebase Console.
 
-### `startDate` suppression is base-roster only
-`getBaseShift()` returns `'RD'` for dates before a member's `startDate`.
-Firestore overrides entered before the start date are not suppressed — if an admin
-enters a shift override before a member's official start, it will appear in the calendar.
+### `startDate` suppression — resolved (v10.04)
+`getBaseShift()` returns `'RD'` for dates before a member's `startDate`. Firestore
+overrides are now also suppressed before that date in all three calendar read paths
+(personal calendar, Team Week View, and shift-type month summary) in `app.js`.
 
 ---
 

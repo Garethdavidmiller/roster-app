@@ -27,6 +27,66 @@ if [ "$ERRORS" -gt 0 ]; then
   exit 1
 fi
 
+# STAFF_NAMES sync check — ensures functions/index.js STAFF_NAMES matches
+# the active (non-hidden) members in roster-data.js teamMembers.
+# Adding a new member to one file without the other silently breaks roster uploads.
+if command -v node >/dev/null 2>&1; then
+  node - << 'NODEEOF'
+const fs = require('fs');
+const rosterSrc = fs.readFileSync('roster-data.js', 'utf8');
+const fnSrc     = fs.readFileSync('functions/index.js', 'utf8');
+
+// Extract non-hidden teamMembers from roster-data.js, grouped by grade
+const byGrade = { cea: new Set(), ces: new Set(), dispatcher: new Set() };
+for (const line of rosterSrc.split('\n')) {
+    if (!line.includes("name:") || !line.includes("rosterType:")) continue;
+    if (line.includes('hidden: true')) continue;
+    const name = (line.match(/name:\s*'([^']+)'/) || [])[1];
+    const type = (line.match(/rosterType:\s*'([^']+)'/) || [])[1];
+    if (!name || !type) continue;
+    if (['main', 'bilingual', 'fixed'].includes(type)) byGrade.cea.add(name);
+    else if (type === 'ces')        byGrade.ces.add(name);
+    else if (type === 'dispatcher') byGrade.dispatcher.add(name);
+}
+
+// Extract STAFF_NAMES from functions/index.js
+const fnGrade = { cea: new Set(), ces: new Set(), dispatcher: new Set() };
+const block = fnSrc.match(/const STAFF_NAMES\s*=\s*\{([\s\S]*?)\n\s*\};/);
+if (block) {
+    let grade = null;
+    for (const line of block[1].split('\n')) {
+        const gm = line.match(/\b(cea|ces|dispatcher)\s*:/);
+        if (gm) grade = gm[1];
+        if (grade) {
+            for (const m of line.matchAll(/'([^']+)'/g)) fnGrade[grade].add(m[1]);
+            if (line.includes('],')) grade = null;
+        }
+    }
+}
+
+let errors = 0;
+for (const grade of ['cea', 'ces', 'dispatcher']) {
+    for (const n of byGrade[grade]) {
+        if (!fnGrade[grade].has(n)) {
+            process.stderr.write(`  staff-names: '${n}' (${grade}) is in roster-data.js but missing from functions/index.js STAFF_NAMES\n`);
+            errors++;
+        }
+    }
+    for (const n of fnGrade[grade]) {
+        if (!byGrade[grade].has(n)) {
+            process.stderr.write(`  staff-names: '${n}' (${grade}) is in functions/index.js STAFF_NAMES but not in roster-data.js (or is hidden)\n`);
+            errors++;
+        }
+    }
+}
+if (errors > 0) {
+    process.stderr.write('\n  Update STAFF_NAMES in functions/index.js to match teamMembers in roster-data.js, then re-commit.\n');
+    process.exit(1);
+}
+NODEEOF
+  if [ $? -ne 0 ]; then exit 1; fi
+fi
+
 # Extract current app version once — shared by both reminder checks below
 APP_VER=$(grep "^export const APP_VERSION" roster-data.js 2>/dev/null | grep -oP "'[0-9.]+'" | tr -d "'")
 [[ -z "$APP_VER" ]] && exit 0

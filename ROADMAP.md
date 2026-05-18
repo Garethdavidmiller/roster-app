@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v9.39*
+*Last updated: May 2026 — v10.04*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -68,7 +68,7 @@ Web Push notifications via Firebase Cloud Functions. When a new Huddle arrives, 
 
 **iOS note:** Requires Safari and the app installed to the Home Screen. Android Chrome works via the browser.
 
-**Still to assess:** Notification reliability in real daily use. If iOS delivery proves unreliable, consider native app (see "Native app" below).
+**iOS notification delivery confirmed (v10.04):** Staff on iOS are receiving Huddle push notifications reliably in real daily use. Native app is not required for this reason.
 
 ### Huddle viewer improvements ✓ (v8.97)
 

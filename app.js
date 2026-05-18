@@ -254,7 +254,11 @@ function getTeamCellDisplay(member, date) {
 
     let shift = getBaseShift(member, date);
 
-    const override = rosterOverridesCache.get(cacheKey);
+    // Firestore overrides are suppressed before the member's start date — getBaseShift
+    // already returns 'RD' for those dates; allowing an override would undo that.
+    const isBeforeStart = member.startDate &&
+        date < new Date(member.startDate.getFullYear(), member.startDate.getMonth(), member.startDate.getDate());
+    const override = !isBeforeStart ? rosterOverridesCache.get(cacheKey) : null;
     if (override) {
         if      (override.type === 'annual_leave') shift = 'AL';
         else if (override.type === 'sick' && shift !== 'RD' && shift !== 'OFF') shift = 'SICK';
@@ -843,7 +847,9 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         let rdwTime = '';
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         {
-            const override = rosterOverridesCache.get(`${member.name}|${dateStr}`);
+            const isBeforeStart = member.startDate &&
+                currentDate < new Date(member.startDate.getFullYear(), member.startDate.getMonth(), member.startDate.getDate());
+            const override = !isBeforeStart ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
             if (override) {
                 // RDW overrides carry a real shift time as their value, but must
                 // render with the RDW colour scheme, not Early/Late/Night. Swap
@@ -1103,7 +1109,9 @@ function getShiftTypesInMonth(member, year, month) {
         let shift = getBaseShift(member, date);
 
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const ov = rosterOverridesCache.get(`${member.name}|${dateStr}`);
+        const isBeforeStart = member.startDate &&
+            date < new Date(member.startDate.getFullYear(), member.startDate.getMonth(), member.startDate.getDate());
+        const ov = !isBeforeStart ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
         if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF'))) {
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
         }
