@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v9.92 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.17 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -22,11 +22,11 @@ JWT from Firebase and sends that as the bearer token. The Cloud Function verifie
 server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
 Manager can be deleted if no longer needed for other purposes.
 
-### ⏰ Three tasks scheduled for v10.5
+### ⏰ Tasks from the v10.5 block — now overdue (at v10.17)
 
-Do all three together when the app reaches v10.5.
+The v10.5 block was not completed at v10.5. All four tasks remain open.
 
-**1. Firebase web API key — restrict to HTTP referrers**
+**1. Firebase web API key — restrict to HTTP referrers** ⚠️ Overdue
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
 restriction it could theoretically be used to brute-force Firebase Auth from any origin.
 Risk is low: Firestore rules require a valid Auth session for all writes, and login rate
@@ -128,6 +128,17 @@ until the user reinstalls the PWA (removes and re-adds to home screen).
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.
+
+### Service worker `cache: 'no-store'` — resolved (v10.16)
+The network-first fetch now uses `new Request(event.request.url, { cache: 'no-store' })` instead of
+passing options alongside the original `Request` object. The combined-options form does not reliably
+override the request's own cache mode on older Safari iOS and some Chromium versions.
+
+### Service worker offline HTML fallback MIME fix — resolved (v10.15)
+The offline fallback only serves an HTML page for document (navigation) requests
+(`event.request.destination === 'document'`). Previously, paths like `/admin-app.js` matched
+`'admin'` in the fallback logic and received an HTML response for a JS request, causing a
+MIME-type error. JS/CSS requests that are both offline and uncached now receive `Response.error()`.
 
 ---
 
