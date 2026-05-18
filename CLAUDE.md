@@ -7,11 +7,11 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `9.69` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `9.90` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
-| | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` — One-time Firebase Auth account creation (Firebase ID token auth, v9.87+; ROSTER_SECRET fallback for first-run bootstrap only) |
+| | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` — Firebase Auth account creation (Firebase ID token auth + admin custom claim; v9.88+) |
 | Development branch convention | `claude/<description>-<sessionId>` — always push to this branch, never directly to `main` |
 
 **GitHub Actions secrets required** (Settings → Secrets and variables → Actions):
@@ -321,6 +321,8 @@ Override cache key format: `"memberName|YYYY-MM-DD"` (pipe separator)
 ### Authentication
 
 Staff log in to admin.html with their name (dropdown) and surname as password (lowercase, no spaces or special characters). Example: `'G. Miller'` → `miller`. Sessions persist for 30 days via localStorage.
+
+**Password security note:** Passwords are derived deterministically from the staff surname and are not secrets — anyone who knows a colleague's name can derive their password. Protection relies entirely on Firebase Auth rate-limiting (v9.53) and Firestore server-side rules (`request.auth != null`). Do not reuse this pattern for untrusted users or external-facing apps.
 
 `CONFIG.ADMIN_NAMES = ['G. Miller']` — an array in `roster-data.js`. Members in this array have elevated admin access. To add another admin, add their name to the array (must match `teamMembers[n].name` exactly).
 
