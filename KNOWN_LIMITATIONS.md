@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v9.90 · Updated every 0.10 version*
+*Last updated: May 2026 — v9.92 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -29,6 +29,9 @@ Risk is low: Firestore rules require a valid Auth session for all writes, and lo
 limiting (v9.53) is in place.
 **To fix:** GCP Console → APIs & Services → Credentials → restrict the Firebase web API key
 to `myb-roster.firebaseapp.com` and `myb-roster.web.app` HTTP referrers.
+**⏰ Scheduled: do this when the app reaches v10.5.** (5-minute manual step in the GCP
+Console — cannot be done by Claude. Log in, find the Firebase web API key under APIs &
+Services → Credentials, and add the two domains as HTTP referrer restrictions.)
 
 ---
 
