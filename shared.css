@@ -666,9 +666,9 @@ body.lb-open #stickyTotal { display: none !important; }
 
 /* ---- Help button (? circle on card headers) — used across all pages ---- */
 .help-btn {
-    width: 20px; height: 20px; border-radius: 50%;
+    width: 24px; height: 24px; border-radius: 50%;
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
-    color: var(--text-light); font-size: 11px; font-weight: 700;
+    color: var(--text-light); font-size: 12px; font-weight: 700;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; touch-action: manipulation;
     font-family: inherit; line-height: 1;

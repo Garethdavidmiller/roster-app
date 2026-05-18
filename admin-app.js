@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.90';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.90';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.90';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.90';
-import { initHuddleCards } from './admin-huddle.js?v=9.90';
-import { initAuthSetup } from './admin-auth.js?v=9.90';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.91';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.91';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.91';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.91';
+import { initHuddleCards } from './admin-huddle.js?v=9.91';
+import { initAuthSetup } from './admin-auth.js?v=9.91';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -1516,22 +1516,29 @@ function syncMemberDisplay() {
 }
 syncMemberDisplay(); // set on page load
 
-// Sync alMember with the main member picker (keep them in step)
+// Sync alMember with the main member picker (keep them in step).
+// Mirrors the fieldMember change handler — calls confirmNavigate so unsaved
+// week-grid changes get the same "Discard or keep?" prompt.
 alMember.addEventListener('change', () => {
-    updateALBanner();
-    updateALBookedBox();
-    updateSickBookedBox();
-    updateAlPreview();
-    if (alMember.value) {
-        fieldMember.value  = alMember.value;
-        sickMember.value   = alMember.value;
+    if (!alMember.value) return;
+    const chosen = alMember.value;
+    const go = () => {
+        updateALBanner();
+        updateALBookedBox();
+        updateSickBookedBox();
+        updateAlPreview();
+        fieldMember.value  = chosen;
+        sickMember.value   = chosen;
         syncMemberDisplay();
         syncSickMemberDisplay();
-        lsSet('adminLastMember', alMember.value);
-        lsSet('myb_roster_selected_member', alMember.value);
+        lsSet('adminLastMember', chosen);
+        lsSet('myb_roster_selected_member', chosen);
         renderWeekGrid();
         renderTable();
-    }
+    };
+    if (confirmNavigate(go)) { go(); return; }
+    // Revert dropdown while banner waits for user decision
+    alMember.value = fieldMember.value;
 });
 
 function getAlDates() {

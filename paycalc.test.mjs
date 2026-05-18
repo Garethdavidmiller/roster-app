@@ -44,6 +44,18 @@ describe('constants', () => {
     assert.equal(TAX_YEARS[0].label, '2025/26');
     assert.equal(TAX_YEARS[1].label, '2026/27');
   });
+
+  test('NI 2025/26 thresholds are exactly £968 PT and £3868 UEL (weekly × 4)', () => {
+    // HMRC specifies NI thresholds weekly; 4-weekly values are weekly × 4.
+    // If HMRC changes the reference frequency this test will catch a silent error.
+    assert.equal(T25.ni.pt,  968);   // £242/wk × 4
+    assert.equal(T25.ni.uel, 3868);  // £967/wk × 4
+  });
+
+  test('NI 2026/27 thresholds confirmed unchanged from 2025/26', () => {
+    assert.equal(T26.ni.pt,  T25.ni.pt);
+    assert.equal(T26.ni.uel, T25.ni.uel);
+  });
 });
 
 // ── calcBandedTax ─────────────────────────────────────────────────────────────
