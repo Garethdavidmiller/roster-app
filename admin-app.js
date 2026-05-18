@@ -1044,6 +1044,18 @@ saveBtn.addEventListener('click', async () => {
     }
 });
 
+// ── AL / sick — element handles and display helpers referenced by the member picker below ──
+// Declared here because the fieldMember change handler references them.
+const alMember   = document.getElementById('alMember');
+const sickMember = document.getElementById('sickMember');
+function syncMemberDisplay() {
+    const memberDisplay = document.getElementById('alMemberDisplay');
+    if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
+}
+function syncSickMemberDisplay() {
+    const memberDisplay = document.getElementById('sickMemberDisplay');
+    if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
+}
 
 fieldMember.addEventListener('change', () => {
     const chosen = fieldMember.value;
@@ -1497,7 +1509,7 @@ function buildRangePicker(prefix) {
 // ============================================
 // ANNUAL LEAVE BOOKING
 // ============================================
-const alMember   = document.getElementById('alMember');
+function initALSection() {
 const alFrom     = document.getElementById('alFrom');
 const alTo       = document.getElementById('alTo');
 const alPreview  = document.getElementById('alPreview');
@@ -1505,16 +1517,8 @@ const alSaveBtn  = document.getElementById('alSaveBtn');
 const alFeedback = document.getElementById('alFeedback');
 
 populateMemberDropdown(alMember);
-
-// Restore last used member
 if (lastMember) alMember.value = lastMember;
-
-// Helper: keep alMemberDisplay in sync with fieldMember
-function syncMemberDisplay() {
-    const memberDisplay = document.getElementById('alMemberDisplay');
-    if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
-}
-syncMemberDisplay(); // set on page load
+syncMemberDisplay();
 
 // Sync alMember with the main member picker (keep them in step).
 // Mirrors the fieldMember change handler — calls confirmNavigate so unsaved
@@ -1763,12 +1767,14 @@ alSaveBtn.addEventListener('click', async () => {
         alSaveBtn.disabled    = false;
         alSaveBtn.textContent = 'Record annual leave';
     }
-});
+    });
+} // end initALSection
+initALSection();
 
 // ============================================
 // SICK DAYS RECORDING
 // ============================================
-const sickMember   = document.getElementById('sickMember');
+function initSickSection() {
 const sickFrom     = document.getElementById('sickFrom');
 const sickTo       = document.getElementById('sickTo');
 const sickPreview  = document.getElementById('sickPreview');
@@ -1777,12 +1783,6 @@ const sickFeedback = document.getElementById('sickFeedback');
 
 populateMemberDropdown(sickMember);
 if (lastMember) sickMember.value = lastMember;
-
-/** Keep the sick section's read-only member display in sync with fieldMember. */
-function syncSickMemberDisplay() {
-    const memberDisplay = document.getElementById('sickMemberDisplay');
-    if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
-}
 syncSickMemberDisplay();
 
 /**
@@ -1976,6 +1976,8 @@ sickSaveBtn.addEventListener('click', async () => {
         sickSaveBtn.textContent = 'Record absence';
     }
 });
+} // end initSickSection
+initSickSection();
 
 /**
  * Refreshes the collapsible list of recorded sick days for the selected member.
