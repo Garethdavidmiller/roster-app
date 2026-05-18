@@ -1,6 +1,6 @@
 /* MYB Roster App — shared.css
-   CSS shared between index.html and admin.html.
-   Loaded by both pages via <link rel="stylesheet" href="shared.css?v=...">
+   CSS shared between all three pages (index.html, admin.html, paycalc.html).
+   Loaded via <link rel="stylesheet" href="shared.css">
    before their own <style> block, so page-specific rules can override. */
 
 /* ============================================================
@@ -209,9 +209,8 @@
 html {
     background-color: var(--primary-blue);
     color-scheme: light; /* prevents dark-mode scrollbars and form controls */
-    -webkit-text-size-adjust: none; /* prevents iOS Dynamic Type from scaling the PWA layout */
-    text-size-adjust: none;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%; /* prevents auto-scaling on orientation change; 100% (not none) preserves user font-size accessibility settings */
+    text-size-adjust: 100%;
 }
 
 /* Safe-area padding — keeps content clear of the iOS notch and home indicator.
@@ -275,6 +274,11 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .lb-overlay.open .lb-content { transform: scale(1); }
 
+@media (prefers-reduced-motion: reduce) {
+    .lb-overlay { transition: none; }
+    .lb-content { transition: none; }
+}
+
 /* Close button — structural only; colour stays in each ID. */
 .lb-close {
     position: absolute;
@@ -289,7 +293,6 @@ body.lb-open #stickyTotal { display: none !important; }
     cursor: pointer;
     padding: 6px;
     transition: color 0.15s ease;
-    -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
     min-width: 44px;
     min-height: 44px;
@@ -451,14 +454,10 @@ body.lb-open #stickyTotal { display: none !important; }
     color: rgba(255,255,255,0.55);
 }
 
-/* Keyboard-only tips: hidden on touch devices, shown on devices with hover+pointer */
+/* Keyboard-only tips visible on pointer devices; touch-only tips hidden on pointer devices */
 .lightbox-tip.keyboard-only { display: none; }
 @media (hover: hover) and (pointer: fine) {
     .lightbox-tip.keyboard-only { display: flex; justify-content: space-between; }
-}
-
-/* Touch-only tips: hidden on desktop, shown on touch devices */
-@media (hover: hover) and (pointer: fine) {
     .touch-only { display: none; }
     .lightbox-tip.touch-only { display: none; }
 }
@@ -531,7 +530,6 @@ body.lb-open #stickyTotal { display: none !important; }
     cursor: pointer;
     flex-shrink: 0;
     object-fit: cover;
-    -webkit-tap-highlight-color: transparent;
 }
 
 .app-header h1 {
@@ -673,8 +671,7 @@ body.lb-open #stickyTotal { display: none !important; }
     cursor: pointer; flex-shrink: 0; touch-action: manipulation;
     font-family: inherit; line-height: 1;
     transition: background 0.15s, color 0.15s, border-color 0.15s;
-    vertical-align: middle; margin-left: 5px;
-    position: relative;
+    vertical-align: middle; margin-left: 5px; position: relative;
 }
 .help-btn::before {
     content: '';
