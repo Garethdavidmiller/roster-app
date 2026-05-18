@@ -8,7 +8,7 @@
 // import cache-busting query strings in index.html and admin.html when the version changes.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '9.89';
+export const APP_VERSION = '9.90';
 
 // ============================================
 // CONFIGURATION
@@ -193,7 +193,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
 // Shift cycle arrays live in roster-cycle-data.js (pure data, no logic).
 // Imported here for getRosterForMember() and re-exported so consumers
 // (app.js etc.) can continue to import them from roster-data.js unchanged.
-import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.89';
+import { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster } from './roster-cycle-data.js?v=9.90';
 export { weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster };
 
 // ============================================
@@ -1123,7 +1123,7 @@ export function getShiftClass(timeStr) {
 export function getShiftBadge(timeStr) {
     if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return `<span class="shift-badge badge-rest"><span>🏠</span><span>Rest</span></span>`;
     if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare"><span>📋</span><span>Spare</span></span>`;
-    if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw"><span>💼</span><span>RDW</span></span>`;
+    if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span>💼</span><span>RDW</span></span>`;
     if (timeStr === 'AL')    return `<span class="shift-badge badge-al"><span>🏖️</span><span>AL</span></span>`;
     if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick"><span>🪑</span><span>Absent</span></span>`;
     if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-other"><span>❓</span><span>Unknown</span></span>`;
