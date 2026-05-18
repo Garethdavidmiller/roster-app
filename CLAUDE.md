@@ -83,7 +83,8 @@ roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── app.js                  ← all JavaScript for index.html
+├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
+├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
 ├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
@@ -127,7 +128,7 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `ls.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `app-team-view.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `ls.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
