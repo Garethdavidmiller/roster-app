@@ -367,7 +367,7 @@ Full Power Automate flow diagram, request format, gotchas, secret setup, and Sec
 
 ## Weekly Roster Upload
 
-Admin uploads weekly PDF → `parseRosterPDF` Cloud Function (`europe-west2`, `claude-haiku-4-5-20251001`) → Claude AI reads the table → JSON of shifts → review UI → admin approves → saved to Firestore. All working for CEA/Bilingual, CES, and Dispatcher rosters.
+Admin uploads weekly PDF → `parseRosterPDF` Cloud Function (`europe-west2`, `claude-sonnet-4-6`) → Claude AI reads the table → JSON of shifts → review UI → admin approves → saved to Firestore. All working for CEA/Bilingual, CES, and Dispatcher rosters.
 
 | File | Role |
 |------|------|

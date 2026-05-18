@@ -12,8 +12,8 @@
  *
  * Secrets required (set once via Google Cloud Console → Secret Manager):
  *   HUDDLE_SECRET       — Bearer token for Power Automate auth
- *   ROSTER_SECRET       — Bearer token for the admin roster upload page
  *   ANTHROPIC_API_KEY   — API key for the Claude AI service
+ *   VAPID_PRIVATE_KEY   — Web Push VAPID private key
  *
  * Deploy:
  *   Push any change to functions/ on main — GitHub Actions deploys automatically.
@@ -251,9 +251,6 @@ exports.ingestHuddle = onRequest(
 );
 
 // ============================================================================
-// sendHuddlePushNotifications
-// ============================================================================
-// ============================================================================
 // onHuddleCreated — Firestore trigger
 // ============================================================================
 /**
@@ -331,7 +328,7 @@ async function fanOutPush(payload, logTag) {
     });
 
     await Promise.allSettled(sends);
-    console.log(`${logTag} Notified ${snapshot.size} device(s)`);
+    console.log(`${logTag} Fan-out complete — attempted ${snapshot.size} subscription(s)`);
 }
 
 /**
@@ -404,6 +401,7 @@ exports.sendPayReminderNotification = onSchedule(
     {
         schedule:  'every day 08:00',
         timeZone:  'Europe/London',
+        region:    'europe-west2',
         secrets:   [VAPID_PRIVATE_KEY],
     },
     async () => {
@@ -437,7 +435,7 @@ exports.sendPayReminderNotification = onSchedule(
  * at which point the browser writes the changes to Firestore directly.
  *
  * Request headers:
- *   Authorization:    Bearer <ROSTER_SECRET>
+ *   Authorization:    Bearer <Firebase-ID-token>  (admin custom claim required)
  *   Content-Type:     text/plain
  *   X-Week-Ending:    YYYY-MM-DD  (must be a Saturday — the last day of the roster week)
  *   X-Roster-Type:    cea | ces | dispatcher
@@ -851,13 +849,14 @@ exports.setupRosterAuth = onRequest(
         }
 
         const bearer = (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim();
+        let decodedAuth;
         try {
-            const decoded = await admin.auth().verifyIdToken(bearer);
-            if (!decoded.admin) {
-                return res.status(403).json({ error: 'Forbidden — admin claim required' });
-            }
+            decodedAuth = await admin.auth().verifyIdToken(bearer);
         } catch (_) {
-            return res.status(403).json({ error: 'Forbidden' });
+            return res.status(401).json({ error: 'Unauthorised' });
+        }
+        if (!decodedAuth.admin) {
+            return res.status(403).json({ error: 'Forbidden — admin claim required' });
         }
 
         const body    = req.body || {};
