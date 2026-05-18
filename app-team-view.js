@@ -18,6 +18,9 @@ import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
                      'July', 'August', 'September', 'October', 'November', 'December'];
 
+// Warn at most once per session per unknown shift type — avoids console spam on every render.
+const _unknownShiftWarned = new Set();
+
 /**
  * Initialises the Team Week View.
  *
@@ -106,7 +109,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             const EMOJI = { early: '☀️', late: '🌙', night: '🦉' };
             return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}` };
         }
-        console.warn('[Team view] Unrecognised shift type:', shift);
+        if (!_unknownShiftWarned.has(shift)) { _unknownShiftWarned.add(shift); console.warn('[Team view] Unrecognised shift type:', shift); }
         return { text: escapeHtml(shift), cls: '' };
     }
 

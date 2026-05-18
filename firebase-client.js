@@ -160,6 +160,7 @@ export function subscribeToLatestHuddle(onData, onError) {
     return onSnapshot(q, (snap) => {
         if (snap.empty) { onData(null); return; }
         const data = snap.docs[0].data();
+        if (!data.storageUrl) console.warn('[Huddle] Document missing storageUrl:', snap.docs[0].id);
         onData(data.storageUrl ? data : null);
     }, onError);
 }
@@ -207,6 +208,7 @@ export async function savePushSubscription(subscription) {
  * @param {string} endpoint
  */
 export async function deletePushSubscription(endpoint) {
+    if (!endpoint) return;
     const id = await endpointId(endpoint);
     await deleteDoc(doc(db, 'pushSubscriptions', id));
 }

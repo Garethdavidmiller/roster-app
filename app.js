@@ -390,10 +390,22 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 
 // escapeHtml — imported from roster-data.js
 
+// Navigate to the pay calculator for a given payday ISO date string.
+// Requires a valid session; otherwise redirects to admin login with a return hint.
+function navigateToPaycalc(paydayStr) {
+    try {
+        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
+        if (sess && sess.name) {
+            window.location.href = `./paycalc.html?payday=${paydayStr}`;
+        } else {
+            window.location.href = './admin.html?redirect=paycalc';
+        }
+    } catch { window.location.href = './admin.html?redirect=paycalc'; }
+}
+
 // Helper: Create day cell HTML (pure function)
 // isWorkedDay — pre-calculated by caller (shift !== RD/SPARE/OFF) to avoid duplication.
 // permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
-// note — optional Firestore override note; shown as small muted text below the shift time.
 // rdwTime — actual shift time for RDW overrides (e.g. '08:00-16:30'), since shift='RDW' sentinel.
 // ============================================
 // FAITH CALENDAR HELPERS
@@ -409,7 +421,7 @@ function getFaithMarker(dateStr, memberName) {
     return getFaithBadge(dateStr, faithCalendar);
 }
 
-function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '', faithMarker = null) {
+function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '', faithMarker = null) {
     let badge;
     // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
     if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
@@ -587,16 +599,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (isPayday(currentDate)) {
             dayCell.classList.add('payday');
             dayCell.style.cursor = 'pointer';
-            dayCell.addEventListener('click', () => {
-                try {
-                    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-                    if (sess && sess.name) {
-                        window.location.href = `./paycalc.html?payday=${dateStr}`;
-                    } else {
-                        window.location.href = './admin.html?redirect=paycalc';
-                    }
-                } catch { window.location.href = './admin.html?redirect=paycalc'; }
-            });
+            dayCell.addEventListener('click', () => navigateToPaycalc(dateStr));
         }
         if (isCutoffDate(currentDate)) {
             dayCell.classList.add('cutoff');
@@ -608,19 +611,11 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
                 // schedule ever changes (currently 6 for Friday paydays).
                 const _daysToPayday = ((CONFIG.FIRST_PAYDAY.getDay() - 6 + 7) % 7) || 7;
                 paydayDate.setDate(paydayDate.getDate() + _daysToPayday);
-                const paydayStr = formatISO(paydayDate);
-                try {
-                    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-                    if (sess && sess.name) {
-                        window.location.href = `./paycalc.html?payday=${paydayStr}`;
-                    } else {
-                        window.location.href = './admin.html?redirect=paycalc';
-                    }
-                } catch { window.location.href = './admin.html?redirect=paycalc'; }
+                navigateToPaycalc(formatISO(paydayDate));
             });
         }
 
-        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote, rdwTime, faithMarker);
+        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime, faithMarker);
         grid.appendChild(dayCell);
     }
 
@@ -1004,7 +999,7 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If this keeps happening, try turning your internet off and on.</p>';
+            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -2154,13 +2149,11 @@ function sanitiseHtml(html) {
         viewer.classList.remove('open');
         const _huddleUnlockTimer = setTimeout(() => {
             viewer.classList.remove('visible');
-            body.classList.remove('has-iframe');
             unlockBodyScroll();
         }, 500);
         viewer.addEventListener('transitionend', () => {
             clearTimeout(_huddleUnlockTimer);
             viewer.classList.remove('visible');
-            body.classList.remove('has-iframe');
             unlockBodyScroll();
         }, { once: true });
         document.removeEventListener('keydown', onKey);

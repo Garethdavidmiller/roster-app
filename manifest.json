@@ -9,6 +9,7 @@
   "theme_color": "#001e3c",
   "orientation": "portrait-primary",
   "scope": "./",
+  "lang": "en-GB",
   "categories": ["productivity", "business"],
   "shortcuts": [
     {
@@ -21,7 +22,7 @@
     {
       "name": "Pay",
       "short_name": "Pay",
-      "description": "Pay calculator",
+      "description": "Estimate your take-home pay",
       "url": "./paycalc.html",
       "icons": [{ "src": "icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
