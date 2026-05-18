@@ -56,6 +56,15 @@ components. If it does, a "Variable pay portion" field can be added to the back 
 to feed the variable amount into HPP. If Chiltern show only a single back pay line with
 no breakdown, the calculator cannot do better than it currently does.
 
+**4. Pay reminder push notification — confirm it fires correctly**
+`sendPayReminderNotification` in `functions/index.js` is a scheduled Cloud Function that
+sends a push notification to subscribed staff the day before each payday. It has not yet
+been observed firing on a real payday — first payday after this was written is the first
+opportunity to verify it.
+**To check (human action — requires a payday):** On the eve of a payday, confirm that
+subscribed staff receive a pay reminder push notification. If nothing arrives, check the
+Cloud Function logs in the Firebase Console for any errors.
+
 ---
 
 ## Pay calculator
