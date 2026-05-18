@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v9.92 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.17 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -15,7 +15,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
-| Override priority logic — tsToMillis, shouldReplaceOverride | `app-override-utils.js` |
+| Override priority and member-start logic — tsToMillis, shouldReplaceOverride, isBeforeMemberStart | `app-override-utils.js` |
 | Admin portal UI, login, cultural calendar, module wiring | `admin-app.js` + `admin.html` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |
@@ -53,6 +53,7 @@ Everything that touches `index.html` at runtime.
 - Team Week View toggle
 - Notification/push subscription wiring
 - Sync chip state machine
+- `navigateToPaycalc(paydayStr)` — shared helper for payday/cutoff cell clicks; checks session then navigates
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.
@@ -134,15 +135,28 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy)` — writes to Firebase Storage + Firestore `huddles` collection
-- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh.
-- `savePushSubscription` / `deletePushSubscription` — Web Push subscription management
+- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
+- `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
+
+### `app-override-utils.js`
+Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.
+- `tsToMillis(ts)` — converts Firestore Timestamp or `{seconds}` object to milliseconds
+- `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
+- `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
+- Covered by `app.test.mjs`
+
+### `ls.js`
+Safe localStorage wrappers for all three pages (iOS Safari private mode compatibility).
+- `lsGet(k)`, `lsSet(k, v)`, `lsDel(k)` — wrap every `localStorage` call in try/catch
+- On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
+- **Never call `localStorage` directly** in `app.js`, `admin-app.js`, or `paycalc.js` — always use these wrappers
 
 ### `shared.css`
 All CSS shared across the three pages.
 - CSS custom properties (`--primary-blue`, `--accent-gold`, etc.) — **never hardcode hex**
 - Typography scale, badge/pill variants, button types
-- `touch-only` class — hidden on pointer-fine devices
+- `touch-only` class — hidden by default, revealed on `@media (pointer: coarse)` (touch devices)
 - `@media print` rules — every shift type needs a print rule
 
 ### `service-worker.js`
@@ -190,7 +204,15 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 
 ## Version bump checklist (summary — full list in CLAUDE.md)
 
-Every commit that changes app behaviour requires updating the version string everywhere.
+Every commit that changes app behaviour requires updating the version string in exactly 6 places.
 The authoritative version is `APP_VERSION` in `roster-data.js`.
-Key files: `service-worker.js` (×2), all three HTML files (comment + script + css `?v=`), all JS module import `?v=` strings.
-**Tip:** `grep -rn "?v=<old>" *.js *.html` finds every stale reference.
+
+| File | What to update |
+|------|---------------|
+| `roster-data.js` | `export const APP_VERSION = '...'` |
+| `service-worker.js` | Line 1 comment AND `const APP_VERSION = '...'` |
+| `index.html` | Line 2 HTML comment |
+| `admin.html` | Line 2 HTML comment |
+| `paycalc.html` | Line 2 HTML comment |
+
+`?v=` cache-busting strings were removed at v9.94 — do not add them back. Browser cache freshness is handled by `Cache-Control: no-cache` headers in `firebase.json`.

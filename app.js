@@ -8,12 +8,12 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, fixedRoster, cesRoster, dispatcherRoster, DAY_KEYS, DAY_NAMES, MONTH_ABB, TEAM_GRADES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, SHIFT_TIME_REGEX, isChristmasRD, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js';
+import { CONFIG, teamMembers, DAY_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription } from './firebase-client.js';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initTeamView } from './app-team-view.js';
-import { tsToMillis, shouldReplaceOverride } from './app-override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -147,6 +147,9 @@ function validateTeamMembers() {
         if (member.rosterType === 'ces' && member.currentWeek > CONFIG.CES_ROSTER_WEEKS) {
             errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds CES roster weeks (${CONFIG.CES_ROSTER_WEEKS})`);
         }
+        if (member.rosterType === 'dispatcher' && member.currentWeek > CONFIG.DISPATCHER_ROSTER_WEEKS) {
+            errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds dispatcher roster weeks (${CONFIG.DISPATCHER_ROSTER_WEEKS})`);
+        }
     });
     
     return errors;
@@ -179,9 +182,9 @@ let swipeCooldown = false;
 
 // ============================================
 // HUDDLE BUTTON STATE
-// Persists across renders — #huddleBtn is re-created on every renderCalendar()
-// and renderTeamView() call. Module-level state lets applyHuddleButtonState()
-// immediately restore the correct enabled/disabled label on each new button.
+// #huddleBtn lives in the static <header> and is never re-created.
+// Module-level state lets applyHuddleButtonState() update it any time
+// the Firestore subscription fires, regardless of render order.
 // ============================================
 let _huddleData  = null;
 let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
@@ -387,10 +390,22 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 
 // escapeHtml — imported from roster-data.js
 
+// Navigate to the pay calculator for a given payday ISO date string.
+// Requires a valid session; otherwise redirects to admin login with a return hint.
+function navigateToPaycalc(paydayStr) {
+    try {
+        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
+        if (sess && sess.name) {
+            window.location.href = `./paycalc.html?payday=${paydayStr}`;
+        } else {
+            window.location.href = './admin.html?redirect=paycalc';
+        }
+    } catch { window.location.href = './admin.html?redirect=paycalc'; }
+}
+
 // Helper: Create day cell HTML (pure function)
 // isWorkedDay — pre-calculated by caller (shift !== RD/SPARE/OFF) to avoid duplication.
 // permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
-// note — optional Firestore override note; shown as small muted text below the shift time.
 // rdwTime — actual shift time for RDW overrides (e.g. '08:00-16:30'), since shift='RDW' sentinel.
 // ============================================
 // FAITH CALENDAR HELPERS
@@ -406,11 +421,12 @@ function getFaithMarker(dateStr, memberName) {
     return getFaithBadge(dateStr, faithCalendar);
 }
 
-function createDayCell(date, shift, permanentShift, isWorkedDay, note = '', rdwTime = '', faithMarker = null) {
+function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '', faithMarker = null) {
     let badge;
-    if (isWorkedDay && permanentShift === 'late') {
+    // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
+    if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
         badge = '<span class="shift-badge badge-late"><span>🌙</span><span>Late</span></span>';
-    } else if (isWorkedDay && permanentShift === 'early') {
+    } else if (shift !== 'RDW' && isWorkedDay && permanentShift === 'early') {
         badge = '<span class="shift-badge badge-early"><span>☀️</span><span>Early</span></span>';
     } else {
         badge = getShiftBadge(shift);
@@ -517,9 +533,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         let rdwTime = '';
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         {
-            const isBeforeStart = member.startDate &&
-                currentDate < new Date(member.startDate.getFullYear(), member.startDate.getMonth(), member.startDate.getDate());
-            const override = !isBeforeStart ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+            const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
             if (override) {
                 // RDW overrides carry a real shift time as their value, but must
                 // render with the RDW colour scheme, not Early/Late/Night. Swap
@@ -585,16 +599,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (isPayday(currentDate)) {
             dayCell.classList.add('payday');
             dayCell.style.cursor = 'pointer';
-            dayCell.addEventListener('click', () => {
-                try {
-                    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-                    if (sess && sess.name) {
-                        window.location.href = `./paycalc.html?payday=${dateStr}`;
-                    } else {
-                        window.location.href = './admin.html?redirect=paycalc';
-                    }
-                } catch { window.location.href = './admin.html?redirect=paycalc'; }
-            });
+            dayCell.addEventListener('click', () => navigateToPaycalc(dateStr));
         }
         if (isCutoffDate(currentDate)) {
             dayCell.classList.add('cutoff');
@@ -606,19 +611,11 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
                 // schedule ever changes (currently 6 for Friday paydays).
                 const _daysToPayday = ((CONFIG.FIRST_PAYDAY.getDay() - 6 + 7) % 7) || 7;
                 paydayDate.setDate(paydayDate.getDate() + _daysToPayday);
-                const paydayStr = formatISO(paydayDate);
-                try {
-                    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-                    if (sess && sess.name) {
-                        window.location.href = `./paycalc.html?payday=${paydayStr}`;
-                    } else {
-                        window.location.href = './admin.html?redirect=paycalc';
-                    }
-                } catch { window.location.href = './admin.html?redirect=paycalc'; }
+                navigateToPaycalc(formatISO(paydayDate));
             });
         }
 
-        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, overrideNote, rdwTime, faithMarker);
+        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime, faithMarker);
         grid.appendChild(dayCell);
     }
 
@@ -784,9 +781,7 @@ function getShiftTypesInMonth(member, year, month) {
         let shift = getBaseShift(member, date);
 
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const isBeforeStart = member.startDate &&
-            date < new Date(member.startDate.getFullYear(), member.startDate.getMonth(), member.startDate.getDate());
-        const ov = !isBeforeStart ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
+        const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
         if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF'))) {
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
         }
@@ -1004,7 +999,7 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If this keeps happening, try turning your internet off and on.</p>';
+            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -1236,7 +1231,7 @@ try {
             allErrors.forEach(error => console.error('  - ' + error));
             const banner = document.getElementById('errorBanner');
             if (banner) {
-                banner.textContent = '⚠️ Roster data issue: ' + allErrors.join(' | ');
+                banner.textContent = '⚠️ The app couldn\'t load some staff details — please tell the admin team.';
                 banner.classList.add('visible');
             }
         }
@@ -1268,15 +1263,6 @@ try {
             });
         }
 
-        // Handle manifest shortcuts — ?shortcut=today jumps to current month
-        if (new URLSearchParams(window.location.search).get('shortcut') === 'today') {
-            const now = getToday();
-            currentDisplayMonth = now.getMonth();
-            currentDisplayYear = now.getFullYear();
-            renderCalendar();
-            pulseToday();
-        }
-        
         // ============================================
         // SETUP SWIPE/DRAG GESTURES (Touch + Mouse + Trackpad)
         // ============================================
@@ -1841,7 +1827,11 @@ try {
             // Don't fire if user is typing in an input
             if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
             if (swipeCooldown) return; // Don't interrupt a swipe animation
-            if (teamView.isTeamViewMode()) return;
+            if (teamView.isTeamViewMode()) {
+                if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
+                if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
+                return;
+            }
             if (e.key === 'ArrowLeft')  { changeMonth(-1); renderCalendar(); announceMonthChange(); }
             if (e.key === 'ArrowRight') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
             if (e.key === 't' || e.key === 'T') { const now = getToday(); currentDisplayMonth = now.getMonth(); currentDisplayYear = now.getFullYear(); renderCalendar(); pulseToday(); announceMonthChange(); }
@@ -2048,8 +2038,12 @@ async function ensureOverridesCached(year, month) {
         if (!teamView.isTeamViewMode()) renderCalendar();
         updateFaithHint();
 
-        // Briefly show "✓ Up to date" then fade the chip away
+        // Briefly show "✓ Up to date" then fade the chip away.
+        // renderCalendar() replaces .calendar-header innerHTML, detaching the chip —
+        // re-append it to the new header before updating the text.
         if (syncChip) {
+            const newHeader = document.querySelector('.calendar-header');
+            if (newHeader && !newHeader.contains(syncChip)) newHeader.appendChild(syncChip);
             syncChip.textContent = '✓ Up to date';
             syncChip.className = 'sync-chip sync-chip-ok';
             setTimeout(() => syncChip?.remove(), 1500);
@@ -2124,9 +2118,9 @@ function sanitiseHtml(html) {
 
 // ============================================
 // HUDDLE BUTTON — event delegation + module-state
-// #huddleBtn is re-created on every renderCalendar() / renderTeamView() call.
-// Delegation on document handles clicks regardless of which instance is live.
-// _huddleData / _huddleState are set once at startup and survive re-renders.
+// #huddleBtn is in the static <header> and persists across renders.
+// Event delegation on document is used for consistency with other overlays.
+// _huddleData / _huddleState are set once at startup and survive page lifetime.
 // ============================================
 (function initHuddleViewer() {
     const viewer = document.getElementById('huddleViewer');
@@ -2155,13 +2149,11 @@ function sanitiseHtml(html) {
         viewer.classList.remove('open');
         const _huddleUnlockTimer = setTimeout(() => {
             viewer.classList.remove('visible');
-            body.classList.remove('has-iframe');
             unlockBodyScroll();
         }, 500);
         viewer.addEventListener('transitionend', () => {
             clearTimeout(_huddleUnlockTimer);
             viewer.classList.remove('visible');
-            body.classList.remove('has-iframe');
             unlockBodyScroll();
         }, { once: true });
         document.removeEventListener('keydown', onKey);

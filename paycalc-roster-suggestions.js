@@ -180,6 +180,13 @@ export function getRosterSuggestion(p, member) {
         if (fromOv) boxFromOv = true;
         days.push({ date: new Date(cur), shift: effValue, type: 'box', source: fromOv ? 'override' : 'base' });
 
+      } else if (dow === 0) {
+        // Sunday check comes before isBH: Chiltern pays Sunday at 1.5× regardless of
+        // whether the day is also a bank holiday — the higher rate takes precedence.
+        sunMins += mins; sunCount++;
+        if (fromOv) sunFromOv = true;
+        days.push({ date: new Date(cur), shift: effValue, type: 'sun', source: fromOv ? 'override' : 'base' });
+
       } else if (isBH) {
         if (effType === 'rdw') {
           // RDW override on a BH day: if there was also a rostered base shift,
@@ -210,18 +217,17 @@ export function getRosterSuggestion(p, member) {
           days.push({ date: new Date(cur), shift: effValue, type: 'bh', source: fromOv ? 'override' : 'base' });
         }
 
-      } else if (dow === 0) {
-        sunMins += mins; sunCount++;
-        if (fromOv) sunFromOv = true;
-        days.push({ date: new Date(cur), shift: effValue, type: 'sun', source: fromOv ? 'override' : 'base' });
-
       } else if (effType === 'rdw') {
         rdwMins += mins; rdwCount++;
         days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
 
       } else if (dow === 6) {
-        // Saturday: cap at base, excess to general overtime.
-        if (fromOv && baseWorked) {
+        if (fromOv && !baseWorked) {
+          // Saturday was a rest day and admin recorded a shift — Rest Day Working
+          rdwMins += mins; rdwCount++;
+          days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
+        } else if (fromOv && baseWorked) {
+          // Shift override on a rostered Saturday: cap at base, excess to general overtime.
           const rostered = Math.min(mins, baseMins);
           const ot       = mins - rostered;
           satMins += rostered; satCount++;
@@ -232,9 +238,9 @@ export function getRosterSuggestion(p, member) {
             days.push({ date: new Date(cur), shift: _fmtOt(ot), type: 'ot', source: 'override' });
           }
         } else {
+          // Base roster Saturday — contracted shift at 1.25×
           satMins += mins; satCount++;
-          if (fromOv) satFromOv = true;
-          days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: fromOv ? 'override' : 'base' });
+          days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: 'base' });
         }
 
       } else {

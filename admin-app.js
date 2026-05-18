@@ -1055,9 +1055,12 @@ function syncSickMemberDisplay() {
     if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
 }
 
+let lastFieldMember = fieldMember.value;
 fieldMember.addEventListener('change', () => {
-    const chosen = fieldMember.value;
+    const chosen   = fieldMember.value;
+    const previous = lastFieldMember;
     const go = () => {
+        lastFieldMember  = chosen;
         lsSet('adminLastMember', chosen);
         lsSet('myb_roster_selected_member', chosen);
         alMember.value   = chosen;
@@ -1072,8 +1075,8 @@ fieldMember.addEventListener('change', () => {
         renderWeekGrid();
     };
     if (confirmNavigate(go)) { go(); return; }
-    // Revert the dropdown to the previously selected member while the banner waits
-    fieldMember.value = lsGet('myb_roster_selected_member') || lsGet('adminLastMember') || '';
+    // Revert the dropdown to the previously confirmed member while the banner waits
+    fieldMember.value = previous;
 });
 let lastFieldDate = fieldDate.value;
 fieldDate.addEventListener('change', () => {

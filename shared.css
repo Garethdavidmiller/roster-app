@@ -271,6 +271,7 @@ body.lb-open #stickyTotal { display: none !important; }
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
+    will-change: transform;
 }
 .lb-overlay.open .lb-content { transform: scale(1); }
 
@@ -454,12 +455,19 @@ body.lb-open #stickyTotal { display: none !important; }
     color: rgba(255,255,255,0.55);
 }
 
-/* Keyboard-only tips visible on pointer devices; touch-only tips hidden on pointer devices */
+/* Keyboard-only tips: visible on pointer devices only */
 .lightbox-tip.keyboard-only { display: none; }
 @media (hover: hover) and (pointer: fine) {
     .lightbox-tip.keyboard-only { display: flex; justify-content: space-between; }
-    .touch-only { display: none; }
-    .lightbox-tip.touch-only { display: none; }
+}
+/* touch-only: hidden by default, revealed on coarse-pointer devices.
+   Using pointer:coarse rather than (hover:hover and pointer:fine) inverted,
+   because some Android devices misreport hover:hover and would hide touch hints. */
+.touch-only { display: none; }
+.lightbox-tip.touch-only { display: none; }
+@media (pointer: coarse) {
+    .touch-only { display: revert; }
+    .lightbox-tip.touch-only { display: flex; justify-content: space-between; }
 }
 
 .lightbox-tip-key {
@@ -623,7 +631,7 @@ body.lb-open #stickyTotal { display: none !important; }
     }
     .badge-page {
         padding: 4px 7px;
-        font-size: 9px;
+        font-size: 10px;
     }
     .btn-back {
         background: var(--primary-blue);
@@ -694,12 +702,13 @@ body.lb-open #stickyTotal { display: none !important; }
 .badge-al    { background: var(--al);        color: white; }
 .badge-sick  { background: var(--absence);   color: white; }
 
-/* Badge colour enforcement for print — keeps colours when browser strips backgrounds */
+/* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
+   badge-night keeps its screen style (white bg + dark border) — it reads better on
+   black-and-white printers than an all-dark filled badge. */
 @media print {
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
     .badge-early { background: var(--orange)    !important; color: white !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
-    .badge-night { background: var(--night)     !important; color: white !important; border: none !important; }
     .badge-spare { background: var(--purple)    !important; color: white !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
     .badge-al    { background: var(--al)        !important; color: white !important; }

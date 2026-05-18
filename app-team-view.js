@@ -9,14 +9,17 @@
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
-import { teamMembers, DAY_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
+import { CONFIG, teamMembers, DAY_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, isEarlyShift, isNightShift } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { shouldReplaceOverride } from './app-override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
                      'July', 'August', 'September', 'October', 'November', 'December'];
+
+// Warn at most once per session per unknown shift type — avoids console spam on every render.
+const _unknownShiftWarned = new Set();
 
 /**
  * Initialises the Team Week View.
@@ -79,11 +82,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
 
         let shift = getBaseShift(member, date);
 
-        // Firestore overrides are suppressed before the member's start date — getBaseShift
-        // already returns 'RD' for those dates; allowing an override would undo that.
-        const isBeforeStart = member.startDate &&
-            date < new Date(member.startDate.getFullYear(), member.startDate.getMonth(), member.startDate.getDate());
-        const override = !isBeforeStart ? rosterOverridesCache.get(cacheKey) : null;
+        const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(cacheKey) : null;
         if (override) {
             if      (override.type === 'annual_leave') shift = 'AL';
             else if (override.type === 'sick' && shift !== 'RD' && shift !== 'OFF') shift = 'SICK';
@@ -96,7 +95,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
         if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest' };
         if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare' };
         if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al' };
-        if (shift === 'SICK')                  return { text: '🪑', cls: 'tv-sick' };
+        if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick' };
         if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw' };
         if (shift.startsWith('RDW|')) {
             return { text: `💼 ${escapeHtml(shift.slice(4)) || 'RDW'}`, cls: 'tv-rdw' };
@@ -110,7 +109,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             const EMOJI = { early: '☀️', late: '🌙', night: '🦉' };
             return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}` };
         }
-        console.warn('[Team view] Unrecognised shift type:', shift);
+        if (!_unknownShiftWarned.has(shift)) { _unknownShiftWarned.add(shift); console.warn('[Team view] Unrecognised shift type:', shift); }
         return { text: escapeHtml(shift), cls: '' };
     }
 
@@ -243,16 +242,20 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
         if (tvPrev) tvPrev.addEventListener('click', () => {
             const d = new Date(currentTeamWeekStart);
             d.setDate(d.getDate() - 7);
+            if (d.getFullYear() < CONFIG.MIN_YEAR) return;
             currentTeamWeekStart = d;
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
+            calendarDisplay.querySelector('#tvPrevWeek')?.focus();
         });
         if (tvNext) tvNext.addEventListener('click', () => {
             const d = new Date(currentTeamWeekStart);
             d.setDate(d.getDate() + 7);
+            if (d.getFullYear() > CONFIG.MAX_YEAR) return;
             currentTeamWeekStart = d;
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
+            calendarDisplay.querySelector('#tvNextWeek')?.focus();
         });
         if (tvToday) tvToday.addEventListener('click', () => {
             currentTeamWeekStart = getSunday(new Date());
