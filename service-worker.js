@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v10.15
+// MYB Roster — Service Worker v10.16
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '10.14';
+const APP_VERSION = '10.16';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -143,11 +143,20 @@ self.addEventListener("fetch", event => {
         // rather than completing silently in the background and writing stale data to cache.
         // Feature-detected: AbortController throws in service workers on iOS < 15.1.
         // 2 s timeout: fast enough for 4G, short enough to serve cache quickly on poor signal.
+        // Build a fresh Request to guarantee cache: 'no-store' is honoured.
+        // Passing options alongside a Request object does not reliably override
+        // the request's own cache mode on older Safari/Chromium builds.
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timeoutId  = controller ? setTimeout(() => controller.abort(), 2000) : null;
-        const fetchOpts  = controller ? { cache: 'no-store', signal: controller.signal } : { cache: 'no-store' };
+        const freshReq   = new Request(event.request.url, {
+            method:  event.request.method,
+            headers: event.request.headers,
+            mode:    event.request.mode === 'navigate' ? 'same-origin' : event.request.mode,
+            cache:   'no-store',
+            ...(controller ? { signal: controller.signal } : {}),
+        });
         event.respondWith(
-            fetch(event.request, fetchOpts)
+            fetch(freshReq)
                 .then(response => {
                     clearTimeout(timeoutId);
                     if (response && response.status === 200) {

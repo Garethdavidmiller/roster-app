@@ -1,5 +1,5 @@
-// Override priority helpers — shared by app.js and app-team-view.js.
-// Extracted so the priority logic is defined once and can be unit-tested.
+// Override priority and member-start helpers — shared by app.js and app-team-view.js.
+// Extracted so the logic is defined once and can be unit-tested.
 
 /**
  * Converts a Firestore Timestamp or plain {seconds} object to milliseconds.
@@ -28,6 +28,21 @@ export function tsToMillis(ts) {
  * @param {object}           incoming
  * @returns {boolean}
  */
+/**
+ * Returns true if `date` falls before the member's contracted start date.
+ * Overrides should be suppressed before a member's start date — getBaseShift
+ * already returns 'RD' for those dates; allowing an override would undo that.
+ * Returns false if the member has no startDate.
+ * @param {object} member
+ * @param {Date}   date
+ * @returns {boolean}
+ */
+export function isBeforeMemberStart(member, date) {
+    if (!member.startDate) return false;
+    const s = member.startDate;
+    return date < new Date(s.getFullYear(), s.getMonth(), s.getDate());
+}
+
 export function shouldReplaceOverride(existing, incoming) {
     if (!existing) return true;
     const existingIsImport = (existing.source || '') === 'roster_import';

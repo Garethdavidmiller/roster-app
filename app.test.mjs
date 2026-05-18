@@ -1,6 +1,29 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tsToMillis, shouldReplaceOverride } from './app-override-utils.js';
+import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart } from './app-override-utils.js';
+
+// ── isBeforeMemberStart ───────────────────────────────────────────────────────
+
+describe('isBeforeMemberStart', () => {
+    it('returns false when member has no startDate', () => {
+        assert.equal(isBeforeMemberStart({}, new Date(2026, 4, 1)), false);
+    });
+
+    it('returns true for a date strictly before startDate', () => {
+        const member = { startDate: new Date(2026, 3, 20) }; // Apr 20
+        assert.equal(isBeforeMemberStart(member, new Date(2026, 3, 19)), true);
+    });
+
+    it('returns false on the startDate itself (midnight)', () => {
+        const member = { startDate: new Date(2026, 3, 20) };
+        assert.equal(isBeforeMemberStart(member, new Date(2026, 3, 20)), false);
+    });
+
+    it('returns false for a date after startDate', () => {
+        const member = { startDate: new Date(2026, 3, 20) };
+        assert.equal(isBeforeMemberStart(member, new Date(2026, 4, 1)), false);
+    });
+});
 
 // ── tsToMillis ────────────────────────────────────────────────────────────────
 

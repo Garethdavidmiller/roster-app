@@ -701,12 +701,13 @@ body.lb-open #stickyTotal { display: none !important; }
 .badge-al    { background: var(--al);        color: white; }
 .badge-sick  { background: var(--absence);   color: white; }
 
-/* Badge colour enforcement for print — keeps colours when browser strips backgrounds */
+/* Badge colour enforcement for print — keeps colours when browser strips backgrounds.
+   badge-night keeps its screen style (white bg + dark border) — it reads better on
+   black-and-white printers than an all-dark filled badge. */
 @media print {
     .badge-rest  { background: var(--charcoal)  !important; color: white !important; }
     .badge-early { background: var(--orange)    !important; color: white !important; }
     .badge-late  { background: var(--blue-sky)  !important; color: white !important; }
-    .badge-night { background: var(--night)     !important; color: white !important; border: none !important; }
     .badge-spare { background: var(--purple)    !important; color: white !important; }
     .badge-rdw   { background: var(--rdw)       !important; color: white !important; }
     .badge-al    { background: var(--al)        !important; color: white !important; }
