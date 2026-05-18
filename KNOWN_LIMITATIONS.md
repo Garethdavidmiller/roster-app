@@ -22,16 +22,28 @@ JWT from Firebase and sends that as the bearer token. The Cloud Function verifie
 server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
 Manager can be deleted if no longer needed for other purposes.
 
-### Firebase web API key not restricted to HTTP referrers
+### ⏰ Two security tasks scheduled for v10.5
+
+Both tasks below are low-urgency hardening. Do them together when the app reaches v10.5.
+
+**1. Firebase web API key — restrict to HTTP referrers**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
 restriction it could theoretically be used to brute-force Firebase Auth from any origin.
 Risk is low: Firestore rules require a valid Auth session for all writes, and login rate
 limiting (v9.53) is in place.
-**To fix:** GCP Console → APIs & Services → Credentials → restrict the Firebase web API key
-to `myb-roster.firebaseapp.com` and `myb-roster.web.app` HTTP referrers.
-**⏰ Scheduled: do this when the app reaches v10.5.** (5-minute manual step in the GCP
-Console — cannot be done by Claude. Log in, find the Firebase web API key under APIs &
-Services → Credentials, and add the two domains as HTTP referrer restrictions.)
+**To fix (5-minute manual step — cannot be done by Claude):** GCP Console → APIs & Services
+→ Credentials → find the Firebase web API key → add `myb-roster.firebaseapp.com` and
+`myb-roster.web.app` as HTTP referrer restrictions.
+
+**2. Firestore security rules — member write isolation**
+Any logged-in staff member can currently write or delete overrides for any other member's
+name. The rule checks `request.auth != null` but not whose session it is.
+**To fix (Claude-implementable, ~half a day):**
+- Add `request.resource.data.memberName == request.auth.token.name` to the `overrides`
+  and `memberSettings` write rules, with an admin custom-claim bypass for G. Miller
+- Add the same guard to `allow delete` on `overrides`
+- Add `source` field validation: `in ['manual', 'roster_import']`
+- Test that the admin custom claim correctly bypasses member restrictions before deploying
 
 ---
 
