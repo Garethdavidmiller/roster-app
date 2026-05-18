@@ -12,12 +12,12 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.91';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.91';
-import { initRosterUpload } from './admin-roster-upload.js?v=9.91';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.91';
-import { initHuddleCards } from './admin-huddle.js?v=9.91';
-import { initAuthSetup } from './admin-auth.js?v=9.91';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js?v=9.92';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js?v=9.92';
+import { initRosterUpload } from './admin-roster-upload.js?v=9.92';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js?v=9.92';
+import { initHuddleCards } from './admin-huddle.js?v=9.92';
+import { initAuthSetup } from './admin-auth.js?v=9.92';
 
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
 function lsGet(k)    { try { return localStorage.getItem(k); }    catch { return null; } }
@@ -1980,11 +1980,6 @@ sickSaveBtn.addEventListener('click', async () => {
 initSickSection();
 
 /**
- * Refreshes the collapsible list of recorded sick days for the selected member.
- * Shows sick periods grouped by month, merging consecutive dates that are
- * bridged by rest days on the base roster (same logic as AL booked box).
- */
-/**
  * Deletes all overrides of the given type for a member within a date range.
  * Used by the period-row delete buttons in the AL and sick booked boxes.
  * @param {string}      type       'annual_leave' | 'sick'
@@ -2160,6 +2155,11 @@ function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countC
     box.hidden = false;
 }
 
+/**
+ * Refreshes the collapsible list of recorded sick days for the selected member.
+ * Shows sick periods grouped by month, merging consecutive dates that are
+ * bridged by rest days on the base roster (same logic as AL booked box).
+ */
 function updateSickBookedBox() {
     _renderBookedPeriods({
         type:       'sick',
