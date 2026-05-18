@@ -22,11 +22,11 @@ JWT from Firebase and sends that as the bearer token. The Cloud Function verifie
 server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
 Manager can be deleted if no longer needed for other purposes.
 
-### ⏰ Tasks from the v10.5 block — now overdue (at v10.17)
+### ⏰ Four tasks scheduled for v10.50
 
-The v10.5 block was not completed at v10.5. All four tasks remain open.
+Do all four together when the app reaches v10.50.
 
-**1. Firebase web API key — restrict to HTTP referrers** ⚠️ Overdue
+**1. Firebase web API key — restrict to HTTP referrers**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
 restriction it could theoretically be used to brute-force Firebase Auth from any origin.
 Risk is low: Firestore rules require a valid Auth session for all writes, and login rate
@@ -84,7 +84,7 @@ The back pay card adds the lump sum to gross for the paid-in period's take-home
 calculation, but `calcHPP()` does not include any of it in the HPP accumulator.
 Back pay covers both basic/London Allowance (no HPP) and variable components
 (overtime, RDW, Sundays — which do accrue HPP), so the HPP estimate will be slightly
-low after a back pay event. See the v10.5 task block above for the check and fix plan.
+low after a back pay event. See the v10.50 task block above for the check and fix plan.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
