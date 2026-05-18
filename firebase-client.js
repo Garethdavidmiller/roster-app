@@ -1,10 +1,10 @@
 /**
  * firebase-client.js — Single source of truth for Firebase initialisation.
  *
- * Both index.html and admin.html import from here, which means:
+ * All three pages (index.html, admin.html, paycalc.html) import from here, which means:
  *   - The project config (API key, project ID etc.) lives in one place only.
  *   - The Firebase SDK version appears in one place only — update it here
- *     and both apps pick up the change automatically.
+ *     and all pages pick up the change automatically.
  *   - Firebase is initialised once; the same `db` instance is shared.
  *
  * All Firestore operation functions (collection, getDocs, writeBatch etc.)
@@ -13,7 +13,7 @@
 
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 import {
-    initializeFirestore, persistentLocalCache,
+    initializeFirestore, getFirestore, persistentLocalCache,
     collection, query, where, orderBy, limit,
     getDocs, getDoc, addDoc, setDoc, deleteDoc,
     doc, serverTimestamp, writeBatch, onSnapshot
@@ -54,12 +54,22 @@ try {
     db = initializeFirestore(app, { localCache: persistentLocalCache() });
 } catch (err) {
     console.warn('[Firebase] Persistent cache unavailable; using memory cache:', err);
-    db = initializeFirestore(app, {});
+    // getFirestore() returns the existing instance if initializeFirestore already
+    // registered it internally before throwing — unlike a second initializeFirestore()
+    // call, which would throw "Firestore has already been started".
+    db = getFirestore(app);
 }
 export { db };
 
 // Re-export Firestore operation functions so callers import from one place.
-export { collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot };
+export {
+    // queries
+    collection, query, where, orderBy, limit,
+    // reads
+    getDocs, getDoc, onSnapshot,
+    // writes
+    addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch,
+};
 
 // ---- Firebase Authentication ----
 
@@ -133,20 +143,6 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
     await setDoc(doc(db, 'huddles', date), firestoreDoc);
     return storageUrl;
-}
-
-/**
- * Retrieve the Huddle document for a given date from Firestore.
- *
- * Returns null — rather than throwing — when no Huddle has been uploaded,
- * so callers can degrade silently without showing an error to staff.
- *
- * @param {string} date - ISO date string, e.g. "2026-03-18"
- * @returns {Promise<{date: string, storageUrl: string, uploadedBy: string}|null>}
- */
-export async function getTodaysHuddle(date) {
-    const snap = await getDoc(doc(db, 'huddles', date));
-    return snap.exists() ? snap.data() : null;
 }
 
 /**
