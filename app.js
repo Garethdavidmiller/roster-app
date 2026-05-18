@@ -1041,7 +1041,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             let booked = 0;
             // Collect all overrides for this member so Dispatcher lieu days can be calculated
             const memberOverrides = [];
-            const snap = await getDocs(query(collection(db, 'overrides'), where('memberName', '==', member.name)));
+            const snap = await getDocs(query(
+                collection(db, 'overrides'),
+                where('memberName', '==', member.name),
+                where('date', '>=', `${yearStr}-01-01`),
+                where('date', '<=', `${yearStr}-12-31`)
+            ));
             snap.forEach(d => {
                 const data = d.data();
                 memberOverrides.push(data);
