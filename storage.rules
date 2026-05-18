@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /huddles/{fileName} {
+      // Huddle files are internal staff briefings — only authenticated staff may read.
+      // Writes come exclusively from the ingestHuddle Cloud Function via Admin SDK,
+      // which bypasses security rules, so write: if false is correct here.
+      allow read:  if request.auth != null;
+      allow write: if false;
+    }
+    // Deny everything else
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
