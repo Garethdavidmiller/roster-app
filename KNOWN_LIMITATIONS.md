@@ -22,9 +22,9 @@ JWT from Firebase and sends that as the bearer token. The Cloud Function verifie
 server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
 Manager can be deleted if no longer needed for other purposes.
 
-### ⏰ Two security tasks scheduled for v10.5
+### ⏰ Three tasks scheduled for v10.5
 
-Both tasks below are low-urgency hardening. Do them together when the app reaches v10.5.
+Do all three together when the app reaches v10.5.
 
 **1. Firebase web API key — restrict to HTTP referrers**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
@@ -45,6 +45,17 @@ name. The rule checks `request.auth != null` but not whose session it is.
 - Add `source` field validation: `in ['manual', 'roster_import']`
 - Test that the admin custom claim correctly bypasses member restrictions before deploying
 
+**3. Back pay HPP — check variable pay split against a payslip**
+Back pay covers both basic pay/London Allowance (no HPP) and variable components
+(overtime, RDW, Sundays — which do accrue HPP). The calculator adds the full lump sum
+to gross for take-home but does not include any of it in the HPP accumulator, so the
+HPP estimate will be slightly low after a back pay event.
+**To check (human action — requires a payslip):** After the next back pay event, check
+whether Chiltern's payslip shows a breakdown of the lump sum between basic and variable
+components. If it does, a "Variable pay portion" field can be added to the back pay card
+to feed the variable amount into HPP. If Chiltern show only a single back pay line with
+no breakdown, the calculator cannot do better than it currently does.
+
 ---
 
 ## Pay calculator
@@ -59,17 +70,12 @@ award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 
 Pay awards at Chiltern are typically not decided until August — do not expect confirmed
 rates before then.
 
-### Back pay lump sum not included in HPP estimate
-The back pay card (added v9.55) adds the lump sum to gross for the paid-in period's
-take-home calculation, but `calcHPP()` does not include the back pay amount in its
-variable pay total. Whether back pay counts toward HPP depends on how Chiltern's payroll
-classifies it: as retroactive basic pay (HPP impact = zero) or as variable pay (HPP impact
-= back pay × 7.69%). This was not confirmed with payroll at the time of writing.
-
-**To check:** After the first back pay payslip arrives, compare the January HPP payslip
-against the calculator's HPP estimate. If they differ by roughly `back pay amount × 7.69%`,
-Chiltern are including it in variable pay and `_varPayForPeriod()` in `paycalc.js` should
-add `_bpAmount` for the paid-in period. If they match, no change needed.
+### Back pay lump sum not fully included in HPP estimate
+The back pay card adds the lump sum to gross for the paid-in period's take-home
+calculation, but `calcHPP()` does not include any of it in the HPP accumulator.
+Back pay covers both basic/London Allowance (no HPP) and variable components
+(overtime, RDW, Sundays — which do accrue HPP), so the HPP estimate will be slightly
+low after a back pay event. See the v10.5 task block above for the check and fix plan.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
