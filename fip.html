@@ -73,7 +73,7 @@
         .content {
             max-width: 600px;
             margin: 0 auto;
-            padding: 20px 14px 48px;
+            padding: 20px max(14px, env(safe-area-inset-right)) max(48px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
         }
 
         /* ── Section label ───────────────────────── */
