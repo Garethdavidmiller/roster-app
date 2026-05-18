@@ -59,20 +59,15 @@ against the calculator's HPP estimate. If they differ by roughly `back pay amoun
 Chiltern are including it in variable pay and `_varPayForPeriod()` in `paycalc.js` should
 add `_bpAmount` for the paid-in period. If they match, no change needed.
 
-### Dispatcher grade not supported
-Pay rates for Dispatchers are not confirmed. The grade is not in the `GRADES` object.
-Do not add it until the rates are verified.
-
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
-### Firestore composite index not present
-`fetchOverridesForPeriod` queries by date range only (no memberName equality filter)
-because adding memberName as an equality filter alongside a date range requires a
-composite Firestore index that has not been created. The function filters by member
-client-side instead.
+### Firestore composite index — resolved (v10.05)
+`fetchOverridesForPeriod` now queries with `memberName == memberName AND date >= start AND date <= cutoff`.
+The required composite index on `overrides` (memberName ASC, date ASC) is defined in
+`firestore.indexes.json` and deployed via the `deploy-rules.yml` workflow.
 
 ---
 
