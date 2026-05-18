@@ -56,7 +56,7 @@
             line-height: 1.5;
             color: var(--text);
             background: #e8ecf2;
-            padding: 24px 16px;
+            padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         }
 
         .page {
@@ -138,7 +138,7 @@
 
         /* ── Mobile: single column (screen only — print keeps two cols) ── */
         @media screen and (max-width: 640px) {
-            body  { padding: 12px 10px; }
+            body  { padding: max(12px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
             .page { padding: 16px 14px 14px; }
             .cols { grid-template-columns: 1fr; gap: 0; }
             .feature-row { grid-template-columns: 1fr; }

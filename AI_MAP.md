@@ -132,7 +132,6 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy)` — writes to Firebase Storage + Firestore `huddles` collection
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh.
-- `getTodaysHuddle(date)` — one-time fetch for a specific date's huddle (used by admin)
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
 
