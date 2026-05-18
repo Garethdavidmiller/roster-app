@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `9.90` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `9.93` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` — Huddle auto-upload (Power Automate) |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` — Weekly roster PDF parser (admin page) |
@@ -48,7 +48,9 @@
 | `paycalc.html` | Line 2 HTML comment | |
 | `paycalc.html` | `paycalc.js?v=`, `shared.css?v=`, `pay-manifest.json?v=` | 3 places |
 | `app.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
-| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=`, `admin-huddle.js?v=`, `admin-auth.js?v=` | 6 places |
+| `admin-app.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-roster-upload.js?v=`, `admin-overrides.js?v=`, `admin-huddle.js?v=`, `admin-auth.js?v=`, `admin-al.js?v=`, `admin-sick.js?v=` | 8 places |
+| `admin-al.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-overrides.js?v=` | 3 places |
+| `admin-sick.js` | `roster-data.js?v=`, `firebase-client.js?v=`, `admin-overrides.js?v=` | 3 places |
 | `admin-overrides.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `admin-roster-upload.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
 | `admin-huddle.js` | `roster-data.js?v=`, `firebase-client.js?v=` | 2 places |
@@ -76,6 +78,8 @@
 
 **Same-commit rule:** Any commit that adds, removes, or renames a JS module must also update the file structure in `CLAUDE.md` and the routing table in `AI_MAP.md` in the **same commit**. The pre-commit hook (`githooks/pre-commit`) enforces this — it blocks commits where a root `.js` file is not listed in both docs. To activate after a fresh clone: `git config core.hooksPath githooks`.
 
+**Pre-commit `?v=` check (added v9.90):** The same hook also blocks commits where any `?v=` cache-busting string in `*.js` or `*.html` does not match `APP_VERSION`. If the hook rejects a commit with "Version mismatch", update all `?v=` strings to the new version before retrying.
+
 ---
 
 ## How to work with the owner
@@ -100,9 +104,11 @@ roster-app/
 ├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html
-├── admin-app.js            ← coordinator for admin.html: login, AL/sick, cultural calendar, module wiring
+├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
 ├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
+├── admin-al.js             ← Annual Leave Booking section: date picker, preview, entitlement check, Firestore save (extracted v9.93). Exports initALSection(deps) and triggerConfirmedALSave()
+├── admin-sick.js           ← Sick Days Recording section: date picker, preview, Firestore save (extracted v9.93). Exports initSickSection(deps)
 ├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
@@ -141,7 +147,7 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 ```
 
 **Service worker caching strategy:**
-- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
+- Network-first: `index.html`, `admin.html`, `app.js`, `admin-app.js`, `admin-huddle.js`, `admin-auth.js`, `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-roster-upload.js`, `paycalc.html`, `paycalc.js`, `paycalc-calc.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `firebase-client.js`, `shared.css` — must always be fresh
 - Cache-first: icons (cached individually), `manifest.json`, `pay-manifest.json` — stable assets
 - Cache name format: `myb-roster-v{APP_VERSION}` — any version bump automatically invalidates the old cache
 - One SW (`service-worker.js`) covers all three pages.
@@ -203,6 +209,9 @@ The current scheme is navy and gold. All colour values must be assigned to CSS v
 | Maskable icons in `manifest.json` and `pay-manifest.json` | The 512px icon entry uses `"purpose": "any maskable"` so Android can apply adaptive icon shapes (squircle, circle, etc.) without cropping the logo. The smaller icons omit this because Android only uses the largest available icon for adaptive shapes. |
 | **Chiltern payroll: any Saturday worked → `sat` bucket at 1.25×, regardless of base** | At Chiltern Railways the 1.25× Saturday enhanced rate applies to any Saturday shift, whether the day was originally rostered as a working day or a rest day. The suggestion engine correctly puts Saturday overrides (RD → shift) into the `sat` pay bucket. Do not reclassify these as `rdw` on the assumption that "unrostered Saturday = rest-day-worked" — that is a different payroll model. Tests assert this explicitly and must not be changed without a confirmed payroll-rule change from Gareth. Reviews that flag this as uncertain are wrong. |
 | **BH + `rdw` override on the same day is additive, not a replacement** | When an `rdw` override exists on a day where the base roster already has a worked bank holiday shift, the suggestion engine adds both: base hours → `bh` bucket, override hours → `bhOt` (bank holiday overtime). This represents an admin-recorded extra RDW shift on top of a base BH — not a time change to the same shift. The engine only does this when explicit `rdw` override data is present; it is conservative by design. The scenario is extremely rare in practice. Do not change to "override replaces base" without confirming the specific document means replacement rather than addition. |
+| `initALSection()` / `initSickSection()` in `admin-app.js` (v9.91) | The Annual Leave Booking and Sick Days Recording setup blocks are wrapped in named functions so their boundaries are self-contained and explicit. `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` are hoisted to module scope **above** the `fieldMember` change handler because that handler references them. Do not move these four declarations inside either init function — the fieldMember handler fires before init is called. `deletePeriodOverrides` stays at module scope (shared by both sections via `_renderBookedPeriods`). |
+| Service worker synthesised offline page uses status 200 (v9.91) | When both the network request and the cache miss, the SW returns a minimal `<h1>Offline</h1>` HTML page. The response status is 200 (not 503). Some browsers suppress the response body for 5xx responses even when the content type is `text/html`, so 503 would show a blank screen instead of the offline message. `Cache-Control: no-store` is set so the synthesised page is never cached. |
+| Huddle notification → `#huddle` hash pattern (v9.89) | When a push notification is tapped and the app is already open, the service worker calls `client.navigate('#huddle')`. `app.js` listens for `hashchange`, strips the hash, and triggers the Huddle viewer. `_autoOpen` is `let` (not `const`) so the hashchange handler can reset it. `_triggerAutoOpen(huddle)` is an extracted helper shared by both the initial load path and the hashchange path. |
 
 ---
 
@@ -348,7 +357,7 @@ Firebase SDK: currently v12.10.0. Check for the current version before any new F
 
 **#14 — localStorage session can be forged for UI access.** DevTools can modify `myb_admin_session` to impersonate another user or gain the admin UI. However, since v7.94 the Firestore security rules are deployed and require a real Firebase Auth session (`request.auth != null`) for all writes — so a forged localStorage session can read the UI but cannot write to Firestore. Practical risk is low for a small known team.
 
-**Firebase web API key not restricted to HTTP referrers** — The key is visible in page source (normal for client-side Firebase). Without a GCP referrer restriction it could theoretically be used to brute-force Firebase Auth from any origin. Risk is low: Firestore rules require a valid Auth session for all writes, and login rate limiting (v9.53) is in place. **To fix:** GCP Console → APIs & Services → Credentials → restrict the Firebase web API key to `myb-roster.firebaseapp.com` and `myb-roster.web.app` HTTP referrers.
+**Firebase web API key not restricted to HTTP referrers** — The key is visible in page source (normal for client-side Firebase). Without a GCP referrer restriction it could theoretically be used to brute-force Firebase Auth from any origin. Risk is low: Firestore rules require a valid Auth session for all writes, and login rate limiting (v9.53) is in place. **To fix:** GCP Console → APIs & Services → Credentials → restrict the Firebase web API key to `myb-roster.firebaseapp.com` and `myb-roster.web.app` HTTP referrers. **⏰ Scheduled: do this when the app reaches v10.5.** (5-minute manual step — cannot be automated by Claude.)
 
 **Override cache architecture (v7.84–7.91):** `rosterOverridesCache` in `app.js` is keyed `"memberName|date"` and stores overrides for ALL members — it is never cleared on member switch. `fetchOverridesForRange()` uses priority-based deduplication: `source: 'manual'` always beats `source: 'roster_import'`; same-source entries keep the newer `createdAt`. A `console.warn` is logged whenever a duplicate is detected — check DevTools Console if overrides still appear inconsistently. Swipe navigation calls `ensureOverridesCached()` after the animation completes (v7.86) so adjacent months are fetched even after a member switch clears `fetchedMonths`. Delete stale duplicate Firestore documents in the Firebase Console to clean up at source.
 
