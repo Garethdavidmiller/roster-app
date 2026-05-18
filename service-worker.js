@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v9.90
+// MYB Roster — Service Worker v9.91
 // Strategy:
 //   index.html, admin.html, roster-data.js
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '9.90';
+const APP_VERSION = '9.91';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // Files that contain roster data — always fetched fresh (network-first).
@@ -145,7 +145,7 @@ self.addEventListener("fetch", event => {
                         .then(r => r || caches.match(fallback))
                         .then(r => r || new Response(
                             '<h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">Cache was cleared. Please reconnect and reload.</p>',
-                            { headers: { 'Content-Type': 'text/html' }, status: 503 }
+                            { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
                         ));
                 })
         );

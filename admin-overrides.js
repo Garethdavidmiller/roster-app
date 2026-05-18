@@ -11,9 +11,9 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
-         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.90';
+         isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js?v=9.91';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.90';
+         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js?v=9.91';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -594,7 +594,8 @@ export function renderTable() {
     if (listCount) listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
 
     if (!rows.length) {
-        if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7">No saved changes.</td></tr>';
+        const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
+        if (tableBody) tableBody.innerHTML = `<tr class="state-row"><td colspan="7">No recorded changes yet${who}. Any shifts you record will appear here.</td></tr>`;
         return;
     }
 
