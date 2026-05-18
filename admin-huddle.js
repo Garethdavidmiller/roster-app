@@ -144,7 +144,7 @@ function _initNotificationsCard(lsGet, lsSet) {
         } catch (err) {
             console.warn('[Notifications] Enable failed:', err);
         }
-        await refreshUI();
+        await refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
     });
 
     disableBtn.addEventListener('click', async () => {
@@ -159,7 +159,7 @@ function _initNotificationsCard(lsGet, lsSet) {
         } catch (err) {
             console.warn('[Notifications] Disable failed:', err);
         }
-        await refreshUI();
+        await refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
     });
 
     refreshUI().catch(err => console.warn('[Notifications] Init error:', err));
@@ -248,9 +248,12 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
                 const arrayBuffer = await file.arrayBuffer();
                 const result      = await mammoth.convertToHtml({ arrayBuffer });
                 const html        = result.value || null;
-                // Firestore document limit is 1 MB — skip htmlContent if the conversion
-                // is too large; the viewer will fall back to opening the Storage URL.
-                htmlContent = html && html.length < 800_000 ? html : null;
+                // Cap at 200 KB — a Huddle is a short daily briefing; anything larger
+                // indicates an unexpected document or conversion anomaly. Fall back to
+                // the Storage URL so the viewer downloads the file directly.
+                // Matches the cap in functions/index.js so inline behaviour is consistent
+                // regardless of whether the Huddle arrived via Power Automate or manual upload.
+                htmlContent = html && html.length < 200_000 ? html : null;
             } catch (convErr) {
                 console.error('[Huddle] DOCX conversion failed:', convErr);
                 feedback.textContent = convErr.message === 'load'
