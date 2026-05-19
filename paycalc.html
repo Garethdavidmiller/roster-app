@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v10.19 -->
+<!-- MYB Roster — Pay Calculator v10.20 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -47,8 +47,8 @@
       min-height: 100dvh;
       padding-top:    max(20px, env(safe-area-inset-top));
       padding-bottom: max(20px, env(safe-area-inset-bottom));
-      padding-left:   max(20px, env(safe-area-inset-left));
-      padding-right:  max(20px, env(safe-area-inset-right));
+      padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+      padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
       overflow-x: hidden; overflow-x: clip; overscroll-behavior: none; /* clip avoids creating a scroll container that breaks position:sticky on iOS */
       font-size: var(--type-body); color: var(--text-dark);
     }
@@ -394,15 +394,17 @@
     .hhmm-field input {
       width: 54px; padding: 9px 6px;
       border: 2px solid var(--border-mid); border-radius: var(--radius-sm);
-      font-family: inherit; font-size: var(--type-medium); font-weight: 600;
+      font-family: ui-monospace, 'Roboto Mono', 'Courier New', monospace;
+      font-size: var(--type-medium); font-weight: 600;
       text-align: center; color: var(--text-dark); background: white;
       touch-action: manipulation; transition: border-color 0.2s, box-shadow 0.2s;
+      letter-spacing: 0.5px;
       -moz-appearance: textfield;
     }
     .hhmm-field input::-webkit-inner-spin-button,
     .hhmm-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
     .hhmm-field input:focus-visible { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25); }
-    .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-faint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
+    .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-faint); font-weight: 600; letter-spacing: 0.3px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
     /* Validation warning */
