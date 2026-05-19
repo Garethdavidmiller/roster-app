@@ -32,6 +32,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
+| UK Railcard at-work reference (admin-only for now) | `railcard-guide.html` — standalone page, no JS module |
 
 ---
 

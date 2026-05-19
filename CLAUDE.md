@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `10.20` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `10.30` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
@@ -90,6 +90,7 @@ roster-app/
 ├── paycalc-guide.html      ← printable pay calculator reference guide
 ├── fip.html                ← FIP European travel guide for staff
 ├── guide.html              ← printable staff + admin quick guide
+├── railcard-guide.html     ← UK Railcard at-work reference sheet (admin-only for now); linked from admin.html
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── CLAUDE.md               ← this file
 ├── OPERATIONS_REFERENCE.md ← Power Automate, Cloud Function formats, Firebase Auth detail
