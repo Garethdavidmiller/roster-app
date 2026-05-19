@@ -236,14 +236,17 @@ export function getRosterSuggestion(p, member) {
         days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
 
       } else if (dow === 6) {
-        if (fromOv && !baseWorked) {
-          // Saturday was a rest day and admin recorded a shift — Rest Day Working
+        const baseIsSpare = baseValue === 'SPARE';
+        if (fromOv && !baseWorked && !baseIsSpare) {
+          // Saturday was a confirmed rest day (RD) and admin recorded a shift — Rest Day Working.
+          // SPARE Saturdays are excluded: SPARE means "rostered but shift TBC", not a rest day.
           rdwMins += mins; rdwCount++;
           days.push({ date: new Date(cur), shift: effValue, type: 'rdw', source: 'override' });
-        } else if (fromOv && baseWorked) {
-          // Shift override on a rostered Saturday: cap at base, excess to general overtime.
-          const rostered = Math.min(mins, baseMins);
-          const ot       = mins - rostered;
+        } else if (fromOv) {
+          // Override on a rostered or SPARE Saturday: all hours go to sat (no base to cap against
+          // for SPARE weeks), or cap at base with excess to general overtime for rostered shifts.
+          const rostered = baseIsSpare ? mins : Math.min(mins, baseMins);
+          const ot       = baseIsSpare ? 0   : mins - rostered;
           satMins += rostered; satCount++;
           satFromOv = true;
           days.push({ date: new Date(cur), shift: effValue, type: 'sat', source: 'override' });
