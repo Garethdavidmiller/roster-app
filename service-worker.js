@@ -1,10 +1,10 @@
-// MYB Roster — Service Worker v10.22
+// MYB Roster — Service Worker v10.25
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
 //                 staff on next open. Falls back to cache when offline.
-//   Icons, manifests, reference guides
-//               → Cache-first: stable assets served instantly; fetched on miss.
+//   Icons, manifests → Cache-first: stable assets served instantly; fetched on miss.
+//   Reference guides → Network-first: guides can be updated and staff should get fresh wording promptly.
 //
 // self.skipWaiting() on install activates the new SW immediately.
 // self.clients.claim() makes the new SW take control of all open tabs at once.
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '10.22';
+const APP_VERSION = '10.25';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).

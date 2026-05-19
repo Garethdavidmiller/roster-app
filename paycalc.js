@@ -202,7 +202,7 @@ const HELP_CONTENT = {
     tips: [
       '<strong>Glossary:</strong> AL = Annual Leave · RDW = Rest Day Worked (you worked on your scheduled day off) · BH = Bank Holiday · CEA / CES = your pay grade · HPP = Holiday Pay Premium (annual lump sum in January).',
       'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay. (CES and CEA are both 140 hours.)',
-      'If your name is in the roster, a hint bar appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, rest day working (RDW), and Boxing Day. Tap a category row\'s <strong>→</strong> arrow to fill just that category — it only fills blank fields and never overwrites hours you\'ve already typed. Tap <strong>Fill from roster</strong> to replace <em>all</em> fields from the roster in one go (this does overwrite existing entries). Filled fields turn gold; the highlight clears as soon as you edit them. When online, all counts include any shift changes recorded by admin — the count reflects your actual roster, not just the base.',
+      'If your name is in the roster, a hint bar appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, rest day working (RDW), and Boxing Day. Tap a category row\'s <strong>→</strong> arrow to fill just that category — it only fills blank fields and never overwrites hours you\'ve already typed. Tap <strong>Replace from roster</strong> to replace <em>all</em> fields from the roster in one go (this does overwrite existing entries). Filled fields turn gold; the highlight clears as soon as you edit them. When online, all counts include any shift changes recorded by admin — the count reflects your actual roster, not just the base.',
       'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
       '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a bank holiday; "Bank Holiday Overtime" is for working a rest day that happened to fall on a bank holiday.',
       'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
@@ -1333,7 +1333,7 @@ function fillCategoryFromRoster(cat) {
 
 /** Applies a suggestion object to all H/M field pairs.
  *  force=false (default): skips fields already manually entered.
- *  force=true: overwrites all fields — used by the "Fill from roster" button. */
+ *  force=true: overwrites all fields — used by the "Replace from roster" button. */
 function _applyRosterSuggestion(s, force = false) {
   const pairs = [
     ['satH',  'satM',  s.satH,  s.satM ],

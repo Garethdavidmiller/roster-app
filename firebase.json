@@ -18,7 +18,11 @@
       "**/*.md",
       "**/*.mjs",
       "**/*.zip",
-      "firestore.rules"
+      "firestore.rules",
+      "example-payslips/**",
+      "**/*.pdf",
+      "**/*.jpg",
+      "**/*.jpeg"
     ],
     "headers": [
       {
