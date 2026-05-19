@@ -721,16 +721,18 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         try {
             let taken = 0;
             let booked = 0;
-            // Collect all overrides for this member so Dispatcher lieu days can be calculated
+            // Collect all overrides for this member so Dispatcher lieu days can be calculated.
+            // Date-range query with client-side memberName filter — matches the calendar pattern
+            // and avoids depending on a deployed composite (memberName + date) index.
             const memberOverrides = [];
             const snap = await getDocs(query(
                 collection(db, 'overrides'),
-                where('memberName', '==', member.name),
                 where('date', '>=', `${yearStr}-01-01`),
                 where('date', '<=', `${yearStr}-12-31`)
             ));
             snap.forEach(d => {
                 const data = d.data();
+                if (data.memberName !== member.name) return;
                 memberOverrides.push(data);
                 // Sundays are uncontracted — don't count Sunday AL entries
                 if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr) &&
