@@ -165,13 +165,19 @@ function getToday() { return new Date(); }
 let currentDisplayMonth = getToday().getMonth();
 let currentDisplayYear = getToday().getFullYear();
 
-// Restore last-viewed month from localStorage (if valid and within app bounds)
+// Restore last-viewed month from localStorage (if valid, within app bounds, and not a future month).
+// Future months are not restored so the app always opens on the current month when the user was
+// previously browsing ahead — staff should see today's roster on open, not a month they peeked at.
 (function restoreViewedMonth() {
     const m = parseInt(lsGet('myb_roster_month'), 10);
     const y = parseInt(lsGet('myb_roster_year'),  10);
     if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
-        currentDisplayMonth = m;
-        currentDisplayYear  = y;
+        const today = getToday();
+        const isFuture = y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth());
+        if (!isFuture) {
+            currentDisplayMonth = m;
+            currentDisplayYear  = y;
+        }
     }
 })();
 
