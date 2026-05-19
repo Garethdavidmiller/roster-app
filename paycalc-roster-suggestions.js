@@ -92,9 +92,13 @@ const _fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h$
 export async function fetchOverridesForPeriod(p, memberName) {
   const thisToken = _overrideFetchToken;
   try {
+    // Query by date range only, then filter memberName client-side. This avoids the
+    // composite (memberName + date) index requirement and matches the pattern used by
+    // app.js fetchOverridesForRange — proven to work across the user base. A 28-day
+    // period returns at most a few hundred docs across the whole team, which is well
+    // within Firestore's per-query limits and adds negligible bandwidth.
     const q = query(
       collection(db, 'overrides'),
-      where('memberName', '==', memberName),
       where('date', '>=', formatISO(p.start)),
       where('date', '<=', formatISO(p.cutoff))
     );
