@@ -499,6 +499,23 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     // Grid
     const grid = document.createElement('div');
     grid.className = 'calendar-grid';
+    // Single delegated click listener for payday/cutoff cells — replaces per-cell
+    // listener attachment (one per ~6 special cells per month was previously creating
+    // closures that were GC'd on next render).
+    grid.addEventListener('click', (e) => {
+        const cell = e.target.closest('.calendar-day');
+        if (!cell) return;
+        const paydayIso = cell.dataset.paydayIso;
+        if (paydayIso) { navigateToPaycalc(paydayIso); return; }
+        const cutoffIso = cell.dataset.cutoffIso;
+        if (cutoffIso) {
+            const [y, mo, d] = cutoffIso.split('-').map(Number);
+            const paydayDate = new Date(y, mo - 1, d);
+            const _daysToPayday = ((CONFIG.FIRST_PAYDAY.getDay() - 6 + 7) % 7) || 7;
+            paydayDate.setDate(paydayDate.getDate() + _daysToPayday);
+            navigateToPaycalc(formatISO(paydayDate));
+        }
+    });
 
     DAY_NAMES.forEach(day => {
         const dayHeader = document.createElement('div');
@@ -599,20 +616,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (isPayday(currentDate)) {
             dayCell.classList.add('payday');
             dayCell.style.cursor = 'pointer';
-            dayCell.addEventListener('click', () => navigateToPaycalc(dateStr));
+            dayCell.dataset.paydayIso = dateStr;
         }
         if (isCutoffDate(currentDate)) {
             dayCell.classList.add('cutoff');
             dayCell.style.cursor = 'pointer';
-            dayCell.addEventListener('click', () => {
-                const paydayDate = new Date(currentDate);
-                // Cutoff is always the Saturday before payday. Derive the forward offset
-                // from FIRST_PAYDAY's day-of-week so this stays correct if the pay
-                // schedule ever changes (currently 6 for Friday paydays).
-                const _daysToPayday = ((CONFIG.FIRST_PAYDAY.getDay() - 6 + 7) % 7) || 7;
-                paydayDate.setDate(paydayDate.getDate() + _daysToPayday);
-                navigateToPaycalc(formatISO(paydayDate));
-            });
+            dayCell.dataset.cutoffIso = dateStr;
         }
 
         dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime, faithMarker);
@@ -803,6 +812,16 @@ function getShiftTypesInMonth(member, year, month) {
 //   🐣 Easter    — only in the month Easter Sunday falls in
 //   Faith events — only for opted-in calendar, only the months that event falls in
 // Called inside renderCalendar() on every navigation.
+// Legend elements are static in the HTML; cache references on first call to skip
+// ~40 getElementById lookups per navigation. Stored in a module-level Map populated
+// lazily so it survives across renders.
+const _legendElCache = new Map();
+function _legendEl(id) {
+    let el = _legendElCache.get(id);
+    if (el === undefined) { el = document.getElementById(id); _legendElCache.set(id, el); }
+    return el;
+}
+
 function updateLegend() {
     const member = getCurrentMember();
 
@@ -810,24 +829,24 @@ function updateLegend() {
     const typesThisMonth = member
         ? getShiftTypesInMonth(member, currentDisplayYear, currentDisplayMonth)
         : new Set();
-    const setLegendItemVisible = (id, visible) => { const legendItem = document.getElementById(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
+    const setLegendItemVisible = (id, visible) => { const legendItem = _legendEl(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
     setLegendItemVisible('legend-spare', typesThisMonth.has('SPARE'));
     setLegendItemVisible('legend-rdw',   typesThisMonth.has('RDW'));
     setLegendItemVisible('legend-al',    typesThisMonth.has('AL'));
     setLegendItemVisible('legend-sick',  typesThisMonth.has('SICK'));
     // Hide the whole row-2 if all four are absent
-    const row2 = document.getElementById('legend-row-2');
+    const row2 = _legendEl('legend-row-2');
     if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK')) ? '' : 'none';
 
     const isDispatcher = member && member.rosterType === 'dispatcher';
-    const nightItem = document.getElementById('legend-night');
+    const nightItem = _legendEl('legend-night');
     if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
 
-    const christmasItem = document.getElementById('legend-christmas');
+    const christmasItem = _legendEl('legend-christmas');
     if (christmasItem) christmasItem.style.display = currentDisplayMonth === 11 ? '' : 'none';
 
     // Easter Sunday can fall in March or April — check which month it's in this year
-    const easterItem = document.getElementById('legend-easter');
+    const easterItem = _legendEl('legend-easter');
     if (easterItem) {
         const holidays = getBankHolidays(currentDisplayYear);
         const easterMonday = holidays.find(h => h.getDay() === 1 && h.getMonth() >= 2 && h.getMonth() <= 3);
@@ -890,12 +909,12 @@ function updateLegend() {
         'legend-pt-immaculate':  [PORTUGUESE_IMMACULATE_DATES,    'portuguese'],
     };
     for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
-        const el = document.getElementById(id);
+        const el = _legendEl(id);
         if (el) el.style.display = faithInMonth(dateSet, cal) ? '' : 'none';
     }
 
     // Show/hide the faith row container itself — visible only when at least one item inside it is shown.
-    const faithRow = document.getElementById('legend-faith-row');
+    const faithRow = _legendEl('legend-faith-row');
     if (faithRow) {
         const anyFaithVisible = [...faithRow.querySelectorAll('.legend-item')]
             .some(el => el.style.display !== 'none');
@@ -1289,6 +1308,7 @@ try {
             let gestureCurrentPanel = null; // Cached current panel — queried once on pointerdown, reused throughout gesture
             let rafId = null;            // requestAnimationFrame handle — throttles transform writes to one per frame
             let pendingX = 0;            // Most recent deltaX — consumed by the scheduled RAF frame
+            let _vibratePrimed = false;  // navigator.vibrate(0) only needs to run once per page lifetime
 
             // Returns true if swiping in the given direction would actually change the month.
             // At the year boundaries, swiping toward the blocked side should always snap back.
@@ -1352,9 +1372,10 @@ try {
                 gestureCurrentPanel = document.querySelector('.calendar-container:not(.carousel-panel)');
                 if (!gestureCurrentPanel) return;
 
-                // Prime the Vibration API on the first real user gesture.
-                // Chrome Android requires a user activation before navigator.vibrate() works.
-                if (navigator.vibrate) navigator.vibrate(0);
+                // Prime the Vibration API once on the first user gesture only.
+                // Chrome Android requires a user activation before navigator.vibrate() works,
+                // but we only need to do it once per page lifetime, not on every pointerdown.
+                if (!_vibratePrimed && navigator.vibrate) { navigator.vibrate(0); _vibratePrimed = true; }
 
                 touchStartX    = e.clientX;
                 touchStartY    = e.clientY;

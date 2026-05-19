@@ -102,12 +102,18 @@ function updateSickPreview() {
     const memberObj = teamMembers.find(m => m.name === member);
     let restCount = 0;
     if (memberObj) {
+        // Build a Map<date, override> once instead of doing a linear .find() per date.
+        // O(N×D) → O(N+D) — same algorithmic fix as in admin-al.js.
+        const memberOvByDate = new Map();
+        for (const o of getAllOverrides()) {
+            if (o.memberName === memberObj.name) memberOvByDate.set(o.date, o);
+        }
         dates.forEach(dateStr => {
             if (isSunday(dateStr)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') { restCount++; return; }
-            const ov = getAllOverrides().find(o => o.memberName === memberObj.name && o.date === dateStr);
+            const ov = memberOvByDate.get(dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
         });
     }

@@ -18,7 +18,8 @@ import {
     getDocs, getDoc, addDoc, setDoc, deleteDoc,
     doc, serverTimestamp, writeBatch, onSnapshot
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js';
+// firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
+// admin.html actually uploads files, so index.html and paycalc.html avoid the cost.
 import {
     getAuth,
     signInWithEmailAndPassword,
@@ -110,8 +111,17 @@ export function nameToEmail(fullName) {
 }
 
 // ---- Firebase Storage ----
-
-const storage = getStorage(app);
+// Storage SDK is loaded lazily on first call to uploadHuddle().
+// Cached as a module-level promise so concurrent uploads share one fetch.
+let _storagePromise = null;
+function _getStorageSdk() {
+    if (!_storagePromise) {
+        _storagePromise = import('https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js')
+            .then(({ getStorage, ref, uploadBytes, getDownloadURL }) =>
+                ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL }));
+    }
+    return _storagePromise;
+}
 
 /**
  * Upload a Huddle file (PDF or Word .docx) for a given date.
@@ -129,6 +139,7 @@ const storage = getStorage(app);
  * @returns {Promise<string>} Publicly accessible download URL of the stored file
  */
 export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
+    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
     const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
     // Explicitly set the content type rather than relying on the browser to report it.
     // On Android, .docx files sometimes arrive as 'application/zip' or 'application/octet-stream'

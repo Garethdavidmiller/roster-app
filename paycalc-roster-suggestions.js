@@ -47,14 +47,24 @@ export function getOverridesFetchState() {
 
 // ── BANK HOLIDAY HELPERS ──────────────────────────────────────────────────────
 // Boxing Day (26 Dec) is handled separately at 3× rate, so it is excluded here.
+// Filtered list and a Set<MM-DD> are cached per year — both are hot in the 28-day
+// period scan in getRosterSuggestion and in hasBankHoliday() during recalc.
+const _bhYearCache = new Map();
+const _bhDateKeyCache = new Map();
 export function bhsForYear(year) {
-  return getBankHolidays(year).filter(d => !(d.getMonth() === 11 && d.getDate() === 26));
+  if (!_bhYearCache.has(year)) {
+    _bhYearCache.set(year,
+      getBankHolidays(year).filter(d => !(d.getMonth() === 11 && d.getDate() === 26)));
+  }
+  return _bhYearCache.get(year);
 }
 
 function _isDateBH(d) {
-  return bhsForYear(d.getFullYear()).some(bh =>
-    bh.getMonth() === d.getMonth() && bh.getDate() === d.getDate()
-  );
+  const y = d.getFullYear();
+  if (!_bhDateKeyCache.has(y)) {
+    _bhDateKeyCache.set(y, new Set(bhsForYear(y).map(bh => `${bh.getMonth()}-${bh.getDate()}`)));
+  }
+  return _bhDateKeyCache.get(y).has(`${d.getMonth()}-${d.getDate()}`);
 }
 
 // ── OVERTIME FORMATTER ────────────────────────────────────────────────────────

@@ -140,12 +140,19 @@ function updateAlPreview() {
     let restCount  = 0;
     let spareCount = 0; // spare days that will be booked as AL (not already overridden to RD)
     if (memberObj) {
+        // Build a Map<date, override> once instead of doing a linear .find() per date.
+        // With N overrides and D dates this turns O(N×D) into O(N+D); for 1000 overrides
+        // × 30 dates that's a 30,000× → 1,030 operations reduction per render.
+        const memberOvByDate = new Map();
+        for (const o of getAllOverrides()) {
+            if (o.memberName === memberObj.name) memberOvByDate.set(o.date, o);
+        }
         dates.forEach(dateStr => {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (base === 'RD' || base === 'OFF') { restCount++; return; }
             // Also treat existing RD/OFF overrides as rest days (same logic as the booking filter)
-            const ov = getAllOverrides().find(o => o.memberName === memberObj.name && o.date === dateStr);
+            const ov = memberOvByDate.get(dateStr);
             if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
             // Sundays are uncontracted for all staff — skip, don't book AL
             if (isSunday(dateStr)) { restCount++; return; }

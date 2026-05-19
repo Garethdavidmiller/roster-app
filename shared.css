@@ -273,9 +273,10 @@ body.lb-open #stickyTotal { display: none !important; }
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    will-change: transform;
 }
-.lb-overlay.open .lb-content { transform: scale(1); }
+/* Promote to its own layer only while the lightbox is open — avoids holding
+   a permanent compositor layer for an overlay that's hidden 99% of the time. */
+.lb-overlay.open .lb-content { transform: scale(1); will-change: transform; }
 
 @media (prefers-reduced-motion: reduce) {
     .lb-overlay { transition: none; }

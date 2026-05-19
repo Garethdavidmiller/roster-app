@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v10.20
+// MYB Roster — Service Worker v10.21
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '10.20';
+const APP_VERSION = '10.21';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -84,16 +84,22 @@ self.addEventListener("install", event => {
     console.log(`[SW ${APP_VERSION}] Installing`);
     event.waitUntil(
         caches.open(CACHE_NAME).then(cache =>
-            cache.addAll(CORE_ASSETS)
-                .then(() => Promise.all([
+            // allSettled (instead of addAll) means a single 404 / network blip on one file
+            // does not abort the whole SW install. Each asset is cached if available; failures
+            // are logged but install proceeds. Network-first fetch handler can re-fetch later.
+            Promise.allSettled(CORE_ASSETS.map(asset =>
+                cache.add(asset).catch(err => {
+                    console.warn(`[SW ${APP_VERSION}] Core asset cache skipped (${asset}):`, err);
+                    throw err;
+                })
+            )).then(() => Promise.allSettled([
                     ...SUPPLEMENTARY_ASSETS,
                     ...ICON_ASSETS,
                 ].map(asset =>
                     cache.add(asset).catch(err =>
                         console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err)
                     )
-                )))
-                .then(() => {
+                ))).then(() => {
                     console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
                     return self.skipWaiting();
                 })
@@ -137,22 +143,21 @@ self.addEventListener("fetch", event => {
         || NETWORK_FIRST_FILES.some(f => path.endsWith(f));
 
     if (isNetworkFirst) {
-        // Network-first: fetch fresh (bypassing browser HTTP cache), update SW cache,
-        // fall back to cached copy if offline or the network hangs past 2 seconds.
+        // Network-first: revalidate against the server (304 if unchanged → no body download),
+        // update SW cache, fall back to cached copy if offline or the network hangs past 2 seconds.
         // AbortController ensures the underlying fetch is actually cancelled on timeout
         // rather than completing silently in the background and writing stale data to cache.
         // Feature-detected: AbortController throws in service workers on iOS < 15.1.
         // 2 s timeout: fast enough for 4G, short enough to serve cache quickly on poor signal.
-        // Build a fresh Request to guarantee cache: 'no-store' is honoured.
-        // Passing options alongside a Request object does not reliably override
-        // the request's own cache mode on older Safari/Chromium builds.
+        // cache: 'no-cache' (vs 'no-store') lets the browser do a conditional request and
+        // return 304 when the file is unchanged — same freshness, much less bandwidth.
         const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
         const timeoutId  = controller ? setTimeout(() => controller.abort(), 2000) : null;
         const freshReq   = new Request(event.request.url, {
             method:  event.request.method,
             headers: event.request.headers,
             mode:    event.request.mode === 'navigate' ? 'same-origin' : event.request.mode,
-            cache:   'no-store',
+            cache:   'no-cache',
             ...(controller ? { signal: controller.signal } : {}),
         });
         event.respondWith(
