@@ -470,7 +470,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .lightbox-tip.touch-only { display: none; }
 @media (pointer: coarse) {
     .touch-only { display: revert; }
-    .lightbox-tip.touch-only { display: flex; justify-content: space-between; }
+    .lightbox-tip.touch-only { display: flex; justify-content: center; }
 }
 
 .lightbox-tip-key {
