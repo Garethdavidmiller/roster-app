@@ -1360,6 +1360,37 @@ function updateBadges(rate) {
   document.getElementById('badge-box').textContent = f(3.00, '3');
 }
 
+/** Render the proportional pay breakdown bar and legend above the summary rows. */
+function updateBreakBar(gross, pension, tax, ni, sl, net) {
+  const bar    = document.getElementById('payBreakBar');
+  const legend = document.getElementById('payBreakLegend');
+  if (!bar || !legend || !(gross > 0)) {
+    bar?.classList.remove('pbb-visible');
+    legend?.classList.remove('pbb-visible');
+    return;
+  }
+  bar.classList.add('pbb-visible');
+  legend.classList.add('pbb-visible');
+
+  const pct = v => ((v / gross) * 100).toFixed(2);
+  const fmtPct = v => `${((v / gross) * 100).toFixed(0)}%`;
+
+  const segs = [
+    { id: 'pbbPension', cls: 'pbb-pension', val: pension, label: 'Pension', legendId: 'pblPension', dotCls: 'pbl-dot pbb-pension' },
+    { id: 'pbbTax',     cls: 'pbb-tax',     val: tax,     label: 'Tax',     legendId: 'pblTax',     dotCls: 'pbl-dot pbb-tax' },
+    { id: 'pbbNI',      cls: 'pbb-ni',      val: ni,      label: 'NI',      legendId: 'pblNI',      dotCls: 'pbl-dot pbb-ni' },
+    { id: 'pbbSL',      cls: 'pbb-sl',      val: sl,      label: 'Student loan', legendId: 'pblSL', dotCls: 'pbl-dot pbb-sl' },
+    { id: 'pbbNet',     cls: 'pbb-net',     val: net,     label: 'Take-home', legendId: 'pblNet',   dotCls: 'pbl-dot pbb-net' },
+  ];
+
+  bar.innerHTML    = segs.filter(s => s.val > 0).map(s =>
+    `<div class="pbb-seg ${s.cls}" style="flex-grow:${pct(s.val)}" title="${s.label} ${fmtPct(s.val)}"></div>`
+  ).join('');
+  legend.innerHTML = segs.filter(s => s.val > 0).map(s =>
+    `<span class="pbl-item"><span class="${s.dotCls}"></span>${s.label} <strong>${fmtPct(s.val)}</strong></span>`
+  ).join('');
+}
+
 function calculate() {
   // Resolve thresholds for the selected period's tax year
   const _pNum   = currentPeriodNum();
@@ -1441,6 +1472,8 @@ function calculate() {
   const sl = computeSL(sacGross, plan, thresholds.sl, slSkip);
 
   const net = sacGross - tax - ni - sl;
+
+  updateBreakBar(grossWithBp, pension, tax, ni, sl, net);
 
   // UI
   document.getElementById('netDisplay').textContent = fmt(net);

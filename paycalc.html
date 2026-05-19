@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v10.17 -->
+<!-- MYB Roster — Pay Calculator v10.19 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -112,7 +112,7 @@
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
       cursor: pointer; touch-action: manipulation;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     }
     #periodSelect:focus-visible { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25); }
     .period-nav { display: flex; gap: 8px; width: 100%; }
@@ -189,6 +189,28 @@
     }
     .net-period { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
+
+    #payBreakBar {
+      display: none; margin: 12px 16px 4px; height: 10px;
+      border-radius: 5px; overflow: hidden; gap: 1.5px; background: var(--border-light);
+    }
+    #payBreakBar.pbb-visible { display: flex; }
+    .pbb-seg {
+      border-radius: 3px; min-width: 3px;
+      transition: flex-grow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .pbb-pension { background: var(--accent-gold); }
+    .pbb-tax     { background: var(--primary-blue); }
+    .pbb-ni      { background: var(--blue-sky); }
+    .pbb-sl      { background: var(--purple); }
+    .pbb-net     { background: var(--green); }
+    #payBreakLegend {
+      display: none; margin: 0 16px 10px; gap: 8px 12px; flex-wrap: wrap;
+      font-size: 10px; color: var(--text-light);
+    }
+    #payBreakLegend.pbb-visible { display: flex; }
+    .pbl-item { display: flex; align-items: center; gap: 3px; }
+    .pbl-dot  { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
     .summary { padding: 2px 16px; }
     .sum-row {
@@ -706,7 +728,8 @@
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
       #decimalConverterCard, .btn-back, .btn-signout,
-      #rosterHintBar, .joiner-notice, #stickyTotal { display: none !important; }
+      #rosterHintBar, .joiner-notice, #stickyTotal,
+      #payBreakBar, #payBreakLegend { display: none !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -1068,7 +1091,7 @@
     <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
     <a href="./index.html" class="btn-back" aria-label="Back to roster">←</a>
     <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
-    <span class="badge-page">Pay</span>
+    <span class="badge-page"><span class="badge-glyph" aria-hidden="true">£</span> Pay</span>
     <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
   </header>
 
@@ -1187,6 +1210,8 @@
       <div class="net-period" id="netPeriod">Select a pay period above</div>
       <div class="net-hint" id="netHint">Enter your hours below — the estimate updates as you type</div>
     </div>
+    <div id="payBreakBar" aria-hidden="true"></div>
+    <div id="payBreakLegend" aria-hidden="true"></div>
     <div class="summary" id="summary"></div>
     <div class="bp-active-banner" id="bpActiveBanner" style="display:none"></div>
     <div class="payslip-note" id="payslipNote" style="display:none">

@@ -2038,17 +2038,8 @@ async function ensureOverridesCached(year, month) {
         if (!teamView.isTeamViewMode()) renderCalendar();
         updateFaithHint();
 
-        // Briefly show "✓ Up to date" then fade the chip away.
-        // renderCalendar() replaces .calendar-header innerHTML, detaching the chip —
-        // re-append it to the new header before updating the text.
-        if (syncChip) {
-            const newHeader = document.querySelector('.calendar-header');
-            if (newHeader && !newHeader.contains(syncChip)) newHeader.appendChild(syncChip);
-            syncChip.textContent = '✓ Up to date';
-            syncChip.className = 'sync-chip sync-chip-ok';
-            setTimeout(() => syncChip?.remove(), 1500);
-            syncChip = null;
-        }
+        // Silently remove the chip on success — "Up to date" is noise.
+        if (syncChip) { syncChip.remove(); syncChip = null; }
     } catch (err) {
         syncResolved = true;
         console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
