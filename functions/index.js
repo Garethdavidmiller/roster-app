@@ -832,7 +832,7 @@ Every column header must appear as a key in every member object.`;
  * any that are not in the members list. Disabled accounts cannot sign in.
  * They are not deleted — use the Firebase Console to delete permanently if needed.
  *
- * Auth: Authorization: Bearer <ROSTER_SECRET>
+ * Auth: Authorization: Bearer <Firebase ID token with admin custom claim>
  *
  * Response:
  *   { created: string[], skipped: string[], disabled: string[], failed: string[] }
