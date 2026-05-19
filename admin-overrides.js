@@ -129,6 +129,8 @@ export function buildWeekGridInto(container, dateStr) {
     container.appendChild(header);
 
     const faithCalendar = document.querySelector('input[name="faithCalendar"]:checked')?.value || 'none';
+    // Compute once for the whole 7-row loop instead of allocating a Date per row.
+    const todayISO = formatISO(new Date());
 
     for (let i = 0; i < 7; i++) {
         const date    = new Date(sunday);
@@ -142,7 +144,7 @@ export function buildWeekGridInto(container, dateStr) {
         const existing = _allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
 
         const row = document.createElement('div');
-        const isToday = dateISO === formatISO(new Date());
+        const isToday = dateISO === todayISO;
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
         row.dataset.baseIsRd = (baseShift === 'RD' || baseShift === 'OFF') ? '1' : '';
@@ -617,10 +619,8 @@ export function renderTable() {
             <td><button class="btn-delete" data-id="${o.id}" aria-label="Delete ${escapeHtml(o.memberName)} ${o.date}">Delete</button></td>`;
         if (tableBody) tableBody.appendChild(tr);
     });
-
-    tableBody?.querySelectorAll('.btn-delete').forEach(btn => btn.addEventListener('click', _handleDelete));
-    tableBody?.querySelectorAll('.btn-edit').forEach(btn => btn.addEventListener('click', _onEditRow));
-    tableBody?.querySelectorAll('.row-select').forEach(cb => cb.addEventListener('change', _updateBulkDeleteVisibility));
+    // Delegated listeners attached once in _initOverridesTable() — see below.
+    // Previously: 3 × N listeners per render (e.g. 6000 for 2000 overrides).
 }
 
 function _updateBulkDeleteVisibility() {
@@ -637,7 +637,9 @@ function _updateBulkDeleteVisibility() {
 }
 
 async function _handleDelete(e) {
-    const btn     = e.currentTarget;
+    // closest() makes this work both directly and via delegation.
+    const btn     = e.target.closest('.btn-delete');
+    if (!btn) return;
     const listFeedback = document.getElementById('listFeedback');
     const fieldMember  = document.getElementById('fieldMember');
     const fieldDate    = document.getElementById('fieldDate');
@@ -683,6 +685,19 @@ function _initOverridesTable() {
     const listFeedback       = document.getElementById('listFeedback');
     const fieldMember        = document.getElementById('fieldMember');
     const fieldDate          = document.getElementById('fieldDate');
+
+    // Delegated listeners — one per event type on the whole table body, replaces
+    // attaching N per-row listeners on every renderTable() call.
+    const tableBody = document.getElementById('overrideTableBody');
+    if (tableBody) {
+        tableBody.addEventListener('click', (e) => {
+            if (e.target.closest('.btn-delete')) return _handleDelete(e);
+            if (e.target.closest('.btn-edit'))   return _onEditRow(e);
+        });
+        tableBody.addEventListener('change', (e) => {
+            if (e.target.closest('.row-select')) _updateBulkDeleteVisibility();
+        });
+    }
 
     if (selectAllOverrides) {
         selectAllOverrides.addEventListener('change', () => {

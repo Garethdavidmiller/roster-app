@@ -9,7 +9,15 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '10.20';
+export const APP_VERSION = '10.22';
+
+// ============================================
+// PERFORMANCE CACHES — declared early so they're out of TDZ before any
+// function that uses them runs (formatISO is called during module load
+// from easterOffset, hindu/Islamic date helpers etc.).
+// ============================================
+const _isoCache = new Map();
+const _isoCacheMax = 64;
 
 // ============================================
 // CONFIGURATION
@@ -665,15 +673,40 @@ function calculateBankHolidays(year) {
     return holidays;
 }
 
-// Cache and getter for bank holidays (calculated once per year)
+// Cache and getter for bank holidays (calculated once per year).
+// _bhSetCache also stores a Set<isoString> for O(1) membership checks — hot path in calendar render.
 const _bankHolidaysCache = new Map();
+const _bhSetCache = new Map();
+const _easterSundaySetCache = new Map();
 export function getBankHolidays(year) {
     if (!_bankHolidaysCache.has(year)) _bankHolidaysCache.set(year, calculateBankHolidays(year));
     return _bankHolidaysCache.get(year);
 }
 
+function _getBhSet(year) {
+    if (!_bhSetCache.has(year)) {
+        _bhSetCache.set(year, new Set(getBankHolidays(year).map(formatISO)));
+    }
+    return _bhSetCache.get(year);
+}
+
+function _getEasterSundaySet(year) {
+    if (!_easterSundaySetCache.has(year)) {
+        const s = new Set();
+        for (const h of getBankHolidays(year)) {
+            if (h.getDay() === 1 && h.getMonth() >= 2 && h.getMonth() <= 3) {
+                const sun = new Date(h);
+                sun.setDate(h.getDate() - 1);
+                s.add(formatISO(sun));
+            }
+        }
+        _easterSundaySetCache.set(year, s);
+    }
+    return _easterSundaySetCache.get(year);
+}
+
 export function isBankHoliday(date) {
-    return getBankHolidays(date.getFullYear()).some(h => isSameDay(h, date));
+    return _getBhSet(date.getFullYear()).has(formatISO(date));
 }
 
 // Dec 25 only — used for 🎄 decoration
@@ -683,16 +716,14 @@ export function isChristmasDay(date) {
 
 // Easter Sunday (day before Easter Monday) — used for 🐣 decoration
 export function isEasterSunday(date) {
-    return getBankHolidays(date.getFullYear()).some(h => {
-        if (h.getDay() !== 1 || h.getMonth() < 2 || h.getMonth() > 3) return false;
-        const sun = new Date(h);
-        sun.setDate(h.getDate() - 1);
-        return isSameDay(date, sun);
-    });
+    return _getEasterSundaySet(date.getFullYear()).has(formatISO(date));
 }
 
-// Cache and calculator for paydays + cutoff dates
+// Cache and calculator for paydays + cutoff dates.
+// _paydaySetCache / _cutoffSetCache store Sets of ISO strings for O(1) lookup.
 const _paydayCache = new Map();
+const _paydaySetCache = new Map();
+const _cutoffSetCache = new Map();
 export function getPaydaysAndCutoffs(year) {
     if (year < CONFIG.MIN_YEAR) return { paydays: [], cutoffs: [] };
     if (!_paydayCache.has(year)) {
@@ -739,12 +770,26 @@ export function getPaydaysAndCutoffs(year) {
     return _paydayCache.get(year);
 }
 
+function _getPaydaySet(year) {
+    if (!_paydaySetCache.has(year)) {
+        _paydaySetCache.set(year, new Set(getPaydaysAndCutoffs(year).paydays.map(formatISO)));
+    }
+    return _paydaySetCache.get(year);
+}
+
+function _getCutoffSet(year) {
+    if (!_cutoffSetCache.has(year)) {
+        _cutoffSetCache.set(year, new Set(getPaydaysAndCutoffs(year).cutoffs.map(formatISO)));
+    }
+    return _cutoffSetCache.get(year);
+}
+
 export function isPayday(date) {
-    return getPaydaysAndCutoffs(date.getFullYear()).paydays.some(p => isSameDay(p, date));
+    return _getPaydaySet(date.getFullYear()).has(formatISO(date));
 }
 
 export function isCutoffDate(date) {
-    return getPaydaysAndCutoffs(date.getFullYear()).cutoffs.some(c => isSameDay(c, date));
+    return _getCutoffSet(date.getFullYear()).has(formatISO(date));
 }
 
 // ============================================
@@ -1239,8 +1284,18 @@ export function escapeHtml(str) {
  * @param {Date} d
  * @returns {string}  e.g. "2026-03-18"
  */
+// Small LRU on date.getTime() — formatISO is called per-cell during calendar render and in
+// tight loops by isBankHoliday/isPayday/isCutoffDate. Most invocations within a render share
+// the same Date instances, so a tiny cache hits often without ever growing memory.
+// _isoCache declared near the top of the file to avoid TDZ during module load.
 export function formatISO(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const k = d.getTime();
+    const cached = _isoCache.get(k);
+    if (cached) return cached;
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (_isoCache.size >= _isoCacheMax) _isoCache.delete(_isoCache.keys().next().value);
+    _isoCache.set(k, iso);
+    return iso;
 }
 
 /**
@@ -1253,6 +1308,12 @@ export function isSunday(dateStr) {
     return new Date(dateStr + 'T12:00:00').getDay() === 0;
 }
 
-// Run validations immediately at module load
-validateRosterPatterns();
+// Run validations immediately at module load.
+// Production: skip the per-cell regex scan (49 weeks × 7 days × 5 rosters) to speed up first paint.
+// Dev/debug: opt-in via localhost or ?debug=1 query string.
+if (typeof location !== 'undefined' &&
+    (location.hostname === 'localhost' || location.hostname === '127.0.0.1' ||
+     location.search.includes('debug'))) {
+    validateRosterPatterns();
+}
 warnIfCulturalCalendarMissingYear();

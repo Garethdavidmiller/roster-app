@@ -8,7 +8,7 @@
 @view-transition { navigation: auto; }
 ::view-transition-old(root),
 ::view-transition-new(root) {
-    animation-duration: 0.2s;
+    animation-duration: 0.15s;
     animation-timing-function: ease;
 }
 
@@ -273,9 +273,10 @@ body.lb-open #stickyTotal { display: none !important; }
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
-    will-change: transform;
 }
-.lb-overlay.open .lb-content { transform: scale(1); }
+/* Promote to its own layer only while the lightbox is open — avoids holding
+   a permanent compositor layer for an overlay that's hidden 99% of the time. */
+.lb-overlay.open .lb-content { transform: scale(1); will-change: transform; }
 
 @media (prefers-reduced-motion: reduce) {
     .lb-overlay { transition: none; }
@@ -606,6 +607,11 @@ body.lb-open #stickyTotal { display: none !important; }
 @media (hover: hover) and (pointer: fine) {
     .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
 }
+.btn-back:active {
+    background: var(--bg-faint);
+    border-color: var(--primary-blue);
+    transition: none;
+}
 
 .btn-signout {
     flex-shrink: 0;
@@ -627,6 +633,11 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 @media (hover: hover) and (pointer: fine) {
     .btn-signout:hover { border-color: var(--error-red); color: var(--error-red); }
+}
+.btn-signout:active {
+    border-color: var(--error-red);
+    color: var(--error-red);
+    transition: none;
 }
 
 @media (max-width: 768px) {

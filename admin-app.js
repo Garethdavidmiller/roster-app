@@ -1103,7 +1103,9 @@ fieldDate.addEventListener('change', () => {
  * @param {MouseEvent} e
  */
 function handleEdit(e) {
-    const btn        = e.currentTarget;
+    // closest() makes this work both directly and via delegation on tableBody.
+    const btn        = e.target.closest('.btn-edit');
+    if (!btn) return;
     const memberName = btn.dataset.member;
     const date       = btn.dataset.date;
     const go = () => {

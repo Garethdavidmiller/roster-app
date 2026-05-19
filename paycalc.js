@@ -109,9 +109,19 @@ const MILLER_ACTUALS = {
   '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
 };
 
+// Grade cache — lsGet is called in calculate() / calcHPP() on every keystroke; the
+// grade only changes when the user picks a different one in Settings.
+let _gradeCache = null;
+function getGrade() {
+  if (_gradeCache !== null) return _gradeCache;
+  _gradeCache = lsGet(SK.grade) || '';
+  return _gradeCache;
+}
+function invalidateGrade() { _gradeCache = null; }
+
 /** Return contracted hours for the currently selected grade. */
 function getContr() {
-  const g = lsGet(SK.grade);
+  const g = getGrade();
   return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
 }
 
@@ -148,7 +158,7 @@ function getProRateFactor(p) {
 /** Full-period pension default for the current grade, period-aware.
  *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
 function getPensionDefault(pObj) {
-  const g = lsGet(SK.grade);
+  const g = getGrade();
   const grade = g && GRADES[g] ? g : 'cea';
   if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
   return GRADES[grade]?.pension ?? '';
@@ -315,7 +325,11 @@ function onHhMm(hId, mId, warnId) {
 //   cutoff  = Saturday (last day shifts count; also the hours-submission deadline)
 //   start   = Sunday after the previous period's cutoff (first day shifts count)
 //   payday  = Friday 6 days after cutoff (the day Chiltern pay into your account)
+// Period array is fully determined by CONFIG constants — same result every call.
+// Cache once; ~78 Date allocations saved per calculate() (called 6× per keystroke).
+let _periodsCache = null;
 function getPeriods() {
+  if (_periodsCache) return _periodsCache;
   const out = [];
   for (let offset = CONFIG.FIRST_OFFSET; offset <= CONFIG.LAST_OFFSET; offset++) {
     const payday = new Date(CONFIG.ANCHOR_DATE);
@@ -325,6 +339,7 @@ function getPeriods() {
     const start  = new Date(cutoff); start.setDate(start.getDate() - CONFIG.PERIOD_DAYS + 1);
     out.push({ payday, start, cutoff, num: 48 + offset });
   }
+  _periodsCache = out;
   return out;
 }
 
@@ -477,7 +492,7 @@ function buildBackPayPeriodSelect() {
 function updateRateForPeriod(ty) {
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted'); }
-  const g     = lsGet(SK.grade);
+  const g     = getGrade();
   const rate  = rates[ty.label]
              || parseFloat(lsGet(SK.rate))
              || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
@@ -608,7 +623,7 @@ function onPeriodChange() {
   if (tyConfirmed) {
     // Confirmed — hide banner, update card header hint with saved values.
     document.getElementById('setupBanner').classList.add('hidden');
-    const _hdrGrade = lsGet(SK.grade);
+    const _hdrGrade = getGrade();
     const rate = parseFloat(document.getElementById('hourlyRate').value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
     const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
     document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
@@ -913,6 +928,7 @@ function saveSettings() {
   lsSet(ytdPayKey(curTy), document.getElementById('ytdPay').value);
   lsSet(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
   lsSet(SK.grade,         document.getElementById('gradeSelect').value);
+  invalidateGrade();
 }
 
 // confirmSettings: called by the Save button. Saves, marks this tax year as confirmed,
@@ -985,6 +1001,7 @@ function loadSettings() {
   if (grade && GRADES[grade]) {
     document.getElementById('gradeSelect').value = grade;
     lsSet(SK.grade, grade);
+    invalidateGrade();
   }
   document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
   // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
@@ -1096,6 +1113,14 @@ function _confBadge(cat, fromOv) {
   return null;
 }
 
+// Cached output of the last rosterRows / bdBody renders — avoids the parse+layout
+// cost of innerHTML when the rendered string is identical (e.g. period change →
+// multiple upstream calls with no change in field values, or typing a non-numeric
+// key). Summary is not cached because it has two write paths (estimated + Miller
+// actual override) which would make cache invalidation error-prone.
+let _lastRosterRowsHtml = null;
+let _lastBdBodyHtml     = null;
+
 function updateRosterHint() {
   const card = document.getElementById('rosterHintBar');
   if (!card) return;
@@ -1134,7 +1159,7 @@ function updateRosterHint() {
       { cat: 'box',  icon: '🎁', label: 'Boxing Day',         h: s.boxH,  m: s.boxM,  count: s.boxCount,  fromOv: s.boxFromOv },
     ].filter(r => r.count > 0);
 
-    rows.innerHTML = cats.map(r => {
+    const html = cats.map(r => {
       const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
 
@@ -1183,6 +1208,10 @@ function updateRosterHint() {
         arrowHtml +
         `</button>`;
     }).join('');
+    if (html !== _lastRosterRowsHtml) {
+      rows.innerHTML = html;
+      _lastRosterRowsHtml = html;
+    }
   }
 
   const hintTextEl = document.getElementById('rosterHintText');
@@ -1400,7 +1429,7 @@ function calculate() {
   const _proRateFactor = getProRateFactor(_curP);
   const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
 
-  const _calcGrade = lsGet(SK.grade);
+  const _calcGrade = getGrade();
   const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
   const rate = numVal('hourlyRate') || _calcDefaultRate;
   updateBadges(rate);
@@ -1413,8 +1442,9 @@ function calculate() {
   // Guard: only count BH/Boxing hours if this period actually contains those days.
   // localStorage can restore saved values into hidden rows, so we must sanitise here
   // rather than relying solely on the DOM row being hidden.
-  const bhHrs   = hasBankHoliday(_curP) ? hhmmDec('bhH',   'bhM')   : 0;
-  const bhOtHrs = hasBankHoliday(_curP) ? hhmmDec('bhOtH', 'bhOtM') : 0;
+  const _hasBh = hasBankHoliday(_curP);
+  const bhHrs   = _hasBh ? hhmmDec('bhH',   'bhM')   : 0;
+  const bhOtHrs = _hasBh ? hhmmDec('bhOtH', 'bhOtM') : 0;
   const oHrs    = hhmmDec('otH',   'otM');
   const rHrs    = hhmmDec('rdwH',  'rdwM');
   const sHrs    = hhmmDec('sunH',  'sunM');
@@ -1529,7 +1559,10 @@ function calculate() {
     bd += `<div class="bd-row bd-extra"><span class="b-lbl">Back pay lump sum (pay award)</span><span class="b-val">+${fmt(_bpThisPeriod)}</span></div>`;
   if (_hppForPeriod > 0)
     bd += `<div class="bd-row bd-extra"><span class="b-lbl">Holiday Pay Premium${_hppIsEstimate ? ' (estimated)' : ''}</span><span class="b-val">+${fmt(_hppForPeriod)}</span></div>`;
-  document.getElementById('bdBody').innerHTML = bd;
+  if (bd !== _lastBdBodyHtml) {
+    document.getElementById('bdBody').innerHTML = bd;
+    _lastBdBodyHtml = bd;
+  }
 
   // ── G. Miller actual payslip override ──────────────────────────────────────
   // If the logged-in member is G. Miller and this period has hardcoded payslip
@@ -1582,13 +1615,19 @@ function calculate() {
   const _bannerEl = document.getElementById('bpActiveBanner');
   if (_bannerEl) {
     if (_bpThisPeriod > 0) {
-      _bannerEl.textContent = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `;
-      const _bpLink = document.createElement('a');
-      _bpLink.textContent = 'view back pay card';
-      _bpLink.addEventListener('click', () => {
-        document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth' });
-      });
-      _bannerEl.appendChild(_bpLink);
+      // Keep banner element stable; only update text node + lazily-created link.
+      // Previous version created a new <a> + listener on every recalc.
+      _bannerEl.firstChild?.nodeType === Node.TEXT_NODE
+        ? (_bannerEl.firstChild.nodeValue = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `)
+        : (_bannerEl.textContent = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `);
+      if (!_bannerEl.querySelector('a')) {
+        const _bpLink = document.createElement('a');
+        _bpLink.textContent = 'view back pay card';
+        _bpLink.addEventListener('click', () => {
+          document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth' });
+        });
+        _bannerEl.appendChild(_bpLink);
+      }
       _bannerEl.style.display = '';
     } else {
       _bannerEl.style.display = 'none';
@@ -1633,7 +1672,7 @@ function _varPayForPeriod(p, d, rate) {
 // Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance
 // Does NOT include: peer training, basic pay, expenses, bonuses
 function calcHPP() {
-  const _hppGrade       = lsGet(SK.grade);
+  const _hppGrade       = getGrade();
   const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
   const rate       = numVal('hourlyRate') || _hppDefaultRate;
   const allPeriods = getPeriods();
@@ -1745,7 +1784,7 @@ function updatePriorHpp(ty) {
 
     } else {
       // Everyone else: sum variable pay from localStorage period entries
-      const _hppGrade = lsGet(SK.grade);
+      const _hppGrade = getGrade();
       const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
       let _priorVar = 0;
       _priorPeriods.forEach(p => {
