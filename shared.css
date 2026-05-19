@@ -12,186 +12,179 @@
    ============================================================ */
 :root {
     /* ── Brand identity ─────────────────────────────────────────
-       Chiltern Railways navy and gold. These two colours carry the
-       entire brand identity — use them only for structural elements
-       and highlights, not decorative fills. */
-    --primary-blue:      #001e3c;
-    --primary-blue-dark: #00152a;   /* hover/pressed state */
-    --accent-gold:       #f5c800;   /* active state, today highlight */
-    --accent-gold-dark:  #e6bb00;   /* gold hover */
+       Chiltern Railways navy and gold. Use for structural elements
+       and highlights only — not decorative fills. */
+    --primary-blue:      oklch(23.3% 0.0680 251.2deg);
+    --primary-blue-dark: color-mix(in oklch, var(--primary-blue) 82%, black);
+    --accent-gold:       oklch(84.7% 0.1734 92.3deg);
+    --accent-gold-dark:  color-mix(in oklch, var(--accent-gold) 95%, black);
 
     /* ── Shift type colours ──────────────────────────────────────
-       Each shift type has a base colour for badges/icons and a
-       light variant for cell backgrounds. Text variants exist where
-       the base colour fails contrast on white.
-       All darkened to meet WCAG AA on white backgrounds. */
+       Base colour for badges and borders. Light tints are derived
+       via color-mix. All base colours meet WCAG AA on white. */
 
     /* Early shift */
-    --orange:            #ff9800;
-    --orange-light:      #fff3e0;
+    --orange:       oklch(77.0% 0.1741 64.1deg);
+    --orange-light: color-mix(in oklch, var(--orange) 14%, white);
 
     /* Late shift */
-    --blue-sky:          #1565c0;   /* darkened from #2196f3 for AA contrast */
-    --blue-light:        #e3f2fd;
+    --blue-sky:   oklch(51.3% 0.1603 255.7deg);
+    --blue-light: color-mix(in oklch, var(--blue-sky) 8%, white);
 
     /* Night shift */
-    --night:             #1a1a2e;
+    --night:             oklch(22.8% 0.0384 282.9deg);
     --night-cell-bg:     rgba(20, 20, 40, 0.10);
     --night-cell-border: rgba(20, 20, 40, 0.30);
 
     /* Spare / standby */
-    --purple:            #7b1fa2;   /* darkened from #9c27b0 for AA contrast */
-    --purple-light:      #f3e5f5;
+    --purple:       oklch(45.3% 0.1988 313.0deg);
+    --purple-light: color-mix(in oklch, var(--purple) 11%, white);
 
     /* RDW — rest day worked */
-    --rdw:               #c2185b;   /* magenta/raspberry */
-    --rdw-text:          #880e4f;   /* on light bg — 7.9:1 on white */
-    --rdw-light:         #fce4ec;
+    --rdw:       oklch(53.1% 0.2015 5.6deg);
+    --rdw-text:  oklch(41.5% 0.1605 355.7deg);
+    --rdw-light: color-mix(in oklch, var(--rdw) 14%, white);
 
     /* Annual leave */
-    --al:                #00897b;
-    --al-light:          #e0f2f1;
-    --al-hover:          #00796b;   /* AL button hover */
-    --al-deep:           #004d40;   /* pill text, AL preview ready */
+    --al:       oklch(56.6% 0.1010 182.5deg);
+    --al-light: color-mix(in oklch, var(--al) 11%, white);
+    --al-hover: color-mix(in oklch, var(--al) 91%, black);
+    --al-deep:  color-mix(in oklch, var(--al) 66%, black);
 
     /* Absence / sick — deliberately neutral; reason for absence is never stored */
-    --absence:           #616161;
-    --absence-light:     #f5f5f5;   /* same hex as --bg-faint; kept separate for semantic clarity */
-    --absence-text:      #212121;   /* 15.8:1 on white */
+    --absence:       oklch(49.3% 0 0);
+    --absence-light: oklch(96.0% 0 0);
+    --absence-text:  oklch(24.8% 0 0);   /* #212121 — 15.8:1 on white */
 
     /* Rest day */
-    --rest-day-bg:       #f9f9fb;   /* slightly off-white so cells don't vanish on the page */
-    --charcoal:          #2d2d2d;   /* rest badge background */
+    --rest-day-bg: oklch(98.3% 0.0026 286.4deg); /* faint blue-white so cells don't vanish */
+    --charcoal:    oklch(29.7% 0 0);              /* rest badge background */
 
-    /* Allocated / confirmed shifts (admin) */
-    --green:             #43a047;
-    --green-hover:       #388e3c;
-    --green-light:       #e8f5e9;
+    /* Confirmed shifts (admin) */
+    --green:       oklch(62.9% 0.1543 144.2deg);
+    --green-hover: color-mix(in oklch, var(--green) 91%, black);
+    --green-light: color-mix(in oklch, var(--green) 11%, white);
 
     /* Overtime pill (admin override list) */
-    --ot:                #5c6bc0;
-    --ot-light:          #ede7f6;
+    --ot:       oklch(55.6% 0.1323 273.8deg);
+    --ot-light: oklch(93.7% 0.0210 304.0deg); /* hand-picked lavender — hue diverges from --ot */
 
     /* ── State / semantic colours ────────────────────────────────
-       Used for feedback, warnings, and status — not shift types. */
+       Feedback, warnings, and status — never for shift types. */
 
     /* Errors */
-    --error-bg:          #ffebee;
-    --error-red:         #d32f2f;
-    --error-banner:      #c62828;
+    --error-red:    oklch(56.8% 0.2002 26.4deg);
+    --error-banner: color-mix(in oklch, var(--error-red) 95%, black);
+    --error-bg:     color-mix(in oklch, var(--error-red) 12%, white);
 
     /* Success */
-    --success-text:      #1b5e20;
+    --success-text: oklch(42.5% 0.1159 144.3deg);
 
     /* SW update status */
-    --status-ok:         #4caf50;
-    --status-ok-bg:      rgba(76, 175, 80, 0.15);
+    --status-ok:    oklch(67.3% 0.1624 144.2deg);
+    --status-ok-bg: rgba(76, 175, 80, 0.15);
 
-    /* AL balance warnings (index.html lightbox + admin.html) */
-    --al-lb-ok:          #4db6ac;   /* plenty of leave remaining */
-    --al-lb-low:         #ffb74d;   /* running low */
-    --al-lb-empty:       #ef9a9a;   /* no leave remaining */
-    --al-low:            #e67e00;   /* running low — inline warning */
-    --al-warning:        #c0392b;   /* at zero / over limit */
-    --al-warning-bg:     #fdecea;
+    /* AL balance warnings */
+    --al-lb-ok:      oklch(71.2% 0.0977 186.7deg);
+    --al-lb-low:     oklch(82.9% 0.1452 73.5deg);
+    --al-lb-empty:   oklch(77.2% 0.1024 19.7deg);
+    --al-low:        oklch(69.5% 0.1655 58.4deg);
+    --al-warning:    oklch(54.3% 0.1740 29.7deg);
+    --al-warning-bg: color-mix(in oklch, var(--al-warning) 11%, white);
 
-    /* AL over-limit confirm bar (admin.html) */
-    --al-confirm-bg:     #fff8e1;
-    --al-confirm-accent: #f9a825;
+    /* AL over-limit confirm bar */
+    --al-confirm-bg:     oklch(97.9% 0.0310 92.9deg);
+    --al-confirm-accent: oklch(79.2% 0.1603 72.4deg);
 
     /* Success (online/ok states) */
-    --success-green:        #2e7d32;   /* sync chip ok, huddle ok, roster upload ok */
-    --success-green-bg:     #e8f5e9;   /* same as --green-light; alias for semantic clarity */
-    --success-green-border: #a5d6a7;   /* border on success/confirmation banners */
-    --roster-success-bg:    #f1f8e9;   /* roster upload success banner background */
+    --success-green:        oklch(52.3% 0.1347 144.2deg);
+    --success-green-bg:     var(--green-light);
+    --success-green-border: oklch(82.9% 0.0827 145.8deg);
+    --roster-success-bg:    color-mix(in oklch, var(--green) 8%, white);
 
     /* Override grid — rest-day hint strip */
-    --rd-hint-bg:   #fffbe6;   /* pale warm yellow — RD hint row in week grid */
-    --rd-hint-text: #7b5800;   /* warm brown on --rd-hint-bg */
+    --rd-hint-bg:   color-mix(in oklch, var(--accent-gold) 15%, white);
+    --rd-hint-text: oklch(48.5% 0.0999 81.7deg);
 
-    /* Delete / destructive actions */
-    --delete-red-dark:   #b71c1c;   /* bulk-delete button hover */
+    /* Delete / destructive */
+    --delete-red-dark: oklch(50.2% 0.1887 27.5deg);
 
     /* Unsaved-changes banner */
-    --warning-amber:     #7a3a00;   /* amber-brown banner background and text */
+    --warning-amber: oklch(42.5% 0.1075 53.2deg);
 
-    /* Roster conflict text (admin weekly upload review) */
-    --conflict-strong:   #6d4000;   /* strong label colour */
-    --conflict-text:     #7a5200;   /* paragraph colour */
+    /* Roster conflict text */
+    --conflict-strong: oklch(41.6% 0.0924 66.4deg);
+    --conflict-text:   oklch(47.1% 0.0987 76.3deg);
 
     /* Covered / superseded shift display (admin) */
-    --val-dim-bg:        #f0f0f0;   /* struck-through "before" value cell */
+    --val-dim-bg: oklch(95.5% 0 0);
 
     /* Roster pre-fill suggestion highlight (pay calculator) */
-    --roster-suggested-bg: #fffce6; /* gold-tinted highlight on pre-filled hour fields */
+    --roster-suggested-bg: color-mix(in oklch, var(--accent-gold) 10%, white);
 
-    /* Page header gradient (index.html team week / stat strip) */
-    --header-grad-from:  #0a2240;   /* deeper navy — gradient start */
-    --header-grad-to:    #001630;   /* deepest navy — gradient end */
+    /* Page header gradient */
+    --header-grad-from: oklch(25.2% 0.0642 255.6deg);
+    --header-grad-to:   oklch(20.0% 0.0603 252.3deg);
 
     /* Admin override list */
-    --correction-text:   #e65100;   /* correction pill — burnt orange */
+    --correction-text: oklch(63.1% 0.1970 40.3deg);
 
-    /* ── Admin row / nav state backgrounds ──────────────────────
-       Tinted backgrounds applied to day rows and nav items. */
-    --row-selected-bg:        #e8f0f8;   /* checkbox ticked, no type chosen */
-    --row-override-bg:        #fff3cd;   /* existing Firestore override */
-    --row-override-active-bg: #ffe0b2;   /* override + type chosen */
-    --week-current-bg:        #e8f4fb;   /* current week in the week-nav list */
+    /* ── Admin row / nav state backgrounds ──────────────────────── */
+    --row-selected-bg:        oklch(95.1% 0.0138 248.0deg);
+    --row-override-bg:        oklch(96.4% 0.0509 92.6deg);
+    --row-override-active-bg: oklch(92.1% 0.0687 77.5deg);
+    --week-current-bg:        oklch(96.0% 0.0159 233.0deg);
 
-    /* ── Neutral palette ─────────────────────────────────────────
-       Text, borders, and background fills. Four text greys cover all
-       hierarchy levels; two border weights; two background fills. */
-    --text-dark:    #333;
-    --text-mid:     #555;
-    --text-light:   #999;   /* secondary labels, placeholder text */
-    --text-faint:   #aaa;   /* micro-labels, field hints, timestamps */
+    /* ── Neutral palette ──────────────────────────────────────────
+       Four text greys, two border weights, two background fills.
+       All neutral (C = 0). */
+    --text-dark:  oklch(32.1% 0 0);
+    --text-mid:   oklch(45.0% 0 0);
+    --text-light: oklch(68.3% 0 0);
+    --text-faint: oklch(73.8% 0 0);
 
-    --border-light: #e8e8e8;
-    --border-mid:   #cccccc;   /* mid-tone borders, other-month day cells */
+    --border-light: oklch(93.1% 0 0);
+    --border-mid:   oklch(84.5% 0 0);
 
-    --bg-light:     #f8f8f8;   /* card headers, hover trays */
-    --bg-faint:     #f5f5f5;   /* subtler backgrounds, button rests */
+    --bg-light: oklch(97.9% 0 0);
+    --bg-faint: oklch(97.0% 0 0);
 
-    --today-print:  #fffde7;   /* softer gold for print media today-cell */
+    --today-print: oklch(99.0% 0.0288 102.7deg); /* soft gold for print today-cell */
 
-    /* ── Page shell ──────────────────────────────────────────────
-       Unified max-width keeps calendar, admin, and pay feeling like
-       one product at desktop widths. */
+    /* ── Page shell ──────────────────────────────────────────────── */
     --page-max-width: 1400px;
 
-    /* ── Border radius ───────────────────────────────────────────
-       Three steps: small for inputs/buttons, medium for content cards,
-       large for primary containers and headers. */
+    /* ── Border radius ───────────────────────────────────────────── */
     --radius-sm:  8px;
     --radius-md: 16px;
     --radius-lg: 18px;
 
-    /* ── Typography scale ────────────────────────────────────────
-       Six steps from micro-labels to page titles. The 16px form input
-       size is intentional — iOS zooms in on inputs smaller than 16px. */
+    /* ── Typography scale ─────────────────────────────────────────
+       16px form input size is intentional — iOS zooms inputs < 16px. */
     --type-micro:  10px;
     --type-small:  12px;
     --type-body:   14px;
-    --type-medium: 16px;   /* form inputs — prevents iOS auto-zoom */
+    --type-medium: 16px;
     --type-large:  18px;
     --type-xl:     24px;
 
-    /* ── Elevation ───────────────────────────────────────────────
-       Three shadow levels. Keep shadows subtle — the navy background
-       provides contrast; heavy shadows on white cards look dated. */
-    --shadow-1: 0 1px 4px rgba(0,0,0,0.10);          /* cards */
-    --shadow-2: 0 2px 12px rgba(0,30,60,0.12);        /* headers, containers */
-    --shadow-3: 0 8px 32px rgba(0,0,0,0.18);          /* modals, lightboxes */
+    /* ── Elevation ────────────────────────────────────────────────
+       Keep shadows subtle — navy background provides contrast. */
+    --shadow-1: 0 1px 4px rgba(0,0,0,0.10);
+    --shadow-2: 0 2px 12px rgba(0,30,60,0.12);
+    --shadow-3: 0 8px 32px rgba(0,0,0,0.18);
 
-    /* ── Button colour intent ────────────────────────────────────
-       Primary action   = navy (--primary-blue) fill, white text
-       Secondary action = white/outline, navy text
-       Destructive      = red (--error-red) fill or text
-       Contextual       = per-section accent (gold today-btn, green AL-btn, etc.)
-       Back/navigation  = outline only (.btn-back)
-       Never use plain blue for interactive elements — it clashes with Firestore
-       status messages and the sync chip. */
+    /* ── Native form control tinting ─────────────────────────────
+       Themes browser checkboxes and radios to the brand gold. */
+    accent-color: var(--accent-gold);
+
+    /* ── Button colour intent ─────────────────────────────────────
+       Primary   = navy fill, white text
+       Secondary = white/outline, navy text
+       Destructive = red fill or text
+       Contextual  = per-section accent (gold, green, teal)
+       Back/nav  = outline only (.btn-back)
+       Never use plain blue — clashes with sync chip and Firestore status. */
 }
 
 /* ============================================================
@@ -563,6 +556,19 @@ body.lb-open #stickyTotal { display: none !important; }
     text-transform: uppercase;
     letter-spacing: 0.6px;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* Small inline glyph before badge text (⚙ Admin, £ Pay).
+   font-style: normal overrides any inherited italic; font-family
+   ensures the glyph renders as a text symbol, not an emoji. */
+.badge-glyph {
+    font-style: normal;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-size: 0.9em;
+    line-height: 1;
 }
 
 /* Back-to-roster navigation link */
@@ -687,7 +693,7 @@ body.lb-open #stickyTotal { display: none !important; }
     inset: -12px;
 }
 .help-btn:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-.help-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
+.help-btn:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; box-shadow: 0 0 0 4px color-mix(in oklch, var(--accent-gold) 30%, transparent); }
 @media (hover: hover) and (pointer: fine) {
     .help-btn:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
 }

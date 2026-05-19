@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 10.17 -->
+<!-- MYB Roster Calendar - Version 10.18 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -137,15 +137,27 @@
 
         .title-icon:active { transform: scale(0.92); }
 
-        /* Today cell pulse - single gentle scale, fires once */
+        /* @property lets the browser interpolate --today-glow-alpha as a number,
+           producing a smooth glow ramp during the pulse. Falls back gracefully
+           (stepped opacity) in browsers without @property support. */
+        @property --today-glow-alpha {
+            syntax: '<number>';
+            initial-value: 0.25;
+            inherits: false;
+        }
+
+        /* Today cell pulse — scale + animated gold glow */
         @keyframes todayPulse {
-            0%   { transform: scale(1); }
-            40%  { transform: scale(1.06); }
-            100% { transform: scale(1); }
+            0%   { transform: scale(1);    --today-glow-alpha: 0; }
+            40%  { transform: scale(1.06); --today-glow-alpha: 0.5; }
+            100% { transform: scale(1);    --today-glow-alpha: 0.25; }
         }
 
         .calendar-day.today.today-pulse {
             animation: todayPulse 0.5s ease-out forwards;
+            /* Fallback box-shadow for browsers without @property */
+            box-shadow: 0 3px 10px rgba(245, 200, 0, 0.25), 0 0 0 1px var(--primary-blue);
+            box-shadow: 0 3px 10px oklch(84.7% 0.1734 92.3deg / var(--today-glow-alpha)), 0 0 0 1px var(--primary-blue);
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -642,6 +654,12 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
             min-width: 80%;
+            transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        /* Spring press on the badge when the parent day-cell is tapped */
+        .calendar-day:active .shift-badge {
+            transform: scale(0.94);
         }
 
         .shift-time {

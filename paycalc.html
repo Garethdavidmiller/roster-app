@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v10.17 -->
+<!-- MYB Roster — Pay Calculator v10.18 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -112,7 +112,7 @@
       background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
       background-repeat: no-repeat; background-position: right 10px center; background-size: 1em;
       cursor: pointer; touch-action: manipulation;
-      transition: border-color 0.2s, box-shadow 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
     }
     #periodSelect:focus-visible { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25); }
     .period-nav { display: flex; gap: 8px; width: 100%; }
@@ -1068,7 +1068,7 @@
     <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
     <a href="./index.html" class="btn-back" aria-label="Back to roster">←</a>
     <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
-    <span class="badge-page">Pay</span>
+    <span class="badge-page"><span class="badge-glyph" aria-hidden="true">£</span> Pay</span>
     <button class="btn-signout" id="signOutBtn" title="Sign out">Sign out</button>
   </header>
 
