@@ -478,7 +478,18 @@ function initLoginOverlay() {
                 ]},
             ],
         },
-    };
+        'railcard-guide': {
+            title: 'Railcard Guide',
+            sections: [
+                { items: [
+                    { icon: '🎫', html: 'Covers all 10 UK railcards — who qualifies, the discount, and exactly when time restrictions apply' },
+                    { icon: '🕐', html: 'A <strong>live clock</strong> at the top of the guide tells you at a glance whether time restrictions are currently in effect' },
+                    { icon: '🟢', html: '<strong>Green cards</strong> — valid any time (Disabled Persons, HM Forces, Veterans, 16–17 Saver)' },
+                    { icon: '🟡', html: '<strong>Amber cards</strong> — minimum £12 fare applies before 10:00 Mon–Fri on most railcards' },
+                    { icon: '🔴', html: '<strong>Red card</strong> — Network Railcard: completely invalid before 10:00 Mon–Fri' },
+                ]},
+            ],
+        },
 
     function openTips(key) {
         const tips = CARD_TIPS[key];
@@ -1797,10 +1808,11 @@ initCardCollapse('alBookedToggle',      'alBookedBody',   'alBookedChevron');
 // ============================================
 // CARD COLLAPSE — AL, Sick, FIP, Overrides
 // ============================================
-initCardCollapse('alToggleHeader',       'alBody',         'alChevron');
-initCardCollapse('sickToggleHeader',     'sickBody',       'sickChevron');
-initCardCollapse('fipToggleHeader',      'fipBody',        'fipChevron');
-initCardCollapse('overridesToggleHeader','overridesBody',  'overridesChevron');
+initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
+initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
+initCardCollapse('fipToggleHeader',         'fipBody',           'fipChevron');
+initCardCollapse('railcardGuideToggleHeader','railcardGuideBody', 'railcardGuideChevron');
+initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
 
 // ============================================
 // CULTURAL CALENDAR CARD — collapse/expand + Firestore opt-in
