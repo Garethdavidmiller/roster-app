@@ -490,6 +490,7 @@ function initLoginOverlay() {
                 ]},
             ],
         },
+    };
 
     function openTips(key) {
         const tips = CARD_TIPS[key];
