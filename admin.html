@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v10.29 -->
+<!-- MYB Roster Admin v10.30 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2619,6 +2619,21 @@
             <div class="card-body">
                 <p style="font-size:13px;color:#555;line-height:1.55;margin-bottom:14px">As a Chiltern Railways employee you're entitled to travel on most European railways at half price — or completely free using your annual coupon allowance. Your partner and dependent children can travel too.</p>
                 <a href="./fip.html" class="btn-save" style="display:block;text-align:center;text-decoration:none">View FIP Travel Guide →</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Railcard guide — admin only whilst in development, hidden until JS reveals it -->
+    <div class="card" id="railcardGuideCard" style="display:none">
+        <div class="card-header card-collapsible-header" id="railcardGuideToggleHeader">
+            <h2>🎫 Railcard Guide <button class="btn-card-tips" data-card="railcard-guide" aria-label="Tips for Railcard Guide" title="Tips for Railcard Guide">?</button></h2>
+            <span class="hint">Eligibility, discounts, and time rules — at-a-glance reference for checking railcards</span>
+            <span class="collapse-chevron" id="railcardGuideChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="railcardGuideBody">
+            <div class="card-body">
+                <p style="font-size:13px;color:var(--text-mid);line-height:1.55;margin-bottom:14px">All 10 UK railcards — who qualifies, what discount they give, and exactly when time restrictions apply. Includes a live clock so you can see at a glance whether restrictions are in effect.</p>
+                <a href="./railcard-guide.html" class="btn-save" style="display:block;text-align:center;text-decoration:none">Open Railcard Guide →</a>
             </div>
         </div>
     </div>
