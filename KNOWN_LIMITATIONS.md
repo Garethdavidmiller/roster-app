@@ -15,13 +15,6 @@ rules are deployed and require a real Firebase Auth session for all writes — s
 forged localStorage session can see the UI but cannot write to Firestore.
 Practical risk is low for a small known team.
 
-### ROSTER_SECRET — resolved (v9.88)
-`setupRosterAuth` now uses Firebase ID token auth exclusively. No secret is hardcoded
-in browser code. `admin-auth.js` calls `getIdTokenResult(true)` to get a fresh signed
-JWT from Firebase and sends that as the bearer token. The Cloud Function verifies it
-server-side with the Firebase Admin SDK. The `ROSTER_SECRET` value in Firebase Secret
-Manager can be deleted if no longer needed for other purposes.
-
 ### ⏰ Four tasks scheduled for v10.50
 
 Do all four together when the app reaches v10.50.
@@ -91,11 +84,6 @@ The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Box
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
-### Firestore composite index — resolved (v10.05)
-`fetchOverridesForPeriod` now queries with `memberName == memberName AND date >= start AND date <= cutoff`.
-The required composite index on `overrides` (memberName ASC, date ASC) is defined in
-`firestore.indexes.json` and deployed via the `deploy-rules.yml` workflow.
-
 ---
 
 ## Calendar / roster
@@ -112,11 +100,6 @@ If a date has multiple override documents for the same member, the cache keeps t
 most recently created one (by `createdAt` timestamp). Duplicates are logged via
 `console.warn`. Clean up at source in the Firebase Console.
 
-### `startDate` suppression — resolved (v10.04)
-`getBaseShift()` returns `'RD'` for dates before a member's `startDate`. Firestore
-overrides are now also suppressed before that date in all three calendar read paths
-(personal calendar, Team Week View, and shift-type month summary) in `app.js`.
-
 ---
 
 ## PWA / service worker
@@ -128,17 +111,6 @@ until the user reinstalls the PWA (removes and re-adds to home screen).
 ### Service worker activates immediately (`skipWaiting`)
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.
-
-### Service worker `cache: 'no-store'` — resolved (v10.16)
-The network-first fetch now uses `new Request(event.request.url, { cache: 'no-store' })` instead of
-passing options alongside the original `Request` object. The combined-options form does not reliably
-override the request's own cache mode on older Safari iOS and some Chromium versions.
-
-### Service worker offline HTML fallback MIME fix — resolved (v10.15)
-The offline fallback only serves an HTML page for document (navigation) requests
-(`event.request.destination === 'document'`). Previously, paths like `/admin-app.js` matched
-`'admin'` in the fallback logic and received an HTML response for a JS request, causing a
-MIME-type error. JS/CSS requests that are both offline and uncached now receive `Response.error()`.
 
 ---
 
@@ -158,9 +130,8 @@ extension, not from `Content-Type`.
 ## Roster data
 
 ### Cultural calendar data needs annual update
-15 lunar/lunisolar calendar datasets (Islamic, Hindu, Chinese) need updating each
-November/December. The Jamaican, Congolese, and Portuguese calendars are rule-based
-and self-updating. See `CLAUDE.md` for the full list of datasets and sources.
+15 lunar/lunisolar datasets need updating each November/December. Full list and
+sources in `CLAUDE.md` → "Annual maintenance — cultural calendar data".
 
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/index.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS` constants

@@ -96,7 +96,7 @@ Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 Staff Firebase Auth account setup (admin only).
 - `initAuthSetup(opts)` — called once by `admin-app.js` after login
 - Wires up the Staff Login Accounts card; calls `setupRosterAuth` Cloud Function
-- ⚠ Contains `ROSTER_SECRET_VALUE` — known limitation, visible in page source (see CLAUDE.md)
+- Sends a fresh Firebase ID token (`getIdTokenResult(true)`) as the bearer token — no client-side secret since v9.88
 
 ### `admin-roster-upload.js`
 The Weekly Roster Upload pipeline.
@@ -202,17 +202,6 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 
 ---
 
-## Version bump checklist (summary — full list in CLAUDE.md)
+## Version bump checklist
 
-Every commit that changes app behaviour requires updating the version string in exactly 6 places.
-The authoritative version is `APP_VERSION` in `roster-data.js`.
-
-| File | What to update |
-|------|---------------|
-| `roster-data.js` | `export const APP_VERSION = '...'` |
-| `service-worker.js` | Line 1 comment AND `const APP_VERSION = '...'` |
-| `index.html` | Line 2 HTML comment |
-| `admin.html` | Line 2 HTML comment |
-| `paycalc.html` | Line 2 HTML comment |
-
-`?v=` cache-busting strings were removed at v9.94 — do not add them back. Browser cache freshness is handled by `Cache-Control: no-cache` headers in `firebase.json`.
+See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". Six places, authoritative source is `APP_VERSION` in `roster-data.js`.

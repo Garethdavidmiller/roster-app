@@ -177,6 +177,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | **BH + `rdw` override is additive, not replacement** | `rdw` override on a worked BH day adds hours to `bhOt`; base hours stay in `bh`. Do not change to "override replaces base" without specific confirmation. |
 | `initALSection()` / `initSickSection()` in `admin-app.js` | `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` are hoisted to module scope above the `fieldMember` change handler — that handler fires before init. Do not move them inside the init functions. |
 | SW synthesised offline page uses status 200 | Some browsers suppress 5xx response bodies. `Cache-Control: no-store` prevents caching the synthesised page. |
+| SW offline fallback only for navigation requests (v10.15) | Only `event.request.destination === 'document'` requests get the offline HTML page. JS/CSS get `Response.error()`. Without this, `/admin-app.js` matched `'admin'` in the fallback logic and got HTML for a JS request — MIME-type error. |
 | Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `app.js` listens for `hashchange` and triggers the viewer. `_autoOpen` is `let` so the hashchange handler can reset it. |
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
@@ -294,24 +295,12 @@ Firebase SDK: currently v12.10.0. Check version before any new Firebase work.
 
 ## Known issues & deferred work
 
-### 🟠 High priority
+Active constraints, deferred fixes, and the four v10.50 security tasks: **see `KNOWN_LIMITATIONS.md`**.
+UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`**.
 
-**#14 — localStorage session can be forged for UI access.** Firestore rules (`request.auth != null`) block writes, so practical risk is low for a small known team.
-
-**Firebase web API key not restricted to HTTP referrers.** Risk is low (Firestore rules + rate limiting in place). **⏰ Scheduled: v10.50** — GCP Console → APIs & Services → Credentials → restrict to `myb-roster.firebaseapp.com` and `myb-roster.web.app`. (5-minute manual step — cannot be automated by Claude.)
-
-**Override cache architecture:** `rosterOverridesCache` in `app.js` stores overrides for all members, never cleared on member switch. Priority: `source: 'manual'` beats `source: 'roster_import'`; same-source keeps newer `createdAt`. Check DevTools Console for `console.warn` if overrides appear inconsistently.
-
-### 🟡 UX decisions on hold
-
+**Do-not-change UI labels (Claude-relevant):**
 - **Admin button label** — "Admin" = administration, not administrator. Intentional. Do not rename.
-- **Shift type count** — 8 types in admin selector. Consider merging before changing.
-
-### 🟢 UX ideas — explored but held back
-
-- **Bottom navigation bar** — Prototyped v7.66, reverted. Cross-page navigation already covered by controls row + back buttons. Case closed unless navigation structure changes.
-- **Glanceable summary strip** — Prototyped v7.66, reverted. "Next payday" and "Next RD" chips are highest value if revisited.
-- **Pay result text hierarchy** — Supporting text could be 13–14px; very low effort.
+- **Shift type count** — 8 types in admin selector. Consider merging before adding more.
 
 ---
 
