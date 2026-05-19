@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v10.18 -->
+<!-- MYB Roster — Pay Calculator v10.19 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -189,6 +189,28 @@
     }
     .net-period { font-size: 16px; font-weight: 600; color: rgba(255,255,255,0.88); margin-top: 8px; }
     .net-hint   { font-size: 13px; color: rgba(255,255,255,0.62); margin-top: 5px; letter-spacing: 0.1px; }
+
+    #payBreakBar {
+      display: none; margin: 12px 16px 4px; height: 10px;
+      border-radius: 5px; overflow: hidden; gap: 1.5px; background: var(--border-light);
+    }
+    #payBreakBar.pbb-visible { display: flex; }
+    .pbb-seg {
+      border-radius: 3px; min-width: 3px;
+      transition: flex-grow 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .pbb-pension { background: var(--accent-gold); }
+    .pbb-tax     { background: var(--primary-blue); }
+    .pbb-ni      { background: var(--blue-sky); }
+    .pbb-sl      { background: var(--purple); }
+    .pbb-net     { background: var(--green); }
+    #payBreakLegend {
+      display: none; margin: 0 16px 10px; gap: 8px 12px; flex-wrap: wrap;
+      font-size: 10px; color: var(--text-light);
+    }
+    #payBreakLegend.pbb-visible { display: flex; }
+    .pbl-item { display: flex; align-items: center; gap: 3px; }
+    .pbl-dot  { width: 7px; height: 7px; border-radius: 2px; flex-shrink: 0; }
 
     .summary { padding: 2px 16px; }
     .sum-row {
@@ -706,7 +728,8 @@
       #backPayCard, #backPayCardToggle, .field-hint,
       .privacy-note-standalone, .result-peek-btn, .guide-footer-link,
       #decimalConverterCard, .btn-back, .btn-signout,
-      #rosterHintBar, .joiner-notice, #stickyTotal { display: none !important; }
+      #rosterHintBar, .joiner-notice, #stickyTotal,
+      #payBreakBar, #payBreakLegend { display: none !important; }
       .app-header {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -1187,6 +1210,8 @@
       <div class="net-period" id="netPeriod">Select a pay period above</div>
       <div class="net-hint" id="netHint">Enter your hours below — the estimate updates as you type</div>
     </div>
+    <div id="payBreakBar" aria-hidden="true"></div>
+    <div id="payBreakLegend" aria-hidden="true"></div>
     <div class="summary" id="summary"></div>
     <div class="bp-active-banner" id="bpActiveBanner" style="display:none"></div>
     <div class="payslip-note" id="payslipNote" style="display:none">
