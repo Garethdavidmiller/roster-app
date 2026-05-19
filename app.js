@@ -2024,15 +2024,46 @@ async function ensureOverridesCached(year, month) {
             syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
             syncChip.className = 'sync-chip sync-chip-error';
             syncChip.style.cursor = 'pointer';
-            syncChip.addEventListener('click', () => {
-                fetchedMonths.clear();
-                syncChip.remove();
-                syncChip = null;
-                ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
-            }, { once: true });
+            syncChip.addEventListener('click', doRetry, { once: true });
         }
         if (calGrid) calGrid.classList.remove('calendar-fetching');
     }, 10000);
+
+    // Retry handler — re-runs the same 3-month fetch as the initial load.
+    // Shows "↻ Retrying…" while in flight so the user knows something is happening.
+    // Restores the error chip (with another retry listener) if the attempt fails again.
+    async function doRetry() {
+        if (!syncChip) return;
+        syncChip.textContent = '↻ Retrying…';
+        syncChip.className = 'sync-chip';
+        syncChip.style.cursor = 'default';
+        syncChip.style.pointerEvents = 'none';
+
+        // Re-mark months so ensureOverridesCached won't double-fetch while this is in flight.
+        fetchedMonths.clear();
+        fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
+        fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
+        fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
+
+        const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
+        const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
+
+        try {
+            await fetchOverridesForRange(startStr, endStr);
+            syncResolved = true;
+            if (syncChip) { syncChip.remove(); syncChip = null; }
+            if (!teamView.isTeamViewMode()) renderCalendar();
+        } catch (err) {
+            console.error('[Firestore] Retry failed:', err);
+            if (syncChip) {
+                syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
+                syncChip.className = 'sync-chip sync-chip-error';
+                syncChip.style.cursor = 'pointer';
+                syncChip.style.pointerEvents = '';
+                syncChip.addEventListener('click', doRetry, { once: true });
+            }
+        }
+    }
 
     try {
         const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
