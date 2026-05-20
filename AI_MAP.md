@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.57 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.59 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -143,10 +143,11 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and `paycalc.js`.
-- `initNavPanel({ currentPage })` — injects overlay + drawer HTML, wires burger button, manages open/close
+- `initNavPanel({ currentPage, memberName, onSignOut })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay); current page is omitted from the pill row
-- `NAV_INFORMATION` — flat always-open Information section config: Workplace (Railcard Guide) + Staff Travel (FIP Guide)
-- Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate
+- `NAV_INFORMATION` — flat always-open Information section config: Workplace (Daily Huddle, Railcard Guide) + Staff Travel (FIP Guide)
+- Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
+- Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
 - Adding a new guide = one `links` entry in `NAV_INFORMATION`. No other changes needed.
 
 ### `app-override-utils.js`
