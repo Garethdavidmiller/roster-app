@@ -16,6 +16,7 @@ import {
 } from './paycalc-calc.js';
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { initNavPanel } from './nav-panel.js';
 'use strict';
 
 // Body-scroll lock for lightboxes — iOS Safari otherwise lets the page underneath
@@ -2617,6 +2618,7 @@ function stampPaycalcPrintLine() {
 }
 stampPaycalcPrintLine();
 window.addEventListener('beforeprint', stampPaycalcPrintLine);
+initNavPanel({ currentPage: 'paycalc' });
 
 // ── LIGHTBOX PRINT BUTTON ─────────────────────────────────────────────────────
 (function () {

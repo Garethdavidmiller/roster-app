@@ -14,6 +14,7 @@ import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.m
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
+import { initNavPanel } from './nav-panel.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -2473,3 +2474,4 @@ function initCalendarKeyboard() {
 
 initCalendarTooltip();
 initCalendarKeyboard();
+initNavPanel({ currentPage: 'calendar' });
