@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 10.57 -->
+<!-- MYB Roster Calendar - Version 10.58 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1104,30 +1104,6 @@
                 background: var(--accent-gold-dark);
                 border-color: var(--accent-gold-dark);
             }
-        }
-
-        /* ---- Huddle icon button — lives in the title bar header-right cell ---- */
-        .week-info {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .huddle-icon-btn {
-            background: none;
-            border: none;
-            padding: 4px 6px;
-            font-size: 18px;
-            cursor: pointer;
-            border-radius: 6px;
-            line-height: 1;
-            touch-action: manipulation;
-            opacity: 0.7;
-            transition: opacity 0.15s;
-            flex-shrink: 0;
-        }
-        .huddle-icon-btn:disabled { opacity: 0.2; cursor: default; }
-        @media (hover: hover) and (pointer: fine) {
-            .huddle-icon-btn:not(:disabled):hover { opacity: 1; }
         }
 
         /* ---- Team week view — all styles here; not in shared.css because this is index.html-only ---- */
@@ -2400,9 +2376,7 @@
                         aria-label="Open navigation menu" aria-expanded="false">☰</button>
             </div>
             <h1><img src="icon-192.png" alt="Chiltern Railways" class="title-icon" loading="eager"> Marylebone Roster</h1>
-            <div class="header-right">
-                <button id="huddleBtn" class="huddle-icon-btn" aria-label="Open today's Huddle" title="Open today's Huddle" disabled>📋</button>
-            </div>
+            <div class="header-right"></div>
         </header>
 
         <nav class="controls" aria-label="Calendar navigation">

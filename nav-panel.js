@@ -10,11 +10,17 @@
  *   initNavPanel({ currentPage: 'calendar' }); // 'calendar' | 'admin' | 'paycalc'
  */
 
-/** Page navigation destinations. The current page is omitted from the pill row. */
+/**
+ * Page navigation destinations. The current page is omitted from the pill row.
+ * colorClass mirrors the equivalent quick-action button on the calendar page:
+ *   calendar → gold (matches Today button)
+ *   admin    → navy + gold text (matches Admin button)
+ *   paycalc  → green (matches Pay button)
+ */
 const NAV_PAGES = [
-    { id: 'calendar', label: '📅 Calendar', url: './index.html'    },
-    { id: 'admin',    label: '⚙ Admin',    url: './admin.html'    },
-    { id: 'paycalc',  label: '💷 Pay',      url: './paycalc.html' },
+    { id: 'calendar', label: '📅 Calendar', url: './index.html',    colorClass: 'nav-panel-pill--calendar' },
+    { id: 'admin',    label: '⚙ Admin',    url: './admin.html',    colorClass: 'nav-panel-pill--admin'    },
+    { id: 'paycalc',  label: '💷 Pay',      url: './paycalc.html', colorClass: 'nav-panel-pill--pay'      },
 ];
 
 /**
@@ -25,6 +31,7 @@ const NAV_INFORMATION = [
     {
         heading: 'Workplace',
         links: [
+            { icon: '📋', label: 'Daily Huddle',  url: './index.html#huddle'    },
             { icon: '🎫', label: 'Railcard Guide', url: './railcard-guide.html' },
         ],
     },
@@ -96,9 +103,28 @@ export function initNavPanel({ currentPage = 'calendar' } = {}) {
         burger.focus();
     }
 
+    // Visual-only close used when a link inside the panel is clicked.
+    // Does NOT call history.back() — the navigation that follows handles page
+    // transitions, and for hash-only links (e.g. #huddle) history.back() would
+    // race with the hash navigation and cause unexpected behaviour.
+    function closePanelForNavigation() {
+        _panelOpen    = false;
+        _historyPushed = false; // consumed — popstate won't reopen the panel
+        panel.setAttribute('aria-hidden', 'true');
+        overlay.setAttribute('aria-hidden', 'true');
+        overlay.classList.remove('open');
+        panel.classList.remove('open');
+        burger.setAttribute('aria-expanded', 'false');
+    }
+
     burger.addEventListener('click', openPanel);
     closeBtn?.addEventListener('click', closePanel);
     overlay.addEventListener('click', closePanel);
+
+    // Close panel before navigating so the panel doesn't flash behind the new page.
+    panel.addEventListener('click', e => {
+        if (e.target.closest('.nav-panel-pill, .nav-panel-link')) closePanelForNavigation();
+    });
 
     document.addEventListener('keydown', e => {
         if (_panelOpen && e.key === 'Escape') closePanel();
@@ -117,7 +143,7 @@ export function initNavPanel({ currentPage = 'calendar' } = {}) {
 function _inject(currentPage) {
     const pills = NAV_PAGES
         .filter(p => p.id !== currentPage)
-        .map(p => `<a href="${p.url}" class="nav-panel-pill">${p.label}</a>`)
+        .map(p => `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
         .join('');
 
     const infoGroups = NAV_INFORMATION.map(group => `
