@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `10.30` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `10.48` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
@@ -90,7 +90,7 @@ roster-app/
 ├── paycalc-guide.html      ← printable pay calculator reference guide
 ├── fip.html                ← FIP European travel guide for staff
 ├── guide.html              ← printable staff + admin quick guide
-├── railcard-guide.html     ← UK Railcard at-work reference sheet (admin-only for now); linked from admin.html
+├── railcard-guide.html     ← Railcard at-work reference sheet (cards, GroupSave, season tickets, gateline checks); linked from admin.html
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── CLAUDE.md               ← this file
 ├── OPERATIONS_REFERENCE.md ← Power Automate, Cloud Function formats, Firebase Auth detail
@@ -296,7 +296,7 @@ Firebase SDK: currently v12.10.0. Check version before any new Firebase work.
 
 ## Known issues & deferred work
 
-Active constraints, deferred fixes, and the four v10.50 security tasks: **see `KNOWN_LIMITATIONS.md`**.
+Active constraints, deferred fixes, and the four v11 security tasks: **see `KNOWN_LIMITATIONS.md`**.
 UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`**.
 
 **Do-not-change UI labels (Claude-relevant):**

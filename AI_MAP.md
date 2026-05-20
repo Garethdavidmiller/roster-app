@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.17 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.48 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -32,7 +32,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
-| UK Railcard at-work reference (admin-only for now) | `railcard-guide.html` — standalone page, no JS module |
+| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` — standalone page, no JS module |
 
 ---
 
