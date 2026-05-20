@@ -613,32 +613,7 @@ body.lb-open #stickyTotal { display: none !important; }
     transition: none;
 }
 
-.btn-signout {
-    flex-shrink: 0;
-    background: transparent;
-    border: 1.5px solid var(--border-light);
-    color: var(--text-light);
-    font-size: 11px;
-    font-weight: 700;
-    padding: 5px 10px;
-    min-height: 36px;
-    border-radius: 8px;
-    cursor: pointer;
-    font-family: inherit;
-    touch-action: manipulation;
-    -webkit-user-select: none;
-    user-select: none;
-    transition: all 0.12s;
-    white-space: nowrap;
-}
-@media (hover: hover) and (pointer: fine) {
-    .btn-signout:hover { border-color: var(--error-red); color: var(--error-red); }
-}
-.btn-signout:active {
-    border-color: var(--error-red);
-    color: var(--error-red);
-    transition: none;
-}
+/* Sign-out moved to nav panel footer (v10.59) */
 
 @media (max-width: 768px) {
     body {
@@ -791,7 +766,7 @@ body.lb-open #stickyTotal { display: none !important; }
     top: 0;
     left: 0;
     bottom: 0;
-    width: min(300px, 85vw);
+    width: min(270px, 78vw);
     background: white;
     z-index: 301;
     transform: translateX(-100%);
@@ -959,3 +934,42 @@ body.lb-open #stickyTotal { display: none !important; }
 @media print {
     .nav-panel, .nav-panel-overlay, .btn-burger { display: none !important; }
 }
+
+/* Nav panel footer — member name + sign-out; only rendered when a session exists */
+.nav-panel-footer {
+    flex-shrink: 0;
+    padding: 10px 16px;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border-light);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.nav-panel-member {
+    font-size: 13px;
+    color: var(--text-mid);
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.nav-panel-signout {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--error-red);
+    padding: 4px 0;
+    flex-shrink: 0;
+    touch-action: manipulation;
+    font-family: inherit;
+    line-height: 1;
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-signout:hover { opacity: 0.75; }
+}
+.nav-panel-signout:active { opacity: 0.5; }

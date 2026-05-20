@@ -7,7 +7,8 @@
  *
  * Usage (call once, after DOM is ready — ES modules are deferred by default):
  *   import { initNavPanel } from './nav-panel.js';
- *   initNavPanel({ currentPage: 'calendar' }); // 'calendar' | 'admin' | 'paycalc'
+ *   initNavPanel({ currentPage: 'calendar', memberName: 'G. Miller', onSignOut: fn });
+ *   // memberName + onSignOut are optional; omit both to suppress the footer.
  */
 
 /**
@@ -48,13 +49,13 @@ let _historyPushed = false;
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc' }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc', memberName?: string|null, onSignOut?: (() => void)|null }} opts
  */
-export function initNavPanel({ currentPage = 'calendar' } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null } = {}) {
     const burger = document.getElementById('navMenuBtn');
     if (!burger) return;
 
-    _inject(currentPage);
+    _inject(currentPage, memberName, onSignOut);
 
     const panel    = document.getElementById('navPanel');
     const overlay  = document.getElementById('navPanelOverlay');
@@ -126,6 +127,13 @@ export function initNavPanel({ currentPage = 'calendar' } = {}) {
         if (e.target.closest('.nav-panel-pill, .nav-panel-link')) closePanelForNavigation();
     });
 
+    // Sign-out footer button
+    const signOutBtn = document.getElementById('navSignOutBtn');
+    signOutBtn?.addEventListener('click', () => {
+        closePanelForNavigation();
+        onSignOut?.();
+    });
+
     document.addEventListener('keydown', e => {
         if (_panelOpen && e.key === 'Escape') closePanel();
     });
@@ -140,7 +148,7 @@ export function initNavPanel({ currentPage = 'calendar' } = {}) {
 }
 
 /** Build and inject the overlay + drawer HTML into document.body. */
-function _inject(currentPage) {
+function _inject(currentPage, memberName, onSignOut) {
     const pills = NAV_PAGES
         .filter(p => p.id !== currentPage)
         .map(p => `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
@@ -153,6 +161,14 @@ function _inject(currentPage) {
                 `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`
             ).join('')}
         </ul>`).join('');
+
+    // Footer is only rendered when a sign-out callback is supplied.
+    // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
+    const footerHtml = onSignOut ? `
+        <div class="nav-panel-footer">
+            <span class="nav-panel-member" id="navPanelMember"></span>
+            <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
+        </div>` : '';
 
     const html = `
         <div id="navPanelOverlay" class="nav-panel-overlay" aria-hidden="true"></div>
@@ -171,9 +187,16 @@ function _inject(currentPage) {
                     ${infoGroups}
                 </div>
             </div>
+            ${footerHtml}
         </div>`;
 
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
     while (tmp.firstChild) document.body.appendChild(tmp.firstChild);
+
+    // Set member name safely via textContent (XSS-safe — no innerHTML for user data)
+    if (memberName) {
+        const memberEl = document.getElementById('navPanelMember');
+        if (memberEl) memberEl.textContent = `👤 ${memberName}`;
+    }
 }

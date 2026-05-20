@@ -2508,13 +2508,6 @@ Device: ${navigator.userAgent}
     }, { once: true });
   }
 
-  // Sign-out — clears admin session and returns to the main app.
-  // AUTH_KEY matches admin-app.js so the same session is cleared.
-  document.getElementById('signOutBtn').addEventListener('click', () => {
-    lsDel('myb_admin_session');
-    window.location.href = './index.html';
-  });
-
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')
       .then(() => {})
@@ -2618,7 +2611,16 @@ function stampPaycalcPrintLine() {
 }
 stampPaycalcPrintLine();
 window.addEventListener('beforeprint', stampPaycalcPrintLine);
-initNavPanel({ currentPage: 'paycalc' });
+
+const _paycalcMember = getLoggedMember();
+initNavPanel({
+    currentPage: 'paycalc',
+    memberName:  _paycalcMember?.name || null,
+    onSignOut:   _paycalcMember ? () => {
+        lsDel('myb_admin_session');
+        window.location.href = './index.html';
+    } : null,
+});
 
 // ── LIGHTBOX PRINT BUTTON ─────────────────────────────────────────────────────
 (function () {

@@ -2474,4 +2474,15 @@ function initCalendarKeyboard() {
 
 initCalendarTooltip();
 initCalendarKeyboard();
-initNavPanel({ currentPage: 'calendar' });
+
+const _calendarSession = (() => {
+    try { return JSON.parse(lsGet('myb_admin_session') || 'null'); } catch { return null; }
+})();
+initNavPanel({
+    currentPage: 'calendar',
+    memberName:  _calendarSession?.name || null,
+    onSignOut:   _calendarSession ? () => {
+        lsDel('myb_admin_session');
+        window.location.reload();
+    } : null,
+});
