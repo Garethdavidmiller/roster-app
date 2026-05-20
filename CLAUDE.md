@@ -391,6 +391,34 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 
 ---
 
+## Railcard guide
+
+`railcard-guide.html` is an at-work quick reference for staff checking railcard-discounted tickets at the **gateline** and **selling** them at the **ticket office**. It is not a customer-facing page and not an educational article — judge every decision against "can a staff member glance at this mid-transaction and get the right answer fast?"
+
+**Design principles — do not change without discussion:**
+- **"For dummies" clarity over completeness.** Plain language; no jargon. If adding a fact makes the page harder to scan, leave it out.
+- **Glanceable card layout.** One card per railcard. Rows: Save / When / Who (only where genuinely needed). Do not add rows that aren't operationally relevant at the gateline or ticket office.
+- **Colour stripe = Mon–Fri time rule only.** Green = any time. Amber = morning restriction. Red = Network (strictest). Do not repurpose these colours for anything else.
+- **£ / ⊘ tokens in the When row.** £ = travel allowed, minimum fare applies. ⊘ = no discount before the cutoff. These symbols are defined in the key strip at the top — keep both the symbols and the key.
+- **Weekend banner is deliberately simple.** It says the morning/min-fare limits usually don't apply at weekends — it does NOT say all restrictions lift. Do not broaden it back.
+- **Chiltern-specific callouts** (`rc-chiltern`) are amber banners inside the card. Keep them; staff are Chiltern staff and need route-specific guidance.
+- **Photo-check is a table, not prose.** The `.photo-table` inside check step 3 gives colour-coded rows by card type. Keep it. Distinguish physical vs digital explicitly.
+- **Selling essentials live in gotchas.** Minimum-fare mechanic ("charge the higher of the discounted fare or the minimum — never on Advance"), First Class eligibility per card, season-ticket exceptions. Do not move these to the card rows — the gotchas section is where selling detail belongs.
+
+**What to care about:**
+- Factual accuracy per card — verify against nationalrail.co.uk and the individual card's own site before changing any rule.
+- Min-fare amounts (£12/£13) and the July/August waiver list (16-25, HM Forces, Veterans waived; 26-30 not waived) — these are reviewed annually; re-check each spring.
+- Senior Railcard Chiltern note — must say "journeys within the Network area" not "all Marylebone services"; through journeys to Birmingham are different. Do not collapse these into a single blanket rule.
+- Family & Friends — the morning-peak restriction is on Network-area journeys only, not the whole card. The subtext must not imply the card is Network-area-only.
+- Two Together photocard — the current wording is deliberately softened ("check names/photos on the card or its photocard") because the physical card format was not verified from an authoritative source. Do not strengthen the claim without confirmation.
+- `railcard-guide.html` is self-contained CSS (no shared.css import) — intentional, consistent with `fip.html`, `guide.html`, `paycalc-guide.html`. Do not add a shared.css import.
+
+**What not to flag as defects:**
+- No JS modules — static page, intentional.
+- Sticky header + sticky chip bar eating vertical space on small phones — acceptable trade-off for fast navigation.
+- `max-width: 620px` on desktop — this is a reference sheet, not a dashboard. Narrow is fine.
+- A–Z order with numeric cards first — intentional, easy to scan.
+
 ## FIP guide
 
 `fip.html` is a low-frequency educational reference — not a core workflow. Judge it as an article-like reference page. Do not flag reference-page format as a design defect. Care about: factual accuracy, "last checked" date, source links, mobile layout, navy/gold palette.
