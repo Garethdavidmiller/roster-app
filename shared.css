@@ -890,6 +890,31 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill:hover { background: var(--primary-blue-dark); }
 }
 
+/* Pill colour variants — match the equivalent quick-action buttons on the calendar page */
+.nav-panel-pill--calendar {
+    background: var(--accent-gold);
+    color: var(--primary-blue);
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--calendar:hover { background: var(--accent-gold-dark); }
+}
+
+.nav-panel-pill--admin {
+    background: var(--primary-blue);
+    color: var(--accent-gold);
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--admin:hover { background: var(--primary-blue-dark); }
+}
+
+.nav-panel-pill--pay {
+    background: var(--green);
+    color: white;
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--pay:hover { background: var(--green-hover); }
+}
+
 /* Information section — flat, always open */
 .nav-panel-section-heading {
     font-size: 10px;
