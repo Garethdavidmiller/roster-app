@@ -1728,10 +1728,6 @@ initCardCollapse('sickBookedToggle', 'sickBookedBody', 'sickBookedChevron');
 // ============================================
 // INIT — runs last so all dropdowns are populated
 // ============================================
-document.getElementById('signOutBtn').addEventListener('click', () => {
-    clearSession();
-    window.location.reload();
-});
 
 // ← Roster button: write the current fieldDate month/year to localStorage before
 // navigating so index.html opens on the same month the user was looking at in admin.
@@ -2078,7 +2074,11 @@ initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 initAuthSetup({ currentIsAdmin });
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
-initNavPanel({ currentPage: 'admin' });
+initNavPanel({
+    currentPage: 'admin',
+    memberName:  currentUser,
+    onSignOut:   () => { clearSession(); window.location.reload(); },
+});
 
 // ── Cultural calendar annual update reminder ──────────────────────────────────
 // In November and December, remind the admin to update the 15 lunar/lunisolar
