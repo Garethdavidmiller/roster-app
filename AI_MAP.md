@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.59 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.61 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -27,7 +27,8 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
-| Navigation panel — burger menu, slide-out drawer, Information links | `nav-panel.js` |
+| Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` |
+| Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
@@ -147,8 +148,17 @@ Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and 
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay); current page is omitted from the pill row
 - `NAV_INFORMATION` — flat always-open Information section config: Workplace (Daily Huddle, Railcard Guide) + Staff Travel (FIP Guide)
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
+- Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open; tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
 - Adding a new guide = one `links` entry in `NAV_INFORMATION`. No other changes needed.
+
+### `notif.js`
+Shared Web Push module — single source of truth for the VAPID key and subscription lifecycle. Imported by `nav-panel.js`.
+- `notifSupported()` — feature detection incl. the iOS "must be a Home Screen PWA" rule
+- `getNotifState()` — async → `'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'`; also does the silent VAPID-rotation re-subscribe
+- `enableNotifications()` / `disableNotifications()` — async; subscribe/unsubscribe + Firestore save/delete
+- Imports `savePushSubscription`/`deletePushSubscription` from `firebase-client.js`, `lsGet`/`lsSet` from `ls.js`
+- **Not yet wired into `app.js` or `admin-huddle.js`** — they keep their own duplicate copies of this logic (deferred cleanup). If you change the VAPID key or subscribe flow, update all three until they are consolidated.
 
 ### `app-override-utils.js`
 Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.

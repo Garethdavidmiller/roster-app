@@ -935,16 +935,60 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel, .nav-panel-overlay, .btn-burger { display: none !important; }
 }
 
-/* Nav panel footer — member name + sign-out; only rendered when a session exists */
+/* Nav panel footer — member name + bell + sign-out; only rendered when a session exists */
 .nav-panel-footer {
     flex-shrink: 0;
     padding: 10px 16px;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--border-light);
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.nav-panel-footer-row {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
+}
+
+/* Bell + sign-out grouped on the right; member name takes the left */
+.nav-panel-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Notification bell toggle — discrete icon button, 44px tap target */
+.nav-panel-bell {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    touch-action: manipulation;
+    font-family: inherit;
+}
+.nav-panel-bell[data-notif-state="loading"] { opacity: 0.4; }
+.nav-panel-bell:disabled { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-bell:hover { opacity: 0.7; }
+}
+.nav-panel-bell:active { opacity: 0.5; }
+
+/* Browser-blocked hint, revealed when a denied bell is tapped */
+.nav-panel-bell-hint {
+    font-size: 11px;
+    color: var(--error-red);
+    text-align: right;
 }
 
 .nav-panel-member {

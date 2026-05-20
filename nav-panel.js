@@ -9,7 +9,13 @@
  *   import { initNavPanel } from './nav-panel.js';
  *   initNavPanel({ currentPage: 'calendar', memberName: 'G. Miller', onSignOut: fn });
  *   // memberName + onSignOut are optional; omit both to suppress the footer.
+ *
+ * The footer also hosts a push-notification bell toggle (🔔/🔕) when the device
+ * supports Web Push. All push logic lives in notif.js — this file only renders
+ * and refreshes the bell.
  */
+
+import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -73,6 +79,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             history.pushState({ mybNavPanel: true }, '');
             _historyPushed = true;
         }
+        // Permission/subscription can change between opens (toggled in admin, or
+        // at OS level), so re-read the bell state every time the panel opens.
+        _refreshBell();
         // Delay focus so the CSS transition has started — screen readers
         // announce the dialog heading rather than the close button label alone.
         setTimeout(() => closeBtn?.focus(), 60);
@@ -134,6 +143,50 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         onSignOut?.();
     });
 
+    // Notification bell toggle — an in-panel action, so the panel stays open.
+    const bell     = document.getElementById('navNotifBell');
+    const bellHint = document.getElementById('navNotifHint');
+    let _bellBusy  = false;
+
+    /** Apply a state string to the bell glyph, label, and data attribute. */
+    function _paintBell(state) {
+        if (!bell) return;
+        const on = state === 'on';
+        bell.textContent = on ? '🔔' : '🔕';
+        bell.setAttribute('aria-pressed', on ? 'true' : 'false');
+        bell.dataset.notifState = state;
+        bell.setAttribute('aria-label',
+            on        ? 'Notifications on — tap to turn off'
+          : state === 'denied' ? 'Notifications blocked in browser settings'
+          : 'Notifications off — tap to turn on');
+        if (bellHint) bellHint.hidden = true;
+    }
+
+    /** Re-read and repaint the bell. No-op when the bell is not rendered. */
+    async function _refreshBell() {
+        if (!bell) return;
+        _paintBell(await getNotifState());
+    }
+
+    bell?.addEventListener('click', async () => {
+        if (_bellBusy) return;
+        const state = bell.dataset.notifState;
+        // Browser-blocked: nothing we can do programmatically — just hint.
+        if (state === 'denied') {
+            if (bellHint) bellHint.hidden = false;
+            return;
+        }
+        _bellBusy = true;
+        bell.dataset.notifState = 'loading';
+        bell.disabled = true;
+        try {
+            _paintBell(state === 'on' ? await disableNotifications() : await enableNotifications());
+        } finally {
+            bell.disabled = false;
+            _bellBusy = false;
+        }
+    });
+
     document.addEventListener('keydown', e => {
         if (_panelOpen && e.key === 'Escape') closePanel();
     });
@@ -164,10 +217,23 @@ function _inject(currentPage, memberName, onSignOut) {
 
     // Footer is only rendered when a sign-out callback is supplied.
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
+    // The bell is only included when the device supports Web Push (notif.js folds
+    // in the iOS-must-be-standalone rule); the admin Notifications card explains
+    // the unsupported case for users who need it.
+    const bellHtml = notifSupported() ? `
+            <button class="nav-panel-bell" id="navNotifBell" type="button"
+                    aria-pressed="false" aria-label="Notifications"
+                    data-notif-state="loading">🔕</button>` : '';
     const footerHtml = onSignOut ? `
         <div class="nav-panel-footer">
-            <span class="nav-panel-member" id="navPanelMember"></span>
-            <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
+            <div class="nav-panel-footer-row">
+                <span class="nav-panel-member" id="navPanelMember"></span>
+                <div class="nav-panel-footer-actions">
+                    ${bellHtml}
+                    <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
+                </div>
+            </div>
+            <span class="nav-panel-bell-hint" id="navNotifHint" hidden>Blocked — change in browser settings</span>
         </div>` : '';
 
     const html = `
