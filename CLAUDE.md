@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `10.63` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `10.64` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
@@ -178,6 +178,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Header back button removed (v10.63) | `admin.html` / `paycalc.html` no longer have a header `←` back button — it duplicated the nav drawer's Calendar pill (two competing nav paradigms) and clashed visually with the logo box. Navigation back to the roster is via the drawer. Header is now `[☰] [logo] Title … [badge]`. The admin "open calendar on the month I was editing" behaviour moved from the back button onto the `.nav-panel-pill--calendar` click in `admin-app.js`. `.btn-back` CSS removed from `shared.css` (still defined locally in `fip.html` / `railcard-guide.html`). |
 | Header title left-aligned on `.app-header` pages (v10.62) | `admin.html` / `paycalc.html` headers cluster burger + logo on the left, so `.app-header h1` is `text-align:left` (not centered) — centering left it floating in the gap. `flex:1` still pushes the section badge to the right. The calendar uses a different `.header` (balanced spacers), unaffected. |
 | Sign-out in nav panel footer (v10.59) | Sign-out button moved from page headers to the nav panel footer. `initNavPanel({ onSignOut: fn })` — each page passes its own sign-out callback. Footer (member name + Sign out button) renders only when `onSignOut` is supplied. `.btn-signout` CSS removed from `shared.css`. |
+| Nationality flags in nav panel footer (v10.64) | Optional `flags: ['🇬🇧','🇳🇬']` array on a `teamMember` (max 2). `nav-panel.js` imports `teamMembers`, looks up the logged-in member by exact name, and renders the flags between the name and the bell (set via `textContent`). Flag emojis render correctly on Android (primary platform); Windows shows 2-letter codes — acceptable. Adding a member's flags = one array on their `teamMembers` entry. |
 | Notification bell in nav panel footer (v10.61) | `notif.js` is the shared Web Push module; `nav-panel.js` imports it and renders a 🔔/🔕 toggle in the footer (signed-in only, hidden when `notifSupported()` is false — incl. iOS non-standalone). Bell refreshes on every panel open; tap keeps the panel open. States: `on`/`off-default`/`off-lapsed`/`denied`/`unsupported`. **`app.js` `initNotifications()` and `admin-huddle.js` `_initNotificationsCard()` are NOT yet migrated onto `notif.js`** — deliberate (working code, deferred to avoid regression). 3 copies of the VAPID constant currently exist; consolidate onto `notif.js` in a future PR. The `#notifPrompt` calendar strip and admin Notifications card both stay. |
 | Guide pages back button → index.html (v10.57) | `railcard-guide.html` and `fip.html` back buttons now link to `./index.html` (not `./admin.html`) — guides are accessed from the nav panel, not the admin page. |
 | Maskable icons | 512px entry uses `"purpose": "any maskable"` for Android adaptive shapes. Smaller icons omit this. |
@@ -238,7 +239,8 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
   hidden: false,           // Optional — hides from dropdown
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
-  proRatedAL: { 2026: 23 } // Optional — overrides getALEntitlement for joining year only
+  proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
+  flags: ['🇬🇧', '🇳🇬'] // Optional — up to 2 nationality flag emojis; shown in the nav panel footer (v10.64)
 }
 ```
 

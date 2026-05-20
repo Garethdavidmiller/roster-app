@@ -986,6 +986,15 @@ button.nav-panel-link--coming-soon {
     text-align: right;
 }
 
+/* Name + nationality flags grouped on the left; name truncates, flags stay */
+.nav-panel-member-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1;
+}
+
 .nav-panel-member {
     font-size: 13px;
     color: var(--text-mid);
@@ -993,6 +1002,15 @@ button.nav-panel-link--coming-soon {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
+}
+
+/* Nationality flags — emoji, up to two per member; never truncated */
+.nav-panel-flags {
+    flex-shrink: 0;
+    font-size: 15px;
+    line-height: 1;
+    letter-spacing: 1px;
 }
 
 .nav-panel-signout {
