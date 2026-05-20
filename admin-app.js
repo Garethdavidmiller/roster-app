@@ -482,11 +482,12 @@ function initLoginOverlay() {
             title: 'Railcard Guide',
             sections: [
                 { items: [
-                    { icon: '🎫', html: 'Covers all 12 railcards plus GroupSave — who qualifies, the discount, and exactly when time restrictions apply' },
+                    { icon: '🎫', html: 'Covers every railcard plus the Jobcentre Plus discount card and GroupSave — who qualifies, the discount, and exactly when time restrictions apply' },
                     { icon: '🟢', html: '<strong>Green stripe</strong> — valid any time: 16–17 Saver, Disabled Persons, Jobcentre Plus' },
                     { icon: '🟡', html: '<strong>Amber stripe</strong> — morning restriction Mon–Fri. Some cards require a min £12 fare before 10:00; others are not valid before 09:30. Check the <strong>When</strong> row on each card.' },
                     { icon: '🔴', html: '<strong>Red stripe</strong> — Network Railcard: not valid at all before 10:00 Mon–Fri; £13 min fare after 10:00' },
-                    { icon: '📸', html: '<strong>Photocards:</strong> HM Forces, Two Together, and Gold Card (season ticket) holders must carry a separate Photocard alongside. Senior, Network, Disabled Persons, and Family &amp; Friends physical cards have no photo at all.' },
+                    { icon: '💷', html: '<strong>Selling:</strong> where a minimum fare applies, charge the <strong>higher</strong> of the discounted fare or the minimum — never on Advance tickets. Most cards discount First Class too; Standard-only are 16–17 Saver, Family &amp; Friends, Jobcentre Plus, Network and GroupSave.' },
+                    { icon: '📸', html: '<strong>Photocards:</strong> HM Forces and Gold Card holders carry a separate Photocard alongside. For Two Together, check the names/photo on the card or its photocard. Senior, Network, Disabled Persons and Family &amp; Friends physical cards usually have no photo — and any digital card shows its photo in the live app.' },
                     { icon: '☀️', html: '<strong>Summer:</strong> the £12 morning minimum fare is dropped all of July &amp; August on 16-25, HM Forces, and Veterans cards. The 26-30 card is the exception — its minimum fare stays year-round.' },
                 ]},
             ],
