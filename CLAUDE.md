@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `10.60` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `10.61` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
@@ -68,7 +68,8 @@ roster-app/
 ├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
-├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config. Imported by app.js, admin-app.js, paycalc.js
+├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, footer notification bell. Imported by app.js, admin-app.js, paycalc.js
+├── notif.js                ← shared Web Push module: notifSupported, getNotifState, enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
 ├── app-override-utils.js   ← override priority and member-start helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart. Shared by app.js and app-team-view.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
@@ -175,6 +176,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all three pages. |
 | Nav panel on all 3 pages (v10.57) | `nav-panel.js` injects overlay + drawer. Burger button `#navMenuBtn` in each page header. `NAV_PAGES` drives the pill row (current page omitted). `NAV_INFORMATION` drives the flat always-open section (Workplace: Daily Huddle, Railcard Guide; Staff Travel: FIP Guide). Adding a new guide = one `links` entry in `NAV_INFORMATION` only. |
 | Sign-out in nav panel footer (v10.59) | Sign-out button moved from page headers to the nav panel footer. `initNavPanel({ onSignOut: fn })` — each page passes its own sign-out callback. Footer (member name + Sign out button) renders only when `onSignOut` is supplied. `.btn-signout` CSS removed from `shared.css`. |
+| Notification bell in nav panel footer (v10.61) | `notif.js` is the shared Web Push module; `nav-panel.js` imports it and renders a 🔔/🔕 toggle in the footer (signed-in only, hidden when `notifSupported()` is false — incl. iOS non-standalone). Bell refreshes on every panel open; tap keeps the panel open. States: `on`/`off-default`/`off-lapsed`/`denied`/`unsupported`. **`app.js` `initNotifications()` and `admin-huddle.js` `_initNotificationsCard()` are NOT yet migrated onto `notif.js`** — deliberate (working code, deferred to avoid regression). 3 copies of the VAPID constant currently exist; consolidate onto `notif.js` in a future PR. The `#notifPrompt` calendar strip and admin Notifications card both stay. |
 | Guide pages back button → index.html (v10.57) | `railcard-guide.html` and `fip.html` back buttons now link to `./index.html` (not `./admin.html`) — guides are accessed from the nav panel, not the admin page. |
 | Maskable icons | 512px entry uses `"purpose": "any maskable"` for Android adaptive shapes. Smaller icons omit this. |
 | **Chiltern Saturday payroll: rostered Saturday → `sat` (1.25×); Saturday-on-RD → `rdw`** | Rostered Saturday: 1.25× in `sat` bucket. Saturday that was a rest day and worked: `rdw` bucket — staff use the RDW field, not the Saturday field. Confirmed by Gareth May 2026. Tests assert this. Do not change without further payroll confirmation. |
