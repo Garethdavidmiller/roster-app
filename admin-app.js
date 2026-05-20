@@ -21,6 +21,7 @@ import { initAuthSetup } from './admin-auth.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { initNavPanel } from './nav-panel.js';
 
 // Lock/unlock body scroll for lightbox/overlay. iOS Safari otherwise scrolls
 // the page underneath an open overlay; the .lb-open class fixes the body and
@@ -422,17 +423,6 @@ function initLoginOverlay() {
                 ]},
             ],
         },
-        'fip-travel': {
-            title: 'FIP Travel',
-            sections: [
-                { items: [
-                    { icon: '🃏', html: '<strong>FIP Card</strong> — gives you 50% off most European rail fares at station ticket offices' },
-                    { icon: '🎟️', html: '<strong>Free Coupons</strong> — a small annual allowance of free basic rail travel on participating operators; supplements or reservations may still apply' },
-                    { icon: '👨‍👩‍👧', html: 'Family eligibility varies by facility and country — check the FIP guide or speak to your manager' },
-                    { icon: '✈️', html: 'Leisure travel only — not for commuting or any work purpose' },
-                ]},
-            ],
-        },
         'staff-login': {
             title: 'Staff Login Accounts',
             sections: [
@@ -475,20 +465,6 @@ function initLoginOverlay() {
                 { heading: 'Sources', adminOnly: true, items: [
                     { icon: '📋', html: '<strong>Roster import</strong> entries came from a PDF upload — a new upload will replace them automatically without a warning' },
                     { icon: '✍️', html: 'All other entries were added manually — a new PDF upload will flag them if it disagrees, so you can choose which to keep' },
-                ]},
-            ],
-        },
-        'railcard-guide': {
-            title: 'Railcard Guide',
-            sections: [
-                { items: [
-                    { icon: '🎫', html: 'Covers every railcard plus the Jobcentre Plus discount card and GroupSave — who qualifies, the discount, and exactly when time restrictions apply' },
-                    { icon: '🟢', html: '<strong>Green stripe</strong> — valid any time: 16–17 Saver, Disabled Persons, Jobcentre Plus' },
-                    { icon: '🟡', html: '<strong>Amber stripe</strong> — morning restriction Mon–Fri. Some cards require a min £12 fare before 10:00; others are not valid before 09:30. Check the <strong>When</strong> row on each card.' },
-                    { icon: '🔴', html: '<strong>Red stripe</strong> — Network Railcard: not valid at all before 10:00 Mon–Fri; £13 min fare after 10:00' },
-                    { icon: '💷', html: '<strong>Selling:</strong> where a minimum fare applies, charge the <strong>higher</strong> of the discounted fare or the minimum — never on Advance tickets. Most cards discount First Class too; Standard-only are 16–17 Saver, Family &amp; Friends, Jobcentre Plus, Network and GroupSave.' },
-                    { icon: '📸', html: '<strong>Photocards:</strong> HM Forces and Gold Card holders carry a separate Photocard alongside. For Two Together, check the names/photo on the card or its photocard. Senior, Network, Disabled Persons and Family &amp; Friends physical cards usually have no photo — and any digital card shows its photo in the live app.' },
-                    { icon: '☀️', html: '<strong>Summer:</strong> the £12 morning minimum fare is dropped all of July &amp; August on 16-25, HM Forces, and Veterans cards. The 26-30 card is the exception — its minimum fare stays year-round.' },
                 ]},
             ],
         },
@@ -1809,12 +1785,10 @@ function updateALBookedBox() {
 initCardCollapse('alBookedToggle',      'alBookedBody',   'alBookedChevron');
 
 // ============================================
-// CARD COLLAPSE — AL, Sick, FIP, Overrides
+// CARD COLLAPSE — AL, Sick, Overrides
 // ============================================
 initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
 initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
-initCardCollapse('fipToggleHeader',         'fipBody',           'fipChevron');
-initCardCollapse('railcardGuideToggleHeader','railcardGuideBody', 'railcardGuideChevron');
 initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
 
 // ============================================
@@ -2103,9 +2077,8 @@ initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 // Extracted to admin-auth.js at v9.78.
 initAuthSetup({ currentIsAdmin });
 
-// ── Railcard guide card — visible to all logged-in staff ─────────────────────
-const railcardCard = document.getElementById('railcardGuideCard');
-if (railcardCard) railcardCard.style.display = '';
+// ── Navigation panel ─────────────────────────────────────────────────────────
+initNavPanel({ currentPage: 'admin' });
 
 // ── Cultural calendar annual update reminder ──────────────────────────────────
 // In November and December, remind the admin to update the 15 lunar/lunisolar

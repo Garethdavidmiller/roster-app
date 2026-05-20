@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.48 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.57 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -27,6 +27,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
+| Navigation panel — burger menu, slide-out drawer, Information links | `nav-panel.js` |
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
@@ -139,6 +140,14 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
+
+### `nav-panel.js`
+Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and `paycalc.js`.
+- `initNavPanel({ currentPage })` — injects overlay + drawer HTML, wires burger button, manages open/close
+- `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay); current page is omitted from the pill row
+- `NAV_INFORMATION` — flat always-open Information section config: Workplace (Railcard Guide) + Staff Travel (FIP Guide)
+- Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate
+- Adding a new guide = one `links` entry in `NAV_INFORMATION`. No other changes needed.
 
 ### `app-override-utils.js`
 Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.
