@@ -584,38 +584,8 @@ body.lb-open #stickyTotal { display: none !important; }
     line-height: 1;
 }
 
-/* Back-to-roster navigation link */
-.btn-back {
-    flex-shrink: 0;
-    background: transparent;
-    border: 1.5px solid var(--border-light);
-    color: var(--primary-blue);
-    font-size: 11px;
-    font-weight: 700;
-    padding: 5px 10px;
-    min-height: 36px; /* safe tap target on mobile */
-    border-radius: 8px;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    transition: all 0.12s;
-    white-space: nowrap;
-    -webkit-user-select: none;
-    user-select: none;
-    touch-action: manipulation;
-}
-
-@media (hover: hover) and (pointer: fine) {
-    .btn-back:hover { border-color: var(--primary-blue); background: var(--bg-faint); }
-}
-.btn-back:active {
-    background: var(--bg-faint);
-    border-color: var(--primary-blue);
-    transition: none;
-}
-
+/* Header back button removed (v10.63) — navigation is via the nav drawer.
+   .btn-back still lives in fip.html / railcard-guide.html (their own CSS). */
 /* Sign-out moved to nav panel footer (v10.59) */
 
 @media (max-width: 768px) {
@@ -637,13 +607,6 @@ body.lb-open #stickyTotal { display: none !important; }
         padding: 4px 7px;
         font-size: 10px;
     }
-    .btn-back {
-        background: var(--primary-blue);
-        border-color: var(--primary-blue);
-        color: white;
-        font-size: 12px;
-        padding: 7px 13px;
-    }
 }
 
 /* Mobile default: show short title, hide long version */
@@ -661,11 +624,6 @@ body.lb-open #stickyTotal { display: none !important; }
     .badge-page {
         font-size: 11px;
         padding: 5px 12px;
-    }
-    .btn-back,
-    .btn-signout {
-        font-size: 12px;
-        padding: 6px 13px;
     }
     .title-mobile { display: none; }
     .title-desktop { display: inline; }
