@@ -548,7 +548,10 @@ body.lb-open #stickyTotal { display: none !important; }
     font-weight: 800;
     color: var(--primary-blue);
     flex: 1;
-    text-align: center;
+    /* Left-aligned so the title hugs the burger/back/logo cluster; flex:1 still
+       pushes the section badge to the right edge. Centering left it floating in
+       the gap once the burger was added alongside back + logo. */
+    text-align: left;
     margin: 0;
     letter-spacing: -0.3px;
     line-height: 1.2;
@@ -929,6 +932,40 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-link:active { background: var(--border-light); }
 @media (hover: hover) and (pointer: fine) {
     .nav-panel-link:hover { background: var(--bg-faint); }
+}
+
+/* Coming-soon entries are <button>s, not <a>s — reset native button chrome
+   so they sit identically alongside the anchor links. */
+button.nav-panel-link--coming-soon {
+    width: 100%;
+    background: none;
+    border: none;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+/* Coming-soon placeholder lightbox — theme only; structure from .lb-content/.lb-close */
+#navComingSoonContent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 40px 40px 32px;
+    width: min(300px, 85vw);
+    text-align: center;
+    transform: scale(0.85);
+}
+.nav-cs-icon  { font-size: 52px; line-height: 1; }
+.nav-cs-title { color: white; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+.nav-cs-body  { color: rgba(255, 255, 255, 0.7); font-size: 14px; }
+#navComingSoonClose { color: rgba(255, 255, 255, 0.5); }
+@media (hover: hover) and (pointer: fine) {
+    #navComingSoonClose:hover { color: white; }
 }
 
 @media print {

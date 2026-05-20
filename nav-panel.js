@@ -33,13 +33,16 @@ const NAV_PAGES = [
 /**
  * Information section — flat, always-open. Two sub-groups: Workplace and Staff Travel.
  * Adding a new guide means one entry here; no other changes needed.
+ * A link with `comingSoon: true` (instead of `url`) renders as a button that
+ * opens the "coming soon" lightbox rather than navigating.
  */
 const NAV_INFORMATION = [
     {
         heading: 'Workplace',
         links: [
-            { icon: '📋', label: 'Daily Huddle',  url: './index.html#huddle'    },
-            { icon: '🎫', label: 'Railcard Guide', url: './railcard-guide.html' },
+            { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle'   },
+            { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true             },
+            { icon: '🎫', label: 'Railcard Guide',         url: './railcard-guide.html' },
         ],
     },
     {
@@ -132,7 +135,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     overlay.addEventListener('click', closePanel);
 
     // Close panel before navigating so the panel doesn't flash behind the new page.
+    // A "coming soon" link is a button, not a navigation link — close the panel
+    // and open the placeholder lightbox instead.
     panel.addEventListener('click', e => {
+        const comingSoon = e.target.closest('.nav-panel-link--coming-soon');
+        if (comingSoon) {
+            closePanelForNavigation();
+            _openComingSoon();
+            return;
+        }
         if (e.target.closest('.nav-panel-pill, .nav-panel-link')) closePanelForNavigation();
     });
 
@@ -187,6 +198,37 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
     });
 
+    // "Coming soon" placeholder lightbox — reuses the shared .lb-overlay pattern.
+    const csLightbox = document.getElementById('navComingSoonLightbox');
+    const csClose    = document.getElementById('navComingSoonClose');
+
+    function _openComingSoon() {
+        if (!csLightbox) return;
+        _lockBodyScroll();
+        csLightbox.classList.add('visible');
+        requestAnimationFrame(() => csLightbox.classList.add('open'));
+        document.addEventListener('keydown', _onComingSoonKey);
+        setTimeout(() => csClose?.focus(), 60);
+    }
+
+    function _closeComingSoon() {
+        if (!csLightbox) return;
+        csLightbox.classList.remove('open');
+        csLightbox.addEventListener('transitionend', function done() {
+            csLightbox.classList.remove('visible');
+            csLightbox.removeEventListener('transitionend', done);
+            _unlockBodyScroll();
+        }, { once: true });
+        document.removeEventListener('keydown', _onComingSoonKey);
+    }
+
+    function _onComingSoonKey(e) { if (e.key === 'Escape') _closeComingSoon(); }
+
+    csClose?.addEventListener('click', _closeComingSoon);
+    csLightbox?.addEventListener('click', e => {
+        if (e.target === csLightbox || e.target === csClose) _closeComingSoon();
+    });
+
     document.addEventListener('keydown', e => {
         if (_panelOpen && e.key === 'Escape') closePanel();
     });
@@ -200,6 +242,20 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     });
 }
 
+// Body-scroll lock for the coming-soon lightbox. Mirrors the per-page helpers in
+// app.js / admin-app.js / paycalc.js (not exported there, so re-implemented here).
+let _navScrollY = 0;
+function _lockBodyScroll() {
+    _navScrollY = window.scrollY || 0;
+    document.body.style.setProperty('--lb-scroll-y', `-${_navScrollY}px`);
+    document.body.classList.add('lb-open');
+}
+function _unlockBodyScroll() {
+    document.body.classList.remove('lb-open');
+    document.body.style.removeProperty('--lb-scroll-y');
+    window.scrollTo(0, _navScrollY);
+}
+
 /** Build and inject the overlay + drawer HTML into document.body. */
 function _inject(currentPage, memberName, onSignOut) {
     const pills = NAV_PAGES
@@ -210,8 +266,9 @@ function _inject(currentPage, memberName, onSignOut) {
     const infoGroups = NAV_INFORMATION.map(group => `
         <p class="nav-panel-group-heading">${group.heading}</p>
         <ul class="nav-panel-links">
-            ${group.links.map(link =>
-                `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`
+            ${group.links.map(link => link.comingSoon
+                ? `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon">${link.icon} ${link.label}</button></li>`
+                : `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`
             ).join('')}
         </ul>`).join('');
 
@@ -254,6 +311,15 @@ function _inject(currentPage, memberName, onSignOut) {
                 </div>
             </div>
             ${footerHtml}
+        </div>
+        <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
+             aria-label="Weekly Retail Circular" aria-modal="true">
+            <div class="lb-content" id="navComingSoonContent">
+                <button id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
+                <div class="nav-cs-icon" aria-hidden="true">📰</div>
+                <div class="nav-cs-title">Weekly Retail Circular</div>
+                <div class="nav-cs-body">Coming soon</div>
+            </div>
         </div>`;
 
     const tmp = document.createElement('div');
