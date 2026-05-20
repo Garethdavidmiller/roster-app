@@ -58,6 +58,37 @@
         .page-header h1   { font-size: 17px; font-weight: 700; }
         .page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
 
+        /* ── Jump-to chip bar ─────────────────────── */
+        .chip-bar {
+            position: sticky;
+            top: 54px; /* refined by JS after header measures */
+            z-index: 9;
+            background: var(--bg);
+            padding: 7px max(12px, env(safe-area-inset-left)) 8px;
+            display: flex;
+            gap: 5px;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            border-bottom: 1px solid var(--border);
+        }
+        .chip-bar::-webkit-scrollbar { display: none; }
+        .chip {
+            flex-shrink: 0;
+            background: var(--white);
+            border: 1px solid var(--border);
+            border-radius: 99px;
+            font-family: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--navy);
+            padding: 4px 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .chip:active { background: var(--navy); color: white; border-color: var(--navy); }
+
         /* ── Content wrapper ─────────────────────── */
         .content {
             max-width: 620px;
@@ -65,24 +96,12 @@
             padding: 14px max(12px, env(safe-area-inset-right)) max(50px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
         }
 
-        /* ── Intro one-liner ─────────────────────── */
-        .intro {
-            font-size: 12px;
-            color: var(--mid);
-            line-height: 1.5;
-            padding: 9px 12px;
-            background: var(--white);
-            border-radius: 8px;
-            border-left: 3px solid var(--navy);
-            margin-bottom: 14px;
-        }
-
         /* ── Colour key strip ────────────────────── */
         .key {
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            margin-bottom: 12px;
+            margin-bottom: 8px;
             font-size: 11px;
         }
         .key-item { display: flex; align-items: center; gap: 5px; color: var(--mid); }
@@ -90,6 +109,19 @@
         .key-swatch.green { background: var(--green); }
         .key-swatch.amber { background: var(--amber); }
         .key-swatch.red   { background: var(--red); }
+
+        /* ── Weekend-rule banner ─────────────────── */
+        .weekend-note {
+            background: var(--green-bg);
+            border-left: 3px solid var(--green);
+            border-radius: 4px;
+            padding: 7px 10px;
+            font-size: 12px;
+            color: var(--text);
+            line-height: 1.45;
+            margin-bottom: 14px;
+        }
+        .weekend-note strong { color: var(--green); }
 
         /* ── Section heading ─────────────────────── */
         .section {
@@ -104,7 +136,7 @@
         }
         .section:first-child { margin-top: 0; }
 
-        /* ── Railcard row ────────────────────────── */
+        /* ── Railcard card ───────────────────────── */
         .rc {
             background: var(--white);
             border-radius: 8px;
@@ -115,6 +147,7 @@
         }
         .rc.amber { border-left-color: var(--amber); }
         .rc.red   { border-left-color: var(--red); }
+        .rc.rc-navy { border-left-color: var(--navy); }
 
         .rc-top {
             display: flex;
@@ -156,25 +189,40 @@
             text-transform: uppercase;
             letter-spacing: 0.03em;
             color: var(--light);
-            padding-top: 1px;
+            padding-top: 2px;
         }
         .rc-val { color: var(--text); }
         .rc-val.green { color: var(--green); font-weight: 600; }
-        .rc-val.amber { color: var(--amber); font-weight: 600; }
-        .rc-val.red   { color: var(--red); font-weight: 600; }
 
-        /* ── Weekend-rule banner under the colour key ─ */
-        .weekend-note {
-            background: var(--green-bg);
-            border-left: 3px solid var(--green);
-            border-radius: 4px;
-            padding: 7px 10px;
-            font-size: 12px;
-            color: var(--text);
-            line-height: 1.45;
-            margin-bottom: 14px;
+        /* ── When row — cutoff token ─────────────── */
+        .rc-cutoff { font-size: 12px; font-weight: 700; line-height: 1.3; display: block; }
+        .rc-cutoff strong { font-size: 13px; }
+        .rc-cutoff.amber { color: var(--amber); }
+        .rc-cutoff.red   { color: var(--red); }
+        .rc-sub {
+            display: block;
+            font-size: 11px;
+            color: var(--light);
+            margin-top: 1px;
+            line-height: 1.3;
         }
-        .weekend-note strong { color: var(--green); }
+
+        /* scroll-margin-top set precisely by JS; CSS value is a fallback */
+        .rc, .section { scroll-margin-top: 110px; }
+
+        /* ── Chiltern-specific callout ───────────── */
+        .rc-chiltern {
+            background: var(--amber-bg);
+            border-left: 3px solid var(--amber);
+            color: var(--text);
+            font-size: 11.5px;
+            padding: 6px 9px;
+            border-radius: 4px;
+            margin-top: 7px;
+            line-height: 1.45;
+        }
+        .rc-chiltern .ct-label { color: var(--amber); font-weight: 700; margin-right: 4px; }
+        .rc-chiltern a { color: var(--amber); font-weight: 600; }
 
         /* ── Gotchas list ────────────────────────── */
         .gotchas {
@@ -236,7 +284,6 @@
             margin-top: 1px;
         }
         .check-item strong { font-weight: 700; }
-        .check-item span   { color: var(--mid); }
         .check-note {
             font-size: 12px;
             color: var(--mid);
@@ -244,6 +291,30 @@
             margin-bottom: 6px;
             padding: 0 2px;
         }
+
+        /* ── Photo-check table ───────────────────── */
+        .photo-table {
+            margin-top: 7px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            font-size: 11.5px;
+        }
+        .pt-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 6px 9px;
+            border-bottom: 1px solid var(--border);
+            gap: 8px;
+            line-height: 1.35;
+            align-items: center;
+        }
+        .pt-row:last-child { border-bottom: none; }
+        .pt-card { color: var(--mid); }
+        .pt-photo { font-weight: 600; }
+        .pt-photo.green { color: var(--green); }
+        .pt-photo.amber { color: var(--amber); }
+        .pt-photo.red   { color: var(--red); }
 
         /* ── Digital railcards info ──────────────── */
         .digital {
@@ -268,32 +339,10 @@
         }
         .foot strong { color: var(--mid); }
 
-        /* ── Inline links ────────────────────────── */
         a { color: var(--navy); text-underline-offset: 2px; }
         a:hover { color: var(--amber); }
 
-        /* ── Chiltern-specific note inside a railcard ─ */
-        .rc-chiltern {
-            background: var(--amber-bg);
-            border-left: 3px solid var(--amber);
-            color: var(--text);
-            font-size: 11.5px;
-            padding: 6px 9px;
-            border-radius: 4px;
-            margin-top: 7px;
-            line-height: 1.45;
-        }
-        .rc-chiltern .ct-label {
-            color: var(--amber);
-            font-weight: 700;
-            margin-right: 4px;
-        }
-        .rc-chiltern a { color: var(--amber); font-weight: 600; }
-
-        /* ── GroupSave (not-a-railcard) accent ───── */
-        .rc.rc-navy { border-left-color: var(--navy); }
-
-        /* ── Save-as-PDF button in the header ────── */
+        /* ── Save-as-PDF button ───────────────────── */
         .btn-pdf {
             margin-left: auto;
             align-self: center;
@@ -310,14 +359,15 @@
         }
         .btn-pdf:hover { background: rgba(255,255,255,0.22); }
 
-        /* ── Print / Save-as-PDF output ──────────── */
+        /* ── Print ───────────────────────────────── */
         @media print {
             * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             body { background: white; }
             .page-header { position: static; }
+            .chip-bar { display: none; }
             .btn-back, .btn-pdf { display: none; }
             .content { max-width: none; padding: 0 6px; }
-            .rc, .gotcha, .check-item, .digital, .weekend-note, .intro { break-inside: avoid; }
+            .rc, .gotcha, .check-item, .digital, .weekend-note { break-inside: avoid; }
             .section { break-after: avoid; }
         }
     </style>
@@ -333,73 +383,85 @@
     <button id="savePdfBtn" class="btn-pdf" type="button" aria-label="Save or print this guide as a PDF">⤓ PDF</button>
 </header>
 
+<nav class="chip-bar" aria-label="Jump to card">
+    <button class="chip" type="button" data-target="rc-1617">16&ndash;17</button>
+    <button class="chip" type="button" data-target="rc-1625">16&ndash;25</button>
+    <button class="chip" type="button" data-target="rc-2630">26&ndash;30</button>
+    <button class="chip" type="button" data-target="rc-disabled">Disabled</button>
+    <button class="chip" type="button" data-target="rc-ff">F&amp;F</button>
+    <button class="chip" type="button" data-target="rc-gold">Gold Card</button>
+    <button class="chip" type="button" data-target="rc-forces">HM Forces</button>
+    <button class="chip" type="button" data-target="rc-jcp">Jobcentre+</button>
+    <button class="chip" type="button" data-target="rc-network">Network</button>
+    <button class="chip" type="button" data-target="rc-senior">Senior</button>
+    <button class="chip" type="button" data-target="rc-twotogether">Two Together</button>
+    <button class="chip" type="button" data-target="rc-veterans">Veterans</button>
+    <button class="chip" type="button" data-target="rc-groupsave">GroupSave</button>
+</nav>
+
 <main class="content">
 
-    <div class="intro">
-        Each card's <strong>coloured stripe</strong> is its Monday&ndash;Friday morning rule — the exact rule is in the <strong>When</strong> row on the card.<br>
-        <strong>Green</strong> — no time limit. <strong>Amber</strong> — a morning restriction (usually a £12 min fare before 10:00, or no travel before 09:30). <strong>Red</strong> — Network Railcard, the most limited.<br>
-        All amber &amp; red rules lift at weekends and on bank holidays.
-    </div>
-
     <div class="key">
-        <span class="key-item"><span class="key-swatch green"></span>No time limit</span>
-        <span class="key-item"><span class="key-swatch amber"></span>Morning rule Mon&ndash;Fri (see card)</span>
-        <span class="key-item"><span class="key-swatch red"></span>Network: not valid before 10:00</span>
+        <span class="key-item"><span class="key-swatch green"></span>Any time</span>
+        <span class="key-item"><span class="key-swatch amber"></span>Morning restriction Mon&ndash;Fri</span>
+        <span class="key-item"><span class="key-swatch red"></span>Network (strictest)</span>
     </div>
     <div class="weekend-note">
-        At <strong>weekends &amp; bank holidays</strong>, no restrictions apply on any amber or Network card — they all behave like green cards.
+        <strong>Weekends &amp; bank holidays</strong> — all restrictions lift on every card. The stripe shows the Mon&ndash;Fri rule; the <strong>When</strong> row gives the exact cutoff.
     </div>
 
-    <!-- ───── RAILCARDS ───── -->
     <div class="section">Railcards (A–Z)</div>
 
-    <!-- 16-17 Saver — green (no restriction) -->
-    <div class="rc">
+    <div class="rc" id="rc-1617">
         <div class="rc-top">
             <span class="rc-name">16&ndash;17 Saver</span>
-            <span class="rc-cost">£35/yr · digital only</span>
+            <span class="rc-cost">Digital only</span>
         </div>
-        <div class="rc-who">Anyone aged 16 or 17 only</div>
+        <div class="rc-who">Anyone aged 16 or 17</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">50% off</span></div>
             <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only</span></div>
         </div>
     </div>
 
-    <!-- 16-25 — amber -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-1625">
         <div class="rc-top">
             <span class="rc-name">16&ndash;25</span>
-            <span class="rc-cost">£35/yr · £80/3 yrs</span>
         </div>
-        <div class="rc-who">Ages 16&ndash;25, or any age if in full-time education</div>
+        <div class="rc-who">Ages 16&ndash;25, or any age in full-time education</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Min £12 fare before 10:00 Mon&ndash;Fri &middot; waived all Jul &amp; Aug</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">min fare £12 &middot; waived Jul &amp; Aug</span>
+                </span>
+            </div>
         </div>
     </div>
 
-    <!-- 26-30 — amber -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-2630">
         <div class="rc-top">
             <span class="rc-name">26&ndash;30</span>
-            <span class="rc-cost">£35/yr · digital only</span>
+            <span class="rc-cost">Digital only</span>
         </div>
         <div class="rc-who">Ages 26&ndash;30 only</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Min £12 fare before 10:00 Mon&ndash;Fri &middot; not waived Jul/Aug</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">min fare £12 &middot; not waived Jul/Aug</span>
+                </span>
+            </div>
         </div>
     </div>
 
-    <!-- Disabled Persons — green -->
-    <div class="rc">
+    <div class="rc" id="rc-disabled">
         <div class="rc-top">
             <span class="rc-name">Disabled Persons</span>
-            <span class="rc-cost">£20/yr · £54/3 yrs</span>
         </div>
         <div class="rc-who">People with a qualifying disability</div>
         <div class="rc-facts">
@@ -409,133 +471,158 @@
         </div>
     </div>
 
-    <!-- Family & Friends — amber -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-ff">
         <div class="rc-top">
             <span class="rc-name">Family &amp; Friends</span>
-            <span class="rc-cost">£35/yr · £80/3 yrs</span>
         </div>
         <div class="rc-who">1&ndash;4 adults travelling with 1&ndash;4 children aged 5&ndash;15</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off · kids 60% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">No discount in Mon&ndash;Fri morning peak (Network-area journeys)</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">⊘ morning peak Mon&ndash;Fri</span>
+                    <span class="rc-sub">Network-area journeys only — see Chiltern note</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">At least 1 adult + 1 child aged 5&ndash;15</span></div>
         </div>
         <div class="rc-chiltern">
-            <span class="ct-label">Chiltern:</span>No discount in the <strong>Mon&ndash;Fri morning peak</strong> for journeys made entirely within the Network area (Marylebone&ndash;Banbury). Through journeys to Birmingham, and all weekend &amp; bank-holiday travel, are fine. No minimum fare otherwise.
+            <span class="ct-label">Chiltern:</span>No discount in the <strong>Mon&ndash;Fri morning peak</strong> for journeys entirely within the Network area (Marylebone&ndash;Banbury). Through journeys to Birmingham and all weekend &amp; bank-holiday travel are fine.
         </div>
     </div>
 
-    <!-- Gold Card — amber (annual season ticket holders) -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-gold">
         <div class="rc-top">
             <span class="rc-name">Gold Card</span>
-            <span class="rc-cost">Free with an annual season ticket</span>
+            <span class="rc-cost">Free with annual season ticket</span>
         </div>
-        <div class="rc-who">Anyone holding an annual season ticket in the London &amp; South East area</div>
+        <div class="rc-who">Holders of an annual season ticket in the London &amp; South East area</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off · kids 60% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Not valid before 09:30 Mon&ndash;Fri</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">⊘ before <strong>09:30</strong> Mon&ndash;Fri</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ up to 3 adults &amp; 4 kids (£1 min child fare)</span></div>
         </div>
         <div class="rc-chiltern">
-            <span class="ct-label">Chiltern:</span>The Gold Card area is <strong>bigger than the Network Railcard</strong> — it covers <strong>all Chiltern services, including Birmingham</strong>. The holder gets the discount plus up to 3 adults and 4 children travelling with them. <a href="https://assets.nationalrail.co.uk/e8xgegruud3g/23LngqwDfggHprWTDmhnLP/cb14d3813ce376a5d319790c0955dada/Gold_Card_Area_of_Validity_Map_June_2023.pdf" target="_blank" rel="noopener">Open area map (PDF)</a>
+            <span class="ct-label">Chiltern:</span>Covers <strong>all Chiltern services including Birmingham</strong> — bigger than the Network Railcard. Holder must also carry a separate <strong>Photocard</strong> (free, issued at the ticket office). <a href="https://assets.nationalrail.co.uk/e8xgegruud3g/23LngqwDfggHprWTDmhnLP/cb14d3813ce376a5d319790c0955dada/Gold_Card_Area_of_Validity_Map_June_2023.pdf" target="_blank" rel="noopener">Area map (PDF)</a>
         </div>
     </div>
 
-    <!-- HM Forces — amber -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-forces">
         <div class="rc-top">
             <span class="rc-name">HM Forces</span>
-            <span class="rc-cost">£21/yr</span>
         </div>
         <div class="rc-who">Serving UK military, plus spouse/partner and children</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off · kids 60% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Min £12 fare before 10:00 Mon&ndash;Fri &middot; waived all Jul &amp; Aug</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">min fare £12 &middot; waived Jul &amp; Aug</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Family must travel with cardholder</span></div>
         </div>
     </div>
 
-    <!-- Jobcentre Plus — green -->
-    <div class="rc">
+    <div class="rc" id="rc-jcp">
         <div class="rc-top">
             <span class="rc-name">Jobcentre Plus</span>
-            <span class="rc-cost">Free · 3-month card</span>
+            <span class="rc-cost">Free &middot; 3-month card</span>
         </div>
         <div class="rc-who">Job seekers on Universal Credit or JSA for 3+ months — issued by a Work Coach</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">50% off</span></div>
             <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val green">Any time</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only · day &amp; short-season tickets</span></div>
+            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only &middot; day &amp; short-season tickets</span></div>
         </div>
     </div>
 
-    <!-- Network — red -->
-    <div class="rc red">
+    <div class="rc red" id="rc-network">
         <div class="rc-top">
             <span class="rc-name">Network</span>
-            <span class="rc-cost">£35/yr</span>
         </div>
         <div class="rc-who">Aged 16+ — London &amp; South East area only</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 · kids 60% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val red">Not valid before 10:00 Mon&ndash;Fri; then £13 adult / £1 child min</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff red">⊘ before <strong>10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">£13 adult / £1 child min after 10:00</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Up to 4 adults + 4 kids</span></div>
         </div>
         <div class="rc-chiltern">
-            <span class="ct-label">Chiltern:</span>Valid as far as <strong>Banbury</strong> and <strong>Kings Sutton</strong>. <strong>Not valid</strong> for Leamington Spa, Warwick, Warwick Parkway, Hatton, Lapworth, Dorridge, Solihull, or Birmingham Moor Street/Snow Hill. (For the whole route to Birmingham, see the <strong>Gold Card</strong> entry above.) <a href="https://www.network-railcard.co.uk/clientfiles/files/Map.pdf" target="_blank" rel="noopener">Open area map (PDF)</a>
+            <span class="ct-label">Chiltern:</span>Valid as far as <strong>Banbury</strong> and <strong>Kings Sutton</strong>. <strong>Not valid</strong> for Leamington Spa, Warwick, Warwick Parkway, Hatton, Lapworth, Dorridge, Solihull, or Birmingham Moor Street/Snow Hill. (For the whole route, see <strong>Gold Card</strong> above.) <a href="https://www.network-railcard.co.uk/clientfiles/files/Map.pdf" target="_blank" rel="noopener">Area map (PDF)</a>
         </div>
     </div>
 
-    <!-- Senior — amber (Network area restriction only) -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-senior">
         <div class="rc-top">
             <span class="rc-name">Senior</span>
-            <span class="rc-cost">£35/yr · £80/3 yrs</span>
         </div>
         <div class="rc-who">Anyone who was 60+ when they bought it</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Not valid before 09:30 Mon&ndash;Fri (Network-area journeys)</span></div>
-            <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Cardholder only</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">⊘ before <strong>09:30</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">Network-area journeys — see Chiltern note</span>
+                </span>
+            </div>
         </div>
         <div class="rc-chiltern">
-            <span class="ct-label">Chiltern:</span>All Marylebone services are within the Network area — Senior discount <strong>not valid before 09:30 Mon&ndash;Fri</strong> on these journeys. Fine any time at weekends, bank holidays, and on through journeys beyond Banbury to Birmingham (outside the Network area).
+            <span class="ct-label">Chiltern:</span>All Marylebone services are within the Network area — Senior discount <strong>not valid before 09:30 Mon&ndash;Fri</strong>. Fine at weekends, bank holidays, and through journeys beyond Banbury to Birmingham.
         </div>
     </div>
 
-    <!-- Two Together — amber -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-twotogether">
         <div class="rc-top">
             <span class="rc-name">Two Together</span>
-            <span class="rc-cost">£35/yr</span>
         </div>
         <div class="rc-who">Two named adults — both names on the card</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off each</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Not valid before 09:30 Mon&ndash;Fri</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">⊘ before <strong>09:30</strong> Mon&ndash;Fri</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">Both must travel together</span></div>
         </div>
     </div>
 
-    <!-- Veterans — amber -->
-    <div class="rc amber">
+    <div class="rc amber" id="rc-veterans">
         <div class="rc-top">
             <span class="rc-name">Veterans</span>
-            <span class="rc-cost">£35/yr · £80/3 yrs</span>
         </div>
         <div class="rc-who">Anyone who served at least one day in HM Armed Forces</div>
         <div class="rc-facts">
-            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off · kids 60% off</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">Min £12 fare before 10:00 Mon&ndash;Fri &middot; waived all Jul &amp; Aug</span></div>
+            <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">Adults 1/3 off &middot; kids 60% off</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">£ before <strong>10:00</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">min fare £12 &middot; waived Jul &amp; Aug</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Who</span><span class="rc-val">+ 1 companion &amp; up to 4 kids</span></div>
         </div>
     </div>
 
-    <!-- ───── GROUPSAVE — not a railcard ───── -->
     <div class="section">Not a railcard — but you'll see it</div>
-    <div class="rc rc-navy">
+
+    <div class="rc rc-navy" id="rc-groupsave">
         <div class="rc-top">
             <span class="rc-name">GroupSave</span>
             <span class="rc-cost">No card needed</span>
@@ -543,22 +630,26 @@
         <div class="rc-who">3 to 9 adults travelling together on the same journey</div>
         <div class="rc-facts">
             <div class="rc-row"><span class="rc-lbl">Save</span><span class="rc-val">1/3 off the group's adult fares</span></div>
-            <div class="rc-row"><span class="rc-lbl">When</span><span class="rc-val amber">After 09:30 Mon&ndash;Fri, any time weekends &amp; bank holidays</span></div>
+            <div class="rc-row">
+                <span class="rc-lbl">When</span>
+                <span class="rc-val">
+                    <span class="rc-cutoff amber">After <strong>09:30</strong> Mon&ndash;Fri</span>
+                    <span class="rc-sub">any time weekends &amp; bank holidays</span>
+                </span>
+            </div>
             <div class="rc-row"><span class="rc-lbl">Note</span><span class="rc-val">Can't be combined with a railcard discount</span></div>
         </div>
     </div>
 
-
-    <!-- ───── COMMON GOTCHAS ───── -->
     <div class="section">Common gotchas</div>
     <div class="gotchas">
         <div class="gotcha">
             <span class="gotcha-tag">Two Together</span>
-            <span class="gotcha-text">If only <strong>one</strong> of the two named passengers is travelling, the card is <strong>invalid</strong> — full fare due. Most common misuse. They must also carry a <strong>Photocard</strong> (issued free, shows both faces) — the plastic railcard itself has no photo on it.</span>
+            <span class="gotcha-text">If only <strong>one</strong> named passenger is travelling, the card is <strong>invalid</strong> — full fare due. Most common misuse. They must also carry a <strong>Photocard</strong> (issued free, shows both faces) — the plastic card itself has no photo.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">HM Forces</span>
-            <span class="gotcha-text">The plastic Railcard has <strong>no photo on it</strong>. A separate <strong>Photocard</strong> (free, issued alongside) must always be carried too — ask for both. Without the Photocard the discount is not valid.</span>
+            <span class="gotcha-text">The plastic Railcard has <strong>no photo on it</strong>. A separate <strong>Photocard</strong> (free, issued alongside) must always be carried too. Without the Photocard the discount is not valid.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Family &amp; Friends</span>
@@ -566,57 +657,52 @@
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">26&ndash;30</span>
-            <span class="gotcha-text">No physical card exists — a paper "26&ndash;30 Railcard" is <strong>not genuine</strong>. Unlike the 16-25 card, its £12 minimum fare is <strong>not</strong> waived in July &amp; August.</span>
-        </div>
-        <div class="gotcha">
-            <span class="gotcha-tag">Summer waiver</span>
-            <span class="gotcha-text">The £12 morning minimum fare is <strong>dropped for all of July &amp; August</strong> on the <strong>16-25, HM Forces and Veterans</strong> cards — they work any time those months. <strong>26-30 is the exception</strong> — its minimum fare stays year-round. Cards with a "no travel before 09:30/10:00" rule (Network, Senior, Two Together, Family &amp; Friends, Gold Card) have no minimum fare, so the summer waiver doesn't apply to them.</span>
+            <span class="gotcha-text">No physical card — a paper "26–30 Railcard" is <strong>not genuine</strong>. Unlike 16-25, its £12 minimum fare is <strong>not</strong> waived in July &amp; August.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Jobcentre+</span>
-            <span class="gotcha-text">Issued by a Work Coach — <strong>not sold</strong> in ticket offices or online, and a <strong>physical card only</strong> (no app version). Valid <strong>3 months</strong>; check the expiry. Accepted only by participating operators — Chiltern is one. Discounts day tickets and seasons up to 3 months.</span>
+            <span class="gotcha-text">Issued by a Work Coach — <strong>not sold</strong> at ticket offices or online. <strong>Physical card only</strong> (no app). Valid <strong>3 months</strong> — check expiry. Accepted by participating operators only; Chiltern is one.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">16&ndash;17 Saver</span>
-            <span class="gotcha-text">Expires on their <strong>18th birthday</strong> or after 1 year, whichever comes first. Digital only.</span>
+            <span class="gotcha-text">Expires on their <strong>18th birthday</strong> or after 1 year, whichever comes first. Digital only — no physical card.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Network</span>
-            <span class="gotcha-text"><strong>Cannot be used at all</strong> before 10:00 Mon&ndash;Fri — not just a minimum fare. After 10:00 on weekdays, minimum adult fare is <strong>£13</strong> (not £12). On Chiltern, the area ends just past Banbury at <strong>Kings Sutton</strong> — not valid to Leamington, Warwick or Birmingham.</span>
+            <span class="gotcha-text"><strong>Cannot be used at all</strong> before 10:00 Mon&ndash;Fri — this is a total ban, not just a minimum fare. After 10:00, minimum adult fare is <strong>£13</strong>. Area ends at <strong>Kings Sutton</strong> — not valid to Leamington, Warwick or Birmingham.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Gold Card</span>
-            <span class="gotcha-text">Not the same as the Network Railcard. It comes <strong>free with an annual season ticket</strong>, works the <strong>whole Chiltern route incl. Birmingham</strong>, and is valid from <strong>09:30</strong> — not 10:00. The season ticket itself has no photo — the holder must also carry a separate <strong>Photocard</strong> (free, issued at the ticket office).</span>
+            <span class="gotcha-text">Not the same as the Network Railcard. Comes <strong>free with an annual season ticket</strong>, covers the <strong>whole Chiltern route incl. Birmingham</strong>, valid from <strong>09:30</strong>. Holder must also show a separate <strong>Photocard</strong> (free, from the ticket office).</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Senior</span>
-            <span class="gotcha-text">Age is checked when they buy it, not when they travel — so a young-looking cardholder may still be valid. Physical cards have <strong>no photo</strong>.</span>
+            <span class="gotcha-text">Age is checked at purchase, not at travel — a young-looking cardholder may still be valid. Physical cards have <strong>no photo</strong>.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Season tickets</span>
-            <span class="gotcha-text">Standard railcards (16-25, 26-30, Senior, Network, Two Together, Family &amp; Friends, Disabled Persons, Veterans, HM Forces) <strong>do not discount season tickets</strong> — a common misconception. Only exceptions: <strong>Jobcentre Plus</strong> (seasons up to 3 months) and <strong>16&ndash;17 Saver</strong> (50% off, standard class). A <strong>Gold Card</strong> comes free <em>with</em> an annual season ticket — it's the season ticket that earns the leisure benefits, not the railcard discounting the season.</span>
+            <span class="gotcha-text">Standard railcards <strong>do not discount season tickets</strong>. Only exceptions: <strong>Jobcentre Plus</strong> (seasons up to 3 months) and <strong>16&ndash;17 Saver</strong> (50% off, standard class). A Gold Card comes free <em>with</em> an annual season ticket — it doesn't discount one.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Digital</span>
-            <span class="gotcha-text">A <strong>screenshot</strong> is not valid. Ask to see the live Railcard app — the genuine one has an animated shimmer.</span>
+            <span class="gotcha-text">A <strong>screenshot</strong> is not valid. The genuine Railcard app has an <strong>animated shimmer</strong> — ask to see the live app.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">No card</span>
-            <span class="gotcha-text"><strong>Outbound:</strong> they need a full-fare ticket before boarding. <strong>Inbound:</strong> the journey has already happened — follow your excess or penalty fare procedure. Either way, they can claim a refund online within 28 days if they can prove the railcard was valid.</span>
+            <span class="gotcha-text"><strong>Outbound:</strong> full-fare ticket required before boarding. <strong>Inbound:</strong> journey has happened — follow excess or penalty fare procedure. They can claim a refund online within 28 days if they prove the railcard was valid.</span>
         </div>
         <div class="gotcha">
             <span class="gotcha-tag">Under-5s</span>
-            <span class="gotcha-text">Children under 5 travel <strong>free</strong> with any fare-paying adult — no railcard required, no ticket required.</span>
+            <span class="gotcha-text">Children under 5 travel <strong>free</strong> with any fare-paying adult — no railcard, no ticket needed.</span>
         </div>
     </div>
 
-    <!-- ───── CHECKING ───── -->
     <div class="section">Checking railcards — gateline &amp; selling</div>
-    <p class="check-note">Same checks whether you're selling a ticket (outbound) or inspecting one at the gate (inbound). Outbound: resolve it before the passenger travels. Inbound: the journey has already happened — follow your excess or penalty fare procedure.</p>
+    <p class="check-note">Same checks whether you're selling (outbound) or inspecting at the gate (inbound). Outbound: resolve before the passenger travels. Inbound: journey has happened — follow excess or penalty fare procedure.</p>
     <div class="check">
         <div class="check-item">
             <div class="check-num">1</div>
-            <div><strong>Check the time — amber and red cards, Mon–Fri only.</strong> Amber cards have a morning rule: either a £12 minimum fare before 10:00 (16-25, 26-30, HM Forces, Veterans), or no travel before 09:30 (Two Together &amp; Gold Card; Senior &amp; Family &amp; Friends on Network-area journeys). Network card (red): not valid at all before 10:00. No restrictions at weekends or bank holidays.</div>
+            <div><strong>Check the time — amber and red cards, Mon&ndash;Fri only.</strong> <strong>£</strong> = min £12 fare applies (travel allowed, must pay at least £12). <strong>⊘</strong> = no travel at all before the cutoff. Red (Network): ⊘ before 10:00. No restrictions at weekends or bank holidays.</div>
         </div>
         <div class="check-item">
             <div class="check-num">2</div>
@@ -624,15 +710,35 @@
         </div>
         <div class="check-item">
             <div class="check-num">3</div>
-            <div><strong>Photo check.</strong> <strong>Digital cards</strong> (Railcard app) always show a photo — check it matches the person. For physical cards: <strong>16&ndash;25 (bought online)</strong> and <strong>Veterans</strong> have the photo printed on the card itself. <strong>HM Forces, Two Together,</strong> and annual season ticket holders (<strong>Gold Card</strong>) carry no photo on the card — they must also show a separate Photocard; ask for it if not offered. <strong>Senior, Network, Disabled Persons,</strong> and <strong>Family &amp; Friends</strong> physical cards carry <strong>no photo at all</strong> and there is no separate Photocard — you can only check age/eligibility, not identity.</div>
+            <div>
+                <strong>Photo check.</strong>
+                <div class="photo-table">
+                    <div class="pt-row">
+                        <span class="pt-card">Digital card (Railcard app)</span>
+                        <span class="pt-photo green">Photo in app — check it matches</span>
+                    </div>
+                    <div class="pt-row">
+                        <span class="pt-card">16&ndash;25 (bought online), Veterans</span>
+                        <span class="pt-photo green">Photo on card — check it matches</span>
+                    </div>
+                    <div class="pt-row">
+                        <span class="pt-card">HM Forces, Two Together, Gold Card</span>
+                        <span class="pt-photo amber">No photo on card — ask for Photocard</span>
+                    </div>
+                    <div class="pt-row">
+                        <span class="pt-card">Senior, Network, Disabled, F&amp;F</span>
+                        <span class="pt-photo red">No photo at all — check age/eligibility only</span>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="check-item">
             <div class="check-num">4</div>
-            <div><strong>Age looks right</strong> for the card type — use judgement and ask politely for ID if in doubt.</div>
+            <div><strong>Age looks right</strong> for the card type — use judgement, ask politely for ID if in doubt.</div>
         </div>
         <div class="check-item">
             <div class="check-num">5</div>
-            <div><strong>Companions are present</strong> — Two Together: both named adults must be travelling together. Family &amp; Friends: at least one child aged 5&ndash;15 must be in the group. Check this inbound too — adults arriving alone on group tickets are a revenue risk.</div>
+            <div><strong>Companions are present</strong> — Two Together: both named adults must travel together. Family &amp; Friends: at least one child aged 5&ndash;15 must be in the group. Check this inbound too.</div>
         </div>
         <div class="check-item">
             <div class="check-num">6</div>
@@ -640,17 +746,16 @@
         </div>
     </div>
 
-    <!-- ───── DIGITAL RAILCARDS ───── -->
     <div class="section">Digital railcards</div>
     <div class="digital">
         <p>Digital railcards live in the official <strong>Railcard app</strong> (by National Rail) or the <strong>Trainline app</strong>. Both are valid.</p>
-        <p>The genuine Railcard app displays an <strong>animated shimmer</strong> that's very hard to fake. A static screenshot is <strong>not valid</strong> — ask to see the live app.</p>
-        <p>When <strong>selling</strong> a discounted ticket, ask to see the railcard on-screen before you price the journey.</p>
-        <p>If the phone is dead or the app won't open, treat it the same as a forgotten card — full fare outbound, or excess/penalty fare procedure inbound.</p>
+        <p>The genuine Railcard app displays an <strong>animated shimmer</strong> — very hard to fake. A static screenshot is <strong>not valid</strong>.</p>
+        <p>When <strong>selling</strong> a discounted ticket, ask to see the railcard on-screen before pricing the journey.</p>
+        <p>If the phone is dead or the app won't open — full fare outbound, excess/penalty fare procedure inbound.</p>
     </div>
 
     <div class="foot">
-        <strong>Verified May 2026.</strong> Check nationalrail.co.uk/railcards for any updates.<br>
+        <strong>Verified May 2026.</strong> Check nationalrail.co.uk/railcards for updates.<br>
         For staff reference only. If in doubt, ask your supervisor.
     </div>
 
@@ -659,6 +764,24 @@
 <script>
     document.getElementById('savePdfBtn').addEventListener('click', function () {
         window.print();
+    });
+
+    document.querySelector('.chip-bar').addEventListener('click', function (e) {
+        var chip = e.target.closest('.chip');
+        if (!chip) return;
+        var target = document.getElementById(chip.dataset.target);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    requestAnimationFrame(function () {
+        var hdr = document.querySelector('.page-header');
+        var bar = document.querySelector('.chip-bar');
+        var hdrH = hdr.offsetHeight;
+        bar.style.top = hdrH + 'px';
+        var stickyH = hdrH + bar.offsetHeight + 8;
+        document.querySelectorAll('.rc, .section').forEach(function (el) {
+            el.style.scrollMarginTop = stickyH + 'px';
+        });
     });
 </script>
 
