@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v10.17 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.48 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -15,9 +15,10 @@ rules are deployed and require a real Firebase Auth session for all writes — s
 forged localStorage session can see the UI but cannot write to Firestore.
 Practical risk is low for a small known team.
 
-### ⏰ Four tasks scheduled for v10.50
+### ⏰ Four tasks scheduled for v11
 
-Do all four together when the app reaches v10.50.
+Do all four together when the app reaches v11. (Originally pencilled in for v10.50;
+deferred to v11 so the v10.x line stays focused on incremental fixes.)
 
 **1. Firebase web API key — restrict to HTTP referrers**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
@@ -77,7 +78,7 @@ The back pay card adds the lump sum to gross for the paid-in period's take-home
 calculation, but `calcHPP()` does not include any of it in the HPP accumulator.
 Back pay covers both basic/London Allowance (no HPP) and variable components
 (overtime, RDW, Sundays — which do accrue HPP), so the HPP estimate will be slightly
-low after a back pay event. See the v10.50 task block above for the check and fix plan.
+low after a back pay event. See the v11 task block above for the check and fix plan.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).

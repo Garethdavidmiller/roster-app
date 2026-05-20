@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v10.20*
+*Last updated: May 2026 — v10.48*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -102,6 +102,21 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 - `fetchToken` pattern: rapid week navigation cancels stale Firestore results so the UI never shows data for the wrong week
 - Grade-tabs row uses CSS grid (`1fr auto 1fr`) to keep the tab group centred regardless of how many utility buttons sit on the right
 - Admin-only gate removed at v8.40 — the feature was admin-only (v8.22–v8.39) during development; all staff can now access it
+
+### Railcard reference guide ✓ (v10.30–v10.48)
+
+`railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from admin.html; no JS module (static page, served network-first).
+
+- **v10.30–v10.33**: Initial guide added, collapse/lightbox interaction fixes.
+- **v10.34–v10.40**: Rewritten as a quick-glance at-work sheet — colour-coded stripe per card (green / amber / red morning rule), weekend-and-bank-holiday rule banner, page-wide plain-English pass.
+- **v10.41–v10.45**: Research-backed accuracy overhaul against official 2026 sources. Chiltern-specific callouts on Network area (valid to Banbury/Kings Sutton), Gold Card (covers the whole Chiltern route incl. Birmingham — the 12th card), Senior and Family & Friends (Network-area morning-peak rules). Two Together, Veterans, Jobcentre Plus corrected.
+- **v10.46**: Scannable labelled-row layout (Save / When / Who), GroupSave section, and a Save-as-PDF button (`window.print()` with `@media print` rules).
+- **v10.47–v10.48**: GroupSave validity time made specific (after 09:30 Mon–Fri; ScotRail's "any time" change does not apply to Chiltern), season-ticket guidance added (standard railcards do **not** discount season tickets — only Jobcentre Plus and 16-17 Saver do; Gold Card is itself a season-ticket benefit), and the July/August minimum-fare waiver flagged per card (16-25, HM Forces, Veterans waived; 26-30 not).
+
+**Key design decisions:**
+- Each card is self-contained — its exact time rule lives in its own **When** row so staff never have to cross-reference a key
+- Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
+- Static HTML, no module — kept deliberately simple as a low-frequency reference page
 
 ---
 
