@@ -2103,11 +2103,9 @@ initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
 // Extracted to admin-auth.js at v9.78.
 initAuthSetup({ currentIsAdmin });
 
-// ── Railcard guide card — admin only whilst in development ───────────────────
-if (currentIsAdmin) {
-    const railcardCard = document.getElementById('railcardGuideCard');
-    if (railcardCard) railcardCard.style.display = '';
-}
+// ── Railcard guide card — visible to all logged-in staff ─────────────────────
+const railcardCard = document.getElementById('railcardGuideCard');
+if (railcardCard) railcardCard.style.display = '';
 
 // ── Cultural calendar annual update reminder ──────────────────────────────────
 // In November and December, remind the admin to update the 15 lunar/lunisolar
