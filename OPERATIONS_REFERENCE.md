@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: May 2026 — v10.17 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.71 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -179,13 +179,28 @@ match /huddles/{docId} {
 
 The Admin SDK bypasses Security Rules — `allow write: if false` never blocks Cloud Functions.
 
-### Next steps for huddle viewer UI
+### Huddle notification tap behaviour (v10.71)
 
-When building the viewer in admin.html:
-- Query `huddles` collection, order by `date` descending
-- Display date, file type badge, download link via `storageUrl`
-- `storageUrl` already contains the access token — open directly in new tab
-- Admin-only section (check `CONFIG.ADMIN_NAMES.includes(currentUser)`)
+When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is `./index.html#huddle`. The app's `hashchange` listener fires `_triggerAutoOpen(huddle)` in `app.js`.
+
+**Two code paths inside `_triggerAutoOpen` — do not unify:**
+
+| Huddle type | What happens |
+|-------------|-------------|
+| HTML (`huddle.htmlContent` present) | Renders the HTML directly in the viewer overlay; focuses the close button |
+| PDF / DOCX (`storageUrl` only) | Renders an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) |
+
+**Why the in-overlay button for PDF/DOCX:**
+
+A notification tap provides no transient user activation in the page. This means:
+- `window.open('_blank', ...)` → pop-up blocked by the browser (no user gesture)
+- `window.location.href = storageUrl` → navigates the standalone PWA's top-level window to a cross-origin URL; Android wraps the app in browser chrome and the standalone window is lost
+
+Tapping the in-overlay button IS a real user gesture. `window.open(storageUrl, '_blank', 'noopener')` then opens the PDF as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
+
+**Manual 📋 Huddle button** (in `index.html` / `app.js` `#huddleBtn` click handler) calls `window.open(storageUrl, '_blank', 'noopener')` directly — that click is already a real user gesture, so no in-overlay button is needed there.
+
+**Important:** Do not merge these two paths. The popup-blocking and standalone-mode constraints apply only to the notification-triggered code path.
 
 ---
 

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v10.48*
+*Last updated: May 2026 — v10.71*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -103,6 +103,26 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 - Grade-tabs row uses CSS grid (`1fr auto 1fr`) to keep the tab group centred regardless of how many utility buttons sit on the right
 - Admin-only gate removed at v8.40 — the feature was admin-only (v8.22–v8.39) during development; all staff can now access it
 
+### Navigation overhaul ✓ (v10.57–v10.71)
+
+A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navigation controls across all three pages.
+
+- **v10.57** — `nav-panel.js` module added. Burger `☰` button in all three page headers. `NAV_PAGES` drives the page-switcher pill row (current page omitted). `NAV_INFORMATION` drives the always-open Information section (Workplace: Daily Huddle, Weekly Retail Circular, Railcard Guide; Staff Travel: FIP Guide). Coming-soon lightbox placeholder added.
+- **v10.59** — Sign-out button moved from page headers to nav panel footer. `initNavPanel({ onSignOut })` pattern — each page passes its own callback.
+- **v10.61** — Notification bell 🔔/🔕 added to nav panel footer. States: on / off-default / off-lapsed / denied / unsupported. All push logic stays in `notif.js`; nav-panel.js owns only the UI.
+- **v10.63** — Header back buttons removed from `admin.html` and `paycalc.html` (duplicate nav paradigm; conflicted visually with the grid layout). Navigation back to the calendar is now via the nav panel's Calendar pill.
+- **v10.64** — Nationality flags added to nav panel footer. Optional `flags: ['🇬🇧', '🇳🇬']` array on a `teamMembers` entry; `nav-panel.js` looks up the logged-in member and renders up to 2 emoji between the name and the bell.
+- **v10.65** — Flags hidden on Windows (flag emoji render as two-letter codes on Windows). Detection uses `navigator.userAgentData?.platform ?? navigator.platform` with a `navigator.userAgent` fallback.
+- **v10.66** — `admin.html` / `paycalc.html` headers switched to CSS grid (`1fr auto 1fr`). `<div class="app-header-brand">` wrapper holds icon + title in the `auto` centre column. Equal `1fr` side columns guarantee true geometric centring regardless of burger/badge width asymmetry.
+- **v10.67** — All remaining CEA members given flags arrays (UK flag by default; heritage flags where known).
+- **v10.68** — `justify-self: start` added to `.btn-burger` — pins burger to the left edge of its `1fr` grid column (was floating centre after the grid switch).
+- **v10.69** — Nav panel hardening: double-init guard (`burger.dataset.navPanelInit`); Tab/Shift+Tab focus trap while panel is open; coming-soon lightbox focus restoration (`_csReturnFocus`); keydown listener cleanup moved to start of `_closeComingSoon()` to prevent listener leak.
+- **v10.71** — Huddle push notification PDF fix. Notification taps carry no transient user activation — `window.open('_blank')` was blocked as a pop-up, and `location.href` to the cross-origin Storage URL broke standalone mode (Android wrapped the app in browser chrome). Fix: `_triggerAutoOpen()` now renders an in-overlay "📄 Open Huddle" button; tapping it IS a real gesture, `window.open` opens the PDF as a Custom Tab over the intact standalone app, and Back returns cleanly.
+
+**Key design outcome:** The nav panel replaced the need for a bottom navigation bar (see "UX experiments" below). Cross-page navigation is clean without occupying fixed screen space.
+
+---
+
 ### Railcard reference guide ✓ (v10.30–v10.48)
 
 `railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from admin.html; no JS module (static page, served network-first).
@@ -125,7 +145,7 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 Ideas that were prototyped and reverted. Implementation notes preserved here so they can be restored quickly if the case for them changes.
 
 ### Bottom navigation bar
-**Status:** Prototyped at v7.66, reverted — felt like clutter at current scale. Case reassessed v10.01 — not needed, navigation is complete without it.
+**Status:** Prototyped at v7.66, reverted — felt like clutter at current scale. Case reassessed v10.01 — not needed, navigation is complete without it. Navigation overhaul (v10.57–v10.71) added a slide-out nav panel that covers cross-page navigation, guide links, sign-out, and notifications — this need is now fully met. **Do not revisit.**
 
 A fixed tab bar at the bottom of the screen on mobile with three items:
 📅 Roster · 💷 Pay · 🔐 Admin

@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.64 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.71 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -57,6 +57,10 @@ Everything that touches `index.html` at runtime.
 - Notification/push subscription wiring
 - Sync chip state machine
 - `navigateToPaycalc(paydayStr)` — shared helper for payday/cutoff cell clicks; checks session then navigates
+- `_triggerAutoOpen(huddle)` — called when app opens via a push notification tap (`#huddle` hash). **Two paths, do not unify:**
+  - HTML huddles: render `huddle.htmlContent` directly in the viewer overlay
+  - PDF/DOCX huddles: render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`). A notification tap has no transient user activation — `window.open('_blank')` would be pop-up-blocked, and `location.href` to the cross-origin Storage URL breaks standalone mode (Android wraps the app in browser chrome). Tapping the overlay button IS a real gesture, so `window.open` opens the PDF as a Custom Tab over the intact standalone app; Back returns cleanly.
+  - The manual `#huddleBtn` click path (line ~2231) calls `window.open` directly — that click is already a real gesture.
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.
@@ -145,21 +149,25 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and `paycalc.js`.
 - `initNavPanel({ currentPage, memberName, onSignOut })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
+  - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay); current page is omitted from the pill row
 - `NAV_INFORMATION` — flat always-open Information section config: Workplace (Daily Huddle, Weekly Retail Circular, Railcard Guide) + Staff Travel (FIP Guide). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
 - Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open; tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
-- Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`.
+- Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`. Windows detection (v10.65) uses `navigator.userAgentData?.platform ?? navigator.platform` (modern API with legacy fallback) — flags are skipped on Windows where flag emoji render as two-letter codes.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
+- **Focus trap (v10.69):** a `document` keydown listener (active only while `_panelOpen`) cycles Tab/Shift+Tab within the panel's focusable elements. Escape closes the panel.
+- **Coming-soon lightbox (v10.69):** `_csReturnFocus` captures `document.activeElement` before opening; restores focus after the close transition completes. Keydown listener (`_onComingSoonKey`) is always removed at the start of `_closeComingSoon()` — not inside `transitionend` — so it never leaks even if the transition is skipped.
 - Adding a new guide = one `links` entry in `NAV_INFORMATION`. No other changes needed.
 
 ### `notif.js`
 Shared Web Push module — single source of truth for the VAPID key and subscription lifecycle. Imported by `nav-panel.js`.
 - `notifSupported()` — feature detection incl. the iOS "must be a Home Screen PWA" rule
 - `getNotifState()` — async → `'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'`; also does the silent VAPID-rotation re-subscribe
-- `enableNotifications()` / `disableNotifications()` — async; subscribe/unsubscribe + Firestore save/delete
+- `enableNotifications()` — async; subscribe + Firestore save → returns `Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>`
+- `disableNotifications()` — async; unsubscribe + Firestore delete
 - Imports `savePushSubscription`/`deletePushSubscription` from `firebase-client.js`, `lsGet`/`lsSet` from `ls.js`
-- **Not yet wired into `app.js` or `admin-huddle.js`** — they keep their own duplicate copies of this logic (deferred cleanup). If you change the VAPID key or subscribe flow, update all three until they are consolidated.
+- **Not yet wired into `app.js` or `admin-huddle.js`** — they keep their own duplicate copies of this logic (deferred cleanup). If you change the VAPID key or subscribe flow, update all three until they are consolidated. See KNOWN_LIMITATIONS.md.
 
 ### `app-override-utils.js`
 Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.
@@ -180,6 +188,10 @@ All CSS shared across the three pages.
 - Typography scale, badge/pill variants, button types
 - `touch-only` class — hidden by default, revealed on `@media (pointer: coarse)` (touch devices)
 - `@media print` rules — every shift type needs a print rule
+- `.app-header` (v10.66): `display: grid; grid-template-columns: 1fr auto 1fr` — true centring regardless of burger/badge width asymmetry. Used by `admin.html` and `paycalc.html` (calendar uses a different `.header`).
+- `.app-header-brand` (v10.66): flex wrapper (`display: flex; align-items: center; gap: 10px; justify-content: center`) holding the icon `<img>` and `<h1>`. Lives in the `auto` centre column.
+- `.btn-burger` (v10.68): `justify-self: start` — pins burger to the left edge of its `1fr` column in the grid context. Ignored in flex contexts (e.g. the calendar header).
+- `.huddle-open-btn` / `.huddle-open-prompt` (v10.71): styles for the in-overlay "📄 Open Huddle" button shown when a notification tap opens a PDF huddle. Defined in `index.html` `<style>` block (not shared.css — huddle viewer is index.html-only).
 
 ### `service-worker.js`
 - Add any new JS/CSS/HTML file to both `NETWORK_FIRST_FILES` and `CORE_ASSETS`
