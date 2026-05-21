@@ -529,9 +529,18 @@ body.lb-open #stickyTotal { display: none !important; }
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-2);
     padding: 14px 18px;
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+}
+
+/* Logo + title group — centered between burger (col 1) and badge (col 3).
+   Equal 1fr side columns mean the brand is always in the true centre of the header. */
+.app-header-brand {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
+    justify-content: center;
 }
 
 .app-header img, .app-icon {
@@ -547,15 +556,15 @@ body.lb-open #stickyTotal { display: none !important; }
     font-size: 18px;
     font-weight: 800;
     color: var(--primary-blue);
-    flex: 1;
-    /* Left-aligned so the title hugs the burger/back/logo cluster; flex:1 still
-       pushes the section badge to the right edge. Centering left it floating in
-       the gap once the burger was added alongside back + logo. */
-    text-align: left;
     margin: 0;
     letter-spacing: -0.3px;
     line-height: 1.2;
-    min-width: 0;
+    white-space: nowrap;
+}
+
+/* Badge sits in col 3 — push to the right edge */
+.app-header .badge-page {
+    justify-self: end;
 }
 
 /* Gold pill badge — shown in header to identify the current section */
@@ -597,9 +606,9 @@ body.lb-open #stickyTotal { display: none !important; }
 
 @media (max-width: 480px) {
     .app-header {
-        gap: 6px;
         padding: 10px 12px;
     }
+    .app-header-brand { gap: 6px; }
     .app-header h1 {
         font-size: 14px;
     }
@@ -616,8 +625,8 @@ body.lb-open #stickyTotal { display: none !important; }
 @media (min-width: 768px) {
     .app-header {
         padding: 16px 20px;
-        gap: 14px;
     }
+    .app-header-brand { gap: 14px; }
     .app-header h1 { font-size: 20px; }
     .app-icon,
     .app-header img { width: 40px; height: 40px; }
