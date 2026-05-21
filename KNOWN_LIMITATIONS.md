@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v10.72 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.74 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -20,14 +20,14 @@ Practical risk is low for a small known team.
 Do all four together when the app reaches v11. (Originally pencilled in for v10.50;
 deferred to v11 so the v10.x line stays focused on incremental fixes.)
 
-**1. Firebase web API key — restrict to HTTP referrers**
+**1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026)**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
 restriction it could theoretically be used to brute-force Firebase Auth from any origin.
-Risk is low: Firestore rules require a valid Auth session for all writes, and login rate
-limiting (v9.53) is in place.
-**To fix (5-minute manual step — cannot be done by Claude):** GCP Console → APIs & Services
-→ Credentials → find the Firebase web API key → add `myb-roster.firebaseapp.com` and
-`myb-roster.web.app` as HTTP referrer restrictions.
+**Applied manually in GCP Console:** APIs & Services → Credentials → Firebase web API key →
+HTTP referrer restrictions set to `myb-roster.firebaseapp.com/*` and `myb-roster.web.app/*`.
+Verified with curl: 403 for requests without a `Referer` header, 403 for a bad origin
+(`evil.com`), 400 (reached Firebase — key accepted, credentials invalid as expected) for the
+correct origin (`myb-roster.web.app`). Restriction is working correctly.
 
 **2. Firestore security rules — member write isolation ✓ DONE (v10.72)**
 Implemented in `firestore.rules`. Each collection now enforces:

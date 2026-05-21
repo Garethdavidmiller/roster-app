@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.71 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.74 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -29,6 +29,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
 | Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` |
 | Push notification subscribe/unsubscribe, VAPID key, notification state (shared) | `notif.js` |
+| Firestore security rules — write isolation, field validation, admin bypass | `firestore.rules` |
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
@@ -119,6 +120,8 @@ UI layer for `paycalc.html`. No pure pay maths here.
 - `_suggestIfBlank()` / `_applyRosterSuggestion()` — pre-fill helpers
 - Settings card, HPP card, sticky take-home bar
 - `getLoggedMember()`, `getEffectiveContr(p)` — session/period helpers
+- `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
+- `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
 
 ### `paycalc-calc.js`
 Pure functions only — no DOM, no Firebase, no localStorage.
@@ -158,6 +161,7 @@ Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and 
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
 - **Focus trap (v10.69):** a `document` keydown listener (active only while `_panelOpen`) cycles Tab/Shift+Tab within the panel's focusable elements. Escape closes the panel.
 - **Coming-soon lightbox (v10.69):** `_csReturnFocus` captures `document.activeElement` before opening; restores focus after the close transition completes. Keydown listener (`_onComingSoonKey`) is always removed at the start of `_closeComingSoon()` — not inside `transitionend` — so it never leaks even if the transition is skipped.
+- **`transitionend` fallback in `_closeComingSoon()` (v10.74):** A `setTimeout(done, 400)` fires alongside the `transitionend` listener. Whichever fires first calls `done()` and clears the other — prevents body scroll staying locked on iOS or when `prefers-reduced-motion` suppresses the CSS transition entirely.
 - Adding a new guide = one `links` entry in `NAV_INFORMATION`. No other changes needed.
 
 ### `notif.js`
@@ -181,6 +185,14 @@ Safe localStorage wrappers for all three pages (iOS Safari private mode compatib
 - `lsGet(k)`, `lsSet(k, v)`, `lsDel(k)` — wrap every `localStorage` call in try/catch
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
 - **Never call `localStorage` directly** in `app.js`, `admin-app.js`, or `paycalc.js` — always use these wrappers
+
+### `firestore.rules`
+Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
+- `overrides` create/update: `memberName == request.auth.token.name || admin == true`; required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72)
+- `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
+- `memberSettings` create/update/delete: document ID (= member name) `== request.auth.token.name || admin == true`. Document ID is the member name, not a field — isolation is via the path wildcard `{memberName}`.
+- Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
+- `huddles` write: `if false` — writes go through the Admin SDK in Cloud Functions, which bypasses rules.
 
 ### `shared.css`
 All CSS shared across the three pages.

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v10.71*
+*Last updated: May 2026 — v10.74*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -122,6 +122,18 @@ A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navig
 **Key design outcome:** The nav panel replaced the need for a bottom navigation bar (see "UX experiments" below). Cross-page navigation is clean without occupying fixed screen space.
 
 ---
+
+### Security hardening ✓ (v10.72–v10.74)
+
+Four v11 security tasks, all now complete:
+
+- **v10.72 — Firestore member write isolation:** `firestore.rules` updated so each staff member can only write overrides for themselves (`memberName == request.auth.token.name`). Admin custom claim bypasses the check for G. Miller (roster upload writes on behalf of all members). Required fields validated server-side. `memberSettings` document isolation uses the path wildcard `{memberName}` rather than a data field check. `admin-app.js` updated to include `memberName` in the `setDoc` call so first-time creates pass the `hasAll` rule.
+
+- **v10.73 — Back pay variable pay included in HPP:** G. Miller's period 32 payslip confirmed Chiltern itemises back pay per category with explicit `(Back Pay)` suffix lines. `calcBackPay()` now computes `_bpVarAmount` (overtime, RDW, Sunday, BH, London Allowance uplifts in the rate-difference period). `calcHPP()` adds `_bpVarAmount` to `totalVar` for the paid-in period — HPP estimate is now correct after a back pay event.
+
+- **v10.74 — Code quality fixes:** `.gitignore` added (example payslips, node_modules, .env files). `nav-panel.js` `_closeComingSoon()` given a `transitionend` fallback timer (400 ms) to prevent body scroll staying locked on iOS or under `prefers-reduced-motion`. `paycalc.html` static `rosterHintText` aligned with the JS-set wording. `OPERATIONS_REFERENCE.md` stale `ROSTER_SECRET` reference removed.
+
+- **GCP API key restriction (manual, May 2026):** Firebase web API key restricted to `myb-roster.firebaseapp.com/*` and `myb-roster.web.app/*` HTTP referrers in GCP Console. Verified correct via curl tests.
 
 ### Railcard reference guide ✓ (v10.30–v10.48)
 
