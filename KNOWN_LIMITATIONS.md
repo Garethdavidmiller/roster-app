@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v10.48 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.71 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -100,6 +100,16 @@ cache grows unboundedly for long sessions where many members are viewed.
 If a date has multiple override documents for the same member, the cache keeps the
 most recently created one (by `createdAt` timestamp). Duplicates are logged via
 `console.warn`. Clean up at source in the Firebase Console.
+
+---
+
+## Navigation / accessibility
+
+### Keyboard focus trap is panel-only (not full ARIA modal)
+The nav panel traps Tab/Shift+Tab within its focusable elements while open (v10.69), and the coming-soon lightbox also traps Tab focus to its single close button. Neither element is declared with `role="dialog"` or `aria-modal="true"`. Screen-reader users can still reach page content behind the overlay via browse mode. Full ARIA modal semantics (`aria-modal`, `inert` on background) are deferred — the app is staff-only on mobile (primarily Android), where VoiceOver/TalkBack bypass risks are low.
+
+### Web Push VAPID constants duplicated across three files
+`notif.js` is the shared module for push subscription. `app.js` (Notifications card, `initNotifications()`) and `admin-huddle.js` (`_initNotificationsCard()`) each carry a duplicate copy of the VAPID key and subscribe logic — the migration to `notif.js` was deliberately deferred to avoid regression in working code. Until consolidated: any VAPID key rotation or subscribe-flow fix must be applied to all three. See AI_MAP.md → `notif.js`.
 
 ---
 
