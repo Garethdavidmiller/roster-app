@@ -337,9 +337,11 @@ function _inject(currentPage, memberName, onSignOut) {
 
         // Nationality flags (optional `flags` array on the teamMember). Shown
         // between the name and the bell. Up to two flags per member.
-        const member  = teamMembers.find(m => m.name === memberName);
-        const flagsEl = document.getElementById('navPanelFlags');
-        if (flagsEl && member?.flags?.length) {
+        // Hidden on Windows — flag emoji render as 2-letter country codes there.
+        const isWindows = /Win/.test(navigator.platform) || /Windows/.test(navigator.userAgent);
+        const member    = teamMembers.find(m => m.name === memberName);
+        const flagsEl   = document.getElementById('navPanelFlags');
+        if (flagsEl && member?.flags?.length && !isWindows) {
             flagsEl.textContent = member.flags.join(' ');
         }
     }

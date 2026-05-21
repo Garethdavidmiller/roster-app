@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '10.64';
+export const APP_VERSION = '10.65';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -62,7 +62,7 @@ export const CONFIG = {
 
 export const teamMembers = [
     { name: 'L. Springer',             currentWeek: 1,  rosterType: 'main',       role: 'CEA' },
-    { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA' },
+    { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA', flags: ['🇸🇴', '🇬🇧'] },
     { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA' },
     { name: 'M. Robson',               currentWeek: 4,  rosterType: 'main',       role: 'CEA' },
     { name: 'C. Matthews',             currentWeek: 5,  rosterType: 'main',       role: 'CEA', hidden: true }, // Vacancy — hidden from dropdown
@@ -71,7 +71,7 @@ export const teamMembers = [
     { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA' },
     { name: 'O. Mylla',                currentWeek: 9,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧', '🇨🇩'] },
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA' },
-    { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
+    { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA', flags: ['🇱🇹', '🇬🇧'] },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
     { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true }, // Left
     { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 }, flags: ['🇬🇧', '🇳🇬'] },
@@ -84,7 +84,7 @@ export const teamMembers = [
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA', flags: ['🇨🇩'] },
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA', flags: ['🇬🇧', '🇨🇳'] },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA', flags: ['🇩🇿'] },
-    { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA' },  // Fixed Mon-Fri 12:00-19:00 (reasonable adjustments)
+    { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA', flags: ['🇬🇧', '🇵🇭'] },  // Fixed Mon-Fri 12:00-19:00 (reasonable adjustments)
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
     // currentWeek reflects each person's row in the base roster on that date
