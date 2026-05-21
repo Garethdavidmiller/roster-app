@@ -173,8 +173,9 @@ const SK = { rate:'cea_rate', rates:'cea_rates', code:'cea_code', sl:'cea_sl', p
 // ── BACK PAY STATE ────────────────────────────────────────────────────────────
 // Set by calcBackPay() when a "paid in" period is chosen. Read by calculate()
 // to add the lump sum into that period's gross before computing tax/NI.
-let _bpAmount = 0; // gross back pay for the "paid in" period (0 = none)
-let _bpPNum   = 0; // period number that receives the back pay (0 = none)
+let _bpAmount    = 0; // gross back pay for the "paid in" period (0 = none)
+let _bpVarAmount = 0; // variable (HPP-accruing) portion of the back pay lump sum
+let _bpPNum      = 0; // period number that receives the back pay (0 = none)
 
 
 // cea_hpp_est_2025_26  — running/final estimate, written on every calcHPP() call
@@ -1699,6 +1700,7 @@ function calcHPP() {
         ? MILLER_ACTUALS[_hppActualKey] : null;
       if (_hppActual?.varPay != null) {
         totalVar += _hppActual.varPay;
+        if (_bpVarAmount > 0 && p.num === _bpPNum) totalVar += _bpVarAmount;
         pCount++;
         usingActuals = true;
         return;
@@ -1710,6 +1712,9 @@ function calcHPP() {
       if (isDataEmpty(d)) return;
       pCount++;
       totalVar += _varPayForPeriod(p, d, rate);
+      // Variable back pay was earned in past periods but received in _bpPNum.
+      // Adding it here keeps HPP correct when the new rate hasn't yet been applied to settings.
+      if (_bpVarAmount > 0 && p.num === _bpPNum) totalVar += _bpVarAmount;
     } catch(e) {}
   });
 
@@ -1924,9 +1929,10 @@ function calcBackPay() {
   const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
   const londonDiff = hasLondon ? newLondon - oldLondon : 0;
   const periods    = getPeriods();
-  let rows         = '';
-  let grandTotal   = 0;
-  let pCount       = 0;
+  let rows          = '';
+  let grandTotal    = 0;
+  let grandVarTotal = 0;
+  let pCount        = 0;
 
   periods.forEach(p => {
     try {
@@ -1966,8 +1972,21 @@ function calcBackPay() {
       const _bpScale = getContr() ? _bpEffContr / getContr() : 1;
       const backPay = ratePay + londonDiff * _bpScale;
 
+      // Variable portion — mirrors _varPayForPeriod(): excludes basic contracted pay
+      // (effContr × rateDiff) and peer pay. London Allowance diff is variable (HPP accrues on it).
+      const varPay = (hasRate ? (
+        satCapped * rateDiff * 0.25 +
+        bhCapped  * rateDiff * 0.25 +
+        bhOtHrs   * rateDiff * 1.25 +
+        otHrs     * rateDiff * 1.25 +
+        rdwHrs    * rateDiff * 1.25 +
+        sunHrs    * rateDiff * 1.50 +
+        boxHrs    * rateDiff * 3.00
+      ) : 0) + (hasLondon ? londonDiff * _bpScale : 0);
+
       if (backPay > 0) {
-        grandTotal += backPay;
+        grandTotal    += backPay;
+        grandVarTotal += varPay;
         pCount++;
         rows += `<div class="bp-row">
           <span class="bp-lbl">P${p.num} · ${fd(p.payday)}</span>
@@ -2030,13 +2049,17 @@ function calcBackPay() {
     rowsEl.innerHTML = '<p style="font-size:13px;color:var(--text-light);padding:8px 0">No saved periods found. Enter hours for each period first.</p>';
   }
 
-  // Update the back pay state used by calculate() and re-run if needed.
+  // Update the back pay state used by calculate() and calcHPP(), then re-run.
   // Only associate with a period when the user has explicitly chosen one.
-  const newBpPNum = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
-  const newBpAmt  = newBpPNum > 0 ? grandTotal : 0;
-  if (newBpPNum !== _bpPNum || Math.abs(newBpAmt - _bpAmount) > 0.001) {
-    _bpAmount = newBpAmt;
-    _bpPNum   = newBpPNum;
+  const newBpPNum    = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
+  const newBpAmt     = newBpPNum > 0 ? grandTotal    : 0;
+  const newBpVarAmt  = newBpPNum > 0 ? grandVarTotal : 0;
+  if (newBpPNum !== _bpPNum ||
+      Math.abs(newBpAmt    - _bpAmount)    > 0.001 ||
+      Math.abs(newBpVarAmt - _bpVarAmount) > 0.001) {
+    _bpAmount    = newBpAmt;
+    _bpVarAmount = newBpVarAmt;
+    _bpPNum      = newBpPNum;
     calculate();
   }
 }

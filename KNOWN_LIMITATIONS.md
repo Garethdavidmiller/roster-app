@@ -41,11 +41,12 @@ Back pay covers both basic pay/London Allowance (no HPP) and variable components
 (overtime, RDW, Sundays — which do accrue HPP). The calculator adds the full lump sum
 to gross for take-home but does not include any of it in the HPP accumulator, so the
 HPP estimate will be slightly low after a back pay event.
-**To check (human action — requires a payslip):** After the next back pay event, check
-whether Chiltern's payslip shows a breakdown of the lump sum between basic and variable
-components. If it does, a "Variable pay portion" field can be added to the back pay card
-to feed the variable amount into HPP. If Chiltern show only a single back pay line with
-no breakdown, the calculator cannot do better than it currently does.
+**✓ DONE (v10.73):** Confirmed from G. Miller's period 32 (Oct 2025) payslip — Chiltern
+itemises each back pay line with an explicit `(Back Pay)` suffix per category (Basic Pay,
+Overtime 1.25, RDW 1.25, RDW Sun 1.5, Bank Holiday Rostered 1.25, etc.). No new UI field
+was needed — `calcBackPay()` already iterates saved period data by category, so
+`_bpVarAmount` is computed automatically. `calcHPP()` now adds `_bpVarAmount` to
+`totalVar` for the paid-in period so the HPP estimate is correct after a back pay event.
 
 **4. Pay reminder push notification — confirm it fires correctly**
 `sendPayReminderNotification` in `functions/index.js` is a scheduled Cloud Function that
@@ -70,12 +71,10 @@ award is announced. The UI shows a yellow "rate unconfirmed" notice for 2026/27 
 Pay awards at Chiltern are typically not decided until August — do not expect confirmed
 rates before then.
 
-### Back pay lump sum not fully included in HPP estimate
-The back pay card adds the lump sum to gross for the paid-in period's take-home
-calculation, but `calcHPP()` does not include any of it in the HPP accumulator.
-Back pay covers both basic/London Allowance (no HPP) and variable components
-(overtime, RDW, Sundays — which do accrue HPP), so the HPP estimate will be slightly
-low after a back pay event. See the v11 task block above for the check and fix plan.
+### Back pay lump sum — HPP now included (v10.73)
+`calcBackPay()` now computes `_bpVarAmount` (the variable-pay portion of the lump sum:
+overtime, RDW, Sunday, BH, London Allowance uplifts). `calcHPP()` adds this to `totalVar`
+for the paid-in period, so the HPP estimate is correct after a back pay event.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
