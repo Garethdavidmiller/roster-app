@@ -97,7 +97,7 @@ export async function getNotifState() {
 /**
  * Turn notifications on. Requests browser permission when it has not been asked,
  * then subscribes. A no-op resulting in 'denied' if the user blocks the prompt.
- * @returns {Promise<'on'|'denied'|'unsupported'>}
+ * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
 export async function enableNotifications() {
     if (!notifSupported()) return 'unsupported';
