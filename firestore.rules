@@ -14,20 +14,39 @@ rules_version = '2';
 // The workflow (deploy-rules.yml) also runs automatically whenever this
 // file changes on the main branch.
 //
-// Last updated: v8.94 — reads locked on memberSettings and huddles (personal data / internal content).
-//   overrides reads remain open: the calendar page (index.html) reads shift data without auth.
-//   This is acceptable — overrides contain operational data visible on the noticeboard.
+// Last updated: v10.72 — member write isolation (v11 security task #2).
+//   overrides: writes now require memberName == request.auth.token.name
+//              unless the caller has the admin custom claim (admin == true).
+//              admin bypass is required for roster upload (G. Miller writes
+//              overrides on behalf of any team member) and for override
+//              corrections. source field now required and validated:
+//              'manual' | 'roster_import'.
+//              delete now checks resource.data.memberName == auth token name.
+//   memberSettings: {document=**} wildcard narrowed to {memberName} (flat
+//              collection, no subcollections). Writes/deletes now check that
+//              the document ID matches the caller's token name, or admin bypass.
+//   The admin custom claim is set by setupRosterAuth in functions/index.js
+//   with adminMembers=['G. Miller'].
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /overrides/{document=**} {
-      // Intentionally open read: index.html (calendar) reads overrides without a Firebase Auth
-      // session. Shift data is operational / non-sensitive (same as the paper roster).
+      // Intentionally open read: index.html (calendar) reads overrides without a
+      // Firebase Auth session. Shift data is operational / non-sensitive (same as
+      // the paper noticeboard roster).
       allow read;
       allow create, update: if
         request.auth != null &&
-        request.resource.data.keys().hasAll(['date', 'memberName', 'type', 'value', 'note']) &&
+        // Member isolation: each user may only write overrides for themselves.
+        // The admin custom claim bypasses this so G. Miller can write for any
+        // team member — required for the weekly roster upload pipeline and for
+        // admin override corrections.
+        (request.resource.data.memberName == request.auth.token.name ||
+         request.auth.token.admin == true) &&
+        request.resource.data.keys().hasAll(
+          ['date', 'memberName', 'type', 'value', 'note', 'source']
+        ) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
         request.resource.data.memberName is string &&
@@ -37,31 +56,41 @@ service cloud.firestore {
           'spare_shift', 'shift', 'allocated', 'overtime', 'rdw', 'swap',
           'annual_leave', 'correction', 'sick'
         ] &&
+        request.resource.data.source in ['manual', 'roster_import'] &&
         request.resource.data.value is string &&
         request.resource.data.value.size() > 0 &&
         request.resource.data.note is string &&
         request.resource.data.note.size() < 500;
-      allow delete: if request.auth != null;
+      // Delete: staff can only delete their own overrides; admin can delete any.
+      allow delete: if
+        request.auth != null &&
+        (resource.data.memberName == request.auth.token.name ||
+         request.auth.token.admin == true);
     }
 
-    match /memberSettings/{document=**} {
+    match /memberSettings/{memberName} {
       // Faith calendar preferences are personal data — read requires auth.
-      // app.js degrades gracefully if this returns 403 (uses local/cached preferences).
+      // app.js degrades gracefully if this returns 403 (uses cached preferences).
       allow read: if request.auth != null;
       allow create, update: if
         request.auth != null &&
+        // Member isolation: staff can only write their own faith calendar setting.
+        // The document ID is the member name, so the path check is sufficient.
+        (memberName == request.auth.token.name || request.auth.token.admin == true) &&
         request.resource.data.keys().hasAll(['memberName', 'faithCalendar']) &&
         request.resource.data.memberName is string &&
         request.resource.data.faithCalendar in [
           'islamic', 'hindu', 'chinese', 'jamaican',
           'congolese', 'portuguese', 'none'
         ];
-      allow delete: if request.auth != null;
+      allow delete: if
+        request.auth != null &&
+        (memberName == request.auth.token.name || request.auth.token.admin == true);
     }
 
     match /huddles/{date} {
-      // Internal briefing documents — read requires auth. Only admin.html reads huddles,
-      // and admin.html always establishes a Firebase Auth session on login.
+      // Internal briefing documents — read requires auth. Only admin.html reads
+      // huddles, and admin.html always establishes a Firebase Auth session on login.
       allow read: if request.auth != null;
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
       // Browser writes (manual admin upload) require auth.
