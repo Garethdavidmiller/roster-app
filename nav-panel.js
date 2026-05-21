@@ -64,6 +64,8 @@ let _historyPushed = false;
 export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null } = {}) {
     const burger = document.getElementById('navMenuBtn');
     if (!burger) return;
+    if (burger.dataset.navPanelInit) return;
+    burger.dataset.navPanelInit = '1';
 
     _inject(currentPage, memberName, onSignOut);
 
@@ -145,7 +147,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             _openComingSoon();
             return;
         }
-        if (e.target.closest('.nav-panel-pill, .nav-panel-link')) closePanelForNavigation();
+        if (e.target.closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
     });
 
     // Sign-out footer button
@@ -202,9 +204,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // "Coming soon" placeholder lightbox — reuses the shared .lb-overlay pattern.
     const csLightbox = document.getElementById('navComingSoonLightbox');
     const csClose    = document.getElementById('navComingSoonClose');
+    let _csReturnFocus = null;
 
     function _openComingSoon() {
         if (!csLightbox) return;
+        _csReturnFocus = document.activeElement; // restore focus here on close
         _lockBodyScroll();
         csLightbox.classList.add('visible');
         requestAnimationFrame(() => csLightbox.classList.add('open'));
@@ -214,24 +218,58 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     function _closeComingSoon() {
         if (!csLightbox) return;
+        // Remove the keydown listener immediately — not inside transitionend —
+        // so it is always cleaned up even if the CSS transition never fires
+        // (e.g. prefers-reduced-motion, or element hidden before close).
+        document.removeEventListener('keydown', _onComingSoonKey);
         csLightbox.classList.remove('open');
         csLightbox.addEventListener('transitionend', function done() {
             csLightbox.classList.remove('visible');
             csLightbox.removeEventListener('transitionend', done);
             _unlockBodyScroll();
+            _csReturnFocus?.focus();
+            _csReturnFocus = null;
         }, { once: true });
-        document.removeEventListener('keydown', _onComingSoonKey);
     }
 
-    function _onComingSoonKey(e) { if (e.key === 'Escape') _closeComingSoon(); }
+    // Escape closes the lightbox. Tab is trapped — the lightbox has only one
+    // focusable element (the ✕ button) so Tab would immediately escape otherwise.
+    function _onComingSoonKey(e) {
+        if (e.key === 'Escape') { _closeComingSoon(); return; }
+        if (e.key === 'Tab')    { e.preventDefault(); csClose?.focus(); }
+    }
 
     csClose?.addEventListener('click', _closeComingSoon);
     csLightbox?.addEventListener('click', e => {
         if (e.target === csLightbox || e.target === csClose) _closeComingSoon();
     });
 
+    // Close panel on Escape; trap Tab focus within the panel while it is open.
+    // The !panel.contains(active) guard catches focus that escaped the panel
+    // (e.g. via a programmatic focus() call elsewhere) and pulls it back in.
     document.addEventListener('keydown', e => {
-        if (_panelOpen && e.key === 'Escape') closePanel();
+        if (!_panelOpen) return;
+        if (e.key === 'Escape') { closePanel(); return; }
+        if (e.key === 'Tab') {
+            const focusable = Array.from(panel.querySelectorAll(
+                'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ));
+            if (focusable.length === 0) return;
+            const first  = focusable[0];
+            const last   = focusable[focusable.length - 1];
+            const active = document.activeElement;
+            if (e.shiftKey) {
+                if (active === first || !panel.contains(active)) {
+                    e.preventDefault();
+                    last.focus();
+                }
+            } else {
+                if (active === last || !panel.contains(active)) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        }
     });
 
     // Android Back button closes the panel.
@@ -338,7 +376,7 @@ function _inject(currentPage, memberName, onSignOut) {
         // Nationality flags (optional `flags` array on the teamMember). Shown
         // between the name and the bell. Up to two flags per member.
         // Hidden on Windows — flag emoji render as 2-letter country codes there.
-        const isWindows = /Win/.test(navigator.platform) || /Windows/.test(navigator.userAgent);
+        const isWindows = /Win/.test(navigator.userAgentData?.platform ?? navigator.platform) || /Windows/.test(navigator.userAgent);
         const member    = teamMembers.find(m => m.name === memberName);
         const flagsEl   = document.getElementById('navPanelFlags');
         if (flagsEl && member?.flags?.length && !isWindows) {
