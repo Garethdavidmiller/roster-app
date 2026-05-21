@@ -1729,17 +1729,6 @@ initCardCollapse('sickBookedToggle', 'sickBookedBody', 'sickBookedChevron');
 // INIT — runs last so all dropdowns are populated
 // ============================================
 
-// ← Roster button: write the current fieldDate month/year to localStorage before
-// navigating so index.html opens on the same month the user was looking at in admin.
-document.querySelector('.btn-back').addEventListener('click', e => {
-    if (fieldDate.value) {
-        const d = new Date(fieldDate.value + 'T12:00:00');
-        lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
-        lsSet('myb_roster_year',  d.getFullYear());
-    }
-    // Let the <a> navigate normally
-});
-
 function applyPermissions() {
     if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
 
@@ -2078,6 +2067,18 @@ initNavPanel({
     currentPage: 'admin',
     memberName:  currentUser,
     onSignOut:   () => { clearSession(); window.location.reload(); },
+});
+
+// Calendar pill in the nav drawer: write the current fieldDate month/year to
+// localStorage before navigating so index.html opens on the same month the user
+// was looking at in admin. (Replaces the removed header back button, v10.63.)
+document.querySelector('.nav-panel-pill--calendar')?.addEventListener('click', () => {
+    if (fieldDate.value) {
+        const d = new Date(fieldDate.value + 'T12:00:00');
+        lsSet('myb_roster_month', d.getMonth());     // 0-indexed, matches app.js
+        lsSet('myb_roster_year',  d.getFullYear());
+    }
+    // Let the <a> navigate normally
 });
 
 // ── Cultural calendar annual update reminder ──────────────────────────────────

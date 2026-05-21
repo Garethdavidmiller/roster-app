@@ -16,6 +16,7 @@
  */
 
 import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { teamMembers } from './roster-data.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -284,7 +285,10 @@ function _inject(currentPage, memberName, onSignOut) {
     const footerHtml = onSignOut ? `
         <div class="nav-panel-footer">
             <div class="nav-panel-footer-row">
-                <span class="nav-panel-member" id="navPanelMember"></span>
+                <div class="nav-panel-member-wrap">
+                    <span class="nav-panel-member" id="navPanelMember"></span>
+                    <span class="nav-panel-flags" id="navPanelFlags" aria-hidden="true"></span>
+                </div>
                 <div class="nav-panel-footer-actions">
                     ${bellHtml}
                     <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
@@ -330,5 +334,13 @@ function _inject(currentPage, memberName, onSignOut) {
     if (memberName) {
         const memberEl = document.getElementById('navPanelMember');
         if (memberEl) memberEl.textContent = `👤 ${memberName}`;
+
+        // Nationality flags (optional `flags` array on the teamMember). Shown
+        // between the name and the bell. Up to two flags per member.
+        const member  = teamMembers.find(m => m.name === memberName);
+        const flagsEl = document.getElementById('navPanelFlags');
+        if (flagsEl && member?.flags?.length) {
+            flagsEl.textContent = member.flags.join(' ');
+        }
     }
 }

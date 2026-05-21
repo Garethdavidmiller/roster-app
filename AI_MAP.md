@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.62 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.64 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -149,6 +149,7 @@ Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and 
 - `NAV_INFORMATION` — flat always-open Information section config: Workplace (Daily Huddle, Weekly Retail Circular, Railcard Guide) + Staff Travel (FIP Guide). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
 - Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open; tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
+- Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
 - Adding a new guide = one `links` entry in `NAV_INFORMATION`. No other changes needed.
 
