@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '10.66';
+export const APP_VERSION = '10.67';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -61,26 +61,26 @@ export const CONFIG = {
 //                            suppresses shift time. Remove to restore normal roster display.
 
 export const teamMembers = [
-    { name: 'L. Springer',             currentWeek: 1,  rosterType: 'main',       role: 'CEA' },
+    { name: 'L. Springer',             currentWeek: 1,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA', flags: ['🇸🇴', '🇬🇧'] },
-    { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA' },
-    { name: 'M. Robson',               currentWeek: 4,  rosterType: 'main',       role: 'CEA' },
-    { name: 'C. Matthews',             currentWeek: 5,  rosterType: 'main',       role: 'CEA', hidden: true }, // Vacancy — hidden from dropdown
-    { name: 'I. Cooper',               currentWeek: 6,  rosterType: 'main',       role: 'CEA' },
+    { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
+    { name: 'M. Robson',               currentWeek: 4,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
+    { name: 'C. Matthews',             currentWeek: 5,  rosterType: 'main',       role: 'CEA', hidden: true, flags: ['🇬🇧'] }, // Vacancy — hidden from dropdown
+    { name: 'I. Cooper',               currentWeek: 6,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'A. Panchal',              currentWeek: 7,  rosterType: 'main',       role: 'CEA', flags: ['🇮🇳'] },
-    { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA' },
+    { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'O. Mylla',                currentWeek: 9,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧', '🇨🇩'] },
-    { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA' },
+    { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA', flags: ['🇱🇹', '🇬🇧'] },
-    { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA' },
-    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true }, // Left
+    { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
+    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true, flags: ['🇬🇧'] }, // Left
     { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 }, flags: ['🇬🇧', '🇳🇬'] },
-    { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA' },
-    { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA' },
-    { name: 'S. Langley',              currentWeek: 16, rosterType: 'main',       role: 'CEA' },
+    { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
+    { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
+    { name: 'S. Langley',              currentWeek: 16, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'S. Silva',                currentWeek: 17, rosterType: 'main',       role: 'CEA', flags: ['🇵🇹'] },
     { name: 'J. Sumaili',              currentWeek: 18, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧', '🇨🇩'] },
-    { name: 'T. Bibi',                 currentWeek: 19, rosterType: 'main',       role: 'CEA' },
+    { name: 'T. Bibi',                 currentWeek: 19, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧', '🇪🇸'] },
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA', flags: ['🇨🇩'] },
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA', flags: ['🇬🇧', '🇨🇳'] },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA', flags: ['🇩🇿'] },
