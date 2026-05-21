@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v10.64 -->
+<!-- MYB Roster — Pay Calculator v10.67 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -744,6 +744,7 @@
         content: attr(data-print-line);
         display: block; font-size: 10px;
         color: var(--text-light); margin-top: 3px;
+        grid-column: 1 / -1;
       }
       .app-header h1 { font-size: 16px !important; }
       .app-header .hint { font-size: 10px !important; }
@@ -1092,8 +1093,10 @@
   <header class="app-header">
     <button class="btn-burger" id="navMenuBtn"
             aria-label="Open navigation menu" aria-expanded="false">☰</button>
-    <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
-    <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
+    <div class="app-header-brand">
+      <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
+      <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
+    </div>
     <span class="badge-page"><span class="badge-glyph" aria-hidden="true">£</span> Pay</span>
   </header>
 
