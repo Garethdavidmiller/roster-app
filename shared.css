@@ -709,6 +709,7 @@ body.lb-open #stickyTotal { display: none !important; }
     border-radius: 6px;
     -webkit-user-select: none;
     user-select: none;
+    justify-self: start; /* pin to left edge of its grid column in .app-header */
 }
 .btn-burger:active { opacity: 0.5; }
 
