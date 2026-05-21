@@ -219,17 +219,20 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _closeComingSoon() {
         if (!csLightbox) return;
         // Remove the keydown listener immediately — not inside transitionend —
-        // so it is always cleaned up even if the CSS transition never fires
-        // (e.g. prefers-reduced-motion, or element hidden before close).
+        // so it is always cleaned up even if the CSS transition never fires.
         document.removeEventListener('keydown', _onComingSoonKey);
         csLightbox.classList.remove('open');
-        csLightbox.addEventListener('transitionend', function done() {
+        // Fallback timer ensures body scroll is always unlocked even if
+        // transitionend never fires (prefers-reduced-motion, iOS quirks, etc.).
+        const t = setTimeout(done, 400);
+        function done() {
+            clearTimeout(t);
             csLightbox.classList.remove('visible');
-            csLightbox.removeEventListener('transitionend', done);
             _unlockBodyScroll();
             _csReturnFocus?.focus();
             _csReturnFocus = null;
-        }, { once: true });
+        }
+        csLightbox.addEventListener('transitionend', done, { once: true });
     }
 
     // Escape closes the lightbox. Tab is trapped — the lightbox has only one
