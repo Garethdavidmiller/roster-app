@@ -352,7 +352,7 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
         title: 'Marylebone Roster',
         body:  `${dayLabel} Huddle is ready`,
         tag:   'huddle',
-        url:   'https://myb-roster.web.app/#huddle',
+        url:   'https://garethdavidmiller.github.io/roster-app/#huddle',
     }, '[push]');
     console.log(`[push] "${dayLabel} Huddle is ready" sent`);
 }
@@ -379,7 +379,7 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
         title: `💷 Payday is ${paydayDay}!`,
         body:  `Hours cutoff today — open the Pay Calculator to estimate your ${paydayFmt} pay`,
         tag:   'pay-reminder',
-        url:   `https://myb-roster.web.app/paycalc.html?payday=${paydayISO}`,
+        url:   `https://garethdavidmiller.github.io/roster-app/paycalc.html?payday=${paydayISO}`,
     }, '[payReminder]');
     console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
 }
