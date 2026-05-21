@@ -1785,7 +1785,7 @@ try {
                 selYear.appendChild(opt);
             }
             // Populate month select once
-            monthNames.forEach((name, i) => {
+            MONTH_NAMES.forEach((name, i) => {
                 const opt = document.createElement('option');
                 opt.value = i; opt.textContent = name;
                 selMonth.appendChild(opt);
