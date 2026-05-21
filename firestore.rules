@@ -89,9 +89,12 @@ service cloud.firestore {
     }
 
     match /huddles/{date} {
-      // Internal briefing documents — read requires auth. Only admin.html reads
-      // huddles, and admin.html always establishes a Firebase Auth session on login.
-      allow read: if request.auth != null;
+      // Open read: both index.html (Huddle button/viewer, notification auto-open)
+      // and admin.html read huddles. index.html has no Firebase Auth session, so
+      // requiring auth would break notification auto-open on fresh visits. Huddle
+      // briefings are non-sensitive operational content — the actual PDF is behind
+      // Firebase Storage. Cloud Function writes use the Admin SDK (bypasses rules).
+      allow read;
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
       // Browser writes (manual admin upload) require auth.
       allow create, update: if
