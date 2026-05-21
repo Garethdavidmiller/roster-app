@@ -2254,7 +2254,13 @@ function sanitiseHtml(html) {
                 openViewer();
                 close.focus();
             } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
-                window.open(huddle.storageUrl, '_blank', 'noopener');
+                // Notification path: the tap happened in the OS notification tray,
+                // so there is no in-page user activation here. window.open('_blank')
+                // would be blocked as a pop-up. A same-tab navigation is always
+                // allowed — the PDF opens full-screen and Back returns to the app.
+                // (The manual #huddleBtn handler keeps window.open: that IS a real
+                // in-page gesture, and opening a new tab leaves the app in place.)
+                window.location.href = huddle.storageUrl;
             }
         } catch (err) {
             console.error('[Huddle] Auto-open error:', err);
