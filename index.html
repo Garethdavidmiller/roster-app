@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 10.70 -->
+<!-- MYB Roster Calendar - Version 10.71 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2081,6 +2081,34 @@
             padding: 40px 20px;
             color: #666;
         }
+        /* Notification auto-open of a PDF/DOCX Huddle: an explicit tap is required
+           so window.open() runs from a real gesture (avoids the pop-up block) and
+           opens a Custom Tab over the intact standalone PWA. */
+        #huddleViewerBody .huddle-open-prompt {
+            text-align: center;
+            padding: 32px 16px;
+        }
+        #huddleViewerBody .huddle-open-prompt p {
+            font-size: 1.05rem;
+            color: #333;
+            margin: 0 0 22px;
+        }
+        .huddle-open-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-blue);
+            color: #fff;
+            border: none;
+            border-radius: 999px;
+            font-size: 1rem;
+            font-weight: 700;
+            padding: 14px 28px;
+            cursor: pointer;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .huddle-open-btn:active { opacity: 0.8; }
 
         /* ---- Month/year jump picker overlay ---- */
         /* #monthJumpOverlay uses .lb-overlay; unique: lower z-index, slightly faster fade */
