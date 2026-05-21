@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v10.71 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.72 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -29,15 +29,12 @@ limiting (v9.53) is in place.
 → Credentials → find the Firebase web API key → add `myb-roster.firebaseapp.com` and
 `myb-roster.web.app` as HTTP referrer restrictions.
 
-**2. Firestore security rules — member write isolation**
-Any logged-in staff member can currently write or delete overrides for any other member's
-name. The rule checks `request.auth != null` but not whose session it is.
-**To fix (Claude-implementable, ~half a day):**
-- Add `request.resource.data.memberName == request.auth.token.name` to the `overrides`
-  and `memberSettings` write rules, with an admin custom-claim bypass for G. Miller
-- Add the same guard to `allow delete` on `overrides`
-- Add `source` field validation: `in ['manual', 'roster_import']`
-- Test that the admin custom claim correctly bypasses member restrictions before deploying
+**2. Firestore security rules — member write isolation ✓ DONE (v10.72)**
+Implemented in `firestore.rules`. Each collection now enforces:
+- `overrides` create/update: `memberName == request.auth.token.name || admin == true` + `source in ['manual', 'roster_import']`
+- `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
+- `memberSettings` create/update/delete: document ID (= member name) `== request.auth.token.name || admin == true`
+Admin custom claim is set via `setupRosterAuth` with `adminMembers=['G. Miller']`.
 
 **3. Back pay HPP — check variable pay split against a payslip**
 Back pay covers both basic pay/London Allowance (no HPP) and variable components

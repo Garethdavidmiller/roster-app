@@ -1858,7 +1858,7 @@ initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevr
             renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
             // Firestore sync for cross-device persistence. localStorage save above is the primary;
             // this is a bonus sync. If it fails, the setting still works on this device.
-            setDoc(doc(db, 'memberSettings', target), { faithCalendar: radio.value }, { merge: true })
+            setDoc(doc(db, 'memberSettings', target), { memberName: target, faithCalendar: radio.value }, { merge: true })
                 .catch(e => {
                     console.warn('[Firestore] memberSettings sync failed:', e);
                     clearTimeout(saveTimer);
