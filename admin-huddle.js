@@ -189,6 +189,14 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
     // Default date to today
     dateInput.value = formatISO(new Date());
 
+    function _rejectFile(reason) {
+        fileLabel.style.display = 'none';
+        uploadBtn.disabled = true;
+        feedback.textContent = reason;
+        feedback.className = 'huddle-feedback huddle-feedback--err';
+        fileInput.value = '';
+    }
+
     // Show chosen filename and enable upload button when a file is selected
     fileInput.addEventListener('change', () => {
         const file = fileInput.files[0];
@@ -203,19 +211,11 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
         const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                     || file.name.toLowerCase().endsWith('.docx');
         if (!isPdf && !isDocx) {
-            fileLabel.style.display = 'none';
-            uploadBtn.disabled = true;
-            feedback.textContent = 'Please choose a PDF or Word (.docx) file';
-            feedback.className = 'huddle-feedback huddle-feedback--err';
-            fileInput.value = '';
+            _rejectFile('Please choose a PDF or Word (.docx) file');
             return;
         }
         if (file.size > 20 * 1024 * 1024) {
-            fileLabel.style.display = 'none';
-            uploadBtn.disabled = true;
-            feedback.textContent = 'File too large — maximum 20 MB';
-            feedback.className = 'huddle-feedback huddle-feedback--err';
-            fileInput.value = '';
+            _rejectFile('File too large — maximum 20 MB');
             return;
         }
         fileLabel.textContent = file.name;

@@ -12,7 +12,7 @@
  *   pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
@@ -1115,8 +1115,6 @@ function handleEdit(e) {
 // UTILITIES
 // ============================================
 
-// escapeHtml — imported from roster-data.js; local alias preserves existing call sites
-const esc = escapeHtml;
 
 let _toastTimer = null;
 /** Shows a success message in the week editor feedback area.  @param {string} msg */
@@ -1212,8 +1210,7 @@ alConfirmCancelBtn.addEventListener('click', () => {
  * @param {string} prefix  'al' | 'sick'
  */
 function buildRangePicker(prefix) {
-    const MONTHS = ['January','February','March','April','May','June',
-                    'July','August','September','October','November','December'];
+
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const TRANSITION  = prefersReduced ? 'none' : 'transform 0.3s cubic-bezier(0.4,0,0.2,1)';
     const DURATION_MS = prefersReduced ? 0 : 300;
@@ -1309,7 +1306,7 @@ function buildRangePicker(prefix) {
     }
 
     function render() {
-        label.textContent = `${MONTHS[mo]} ${yr}`;
+        label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
         grid.style.transition = '';
         grid.style.transform  = '';
         renderGrid(grid);
@@ -1413,7 +1410,7 @@ function buildRangePicker(prefix) {
             const discard  = goLeft ? swPanelPrev : swPanelNext;
             if (goLeft) { if (++mo > 11) { mo = 0; yr++; } }
             else        { if (--mo < 0)  { mo = 11; yr--; } }
-            label.textContent = `${MONTHS[mo]} ${yr}`;
+            label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
             // Slide both panels to their committed positions
             grid.style.transition     = TRANSITION;
             grid.style.transform      = `translate3d(${goLeft ? -swWidth : swWidth}px,0,0)`;
@@ -1580,7 +1577,7 @@ function _addDays(dateStr, n) {
 }
 
 function _isRestGap(dateStr, memberObj) {
-    if (new Date(dateStr + 'T12:00:00').getDay() === 0) return true; // Sunday — uncontracted
+    if (isSunday(dateStr)) return true; // Sunday — uncontracted
     if (!memberObj) return false;
     const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
     return shift === 'RD' || shift === 'OFF';
@@ -1883,7 +1880,7 @@ function stampAdminPrintHeader() {
     const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
     const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
     const printHeaderEl = document.getElementById('printHeader');
-    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster — ${esc(member)}<span class="print-sub">Week: ${esc(weekLabel)} · Printed: ${esc(now)}</span>`;
+    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster — ${escapeHtml(member)}<span class="print-sub">Week: ${escapeHtml(weekLabel)} · Printed: ${escapeHtml(now)}</span>`;
 }
 stampAdminPrintHeader();
 window.addEventListener('beforeprint', stampAdminPrintHeader);

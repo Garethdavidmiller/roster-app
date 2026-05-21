@@ -192,7 +192,8 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 - `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
 - `memberSettings` create/update/delete: document ID (= member name) `== request.auth.token.name || admin == true`. Document ID is the member name, not a field — isolation is via the path wildcard `{memberName}`.
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
-- `huddles` write: `if false` — writes go through the Admin SDK in Cloud Functions, which bypasses rules.
+- `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
+- `huddles` write: requires auth — writes go through the Admin SDK in Cloud Functions (bypasses rules) or from `admin.html` (always auth'd).
 
 ### `shared.css`
 All CSS shared across the three pages.
