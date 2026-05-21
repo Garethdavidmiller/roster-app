@@ -2254,13 +2254,23 @@ function sanitiseHtml(html) {
                 openViewer();
                 close.focus();
             } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
-                // Notification path: the tap happened in the OS notification tray,
-                // so there is no in-page user activation here. window.open('_blank')
-                // would be blocked as a pop-up. A same-tab navigation is always
-                // allowed — the PDF opens full-screen and Back returns to the app.
-                // (The manual #huddleBtn handler keeps window.open: that IS a real
-                // in-page gesture, and opening a new tab leaves the app in place.)
-                window.location.href = huddle.storageUrl;
+                // A notification tap carries no in-page user activation, so calling
+                // window.open() directly here would be blocked as a pop-up — and
+                // navigating the standalone window itself (location.href) to the
+                // cross-origin PDF knocks the app out of standalone mode (it comes
+                // back wrapped in browser chrome). Instead, open the viewer with an
+                // explicit button: tapping it IS a real gesture, so the PDF opens as
+                // a separate Custom Tab over the intact standalone app, and Back
+                // returns to the clean app. (The manual #huddleBtn handler can call
+                // window.open directly — that click is already a real gesture.)
+                body.innerHTML = '<div class="huddle-open-prompt">'
+                    + '<p>Today’s Huddle is ready.</p>'
+                    + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'
+                    + '</div>';
+                openViewer();
+                const openBtn = document.getElementById('huddleOpenFileBtn');
+                openBtn?.addEventListener('click', () => window.open(huddle.storageUrl, '_blank', 'noopener'));
+                openBtn?.focus();
             }
         } catch (err) {
             console.error('[Huddle] Auto-open error:', err);
