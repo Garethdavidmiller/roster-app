@@ -9,12 +9,13 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription } from './firebase-client.js';
+import { db, collection, query, where, getDocs, subscribeToLatestHuddle } from './firebase-client.js';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 import { initNavPanel } from './nav-panel.js';
+import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -2320,79 +2321,34 @@ function sanitiseHtml(html) {
 //   - If permission already granted: silently renew/migrate subscription (VAPID key rotation check)
 //   - If permission not yet asked: show one-off prompt strip on the calendar
 (function initNotifications() {
-    const VAPID_PUBLIC_KEY  = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
-    const VAPID_VER_KEY     = 'myb_vapid_ver';
-    const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
-    const PROMPT_DISMISSED  = 'myb_notif_prompt_done';
-
-    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
-
-    function vapidKey() {
-        const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
-        const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
-        return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
-    }
-
-    async function subscribe() {
-        const reg   = await navigator.serviceWorker.ready;
-        const fresh = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
-        await savePushSubscription(fresh);
-        lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
-        lsSet(PROMPT_DISMISSED, '1');
-    }
-
-    // Already granted — silently renew, checking for VAPID key rotation
+    // Already granted — getNotifState() handles VAPID rotation and keeps the
+    // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
-        navigator.serviceWorker.ready.then(async reg => {
-            try {
-                const sub = await reg.pushManager.getSubscription();
-                if (!sub) return;
-                if (lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
-                    await sub.unsubscribe();
-                    await subscribe();
-                } else {
-                    await savePushSubscription(sub);
-                }
-            } catch (err) {
-                console.warn('[Notifications] Renewal failed:', err.message);
-            }
-        });
+        getNotifState().catch(err => console.warn('[Notifications] Renewal failed:', err.message));
         return;
     }
 
-    // Permission not yet asked — show one-off prompt unless already dismissed
+    // notifSupported() folds in the iOS-standalone rule — no prompt in a plain browser tab.
+    if (!notifSupported()) return;
     if (Notification.permission === 'denied') return;
-    if (lsGet(PROMPT_DISMISSED)) return;
+    if (lsGet('myb_notif_prompt_done')) return;
 
-    // On iOS, Web Push only works inside a Home Screen PWA. In regular Safari the
-    // permission request always fails silently, so showing the prompt would mislead.
-    const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const _isStandalonePWA = window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
-    if (_isIOS && !_isStandalonePWA) return;
-
-    const prompt      = document.getElementById('notifPrompt');
-    const enableBtn   = document.getElementById('notifPromptEnable');
-    const dismissBtn  = document.getElementById('notifPromptDismiss');
+    const prompt     = document.getElementById('notifPrompt');
+    const enableBtn  = document.getElementById('notifPromptEnable');
+    const dismissBtn = document.getElementById('notifPromptDismiss');
     if (!prompt || !enableBtn || !dismissBtn) return;
 
     prompt.style.display = 'flex';
-
     function hide() { prompt.style.display = 'none'; }
 
     enableBtn.addEventListener('click', async () => {
         hide();
-        try {
-            const perm = await Notification.requestPermission();
-            if (perm === 'granted') await subscribe();
-            else lsSet(PROMPT_DISMISSED, '1');
-        } catch (err) {
-            console.warn('[Notifications] Enable failed:', err.message);
-        }
+        enableNotifications().catch(err => console.warn('[Notifications] Enable failed:', err.message));
     });
 
     dismissBtn.addEventListener('click', () => {
         hide();
-        lsSet(PROMPT_DISMISSED, '1');
+        lsSet('myb_notif_prompt_done', '1');
     });
 })();
 

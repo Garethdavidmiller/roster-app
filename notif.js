@@ -1,11 +1,9 @@
 /**
  * notif.js — Shared Web Push notification state + subscribe/unsubscribe logic.
  *
- * Single source of truth for the VAPID key and the push-subscription lifecycle,
- * imported by nav-panel.js (the footer bell toggle). app.js (silent renewal on
- * the calendar) and admin-huddle.js (the admin Notifications card) still carry
- * their own copies of this logic for now — migrating them onto this module is a
- * deliberate future cleanup, deferred to avoid regressing working code.
+ * Single source of truth for the VAPID key and the push-subscription lifecycle.
+ * Imported by nav-panel.js (footer bell), app.js (silent renewal + one-off prompt),
+ * and admin-huddle.js (Notifications card enable/disable UI).
  *
  * Public API:
  *   notifSupported()        → boolean — push usable on this device/browser

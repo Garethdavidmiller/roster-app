@@ -10,14 +10,15 @@
  */
 
 import { formatISO } from './roster-data.js';
-import { uploadHuddle, savePushSubscription, deletePushSubscription } from './firebase-client.js';
+import { uploadHuddle } from './firebase-client.js';
+import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
 
 /**
  * Initialises all three Huddle-related cards. Call once after authentication resolves.
  * @param {{ currentIsAdmin: boolean, currentUser: object|null, lsGet: Function, lsSet: Function }} cfg
  */
-export function initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet }) {
-    _initNotificationsCard(lsGet, lsSet);
+export function initHuddleCards({ currentIsAdmin, currentUser }) {
+    _initNotificationsCard();
     _initHuddleUpload(currentIsAdmin, currentUser);
     _initHuddleCard();
 }
@@ -27,18 +28,9 @@ export function initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet }) {
 // ============================================
 // Lets staff enable or disable Huddle and pay-reminder push notifications.
 // Shows current permission state and provides appropriate action buttons.
-function isIOS() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-}
-function isStandalonePWA() {
-    return window.matchMedia?.('(display-mode: standalone)').matches ||
-           window.navigator.standalone === true;
-}
+// Subscribe/unsubscribe logic lives in notif.js — edit there for VAPID changes.
 
-function _initNotificationsCard(lsGet, lsSet) {
-    const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
-
+function _initNotificationsCard() {
     const header     = document.getElementById('notifToggleHeader');
     const body       = document.getElementById('notifBody');
     const chevron    = document.getElementById('notifChevron');
@@ -49,116 +41,51 @@ function _initNotificationsCard(lsGet, lsSet) {
 
     if (!header || !body || !chevron) return;
 
-    // Collapse/expand
     header.addEventListener('click', () => {
         const isOpen = body.classList.toggle('open');
         chevron.classList.toggle('open', isOpen);
     });
 
-    // iOS only supports Web Push when installed as a Home Screen PWA. Show a
-    // clear instruction instead of an Enable button that would silently fail.
-    // Must run before the generic feature check below — on iOS <16.4 the Push
-    // APIs are missing in a Safari tab, so the feature check would otherwise
-    // show "not supported" instead of the helpful Add-to-Home-Screen message.
-    if (isIOS() && !isStandalonePWA()) {
-        if (statusMsg) statusMsg.textContent = 'On iPhone/iPad, notifications only work when the app is added to your Home Screen. Tap Share → Add to Home Screen, then open from your Home Screen and return here.';
+    // notifSupported() returns false on iOS outside a standalone PWA — show
+    // the add-to-home-screen message rather than a misleading "not supported".
+    if (!notifSupported()) {
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        if (statusMsg) statusMsg.textContent = isIOS
+            ? 'On iPhone/iPad, notifications only work when the app is added to your Home Screen. Tap Share → Add to Home Screen, then open from your Home Screen and return here.'
+            : 'Push notifications are not supported on this device or browser.';
         if (enableBtn)  enableBtn.style.display  = 'none';
         if (disableBtn) disableBtn.style.display = 'none';
         return;
-    }
-
-    // Generic feature detection
-    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
-        if (statusMsg) statusMsg.textContent = 'Push notifications are not supported on this device or browser.';
-        if (enableBtn)  enableBtn.style.display  = 'none';
-        if (disableBtn) disableBtn.style.display = 'none';
-        return;
-    }
-
-    // Fingerprint stored in localStorage so we can detect a VAPID key rotation.
-    // Value is just the first 12 chars of the public key — enough to spot a change.
-    const VAPID_VER_KEY     = 'myb_vapid_ver';
-    const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
-
-    function vapidKey() {
-        const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
-        const padded = base64 + '='.repeat((4 - base64.length % 4) % 4);
-        return Uint8Array.from(atob(padded), c => c.charCodeAt(0));
     }
 
     async function refreshUI() {
-        const perm = Notification.permission;
-        const reg  = await navigator.serviceWorker.ready;
-        let sub    = await reg.pushManager.getSubscription();
-
-        // If the VAPID key has been rotated since this device subscribed, silently
-        // unsubscribe and re-subscribe with the current key. Staff never see this happen.
-        if (perm === 'granted' && sub && lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
-            try {
-                await sub.unsubscribe();
-                sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
-                await savePushSubscription(sub);
-                lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
-                console.log('[Notifications] Re-subscribed after VAPID key rotation');
-            } catch (err) {
-                console.warn('[Notifications] VAPID key refresh failed:', err);
-                sub = null;
-            }
-        } else if (perm === 'granted' && sub) {
-            lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
-        }
-
-        const active = perm === 'granted' && !!sub;
-
+        const state = await getNotifState();
         enableBtn.style.display  = 'none';
         disableBtn.style.display = 'none';
         deniedMsg.style.display  = 'none';
-
-        if (perm === 'granted' && active) {
-            statusMsg.textContent = 'Notifications are on — you\'ll be alerted when the Huddle is ready and when payday is approaching.';
+        if (state === 'on') {
+            statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when the Huddle is ready and when payday is approaching.';
             disableBtn.style.display = 'block';
-        } else if (perm === 'granted' && !active) {
-            statusMsg.textContent = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
+        } else if (state === 'off-lapsed') {
+            statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
             enableBtn.style.display = 'block';
-        } else if (perm === 'denied') {
-            statusMsg.textContent = 'Notifications are blocked. To re-enable, change your browser settings.';
+        } else if (state === 'denied') {
+            statusMsg.textContent   = 'Notifications are blocked. To re-enable, change your browser settings.';
             deniedMsg.style.display = 'block';
         } else {
-            statusMsg.textContent = 'Tap Enable to get an alert when the daily Huddle is ready or when payday is approaching.';
+            statusMsg.textContent   = 'Tap Enable to get an alert when the daily Huddle is ready or when payday is approaching.';
             enableBtn.style.display = 'block';
         }
     }
 
     enableBtn.addEventListener('click', async () => {
-        try {
-            const perm = await Notification.requestPermission();
-            if (perm === 'granted') {
-                const reg = await navigator.serviceWorker.ready;
-                const sub = await reg.pushManager.subscribe({
-                    userVisibleOnly:      true,
-                    applicationServerKey: vapidKey(),
-                });
-                await savePushSubscription(sub);
-                lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
-            }
-        } catch (err) {
-            console.warn('[Notifications] Enable failed:', err);
-        }
+        await enableNotifications().catch(err => console.warn('[Notifications] Enable failed:', err));
         await refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
     });
 
     disableBtn.addEventListener('click', async () => {
-        try {
-            const reg = await navigator.serviceWorker.ready;
-            const sub = await reg.pushManager.getSubscription();
-            if (sub) {
-                const endpoint = sub.endpoint;
-                await sub.unsubscribe();
-                await deletePushSubscription(endpoint).catch(() => {});
-            }
-        } catch (err) {
-            console.warn('[Notifications] Disable failed:', err);
-        }
+        await disableNotifications().catch(err => console.warn('[Notifications] Disable failed:', err));
         await refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
     });
 
