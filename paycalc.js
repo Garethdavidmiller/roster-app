@@ -575,9 +575,6 @@ function onPeriodChange() {
     todayPeriodBtn.classList.toggle('hidden', pNum === _defaultPeriodNum);
   }
 
-  // Meta row — two lines
-  // Row 1: the shift dates (start → cutoff, not start → payday)
-  // Row 2: payday + tax year (payday is already in the dropdown label, but useful as context)
   const ty = getTaxYearForOffset(p.num - 48);
   const startStr = p.start.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', timeZone: 'Europe/London'
@@ -601,7 +598,6 @@ function onPeriodChange() {
   document.getElementById('sundaySub').textContent =
     `Any hours you worked on a Sunday (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
 
-  // Boxing Day — uses same pattern as CONDITIONAL_ROWS but needs the banner too
   const boxing = hasBoxingDay(p);
   document.getElementById('boxingBanner').classList.toggle('visible', boxing);
   document.getElementById('boxingRow').classList.toggle('hidden', !boxing);
@@ -630,8 +626,6 @@ function onPeriodChange() {
     const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
     document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
   } else {
-    // Not yet confirmed — show banner with the current tax year label.
-    document.getElementById('setupBannerTitle').textContent = `👋 Set up for ${ty.label}`;
     document.getElementById('setupBannerBody').innerHTML =
       `Enter your <strong>hourly rate</strong> and <strong>tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
     document.getElementById('setupBanner').classList.remove('hidden');
@@ -661,7 +655,7 @@ function onPeriodChange() {
   const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
   if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_is2627);
   const _resultRateNotice = document.getElementById('resultRateNotice');
-  if (_resultRateNotice) _resultRateNotice.style.display = _is2627 ? '' : 'none';
+  if (_resultRateNotice) _resultRateNotice.classList.toggle('hidden', !_is2627);
 
   // Read session now so we can set the correct initial fetch state
   let session2;
@@ -1597,16 +1591,16 @@ function calculate() {
     const _stickyAmt = document.getElementById('stickyAmount');
     if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
   } else {
-    if (_netLabel) _netLabel.textContent =
-        _bpThisPeriod > 0 && _hppForPeriod > 0 ? '💷 Estimated Take-Home Pay (inc. back pay & HPP)'
-        : _bpThisPeriod > 0 ? '💷 Estimated Take-Home Pay (inc. back pay)'
-        : _hppForPeriod > 0 ? `💷 Estimated Take-Home Pay (inc. HPP${_hppIsEstimate ? ' estimate' : ''})`
+    const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
+        : _bpThisPeriod > 0  ? 'inc. back pay'
+        : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
+        : null;
+    if (_netLabel) _netLabel.textContent = _suffix
+        ? `💷 Estimated Take-Home Pay (${_suffix})`
         : '💷 Estimated Take-Home Pay';
     const _peekBtn = document.getElementById('resultPeekBtn');
-    if (_peekBtn) _peekBtn.textContent =
-        _bpThisPeriod > 0 && _hppForPeriod > 0 ? `↑ Estimated take-home (inc. back pay & HPP): ${fmt(net)}`
-        : _bpThisPeriod > 0 ? `↑ Estimated take-home (inc. back pay): ${fmt(net)}`
-        : _hppForPeriod > 0 ? `↑ Estimated take-home (inc. HPP): ${fmt(net)}`
+    if (_peekBtn) _peekBtn.textContent = _suffix
+        ? `↑ Estimated take-home (${_suffix}): ${fmt(net)}`
         : `↑ Estimated take-home: ${fmt(net)}`;
     const _stickyAmt = document.getElementById('stickyAmount');
     if (_stickyAmt) _stickyAmt.textContent = fmt(net);
@@ -1643,19 +1637,28 @@ function calculate() {
 // Formula from Chiltern payroll (Marie Firby):
 // (Gross - Basic) × 4/52 = HPP
 
+// Decode raw hours from a saved period data object. Guards BH/Boxing hours against
+// periods that don't contain those days — localStorage can restore saved values into
+// hidden rows, so we sanitise here rather than relying on the DOM row being hidden.
+function _decodeHours(p, d) {
+  return {
+    satHrs:  (d.satH  || 0) + (d.satM  || 0) / 60,
+    bhHrs:   hasBankHoliday(p) ? ((d.bhH   || 0) + (d.bhM   || 0) / 60) : 0,
+    bhOtHrs: hasBankHoliday(p) ? ((d.bhOtH || 0) + (d.bhOtM || 0) / 60) : 0,
+    otHrs:   (d.otH   || 0) + (d.otM   || 0) / 60,
+    rdwHrs:  (d.rdwH  || 0) + (d.rdwM  || 0) / 60,
+    sunHrs:  (d.sunH  || 0) + (d.sunM  || 0) / 60,
+    boxHrs:  hasBoxingDay(p)  ? ((d.boxH  || 0) + (d.boxM  || 0) / 60) : 0,
+  };
+}
+
 // Compute variable pay for one period from saved data. Used by calcHPP and
 // updatePriorHpp to avoid duplicating the capping and London Allowance logic.
 // bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0
 // and the BH premium must not contribute to HPP (it wasn't in that period's gross).
 function _varPayForPeriod(p, d, rate) {
   const r125      = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
-  const satHrs    = (d.satH  || 0) + (d.satM  || 0) / 60;
-  const bhHrs     = hasBankHoliday(p) ? ((d.bhH   || 0) + (d.bhM   || 0) / 60) : 0;
-  const bhOtHrs   = hasBankHoliday(p) ? ((d.bhOtH || 0) + (d.bhOtM || 0) / 60) : 0;
-  const otHrs     = (d.otH   || 0) + (d.otM   || 0) / 60;
-  const rdwHrs    = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
-  const sunHrs    = (d.sunH  || 0) + (d.sunM  || 0) / 60;
-  const boxHrs    = hasBoxingDay(p)   ? ((d.boxH  || 0) + (d.boxM  || 0) / 60) : 0;
+  const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
   const effContr  = getEffectiveContr(p);
   const satCapped = Math.min(satHrs, effContr);
   const normHrs   = effContr - satCapped;
@@ -1943,13 +1946,7 @@ function calcBackPay() {
       const d = JSON.parse(raw);
       if (isDataEmpty(d)) return;
 
-      const satHrs  = (d.satH  || 0) + (d.satM  || 0) / 60;
-      const bhHrs   = hasBankHoliday(p) ? ((d.bhH   || 0) + (d.bhM   || 0) / 60) : 0;
-      const bhOtHrs = hasBankHoliday(p) ? ((d.bhOtH || 0) + (d.bhOtM || 0) / 60) : 0;
-      const otHrs   = (d.otH   || 0) + (d.otM   || 0) / 60;
-      const rdwHrs  = (d.rdwH  || 0) + (d.rdwM  || 0) / 60;
-      const sunHrs  = (d.sunH  || 0) + (d.sunM  || 0) / 60;
-      const boxHrs  = hasBoxingDay(p)   ? ((d.boxH  || 0) + (d.boxM  || 0) / 60) : 0;
+      const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
       // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
       // Use getEffectiveContr so joining periods use pro-rated hours.
       const _bpEffContr = getEffectiveContr(p);

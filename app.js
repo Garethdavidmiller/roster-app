@@ -8,7 +8,7 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, getDocs, subscribeToLatestHuddle, savePushSubscription } from './firebase-client.js';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -106,8 +106,6 @@ window.addEventListener('popstate', () => {
 // getPaydaysAndCutoffs, isPayday, isCutoffDate — all imported from roster-data.js.
 
 const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                   'July', 'August', 'September', 'October', 'November', 'December'];
 
 // ============================================
 // DATA VALIDATION
@@ -388,7 +386,7 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
         }
     }
     return `
-        <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${monthNames[month]} ${year}">${monthNames[month]} ${year}</div>
+        <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${MONTH_NAMES[month]} ${year}">${MONTH_NAMES[month]} ${year}</div>
         <div class="week-info">
             ${weekDisplay ? `<span class="week-info-text">${weekDisplay}</span>` : ''}
         </div>
@@ -418,15 +416,6 @@ function navigateToPaycalc(paydayStr) {
 // FAITH CALENDAR HELPERS
 // ============================================
 
-// resolveFaithCalendar and CALENDAR_NAMES are imported from roster-data.js.
-
-// Returns { icon, label } for the faith marker on this date, or null if none.
-// Delegates the lookup to getFaithBadge() in roster-data.js — the single source
-// of truth for cultural calendar markers.
-function getFaithMarker(dateStr, memberName) {
-    const faithCalendar = resolveFaithCalendar(memberSettingsCache.get(memberName));
-    return getFaithBadge(dateStr, faithCalendar);
-}
 
 function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '', faithMarker = null) {
     let badge;
@@ -543,6 +532,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     }
 
     const daysInMonth = lastDay.getDate();
+    const faithCalendar = resolveFaithCalendar(memberSettingsCache.get(member.name));
     for (let day = 1; day <= daysInMonth; day++) {
         const currentDate = new Date(year, month, day);
 
@@ -555,7 +545,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         // spaces and dots. The cache is populated by the Firebase module script on load.
         let overrideNote = '';
         let rdwTime = '';
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dateStr = formatISO(currentDate);
         {
             const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
             if (override) {
@@ -595,19 +585,26 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             : member.permanentShift === 'early' ? 'Early shift'
             : isEarlyShift(shift) ? `Early shift ${shift}`
             : `Late shift ${shift}`;
-        const faithMarker = getFaithMarker(dateStr, member.name);
+        const faithMarker = getFaithBadge(dateStr, faithCalendar);
+
+        const isToday  = isSameDay(currentDate, today);
+        const isBH     = isBankHoliday(currentDate);
+        const isXmas   = isChristmasDay(currentDate);
+        const isEaster = isEasterSunday(currentDate);
+        const isPay    = isPayday(currentDate);
+        const isCutoff = isCutoffDate(currentDate);
 
         const extras = [
-            isSameDay(currentDate, today) ? 'Today' : '',
-            isBankHoliday(currentDate) ? 'Bank holiday' : '',
-            isChristmasDay(currentDate) ? 'Christmas Day' : '',
-            isEasterSunday(currentDate) ? 'Easter Sunday' : '',
-            isPayday(currentDate) ? 'Payday' : '',
-            isCutoffDate(currentDate) ? 'Cut-off date' : '',
+            isToday  ? 'Today' : '',
+            isBH     ? 'Bank holiday' : '',
+            isXmas   ? 'Christmas Day' : '',
+            isEaster ? 'Easter Sunday' : '',
+            isPay    ? 'Payday' : '',
+            isCutoff ? 'Cut-off date' : '',
             faithMarker ? faithMarker.label : '',
         ].filter(Boolean).join(', ');
         dayCell.setAttribute('aria-label',
-            `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${monthNames[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
+            `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
         );
         dayCell.setAttribute('tabindex', '-1');
         const ttShift = shiftLabel + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
@@ -616,16 +613,16 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (overrideNote) ttParts.push(`"${overrideNote}"`);
         dayCell.dataset.tooltip = ttParts.join(' · ');
 
-        if (isSameDay(currentDate, today)) dayCell.classList.add('today');
-        if (isBankHoliday(currentDate))    dayCell.classList.add('bank-holiday');
-        if (isChristmasDay(currentDate))   dayCell.classList.add('christmas-day');
-        if (isEasterSunday(currentDate))   dayCell.classList.add('easter-day');
-        if (isPayday(currentDate)) {
+        if (isToday)  dayCell.classList.add('today');
+        if (isBH)     dayCell.classList.add('bank-holiday');
+        if (isXmas)   dayCell.classList.add('christmas-day');
+        if (isEaster) dayCell.classList.add('easter-day');
+        if (isPay) {
             dayCell.classList.add('payday');
             dayCell.style.cursor = 'pointer';
             dayCell.dataset.paydayIso = dateStr;
         }
-        if (isCutoffDate(currentDate)) {
+        if (isCutoff) {
             dayCell.classList.add('cutoff');
             dayCell.style.cursor = 'pointer';
             dayCell.dataset.cutoffIso = dateStr;
@@ -798,7 +795,7 @@ function getShiftTypesInMonth(member, year, month) {
         // getBaseShift applies the Christmas RD rule before the roster lookup
         let shift = getBaseShift(member, date);
 
-        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const dateStr = formatISO(date);
         const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
         if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF'))) {
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
@@ -922,13 +919,7 @@ function updateLegend() {
         if (el) el.style.display = faithInMonth(dateSet, cal) ? '' : 'none';
     }
 
-    // Show/hide the faith row container itself — visible only when at least one item inside it is shown.
     const faithRow = _legendEl('legend-faith-row');
-    if (faithRow) {
-        const anyFaithVisible = [...faithRow.querySelectorAll('.legend-item')]
-            .some(el => el.style.display !== 'none');
-        faithRow.style.display = anyFaithVisible ? '' : 'none';
-    }
 
     // Chinese New Year legend — use the zodiac icon for the matching year.
     const cnyEl   = document.getElementById('legend-cny');
@@ -946,12 +937,12 @@ function updateLegend() {
             }
         }
         cnyEl.style.display = cnyVisible ? '' : 'none';
-        // Re-check faith row visibility now that CNY item state is final.
-        if (faithRow) {
-            const anyFaithVisible = [...faithRow.querySelectorAll('.legend-item')]
-                .some(el => el.style.display !== 'none');
-            faithRow.style.display = anyFaithVisible ? '' : 'none';
-        }
+    }
+
+    // Single check after all items (including CNY) are settled.
+    if (faithRow) {
+        faithRow.style.display = [...faithRow.querySelectorAll('.legend-item')]
+            .some(el => el.style.display !== 'none') ? '' : 'none';
     }
 }
 
@@ -985,7 +976,7 @@ function renderCalendar() {
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (!calendarDisplay) throw new Error('Calendar display element not found');
 
-        document.title = `MYB Roster — ${monthNames[currentDisplayMonth]} ${currentDisplayYear}`;
+        document.title = `MYB Roster — ${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
 
         // Persist so the user returns to the same month after closing the app
         lsSet('myb_roster_month', currentDisplayMonth);
@@ -1094,7 +1085,7 @@ function announceMonthChange() {
     // Clear first so repeated same-direction navigation always fires the announcement
     announcer.textContent = '';
     requestAnimationFrame(() => {
-        announcer.textContent = `${monthNames[currentDisplayMonth]} ${currentDisplayYear}`;
+        announcer.textContent = `${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
     });
 }
 
@@ -1529,7 +1520,7 @@ try {
                     }
 
                     changeMonth(direction === 'left' ? 1 : -1);
-                    document.title = `MYB Roster — ${monthNames[currentDisplayMonth]} ${currentDisplayYear}`;
+                    document.title = `MYB Roster — ${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
                     updateLegend();
                     updateFaithHint();
 
@@ -1887,17 +1878,6 @@ try {
 // FIRESTORE HELPER FUNCTIONS
 // ============================================
 
-/**
- * Format a Date as 'YYYY-MM-DD' for Firestore range queries.
- * @param {Date} date
- * @returns {string}
- */
-function formatDateStr(date) {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-}
 
 /**
  * Generate a month key string (e.g. '2026-03') for the fetchedMonths Set.
@@ -1969,8 +1949,8 @@ async function ensureOverridesCached(year, month) {
 
     const memberAtFetch = getSelectedMemberIndex();
     try {
-        const startStr = formatDateStr(new Date(year, month, 1));
-        const endStr   = formatDateStr(new Date(year, month + 1, 0));
+        const startStr = formatISO(new Date(year, month, 1));
+        const endStr   = formatISO(new Date(year, month + 1, 0));
         await fetchOverridesForRange(startStr, endStr);
         if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === memberAtFetch) renderCalendar();
     } catch (err) {
@@ -2046,8 +2026,8 @@ async function ensureOverridesCached(year, month) {
         fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
         fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
 
-        const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
-        const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
+        const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
+        const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
         try {
             await fetchOverridesForRange(startStr, endStr);
@@ -2067,8 +2047,8 @@ async function ensureOverridesCached(year, month) {
     }
 
     try {
-        const startStr = formatDateStr(new Date(prev.getFullYear(), prev.getMonth(), 1));
-        const endStr   = formatDateStr(new Date(next.getFullYear(), next.getMonth() + 1, 0));
+        const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
+        const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
         // Fetch overrides and member settings in parallel
         const [, settingsSnap] = await Promise.all([

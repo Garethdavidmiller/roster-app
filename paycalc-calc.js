@@ -268,8 +268,8 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = 0, ytdTax = 0, perio
   function taxOnAmount(amount, scale) {
     if (baseCode === 'NT') return 0;
     if (baseCode === 'BR' || baseCode === 'SBR') return amount * (isScottish ? SCOT.bands[1].rate : TAX.r20);
-    if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? 0.42 : TAX.r40);
-    if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? 0.48 : TAX.r45);
+    if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? SCOT.bands[3].rate : TAX.r40);
+    if (baseCode === 'D1' || baseCode === 'SD1') return amount * (isScottish ? SCOT.bands[5].rate : TAX.r45);
     const pa = resolvePA();
     const scaledPa = pa * (scale || 1);
     // HMRC floors taxable income to the nearest whole pound before applying rates.

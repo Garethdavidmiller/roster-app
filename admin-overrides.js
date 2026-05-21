@@ -636,6 +636,17 @@ function _updateBulkDeleteVisibility() {
     }
 }
 
+function _armConfirmButton(btn, confirmLabel, resetLabel) {
+    btn.classList.add('confirming');
+    btn.textContent = confirmLabel;
+    setTimeout(() => {
+        if (btn.classList.contains('confirming')) {
+            btn.classList.remove('confirming');
+            btn.textContent = resetLabel;
+        }
+    }, 5000);
+}
+
 async function _handleDelete(e) {
     // closest() makes this work both directly and via delegation.
     const btn     = e.target.closest('.btn-delete');
@@ -644,9 +655,7 @@ async function _handleDelete(e) {
     const fieldMember  = document.getElementById('fieldMember');
     const fieldDate    = document.getElementById('fieldDate');
     if (!btn.classList.contains('confirming')) {
-        btn.classList.add('confirming');
-        btn.textContent = '⚠ Delete?';
-        setTimeout(() => { if (btn.classList.contains('confirming')) { btn.classList.remove('confirming'); btn.textContent = 'Delete'; } }, 5000);
+        _armConfirmButton(btn, '⚠ Delete?', 'Delete');
         return;
     }
     const deleted = _allOverrides.find(o => o.id === btn.dataset.id);
@@ -715,14 +724,7 @@ function _initOverridesTable() {
 
             // Two-tap confirmation — matches single-delete pattern
             if (!bulkDeleteBtn.classList.contains('confirming')) {
-                bulkDeleteBtn.classList.add('confirming');
-                bulkDeleteBtn.textContent = `⚠ Delete ${ids.length}?`;
-                setTimeout(() => {
-                    if (bulkDeleteBtn.classList.contains('confirming')) {
-                        bulkDeleteBtn.classList.remove('confirming');
-                        bulkDeleteBtn.textContent = 'Delete selected';
-                    }
-                }, 5000);
+                _armConfirmButton(bulkDeleteBtn, `⚠ Delete ${ids.length}?`, 'Delete selected');
                 return;
             }
             bulkDeleteBtn.classList.remove('confirming');

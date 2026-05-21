@@ -7,6 +7,10 @@
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js';
 
+const RDW_PREFIX   = 'RDW|';
+const isRdwEncoded = v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
+const stripRdw     = v => v.slice(RDW_PREFIX.length);
+
 /**
  * Initialise the weekly roster upload pipeline.
  * Wires up all DOM event listeners for the Roster Upload card in admin.html.
@@ -243,7 +247,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     const type = shiftValueToOverrideType(value, baseShift, date);
                     // Strip the internal "RDW|" encoding before saving — Firestore stores
                     // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
-                    const savedValue = value.startsWith('RDW|') ? value.slice(4) : value;
+                    const savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
                     const ref  = doc(collection(db, 'overrides'));
                     batch.set(ref, {
                         memberName,
@@ -371,7 +375,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
                 // Normalise parsedShift for comparisons — strip the "RDW|" encoding so
                 // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
-                const parsedValue = parsedShift.startsWith('RDW|') ? parsedShift.slice(4) : parsedShift;
+                const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
 
                 let state;
                 if (!existing || !isManual) {
@@ -435,8 +439,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // uncontracted — any Sunday shift is by definition an RDW.
         function shiftDisplay(shiftStr, baseShift = null, date = null) {
             // Pipe-encoded RDW: "RDW|14:30-22:00" — explicit flag from AI
-            if (typeof shiftStr === 'string' && shiftStr.startsWith('RDW|')) {
-                const time  = shiftStr.slice(4);
+            if (isRdwEncoded(shiftStr)) {
+                const time  = stripRdw(shiftStr);
                 const badge = getShiftBadge('RDW');
                 return `${badge}<span class="review-shift-time">${esc(time)}</span>`;
             }
@@ -461,7 +465,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const savedLabel = s.manualValue === 'SICK' ? 'Absent' : s.manualValue;
                 conflictLines.push(
                     `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
-                    `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(s.parsedShift.startsWith('RDW|') ? 'RDW ' + s.parsedShift.slice(4) : s.parsedShift)}</strong>`
+                    `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(isRdwEncoded(s.parsedShift) ? 'RDW ' + stripRdw(s.parsedShift) : s.parsedShift)}</strong>`
                 );
             }
         }
@@ -647,7 +651,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         if (value === 'SPARE') return 'spare_shift';
         if (value === 'RD' || value === 'OFF') return 'correction';
         // Pipe-encoded RDW from AI: "RDW|14:30-22:00" — explicit flag regardless of base shift
-        if (value.startsWith('RDW|') || value === 'RDW') return 'rdw';
+        if (isRdwEncoded(value) || value === 'RDW') return 'rdw';
         // Sunday is always uncontracted — any shift worked on a Sunday is an RDW.
         // For all other days, only classify as RDW when the AI explicitly flagged it above.
         // Staff may swap rest/working days with permission without it being an RDW.
