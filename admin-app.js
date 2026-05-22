@@ -2098,13 +2098,21 @@ if (currentIsAdmin && new Date().getMonth() >= 10) {
         'align-items: flex-start',
         'gap: 10px',
     ].join(';'));
-    banner.innerHTML = `
-        <span style="font-size:18px;flex-shrink:0" aria-hidden="true">📅</span>
-        <span style="flex:1"><strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.</span>
-        <button onclick="document.getElementById('culturalCalReminder').remove()"
-                style="background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:0;color:var(--primary-blue);flex-shrink:0"
-                aria-label="Dismiss reminder">×</button>
-    `;
+    const icon = document.createElement('span');
+    icon.setAttribute('style', 'font-size:18px;flex-shrink:0');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '📅';
+    const text = document.createElement('span');
+    text.style.flex = '1';
+    text.innerHTML = `<strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.`;
+    const dismissBtn = document.createElement('button');
+    dismissBtn.setAttribute('style', 'background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:0;color:var(--primary-blue);flex-shrink:0');
+    dismissBtn.setAttribute('aria-label', 'Dismiss reminder');
+    dismissBtn.textContent = '×';
+    dismissBtn.addEventListener('click', function () { banner.remove(); });
+    banner.appendChild(icon);
+    banner.appendChild(text);
+    banner.appendChild(dismissBtn);
     const anchor = document.querySelector('.card') || document.querySelector('main') || document.body;
     anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
 }
