@@ -1070,9 +1070,9 @@ button.nav-panel-link--coming-soon {
 }
 .nav-panel-signout:active { opacity: 0.5; }
 
-/* ---- Nav panel settings link — flat, bottom of panel, above footer ---- */
+/* ---- Nav panel settings link — flat, pinned above footer ---- */
 .nav-panel-settings {
-    border-top: 1px solid rgba(255,255,255,0.1);
+    border-top: 1px solid var(--border-light);
     padding: 8px 16px 4px;
 }
 .nav-panel-settings-link {
@@ -1080,14 +1080,14 @@ button.nav-panel-link--coming-soon {
     align-items: center;
     gap: 6px;
     padding: 8px 0;
-    color: rgba(255,255,255,0.6);
+    color: var(--indigo);
     font-size: 13px;
     font-weight: 500;
     text-decoration: none;
     transition: color 0.15s;
 }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-settings-link:hover { color: rgba(255,255,255,0.9); }
+    .nav-panel-settings-link:hover { color: var(--indigo-hover); }
 }
 
 /* ═══════════════════════════════════════════════════════════════
