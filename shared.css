@@ -73,6 +73,10 @@
     --rest-day-bg: oklch(98.3% 0.0026 286.4deg); /* faint blue-white so cells don't vanish */
     --charcoal:    oklch(29.7% 0 0);              /* rest badge background */
 
+    /* Settings page */
+    --indigo:       oklch(48.0% 0.175 272.0deg);
+    --indigo-hover: color-mix(in oklch, var(--indigo) 91%, black);
+
     /* Confirmed shifts (admin) */
     --green:       oklch(62.9% 0.1543 144.2deg);
     --green-hover: color-mix(in oklch, var(--green) 91%, black);
@@ -1065,3 +1069,198 @@ button.nav-panel-link--coming-soon {
     .nav-panel-signout:hover { opacity: 0.75; }
 }
 .nav-panel-signout:active { opacity: 0.5; }
+
+/* ---- Nav panel settings link — flat, bottom of panel, above footer ---- */
+.nav-panel-settings {
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: 8px 16px 4px;
+}
+.nav-panel-settings-link {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 0;
+    color: rgba(255,255,255,0.6);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.15s;
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-settings-link:hover { color: rgba(255,255,255,0.9); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LOGIN OVERLAY — shared by admin.html and settings.html
+   ═══════════════════════════════════════════════════════════════ */
+#loginOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--primary-blue);
+    z-index: 9000;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+}
+#loginOverlay.visible { display: flex; }
+
+#loginCard {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 36px 32px 28px;
+    max-width: 340px;
+    width: 100%;
+    margin: auto;
+    text-align: center;
+    box-shadow: var(--shadow-3);
+}
+#loginCard img {
+    width: 72px;
+    height: 72px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(0,30,60,0.25);
+}
+.login-app-name {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--primary-blue);
+    letter-spacing: -0.3px;
+    margin-bottom: 2px;
+}
+.login-subtitle {
+    font-size: 13px;
+    color: var(--text-light);
+    margin-bottom: 24px;
+}
+.login-field {
+    text-align: left;
+    margin-bottom: 14px;
+}
+.login-field label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 5px;
+}
+.login-error {
+    font-size: 13px;
+    color: var(--error-red);
+    background: var(--error-bg);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+    display: none;
+    text-align: left;
+    line-height: 1.4;
+}
+.login-error.visible { display: block; }
+#loginSubmit {
+    width: 100%;
+    padding: 13px;
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-family: inherit;
+    transition: background 0.15s, transform 0.1s;
+    margin-bottom: 16px;
+}
+@media (hover: hover) and (pointer: fine) { #loginSubmit:hover { background: var(--primary-blue-dark); } }
+#loginSubmit:active { transform: scale(0.98); }
+#loginName:disabled {
+    background: white;
+    color: var(--text-light);
+    border-color: var(--border-light);
+    cursor: default;
+    opacity: 1;
+}
+.login-back {
+    font-size: 13px;
+    color: var(--text-light);
+    text-decoration: none;
+    display: inline-block;
+    transition: color 0.12s;
+}
+@media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
+
+/* ═══════════════════════════════════════════════════════════════
+   CULTURAL CALENDAR CARD — shared by admin.html and settings.html
+   ═══════════════════════════════════════════════════════════════ */
+.calendar-active-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent-gold);
+    background: var(--primary-blue);
+    border: 1.5px solid var(--accent-gold);
+    border-radius: 20px;
+    padding: 2px 8px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.religious-intro {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-bottom: 14px;
+    line-height: 1.5;
+}
+.faith-radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.faith-radio-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text-dark);
+    cursor: pointer;
+    line-height: 1.4;
+}
+.faith-radio-label input[type="radio"] {
+    width: 18px; height: 18px;
+    accent-color: var(--primary-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+.faith-radio-label strong { font-weight: 600; }
+.faith-radio-sublabel {
+    font-size: 12px;
+    color: var(--text-light);
+    display: block;
+    margin-top: 1px;
+}
+.religious-disclaimer {
+    margin-top: 12px;
+    font-size: 11px;
+    color: var(--text-light);
+    line-height: 1.5;
+    padding: 8px 10px;
+    background: var(--bg-faint);
+    border-radius: 6px;
+    border: 1px solid var(--border-light);
+}
+.religious-saved {
+    display: none;
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--green);
+    font-weight: 600;
+}
+.religious-saved.visible { display: block; }
+.religious-saved.error   { color: var(--error-red); }

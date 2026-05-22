@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.99 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.06 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -16,12 +16,13 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
 | Override priority and member-start logic — tsToMillis, shouldReplaceOverride, isBeforeMemberStart | `app-override-utils.js` |
-| Admin portal UI, login, cultural calendar, notifications, module wiring | `admin-app.js` + `admin.html` |
+| Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
+| Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `admin-huddle.js` → `initHuddleUpload` |
-| Push notifications card (all staff, admin page) | `admin-huddle.js` → `initHuddleNotifications` |
+| Push notifications card (all staff, settings page) | `admin-huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
@@ -72,9 +73,18 @@ Login, session management, shared DOM handles, and the glue that wires all admin
 - `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` — declared here (module scope) because the `fieldMember` change handler references them before `admin-al.js` / `admin-sick.js` init runs
 - `fieldMember` change handler, `fieldDate` change handler — keep AL/sick/overrides in sync
 - AL over-entitlement confirm bar (`alConfirmBar`) — calls `triggerConfirmedALSave()` from `admin-al.js` for the AL booking path
-- Faith calendar settings, cultural calendar, booked-period helpers (`_renderBookedPeriods`, `deletePeriodOverrides`, `updateALBookedBox`, `updateSickBookedBox`)
-- Calls `initALSection()`, `initSickSection()`, `initOverrides()`, `initHuddleNotifications()` to initialise all sections
-- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, or auth setup — those are in sub-modules. Huddle upload, roster upload, and staff auth setup moved to `operations-app.js` at v10.99.
+- Booked-period helpers (`_renderBookedPeriods`, `deletePeriodOverrides`, `updateALBookedBox`, `updateSickBookedBox`)
+- Calls `initALSection()`, `initSickSection()`, `initOverrides()` to initialise all sections
+- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, auth setup, Notifications card, or Cultural Calendar — those are in sub-modules. Huddle upload, roster upload, and staff auth setup moved to `operations-app.js` at v10.99. Notifications and Cultural Calendar moved to `settings-app.js` at v11.06.
+
+### `settings-app.js`
+Coordinator for `settings.html` (all logged-in staff, v11.06).
+- Shared session: uses `AUTH_KEY = 'myb_admin_session'` (same key as `admin-app.js`) — a user signed in on admin.html arrives at settings.html without re-authenticating
+- Session check at module top: if authenticated → `ensureFirebaseSession(name)` in background + `initApp()`; else → `initLoginOverlay()`
+- `initLoginOverlay()` — same grade/name/password flow as admin; on success calls `saveSession()` + `location.reload()`
+- `initApp()` — calls `initNavPanel`, collapsible card wiring, `initHuddleNotifications()`, `initCulturalCalendarCard()`, tips/icon lightboxes, SW registration
+- `initCulturalCalendarCard()` — simplified vs admin-app.js: no `fieldMember` dropdown, always saves for `currentUser`; no `renderWeekGrid()` call; reads/writes Firestore `memberSettings/${currentUser}`
+- `initNavPanel` call passes `{ currentPage: 'settings', isAdmin: ..., onSignOut: ... }`
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
@@ -106,7 +116,7 @@ The Change a Shift module. Owns the week grid and override list entirely.
 ### `admin-huddle.js`
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
-- `initHuddleNotifications()` — called by `admin-app.js`; wires the Notifications card (all staff)
+- `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)
 - `initHuddleCards(opts)` — **deprecated** combined entry point; prefer the above two
 - Notifications card: VAPID key handling, fingerprint-based re-subscription on key rotation
 - Huddle upload: file validation, DOCX conversion via mammoth.js, upload to Firebase Storage via `uploadHuddle`
@@ -162,7 +172,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
 
 ### `nav-panel.js`
-Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, and `paycalc.js`.
+Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, and `settings-app.js`.
 - `initNavPanel({ currentPage, memberName, onSignOut })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay); current page is omitted from the pill row

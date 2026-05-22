@@ -19,7 +19,7 @@ If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), th
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `11.05` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `11.06` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -60,6 +60,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 | `admin.html` | Line 2 HTML comment |
 | `paycalc.html` | Line 2 HTML comment |
 | `operations.html` | Line 2 HTML comment |
+| `settings.html` | Line 2 HTML comment |
 
 `?v=` cache-busting strings were removed at v9.94 — do not add them back. Cache freshness is handled by `Cache-Control: no-cache` in `firebase.json`.
 
@@ -88,6 +89,7 @@ roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, notifications, cultural calendar, override list
 ├── operations.html         ← admin-only operations page: Huddle upload, Roster upload, Staff Login Accounts (v10.99)
+├── settings.html           ← staff self-service settings page: Notifications, Cultural Calendar (v11.06)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
 ├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js
@@ -96,6 +98,7 @@ roster-app/
 ├── app-override-utils.js   ← override priority and member-start helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart. Shared by app.js and app-team-view.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers, push notifications card
 ├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup (v10.99)
+├── settings-app.js         ← coordinator for settings.html: session check (shared AUTH_KEY), login overlay, initHuddleNotifications, cultural calendar init, initNavPanel (v11.06)
 ├── admin-huddle.js         ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → admin.html), Huddle card toggle
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
@@ -200,6 +203,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | `cors: true` on `parseRosterPDF` and `setupRosterAuth` | firebase-functions v6 `cors: [array]` doesn't consistently set `Access-Control-Allow-Headers` on preflight. Both functions use Firebase ID token auth, so wildcard origin adds no attack surface. `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all three pages. |
 | Nav panel on all 3 pages (v10.57) | `nav-panel.js` injects overlay + drawer. Burger button `#navMenuBtn` in each page header. `NAV_PAGES` drives the pill row (current page omitted). `NAV_INFORMATION` drives the flat always-open section (Workplace: Daily Huddle, Weekly Retail Circular, Railcard Guide; Staff Travel: FIP Guide). Adding a new guide = one `links` entry in `NAV_INFORMATION` only. A `NAV_INFORMATION` entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating. |
+| Settings page — shared session, flat nav link (v11.06) | `settings.html` uses the same `AUTH_KEY` as `admin-app.js` — a user already signed in on any page arrives without seeing the login overlay. Settings link renders in the nav panel below Information, only when signed in (`onSignOut` supplied) and not on the settings page itself. Styled as a flat link (not a pill). `--indigo` badge colour. |
 | Operations page — admin-only pill (v10.99) | `NAV_PAGES` entry for Operations has `adminOnly: true`. `initNavPanel({ isAdmin })` filters it out for non-admins. `app.js`, `admin-app.js`, and `paycalc.js` pass `isAdmin: CONFIG.ADMIN_NAMES.includes(member)`. `operations-app.js` passes `isAdmin: true` (page already guards against non-admins). Operations page has NO login overlay — JS redirects to `admin.html` immediately if the user is not authenticated or not an admin. |
 | Header back button removed (v10.63) | `admin.html` / `paycalc.html` no longer have a header `←` back button — it duplicated the nav drawer's Calendar pill (two competing nav paradigms) and clashed visually with the logo box. Navigation back to the roster is via the drawer. Header is now `[☰] [logo] Title … [badge]`. The admin "open calendar on the month I was editing" behaviour moved from the back button onto the `.nav-panel-pill--calendar` click in `admin-app.js`. `.btn-back` CSS removed from `shared.css` (still defined locally in `fip.html` / `railcard-guide.html`). |
 | `.app-header` brand centering (v10.66) | `admin.html` / `paycalc.html` headers use `display:grid; grid-template-columns:1fr auto 1fr`. Burger sits in col 1 (`justify-self:start`), logo+title in an `.app-header-brand` flex wrapper in col 2 (auto, truly centred), badge in col 3 (`justify-self:end`). Equal `1fr` side columns guarantee the brand is always centred regardless of burger/badge width asymmetry. The calendar uses a different `.header` (balanced spacers), unaffected. |

@@ -15,7 +15,6 @@
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
-import { initHuddleNotifications } from './admin-huddle.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -1117,7 +1116,6 @@ fieldMember.addEventListener('change', () => {
         sickMember.value = chosen;
         syncMemberDisplay();
         syncSickMemberDisplay();
-        if (chosen && typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(chosen);
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
@@ -1833,101 +1831,7 @@ initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
 initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
 initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
 
-// ============================================
-// CULTURAL CALENDAR CARD — collapse/expand + Firestore opt-in
-// ============================================
-(function initReligiousCard() {
-    const saved      = document.getElementById('religiousSaved');
-    const disclaimer = document.getElementById('calendarDisclaimer');
-    const activeTag  = document.getElementById('calendarActiveTag');
-    const radios     = document.querySelectorAll('input[name="faithCalendar"]');
-    if (!saved || !radios.length) return;
-
-    // CALENDAR_NAMES imported from roster-data.js.
-
-    // Update the "active calendar" tag shown in the card header.
-    function updateActiveTag(value) {
-        if (!activeTag) return;
-        if (value && value !== 'none') {
-            activeTag.textContent = (CALENDAR_NAMES[value] || value) + ' active';
-            activeTag.style.display = '';
-        } else {
-            activeTag.style.display = 'none';
-        }
-    }
-
-    // Disclaimer text per calendar — shown only for the active selection.
-    const DISCLAIMERS = {
-        islamic:    'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting). Mawlid al-Nabi is observed by most UK Muslim communities but not all denominations.',
-        hindu:      'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
-        chinese:    'Chinese lunisolar dates (Lunar New Year, Lantern Festival, Dragon Boat, Mid-Autumn) follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
-        jamaican:   'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
-        congolese:  'Congolese national public holidays (DRC). All four dates are fixed each year.',
-        portuguese: 'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May (coincides with the UK Early May back holiday only when 1 May falls on a Monday). Carnival Tuesday is widely observed but discretionary. All other dates are fixed or calculated from Easter.',
-    };
-
-    function updateDisclaimer(value) {
-        const text = DISCLAIMERS[value] || '';
-        disclaimer.textContent = text;
-        disclaimer.style.display = text ? '' : 'none';
-    }
-
-    initCardCollapse('religiousToggleHeader', 'religiousBody', 'religiousChevron');
-
-    // resolveFaithCalendar imported from roster-data.js (handles islamicMarkers backward compat).
-
-    // Load the setting for the given member. Reads localStorage first (instant,
-    // no network), then tries Firestore so a cross-device value can override.
-    async function loadReligiousSetting(userName) {
-        const local = lsGet(`faithCalendar_${userName}`) || 'none';
-        radios.forEach(r => { r.checked = (r.value === local); });
-        updateDisclaimer(local);
-        updateActiveTag(local);
-        try {
-            const snap  = await getDoc(doc(db, 'memberSettings', userName));
-            if (snap.exists()) {
-                const value = resolveFaithCalendar(snap.data());
-                lsSet(`faithCalendar_${userName}`, value);
-                radios.forEach(r => { r.checked = (r.value === value); });
-                updateDisclaimer(value);
-                updateActiveTag(value);
-            }
-        } catch (e) {
-            console.warn('[Firestore] memberSettings load failed:', e);
-        }
-    }
-
-    // Save on radio change — save against the currently selected member,
-    // not always currentUser (admin may be managing another member's settings).
-    let saveTimer;
-    radios.forEach(radio => {
-        radio.addEventListener('change', () => {
-            updateDisclaimer(radio.value);
-            updateActiveTag(radio.value);
-            clearTimeout(saveTimer);
-            saved.classList.remove('visible', 'error');
-            const target = fieldMember.value || currentUser;
-            // localStorage always succeeds and is readable by index.html on the same device.
-            lsSet(`faithCalendar_${target}`, radio.value);
-            saved.textContent = '✓ Saved';
-            saved.classList.add('visible');
-            saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
-            renderWeekGrid(); // Update the admin grid immediately so icons appear without a page reload
-            // Firestore sync for cross-device persistence. localStorage save above is the primary;
-            // this is a bonus sync. If it fails, the setting still works on this device.
-            setDoc(doc(db, 'memberSettings', target), { memberName: target, faithCalendar: radio.value }, { merge: true })
-                .catch(e => {
-                    console.warn('[Firestore] memberSettings sync failed:', e);
-                    clearTimeout(saveTimer);
-                    saved.textContent = '✓ Saved — other devices will update when you\'re back online';
-                    saveTimer = setTimeout(() => saved.classList.remove('visible'), 4000);
-                });
-        });
-    });
-
-    // Expose loader so the auth block can call it after currentUser is confirmed
-    window._loadReligiousSetting = loadReligiousSetting;
-})();
+// Cultural calendar moved to settings.html / settings-app.js (v11.06)
 
 // ============================================
 // PRINT HEADER — member name, week, timestamp
@@ -2016,7 +1920,6 @@ if (!isAuthenticated) {
     });
     loadOverrides(); // internally calls renderWeekGrid() after data loads
     if (currentIsAdmin || currentIsManager) purgeSundayAL();
-    if (typeof window._loadReligiousSetting === 'function') window._loadReligiousSetting(fieldMember.value || currentUser);
 
     // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
     if (location.hash) {
@@ -2074,10 +1977,6 @@ if ('serviceWorker' in navigator) {
         })
         .catch(e => console.warn('[SW] Registration failed:', e));
 }
-
-// ── Push notifications card ───────────────────────────────────────────────────
-// Huddle upload, roster upload, and staff auth setup now live in operations.html.
-initHuddleNotifications();
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({
