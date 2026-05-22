@@ -14,7 +14,9 @@ rules_version = '2';
 // The workflow (deploy-rules.yml) also runs automatically whenever this
 // file changes on the main branch.
 //
-// Last updated: v10.72 — member write isolation (v11 security task #2).
+// Last updated: v10.83 — restrict huddle writes to admin; fix Storage rules to allow
+//   admin browser uploads (previously `allow write: if false` blocked manual uploads).
+// v10.72 — member write isolation (v11 security task #2).
 //   overrides: writes now require memberName == request.auth.token.name
 //              unless the caller has the admin custom claim (admin == true).
 //              admin bypass is required for roster upload (G. Miller writes
@@ -96,13 +98,16 @@ service cloud.firestore {
       // Firebase Storage. Cloud Function writes use the Admin SDK (bypasses rules).
       allow read;
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
-      // Browser writes (manual admin upload) require auth.
+      // Browser writes (manual admin upload in admin.html) require an admin session.
+      // Restricting to admin == true ensures only G. Miller can create/update/delete
+      // huddle documents from the browser — all other staff are read-only.
       allow create, update: if
         request.auth != null &&
+        request.auth.token.admin == true &&
         request.resource.data.keys().hasAll(['date', 'storageUrl', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.storageUrl is string;
-      allow delete: if request.auth != null;
+      allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
     match /pushSubscriptions/{docId} {

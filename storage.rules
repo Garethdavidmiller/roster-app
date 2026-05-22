@@ -3,10 +3,19 @@ service firebase.storage {
   match /b/{bucket}/o {
     match /huddles/{fileName} {
       // Huddle files are internal staff briefings — only authenticated staff may read.
-      // Writes come exclusively from the ingestHuddle Cloud Function via Admin SDK,
-      // which bypasses security rules, so write: if false is correct here.
+      // Writes come from two paths:
+      //   1. ingestHuddle Cloud Function — uses Admin SDK, bypasses these rules entirely.
+      //   2. Manual admin upload in admin.html — uses the browser Firebase Storage SDK;
+      //      requires an authenticated admin session (admin custom claim == true).
+      // Size cap (20 MB) and MIME allowlist prevent abuse of the admin write path.
       allow read:  if request.auth != null;
-      allow write: if false;
+      allow write: if request.auth != null
+          && request.auth.token.admin == true
+          && request.resource.size < 20 * 1024 * 1024
+          && request.resource.contentType in [
+              'application/pdf',
+              'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          ];
     }
     // Deny everything else
     match /{allPaths=**} {
