@@ -106,6 +106,16 @@ const currentSession   = getSession();
 const isAuthenticated  = !!currentSession;
 const currentUser      = currentSession?.name ?? null;
 
+// Nav panel is always initialised — even when not signed in, so the user can
+// navigate to Calendar or Admin rather than being stranded on the login overlay.
+// onSignOut is null when not authenticated, which hides the footer.
+initNavPanel({
+    currentPage: 'settings',
+    memberName:  currentUser,
+    isAdmin:     currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
+    onSignOut:   currentUser ? () => { clearSession(); window.location.href = './index.html'; } : null,
+});
+
 if (isAuthenticated) {
     ensureFirebaseSession(currentUser); // re-establish Firebase Auth in background
     initApp();
@@ -181,14 +191,6 @@ function initLoginOverlay() {
 
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
-    // Nav panel
-    initNavPanel({
-        currentPage: 'settings',
-        memberName:  currentUser,
-        isAdmin:     CONFIG.ADMIN_NAMES.includes(currentUser),
-        onSignOut:   () => { clearSession(); window.location.href = './index.html'; },
-    });
-
     // Card collapse
     initCardCollapse('notifToggleHeader',    'notifBody',      'notifChevron');
     initCardCollapse('religiousToggleHeader','religiousBody',  'religiousChevron');

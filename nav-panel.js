@@ -397,8 +397,8 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
                     <p class="nav-panel-section-heading">Information</p>
                     ${infoGroups}
                 </div>
-                ${settingsHtml}
             </div>
+            ${settingsHtml}
             ${footerHtml}
         </div>
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
