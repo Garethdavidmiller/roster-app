@@ -861,6 +861,14 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill--pay:hover { background: var(--green-hover); }
 }
 
+.nav-panel-pill--operations {
+    background: var(--primary-blue);
+    color: var(--accent-gold);
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--operations:hover { background: var(--primary-blue-dark); }
+}
+
 /* Information section — flat, always open */
 .nav-panel-section-heading {
     font-size: 10px;
