@@ -630,6 +630,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         }
 
         dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime, faithMarker);
+        if (faithMarker) dayCell.classList.add('has-faith');
         grid.appendChild(dayCell);
     }
 
