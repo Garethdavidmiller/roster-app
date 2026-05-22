@@ -27,7 +27,7 @@ import { teamMembers } from './roster-data.js';
  */
 const NAV_PAGES = [
     { id: 'calendar',   label: '📅 Calendar',   url: './index.html',      colorClass: 'nav-panel-pill--calendar'   },
-    { id: 'admin',      label: '⚙ Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
+    { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
     { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
     { id: 'operations', label: '🔧 Ops',          url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
 ];
