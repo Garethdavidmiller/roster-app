@@ -56,6 +56,7 @@ const NAV_INFORMATION = [
 
 let _panelOpen    = false;
 let _historyPushed = false;
+let _csHistoryPushed = false;
 
 /**
  * Initialise the navigation panel for the current page.
@@ -81,6 +82,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.add('open');
         panel.classList.add('open');
         burger.setAttribute('aria-expanded', 'true');
+        _lockBodyScroll();
         if (!_historyPushed) {
             history.pushState({ mybNavPanel: true }, '');
             _historyPushed = true;
@@ -100,6 +102,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
+        _unlockBodyScroll();
         if (_historyPushed) {
             _historyPushed = false;
             history.back(); // removes the state we pushed — triggers popstate
@@ -116,6 +119,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
+        _unlockBodyScroll();
         burger.focus();
     }
 
@@ -131,6 +135,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
+        _unlockBodyScroll();
     }
 
     burger.addEventListener('click', openPanel);
@@ -195,6 +200,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         bell.disabled = true;
         try {
             _paintBell(state === 'on' ? await disableNotifications() : await enableNotifications());
+        } catch (err) {
+            console.warn('[Nav] Bell toggle failed:', err);
+            await _refreshBell(); // restore correct state if toggle errored
         } finally {
             bell.disabled = false;
             _bellBusy = false;
@@ -213,17 +221,41 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         csLightbox.classList.add('visible');
         requestAnimationFrame(() => csLightbox.classList.add('open'));
         document.addEventListener('keydown', _onComingSoonKey);
+        if (!_csHistoryPushed) {
+            history.pushState({ mybNavComingSoon: true }, '');
+            _csHistoryPushed = true;
+        }
         setTimeout(() => csClose?.focus(), 60);
     }
 
+    // Called by user action (Escape, click) — history entry still exists, remove it.
     function _closeComingSoon() {
         if (!csLightbox) return;
-        // Remove the keydown listener immediately — not inside transitionend —
-        // so it is always cleaned up even if the CSS transition never fires.
         document.removeEventListener('keydown', _onComingSoonKey);
         csLightbox.classList.remove('open');
+        if (_csHistoryPushed) {
+            _csHistoryPushed = false;
+            history.back();
+        }
         // Fallback timer ensures body scroll is always unlocked even if
         // transitionend never fires (prefers-reduced-motion, iOS quirks, etc.).
+        const t = setTimeout(done, 400);
+        function done() {
+            clearTimeout(t);
+            csLightbox.classList.remove('visible');
+            _unlockBodyScroll();
+            _csReturnFocus?.focus();
+            _csReturnFocus = null;
+        }
+        csLightbox.addEventListener('transitionend', done, { once: true });
+    }
+
+    // Called from popstate — history.back() already happened.
+    function _closeComingSoonFromBack() {
+        if (!csLightbox) return;
+        _csHistoryPushed = false;
+        document.removeEventListener('keydown', _onComingSoonKey);
+        csLightbox.classList.remove('open');
         const t = setTimeout(done, 400);
         function done() {
             clearTimeout(t);
@@ -243,8 +275,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     }
 
     csClose?.addEventListener('click', _closeComingSoon);
+    // Only close on direct backdrop click — csClose already has its own listener
+    // and event bubbling would otherwise call _closeComingSoon twice.
     csLightbox?.addEventListener('click', e => {
-        if (e.target === csLightbox || e.target === csClose) _closeComingSoon();
+        if (e.target === csLightbox) _closeComingSoon();
     });
 
     // Close panel on Escape; trap Tab focus within the panel while it is open.
@@ -275,10 +309,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
     });
 
-    // Android Back button closes the panel.
-    // Guard on _historyPushed so this handler ignores all other popstate events
-    // (e.g. from app.js overlay pattern — both handlers listen to the same event).
+    // Android Back button closes whichever overlay is currently open.
+    // Coming-soon lightbox is checked first (it sits on top of the nav panel).
     window.addEventListener('popstate', () => {
+        if (_csHistoryPushed) { _closeComingSoonFromBack(); return; }
         if (!_historyPushed) return;
         closePanelFromBack();
     });
