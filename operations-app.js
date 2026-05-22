@@ -98,6 +98,48 @@ async function ensureFirebaseSession(name) {
 window._mybSession = ensureFirebaseSession(currentUser);
 
 // ============================================
+// SCROLL LOCK — prevents iOS Safari scrolling behind open lightboxes
+// ============================================
+let _lbScrollY = 0;
+function lockBodyScroll() {
+    _lbScrollY = window.scrollY;
+    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
+    document.body.classList.add('lb-open');
+}
+function unlockBodyScroll() {
+    document.body.classList.remove('lb-open');
+    document.body.style.removeProperty('--lb-scroll-y');
+    window.scrollTo(0, _lbScrollY);
+}
+
+// ============================================
+// ANDROID BACK BUTTON — overlay history helpers
+// ============================================
+let _overlayHistoryPushed = false;
+let _backHandler = null;
+function _pushOverlayState(closeHandler) {
+    if (!_overlayHistoryPushed) {
+        history.pushState({ mybOverlay: true }, '');
+        _overlayHistoryPushed = true;
+    }
+    _backHandler = closeHandler;
+}
+function _clearOverlayHistory() {
+    if (_overlayHistoryPushed) {
+        _overlayHistoryPushed = false;
+        _backHandler = null;
+        history.back();
+    }
+}
+window.addEventListener('popstate', () => {
+    if (!_overlayHistoryPushed) return;
+    _overlayHistoryPushed = false;
+    const fn = _backHandler;
+    _backHandler = null;
+    fn?.();
+});
+
+// ============================================
 // PAGE INIT
 // ============================================
 document.body.classList.add('auth-ready');
@@ -163,12 +205,18 @@ initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron
         }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
+        lockBodyScroll();
+        _pushOverlayState(close);
         document.addEventListener('keydown', onKey);
     }
 
     function close() {
+        _clearOverlayHistory();
         lightbox.classList.remove('open');
-        lightbox.addEventListener('transitionend', () => lightbox.classList.remove('visible'), { once: true });
+        lightbox.addEventListener('transitionend', () => {
+            lightbox.classList.remove('visible');
+            unlockBodyScroll();
+        }, { once: true });
         document.removeEventListener('keydown', onKey);
     }
 
@@ -240,12 +288,18 @@ initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron
         }).join('');
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
+        lockBodyScroll();
+        _pushOverlayState(closeTips);
         document.addEventListener('keydown', onKey);
     }
 
     function closeTips() {
+        _clearOverlayHistory();
         lb.classList.remove('open');
-        lb.addEventListener('transitionend', () => lb.classList.remove('visible'), { once: true });
+        lb.addEventListener('transitionend', () => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, { once: true });
         document.removeEventListener('keydown', onKey);
     }
 
