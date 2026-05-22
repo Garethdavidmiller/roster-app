@@ -855,8 +855,17 @@ exports.setupRosterAuth = onRequest(
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
-        if (!decodedAuth.admin) {
+        // Normal path: caller already has the admin claim.
+        // Bootstrap path: caller is a known admin email but the claim has not been
+        // set yet (e.g. rules were tightened before setupRosterAuth was first run).
+        // Scope is limited to the hardcoded email so this is not a privilege-escalation risk.
+        const BOOTSTRAP_ADMIN_EMAIL = 'g.miller@myb-roster.local';
+        const isBootstrap = !decodedAuth.admin && decodedAuth.email === BOOTSTRAP_ADMIN_EMAIL;
+        if (!decodedAuth.admin && !isBootstrap) {
             return res.status(403).json({ error: 'Forbidden — admin claim required' });
+        }
+        if (isBootstrap) {
+            console.log('[setupRosterAuth] Bootstrap mode — granting first-run access to', decodedAuth.email);
         }
 
         const body    = req.body || {};
