@@ -350,8 +350,9 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
             ).join('')}
         </ul>`).join('');
 
-    // Settings link — flat, low-profile, only when signed in and not on settings page
-    const settingsHtml = (onSignOut && currentPage !== 'settings') ? `
+    // Settings link — always visible except on the settings page itself.
+    // Settings has its own login overlay, so unsigned-in users are handled there.
+    const settingsHtml = (currentPage !== 'settings') ? `
         <div class="nav-panel-settings">
             <a href="./settings.html" class="nav-panel-settings-link">⚙ Settings</a>
         </div>` : '';
