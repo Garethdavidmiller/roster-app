@@ -181,6 +181,21 @@ initCardCollapse('huddleToggleHeader',      'huddleBody',      'huddleChevron');
 initCardCollapse('rosterUploadToggleHeader','rosterUploadBody','rosterUploadChevron');
 initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
 
+// Show a banner if Firebase Auth couldn't establish a real admin session.
+// Anonymous fallback still resolves the Promise so the page renders, but
+// Cloud Functions and Storage both require a valid admin token — they'll
+// reject silently without this warning.
+window._mybSession.then(ok => {
+    if (!ok || window._mybAuthError) {
+        const main   = document.querySelector('main');
+        if (!main) return;
+        const banner = document.createElement('p');
+        banner.style.cssText = 'margin:12px 16px 0;padding:12px 14px;background:#ffeaea;border-left:4px solid #c0392b;border-radius:6px;font-size:14px;color:#333;';
+        banner.textContent   = 'Couldn\'t establish your admin Firebase session. Please sign out and sign back in before using Operations tools.';
+        main.prepend(banner);
+    }
+});
+
 // ============================================
 // ICON LIGHTBOX — tap header icon for version / about
 // ============================================
@@ -213,11 +228,15 @@ initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron
     function close() {
         _clearOverlayHistory();
         lightbox.classList.remove('open');
-        lightbox.addEventListener('transitionend', () => {
+        document.removeEventListener('keydown', onKey);
+        let done = false;
+        function finish() {
+            if (done) return; done = true;
             lightbox.classList.remove('visible');
             unlockBodyScroll();
-        }, { once: true });
-        document.removeEventListener('keydown', onKey);
+        }
+        const t = setTimeout(finish, 400);
+        lightbox.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
     }
 
     function onKey(e) { if (e.key === 'Escape') close(); }
@@ -296,11 +315,15 @@ initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron
     function closeTips() {
         _clearOverlayHistory();
         lb.classList.remove('open');
-        lb.addEventListener('transitionend', () => {
+        document.removeEventListener('keydown', onKey);
+        let done = false;
+        function finish() {
+            if (done) return; done = true;
             lb.classList.remove('visible');
             unlockBodyScroll();
-        }, { once: true });
-        document.removeEventListener('keydown', onKey);
+        }
+        const t = setTimeout(finish, 400);
+        lb.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
     }
 
     function onKey(e) { if (e.key === 'Escape') closeTips(); }

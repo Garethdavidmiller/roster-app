@@ -1,7 +1,7 @@
 /**
  * firebase-client.js — Single source of truth for Firebase initialisation.
  *
- * All three pages (index.html, admin.html, paycalc.html) import from here, which means:
+ * All app pages that use Firebase import from here, which means:
  *   - The project config (API key, project ID etc.) lives in one place only.
  *   - The Firebase SDK version appears in one place only — update it here
  *     and all pages pick up the change automatically.
