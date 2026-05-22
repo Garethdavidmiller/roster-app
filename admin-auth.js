@@ -12,7 +12,7 @@
  */
 
 import { teamMembers, CONFIG, escapeHtml } from './roster-data.js';
-import { auth } from './firebase-client.js';
+import { auth, onAuthStateChanged } from './firebase-client.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -54,9 +54,15 @@ export function initAuthSetup({ currentIsAdmin }) {
         resultEl.style.display = 'none';
 
         try {
-            const currentUser = auth.currentUser;
+            // Wait for Firebase Auth to restore its session from IndexedDB before
+            // checking currentUser — auth.currentUser is null until the async restore
+            // completes, even when a valid session exists.
+            const currentUser = await new Promise(resolve => {
+                if (auth.currentUser) { resolve(auth.currentUser); return; }
+                const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
+            });
             if (!currentUser) {
-                throw new Error('Not signed in — please refresh the page and sign in again');
+                throw new Error('Firebase Auth session not found — please sign out and sign back in');
             }
             // forceRefresh:true fetches a fresh token from Firebase so any recent
             // claim changes are included. The token is short-lived and signed by Firebase.
