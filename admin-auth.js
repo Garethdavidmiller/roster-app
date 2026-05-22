@@ -66,7 +66,8 @@ export function initAuthSetup({ currentIsAdmin }) {
                 const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
             });
             if (!currentUser) {
-                throw new Error('Firebase Auth session not found — please sign out and sign back in');
+                const code = window._mybAuthError ? ` (Firebase error: ${window._mybAuthError})` : '';
+                throw new Error(`Firebase Auth session not found${code} — please sign out and sign back in`);
             }
             // forceRefresh:true fetches a fresh token from Firebase so any recent
             // claim changes are included. The token is short-lived and signed by Firebase.

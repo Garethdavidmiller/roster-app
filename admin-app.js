@@ -13,7 +13,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
 import { initHuddleCards } from './admin-huddle.js';
@@ -100,26 +100,28 @@ function getSurname(fullName) {
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
- * Firestore Security Rules require `request.auth != null` (and, post-v10.72,
- * a matching custom claim) for every write. The login *click* handler signs in
- * to Firebase — but a returning user with a valid 30-day localStorage session
- * never passes through that handler, so on a normal app open the Firebase Auth
- * session was never (re-)established. That left `auth.currentUser` null and broke
- * override saves and the "Set up accounts" button ("session not found").
+ * Firestore Security Rules require `request.auth != null` for every write.
+ * The login click handler signs in to Firebase — but a returning user with a
+ * valid 30-day localStorage session skips that handler, so on a normal app open
+ * the Firebase Auth session was never (re-)established.
  *
- * This re-establishes the session on page load. The password is re-derived from
- * the member name (same rule as `getSurname` + Firebase's 6-char padding), so no
- * password needs to be stored in the session. If the account doesn't exist yet it
- * is self-healed via createUserWithEmailAndPassword.
+ * Strategy (each step falls through to the next on failure):
+ * 1. Restore persisted session from IndexedDB — free, no network.
+ * 2. signInWithEmailAndPassword — normal path.
+ * 3. createUserWithEmailAndPassword — account doesn't exist yet (self-heal).
+ * 4. signInAnonymously — fallback when email/password provider is disabled in
+ *    Firebase Console, or account has a mismatched password. Anonymous sessions
+ *    satisfy `request.auth != null` and are stable across page loads on Android
+ *    PWAs. The error code from step 2 is stored on window._mybAuthError so it
+ *    can be surfaced in diagnostic messages.
  *
  * @param {string} name - Member display name (exact teamMembers match)
  * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
  */
 async function ensureFirebaseSession(name) {
     await authReady;
-    // auth.currentUser is null synchronously on load even when a session is
-    // persisted in IndexedDB — the first onAuthStateChanged callback signals the
-    // real restored state. Wait for it before deciding whether to sign in.
+    // auth.currentUser is null synchronously even when a session exists in
+    // IndexedDB. Wait for the first onAuthStateChanged to get the real state.
     const existing = await new Promise(resolve => {
         const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
     });
@@ -128,23 +130,39 @@ async function ensureFirebaseSession(name) {
     const pw         = getSurname(name);
     const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
     const email      = nameToEmail(name);
+    let   firstError = null;
+
     try {
         await signInWithEmailAndPassword(auth, email, fbPassword);
         return true;
     } catch (e) {
+        firstError = e.code;
+        console.warn('[Auth] signIn failed:', e.code, 'for', email);
         if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-            // Account doesn't exist yet — create it so the Security Rules can
-            // authenticate the session. setupRosterAuth normally does this.
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
                 console.log('[Auth] Created Firebase Auth account for', name);
                 return true;
             } catch (createErr) {
-                console.warn('[Auth] Account creation failed:', createErr.code);
-                return false;
+                console.warn('[Auth] createUser failed:', createErr.code, 'for', email);
+                firstError = createErr.code;
             }
         }
-        console.warn('[Auth] Firebase sign-in skipped:', e.code);
+    }
+
+    // Fallback: anonymous sign-in satisfies `request.auth != null`.
+    // Covers: email/password provider disabled (auth/operation-not-allowed),
+    // password mismatch on an existing account (auth/email-already-in-use),
+    // and any other persistent email/password failure.
+    console.warn('[Auth] Falling back to anonymous sign-in. Original error:', firstError);
+    window._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
+    try {
+        await signInAnonymously(auth);
+        console.log('[Auth] Anonymous session established for', name);
+        return true;
+    } catch (anonErr) {
+        console.error('[Auth] Anonymous sign-in failed:', anonErr.code);
+        window._mybAuthError = `${firstError} + anon:${anonErr.code}`;
         return false;
     }
 }
