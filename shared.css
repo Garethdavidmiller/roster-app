@@ -862,11 +862,11 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .nav-panel-pill--operations {
-    background: var(--primary-blue);
-    color: var(--accent-gold);
+    background: var(--orange);
+    color: var(--primary-blue);
 }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--operations:hover { background: var(--primary-blue-dark); }
+    .nav-panel-pill--operations:hover { background: color-mix(in oklch, var(--orange) 91%, black); }
 }
 
 /* Information section — flat, always open */
