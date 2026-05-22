@@ -368,7 +368,7 @@ function initTipsLightbox() {
 function initIconLightbox() {
     const lb       = document.getElementById('iconLightbox');
     const closeBtn = document.getElementById('iconLightboxClose');
-    const iconBtn  = document.getElementById('appIconBtn');
+    const iconBtn  = document.getElementById('appIcon');
     if (!lb || !iconBtn) return;
 
     const versionEl = document.getElementById('lightboxVersion');
