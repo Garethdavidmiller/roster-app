@@ -24,8 +24,17 @@ jobs:
       - name: Write service account key
         run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json
 
-      - name: Deploy Firestore rules, indexes, and Storage rules
+      - name: Deploy Firestore rules and indexes
         run: |
-          firebase deploy --only firestore:rules,firestore:indexes,storage --project myb-roster
+          firebase deploy --only firestore:rules,firestore:indexes --project myb-roster
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json
+
+      - name: Deploy Storage rules
+        # Separate step so a Storage permission error does not prevent Firestore rules from deploying.
+        # If this step fails, check that FIREBASE_SERVICE_ACCOUNT has the Storage Admin role
+        # (roles/storage.admin) in the Google Cloud Console for project myb-roster.
+        run: |
+          firebase deploy --only storage --project myb-roster
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json

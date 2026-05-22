@@ -22,6 +22,7 @@ import {
 // admin.html actually uploads files, so index.html and paycalc.html avoid the cost.
 import {
     getAuth,
+    onAuthStateChanged,
     signInWithEmailAndPassword,
     signOut,
     setPersistence,
@@ -87,7 +88,7 @@ export const authReady = setPersistence(auth, indexedDBLocalPersistence)
     .catch(err => { console.warn('[Auth] persistence setup failed:', err); });
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, signOut };
+export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
 
 /**
  * Derive a stable Firebase Auth email from a teamMembers display name.

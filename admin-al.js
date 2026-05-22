@@ -5,7 +5,7 @@
 // and shared functions via initALSection(deps) to avoid circular imports.
 
 import { teamMembers, getALEntitlement, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
-import { db, collection, doc, writeBatch, serverTimestamp } from './firebase-client.js';
+import { db, collection, doc, writeBatch, serverTimestamp, auth } from './firebase-client.js';
 import { getAllOverrides, setAllOverrides, renderWeekGrid, renderTable, formatDisplay } from './admin-overrides.js';
 
 const esc = escapeHtml;
@@ -244,6 +244,14 @@ alSaveBtn.addEventListener('click', async () => {
     if (!workingDates.length) {
         alFeedback.className = 'feedback error';
         alFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+        alSaveBtn.disabled    = false;
+        alSaveBtn.textContent = 'Record annual leave';
+        return;
+    }
+
+    if (!auth.currentUser) {
+        alFeedback.className = 'feedback error';
+        alFeedback.textContent = '⚠ Session expired — please sign out and sign back in.';
         alSaveBtn.disabled    = false;
         alSaveBtn.textContent = 'Record annual leave';
         return;

@@ -61,8 +61,11 @@ export function initAuthSetup({ currentIsAdmin }) {
             // forceRefresh:true fetches a fresh token from Firebase so any recent
             // claim changes are included. The token is short-lived and signed by Firebase.
             const tokenResult = await currentUser.getIdTokenResult(/* forceRefresh */ true);
+            // Bootstrap mode: admin claim not yet set (rules were tightened before first run).
+            // Server accepts g.miller@myb-roster.local without the claim for this first call.
             if (!tokenResult.claims.admin) {
-                throw new Error('Admin claim not found — try signing out and back in, then click again');
+                resultEl.innerHTML = '<p style="color:var(--primary-blue)">ℹ️ Admin claim not set yet — running bootstrap. Sign out and back in after this completes.</p>';
+                resultEl.style.display = 'block';
             }
 
             const resp = await fetch(SETUP_AUTH_URL, {

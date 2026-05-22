@@ -855,8 +855,17 @@ exports.setupRosterAuth = onRequest(
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
-        if (!decodedAuth.admin) {
+        // Normal path: caller already has the admin claim.
+        // Bootstrap path: caller is a known admin email but the claim has not been
+        // set yet (e.g. rules were tightened before setupRosterAuth was first run).
+        // Scope is limited to the hardcoded email so this is not a privilege-escalation risk.
+        const BOOTSTRAP_ADMIN_EMAIL = 'g.miller@myb-roster.local';
+        const isBootstrap = !decodedAuth.admin && decodedAuth.email === BOOTSTRAP_ADMIN_EMAIL;
+        if (!decodedAuth.admin && !isBootstrap) {
             return res.status(403).json({ error: 'Forbidden — admin claim required' });
+        }
+        if (isBootstrap) {
+            console.log('[setupRosterAuth] Bootstrap mode — granting first-run access to', decodedAuth.email);
         }
 
         const body    = req.body || {};
@@ -900,11 +909,15 @@ exports.setupRosterAuth = onRequest(
             }
 
             // Set or clear the admin custom claim — applies to both new and existing accounts.
+            // Also sets the name claim for all members — required by Firestore rules
+            // (overrides: memberName == token.name for non-admins).
             if (uid) {
                 const isAdmin = adminMembers.has(name);
+                const claims  = isAdmin ? { admin: true, name } : { name };
                 try {
-                    await admin.auth().setCustomUserClaims(uid, isAdmin ? { admin: true } : {});
-                    if (isAdmin) console.log(`[setupRosterAuth] Set admin claim: ${email}`);
+                    await admin.auth().setCustomUserClaims(uid, claims);
+                    if (isAdmin) console.log(`[setupRosterAuth] Set admin+name claim: ${email}`);
+                    else         console.log(`[setupRosterAuth] Set name claim: ${email}`);
                 } catch (claimErr) {
                     console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);
                 }

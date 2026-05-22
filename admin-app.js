@@ -13,7 +13,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from './firebase-client.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
 import { initHuddleCards } from './admin-huddle.js';
@@ -2115,4 +2115,42 @@ if (currentIsAdmin && new Date().getMonth() >= 10) {
     banner.appendChild(dismissBtn);
     const anchor = document.querySelector('.card') || document.querySelector('main') || document.body;
     anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
+}
+
+// ── Session-expired banner ────────────────────────────────────────────────────
+// Firebase Auth session (IndexedDB) can be cleared without touching the localStorage
+// session — e.g. "Clear site data" in Chrome, reinstalling the PWA, or a fresh device.
+// When that happens auth.currentUser is null and every Firestore save fails.
+// onAuthStateChanged fires once after the initial auth state is determined on page load.
+// If it reports no user while the localStorage session is valid, show a persistent banner
+// with a direct "Sign out now" button so the user can fix it before attempting a save.
+if (isAuthenticated) {
+    onAuthStateChanged(auth, user => {
+        if (user) return; // Firebase session active — normal case
+        if (document.getElementById('authExpiredBanner')) return; // already shown
+        const banner = document.createElement('div');
+        banner.id = 'authExpiredBanner';
+        banner.setAttribute('role', 'alert');
+        banner.setAttribute('style', [
+            'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:9998',
+            'background:var(--error-banner)', 'color:white',
+            'padding:10px 16px', 'font-size:13px', 'font-weight:500',
+            'display:flex', 'align-items:center', 'gap:10px',
+            'line-height:1.4', 'box-shadow:0 2px 8px rgba(0,0,0,.3)',
+        ].join(';'));
+        const msg = document.createElement('span');
+        msg.style.flex = '1';
+        msg.textContent = '⚠ Session expired — saves will fail. Sign out and back in to fix this.';
+        const btn = document.createElement('button');
+        btn.textContent = 'Sign out now';
+        btn.setAttribute('style', [
+            'background:white', 'color:var(--error-red)', 'border:none',
+            'padding:4px 10px', 'border-radius:4px', 'font-size:12px',
+            'font-weight:600', 'cursor:pointer', 'white-space:nowrap', 'flex-shrink:0',
+        ].join(';'));
+        btn.addEventListener('click', () => { clearSession(); window.location.reload(); });
+        banner.appendChild(msg);
+        banner.appendChild(btn);
+        document.body.prepend(banner);
+    });
 }
