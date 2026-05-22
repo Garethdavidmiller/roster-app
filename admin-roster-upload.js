@@ -377,22 +377,28 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
                 const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
 
+                // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
+                // Treat them as identical for all comparison purposes.
+                const normRest = s => (s === 'OFF' ? 'RD' : s);
+                const normParsed = normRest(parsedValue);
+                const normBase   = normRest(baseShift);
+
                 let state;
                 if (!existing || !isManual) {
                     // No override, or only a previous import — compare PDF vs base roster first
-                    if (parsedShift === baseShift || parsedValue === baseShift) {
+                    if (normParsed === normBase) {
                         state = 'MATCH';
                     } else if (existing && !isManual &&
-                               (existing.value === parsedValue || existing.value === parsedShift)) {
+                               (normRest(existing.value) === normParsed)) {
                         state = 'COVERED';  // matches the previous import — nothing to re-approve
                     } else {
                         state = 'DIFF';
                     }
                 } else {
                     // A manual override exists — check if it already matches the PDF
-                    if (existing.value === parsedShift || existing.value === parsedValue) {
+                    if (normRest(existing.value) === normParsed) {
                         state = 'COVERED';   // manual is already correct — nothing to do
-                    } else if (existing.value === 'SICK' && parsedShift === 'RD') {
+                    } else if (existing.value === 'SICK' && normBase === 'RD') {
                         // Absence override on a rest day — not a real conflict.
                         // The calendar already suppresses absence display on base-RD days.
                         state = 'COVERED';
