@@ -2434,6 +2434,7 @@ const _calendarSession = (() => {
 initNavPanel({
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
+    isAdmin:     CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
     onSignOut:   _calendarSession ? () => {
         lsDel('myb_admin_session');
         window.location.reload();

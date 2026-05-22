@@ -2636,6 +2636,7 @@ const _paycalcMember = getLoggedMember();
 initNavPanel({
     currentPage: 'paycalc',
     memberName:  _paycalcMember?.name || null,
+    isAdmin:     ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name),
     onSignOut:   _paycalcMember ? () => {
         lsDel('myb_admin_session');
         window.location.href = './index.html';
