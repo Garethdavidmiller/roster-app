@@ -17,6 +17,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax check and tests
+        run: |
+          node --check app.js
+          node --check app-team-view.js
+          node --check app-override-utils.js
+          node --check admin-app.js
+          node --check admin-auth.js
+          node --check admin-huddle.js
+          node --check admin-overrides.js
+          node --check admin-roster-upload.js
+          node --check admin-al.js
+          node --check admin-sick.js
+          node --check paycalc.js
+          node --check paycalc-calc.js
+          node --check paycalc-roster-suggestions.js
+          node --check firebase-client.js
+          node --check roster-data.js
+          node --check roster-cycle-data.js
+          node --check service-worker.js
+          node --check nav-panel.js
+          node --check notif.js
+          node --check ls.js
+          node --check railcard-guide.js
+          node --check guide-print.js
+          node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs app.test.mjs
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
