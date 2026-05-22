@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v10.99 -->
+<!-- MYB Roster Operations v11.00 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -456,6 +456,8 @@
             }
         }
 
+        #opsBadge { background: var(--orange); color: var(--primary-blue); }
+
         @media print {
             #huddleUploadCard,
             #rosterUploadCard,
@@ -473,7 +475,7 @@
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
-        <div class="lightbox-badge">Operations</div>
+        <div class="lightbox-badge">Ops</div>
         <a href="./admin.html" class="lightbox-bug-link">⚙ Admin panel</a>
         <a id="opsBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     </div>
@@ -497,7 +499,7 @@
             <img src="icon-192.png" class="app-icon" id="appIcon" alt="Chiltern Railways" loading="eager">
             <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
         </div>
-        <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> Operations</span>
+        <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> Ops</span>
     </header>
 
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
