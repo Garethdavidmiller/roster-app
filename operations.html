@@ -234,8 +234,10 @@
             box-sizing: border-box;
         }
         .huddle-file-label {
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
             padding: 8px 14px;
+            min-height: 44px;
             border: 1.5px solid var(--border-light);
             border-radius: var(--radius-sm);
             font-size: 14px;
@@ -244,6 +246,8 @@
             background: var(--bg-light);
             cursor: pointer;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
             white-space: nowrap;
         }
         @media (hover: hover) and (pointer: fine) { .huddle-file-label:hover { border-color: var(--primary-blue); } }
@@ -370,6 +374,10 @@
         }
         .roster-approve-btn.is-approved { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
         .roster-approve-btn.is-skipped  { background: none; color: var(--text-light); border-color: var(--border-light); }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-approve-btn.is-approved:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
+            .roster-approve-btn.is-skipped:hover  { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
         .roster-conflict-choice { display: flex; gap: 4px; }
         .roster-choice-btn {
             font-size: 11px; font-weight: 600;
@@ -380,6 +388,10 @@
             transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
         .roster-choice-btn.is-chosen { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-choice-btn:not(.is-chosen):hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+            .roster-choice-btn.is-chosen:hover { background: var(--primary-blue-dark); border-color: var(--primary-blue-dark); }
+        }
         .section-skipped .roster-change-row { opacity: 0.35; pointer-events: none; }
         .section-skipped .roster-skip-all-btn { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
         .roster-no-changes {
