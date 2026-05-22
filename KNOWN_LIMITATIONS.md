@@ -1,12 +1,26 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v10.94 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.07 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
 ---
 
 ## Security
+
+### Huddle Firestore writes restricted to admin (v11.07)
+`firestore.rules` now requires `request.auth.token.admin == true` for all browser
+create/update/delete on the `huddles` collection. Prior to v11.07, any signed-in staff
+member could alter huddle metadata (storageUrl, fileType, htmlContent) even though
+Storage rules prevented them from uploading files. The two rules now match: both Storage
+and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
+bypass rules and are unaffected.
+
+### CSP connect-src includes firebasestorage.googleapis.com (v11.07)
+Firebase Storage browser uploads (manual Huddle upload in Operations) use
+`firebasestorage.googleapis.com`. This was implicitly covered by `https://*.googleapis.com`
+but is now also listed explicitly in `connect-src` in `firebase.json` for clarity.
+Both `connect-src` and `img-src` explicitly list `https://firebasestorage.googleapis.com`.
 
 ### localStorage session can be forged for UI access (#14)
 The `myb_admin_session` localStorage session can be modified via DevTools to

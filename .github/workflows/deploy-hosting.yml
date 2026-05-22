@@ -34,6 +34,8 @@ jobs:
           node --check admin-roster-upload.js
           node --check admin-al.js
           node --check admin-sick.js
+          node --check operations-app.js
+          node --check settings-app.js
           node --check paycalc.js
           node --check paycalc-calc.js
           node --check paycalc-roster-suggestions.js

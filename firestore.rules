@@ -10,7 +10,8 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v10.94 — revert per-member claim requirement to auth-only.
+// Last updated: v11.07 — huddle writes now require admin claim (browser path).
+// v10.94 — revert per-member claim requirement to auth-only.
 // v10.83 — restrict huddle writes to admin; fix Storage rules to allow admin uploads.
 // v10.72 — member write isolation (v11 task #2). Suspended — see note above.
 
@@ -63,13 +64,15 @@ service cloud.firestore {
       // required for Huddle button and notification auto-open on fresh visits.
       allow read;
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
-      // Browser writes (manual admin upload in admin.html) require a live session.
+      // Browser writes (manual admin upload in operations.html) require admin claim.
+      // Non-admin staff cannot alter huddle metadata even if authenticated.
       allow create, update: if
         request.auth != null &&
+        request.auth.token.admin == true &&
         request.resource.data.keys().hasAll(['date', 'storageUrl', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.storageUrl is string;
-      allow delete: if request.auth != null;
+      allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
     match /pushSubscriptions/{docId} {
