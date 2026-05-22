@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v10.99 -->
+<!-- MYB Roster — Pay Calculator v11.00 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -63,6 +63,7 @@
 
     /* .app-header, .app-header h1, .badge-page, .app-icon
        are all defined in shared.css */
+    #paycalcBadge { background: var(--green); color: white; }
 
     /* paycalc-specific: header has bottom margin (admin uses grid gap) */
     .app-header { margin-bottom: 16px; }
@@ -1097,7 +1098,7 @@
       <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
       <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
     </div>
-    <span class="badge-page"><span class="badge-glyph" aria-hidden="true">£</span> Pay</span>
+    <span class="badge-page" id="paycalcBadge"><span class="badge-glyph" aria-hidden="true">£</span> Pay</span>
   </header>
 
   <main>
