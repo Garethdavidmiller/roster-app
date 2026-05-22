@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Settings v11.06 -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Settings — MYB Roster</title>
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="stylesheet" href="./shared.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        background: var(--primary-blue);
+        min-height: 100vh;
+        min-height: 100dvh;
+        padding-top:    max(20px, env(safe-area-inset-top));
+        padding-bottom: max(20px, env(safe-area-inset-bottom));
+        padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+        padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+        overflow-x: hidden; overflow-x: clip;
+        overscroll-behavior: none;
+        color: var(--text-dark);
+    }
+    @media (max-width: 768px) {
+        body {
+            padding-left:  max(10px, env(safe-area-inset-left));
+            padding-right: max(10px, env(safe-area-inset-right));
+        }
+    }
+
+    .app { max-width: 480px; margin: 0 auto; }
+
+    /* ── CARD ── */
+    .card {
+        background: white;
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-1);
+        overflow: hidden;
+        margin-bottom: 12px;
+    }
+    .card-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border-light); }
+    .card-header h2 { font-size: 15px; font-weight: 700; color: var(--text-dark); }
+    .card-header .hint { display: block; font-size: 12px; color: var(--text-light); margin-top: 3px; }
+    .card-body { padding: 16px; }
+
+    /* Collapsible cards */
+    .card-collapsible-header { cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; }
+    .card-collapsible-header h2 { flex: 1; }
+    .collapse-chevron { font-size: 16px; color: var(--text-light); transition: transform 0.2s; flex-shrink: 0; }
+    .collapse-chevron.open { transform: rotate(180deg); }
+    .card-collapsible-body { display: none; }
+    .card-collapsible-body.open { display: block; }
+
+    /* Btn styles */
+    .btn-action {
+        display: block;
+        width: 100%;
+        padding: 11px 16px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        touch-action: manipulation;
+        font-family: inherit;
+        transition: background 0.15s, transform 0.1s;
+        margin-bottom: 8px;
+        text-align: center;
+    }
+    .btn-primary   { background: var(--primary-blue); color: var(--accent-gold); }
+    .btn-secondary { background: var(--bg-faint); color: var(--text-dark); border: 1px solid var(--border-light); }
+    @media (hover: hover) and (pointer: fine) {
+        .btn-primary:hover   { background: var(--primary-blue-dark); }
+        .btn-secondary:hover { background: var(--border-light); }
+    }
+    .btn-action:active { transform: scale(0.98); }
+
+    /* Settings badge — indigo */
+    #settingsBadge { background: var(--indigo); color: white; }
+    #iconLightbox .lightbox-badge {
+        background: color-mix(in oklch, var(--indigo) 15%, white);
+        border-color: color-mix(in oklch, var(--indigo) 35%, white);
+        color: var(--indigo);
+    }
+
+    @media print {
+        #notificationsCard,
+        #religiousCard { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Login overlay (shown only when no active session) -->
+<div id="loginOverlay" role="dialog" aria-label="Sign in to Settings" aria-modal="true">
+    <div id="loginCard">
+        <img src="icon-192.png" alt="MYB Roster">
+        <div class="login-app-name">MYB Roster</div>
+        <div class="login-subtitle">Settings · Sign in</div>
+        <div class="login-field">
+            <label for="loginGrade">Grade</label>
+            <select id="loginGrade">
+                <option value="">— Select grade —</option>
+            </select>
+        </div>
+        <div class="login-field">
+            <label for="loginName">Your name</label>
+            <select id="loginName" disabled>
+                <option value="">— Select grade first —</option>
+            </select>
+        </div>
+        <div class="login-field">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+        </div>
+        <div id="loginError" class="login-error" aria-live="polite"></div>
+        <button id="loginSubmit">Sign in →</button>
+        <a href="index.html" class="login-back">← Back to roster</a>
+    </div>
+</div>
+
+<!-- Tips lightbox -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+    <span id="tipsLightboxClose" class="lb-close" aria-label="Close">✕</span>
+        <div class="tips-lb-title" id="tipsLbTitle"></div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
+<!-- Icon lightbox -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About MYB Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+    <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
+        <img src="icon-192.png" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge">Settings</div>
+        <a href="./index.html" class="lightbox-bug-link">📅 View staff roster</a>
+        <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+    </div>
+</div>
+
+<!-- Coming soon lightbox (nav panel) -->
+<div id="navComingSoonLightbox" class="lb-overlay" role="dialog" aria-label="Coming soon" aria-modal="true">
+    <div class="lb-content">
+        <button id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
+        <div style="font-size:32px;margin-bottom:12px">🚧</div>
+        <div class="lightbox-app-name" style="font-size:18px">Coming soon</div>
+        <p style="font-size:13px;color:var(--text-mid);margin-top:8px;text-align:center">This feature is in development</p>
+    </div>
+</div>
+
+<!-- Header -->
+<header class="app-header">
+    <button id="navMenuBtn" class="nav-menu-btn" aria-label="Open navigation menu" aria-expanded="false" aria-controls="navPanel">☰</button>
+    <div class="app-header-brand">
+        <button id="appIconBtn" class="app-icon-btn" aria-label="About this app" title="About">
+            <img src="icon-192.png" alt="" class="app-icon" width="32" height="32">
+        </button>
+        <h1 class="title-mobile">Settings</h1>
+        <h1 class="title-desktop">Settings</h1>
+    </div>
+    <span class="badge-page" id="settingsBadge"><span class="badge-glyph" aria-hidden="true">⚙</span> Settings</span>
+</header>
+
+<main class="app">
+
+    <!-- Push notifications -->
+    <div class="card" id="notificationsCard">
+        <div class="card-header card-collapsible-header" id="notifToggleHeader">
+            <h2>🔔 Notifications <button class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications" title="Tips for notifications">?</button></h2>
+            <span class="hint">Get an alert when the daily Huddle is ready or payday is approaching</span>
+            <span class="collapse-chevron" id="notifChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="notifBody">
+            <div class="card-body">
+                <div id="notifStatusMsg" style="font-size:13px;color:var(--text-mid);margin-bottom:14px"></div>
+                <button class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
+                <button class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
+                <p id="notifDeniedMsg" style="display:none;font-size:13px;color:var(--text-mid);margin-top:10px">
+                    Notifications are blocked in your browser settings. To re-enable:<br>
+                    Android: tap the lock icon in Chrome → Site settings → Notifications → Allow.<br>
+                    iPhone: Settings → Chrome / Safari → Notifications → Allow.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cultural Calendar -->
+    <div class="card" id="religiousCard">
+        <div class="card-header card-collapsible-header" id="religiousToggleHeader">
+            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar" title="Tips for cultural calendar">?</button></h2>
+            <span class="hint">Optional date markers — one per person</span>
+            <span class="collapse-chevron" id="religiousChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="religiousBody" style="padding:16px">
+            <p class="religious-intro">
+                Choose a calendar to show key dates as small icons on matching days
+                in your roster. Only one calendar can be active at a time.
+                These markers are visible to anyone who views your roster.
+            </p>
+            <div class="faith-radio-group" role="radiogroup" aria-label="Cultural calendar">
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="none">
+                    <span><strong>None</strong></span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="islamic">
+                    <span>
+                        <strong>🌙 Islamic</strong>
+                        <span class="faith-radio-sublabel">Ramadan · Eid al-Fitr · Eid al-Adha · Islamic New Year · Mawlid al-Nabi</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="hindu">
+                    <span>
+                        <strong>🪔 Hindu</strong>
+                        <span class="faith-radio-sublabel">Holi · Navratri · Dussehra · Diwali · Raksha Bandhan</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="chinese">
+                    <span>
+                        <strong>🧧 Chinese</strong>
+                        <span class="faith-radio-sublabel">Lunar New Year · Lantern Festival · Qingming · Dragon Boat · Mid-Autumn</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="jamaican">
+                    <span>
+                        <strong>🇯🇲 Jamaican</strong>
+                        <span class="faith-radio-sublabel">Ash Wednesday · Labour Day · Emancipation Day · Independence Day · National Heroes Day</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="congolese">
+                    <span>
+                        <strong>🇨🇩 Congolese</strong>
+                        <span class="faith-radio-sublabel">Martyrs' Day · Liberation Day · Heroes' Day · Independence Day</span>
+                    </span>
+                </label>
+                <label class="faith-radio-label">
+                    <input type="radio" name="faithCalendar" value="portuguese">
+                    <span>
+                        <strong>🇵🇹 Portuguese</strong>
+                        <span class="faith-radio-sublabel">Carnival · Freedom Day · Labour Day · Portugal Day · Corpus Christi · Assumption · Republic Day · Restoration of Independence · Immaculate Conception</span>
+                    </span>
+                </label>
+            </div>
+            <p class="religious-disclaimer" id="calendarDisclaimer" style="display:none;"></p>
+            <div class="religious-saved" id="religiousSaved">✓ Saved</div>
+        </div>
+    </div>
+
+</main>
+
+<script type="module" src="./settings-app.js"></script>
+</body>
+</html>

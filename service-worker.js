@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v11.05
+// MYB Roster — Service Worker v11.06
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '11.05';
+const APP_VERSION = '11.06';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -23,11 +23,11 @@ const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 // exact path check. This is intentional — all these files live at the root of
 // the PWA origin so partial suffix matches never collide in practice.
 const NETWORK_FIRST_FILES = [
-    'index.html', 'admin.html', 'operations.html',
+    'index.html', 'admin.html', 'operations.html', 'settings.html',
     'app.js', 'app-team-view.js', 'app-override-utils.js', 'admin-app.js', 'admin-huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js',
     'admin-al.js', 'admin-sick.js',
-    'operations-app.js',
+    'operations-app.js', 'settings-app.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js',
     'shared.css',
     'paycalc.html', 'paycalc.js', 'paycalc-calc.js',
@@ -42,6 +42,8 @@ const CORE_ASSETS = [
     "./index.html",
     "./admin.html",
     "./operations.html",
+    "./settings.html",
+    "./settings-app.js",
     "./app.js",
     "./app-team-view.js",
     "./app-override-utils.js",

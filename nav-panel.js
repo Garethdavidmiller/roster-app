@@ -350,6 +350,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
             ).join('')}
         </ul>`).join('');
 
+    // Settings link — flat, low-profile, only when signed in and not on settings page
+    const settingsHtml = (onSignOut && currentPage !== 'settings') ? `
+        <div class="nav-panel-settings">
+            <a href="./settings.html" class="nav-panel-settings-link">⚙ Settings</a>
+        </div>` : '';
+
     // Footer is only rendered when a sign-out callback is supplied.
     // Member name is set via textContent (not innerHTML) after injection to avoid XSS.
     // The bell is only included when the device supports Web Push (notif.js folds
@@ -390,6 +396,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
                     <p class="nav-panel-section-heading">Information</p>
                     ${infoGroups}
                 </div>
+                ${settingsHtml}
             </div>
             ${footerHtml}
         </div>

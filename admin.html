@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v11.05 -->
+<!-- MYB Roster Admin v11.06 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -932,77 +932,7 @@
         }
         .collapse-chevron.open { transform: rotate(180deg); }
 
-        /* ---- Religious calendar card ---- */
-        #religiousToggleHeader h2 { color: var(--text-mid); font-weight: 600; }
-        .calendar-active-tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--accent-gold);
-            background: var(--primary-blue);
-            border: 1.5px solid var(--accent-gold);
-            border-radius: 20px;
-            padding: 2px 8px;
-            margin-left: 8px;
-            vertical-align: middle;
-        }
-        .religious-intro {
-            font-size: 13px;
-            color: var(--text-mid);
-            margin-bottom: 14px;
-            line-height: 1.5;
-        }
-        .faith-radio-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .faith-radio-label {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            font-size: 14px;
-            color: var(--text-dark);
-            cursor: pointer;
-            line-height: 1.4;
-        }
-        .faith-radio-label input[type="radio"] {
-            width: 18px; height: 18px;
-            accent-color: var(--primary-blue);
-            cursor: pointer;
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-        .faith-radio-label strong {
-            font-weight: 600;
-        }
-        .faith-radio-sublabel {
-            font-size: 12px;
-            color: var(--text-light);
-            display: block;
-            margin-top: 1px;
-        }
-        .religious-disclaimer {
-            margin-top: 12px;
-            font-size: 11px;
-            color: var(--text-light);
-            line-height: 1.5;
-            padding: 8px 10px;
-            background: var(--bg-faint);
-            border-radius: 6px;
-            border: 1px solid var(--border-light);
-        }
-        .religious-saved {
-            display: none;
-            margin-top: 10px;
-            font-size: 12px;
-            color: var(--green);
-            font-weight: 600;
-        }
-        .religious-saved.visible { display: block; }
-        .religious-saved.error { color: var(--error-red); }
+        /* Cultural calendar + login overlay CSS moved to shared.css (v11.06) */
 
         /* ---- Overrides list ---- */
         /* The overrides body manages its own internal spacing */
@@ -1558,116 +1488,7 @@
             padding: 10px 16px; min-height: 36px; font-size: 13px; cursor: pointer;
         }
 
-        #loginOverlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: var(--primary-blue);
-            z-index: 9000;
-            align-items: flex-start;
-            justify-content: center;
-            overflow-y: auto;
-            -webkit-overflow-scrolling: touch;
-            padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
-        }
-        #loginOverlay.visible { display: flex; }
-
-        #loginCard {
-            background: white;
-            border-radius: var(--radius-lg);
-            padding: 36px 32px 28px;
-            max-width: 340px;
-            width: 100%;
-            margin: auto;
-            text-align: center;
-            box-shadow: var(--shadow-3);
-        }
-
-        #loginCard img {
-            width: 72px;
-            height: 72px;
-            border-radius: 16px;
-            margin-bottom: 16px;
-            box-shadow: 0 4px 16px rgba(0,30,60,0.25);
-        }
-
-        .login-app-name {
-            font-size: 22px;
-            font-weight: 800;
-            color: var(--primary-blue);
-            letter-spacing: -0.3px;
-            margin-bottom: 2px;
-        }
-
-        .login-subtitle {
-            font-size: 13px;
-            color: var(--text-light);
-            margin-bottom: 24px;
-        }
-
-        .login-field {
-            text-align: left;
-            margin-bottom: 14px;
-        }
-
-        .login-field label {
-            display: block;
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text-mid);
-            text-transform: uppercase;
-            letter-spacing: 0.4px;
-            margin-bottom: 5px;
-        }
-
-        .login-error {
-            font-size: 13px;
-            color: var(--error-red);
-            background: var(--error-bg);
-            border-radius: 8px;
-            padding: 8px 12px;
-            margin-bottom: 14px;
-            display: none;
-            text-align: left;
-            line-height: 1.4;
-        }
-        .login-error.visible { display: block; }
-
-        #loginSubmit {
-            width: 100%;
-            padding: 13px;
-            background: var(--primary-blue);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 15px;
-            font-weight: 800;
-            cursor: pointer;
-            touch-action: manipulation;
-            font-family: inherit;
-            transition: background 0.15s, transform 0.1s;
-            margin-bottom: 16px;
-        }
-        @media (hover: hover) and (pointer: fine) { #loginSubmit:hover { background: var(--primary-blue-dark); } }
-        #loginSubmit:active { transform: scale(0.98); }
-
-        /* Name dropdown before grade is chosen — softer than the global disabled style */
-        #loginName:disabled {
-            background: white;
-            color: var(--text-light);
-            border-color: var(--border-light);
-            cursor: default;
-            opacity: 1;
-        }
-
-        .login-back {
-            font-size: 13px;
-            color: var(--text-light);
-            text-decoration: none;
-            display: inline-block;
-            transition: color 0.12s;
-        }
-        @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
+        /* Login overlay CSS in shared.css (v11.06) */
 
         /* ---- Lightbox — admin.html additions ----
            Base overlay, content card, close button, and .lightbox-badge are in shared.css. */
@@ -2518,95 +2339,8 @@
     <!-- ==================== CULTURAL CALENDAR ==================== -->
     <!-- Collapsed by default — unobtrusive for staff who don't need it. -->
     <!-- Any staff member can expand, opt in/out independently.          -->
-    <!-- Push notifications toggle — all staff -->
-    <div class="card" id="notificationsCard">
-        <div class="card-header card-collapsible-header" id="notifToggleHeader">
-            <h2>🔔 Notifications <button class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications" title="Tips for notifications">?</button></h2>
-            <span class="hint">Get an alert when the daily Huddle is ready or payday is approaching</span>
-            <span class="collapse-chevron" id="notifChevron">▾</span>
-        </div>
-        <div class="card-collapsible-body" id="notifBody">
-            <div class="card-body">
-                <div id="notifStatusMsg" style="font-size:13px;color:var(--text-mid);margin-bottom:14px"></div>
-                <button class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
-                <button class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
-                <p id="notifDeniedMsg" style="display:none;font-size:13px;color:var(--text-mid);margin-top:10px">
-                    Notifications are blocked in your browser settings. To re-enable:<br>
-                    Android: tap the lock icon in Chrome → Site settings → Notifications → Allow.<br>
-                    iPhone: Settings → Chrome / Safari → Notifications → Allow.
-                </p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Cultural Calendar — all staff -->
-    <div class="card" id="religiousCard">
-        <div class="card-header card-collapsible-header" id="religiousToggleHeader">
-            <h2>🌍 Cultural Calendar <span class="calendar-active-tag" id="calendarActiveTag" style="display:none;"></span><button class="btn-card-tips" data-card="cultural-calendar" aria-label="Tips for cultural calendar" title="Tips for cultural calendar">?</button></h2>
-            <span class="hint">Optional date markers — one per person</span>
-            <span class="collapse-chevron" id="religiousChevron">▾</span>
-        </div>
-        <div class="card-collapsible-body" id="religiousBody" style="padding:16px">
-            <p class="religious-intro">
-                Choose a calendar to show key dates as small icons on matching days
-                in your roster. Only one calendar can be active at a time.
-                These markers are visible to anyone who views your roster.
-            </p>
-            <div class="faith-radio-group" role="radiogroup" aria-label="Cultural calendar">
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="none">
-                    <span><strong>None</strong></span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="islamic">
-                    <span>
-                        <strong>🌙 Islamic</strong>
-                        <span class="faith-radio-sublabel">Ramadan · Eid al-Fitr · Eid al-Adha · Islamic New Year · Mawlid al-Nabi</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="hindu">
-                    <span>
-                        <strong>🪔 Hindu</strong>
-                        <span class="faith-radio-sublabel">Holi · Navratri · Dussehra · Diwali · Raksha Bandhan</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="chinese">
-                    <span>
-                        <strong>🧧 Chinese</strong>
-                        <span class="faith-radio-sublabel">Lunar New Year · Lantern Festival · Qingming · Dragon Boat · Mid-Autumn</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="jamaican">
-                    <span>
-                        <strong>🇯🇲 Jamaican</strong>
-                        <span class="faith-radio-sublabel">Ash Wednesday · Labour Day · Emancipation Day · Independence Day · National Heroes Day</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="congolese">
-                    <span>
-                        <strong>🇨🇩 Congolese</strong>
-                        <span class="faith-radio-sublabel">Martyrs' Day · Liberation Day · Heroes' Day · Independence Day</span>
-                    </span>
-                </label>
-                <label class="faith-radio-label">
-                    <input type="radio" name="faithCalendar" value="portuguese">
-                    <span>
-                        <strong>🇵🇹 Portuguese</strong>
-                        <span class="faith-radio-sublabel">Carnival · Freedom Day · Labour Day · Portugal Day · Corpus Christi · Assumption · Republic Day · Restoration of Independence · Immaculate Conception</span>
-                    </span>
-                </label>
-            </div>
-            <!-- Disclaimer shown only for the selected calendar, to avoid a growing list -->
-            <p class="religious-disclaimer" id="calendarDisclaimer" style="display:none;"></p>
-            <div class="religious-saved" id="religiousSaved">✓ Saved</div>
-        </div>
-    </div>
-
     </div><!-- /col-side -->
+    <!-- Notifications and Cultural Calendar moved to settings.html (v11.06) -->
 
     <!-- ==================== EXISTING OVERRIDES — full-width: table needs room ==================== -->
     <div class="card" id="overridesCard">
