@@ -49,6 +49,10 @@
     --purple:       oklch(45.3% 0.1988 313.0deg);
     --purple-light: color-mix(in oklch, var(--purple) 11%, white);
 
+    /* Team view toggle */
+    --raspberry:       oklch(51.0% 0.2180 357.0deg);
+    --raspberry-hover: color-mix(in oklch, var(--raspberry) 91%, black);
+
     /* RDW — rest day worked */
     --rdw:       oklch(53.1% 0.2015 5.6deg);
     --rdw-text:  oklch(41.5% 0.1605 355.7deg);
