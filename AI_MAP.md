@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.84 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.99 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -16,10 +16,12 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
 | Override priority and member-start logic — tsToMillis, shouldReplaceOverride, isBeforeMemberStart | `app-override-utils.js` |
-| Admin portal UI, login, cultural calendar, module wiring | `admin-app.js` + `admin.html` |
+| Admin portal UI, login, cultural calendar, notifications, module wiring | `admin-app.js` + `admin.html` |
+| Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |
-| Huddle upload card, push notifications, Huddle card toggle | `admin-huddle.js` |
+| Huddle upload (admin-only, operations page) | `admin-huddle.js` → `initHuddleUpload` |
+| Push notifications card (all staff, admin page) | `admin-huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
@@ -71,8 +73,15 @@ Login, session management, shared DOM handles, and the glue that wires all admin
 - `fieldMember` change handler, `fieldDate` change handler — keep AL/sick/overrides in sync
 - AL over-entitlement confirm bar (`alConfirmBar`) — calls `triggerConfirmedALSave()` from `admin-al.js` for the AL booking path
 - Faith calendar settings, cultural calendar, booked-period helpers (`_renderBookedPeriods`, `deletePeriodOverrides`, `updateALBookedBox`, `updateSickBookedBox`)
-- Calls `initALSection()`, `initSickSection()`, `initOverrides()`, `initRosterUpload()`, `initHuddleCards()`, `initAuthSetup()` to initialise all sections
-- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, push notifications, or auth setup — those are in sub-modules
+- Calls `initALSection()`, `initSickSection()`, `initOverrides()`, `initHuddleNotifications()` to initialise all sections
+- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, or auth setup — those are in sub-modules. Huddle upload, roster upload, and staff auth setup moved to `operations-app.js` at v10.99.
+
+### `operations-app.js`
+Coordinator for `operations.html` (admin-only, v10.99).
+- Session guard: reads the shared `myb_admin_session` localStorage key; redirects to `admin.html` if not authenticated or not in `CONFIG.ADMIN_NAMES`
+- `ensureFirebaseSession(name)` — same pattern as `admin-app.js`; re-establishes Firebase Auth on page load
+- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`
+- Owns icon lightbox, tips lightbox, and collapsible card wiring for the three operations cards
 
 ### `admin-al.js`
 Annual Leave Booking section (extracted v9.93).
@@ -96,7 +105,9 @@ The Change a Shift module. Owns the week grid and override list entirely.
 
 ### `admin-huddle.js`
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
-- `initHuddleCards(opts)` — called once by `admin-app.js` after login
+- `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
+- `initHuddleNotifications()` — called by `admin-app.js`; wires the Notifications card (all staff)
+- `initHuddleCards(opts)` — **deprecated** combined entry point; prefer the above two
 - Notifications card: VAPID key handling, fingerprint-based re-subscription on key rotation
 - Huddle upload: file validation, DOCX conversion via mammoth.js, upload to Firebase Storage via `uploadHuddle`
 - Huddle card: collapse/expand toggle
@@ -109,7 +120,7 @@ Staff Firebase Auth account setup (admin only).
 
 ### `admin-roster-upload.js`
 The Weekly Roster Upload pipeline.
-- `initRosterUpload(opts)` — called once by `admin-app.js` after login
+- `initRosterUpload(opts)` — called by `operations-app.js` after session guard passes
 - `computeCellStates()` — classifies each day: MATCH / DIFF / CONFLICT / COVERED
 - `renderReviewTable()` — per-person card list with approve/skip
 - `shiftDisplay()`, `shiftValueToOverrideType()` — display and type helpers

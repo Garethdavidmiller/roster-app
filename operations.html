@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<!-- MYB Roster Operations v10.99 -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#001e3c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MYB Operations">
+    <link rel="manifest" href="manifest.json">
+    <title>MYB Roster — Operations</title>
+
+    <link rel="stylesheet" href="shared.css">
+
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background: var(--primary-blue);
+            min-height: 100vh;
+            min-height: 100dvh;
+            padding-top:    max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+            padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+            overflow-x: hidden; overflow-x: clip;
+            overscroll-behavior: none;
+            color: var(--text-dark);
+        }
+        @media (max-width: 768px) {
+            body {
+                padding-left:  max(10px, env(safe-area-inset-left));
+                padding-right: max(10px, env(safe-area-inset-right));
+            }
+        }
+
+        .container {
+            max-width: var(--page-max-width);
+            width: 100%;
+            margin: 0 auto;
+            display: none;
+            gap: 10px;
+            box-sizing: border-box;
+            overflow-x: hidden; overflow-x: clip;
+        }
+        body.auth-ready .container { display: grid; }
+
+        .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
+
+        /* Small ? button inside each card heading */
+        .btn-card-tips {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border-mid);
+            background: var(--bg-faint);
+            color: var(--text-light);
+            font-size: 11px; font-weight: 700;
+            cursor: pointer;
+            vertical-align: middle;
+            flex-shrink: 0;
+            margin-left: 5px;
+            touch-action: manipulation;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            position: relative;
+        }
+        .btn-card-tips::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
+        }
+        .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); } }
+
+        /* ---- Tips lightbox ---- */
+        #tipsLightbox { padding: 20px; }
+        #tipsLightboxContent {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 28px 28px 24px;
+            max-width: 360px;
+            width: 100%;
+            max-height: 85vh;
+            box-shadow: var(--shadow-3);
+        }
+        .tips-lb-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            margin-bottom: 16px;
+        }
+        .tips-lb-section {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin: 14px 0 6px;
+        }
+        .tips-lb-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-dark);
+            line-height: 1.5;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .tips-lb-item:last-child { border-bottom: none; }
+        .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+        #tipsLightboxClose { color: rgba(0,0,0,0.35); }
+        @media (hover: hover) and (pointer: fine) {
+            #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
+        }
+
+        /* ---- Cards ---- */
+        .card {
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-1);
+            overflow: hidden;
+            container-type: inline-size;
+        }
+        .card-header {
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border-light);
+            padding: 11px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+        }
+        .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); }
+        .card-header .hint { font-size: 11px; color: var(--text-light); }
+        @container (min-width: 440px) {
+            .card-header h2   { font-size: 14px; }
+            .card-header .hint { font-size: 12px; }
+        }
+        .card-body { padding: 12px 16px; }
+
+        /* ---- Collapsible cards ---- */
+        .card-collapsible-header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            grid-template-rows: auto auto;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .card-collapsible-header h2           { grid-column: 1; grid-row: 1; }
+        .card-collapsible-header .hint        { grid-column: 1; grid-row: 2; }
+        .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+        .card-collapsible-body {
+            display: none;
+            padding: 12px;
+        }
+        .card-collapsible-body.open { display: block; }
+        .collapse-chevron {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-light);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+        .collapse-chevron.open { transform: rotate(180deg); }
+
+        /* ---- Generic action button utility classes ---- */
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 44px;
+            padding: 11px 16px;
+            border-radius: var(--radius-sm, 8px);
+            font-size: 16px;
+            font-weight: 700;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            touch-action: manipulation;
+            font-family: inherit;
+            transition: background 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+        .btn-action + .btn-action { margin-top: 8px; }
+        .btn-primary { background: var(--primary-blue); color: white; }
+        .btn-primary:active { background: var(--primary-blue-dark); }
+        .btn-secondary { background: white; color: var(--primary-blue); border-color: var(--border-mid, #d0d5dd); }
+        .btn-secondary:active { background: var(--bg-light, #f5f7fa); }
+
+        /* ---- Save button ---- */
+        .btn-save {
+            width: 100%;
+            padding: 13px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: 0.2px;
+            transition: background 0.15s, transform 0.1s;
+            font-family: inherit;
+        }
+        @media (hover: hover) and (pointer: fine) { .btn-save:hover { background: var(--primary-blue-dark); } }
+        .btn-save:active  { transform: scale(0.98); }
+        .btn-save:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+        /* ---- Huddle upload card ---- */
+        .huddle-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .huddle-row input[type="date"] {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            min-height: 44px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            box-sizing: border-box;
+        }
+        .huddle-file-label {
+            display: inline-block;
+            padding: 8px 14px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            background: var(--bg-light);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-file-label:hover { border-color: var(--primary-blue); } }
+        .huddle-filename {
+            font-size: 13px;
+            color: var(--text-mid);
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        .huddle-upload-btn {
+            display: block;
+            width: 100%;
+            padding: 11px 16px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
+        .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+        .huddle-feedback { margin-top: 10px; font-size: 13px; }
+        .huddle-feedback--ok  { color: var(--success-green); }
+        .huddle-feedback--err { color: var(--error-red); }
+
+        /* ---- Roster upload card ---- */
+        .roster-type-select {
+            flex: 0 0 auto;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            font-weight: 600;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        .roster-type-select:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 1px;
+        }
+        .roster-conflict-banner {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: var(--al-confirm-bg);
+            border: 1.5px solid var(--al-confirm-accent);
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            margin-bottom: 12px;
+        }
+        .roster-conflict-icon { font-size: 18px; line-height: 1.2; flex-shrink: 0; }
+        .roster-conflict-text { font-size: 13px; line-height: 1.5; }
+        .roster-conflict-text strong { display: block; margin-bottom: 2px; color: var(--conflict-strong); }
+        .roster-conflict-text p { margin: 0; color: var(--conflict-text); }
+        .roster-review-label { font-size: 12px; color: var(--text-mid); margin: 0 0 12px; }
+        #rosterChangeList { margin-bottom: 14px; }
+        .roster-person-section {
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .roster-person-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .roster-person-name { font-size: 13px; font-weight: 700; color: var(--primary-blue); flex: 1; }
+        .roster-change-badge {
+            font-size: 10px; font-weight: 700;
+            background: var(--primary-blue); color: white;
+            border-radius: 20px; padding: 2px 7px;
+        }
+        .roster-skip-all-btn {
+            font-size: 11px; font-weight: 600;
+            color: var(--text-mid);
+            background: none;
+            border: 1px solid var(--border-light);
+            border-radius: 20px; padding: 3px 10px;
+            cursor: pointer; white-space: nowrap;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
+        .roster-change-row {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; border-bottom: 1px solid var(--border-light);
+        }
+        .roster-change-row:last-child { border-bottom: none; }
+        .roster-change-row.is-skipped { opacity: 0.4; }
+        .roster-change-row.roster-change-conflict { background: #fff9f9; }
+        .roster-chg-day { display: flex; flex-direction: column; align-items: flex-start; min-width: 44px; }
+        .roster-day-abbr { font-size: 12px; font-weight: 700; color: var(--text-dark); }
+        .roster-day-date { font-size: 11px; color: var(--text-light); }
+        .roster-chg-vals {
+            display: flex; align-items: center; gap: 6px;
+            flex: 1; flex-wrap: wrap; font-size: 12px;
+        }
+        .roster-from-val { opacity: 0.5; font-size: 11px; }
+        .roster-from-val .shift-badge { font-size: 10px; padding: 1px 5px; }
+        .roster-arrow { color: var(--text-light); font-size: 11px; }
+        .roster-to-val { font-size: 12px; }
+        .review-shift-time { font-size: 11px; font-weight: 600; color: var(--text-mid); margin-left: 4px; }
+        .val-active .review-shift-time { color: rgba(255,255,255,0.85); }
+        .roster-conflict-icon-sm { font-size: 13px; flex-shrink: 0; }
+        .roster-manual-val { font-weight: 700; font-size: 12px; padding: 2px 6px; border-radius: 4px; }
+        .roster-vs-sep { font-size: 11px; color: var(--text-light); }
+        .val-active { background: var(--primary-blue); color: white; }
+        .val-dim    { background: var(--val-dim-bg); color: var(--text-light); text-decoration: line-through; }
+        .roster-approve-btn {
+            font-size: 11px; font-weight: 700;
+            padding: 4px 12px; border-radius: 20px; border: 1.5px solid;
+            cursor: pointer; white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+        }
+        .roster-approve-btn.is-approved { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        .roster-approve-btn.is-skipped  { background: none; color: var(--text-light); border-color: var(--border-light); }
+        .roster-conflict-choice { display: flex; gap: 4px; }
+        .roster-choice-btn {
+            font-size: 11px; font-weight: 600;
+            padding: 4px 10px; border-radius: 20px;
+            border: 1.5px solid var(--border-light);
+            background: none; color: var(--text-mid);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .roster-choice-btn.is-chosen { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        .section-skipped .roster-change-row { opacity: 0.35; pointer-events: none; }
+        .section-skipped .roster-skip-all-btn { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        .roster-no-changes {
+            padding: 18px; text-align: center;
+            font-size: 13px; font-weight: 600;
+            color: var(--success-green);
+            background: var(--roster-success-bg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--success-green-border);
+            margin-bottom: 14px;
+        }
+        .roster-cancel-btn {
+            display: block; width: 100%;
+            background: none; border: 1.5px solid var(--border-light);
+            color: var(--text-mid); padding: 11px; border-radius: 10px;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+            margin-top: 10px; font-family: inherit;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
+
+        /* ---- Form inputs ---- */
+        select, input[type="text"], input[type="date"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 16px;
+            color: var(--text-dark);
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            font-family: inherit;
+            transition: border-color 0.12s;
+        }
+        input[type="date"] { min-height: 44px; }
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+        }
+        select:focus-visible, input:focus-visible {
+            border-color: var(--primary-blue);
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+        }
+
+        /* ── Tablet: 768px ── */
+        @media (min-width: 768px) {
+            .container { gap: 14px; }
+        }
+
+        /* ── Desktop: 1024px — single column, centred, max 680px ── */
+        @media (min-width: 1024px) {
+            body.auth-ready .container {
+                max-width: 680px;
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media print {
+            #huddleUploadCard,
+            #rosterUploadCard,
+            #authSetupCard { display: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Lightbox — tap the header icon to open -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About MYB Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+    <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
+        <img src="icon-192.png" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge">Operations</div>
+        <a href="./admin.html" class="lightbox-bug-link">⚙ Admin panel</a>
+        <a id="opsBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+    </div>
+</div>
+
+<!-- Tips lightbox -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+    <span id="tipsLightboxClose" class="lb-close" aria-label="Close">✕</span>
+        <div class="tips-lb-title" id="tipsLbTitle"></div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
+<div class="container">
+
+    <header class="app-header">
+        <button class="btn-burger" id="navMenuBtn"
+                aria-label="Open navigation menu" aria-expanded="false">☰</button>
+        <div class="app-header-brand">
+            <img src="icon-192.png" class="app-icon" id="appIcon" alt="Chiltern Railways" loading="eager">
+            <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
+        </div>
+        <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> Operations</span>
+    </header>
+
+    <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
+    <div class="card" id="huddleUploadCard">
+        <div class="card-header card-collapsible-header" id="huddleToggleHeader">
+            <h2>📋 Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle" title="Tips for Daily Huddle">?</button></h2>
+            <span class="hint">Upload today's Huddle (PDF or Word doc) — staff will see a button in the main app</span>
+            <span class="collapse-chevron open" id="huddleChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="huddleBody">
+            <div class="card-body">
+                <div class="huddle-row">
+                    <input type="date" id="huddleDate" aria-label="Huddle date">
+                    <label for="huddleFileInput" class="huddle-file-label">Choose file</label>
+                    <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" aria-label="Choose huddle PDF or Word document">
+                </div>
+                <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
+                <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ROSTER UPLOAD ==================== -->
+    <div class="card" id="rosterUploadCard">
+        <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
+            <h2>🗓️ Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload" title="Tips for Weekly Roster upload">?</button></h2>
+            <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
+            <span class="collapse-chevron open" id="rosterUploadChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="rosterUploadBody">
+            <div class="card-body">
+
+                <!-- Step 1: Upload controls -->
+                <div id="rosterUploadForm">
+                    <div class="huddle-row">
+                        <select id="rosterType" class="roster-type-select" aria-label="Roster type">
+                            <option value="cea">CEA / Bilingual</option>
+                            <option value="ces">CES</option>
+                            <option value="dispatcher">Dispatchers</option>
+                        </select>
+                        <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
+                        <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
+                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" style="display:none" aria-label="Choose roster PDF">
+                    </div>
+                    <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                    <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
+                    <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+                </div>
+
+                <!-- Step 2: Review (hidden until parsing completes) -->
+                <div id="rosterReviewSection" style="display:none">
+
+                    <div id="rosterConflictBanner" class="roster-conflict-banner" style="display:none" role="alert" aria-live="polite">
+                        <span class="roster-conflict-icon">⚠</span>
+                        <div class="roster-conflict-text">
+                            <strong id="rosterConflictTitle"></strong>
+                            <p id="rosterConflictDetail"></p>
+                        </div>
+                    </div>
+
+                    <p id="rosterReviewLabel" class="roster-review-label"></p>
+
+                    <div id="rosterChangeList"></div>
+
+                    <button id="rosterApplyBtn" class="btn-save">Save changes</button>
+                    <p class="save-hint" style="font-size:12px;color:var(--text-light);margin:6px 0 0">Tick the days you want to keep, then tap Save changes</p>
+                    <button id="rosterCancelBtn" class="roster-cancel-btn">Upload different file</button>
+                </div>
+
+                <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
+    <div class="card" id="authSetupCard">
+        <div class="card-header card-collapsible-header" id="authSetupToggleHeader">
+            <h2>🔐 Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button></h2>
+            <span class="hint">Create or update Firebase accounts for all current staff</span>
+            <span class="collapse-chevron open" id="authSetupChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="authSetupBody">
+            <div class="card-body">
+                <p style="font-size:13px;color:var(--text-mid);margin-bottom:12px">
+                    Creates a login account for every active staff member. Safe to run any time — existing accounts are skipped. Run it when someone joins or leaves.
+                </p>
+                <label style="display:flex;align-items:center;gap:10px;margin-bottom:16px;font-size:13px;cursor:pointer">
+                    <input type="checkbox" id="authSetupOrphans" style="width:16px;height:16px;accent-color:var(--primary-blue)">
+                    Disable accounts for anyone no longer on the roster (leavers)
+                </label>
+                <button class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
+                <div id="authSetupResult" style="margin-top:14px;font-size:13px;display:none"></div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /container -->
+
+<script type="module" src="./operations-app.js"></script>
+</body>
+</html>

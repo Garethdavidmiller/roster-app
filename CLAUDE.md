@@ -59,6 +59,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 | `index.html` | Line 2 HTML comment |
 | `admin.html` | Line 2 HTML comment |
 | `paycalc.html` | Line 2 HTML comment |
+| `operations.html` | Line 2 HTML comment |
 
 `?v=` cache-busting strings were removed at v9.94 — do not add them back. Cache freshness is handled by `Cache-Control: no-cache` in `firebase.json`.
 
@@ -85,15 +86,17 @@ Gareth built this app through extended Claude.ai collaboration. He has strong op
 ```
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
-├── admin.html              ← staff self-service and admin portal (HTML + CSS only)
+├── admin.html              ← staff self-service portal: AL booking, absence, notifications, cultural calendar, override list
+├── operations.html         ← admin-only operations page: Huddle upload, Roster upload, Staff Login Accounts (v10.99)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
-├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, footer notification bell. Imported by app.js, admin-app.js, paycalc.js
+├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js
 ├── notif.js                ← shared Web Push module: notifSupported, getNotifState, enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
 ├── app-override-utils.js   ← override priority and member-start helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart. Shared by app.js and app-team-view.js
-├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers
-├── admin-huddle.js         ← Huddle upload card, push notifications, Huddle card toggle (extracted v9.54)
+├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers, push notifications card
+├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup (v10.99)
+├── admin-huddle.js         ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → admin.html), Huddle card toggle
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
 ├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
@@ -197,6 +200,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | `cors: true` on `parseRosterPDF` and `setupRosterAuth` | firebase-functions v6 `cors: [array]` doesn't consistently set `Access-Control-Allow-Headers` on preflight. Both functions use Firebase ID token auth, so wildcard origin adds no attack surface. `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all three pages. |
 | Nav panel on all 3 pages (v10.57) | `nav-panel.js` injects overlay + drawer. Burger button `#navMenuBtn` in each page header. `NAV_PAGES` drives the pill row (current page omitted). `NAV_INFORMATION` drives the flat always-open section (Workplace: Daily Huddle, Weekly Retail Circular, Railcard Guide; Staff Travel: FIP Guide). Adding a new guide = one `links` entry in `NAV_INFORMATION` only. A `NAV_INFORMATION` entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating. |
+| Operations page — admin-only pill (v10.99) | `NAV_PAGES` entry for Operations has `adminOnly: true`. `initNavPanel({ isAdmin })` filters it out for non-admins. `app.js`, `admin-app.js`, and `paycalc.js` pass `isAdmin: CONFIG.ADMIN_NAMES.includes(member)`. `operations-app.js` passes `isAdmin: true` (page already guards against non-admins). Operations page has NO login overlay — JS redirects to `admin.html` immediately if the user is not authenticated or not an admin. |
 | Header back button removed (v10.63) | `admin.html` / `paycalc.html` no longer have a header `←` back button — it duplicated the nav drawer's Calendar pill (two competing nav paradigms) and clashed visually with the logo box. Navigation back to the roster is via the drawer. Header is now `[☰] [logo] Title … [badge]`. The admin "open calendar on the month I was editing" behaviour moved from the back button onto the `.nav-panel-pill--calendar` click in `admin-app.js`. `.btn-back` CSS removed from `shared.css` (still defined locally in `fip.html` / `railcard-guide.html`). |
 | `.app-header` brand centering (v10.66) | `admin.html` / `paycalc.html` headers use `display:grid; grid-template-columns:1fr auto 1fr`. Burger sits in col 1 (`justify-self:start`), logo+title in an `.app-header-brand` flex wrapper in col 2 (auto, truly centred), badge in col 3 (`justify-self:end`). Equal `1fr` side columns guarantee the brand is always centred regardless of burger/badge width asymmetry. The calendar uses a different `.header` (balanced spacers), unaffected. |
 | Sign-out in nav panel footer (v10.59) | Sign-out button moved from page headers to the nav panel footer. `initNavPanel({ onSignOut: fn })` — each page passes its own sign-out callback. Footer (member name + Sign out button) renders only when `onSignOut` is supplied. `.btn-signout` CSS removed from `shared.css`. |

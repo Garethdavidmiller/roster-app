@@ -14,10 +14,8 @@
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
-import { initRosterUpload } from './admin-roster-upload.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
-import { initHuddleCards } from './admin-huddle.js';
-import { initAuthSetup } from './admin-auth.js';
+import { initHuddleNotifications } from './admin-huddle.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -2077,59 +2075,15 @@ if ('serviceWorker' in navigator) {
         .catch(e => console.warn('[SW] Registration failed:', e));
 }
 
-// ============================================
-// ROSTER UPLOAD — parse PDF and review shifts
-// ============================================
-//
-// HOW THIS WORKS (plain English):
-//
-// 1. Gareth chooses the roster type, week-ending date, and PDF file.
-// 2. The PDF is sent to the "parseRosterPDF" Cloud Function, which:
-//    a. Reads the text from the PDF.
-//    b. Asks Claude AI to identify each person's shifts.
-//    c. Returns a tidy list of shifts — does NOT write anything yet.
-// 3. The browser fetches any overrides already saved in Firestore for that week.
-// 4. For each cell (person + day) we decide one of four states:
-//    - MATCH:    PDF matches the base roster. Nothing to do.
-//    - DIFF:     PDF differs from base roster, no manual override exists.
-//                → Show in amber, ticked by default. Will save if approved.
-//    - CONFLICT: A manually entered override exists AND the PDF says something
-//                different. The manual entry wins automatically — but Gareth
-//                is told about it and can tap the cell to see both values.
-//    - COVERED:  A manual override already matches what the PDF says. Nothing to do.
-// 5. Gareth reviews, edits any cells he wants to correct, then clicks "Apply".
-// 6. The browser writes only the approved DIFF cells to Firestore as overrides
-//    with source: 'roster_import', in a single batch write.
-//
-// The "source" field on override documents:
-//   'manual'        — entered by a person on the admin page (sick leave, AL, etc.)
-//   'roster_import' — written by this roster upload feature
-// Existing documents without a source field are treated as 'manual' (safe default).
-//
-// ============================================
-
-// ── Roster upload pipeline ───────────────────────────────────────────────────
-// Extracted to admin-roster-upload.js at v8.61.
-initRosterUpload({
-    currentUser,
-    currentIsAdmin,
-    parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
-    getIdToken: () => auth.currentUser?.getIdToken(),
-    loadOverrides,
-});
-
-// ── Huddle upload, notifications, Huddle card ────────────────────────────────
-// Extracted to admin-huddle.js at v9.78.
-initHuddleCards({ currentIsAdmin, currentUser, lsGet, lsSet });
-
-// ── Staff login accounts setup ───────────────────────────────────────────────
-// Extracted to admin-auth.js at v9.78.
-initAuthSetup({ currentIsAdmin });
+// ── Push notifications card ───────────────────────────────────────────────────
+// Huddle upload, roster upload, and staff auth setup now live in operations.html.
+initHuddleNotifications();
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({
     currentPage: 'admin',
     memberName:  currentUser,
+    isAdmin:     currentIsAdmin,
     onSignOut:   () => { clearSession(); window.location.reload(); },
 });
 
