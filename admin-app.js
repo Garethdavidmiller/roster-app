@@ -13,7 +13,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
 import { initHuddleCards } from './admin-huddle.js';
@@ -95,6 +95,58 @@ const SESSION_VER   = 2; // bump to force all existing sessions to re-login
  */
 function getSurname(fullName) {
     return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+/**
+ * Guarantee a live Firebase Auth session for a logged-in member.
+ *
+ * Firestore Security Rules require `request.auth != null` (and, post-v10.72,
+ * a matching custom claim) for every write. The login *click* handler signs in
+ * to Firebase — but a returning user with a valid 30-day localStorage session
+ * never passes through that handler, so on a normal app open the Firebase Auth
+ * session was never (re-)established. That left `auth.currentUser` null and broke
+ * override saves and the "Set up accounts" button ("session not found").
+ *
+ * This re-establishes the session on page load. The password is re-derived from
+ * the member name (same rule as `getSurname` + Firebase's 6-char padding), so no
+ * password needs to be stored in the session. If the account doesn't exist yet it
+ * is self-healed via createUserWithEmailAndPassword.
+ *
+ * @param {string} name - Member display name (exact teamMembers match)
+ * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
+ */
+async function ensureFirebaseSession(name) {
+    await authReady;
+    // auth.currentUser is null synchronously on load even when a session is
+    // persisted in IndexedDB — the first onAuthStateChanged callback signals the
+    // real restored state. Wait for it before deciding whether to sign in.
+    const existing = await new Promise(resolve => {
+        const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
+    });
+    if (existing) return true;
+
+    const pw         = getSurname(name);
+    const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
+    const email      = nameToEmail(name);
+    try {
+        await signInWithEmailAndPassword(auth, email, fbPassword);
+        return true;
+    } catch (e) {
+        if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+            // Account doesn't exist yet — create it so the Security Rules can
+            // authenticate the session. setupRosterAuth normally does this.
+            try {
+                await createUserWithEmailAndPassword(auth, email, fbPassword);
+                console.log('[Auth] Created Firebase Auth account for', name);
+                return true;
+            } catch (createErr) {
+                console.warn('[Auth] Account creation failed:', createErr.code);
+                return false;
+            }
+        }
+        console.warn('[Auth] Firebase sign-in skipped:', e.code);
+        return false;
+    }
 }
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
@@ -238,26 +290,7 @@ function initLoginOverlay() {
         // Authenticate with Firebase Auth so Firestore Security Rules can verify the session.
         // Must await before reloading — the page reload would otherwise cancel the async
         // network request before Firebase can save the auth token to IndexedDB.
-        // Password is padded to 6+ chars to match what setupRosterAuth stored (Firebase minimum).
-        const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
-        try {
-            await authReady;
-            await signInWithEmailAndPassword(auth, nameToEmail(name), fbPassword);
-        } catch (e) {
-            if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-                // Account doesn't exist yet — create it so Firestore security rules work.
-                // setupRosterAuth normally does this, but self-healing here means the app
-                // works even if setupRosterAuth hasn't been run yet.
-                try {
-                    await createUserWithEmailAndPassword(auth, nameToEmail(name), fbPassword);
-                    console.log('[Auth] Created Firebase Auth account for', name);
-                } catch (createErr) {
-                    console.warn('[Auth] Account creation failed:', createErr.code);
-                }
-            } else {
-                console.warn('[Auth] Firebase sign-in skipped:', e.code);
-            }
-        }
+        await ensureFirebaseSession(name);
         const redirect = new URLSearchParams(location.search).get('redirect');
         if (redirect === 'paycalc') {
             window.location.replace('./paycalc.html');
@@ -1943,6 +1976,11 @@ if (!isAuthenticated) {
     // Show login overlay; do not load any Firestore data
     initLoginOverlay();
 } else {
+    // Returning user with a valid localStorage session never passes through the
+    // login click handler, so re-establish the Firebase Auth session here.
+    // Without this, auth.currentUser stays null and every Firestore write fails.
+    // Stored on window so admin-auth.js can await it before "Set up accounts".
+    window._mybSession = ensureFirebaseSession(currentUser);
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();
