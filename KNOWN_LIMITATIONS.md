@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v10.84 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.94 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -14,6 +14,18 @@ impersonate another user or gain the admin UI. Since v7.94, Firestore security
 rules are deployed and require a real Firebase Auth session for all writes — so a
 forged localStorage session can see the UI but cannot write to Firestore.
 Practical risk is low for a small known team.
+
+### Firebase Auth session is re-established on page load (v10.93)
+The login click handler signs in to Firebase Auth, but a returning user with a valid
+30-day localStorage session skips that handler on every subsequent app open — leaving
+`auth.currentUser` null and breaking all Firestore writes.
+
+Fixed in v10.93: `ensureFirebaseSession()` in `admin-app.js` runs on page load whenever
+a localStorage session exists. It waits for the first `onAuthStateChanged` callback to
+detect any persisted session, and if none is found it re-derives the member's password
+(surname, lowercase, alpha only, padded to 6 chars) and signs in. If the Firebase Auth
+account doesn't exist yet (e.g. `setupRosterAuth` was never run) it self-heals via
+`createUserWithEmailAndPassword` with the same derived credentials.
 
 ### ⏰ Four tasks scheduled for v11
 
@@ -29,12 +41,38 @@ Verified with curl: 403 for requests without a `Referer` header, 403 for a bad o
 (`evil.com`), 400 (reached Firebase — key accepted, credentials invalid as expected) for the
 correct origin (`myb-roster.web.app`). Restriction is working correctly.
 
-**2. Firestore security rules — member write isolation ✓ DONE (v10.72)**
-Implemented in `firestore.rules`. Each collection now enforces:
-- `overrides` create/update: `memberName == request.auth.token.name || admin == true` + `source in ['manual', 'roster_import']`
-- `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
-- `memberSettings` create/update/delete: document ID (= member name) `== request.auth.token.name || admin == true`
-Admin custom claim is set via `setupRosterAuth` with `adminMembers=['G. Miller']`.
+**2. Firestore security rules — member write isolation ⚠️ SUSPENDED (v10.94)**
+Originally implemented in v10.72 (`firestore.rules`). Per-member write isolation required
+every write to carry a custom JWT claim (`request.auth.token.name` = memberName,
+`request.auth.token.admin` = true for G. Miller), set server-side by `setupRosterAuth`.
+
+**Why it was reverted (v10.94):** Two cascading bugs caused a full production outage:
+
+1. **setupRosterAuth bug (v10.88 fixed):** The Cloud Function only ever set `{ admin: true }`
+   for G. Miller — it never set the `name` claim for anyone. So every staff member's
+   writes failed the isolation check, not just non-admins.
+
+2. **Page-load Firebase Auth session bug (v10.93 fixed):** The Firebase Auth sign-in only
+   ran inside the login click handler. A returning user with a valid 30-day localStorage
+   session never hit that handler, so `auth.currentUser` was persistently null — breaking
+   both the Firestore writes (no session at all) and the "Set up accounts" button needed to
+   fix the claims. A classic deadlock.
+
+With both bugs fixed, the claims path could technically work. However, it still requires
+a multi-step manual recovery (Set up accounts → sign out/in → Set up accounts again →
+all staff sign out/in). During an active outage, that fragility is unacceptable.
+
+**Current state (v10.94):** Rules reverted to `request.auth != null` — any signed-in
+staff member may write, matching the pre-v10.72 model that ran without incident for
+months. Field validation (type whitelist, size limits, required keys) is still enforced
+for data integrity.
+
+**To re-introduce (deferred to a future version):**
+- Confirm `setupRosterAuth` reliably sets `name` claims for all staff (v10.88 fixed this)
+- Confirm page-load Firebase Auth session is reliably established (v10.93 fixed this)
+- Re-add the per-member claim checks to `firestore.rules`
+- Deploy rules and run "Set up accounts" to ensure all tokens carry the claim
+- Test that every staff member can write their own overrides before deploying to prod
 
 **3. Back pay HPP — check variable pay split against a payslip**
 Back pay covers both basic pay/London Allowance (no HPP) and variable components

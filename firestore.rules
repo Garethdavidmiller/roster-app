@@ -1,51 +1,28 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
 //
-// ⚠️  DEPLOYMENT ORDER — READ BEFORE DEPLOYING ⚠️
+// Write policy: any signed-in staff member may write (request.auth != null).
+// Field validation is still enforced for data integrity, but per-member
+// isolation (v10.72 / v11 task #2) is suspended because it requires custom JWT
+// claims that were never reliably deployed, causing a production outage.
+// Re-introduce per-member isolation once claims are reliably set via setupRosterAuth.
 //
-// These rules require Firebase Auth (request.auth != null) for all writes.
-// Deploy ONLY AFTER running the "Set up accounts" button in admin.html
-// (Admin section → Staff Login Accounts). All staff must have Firebase Auth
-// accounts before the rules go live — otherwise every Firestore write fails.
+// To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
+// automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Once the button reports no failures:
-//   GitHub → Actions → "Deploy Firestore Rules" → Run workflow
-//
-// The workflow (deploy-rules.yml) also runs automatically whenever this
-// file changes on the main branch.
-//
-// Last updated: v10.83 — restrict huddle writes to admin; fix Storage rules to allow
-//   admin browser uploads (previously `allow write: if false` blocked manual uploads).
-// v10.72 — member write isolation (v11 security task #2).
-//   overrides: writes now require memberName == request.auth.token.name
-//              unless the caller has the admin custom claim (admin == true).
-//              admin bypass is required for roster upload (G. Miller writes
-//              overrides on behalf of any team member) and for override
-//              corrections. source field now required and validated:
-//              'manual' | 'roster_import'.
-//              delete now checks resource.data.memberName == auth token name.
-//   memberSettings: {document=**} wildcard narrowed to {memberName} (flat
-//              collection, no subcollections). Writes/deletes now check that
-//              the document ID matches the caller's token name, or admin bypass.
-//   The admin custom claim is set by setupRosterAuth in functions/index.js
-//   with adminMembers=['G. Miller'].
+// Last updated: v10.94 — revert per-member claim requirement to auth-only.
+// v10.83 — restrict huddle writes to admin; fix Storage rules to allow admin uploads.
+// v10.72 — member write isolation (v11 task #2). Suspended — see note above.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
     match /overrides/{document=**} {
       // Intentionally open read: index.html (calendar) reads overrides without a
-      // Firebase Auth session. Shift data is operational / non-sensitive (same as
-      // the paper noticeboard roster).
+      // Firebase Auth session. Shift data is operational / non-sensitive.
       allow read;
       allow create, update: if
         request.auth != null &&
-        // Member isolation: each user may only write overrides for themselves.
-        // The admin custom claim bypasses this so G. Miller can write for any
-        // team member — required for the weekly roster upload pipeline and for
-        // admin override corrections.
-        (request.resource.data.memberName == request.auth.token.name ||
-         request.auth.token.admin == true) &&
         request.resource.data.keys().hasAll(
           ['date', 'memberName', 'type', 'value', 'note', 'source']
         ) &&
@@ -63,11 +40,7 @@ service cloud.firestore {
         request.resource.data.value.size() > 0 &&
         request.resource.data.note is string &&
         request.resource.data.note.size() < 500;
-      // Delete: staff can only delete their own overrides; admin can delete any.
-      allow delete: if
-        request.auth != null &&
-        (resource.data.memberName == request.auth.token.name ||
-         request.auth.token.admin == true);
+      allow delete: if request.auth != null;
     }
 
     match /memberSettings/{memberName} {
@@ -76,45 +49,32 @@ service cloud.firestore {
       allow read: if request.auth != null;
       allow create, update: if
         request.auth != null &&
-        // Member isolation: staff can only write their own faith calendar setting.
-        // The document ID is the member name, so the path check is sufficient.
-        (memberName == request.auth.token.name || request.auth.token.admin == true) &&
         request.resource.data.keys().hasAll(['memberName', 'faithCalendar']) &&
         request.resource.data.memberName is string &&
         request.resource.data.faithCalendar in [
           'islamic', 'hindu', 'chinese', 'jamaican',
           'congolese', 'portuguese', 'none'
         ];
-      allow delete: if
-        request.auth != null &&
-        (memberName == request.auth.token.name || request.auth.token.admin == true);
+      allow delete: if request.auth != null;
     }
 
     match /huddles/{date} {
-      // Open read: both index.html (Huddle button/viewer, notification auto-open)
-      // and admin.html read huddles. index.html has no Firebase Auth session, so
-      // requiring auth would break notification auto-open on fresh visits. Huddle
-      // briefings are non-sensitive operational content — the actual PDF is behind
-      // Firebase Storage. Cloud Function writes use the Admin SDK (bypasses rules).
+      // Open read: index.html reads huddles without a Firebase Auth session —
+      // required for Huddle button and notification auto-open on fresh visits.
       allow read;
       // Cloud Function writes use Admin SDK — bypasses these rules entirely.
-      // Browser writes (manual admin upload in admin.html) require an admin session.
-      // Restricting to admin == true ensures only G. Miller can create/update/delete
-      // huddle documents from the browser — all other staff are read-only.
+      // Browser writes (manual admin upload in admin.html) require a live session.
       allow create, update: if
         request.auth != null &&
-        request.auth.token.admin == true &&
         request.resource.data.keys().hasAll(['date', 'storageUrl', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.storageUrl is string;
-      allow delete: if request.auth != null && request.auth.token.admin == true;
+      allow delete: if request.auth != null;
     }
 
     match /pushSubscriptions/{docId} {
-      // Push subscriptions are written from index.html which is a public page
-      // (no login required). The data stored is a browser endpoint URL and
-      // encryption keys — not PII. Writes are open so any device can subscribe
-      // or unsubscribe without needing a Firebase Auth session.
+      // Push subscriptions are written from index.html (public, no login required).
+      // The stored data is a browser endpoint URL and encryption keys — not PII.
       allow read: if request.auth != null;
       allow write: if true;
     }
