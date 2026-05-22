@@ -369,7 +369,20 @@ Jamaican, Congolese, and Portuguese calendars are rule-based and auto-compute.
 
 ## Firebase Auth (complete — v7.94)
 
-All staff have Firebase Auth accounts. Firestore rules require `request.auth != null` for all writes. `admin-app.js` signs in via Firebase Auth after each localStorage login.
+All staff have Firebase Auth accounts. Firestore rules require `request.auth != null` for all writes.
+
+**Session re-establishment on page load (v10.93):** `admin-app.js` signs in to Firebase Auth
+both on fresh login AND on every page load when a localStorage session already exists. This is
+critical — a returning user with a valid 30-day localStorage session skips the login screen, so
+without the page-load sign-in, `auth.currentUser` stays null and all Firestore writes fail.
+`ensureFirebaseSession(name)` in `admin-app.js` handles this: waits for `onAuthStateChanged`
+(to detect any IndexedDB-persisted session), then signs in if none exists, self-healing a
+missing account via `createUserWithEmailAndPassword` if needed. Do not remove this call.
+
+**Per-member write isolation (suspended at v10.94):** `firestore.rules` previously required
+`request.auth.token.name == memberName` for override writes (v10.72 / v11 task #2). This was
+reverted after it caused a production outage — see KNOWN_LIMITATIONS.md task #2 for full
+details and the re-introduction checklist.
 
 **Adding a new staff member:** Add to `teamMembers` in `roster-data.js`, then admin.html → **Staff Login Accounts** → **Set up accounts**.
 
