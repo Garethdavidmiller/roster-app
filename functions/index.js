@@ -900,11 +900,15 @@ exports.setupRosterAuth = onRequest(
             }
 
             // Set or clear the admin custom claim — applies to both new and existing accounts.
+            // Also sets the name claim for all members — required by Firestore rules
+            // (overrides: memberName == token.name for non-admins).
             if (uid) {
                 const isAdmin = adminMembers.has(name);
+                const claims  = isAdmin ? { admin: true, name } : { name };
                 try {
-                    await admin.auth().setCustomUserClaims(uid, isAdmin ? { admin: true } : {});
-                    if (isAdmin) console.log(`[setupRosterAuth] Set admin claim: ${email}`);
+                    await admin.auth().setCustomUserClaims(uid, claims);
+                    if (isAdmin) console.log(`[setupRosterAuth] Set admin+name claim: ${email}`);
+                    else         console.log(`[setupRosterAuth] Set name claim: ${email}`);
                 } catch (claimErr) {
                     console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);
                 }
