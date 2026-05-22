@@ -24,6 +24,7 @@ import {
     getAuth,
     onAuthStateChanged,
     signInWithEmailAndPassword,
+    createUserWithEmailAndPassword,
     signOut,
     setPersistence,
     indexedDBLocalPersistence,
@@ -88,7 +89,7 @@ export const authReady = setPersistence(auth, indexedDBLocalPersistence)
     .catch(err => { console.warn('[Auth] persistence setup failed:', err); });
 
 // Re-export auth operations so callers import from one place.
-export { signInWithEmailAndPassword, signOut, onAuthStateChanged };
+export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
 
 /**
  * Derive a stable Firebase Auth email from a teamMembers display name.

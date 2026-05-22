@@ -13,7 +13,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut } from './firebase-client.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
 import { initHuddleCards } from './admin-huddle.js';
@@ -244,8 +244,19 @@ function initLoginOverlay() {
             await authReady;
             await signInWithEmailAndPassword(auth, nameToEmail(name), fbPassword);
         } catch (e) {
-            // Account may not exist yet — app still works via localStorage session.
-            console.warn('[Auth] Firebase sign-in skipped:', e.code);
+            if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+                // Account doesn't exist yet — create it so Firestore security rules work.
+                // setupRosterAuth normally does this, but self-healing here means the app
+                // works even if setupRosterAuth hasn't been run yet.
+                try {
+                    await createUserWithEmailAndPassword(auth, nameToEmail(name), fbPassword);
+                    console.log('[Auth] Created Firebase Auth account for', name);
+                } catch (createErr) {
+                    console.warn('[Auth] Account creation failed:', createErr.code);
+                }
+            } else {
+                console.warn('[Auth] Firebase sign-in skipped:', e.code);
+            }
         }
         const redirect = new URLSearchParams(location.search).get('redirect');
         if (redirect === 'paycalc') {
