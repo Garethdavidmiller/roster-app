@@ -583,7 +583,7 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 4px;
 }
 
-/* Small inline glyph before badge text (⚙ Admin, £ Pay).
+/* Small inline glyph before badge text (📝 Admin, £ Pay).
    font-style: normal overrides any inherited italic; font-family
    ensures the glyph renders as a text symbol, not an emoji. */
 .badge-glyph {
