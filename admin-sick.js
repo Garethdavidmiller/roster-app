@@ -5,7 +5,7 @@
 // and shared functions via initSickSection(deps) to avoid circular imports.
 
 import { teamMembers, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
-import { db, collection, doc, writeBatch, serverTimestamp } from './firebase-client.js';
+import { db, collection, doc, writeBatch, serverTimestamp, auth } from './firebase-client.js';
 import { getAllOverrides, setAllOverrides, renderWeekGrid, renderTable, formatDisplay } from './admin-overrides.js';
 
 const esc = escapeHtml;
@@ -167,6 +167,12 @@ sickSaveBtn.addEventListener('click', async () => {
     if (!workingDates.length) {
         sickFeedback.className = 'feedback error';
         sickFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+        return;
+    }
+
+    if (!auth.currentUser) {
+        sickFeedback.className = 'feedback error';
+        sickFeedback.textContent = '⚠ Session expired — please sign out and sign back in.';
         return;
     }
 

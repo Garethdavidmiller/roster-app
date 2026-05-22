@@ -13,7 +13,7 @@
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch } from './firebase-client.js';
+         deleteDoc, doc, serverTimestamp, writeBatch, auth } from './firebase-client.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -472,6 +472,11 @@ export async function executeSave(toSave, toDelete = []) {
     const creates     = toSave.length - overwrites;
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
+
+    if (!auth.currentUser) {
+        _showError('Your session has expired — please sign out and sign back in.');
+        return;
+    }
 
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
