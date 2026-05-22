@@ -54,6 +54,10 @@ export function initAuthSetup({ currentIsAdmin }) {
         resultEl.style.display = 'none';
 
         try {
+            // admin-app.js re-establishes the Firebase Auth session on page load for
+            // returning users (window._mybSession). Await it so the session is ready
+            // even if the user clicks "Set up accounts" before sign-in completes.
+            if (window._mybSession) { try { await window._mybSession; } catch (_) {} }
             // Wait for Firebase Auth to restore its session from IndexedDB before
             // checking currentUser — auth.currentUser is null until the async restore
             // completes, even when a valid session exists.
