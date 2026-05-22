@@ -2215,13 +2215,13 @@ function sanitiseHtml(html) {
                 // Google Docs Viewer (which fetches, renders, and re-serves the file).
                 window.open(huddle.storageUrl, '_blank', 'noopener');
             } else {
-                body.innerHTML = '<p style="color:#c62828;font-weight:600">This Huddle could not be previewed — please re-upload the Word file from the Admin page.</p>';
+                body.innerHTML = '<p class="huddle-error">This Huddle could not be previewed — please re-upload the Word file from the Admin page.</p>';
                 openViewer();
                 close.focus();
             }
         } catch (err) {
             console.error('[Huddle] Viewer error:', err);
-            body.innerHTML = '<p style="color:#c62828;font-weight:600">Could not display this Huddle — please try again.</p>';
+            body.innerHTML = '<p class="huddle-error">Could not display this Huddle — please try again.</p>';
             openViewer();
             close.focus();
         }
