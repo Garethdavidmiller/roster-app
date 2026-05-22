@@ -19,8 +19,9 @@ If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), th
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `10.84` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `10.96` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
+| Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` |
@@ -36,6 +37,13 @@ If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), th
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push keys — Firebase Secret Manager only |
 
 **Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA only, added v8.14)
+
+**⚠️ Firebase API key referrer restriction — add every domain the app is served from:**
+The Firebase web API key is restricted to specific HTTP referrers in GCP Console → APIs & Services → Credentials. If a domain is missing, **every Firebase Auth call silently fails** — sign-ins, Firestore writes, and push subscriptions all break with no visible error in the app UI. Current allowlist must include:
+- `myb-roster.firebaseapp.com/*`
+- `myb-roster.web.app/*`
+- `garethdavidmiller.github.io/*` ← staff-facing URL, must stay until GitHub Pages is retired
+If a new custom domain is ever added, update the GCP allowlist in the same change. See KNOWN_LIMITATIONS.md task #1 for full history.
 
 ---
 

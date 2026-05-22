@@ -32,7 +32,7 @@ account doesn't exist yet (e.g. `setupRosterAuth` was never run) it self-heals v
 Do all four together when the app reaches v11. (Originally pencilled in for v10.50;
 deferred to v11 so the v10.x line stays focused on incremental fixes.)
 
-**1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026)**
+**1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026) ⚠️ SEE NOTE**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
 restriction it could theoretically be used to brute-force Firebase Auth from any origin.
 **Applied manually in GCP Console:** APIs & Services → Credentials → Firebase web API key →
@@ -40,6 +40,22 @@ HTTP referrer restrictions set to `myb-roster.firebaseapp.com/*` and `myb-roster
 Verified with curl: 403 for requests without a `Referer` header, 403 for a bad origin
 (`evil.com`), 400 (reached Firebase — key accepted, credentials invalid as expected) for the
 correct origin (`myb-roster.web.app`). Restriction is working correctly.
+
+**⚠️ CRITICAL — all served domains must be in the allowlist (v10.95):**
+In May 2026 the referrer restriction was found to be blocking **all** Firebase Auth calls
+from `garethdavidmiller.github.io` — the domain staff actually use — because only the two
+Firebase-issued domains were added to the allowlist, not the GitHub Pages / custom domain.
+Every sign-in attempt threw `auth/requests-from-referer-...-are-blocked`, making every
+Firestore write fail silently for all users.
+
+**Fix:** In GCP Console → APIs & Services → Credentials → Firebase web API key, add every
+domain the app is served from. Current allowlist must include:
+- `myb-roster.firebaseapp.com/*`
+- `myb-roster.web.app/*`
+- `garethdavidmiller.github.io/*`
+
+If you ever add a custom domain, add it here too — or ALL Firebase Auth and API calls
+will silently fail for users on that domain, with no visible error in the app UI.
 
 **2. Firestore security rules — member write isolation ⚠️ SUSPENDED (v10.94)**
 Originally implemented in v10.72 (`firestore.rules`). Per-member write isolation required
