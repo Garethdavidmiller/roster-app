@@ -26,9 +26,10 @@ import { teamMembers } from './roster-data.js';
  *   paycalc  → green (matches Pay button)
  */
 const NAV_PAGES = [
-    { id: 'calendar', label: '📅 Calendar', url: './index.html',    colorClass: 'nav-panel-pill--calendar' },
-    { id: 'admin',    label: '⚙ Admin',    url: './admin.html',    colorClass: 'nav-panel-pill--admin'    },
-    { id: 'paycalc',  label: '💷 Pay',      url: './paycalc.html', colorClass: 'nav-panel-pill--pay'      },
+    { id: 'calendar',   label: '📅 Calendar',   url: './index.html',      colorClass: 'nav-panel-pill--calendar'   },
+    { id: 'admin',      label: '⚙ Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
+    { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
+    { id: 'operations', label: '🔧 Operations',  url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
 ];
 
 /**
@@ -60,15 +61,15 @@ let _csHistoryPushed = false;
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc', memberName?: string|null, onSignOut?: (() => void)|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean }} opts
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false } = {}) {
     const burger = document.getElementById('navMenuBtn');
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
     burger.dataset.navPanelInit = '1';
 
-    _inject(currentPage, memberName, onSignOut);
+    _inject(currentPage, memberName, onSignOut, isAdmin);
 
     const panel    = document.getElementById('navPanel');
     const overlay  = document.getElementById('navPanelOverlay');
@@ -333,9 +334,10 @@ function _unlockBodyScroll() {
 }
 
 /** Build and inject the overlay + drawer HTML into document.body. */
-function _inject(currentPage, memberName, onSignOut) {
+function _inject(currentPage, memberName, onSignOut, isAdmin) {
     const pills = NAV_PAGES
         .filter(p => p.id !== currentPage)
+        .filter(p => !p.adminOnly || isAdmin)
         .map(p => `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
         .join('');
 
