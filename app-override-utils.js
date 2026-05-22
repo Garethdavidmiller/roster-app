@@ -15,20 +15,6 @@ export function tsToMillis(ts) {
 }
 
 /**
- * Returns true if `incoming` should replace `existing` in the override cache.
- *
- * Priority rules (highest first):
- *   1. Manual overrides (source !== 'roster_import') always beat roster_import.
- *   2. Among entries of equal source-class, the newer createdAt wins.
- *
- * This ensures a human-entered correction survives a roster re-upload, and
- * that if two imports exist for the same date the most recent one is used.
- *
- * @param {object|undefined} existing
- * @param {object}           incoming
- * @returns {boolean}
- */
-/**
  * Returns true if `date` falls before the member's contracted start date.
  * Overrides should be suppressed before a member's start date — getBaseShift
  * already returns 'RD' for those dates; allowing an override would undo that.
@@ -43,6 +29,20 @@ export function isBeforeMemberStart(member, date) {
     return date < new Date(s.getFullYear(), s.getMonth(), s.getDate());
 }
 
+/**
+ * Returns true if `incoming` should replace `existing` in the override cache.
+ *
+ * Priority rules (highest first):
+ *   1. Manual overrides (source !== 'roster_import') always beat roster_import.
+ *   2. Among entries of equal source-class, the newer createdAt wins.
+ *
+ * This ensures a human-entered correction survives a roster re-upload, and
+ * that if two imports exist for the same date the most recent one is used.
+ *
+ * @param {object|undefined} existing
+ * @param {object}           incoming
+ * @returns {boolean}
+ */
 export function shouldReplaceOverride(existing, incoming) {
     if (!existing) return true;
     const existingIsImport = (existing.source || '') === 'roster_import';

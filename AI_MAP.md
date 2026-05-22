@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v10.74 · Updated every 0.10 version*
+*Last updated: May 2026 — v10.84 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -35,7 +35,8 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
-| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` — standalone page, no JS module |
+| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` |
+| Print button for guide.html and paycalc-guide.html | `guide-print.js` |
 
 ---
 
@@ -171,7 +172,7 @@ Shared Web Push module — single source of truth for the VAPID key and subscrip
 - `enableNotifications()` — async; subscribe + Firestore save → returns `Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>`
 - `disableNotifications()` — async; unsubscribe + Firestore delete
 - Imports `savePushSubscription`/`deletePushSubscription` from `firebase-client.js`, `lsGet`/`lsSet` from `ls.js`
-- **Not yet wired into `app.js` or `admin-huddle.js`** — they keep their own duplicate copies of this logic (deferred cleanup). If you change the VAPID key or subscribe flow, update all three until they are consolidated. See KNOWN_LIMITATIONS.md.
+- `app.js` and `admin-huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
 
 ### `app-override-utils.js`
 Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.
@@ -179,6 +180,17 @@ Override priority and member-start helpers — shared by `app.js` and `app-team-
 - `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
 - Covered by `app.test.mjs`
+
+### `railcard-guide.js`
+Interactive behaviours for `railcard-guide.html` (extracted v10.84 — CSP compliance).
+- Print / Save as PDF button (`#savePdfBtn`)
+- Chip-bar click navigation (smooth scroll to target section)
+- `requestAnimationFrame` offset calculation — sets `.chip-bar` `top` to match the sticky `.page-header` height, then sets `scrollMarginTop` on every `.rc` and `.section` so sticky bars don't overlap anchored content
+
+### `guide-print.js`
+Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted v10.84 — CSP compliance).
+- Wires `click → window.print()` on `.btn-print` in whichever guide page loads it
+- No modules; plain script with `defer`
 
 ### `ls.js`
 Safe localStorage wrappers for all three pages (iOS Safari private mode compatibility).
@@ -193,7 +205,13 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 - `memberSettings` create/update/delete: document ID (= member name) `== request.auth.token.name || admin == true`. Document ID is the member name, not a field — isolation is via the path wildcard `{memberName}`.
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
-- `huddles` write: requires auth — writes go through the Admin SDK in Cloud Functions (bypasses rules) or from `admin.html` (always auth'd).
+- `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.
+
+### `storage.rules`
+Firebase Storage security rules.
+- `huddles/{fileName}` read: requires auth.
+- `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `admin-huddle.js`.
+- All other paths: denied.
 
 ### `shared.css`
 All CSS shared across the three pages.

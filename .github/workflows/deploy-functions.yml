@@ -21,6 +21,11 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Syntax check (functions)
+        run: |
+          node --check functions/index.js
+          node --check functions/roster-parse-helpers.js
+
       - name: Install function dependencies
         run: npm install
         working-directory: functions

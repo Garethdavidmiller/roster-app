@@ -19,7 +19,7 @@ If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), th
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `10.74` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `10.84` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
@@ -105,6 +105,8 @@ roster-app/
 ├── fip.html                ← FIP European travel guide for staff
 ├── guide.html              ← printable staff + admin quick guide
 ├── railcard-guide.html     ← Railcard at-work reference sheet (cards, GroupSave, season tickets, gateline checks); accessed via nav panel
+├── railcard-guide.js       ← JS for railcard-guide.html: print button, chip-bar navigation, sticky-offset calculation. No modules.
+├── guide-print.js          ← Shared print button handler for guide.html and paycalc-guide.html. No modules.
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── CLAUDE.md               ← this file
 ├── OPERATIONS_REFERENCE.md ← Power Automate, Cloud Function formats, Firebase Auth detail
@@ -434,6 +436,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 - Family & Friends — the morning-peak restriction is on Network-area journeys only, not the whole card. The subtext must not imply the card is Network-area-only.
 - Two Together photocard — the current wording is deliberately softened ("check names/photos on the card or its photocard") because the physical card format was not verified from an authoritative source. Do not strengthen the claim without confirmation.
 - `railcard-guide.html` is self-contained CSS (no shared.css import) — intentional, consistent with `fip.html`, `guide.html`, `paycalc-guide.html`. Do not add a shared.css import.
+- Guide pages use no inline `<script>` or `onclick` handlers — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84) and `guide-print.js` (v10.84, shared by `guide.html` and `paycalc-guide.html`). Do not add inline scripts or `onclick` attributes to any of these pages.
 
 **What not to flag as defects:**
 - No JS modules — static page, intentional.

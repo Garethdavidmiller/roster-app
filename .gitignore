@@ -1,3 +1,6 @@
+# Archives — may be created during development uploads; never commit
+*.zip
+
 # Personal financial data — must never be committed to source control.
 # Reference payslips live OUTSIDE this repo at ../roster-private/payslips/
 # so they can never be accidentally committed. These rules are a safety net
