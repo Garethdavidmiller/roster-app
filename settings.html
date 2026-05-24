@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v11.14 -->
+<!-- MYB Roster — Settings v11.15 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -100,6 +100,45 @@
         border-color: color-mix(in oklch, var(--indigo) 35%, white);
         color: var(--indigo);
     }
+
+    /* Tips lightbox */
+    #tipsLightbox { padding: 20px; }
+    #tipsLightboxContent {
+        background: white;
+        border-radius: var(--radius-lg);
+        padding: 28px 28px 24px;
+        max-width: 360px;
+        width: 100%;
+        max-height: 85vh;
+        box-shadow: var(--shadow-3);
+    }
+    .tips-lb-title {
+        font-size: 17px;
+        font-weight: 800;
+        color: var(--primary-blue);
+        margin-bottom: 16px;
+    }
+    .tips-lb-section {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-light);
+        margin: 14px 0 6px;
+    }
+    .tips-lb-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 10px;
+        font-size: 13px;
+        color: var(--text-dark);
+        line-height: 1.5;
+        padding: 5px 0;
+        border-bottom: 1px solid var(--border-light);
+    }
+    .tips-lb-item:last-child { border-bottom: none; }
+    .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+    #tipsLightboxClose { color: rgba(0,0,0,0.35); }
 
     /* Tips button — circular ? badge */
     .btn-card-tips {

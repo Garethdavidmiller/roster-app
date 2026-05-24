@@ -302,6 +302,8 @@ function initCulturalCalendarCard() {
 function initTipsLightbox() {
     const lb       = document.getElementById('tipsLightbox');
     const closeBtn = document.getElementById('tipsLightboxClose');
+    const titleEl  = document.getElementById('tipsLbTitle');
+    const bodyEl   = document.getElementById('tipsLbBody');
     if (!lb || !closeBtn) return;
 
     const CARD_TIPS = {
@@ -335,26 +337,35 @@ function initTipsLightbox() {
 
     function openTips(key) {
         const tips = CARD_TIPS[key];
-        if (!tips) return;
-        document.getElementById('tipsLbTitle').textContent = tips.title;
-        document.getElementById('tipsLbBody').innerHTML = tips.sections.map(sec => `
-            ${sec.heading ? `<p class="tips-lb-heading">${sec.heading}</p>` : ''}
-            <ul class="tips-lb-list">
-                ${sec.items.map(i => `<li><span class="tips-lb-icon">${i.icon}</span><span>${i.html}</span></li>`).join('')}
-            </ul>`).join('');
+        if (!tips || !titleEl || !bodyEl) return;
+        lb.setAttribute('aria-label', tips.title);
+        titleEl.textContent = tips.title;
+        let html = '';
+        for (const section of tips.sections) {
+            if (section.heading) html += `<div class="tips-lb-section">${section.heading}</div>`;
+            for (const { icon, html: content } of section.items) {
+                html += `<div class="tips-lb-item"><span class="tips-lb-icon">${icon}</span><span>${content}</span></div>`;
+            }
+        }
+        bodyEl.innerHTML = html;
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
         lockBodyScroll();
         _pushOverlayState(closeTips);
+        document.addEventListener('keydown', onKey);
     }
 
     function closeTips() {
-        lb.classList.remove('open');
         _clearOverlayHistory();
-        const t = setTimeout(done, 300);
-        function done() { clearTimeout(t); lb.classList.remove('visible'); unlockBodyScroll(); }
-        lb.addEventListener('transitionend', done, { once: true });
+        lb.classList.remove('open');
+        lb.addEventListener('transitionend', () => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, { once: true });
+        document.removeEventListener('keydown', onKey);
     }
+
+    function onKey(e) { if (e.key === 'Escape') closeTips(); }
 
     closeBtn.addEventListener('click', closeTips);
     lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
