@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v11.13 -->
+<!-- MYB Roster — Settings v11.14 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -99,6 +99,34 @@
         background: color-mix(in oklch, var(--indigo) 15%, white);
         border-color: color-mix(in oklch, var(--indigo) 35%, white);
         color: var(--indigo);
+    }
+
+    /* Tips button — circular ? badge */
+    .btn-card-tips {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 20px; height: 20px;
+        border-radius: 50%;
+        border: 1.5px solid var(--border-mid);
+        background: var(--bg-faint);
+        color: var(--text-light);
+        font-size: 11px; font-weight: 700;
+        cursor: pointer;
+        vertical-align: middle;
+        flex-shrink: 0;
+        margin-left: 5px;
+        touch-action: manipulation;
+        transition: background 0.15s, border-color 0.15s, color 0.15s;
+        position: relative;
+        font-family: inherit;
+    }
+    .btn-card-tips::before {
+        content: '';
+        position: absolute;
+        inset: -12px;
+    }
+    .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+    @media (hover: hover) and (pointer: fine) {
+        .btn-card-tips:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
     }
 
     @media print {

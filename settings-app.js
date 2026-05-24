@@ -191,8 +191,7 @@ function initLoginOverlay() {
 
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
-    // Card collapse
-    initCardCollapse('notifToggleHeader',    'notifBody',      'notifChevron');
+    // Card collapse — notif card is wired by initHuddleNotifications() below; only wire religious here
     initCardCollapse('religiousToggleHeader','religiousBody',  'religiousChevron');
 
     // Notifications card
@@ -343,7 +342,8 @@ function initTipsLightbox() {
             <ul class="tips-lb-list">
                 ${sec.items.map(i => `<li><span class="tips-lb-icon">${i.icon}</span><span>${i.html}</span></li>`).join('')}
             </ul>`).join('');
-        lb.classList.add('open');
+        lb.classList.add('visible');
+        requestAnimationFrame(() => lb.classList.add('open'));
         lockBodyScroll();
         _pushOverlayState(closeTips);
     }
@@ -351,7 +351,9 @@ function initTipsLightbox() {
     function closeTips() {
         lb.classList.remove('open');
         _clearOverlayHistory();
-        unlockBodyScroll();
+        const t = setTimeout(done, 300);
+        function done() { clearTimeout(t); lb.classList.remove('visible'); unlockBodyScroll(); }
+        lb.addEventListener('transitionend', done, { once: true });
     }
 
     closeBtn.addEventListener('click', closeTips);
@@ -380,14 +382,17 @@ function initIconLightbox() {
     }
 
     function openLightbox() {
-        lb.classList.add('open');
+        lb.classList.add('visible');
+        requestAnimationFrame(() => lb.classList.add('open'));
         lockBodyScroll();
         _pushOverlayState(closeLightbox);
     }
     function closeLightbox() {
         lb.classList.remove('open');
         _clearOverlayHistory();
-        unlockBodyScroll();
+        const t = setTimeout(done, 300);
+        function done() { clearTimeout(t); lb.classList.remove('visible'); unlockBodyScroll(); }
+        lb.addEventListener('transitionend', done, { once: true });
     }
 
     iconBtn.addEventListener('click', openLightbox);
