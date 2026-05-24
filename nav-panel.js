@@ -351,10 +351,15 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
         </ul>`).join('');
 
     // Settings link — always visible except on the settings page itself.
+    // Uses the same nav-panel-link / nav-panel-links / nav-panel-group-heading classes
+    // as the INFORMATION section so it is visually identical to the info links.
     // Settings has its own login overlay, so unsigned-in users are handled there.
     const settingsHtml = (currentPage !== 'settings') ? `
         <div class="nav-panel-settings">
-            <a href="./settings.html" class="nav-panel-settings-link">⚙ Settings</a>
+            <p class="nav-panel-group-heading">Preferences</p>
+            <ul class="nav-panel-links">
+                <li><a href="./settings.html" class="nav-panel-link">⚙ Settings</a></li>
+            </ul>
         </div>` : '';
 
     // Footer is only rendered when a sign-out callback is supplied.

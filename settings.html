@@ -1,17 +1,19 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v11.11 -->
+<!-- MYB Roster — Settings v11.12 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#001e3c">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>Settings — MYB Roster</title>
+  <meta name="apple-mobile-web-app-title" content="MYB Settings">
+  <title>MYB Roster — Settings</title>
   <link rel="manifest" href="./manifest.json">
   <link rel="apple-touch-icon" href="./icon-180.png">
   <link rel="stylesheet" href="./shared.css">
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
         -webkit-font-smoothing: antialiased;
@@ -148,24 +150,13 @@
     </div>
 </div>
 
-<!-- Coming soon lightbox (nav panel) -->
-<div id="navComingSoonLightbox" class="lb-overlay" role="dialog" aria-label="Coming soon" aria-modal="true">
-    <div class="lb-content">
-        <button id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
-        <div style="font-size:32px;margin-bottom:12px">🚧</div>
-        <div class="lightbox-app-name" style="font-size:18px">Coming soon</div>
-        <p style="font-size:13px;color:var(--text-mid);margin-top:8px;text-align:center">This feature is in development</p>
-    </div>
-</div>
-
 <!-- Header -->
 <header class="app-header">
     <button class="btn-burger" id="navMenuBtn"
-            aria-label="Open navigation menu" aria-expanded="false" aria-controls="navPanel">☰</button>
+            aria-label="Open navigation menu" aria-expanded="false">☰</button>
     <div class="app-header-brand">
         <img src="icon-192.png" class="app-icon" id="appIcon" alt="Chiltern Railways" loading="eager">
-        <h1 class="title-mobile">Settings</h1>
-        <h1 class="title-desktop">Settings</h1>
+        <h1><span class="title-mobile">MYB Roster</span><span class="title-desktop">Marylebone Roster</span></h1>
     </div>
     <span class="badge-page" id="settingsBadge"><span class="badge-glyph" aria-hidden="true">⚙</span> Settings</span>
 </header>
