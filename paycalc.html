@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v11.19 -->
+<!-- MYB Roster — Pay Calculator v11.20 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -638,13 +638,14 @@
         gap: 8px 12px;
         align-items: center;
       }
-      .ty-tabs      { grid-area: tabs; }
-      #periodSelect { grid-area: select; }
-      .period-nav   { grid-area: nav; width: auto; flex-wrap: nowrap; }
-      .nav-pill     { flex: none; padding: 10px 18px; }
-      .period-meta  { grid-area: meta; }
-      .save-row     { grid-area: save; }
-      .period-hint  { display: none; } /* not needed once layout is clear */
+      .ty-tabs        { grid-area: tabs; }
+      #periodSelect   { grid-area: select; }
+      .period-nav     { grid-area: nav; width: auto; flex-wrap: nowrap; }
+      .nav-pill       { flex: none; padding: 10px 18px; }
+      .period-meta    { grid-area: meta; }
+      .save-row       { grid-area: save; }
+      .period-hint    { display: none; } /* not needed once layout is clear */
+      #rosterViewLink { grid-column: 1 / -1; } /* span both cols of the period-controls subgrid */
 
       /* Buttons: stop at 280px — no need to span a 720px card */
       .btn-primary { max-width: 280px; }
@@ -654,10 +655,11 @@
     }
 
     /* ── Desktop: 1024px — two-column grid ──
-       Left column = work input (period controls, hours).
-       Right column = settings + result + detail cards.
-       grid-auto-flow: dense fills gaps independently so hiding/showing
-       cards never leaves orphaned space or stretches the other column. */
+       Left column  = period controls + hours entry (work area).
+       Right column = result card (sticky at top) + settings + detail cards.
+       Explicit grid-row assignments on key items guarantee the correct visual
+       order regardless of document order (settingsCard appears before
+       result-card in the DOM so it can be first on mobile). */
     @media (min-width: 1024px) {
       /* 1100px gives left col ~636px — comfortable for form entry.
          Right col is 440px. 1400px was too wide: left col reached 936px,
@@ -671,31 +673,31 @@
         column-gap: 24px;
         row-gap: 16px;
         align-items: start;
-        grid-auto-flow: row dense;
       }
 
-      /* Full-width rows spanning both columns */
-      #setupBanner,
-      .privacy-note-standalone,
-      .guide-footer-link,
-      .disclaimer      { grid-column: 1 / -1; }
+      /* Full-width rows — all items get explicit grid-row so nothing auto-places
+         into a free slot above the main content area.
+         Row 1 = setupBanner: display:none when hidden, which removes it from the
+         grid entirely — no empty row 1 track is created, so privacy-note at row 2
+         becomes the topmost visible row with no gap above it.
+         Row 2 = privacy note (always visible). */
+      #setupBanner             { grid-column: 1 / -1; grid-row: 1; }
+      .privacy-note-standalone { grid-column: 1 / -1; grid-row: 2; }
+      .guide-footer-link       { grid-column: 1 / -1; grid-row: 9; }
+      .disclaimer              { grid-column: 1 / -1; grid-row: 10; }
 
-      /* Left column: period selector and hours entry — the main work area */
-      .period-controls,
-      #hoursCard       { grid-column: 1; }
+      /* Left column */
+      .period-controls { grid-column: 1; grid-row: 3; }
+      #hoursCard       { grid-column: 1; grid-row: 4; }
 
-      /* Right column: settings first, then result card, then all detail/archive cards.
-         Settings lives here on desktop so it stays accessible without dominating the
-         work column. On mobile it still appears first in the document order. */
-      #settingsCard,
-      .result-card,
-      #payslipCard,
-      #hppCard,
-      #backPayCard,
-      #decimalConverterCard { grid-column: 2; }
-
-      /* Result card anchors the right column on desktop — Settings moves below it */
-      .result-card     { position: sticky; top: 20px; order: -1; }
+      /* Right column: result card tops the column (sticky), settings below it,
+         then detail cards. All explicit rows prevent them landing in free gaps. */
+      .result-card          { grid-column: 2; grid-row: 3; position: sticky; top: 20px; }
+      #settingsCard         { grid-column: 2; grid-row: 4; }
+      #payslipCard          { grid-column: 2; grid-row: 5; }
+      #hppCard              { grid-column: 2; grid-row: 6; }
+      #backPayCard          { grid-column: 2; grid-row: 7; }
+      #decimalConverterCard { grid-column: 2; grid-row: 8; }
 
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
