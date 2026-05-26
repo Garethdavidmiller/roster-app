@@ -419,7 +419,7 @@ let openAboutLightbox = null;
                 { heading: 'Multiple shifts', items: [
                     { icon: '1️⃣', html: 'Tap <strong>Mon–Fri</strong>, <strong>Working days</strong> or <strong>All 7</strong> — or tick individual days' },
                     { icon: '2️⃣', html: 'Pick a type — add a start and end time if needed' },
-                    { icon: '3️⃣', html: 'Tap <strong>3. Apply to selected days</strong>' },
+                    { icon: '3️⃣', html: 'Tap <strong>3. Apply to ticked days</strong>' },
                 ]},
                 { heading: 'Type meanings', items: [
                     { icon: '📋', html: '<strong>Spare</strong> — on standby; actual shift not yet known' },
