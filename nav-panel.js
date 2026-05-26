@@ -16,7 +16,7 @@
  */
 
 import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
-import { teamMembers } from './roster-data.js';
+import { teamMembers, APP_VERSION } from './roster-data.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -33,26 +33,31 @@ const NAV_PAGES = [
 ];
 
 /**
- * Information section — flat, always-open. Two sub-groups: Workplace and Staff Travel.
- * Adding a new guide means one entry here; no other changes needed.
+ * Information section — flat, always-open. Live workplace documents only.
  * A link with `comingSoon: true` (instead of `url`) renders as a button that
  * opens the "coming soon" lightbox rather than navigating.
+ * (Guides moved to their own collapsible submenu — see NAV_GUIDES.)
  */
 const NAV_INFORMATION = [
     {
         heading: 'Workplace',
         links: [
-            { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle'   },
-            { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true             },
-            { icon: '🎫', label: 'Railcard Guide',         url: './railcard-guide.html' },
+            { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
+            { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true           },
         ],
     },
-    {
-        heading: 'Staff Travel',
-        links: [
-            { icon: '🇪🇺', label: 'FIP Travel Guide', url: './fip.html' },
-        ],
-    },
+];
+
+/**
+ * Guides — collapsible submenu (tap "📖 Guides" to expand). Static reference
+ * pages, grouped together so the Information section stays focused on live docs.
+ * Adding a guide = one entry here.
+ */
+const NAV_GUIDES = [
+    { icon: '📘', label: 'Staff & Admin Guide',  url: './guide.html'          },
+    { icon: '💷', label: 'Pay Calculator Guide', url: './paycalc-guide.html'  },
+    { icon: '🎫', label: 'Railcard Guide',       url: './railcard-guide.html' },
+    { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html'            },
 ];
 
 let _panelOpen    = false;
@@ -61,9 +66,12 @@ let _csHistoryPushed = false;
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, onLogoClick?: (() => void)|null }} opts
+ *   onLogoClick — opens the page's existing About/version lightbox when the
+ *   drawer logo is tapped. The header logo on sub-pages is now a back button,
+ *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, onLogoClick = null } = {}) {
     const burger = document.getElementById('navMenuBtn');
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
@@ -161,6 +169,25 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     signOutBtn?.addEventListener('click', () => {
         closePanelForNavigation();
         onSignOut?.();
+    });
+
+    // Brand (logo + title + version) opens the page's About lightbox.
+    // Close the panel first (same pattern as the coming-soon link) so the
+    // About lightbox isn't stacked behind the open drawer.
+    const brandBtn = document.getElementById('navPanelBrand');
+    brandBtn?.addEventListener('click', () => {
+        closePanelForNavigation();
+        onLogoClick?.();
+    });
+
+    // Guides submenu accordion — an in-panel toggle, so the panel stays open.
+    const guidesToggle = document.getElementById('navGuidesToggle');
+    const guidesList   = document.getElementById('navGuidesList');
+    guidesToggle?.addEventListener('click', () => {
+        const isOpen = guidesToggle.getAttribute('aria-expanded') === 'true';
+        guidesToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+        guidesToggle.classList.toggle('open', !isOpen);
+        if (guidesList) guidesList.hidden = isOpen;
     });
 
     // Notification bell toggle — an in-panel action, so the panel stays open.
@@ -350,6 +377,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
             ).join('')}
         </ul>`).join('');
 
+    // Guides — collapsed by default; the toggle reveals the list.
+    const guideLinks = NAV_GUIDES
+        .map(g => `<li><a href="${g.url}" class="nav-panel-link">${g.icon} ${g.label}</a></li>`)
+        .join('');
+
     // Settings link — always visible except on the settings page itself.
     // Uses the same nav-panel-link / nav-panel-links / nav-panel-group-heading classes
     // as the INFORMATION section so it is visually identical to the info links.
@@ -391,8 +423,14 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
         <div id="navPanel" class="nav-panel" role="dialog" aria-modal="true"
              aria-label="Navigation menu" aria-hidden="true">
             <div class="nav-panel-head">
-                <img src="./icon-192.png" alt="" class="nav-panel-icon" loading="eager">
-                <span class="nav-panel-title">Marylebone Roster</span>
+                <button type="button" class="nav-panel-brand" id="navPanelBrand"
+                        aria-label="About this app — version ${APP_VERSION}">
+                    <img src="./icon-192.png" alt="" class="nav-panel-icon" loading="eager">
+                    <span class="nav-panel-brand-text">
+                        <span class="nav-panel-title">Marylebone Roster</span>
+                        <span class="nav-panel-version">v${APP_VERSION}</span>
+                    </span>
+                </button>
                 <button class="nav-panel-close" id="navPanelClose"
                         aria-label="Close navigation menu">✕</button>
             </div>
@@ -401,6 +439,16 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
                 <div class="nav-panel-section">
                     <p class="nav-panel-section-heading">Information</p>
                     ${infoGroups}
+                </div>
+                <div class="nav-panel-section">
+                    <button type="button" class="nav-panel-guides-toggle" id="navGuidesToggle"
+                            aria-expanded="false" aria-controls="navGuidesList">
+                        <span class="nav-panel-guides-heading">📖 Guides</span>
+                        <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
+                    </button>
+                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList" hidden>
+                        ${guideLinks}
+                    </ul>
                 </div>
             </div>
             ${settingsHtml}

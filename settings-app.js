@@ -106,6 +106,10 @@ const currentSession   = getSession();
 const isAuthenticated  = !!currentSession;
 const currentUser      = currentSession?.name ?? null;
 
+// Assigned by initIconLightbox (runs inside initApp when signed in); the closure
+// below only reads it when the drawer logo is tapped.
+let openAboutLightbox = null;
+
 // Nav panel is always initialised — even when not signed in, so the user can
 // navigate to Calendar or Admin rather than being stranded on the login overlay.
 // onSignOut is null when not authenticated, which hides the footer.
@@ -113,6 +117,7 @@ initNavPanel({
     currentPage: 'settings',
     memberName:  currentUser,
     isAdmin:     currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
+    onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   currentUser ? () => { clearSession(); window.location.href = './index.html'; } : null,
 });
 
@@ -406,7 +411,11 @@ function initIconLightbox() {
         lb.addEventListener('transitionend', done, { once: true });
     }
 
-    iconBtn.addEventListener('click', openLightbox);
+    // Header logo is a back-to-calendar button (About moved to the drawer logo).
+    openAboutLightbox = openLightbox;
+    iconBtn.title = 'Back to calendar';
+    iconBtn.setAttribute('aria-label', 'Back to calendar');
+    iconBtn.addEventListener('click', () => { window.location.href = './index.html'; });
     closeBtn.addEventListener('click', closeLightbox);
     lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
 

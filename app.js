@@ -78,6 +78,9 @@ function unlockBodyScroll() {
 // history.back(), which fires popstate but the flag is already false by then.
 let _overlayHistoryPushed = false;
 let _backHandler = null;
+// Assigned by the About-lightbox IIFE; lets the nav-panel drawer logo open the
+// same About panel that the header logo opens on the calendar page.
+let openAboutLightbox = null;
 function _pushOverlayState(closeHandler) {
     if (!_overlayHistoryPushed) {
         history.pushState({ mybOverlay: true }, '');
@@ -1724,6 +1727,9 @@ try {
                 if (e.key === 'Escape') closeLightbox();
             }
 
+            // Calendar keeps its header logo opening About (no "back" target on
+            // home). Also expose it so the nav-panel drawer logo opens the same panel.
+            openAboutLightbox = openLightbox;
             titleIcon.addEventListener('click', (e) => {
                 e.stopPropagation();
                 openLightbox(); // Content adjusts based on teamViewMode inside openLightbox()
@@ -2444,6 +2450,7 @@ initNavPanel({
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
     isAdmin:     CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
+    onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _calendarSession ? () => {
         lsDel('myb_admin_session');
         window.location.reload();
