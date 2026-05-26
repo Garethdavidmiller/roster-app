@@ -467,7 +467,7 @@ let openAboutLightbox = null;
             title: 'Daily Huddle',
             sections: [
                 { items: [
-                    { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff see an orange <strong>Huddle</strong> button on the main app' },
+                    { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff open it via ☰ → <strong>Daily Huddle</strong> on the main app' },
                     { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
                     { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
