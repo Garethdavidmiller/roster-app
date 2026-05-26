@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v11.18 -->
+<!-- MYB Roster — Pay Calculator v11.19 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -980,7 +980,8 @@
 
   /* ── ROSTER SUGGESTION CARD ── */
   .roster-card {
-    background: var(--bg-faint); border: 1.5px solid var(--border-mid);
+    background: var(--al-confirm-bg); border: 1.5px solid var(--accent-gold);
+    border-left-width: 4px;
     border-radius: var(--radius-sm); padding: 12px; margin-bottom: 10px;
   }
   .roster-card-header {
@@ -1259,7 +1260,7 @@
         <div class="roster-rows" id="rosterRows"></div>
         <p class="roster-card-note" id="rosterHintText">Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.</p>
         <div class="roster-card-actions">
-          <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Replace from roster</button>
+          <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from my roster</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
         </div>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
