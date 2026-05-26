@@ -2279,12 +2279,21 @@ function sanitiseHtml(html) {
         if (_unsubHuddle) _unsubHuddle();
         _unsubHuddle = subscribeToLatestHuddle(
             (huddle) => {
+                const prevUrl = _huddleData?.storageUrl;
                 if (!huddle) {
                     _huddleState = 'none';
                 } else {
                     _huddleData  = huddle;
                     _huddleState = 'ready';
-                    if (_autoOpen && !_autoOpened) _triggerAutoOpen(huddle);
+                    if (_autoOpen && !_autoOpened) {
+                        _triggerAutoOpen(huddle);
+                    } else if (_autoOpen && _autoOpened
+                               && viewer.classList.contains('open')
+                               && huddle.storageUrl !== prevUrl) {
+                        // Viewer is open showing a stale huddle — Firestore delivered a
+                        // fresher one (race: notification tap beat the WebSocket reconnect).
+                        _triggerAutoOpen(huddle);
+                    }
                 }
                 applyHuddleButtonState();
             },
