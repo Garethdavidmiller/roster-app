@@ -2381,6 +2381,9 @@ document.getElementById('hppBackPayLink').addEventListener('click', () => {
 });
 
 // ── ABOUT LIGHTBOX ────────────────────────────────────────────────────────────
+// Exposed to module scope so the nav-panel drawer logo can open it (the header
+// logo is now a back button — see appIcon handler below).
+let openAboutLightbox = null;
 (function () {
   const lightbox    = document.getElementById('iconLightbox');
   const appIcon     = document.getElementById('appIcon');
@@ -2469,7 +2472,11 @@ Device: ${navigator.userAgent}
   }
   function onKeyDown(e) { if (e.key === 'Escape') closeLightbox(); }
 
-  appIcon.addEventListener('click', e => { e.stopPropagation(); openLightbox(); });
+  // Header logo is a back-to-calendar button (About moved to the drawer logo).
+  openAboutLightbox = openLightbox;
+  appIcon.title = 'Back to calendar';
+  appIcon.setAttribute('aria-label', 'Back to calendar');
+  appIcon.addEventListener('click', () => { window.location.href = './index.html'; });
   lightbox.addEventListener('click', closeLightbox);
   if (contentCard) contentCard.addEventListener('click', e => e.stopPropagation());
   if (closeBtn)    closeBtn.addEventListener('click', closeLightbox);
@@ -2650,6 +2657,7 @@ initNavPanel({
     currentPage: 'paycalc',
     memberName:  _paycalcMember?.name || null,
     isAdmin:     ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name),
+    onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _paycalcMember ? () => {
         lsDel('myb_admin_session');
         window.location.href = './index.html';

@@ -144,10 +144,15 @@ window.addEventListener('popstate', () => {
 // ============================================
 document.body.classList.add('auth-ready');
 
+// Assigned by the About-lightbox IIFE further down; the closure below only reads
+// it when the drawer logo is tapped, by which point it is set.
+let openAboutLightbox = null;
+
 initNavPanel({
     currentPage: 'operations',
     memberName:  currentUser,
     isAdmin:     true,
+    onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   () => { clearSession(); window.location.href = './admin.html'; },
 });
 
@@ -241,7 +246,11 @@ window._mybSession.then(ok => {
 
     function onKey(e) { if (e.key === 'Escape') close(); }
 
-    headerIcon.addEventListener('click', open);
+    // Header logo is a back-to-calendar button (About moved to the drawer logo).
+    openAboutLightbox = open;
+    headerIcon.title = 'Back to calendar';
+    headerIcon.setAttribute('aria-label', 'Back to calendar');
+    headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
     lightbox.addEventListener('click', e => { if (e.target === lightbox || e.target === closeBtn) close(); });
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 })();

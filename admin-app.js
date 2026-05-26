@@ -319,6 +319,9 @@ function initLoginOverlay() {
 }
 
 // ---- Lightbox ----
+// Exposed to module scope so the nav-panel drawer logo can open it (the header
+// logo is now a back button — see headerIcon handler below).
+let openAboutLightbox = null;
 (function() {
     const lightbox   = document.getElementById('iconLightbox');
     const headerIcon = document.getElementById('appIcon');
@@ -363,7 +366,11 @@ function initLoginOverlay() {
 
     function onKey(e) { if (e.key === 'Escape') closeLightbox(); }
 
-    headerIcon.addEventListener('click', openLightbox);
+    // Header logo is a back-to-calendar button (About moved to the drawer logo).
+    openAboutLightbox = openLightbox;
+    headerIcon.title = 'Back to calendar';
+    headerIcon.setAttribute('aria-label', 'Back to calendar');
+    headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
 
     // Click on overlay (not the card) closes
     lightbox.addEventListener('click', e => {
@@ -1983,6 +1990,7 @@ initNavPanel({
     currentPage: 'admin',
     memberName:  currentUser,
     isAdmin:     currentIsAdmin,
+    onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   () => { clearSession(); window.location.reload(); },
 });
 

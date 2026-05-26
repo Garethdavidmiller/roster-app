@@ -787,6 +787,31 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-shrink: 0;
 }
 
+/* Brand button — logo + title + version. Tapping opens the page's About
+   lightbox (version, update status, bug report, print). Reset native button
+   chrome so it looks identical to the old static logo + title. */
+.nav-panel-brand {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    color: inherit;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    touch-action: manipulation;
+    border-radius: 8px;
+}
+.nav-panel-brand:active { opacity: 0.7; }
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-brand:hover { opacity: 0.85; }
+}
+
 .nav-panel-icon {
     width: 32px;
     height: 32px;
@@ -794,11 +819,25 @@ body.lb-open #stickyTotal { display: none !important; }
     flex-shrink: 0;
 }
 
+.nav-panel-brand-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
 .nav-panel-title {
-    flex: 1;
     font-size: 15px;
     font-weight: 700;
     letter-spacing: -0.2px;
+    line-height: 1.2;
+}
+
+.nav-panel-version {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 0.2px;
+    margin-top: 1px;
 }
 
 .nav-panel-close {
@@ -908,6 +947,40 @@ body.lb-open #stickyTotal { display: none !important; }
     color: var(--text-mid);
     margin: 14px 0 2px;
 }
+
+/* Guides — collapsible submenu. Toggle row mirrors the section heading style
+   but adds an arrow and is a full-width button. */
+.nav-panel-guides-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    background: none;
+    border: none;
+    padding: 0 0 6px;
+    margin: 0;
+    border-bottom: 1px solid var(--border-light);
+    font-family: inherit;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+.nav-panel-guides-heading {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-light);
+}
+.nav-panel-guides-arrow {
+    font-size: 10px;
+    color: var(--text-light);
+    transition: transform 0.2s;
+}
+.nav-panel-guides-toggle.open .nav-panel-guides-arrow { transform: rotate(180deg); }
+.nav-panel-guides-list { margin-top: 6px; }
+.nav-panel-guides-toggle:active .nav-panel-guides-heading,
+.nav-panel-guides-toggle:active .nav-panel-guides-arrow { color: var(--text-mid); }
 
 .nav-panel-links {
     list-style: none;
