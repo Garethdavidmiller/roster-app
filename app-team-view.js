@@ -275,9 +275,20 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             }, { once: true });
         }
 
-        // Restore horizontal scroll position after a grade/fetch re-render.
+        // Restore scroll: keep position on grade-tab/fetch re-render; scroll today into view on open/week-nav.
         if (prevScrollLeft > 0 && tableWrap) {
             tableWrap.scrollLeft = prevScrollLeft;
+        } else if (todayIndex >= 0 && tableWrap) {
+            requestAnimationFrame(() => {
+                const todayTh = tableWrap.querySelector('th.tv-today-col');
+                const nameTh  = tableWrap.querySelector('th.tv-name-col');
+                if (todayTh && nameTh) {
+                    const wrapLeft  = tableWrap.getBoundingClientRect().left;
+                    const cellLeft  = todayTh.getBoundingClientRect().left;
+                    const nameWidth = nameTh.getBoundingClientRect().width;
+                    tableWrap.scrollLeft = cellLeft - wrapLeft - nameWidth;
+                }
+            });
         }
 
         if (!skipFetch) {
