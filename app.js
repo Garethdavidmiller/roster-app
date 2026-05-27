@@ -1688,7 +1688,7 @@ try {
                 if (teamViewTips)  teamViewTips.hidden  = !inTeam;
                 if (teamViewBadge) teamViewBadge.hidden = !inTeam;
                 if (printBtn)  printBtn.textContent  = inTeam ? '🖨️ Print this week\'s roster' : '🖨️ Print this calendar';
-                if (printHint) printHint.textContent = inTeam ? 'Use landscape orientation for best results' : 'Prints the current month\'s calendar';
+                if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month\'s calendar';
 
                 checkUpdateStatus(); // Refresh status every time it opens
                 if (bugLink) {
