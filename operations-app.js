@@ -162,7 +162,7 @@ initRosterUpload({
     currentUser,
     currentIsAdmin: true,
     parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
-    getIdToken: () => auth.currentUser?.getIdToken(),
+    getIdToken: async () => { await window._mybSession; return auth.currentUser?.getIdToken(); },
     loadOverrides,
 });
 

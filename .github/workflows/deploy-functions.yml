@@ -26,6 +26,9 @@ jobs:
           node --check functions/index.js
           node --check functions/roster-parse-helpers.js
 
+      - name: Run parser helper tests
+        run: node --test roster-parse-helpers.test.mjs
+
       - name: Install function dependencies
         run: npm install
         working-directory: functions

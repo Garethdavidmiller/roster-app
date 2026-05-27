@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v11.28 -->
+<!-- MYB Roster Admin v11.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1936,10 +1936,10 @@
             .week-nav { max-width: 480px; margin: 0 auto; }
 
         }
-        /* At 1024–1199px the left column is ~564px — the 5-col template (608px min) overflows.
+        /* At 1024–1399px the left column is too narrow for the 5-col template.
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
            Pills and time are always visible here (unlike narrow mobile where they're hidden). */
-        @media (min-width: 1024px) and (max-width: 1199px) {
+        @media (min-width: 1024px) and (max-width: 1399px) {
             .week-grid-header {
                 grid-template-columns: 32px 1fr auto;
             }
@@ -1955,14 +1955,15 @@
             .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
             .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
         }
-        @media (min-width: 1200px) {
+        /* ≥1400px: left col inner width ~840px — comfortably fits 5-col min of 630px */
+        @media (min-width: 1400px) {
             .week-grid-header,
             .day-row {
-                grid-template-columns: 36px 90px 110px minmax(300px, 1fr) 190px;
+                grid-template-columns: 28px 80px 100px minmax(200px, 1fr) 190px;
             }
 
             /* Tighten week grid spacing */
-            .day-row { gap: 10px; }
+            .day-row { gap: 8px; }
 
             /* Save button: no need to span a 600px column */
             .btn-save { max-width: 320px; }

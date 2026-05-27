@@ -66,7 +66,7 @@ let _csHistoryPushed = false;
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, onLogoClick?: (() => void)|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, onLogoClick?: (() => void)|null }} opts
  *   onLogoClick — opens the page's existing About/version lightbox when the
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
