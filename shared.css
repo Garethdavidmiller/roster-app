@@ -948,39 +948,40 @@ body.lb-open #stickyTotal { display: none !important; }
     margin: 14px 0 2px;
 }
 
-/* Guides — collapsible submenu. Toggle row mirrors the section heading style
-   but adds an arrow and is a full-width button. */
+/* Guides — collapsible submenu. Styled as a tappable row so it reads as
+   interactive rather than a plain section heading. */
 .nav-panel-guides-toggle {
     width: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: none;
-    border: none;
-    padding: 0 0 6px;
+    background: color-mix(in oklch, var(--primary-blue) 6%, white);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    padding: 9px 12px;
     margin: 0;
-    border-bottom: 1px solid var(--border-light);
     font-family: inherit;
     cursor: pointer;
     touch-action: manipulation;
 }
 .nav-panel-guides-heading {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--text-light);
+    color: var(--primary-blue);
 }
 .nav-panel-guides-arrow {
-    font-size: 10px;
-    color: var(--text-light);
+    font-size: 14px;
+    color: var(--accent-gold-dark);
     transition: transform 0.2s;
+    line-height: 1;
 }
 .nav-panel-guides-toggle.open .nav-panel-guides-arrow { transform: rotate(180deg); }
 .nav-panel-guides-list { margin-top: 6px; }
-.nav-panel-guides-toggle:active .nav-panel-guides-heading,
-.nav-panel-guides-toggle:active .nav-panel-guides-arrow { color: var(--text-mid); }
+.nav-panel-guides-toggle:active { opacity: 0.7; }
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-guides-toggle:hover { background: color-mix(in oklch, var(--primary-blue) 10%, white); }
+}
 
 .nav-panel-links {
     list-style: none;
