@@ -253,7 +253,7 @@
                 <div class="sub">Chiltern Railways · MYB Station · CEA and CES pay estimate tool</div>
             </div>
         </div>
-        <span class="version-pill">v9.x</span>
+        <span class="version-pill">v11.x</span>
     </div>
 
     <div class="cols">
@@ -281,13 +281,14 @@
             <h2>Entering your hours</h2>
             <p>Your standard contracted hours (Mon–Fri shifts) are included automatically — you only need to enter hours that attract a <strong>different pay rate</strong>:</p>
             <ul style="list-style:disc;padding-left:1.2em;font-size:11px;color:#555;line-height:1.6;margin-bottom:8px">
-                <li><strong>Rostered Saturdays</strong> — 1.25× rate</li>
-                <li><strong>Overtime and rest day working</strong> — 1.25× rate</li>
+                <li><strong>Rostered Saturdays</strong> — 1.25× rate (use the Saturday field)</li>
+                <li><strong>Saturday worked on your rest day</strong> — 1.25× rate (use the RDW field, not Saturday)</li>
+                <li><strong>Overtime and other rest day working</strong> — 1.25× rate (RDW field)</li>
                 <li><strong>Sundays</strong> — 1.5× rate</li>
                 <li><strong>Bank holidays (rostered)</strong> — 1.25× rate (row appears automatically)</li>
                 <li><strong>Boxing Day (26 Dec)</strong> — 3× rate (row appears automatically)</li>
             </ul>
-            <div class="info"><strong>Replace from roster</strong> — If your name appears in the roster, a hint bar shows how many Saturdays, Sundays, and bank holidays fall in this period. Tap <strong>Replace from roster</strong> to replace all suggested categories in one tap — this overwrites any values already entered in those fields. To fill just one category without affecting others, tap the <strong>→</strong> arrow on that row instead. Filled fields turn gold; the highlight clears as soon as you edit them. When online, any shift changes you've already recorded in the app are applied automatically — the count reflects your actual roster, not just the base.</div>
+            <div class="info"><strong>Fill from my roster</strong> — If your name appears in the roster, a gold hint card shows how many Saturdays, Sundays, and bank holidays fall in this period. Tap <strong>Fill from my roster</strong> to pre-fill all suggested categories in one tap. Once you've already typed values in those fields, the button changes to <strong>Replace with roster hours</strong> as a reminder that it will overwrite them. To fill just one category without touching others, tap the <strong>→</strong> arrow on that row instead. Filled fields turn gold; the highlight clears as soon as you edit them. When online, any shift changes recorded in the app are applied automatically — the count reflects your actual roster, not just the base.</div>
 
             <h2>Understanding the result</h2>
             <table>
@@ -314,23 +315,23 @@
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">💼</span>
-                    <div><span class="pay-name">RDW</span><span class="pay-desc">Rest day worked — attracts an RDW premium on top of basic rate</span></div>
+                    <div><span class="pay-name">RDW</span><span class="pay-desc">Rest day worked at 1.25×. Also use this for a Saturday that is your rest day</span></div>
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">🌅</span>
-                    <div><span class="pay-name">Sunday</span><span class="pay-desc">Working on a Sunday — Sunday premium applies</span></div>
+                    <div><span class="pay-name">Sunday</span><span class="pay-desc">Working on a Sunday — 1.5× rate applies</span></div>
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">⭐</span>
-                    <div><span class="pay-name">Bank holiday</span><span class="pay-desc">Working on a bank holiday — BH premium applies</span></div>
+                    <div><span class="pay-name">Bank holiday</span><span class="pay-desc">Working on a bank holiday — 1.25× rate applies</span></div>
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">🎁</span>
-                    <div><span class="pay-name">Boxing Day</span><span class="pay-desc">Dec 26 worked — special Boxing Day rate (if applicable)</span></div>
+                    <div><span class="pay-name">Boxing Day</span><span class="pay-desc">Dec 26 worked — special 3× rate applies</span></div>
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">📅</span>
-                    <div><span class="pay-name">Saturday</span><span class="pay-desc">Any Saturday shift — enhanced rate (1.25×) applies to all Saturday hours</span></div>
+                    <div><span class="pay-name">Saturday</span><span class="pay-desc">Rostered Saturday shifts — 1.25× rate. If Saturday is your rest day and you work it, use RDW instead</span></div>
                 </div>
             </div>
 
@@ -357,7 +358,7 @@
     </div>
 
     <div class="guide-footer">
-        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v9.x · This guide is an estimate tool — your payslip is the authoritative figure
+        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v11.x · This guide is an estimate tool — your payslip is the authoritative figure
     </div>
 </div>
 
