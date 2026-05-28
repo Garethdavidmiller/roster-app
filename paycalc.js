@@ -8,7 +8,7 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml } from './roster-data.js';
+import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
@@ -90,25 +90,7 @@ const CONFIG = {
   TAX_YEARS,             // imported from paycalc-calc.js
 };
 
-// ── G. MILLER ACTUAL PAYSLIP DATA ─────────────────────────────────────────────
-// Actual figures from Gareth Miller's 2025/26 payslips, keyed by ISO payday date.
-// gross = post-pension taxable pay (matches "Taxable Pay" line on payslip).
-// Only shown when 'G. Miller' is the logged-in member; no other member sees this.
-const MILLER_ACTUALS = {
-  '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.90, sl: 202.00, net: 3081.35, varPay: 1612.73 },
-  '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },
-  '2025-06-06': { gross: 4340.23, tax:  769.34, ni: 241.46, sl: 210.00, net: 3119.71, varPay: 1692.94 },
-  '2025-07-04': { gross: 4883.78, tax:  986.40, ni: 252.33, sl: 259.12, net: 3386.05, varPay: 2236.49 },
-  '2025-08-01': { gross: 4441.60, tax:  809.71, ni: 243.49, sl: 219.00, net: 3169.51, varPay: 1789.82 },
-  '2025-08-29': { gross: 5145.55, tax: 1090.80, ni: 257.57, sl: 282.00, net: 3515.18, varPay: 2492.25 },
-  '2025-09-26': { gross: 4810.43, tax:  957.20, ni: 250.87, sl:   0,    net: 3602.36, varPay: 2157.13 },
-  '2025-10-24': { gross: 5477.49, tax: 1224.00, ni: 264.21, sl:   0,    net: 3989.28, varPay: 2137.60 },
-  '2025-11-21': { gross: 4756.74, tax:  935.60, ni: 249.79, sl:   0,    net: 3571.35, varPay: 2007.92 },
-  '2025-12-19': { gross: 5245.44, tax: 1131.20, ni: 259.71, sl:   0,    net: 3854.67, varPay: 2496.61 },
-  '2026-01-16': { gross: 5048.39, tax: 1052.40, ni: 255.63, sl:   0,    net: 3740.36, varPay: 2195.89 },
-  '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
-  '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
-};
+// MILLER_ACTUALS imported from roster-data.js — payslip figures for G. Miller only.
 
 // Grade cache — lsGet is called in calculate() / calcHPP() on every keystroke; the
 // grade only changes when the user picks a different one in Settings.
@@ -166,8 +148,9 @@ function getPensionDefault(pObj) {
 }
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
-const SK = { rate:'cea_rate', rates:'cea_rates', code:'cea_code', sl:'cea_sl', pension:'cea_pension', setup:'cea_setup_done', ytdPay:'cea_ytd_pay', ytdTax:'cea_ytd_tax', grade:'cea_grade' };
-// cea_rates is a JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
+// Keys use the myb_pc_ prefix (previously cea_ — migrated in _migrateCeaKeys below).
+const SK = { rate:'myb_pc_rate', rates:'myb_pc_rates', code:'myb_pc_code', sl:'myb_pc_sl', pension:'myb_pc_pension', setup:'myb_pc_setup', ytdPay:'myb_pc_ytd_pay', ytdTax:'myb_pc_ytd_tax', grade:'myb_pc_grade' };
+// myb_pc_rates is a JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
 // Separate rate per tax year so updating for a pay award doesn't distort historical periods.
 
 // ── BACK PAY STATE ────────────────────────────────────────────────────────────
@@ -178,14 +161,14 @@ let _bpVarAmount = 0; // variable (HPP-accruing) portion of the back pay lump su
 let _bpPNum      = 0; // period number that receives the back pay (0 = none)
 
 
-// cea_hpp_est_2025_26  — running/final estimate, written on every calcHPP() call
-// cea_hpp_actual_2025_26 — confirmed amount from January payslip, written by user
-function hppEstKey(ty)    { return `cea_hpp_est_${ty.label.replace('/', '_')}`; }
-function hppActualKey(ty) { return `cea_hpp_actual_${ty.label.replace('/', '_')}`; }
+// myb_pc_hpp_est_2025_26  — running/final estimate, written on every calcHPP() call
+// myb_pc_hpp_actual_2025_26 — confirmed amount from January payslip, written by user
+function hppEstKey(ty)    { return `myb_pc_hpp_est_${ty.label.replace('/', '_')}`; }
+function hppActualKey(ty) { return `myb_pc_hpp_actual_${ty.label.replace('/', '_')}`; }
 // YTD (Year to Date) figures are specific to each tax year — storing them per-year
 // prevents 2025/26 YTD values from corrupting the cumulative tax calculation in 2026/27.
-function ytdPayKey(ty)    { return `cea_ytd_pay_${ty.label.replace('/', '_')}`; }
-function ytdTaxKey(ty)    { return `cea_ytd_tax_${ty.label.replace('/', '_')}`; }
+function ytdPayKey(ty)    { return `myb_pc_ytd_pay_${ty.label.replace('/', '_')}`; }
+function ytdTaxKey(ty)    { return `myb_pc_ytd_tax_${ty.label.replace('/', '_')}`; }
 
 // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
 // per browser session. Cleared on page reload. Uses tax year label as the key.
@@ -251,7 +234,7 @@ const HELP_CONTENT = {
     ],
   },
 };
-function periodKey(pNum) { return `cea_p${pNum}`; }
+function periodKey(pNum) { return `myb_pc_p${pNum}`; }
 
 // Period data schema — all fields that get saved per period
 function emptyPeriodData() {
@@ -720,7 +703,7 @@ function readFormData() {
     boxH: intVal('boxH'), boxM: intVal('boxM'),
     peer: +document.getElementById('peerVal').textContent,
     slSkip:   document.getElementById('slSkipCheck').checked,
-    otherAdj: parseFloat(document.getElementById('otherAdj').value) || 0,
+    otherAdj: (() => { const _r = Math.abs(parseFloat(document.getElementById('otherAdj').value) || 0); return _adjNegative ? -_r : _r; })(),
     pension:  parseFloat(document.getElementById('pensionAmt').value) || 0,
   };
 }
@@ -737,7 +720,9 @@ function writeFormData(d) {
   set('boxH', d.boxH || ''); set('boxM', d.boxM || '');
   document.getElementById('peerVal').textContent  = d.peer || 0;
   document.getElementById('slSkipCheck').checked  = d.slSkip || false;
-  document.getElementById('otherAdj').value        = d.otherAdj || '';
+  const _rawAdj = d.otherAdj ?? 0;
+  _adjNegative = _rawAdj < 0;
+  document.getElementById('otherAdj').value = _rawAdj ? Math.abs(_rawAdj).toFixed(2) : '';
   // Restore pension only when period data has a saved value; period-specific default is
   // applied by the caller (loadPeriodData or clearPeriod) when d.pension is null.
   // Loose != null so that pension = 0 (salary sacrifice opted out) is preserved correctly.
@@ -789,7 +774,6 @@ function loadPeriodData(pNum) {
     const pa = document.getElementById('pensionAmt');
     if (pa) pa.value = (_fullPension * getProRateFactor(_pObj)).toFixed(2);
   }
-  _adjNegative = (d.otherAdj || 0) < 0;
   updateAdjSign();
   // Auto-expand "more options" if this period has extras saved
   const hasExtras = d.slSkip || d.otherAdj;
@@ -816,10 +800,17 @@ function updateSaveStatus(pNum) {
   if (raw) {
     let d;
     try { d = JSON.parse(raw); } catch(e) { d = null; }
-    if (d && !isDataEmpty(d)) {
-      el.textContent = '✓ Entries saved for this period';
-      el.className   = 'save-status saved';
-      return;
+    if (d) {
+      const _pObj = getPeriods().find(x => x.num === pNum);
+      const _defaultPension = _pObj
+        ? parseFloat((getPensionDefault(_pObj) * getProRateFactor(_pObj)).toFixed(2))
+        : getPensionDefault();
+      const _hasCustomPension = d.pension != null && Math.abs(d.pension - _defaultPension) > 0.005;
+      if (!isDataEmpty(d) || _hasCustomPension) {
+        el.textContent = '✓ Entries saved for this period';
+        el.className   = 'save-status saved';
+        return;
+      }
     }
   }
   el.textContent = 'No entries saved for this period';
@@ -894,7 +885,7 @@ function clearRosterSuggestedAll() {
 
 // ── SETTINGS SAVE / LOAD ──────────────────────────────────────────────────────
 // settingsKey: per-tax-year "confirmed" flag, separate from the raw saved values.
-function settingsKey(ty) { return `cea_setup_${ty.label.replace('/', '_')}`; }
+function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '_')}`; }
 
 // saveSettings: persists all field values. Called on every input change (auto-save).
 // Does NOT set the confirmed flag or collapse the card — that's confirmSettings().
@@ -965,8 +956,54 @@ function confirmSettings() {
   calculate();
 }
 
-function loadSettings() {
-  // Migrate legacy single rate to per-tax-year rates if not already done
+// ── KEY MIGRATION ─────────────────────────────────────────────────────────────
+// Renames all cea_ prefixed localStorage keys to myb_pc_ in one pass.
+// Idempotent: guarded by myb_pc_cea_migrated flag so it runs once per device.
+function _migrateCeaKeys() {
+  if (lsGet('myb_pc_cea_migrated')) return;
+
+  const migrate = (oldKey, newKey) => {
+    const val = lsGet(oldKey);
+    if (val !== null && !lsGet(newKey)) { lsSet(newKey, val); lsDel(oldKey); }
+    else if (val !== null) { lsDel(oldKey); } // new key already present — just remove old
+  };
+
+  // Fixed single keys
+  migrate('cea_rate',    SK.rate);
+  migrate('cea_rates',   SK.rates);
+  migrate('cea_code',    SK.code);
+  migrate('cea_sl',      SK.sl);
+  migrate('cea_pension', SK.pension);
+  migrate('cea_setup',   SK.setup);
+  migrate('cea_ytd_pay', SK.ytdPay);
+  migrate('cea_ytd_tax', SK.ytdTax);
+  migrate('cea_grade',   SK.grade);
+  migrate('cea_pension_v882_migrated', 'myb_pc_pension_v882_migrated');
+  migrate('cea_pay_welcome_shown',     'myb_pc_pay_welcome_shown');
+
+  // Per-period keys: cea_p{N} → myb_pc_p{N}
+  getPeriods().forEach(p => migrate(`cea_p${p.num}`, periodKey(p.num)));
+
+  // Per-tax-year keys
+  CONFIG.TAX_YEARS.forEach(ty => {
+    const slug = ty.label.replace('/', '_');
+    migrate(`cea_setup_${slug}`,      `myb_pc_setup_${slug}`);
+    migrate(`cea_hpp_est_${slug}`,    `myb_pc_hpp_est_${slug}`);
+    migrate(`cea_hpp_actual_${slug}`, `myb_pc_hpp_actual_${slug}`);
+    migrate(`cea_ytd_pay_${slug}`,    `myb_pc_ytd_pay_${slug}`);
+    migrate(`cea_ytd_tax_${slug}`,    `myb_pc_ytd_tax_${slug}`);
+  });
+
+  lsSet('myb_pc_cea_migrated', '1');
+}
+
+// ── ALL DATA MIGRATIONS ───────────────────────────────────────────────────────
+// Called once at startup before loadSettings(). Order matters: key prefix
+// migration runs first so all subsequent migrations read the new key names.
+function runMigrations() {
+  _migrateCeaKeys();
+
+  // Migration: legacy single rate → per-tax-year rates
   if (!lsGet(SK.rates)) {
     const legacyRate = lsGet(SK.rate);
     if (legacyRate) {
@@ -975,6 +1012,75 @@ function loadSettings() {
       lsSet(SK.rates, JSON.stringify(rates));
     }
   }
+
+  // Migration: legacy global YTD values (myb_pc_ytd_pay / ytd_tax) to per-year keys
+  const legacyYtdPay = lsGet(SK.ytdPay);
+  const legacyYtdTax = lsGet(SK.ytdTax);
+  if (legacyYtdPay || legacyYtdTax) {
+    const firstTy = CONFIG.TAX_YEARS[0];
+    if (!lsGet(ytdPayKey(firstTy))) lsSet(ytdPayKey(firstTy), legacyYtdPay || '');
+    if (!lsGet(ytdTaxKey(firstTy))) lsSet(ytdTaxKey(firstTy), legacyYtdTax || '');
+    lsDel(SK.ytdPay);
+    lsDel(SK.ytdTax);
+  }
+
+  // Migration: legacy global hppActual (cea_hpp_actual) to per-year key
+  const legacyHppActual = lsGet('cea_hpp_actual');
+  if (legacyHppActual) {
+    const firstTy = CONFIG.TAX_YEARS[0];
+    if (!lsGet(hppActualKey(firstTy))) lsSet(hppActualKey(firstTy), legacyHppActual);
+    lsDel('cea_hpp_actual');
+  }
+
+  // Migration (v8.88): two-part pension localStorage cleanup.
+  //
+  // Part A — pension rate cut-over (all users, P51+):
+  //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
+  //   default) is updated to £147.36. Only the exact old default is patched — custom
+  //   values are untouched.
+  //
+  // Part B — joining-period anchor bug (joiners only):
+  //   ANCHOR_DATE was midnight before v8.88; it must be noon to maintain the
+  //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
+  //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
+  //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
+  //   value (£77.39) is also stale. All three are fingerprint values that cannot
+  //   plausibly be intentional custom entries.
+  if (!lsGet('myb_pc_pension_v882_migrated')) {
+    const _pensionCutover = new Date(2026, 4, 8);
+    const _member = getLoggedMember();
+    const _joiningP = _member?.startDate
+      ? getPeriods().find(p => _member.startDate > p.start && _member.startDate <= p.cutoff)
+      : null;
+
+    getPeriods().forEach(p => {
+      const raw = lsGet(periodKey(p.num));
+      if (!raw) return;
+      try {
+        const d = JSON.parse(raw);
+        let changed = false;
+        if (p.payday >= _pensionCutover && d.pension === 154.77) {
+          d.pension = 147.36;
+          changed = true;
+        }
+        if (_joiningP && p.num === _joiningP.num && !changed) {
+          const _correctPension = parseFloat(
+            (getPensionDefault(p) * calcProRateFactor(_member.startDate, p.start, p.cutoff)).toFixed(2)
+          );
+          const _stale = new Set([71.86, 68.42, 77.39]);
+          if (_stale.has(d.pension) && d.pension !== _correctPension) {
+            d.pension = _correctPension;
+            changed = true;
+          }
+        }
+        if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
+      } catch(e) {}
+    });
+    lsSet('myb_pc_pension_v882_migrated', '1');
+  }
+}
+
+function loadSettings() {
   // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
   // no need to set it here; the field will update when buildPeriodSelect fires.
   const code    = lsGet(SK.code);
@@ -1000,89 +1106,16 @@ function loadSettings() {
     invalidateGrade();
   }
   document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
-  // Migrate legacy global YTD values (cea_ytd_pay / cea_ytd_tax) to per-year keys
-  const legacyYtdPay = lsGet(SK.ytdPay);
-  const legacyYtdTax = lsGet(SK.ytdTax);
-  if (legacyYtdPay || legacyYtdTax) {
-    const firstTy = CONFIG.TAX_YEARS[0];
-    if (!lsGet(ytdPayKey(firstTy))) lsSet(ytdPayKey(firstTy), legacyYtdPay || '');
-    if (!lsGet(ytdTaxKey(firstTy))) lsSet(ytdTaxKey(firstTy), legacyYtdTax || '');
-    lsDel(SK.ytdPay);
-    lsDel(SK.ytdTax);
-  }
   // Settings card starts closed in HTML. Open it only for first-time users.
   // (Previously started open and was removed for returning users — caused a visible flash.)
   if (!done) {
     document.getElementById('settingsToggle').classList.add('open');
     document.getElementById('settingsBody').classList.add('open');
   } else {
-    // Migration: mark all tax years confirmed if global setup flag already set (v1.13+)
+    // Mark all tax years confirmed if the global setup flag was already set (v1.13+)
     CONFIG.TAX_YEARS.forEach(ty => {
-      if (!lsGet(settingsKey(ty))) {
-        lsSet(settingsKey(ty), '1');
-      }
+      if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
     });
-  }
-  // Migration: copy legacy global hppActual (cea_hpp_actual) to per-year key if needed
-  const legacyHppActual = lsGet('cea_hpp_actual');
-  if (legacyHppActual) {
-    const firstTy = CONFIG.TAX_YEARS[0];
-    if (!lsGet(hppActualKey(firstTy))) {
-      lsSet(hppActualKey(firstTy), legacyHppActual);
-    }
-    lsDel('cea_hpp_actual');
-  }
-
-  // Migration (v8.88): two-part pension localStorage cleanup.
-  //
-  // Part A — pension rate cut-over (all users, P51+):
-  //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
-  //   default) is updated to £147.36. Only the exact old default is patched — custom
-  //   values are untouched.
-  //
-  // Part B — joining-period anchor bug (joiners only):
-  //   ANCHOR_DATE was midnight before v8.88; it must be noon to maintain the
-  //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
-  //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
-  //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
-  //   value (£77.39) is also stale. All three are fingerprint values that cannot
-  //   plausibly be intentional custom entries.
-  if (!lsGet('cea_pension_v882_migrated')) {
-    const _pensionCutover = new Date(2026, 4, 8);
-    const _member = getLoggedMember();
-    const _joiningP = _member?.startDate
-      ? getPeriods().find(p => _member.startDate > p.start && _member.startDate <= p.cutoff)
-      : null;
-
-    getPeriods().forEach(p => {
-      const raw = lsGet(periodKey(p.num));
-      if (!raw) return;
-      try {
-        const d = JSON.parse(raw);
-        let changed = false;
-
-        // Part A: full old-rate default on P51+
-        if (p.payday >= _pensionCutover && d.pension === 154.77) {
-          d.pension = 147.36;
-          changed = true;
-        }
-
-        // Part B: stale joining-period pro-rated values (all three known fingerprints)
-        if (_joiningP && p.num === _joiningP.num && !changed) {
-          const _correctPension = parseFloat(
-            (getPensionDefault(p) * calcProRateFactor(_member.startDate, p.start, p.cutoff)).toFixed(2)
-          );
-          const _stale = new Set([71.86, 68.42, 77.39]); // auto-computed old values
-          if (_stale.has(d.pension) && d.pension !== _correctPension) {
-            d.pension = _correctPension;
-            changed = true;
-          }
-        }
-
-        if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
-      } catch(e) {}
-    });
-    lsSet('cea_pension_v882_migrated', '1');
   }
 }
 
@@ -1441,6 +1474,15 @@ function calculate() {
   const _calcGrade = getGrade();
   const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
   const rate = numVal('hourlyRate') || _calcDefaultRate;
+  const _rateWarn = document.getElementById('rateWarn');
+  if (_rateWarn) {
+    if (numVal('hourlyRate') > 100)
+      _rateWarn.textContent = `⚠ Looks like a typo — did you mean £${(numVal('hourlyRate') / 100).toFixed(2)}/hr?`;
+    else if (numVal('hourlyRate') > 0 && numVal('hourlyRate') < 15)
+      _rateWarn.textContent = '⚠ Rate seems low — double-check your payslip';
+    else
+      _rateWarn.textContent = '';
+  }
   updateBadges(rate);
   const r125 = rate * 1.25;
   const r150 = rate * 1.50;
@@ -1460,7 +1502,8 @@ function calculate() {
   const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
   const _effContr = getEffectiveContr(_curP);
-  const otherAdj  = parseFloat(document.getElementById('otherAdj').value) || 0;
+  const _adjRaw   = Math.abs(parseFloat(document.getElementById('otherAdj').value) || 0);
+  const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
 
   // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
   const { gross, satCapped, normHrs, bhCapped, nonBhNorm,
@@ -2136,6 +2179,7 @@ function toggleBD() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+runMigrations();
 loadSettings();
 buildPeriodSelect();
 
@@ -2318,11 +2362,15 @@ document.getElementById('pensionAmt').addEventListener('input',  () => { saveSet
 // Per-period overrides
 document.getElementById('slSkipCheck').addEventListener('change', autosave);
 document.getElementById('otherAdj').addEventListener('input', () => {
-  // Sync _adjNegative from what the user typed (but don't reset it when they
-  // clear the field — they may have just pressed − to mark intent before typing).
-  const v = parseFloat(document.getElementById('otherAdj').value);
-  if (v < 0) _adjNegative = true;
-  else if (v > 0) _adjNegative = false;
+  // If the user manually typed a negative number, honour it: set the sign flag
+  // and normalise the field to the absolute value so the ± button is authoritative.
+  const raw = document.getElementById('otherAdj').value;
+  const v   = parseFloat(raw);
+  if (v < 0) {
+    _adjNegative = true;
+    document.getElementById('otherAdj').value = Math.abs(v).toFixed(2);
+  }
+  // Positive typed value: leave _adjNegative alone — the ± button is authoritative.
   updateAdjSign();
   autosave();
 });
@@ -2338,7 +2386,7 @@ document.getElementById('otherAdj').addEventListener('input', () => {
     const val   = parseFloat(input.value) || 0;
     // Only negate the value when it is nonzero — when zero, the button marks
     // intent so the next number typed will be shown as negative.
-    if (val !== 0) input.value = (Math.abs(val) * (_adjNegative ? -1 : 1)).toFixed(2);
+    if (val !== 0) input.value = Math.abs(val).toFixed(2);
     updateAdjSign();
     autosave();
   }
@@ -2559,7 +2607,7 @@ Device: ${navigator.userAgent}
 // Shown once, on the very first visit to the pay calculator. Never shown again.
 // Dismissed by the ✕ button or clicking the overlay; guide link also dismisses it.
 (function () {
-  const WELCOME_KEY = 'cea_pay_welcome_shown';
+  const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
   const lb       = document.getElementById('welcomeLightbox');
   const content  = document.getElementById('welcomeLightboxContent');
   const closeBtn = document.getElementById('welcomeLightboxClose');
