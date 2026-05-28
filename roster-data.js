@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '11.32';
+export const APP_VERSION = '11.33';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -65,7 +65,7 @@ export const teamMembers = [
     { name: 'A. Hared',                currentWeek: 2,  rosterType: 'main',       role: 'CEA', flags: ['🇸🇴', '🇬🇧'] },
     { name: 'G. Miller',               currentWeek: 3,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'M. Robson',               currentWeek: 4,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
-    { name: 'C. Matthews',             currentWeek: 5,  rosterType: 'main',       role: 'CEA', hidden: true, flags: ['🇬🇧'] }, // Vacancy — hidden from dropdown
+    { name: 'J. Davies',               currentWeek: 5,  rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 4, 5), proRatedAL: { 2026: 22 }, flags: ['🇬🇧'] },
     { name: 'I. Cooper',               currentWeek: 6,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'A. Panchal',              currentWeek: 7,  rosterType: 'main',       role: 'CEA', flags: ['🇮🇳'] },
     { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
