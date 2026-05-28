@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 11.31 -->
+<!-- MYB Roster Calendar - Version 11.32 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -1135,12 +1135,13 @@
         }
         @media (min-width: 900px) and (max-width: 1024px) {
             /* On tablet widths cap the team table so 7 columns don't stretch too wide. */
-            .team-view-container { max-width: 1040px; margin: 0 auto; }
+            .team-view-container { width: 100%; max-width: 1040px; margin: 0 auto; }
         }
         @media (min-width: 1025px) {
             /* Desktop: body has overflow:hidden so the team container must own its
                own scroll path, otherwise the table is clipped on short viewports. */
             .team-view-container {
+                width: 100%; /* margin:0 auto suppresses align-self:stretch — restore full width explicitly */
                 max-width: var(--page-max-width);
                 margin: 0 auto;
                 flex: 1;
