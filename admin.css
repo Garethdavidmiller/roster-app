@@ -1,0 +1,2077 @@
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background: var(--primary-blue);
+            min-height: 100vh;  /* Fallback for browsers without dvh support */
+            min-height: 100dvh; /* dvh avoids mobile browser chrome layout jump; overrides vh in modern browsers */
+            padding-top:    max(20px, env(safe-area-inset-top));
+            padding-bottom: max(20px, env(safe-area-inset-bottom));
+            padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+            padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+            overflow-x: hidden; overflow-x: clip; /* hidden = iOS ≤15 fallback; clip avoids scroll container that breaks sticky */
+            overscroll-behavior: none;
+            color: var(--text-dark);
+        }
+        @media (max-width: 768px) {
+            body {
+                padding-left:  max(10px, env(safe-area-inset-left));
+                padding-right: max(10px, env(safe-area-inset-right));
+            }
+        }
+
+        /* Hidden until JS confirms authentication — prevents flash of admin UI if module fails */
+        /* overflow-x: clip clips any child that overflows the container at the container
+           boundary — prevents overflow from bleeding into body's 16px right padding
+           (which would hide the blue edge). clip is safe: no scroll container created. */
+        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 10px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
+        body.auth-ready .container { display: grid; }
+        /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
+        .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
+
+
+        /* Small ? button inside each card heading */
+        .btn-card-tips {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 20px; height: 20px;
+            border-radius: 50%;
+            border: 1.5px solid var(--border-mid);
+            background: var(--bg-faint);
+            color: var(--text-light);
+            font-size: 11px; font-weight: 700;
+            cursor: pointer;
+            vertical-align: middle;
+            flex-shrink: 0;
+            margin-left: 5px;
+            touch-action: manipulation;
+            transition: background 0.15s, border-color 0.15s, color 0.15s;
+            position: relative;
+        }
+        /* Invisible expanded hit area — the visible button is tiny but the tap region
+           extends 12px in every direction so it's reliably tappable. */
+        .btn-card-tips::before {
+            content: '';
+            position: absolute;
+            inset: -12px;
+        }
+        .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
+        @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); } }
+
+        /* ---- Tips lightbox ---- */
+        /* #tipsLightbox uses .lb-overlay; unique: extra padding for white-card feel */
+        #tipsLightbox { padding: 20px; }
+        #tipsLightboxContent {
+            background: white;
+            border-radius: var(--radius-lg);
+            padding: 28px 28px 24px;
+            max-width: 360px;
+            width: 100%;
+            max-height: 85vh;
+            box-shadow: var(--shadow-3);
+        }
+
+        .tips-lb-title {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--primary-blue);
+            margin-bottom: 16px;
+        }
+        .tips-lb-section {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-light);
+            margin: 14px 0 6px;
+        }
+        .tips-lb-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 13px;
+            color: var(--text-dark);
+            line-height: 1.5;
+            padding: 5px 0;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .tips-lb-item:last-child { border-bottom: none; }
+        .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
+        #tipsLightboxClose { color: rgba(0,0,0,0.35); }
+        @media (hover: hover) and (pointer: fine) {
+            #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
+        }
+
+        /* ---- Cards ---- */
+        .card {
+            background: white;
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-1);
+            overflow: hidden;
+            container-type: inline-size;
+        }
+
+        .card-header {
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border-light);
+            padding: 11px 16px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 3px;
+        }
+
+        .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); }
+        .card-header .hint { font-size: 11px; color: var(--text-light); }
+
+        /* Container query: card-header text scales when card is wide enough (≥440px).
+           Replaces the two @media rules below — narrow right-column cards stay compact. */
+        @container (min-width: 440px) {
+            .card-header h2   { font-size: 14px; }
+            .card-header .hint { font-size: 12px; }
+        }
+
+        .card-body { padding: 12px 16px; }
+
+        /* ---- Member context bar — single member selector spanning all sections ---- */
+        .member-context-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: var(--primary-blue);
+            border-radius: var(--radius-md);
+            padding: 6px 12px;
+            margin-bottom: 0;
+        }
+        .member-context-bar label {
+            font-size: 11px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.65);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-touch-callout: none;
+        }
+        .member-context-bar select {
+            flex: 1;
+            background: rgba(255,255,255,0.10);
+            border: 1.5px solid rgba(255,255,255,0.25);
+            color: white;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .member-context-bar select:focus-visible { border-color: var(--accent-gold); }
+        .member-context-bar select option { background: white; color: var(--text-dark); }
+
+        /* Read-only member display shown inside AL form once member is chosen */
+        .member-readonly-display {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-mid);
+            padding: 7px 0;
+        }
+
+        /* ---- Selectors row (week nav only) ---- */
+        .selectors {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            align-items: end;
+            margin-bottom: 12px;
+        }
+
+        /* ---- Annual Leave balance banner ---- */
+        .al-banner {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--al-light, #e0f2f1);
+            border: 1.5px solid var(--al, #00897b);
+            border-radius: 8px;
+            padding: 9px 14px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            color: var(--primary-blue);
+        }
+        .al-banner .al-banner-icon { font-size: 16px; flex-shrink: 0; }
+        /* Four stats on one row — flex with dividers, matching the index lightbox layout */
+        .al-banner-numbers { display: flex; align-items: stretch; flex: 1; }
+        .al-banner-divider { width: 1px; background: var(--al, #00897b); opacity: 0.3; flex-shrink: 0; }
+        .al-banner-stat { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0 4px; }
+        .al-banner-stat .stat-val {
+            font-size: 20px;
+            font-weight: 800;
+            line-height: 1;
+            color: var(--al, #00897b);
+        }
+        .al-banner-stat .stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-mid); text-transform: uppercase; letter-spacing: 0.4px; }
+        .al-banner-stat .stat-breakdown { font-size: 9px; color: var(--text-mid); opacity: 0.75; white-space: nowrap; }
+        .al-banner.al-banner-low .al-banner-stat.stat-remaining .stat-val { color: var(--al-low); }
+        .al-banner.al-banner-warning .al-banner-stat.stat-remaining .stat-val { color: var(--al-warning); }
+        .al-banner-warning-msg {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--al-warning);
+            background: var(--al-warning-bg);
+            border-radius: 4px;
+            padding: 2px 7px;
+            margin-left: auto;
+        }
+
+        .field-group label {
+            display: block;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 5px;
+        }
+
+        select, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border-light);
+            border-radius: 8px;
+            /* 16px prevents iOS Safari from zooming the page on focus */
+            font-size: 16px;
+            color: var(--text-dark);
+            background: white;
+            -webkit-appearance: none;
+            appearance: none;
+            font-family: inherit;
+            transition: border-color 0.12s;
+        }
+
+        /* iOS Safari collapses date inputs when -webkit-appearance:none removes native chrome */
+        input[type="date"] {
+            min-height: 44px;
+        }
+
+        /* Restore dropdown arrow removed by appearance: none */
+        select {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            padding-right: 30px;
+            text-align: center;
+            text-align-last: center;
+        }
+
+        select:focus-visible, input:focus-visible {
+            border-color: var(--primary-blue);
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+        }
+
+        select:disabled, input:disabled {
+            background: var(--bg-faint);
+            color: var(--text-light);
+            cursor: not-allowed;
+        }
+
+        /* The member select in the context bar is locked for non-admins (they can only view
+           their own data), but it should look like a normal display box — not a greyed-out
+           disabled input. Higher specificity (0,2,1) beats select:disabled (0,1,1). */
+        #fieldMember:disabled {
+            background: white;
+            color: var(--text-dark);
+            cursor: default;
+            opacity: 1;
+        }
+
+        /* ---- Week navigation ---- */
+        .week-nav {
+            display: flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .week-nav-btn {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            font-size: 16px;
+            font-weight: 700;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: background 0.12s;
+        }
+
+        @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
+
+        .week-nav-today {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            font-size: 10px;
+            margin-left: 4px;
+        }
+        @media (hover: hover) and (pointer: fine) { .week-nav-today:hover { background: var(--accent-gold-dark); } }
+
+        .week-date-wrap {
+            flex: 1;
+            padding: 0 4px;
+            position: relative;
+            min-width: 0; /* allow flex shrink below min-content so the ● button always has room */
+        }
+        .week-nav-label {
+            display: block;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dark);
+            padding: 7px 8px;
+            background: white;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            white-space: nowrap;
+            overflow: hidden;        /* clip date text if wrap is narrower than content */
+            text-overflow: ellipsis; /* show … rather than abrupt cut */
+            pointer-events: none;
+            user-select: none;
+        }
+        /* Calendar icon sits at the right edge of the label — purely decorative indicator
+           that the date is tappable. The invisible <input type="date"> overlay does the work. */
+        .week-nav-label::after {
+            content: ' 📅';
+            font-size: 13px;
+            opacity: 0.55;
+        }
+        .week-date-wrap input[type="date"] {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        /* Blue border when the displayed week is the current week */
+        .week-nav-label.is-current-week {
+            border-color: var(--accent-gold);
+            background: var(--week-current-bg);
+            color: var(--primary-blue);
+        }
+
+        /* ---- Shift badges ---- */
+        /* shift badge base + colours live in shared.css */
+
+        /* ---- Bulk bar ---- */
+        .bulk-bar {
+            background: var(--bg-faint);
+            border: 1px solid var(--border-light);
+            border-radius: 10px;
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            display: none;
+        }
+
+        .bulk-bar-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        /* Numbered-step rows inside the bulk bar */
+        .bulk-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .bulk-step-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            white-space: nowrap;
+            padding-top: 6px;
+            min-width: 70px;
+        }
+
+        .bulk-select-group {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .bulk-sel-count {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            background: var(--blue-light);
+            border-radius: 10px;
+            padding: 2px 8px;
+            white-space: nowrap;
+            align-self: center;
+        }
+
+        .btn-bulk-select {
+            background: white;
+            border: 1.5px solid var(--border-light);
+            color: var(--text-mid);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.12s;
+        }
+
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
+
+        .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+
+        /* Type pills — outline when idle, filled when active */
+        .type-pill-btn {
+            border: 1.5px solid currentColor;
+            background: transparent;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 10px;
+            border-radius: 20px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.12s;
+            font-family: inherit;
+        }
+
+        @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover { opacity: 0.75; } }
+        .type-pill-btn.active { color: white; }
+
+        .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
+        .pill-shift        { color: var(--ot);       } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
+        .pill-rdw          { color: var(--rdw-text); } .pill-rdw.active          { background: var(--rdw);      border-color: var(--rdw);      }
+        .pill-annual_leave { color: var(--al);       } .pill-annual_leave.active { background: var(--al);       border-color: var(--al);       }
+        .pill-sick         { color: var(--absence);  } .pill-sick.active         { background: var(--absence);  border-color: var(--absence);  }
+        .pill-correction   { color: var(--orange);   } .pill-correction.active   { background: var(--orange);   border-color: var(--orange);   }
+        .pill-swap         { color: var(--blue-sky); } .pill-swap.active  { background: var(--blue-sky); border-color: var(--blue-sky); }
+        /* Legacy pill colours — used for old Saved Changes records only, no active buttons */
+        .pill-allocated    { color: var(--green);    }
+        .pill-overtime     { color: var(--ot);       }
+
+        .bulk-time-group {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .bulk-time-group .time-input {
+            width: 105px;
+            padding: 5px 8px;
+            font-variant-numeric: tabular-nums;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        .bulk-time-sep { font-size: 13px; color: var(--text-light); }
+
+        .btn-bulk-apply {
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 7px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 7px 14px;
+            margin-top: 2px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.12s;
+            font-family: inherit;
+        }
+
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover { background: var(--primary-blue-dark); } }
+
+        /* ---- Week grid ---- */
+        .week-grid {
+            border: 1.5px solid var(--border-light);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 14px;
+            position: relative; /* contains absolutely-positioned carousel panels during swipe */
+            touch-action: pan-y; /* allow vertical scroll; let JS handle horizontal swipe */
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+        }
+
+        /* Swipe carousel — mirrors .carousel-panel / .calendar-container in index.html.
+           .week-panel          — current (in-flow) panel; defines weekGrid height.
+           .week-carousel-panel — adjacent pre-built panel, absolutely positioned off-screen. */
+        .week-panel {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .week-carousel-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .week-grid-header {
+            display: grid;
+            grid-template-columns: 32px 100px 92px 1fr auto;
+            gap: 8px;
+            padding: 7px 12px;
+            background: var(--primary-blue);
+            color: rgba(255,255,255,0.5);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* On narrow screens keep the header but collapse to 3 columns (checkbox/day/base) */
+        @media (max-width: 680px) {
+            .week-grid-header {
+                grid-template-columns: 32px 1fr auto;
+            }
+            .week-grid-header .hdr-pills,
+            .week-grid-header .hdr-time { display: none; }
+        }
+
+        /* day-row: checkbox | day | base | type pills | time inputs */
+        .day-row {
+            display: grid;
+            grid-template-columns: 32px 100px 92px 1fr auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border-light);
+            transition: background 0.1s;
+        }
+
+        .day-row:last-child { border-bottom: none; }
+
+        /* Pre-selected (checkbox ticked, no type yet) — gold left-border aligns with brand */
+        .day-row.selected   { background: rgba(245,200,0,0.08); border-left: 4px solid var(--accent-gold); }
+        /* Active (type is set — ready to save) */
+        .day-row.active     { background: var(--today-print); }
+        /* Has an existing Firestore override — will overwrite */
+        .day-row.has-override { background: var(--row-override-bg); border-left: 4px solid var(--orange); }
+        .day-row.has-override.active { background: var(--row-override-active-bg); }
+
+        /* More breathing room when a row is expanded */
+        .day-row.active, .day-row.selected { padding-top: 10px; padding-bottom: 10px; }
+
+        /* Narrow: stack */
+        @media (max-width: 680px) {
+            .day-row {
+                grid-template-columns: 32px 1fr auto;
+                grid-template-rows: auto auto auto;
+                gap: 8px;
+            }
+            .day-row .col-check  { grid-column: 1; grid-row: 1; }
+            .day-row .col-day    { grid-column: 2; grid-row: 1; }
+            .day-row .col-base   { grid-column: 3; grid-row: 1; justify-self: end; }
+            .day-row .col-pills  { grid-column: 1 / -1; grid-row: 2; display: flex; }
+            .day-row .col-time   { grid-column: 1 / -1; grid-row: 3; }
+            /* Pills and time hidden unless pre-selected or type-active */
+            .day-row:not(.active):not(.selected) .col-pills { display: none; }
+            .day-row:not(.active):not(.selected) .col-time  { display: none; }
+
+            /* Inline column labels on mobile so users know what they're looking at */
+            /* Shared label style for inline col labels injected via ::before */
+            .day-row.active .col-pills::before,
+            .day-row.selected .col-pills::before,
+            .day-row.active .col-time::before {
+                font-size: 10px;
+                font-weight: 700;
+                color: var(--text-light);
+                text-transform: uppercase;
+                letter-spacing: 0.4px;
+                align-self: center;
+                margin-right: 6px;
+                flex-shrink: 0;
+            }
+            .day-row.active .col-pills::before,
+            .day-row.selected .col-pills::before { content: 'Type:'; }
+            .day-row.active .col-time::before    { content: 'Time:'; }
+
+            /* Hairline separator between day-header row and the type/time controls */
+            .day-row.active .col-pills,
+            .day-row.selected .col-pills {
+                padding-top: 6px;
+                border-top: 1px solid rgba(0,0,0,0.08);
+            }
+
+            /* Fixed-type rows: switch visibility:hidden → display:none so hidden inputs
+               don't consume layout space, preventing the time-note text from overflowing
+               into the note button column */
+            .day-row.active.fixed-type .col-time .time-input,
+            .day-row.active.fixed-type .col-time .time-sep { display: none; }
+        }
+
+        /* Desktop: widen day and base columns so the date + badge have room */
+        @media (min-width: 681px) {
+            .week-grid-header,
+            .day-row { grid-template-columns: 32px 130px 100px 1fr auto; }
+        }
+
+        .col-check {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .col-check input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: var(--primary-blue);
+        }
+
+        .col-day .day-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+
+        .col-day .day-date {
+            font-size: 11px;
+            color: var(--text-light);
+            display: block;
+        }
+
+        /* Special day badges — ⭐ ✂️ 💷 🎄 🐣 🌙 ☪️ 🕌 */
+        .day-badge {
+            font-size: 11px;
+            margin-left: 4px;
+            vertical-align: middle;
+            cursor: default;
+        }
+
+        .col-pills {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Per-row type pills — same style as bulk pills */
+        .col-pills .type-pill-btn {
+            font-size: 11px;
+            padding: 4px 9px;
+        }
+
+        .col-time {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+
+        .time-hint {
+            display: none;
+            flex-basis: 100%;
+            font-size: 10px;
+            color: var(--text-faint);
+            padding-left: 2px;
+        }
+        .day-row.active:not(.fixed-type) .time-hint { display: block; }
+
+        /* Selector includes element type (specificity 0,2,1) to beat the global
+           input[type="text"]{width:100%} rule which scores (0,1,1) */
+        .col-time input.time-input {
+            flex: 0 0 90px;
+            width: 90px;
+            max-width: 90px;
+            min-width: 0;
+            padding: 5px 7px;
+            font-variant-numeric: tabular-nums;
+            text-align: center;
+            letter-spacing: 0.5px;
+        }
+
+        .col-time .time-sep { font-size: 12px; color: var(--text-light); flex-shrink: 0; }
+
+        /* Time input inline validation */
+        .time-input.input-error {
+            border-color: var(--error-red) !important;
+            background: var(--error-bg) !important;
+        }
+        .time-error-msg {
+            display: none;
+            font-size: 10px;
+            color: var(--error-red);
+            padding-top: 2px;
+            flex-basis: 100%;
+        }
+        .time-input.input-error ~ .time-error-msg,
+        .col-time:has(.time-input.input-error) .time-error-msg { display: block; }
+
+        /* Hide time area when row is not active */
+        .day-row:not(.active) .col-time { visibility: hidden; }
+        /* Fixed types (AL, Set as Rest Day): hide inputs, show note instead */
+        .day-row.active.fixed-type .col-time .time-input,
+        .day-row.active.fixed-type .col-time .time-sep { visibility: hidden; }
+        .time-note { display: none; font-size: 11px; color: var(--text-light); font-style: italic; }
+        .day-row.active.fixed-type .time-note { display: block; }
+
+        /* RD disambiguation hint — shown when Shift is chosen on a base rest day */
+        .col-rd-hint {
+            grid-column: 1 / -1;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 4px;
+            background: var(--rd-hint-bg);
+            color: var(--rd-hint-text);
+            line-height: 1.5;
+        }
+        .col-rd-hint[hidden] { display: none; }
+
+
+
+        /* "Has override" badge — shown when a day already has a saved override.
+           Turns blue-teal when the row is active (about to replace that override). */
+        .overwrite-badge {
+            font-size: 10px;
+            font-weight: 700;
+            background: var(--orange);
+            color: white;
+            border: none;
+            padding: 2px 7px;
+            border-radius: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-left: 4px;
+            vertical-align: middle;
+            white-space: nowrap;
+            transition: background 0.15s;
+        }
+        .day-row.active .overwrite-badge {
+            background: var(--blue-sky);
+        }
+
+        /* Today's row — subtle blue left border so it's easy to spot */
+        .day-row.today .col-day .day-name { color: var(--accent-gold-dark); font-weight: 800; }
+        .day-row.today .col-day .day-date { color: var(--accent-gold-dark); }
+        .day-row.today:not(.active):not(.has-override):not(.selected) { background: var(--today-print); }
+
+        /* Row with a validation error (e.g. time not filled) — highlighted red */
+        .day-row.row-error { background: var(--error-bg) !important; border-left: 4px solid var(--error-red) !important; }
+
+        .week-empty {
+            text-align: center;
+            padding: 32px 20px;
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        /* ---- Save button ---- */
+        .btn-save {
+            width: 100%;
+            padding: 13px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 800;
+            cursor: pointer;
+            letter-spacing: 0.2px;
+            transition: background 0.15s, transform 0.1s;
+            font-family: inherit;
+        }
+
+        @media (hover: hover) and (pointer: fine) { .btn-save:hover { background: var(--primary-blue-dark); } }
+        .btn-save:active  { transform: scale(0.98); }
+        .btn-save:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+        /* ---- Feedback ---- */
+        .feedback {
+            display: none;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-top: 12px;
+            line-height: 1.4;
+        }
+
+        .feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
+        .feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
+
+        /* ---- Annual Leave over-limit confirm bar (fixed bottom sheet) ---- */
+        .al-confirm-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            z-index: 7600; /* above saveToast (7500), below lightboxes (8000) */
+            box-sizing: border-box;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            background: var(--al-confirm-bg);
+            border-top: 2px solid var(--al-confirm-accent);
+            border-radius: 14px 14px 0 0;
+            padding: 16px 18px max(16px, env(safe-area-inset-bottom));
+            font-size: 13px;
+            color: var(--primary-blue);
+            box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
+            visibility: hidden;
+            transform: translateY(100%);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                        visibility 0s linear 0.25s;
+        }
+        .al-confirm-bar.visible {
+            visibility: visible;
+            transform: translateY(0);
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .al-confirm-bar .al-confirm-icon { font-size: 20px; flex-shrink: 0; }
+        .al-confirm-bar .al-confirm-body { flex: 1; }
+        .al-confirm-bar .al-confirm-msg  { font-weight: 700; margin-bottom: 4px; }
+        .al-confirm-bar .al-confirm-sub  { font-size: 12px; color: var(--text-mid); margin-bottom: 10px; }
+        .al-confirm-bar .al-confirm-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+        .al-confirm-bar .btn-confirm-save {
+            background: var(--al-confirm-accent); color: var(--primary-blue);
+            border: none; border-radius: 6px;
+            padding: 7px 14px; font-size: 13px; font-weight: 700;
+            cursor: pointer; touch-action: manipulation;
+        }
+        .al-confirm-bar .btn-confirm-cancel {
+            background: white; color: var(--text-mid);
+            border: 1.5px solid var(--border-light); border-radius: 6px;
+            padding: 7px 14px; font-size: 13px; font-weight: 600;
+            cursor: pointer; touch-action: manipulation;
+        }
+
+        /* ---- Save toast — bottom-anchored confirmation ---- */
+        #saveToast {
+            position: fixed;
+            bottom: max(24px, env(safe-area-inset-bottom));
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: var(--primary-blue);
+            color: white;
+            font-size: var(--type-small);
+            font-weight: 700;
+            padding: 10px 20px;
+            border-radius: 24px;
+            box-shadow: var(--shadow-3);
+            z-index: 7500;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease, transform 0.2s ease;
+            white-space: nowrap;
+        }
+        #saveToast.visible {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* ---- Collapsible card shared styles ---- */
+        /* Override to grid: title + hint fill the left column, chevron sits on the right */
+        .card-collapsible-header {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            grid-template-rows: auto auto;
+            align-items: center;
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        .card-collapsible-header h2           { grid-column: 1; grid-row: 1; }
+        .card-collapsible-header .hint        { grid-column: 1; grid-row: 2; }
+        .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
+        .card-collapsible-body {
+            display: none; /* collapsed by default */
+            padding: 12px;
+        }
+        .card-collapsible-body.open { display: block; }
+        .collapse-chevron {
+            margin-left: auto;
+            font-size: 12px;
+            color: var(--text-light);
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+        }
+        .collapse-chevron.open { transform: rotate(180deg); }
+
+        /* Cultural calendar + login overlay CSS moved to shared.css (v11.06) */
+
+        /* ---- Overrides list ---- */
+        /* The overrides body manages its own internal spacing */
+        #overridesBody { padding: 0; }
+
+        .list-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: var(--bg-faint);
+            border-bottom: 1px solid var(--border-light);
+        }
+
+        .list-count { font-size: 12px; color: var(--text-light); white-space: nowrap; flex: 1; }
+
+        .btn-bulk-delete {
+            padding: 5px 12px;
+            border: none;
+            border-radius: 8px;
+            background: var(--error-banner);
+            color: #fff;
+            font-size: 12px;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .btn-bulk-delete:hover { background: var(--delete-red-dark); } }
+
+        .overrides-month-filter {
+            padding: 6px 8px;
+            border: 1.5px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 16px; /* 16px minimum — iOS Safari zooms viewport on focus below this */
+            font-family: inherit;
+            color: var(--text-dark);
+            background: white;
+            cursor: pointer;
+        }
+
+        .table-scroll { overflow-x: auto; }
+
+        .override-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+        .override-table th {
+            background: var(--bg-light);
+            color: var(--text-mid);
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 9px 14px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-light);
+            white-space: nowrap;
+        }
+
+        .override-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid var(--border-light);
+            vertical-align: middle;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .override-table tr:last-child td { border-bottom: none; }
+        @media (hover: hover) and (pointer: fine) { .override-table tbody tr:hover td { background: var(--bg-faint); } }
+
+        .list-type-pill {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+
+        .lpill-spare_shift  { background: var(--purple-light); color: var(--purple);   }
+        .lpill-shift        { background: var(--ot-light);     color: var(--ot);       }
+        .lpill-rdw          { background: var(--rdw-light);    color: var(--rdw-text); }
+        .lpill-annual_leave { background: var(--al-light);     color: var(--al-deep);  }
+        .lpill-sick         { background: var(--absence-light); color: var(--absence); }
+        .lpill-correction   { background: var(--orange-light); color: var(--correction-text); }
+        /* Legacy list-pill colours — old Saved Changes records keep their original styling */
+        .lpill-allocated    { background: var(--green-light);  color: var(--green);    }
+        .lpill-overtime     { background: var(--ot-light);     color: var(--ot);       }
+        .lpill-swap         { background: var(--blue-light);   color: var(--blue-sky); }
+
+        /* Small tag shown on overrides with old pre-v5 type names */
+        .legacy-pill {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: var(--bg-faint);
+            color: var(--text-light);
+            margin-left: 5px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        /* Small tag shown on overrides written by the weekly PDF upload */
+        .source-pill {
+            display: inline-block;
+            font-size: 9px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: var(--blue-light);
+            color: var(--blue-sky);
+            margin-left: 5px;
+            vertical-align: middle;
+            white-space: nowrap;
+        }
+
+        .btn-edit {
+            background: transparent;
+            color: var(--primary-blue);
+            border: 1px solid var(--border-light);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 9px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.12s;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .btn-edit:hover { background: var(--bg-faint); border-color: var(--primary-blue); } }
+
+        .btn-delete {
+            background: transparent;
+            color: var(--error-red);
+            border: 1px solid currentColor;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.12s;
+            font-family: inherit;
+        }
+
+        @media (hover: hover) and (pointer: fine) { .btn-delete:hover { background: var(--error-bg); } }
+        .btn-delete.confirming {
+            background: var(--error-red);
+            color: white;
+            border-color: var(--error-red);
+            animation: pulse-confirm 0.35s ease-out;
+        }
+        @keyframes pulse-confirm {
+            0%   { transform: scale(1); }
+            50%  { transform: scale(1.12); }
+            100% { transform: scale(1); }
+        }
+
+        .state-row td {
+            text-align: center;
+            padding: 28px;
+            color: var(--text-light);
+            font-size: 13px;
+        }
+        .state-row .reload-link {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            cursor: pointer;
+            text-decoration: underline;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner {
+            display: inline-block;
+            width: 14px; height: 14px;
+            border: 2px solid rgba(33,150,243,0.25);
+            border-top-color: var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        /* ---- Annual Leave booking form ---- */
+        .al-form {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        /* Staff member display is already shown in the member context bar at the top —
+           hide it here so the date inputs span the full card width */
+        .al-member-field { display: none; }
+
+        /* @media (max-width: 540px) for .al-form merged into the block near line 228 */
+
+        /* ---- Inline date-range picker (AL and Absence cards) ---- */
+        .rp-chips {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .rp-chip {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border-light);
+            border-radius: 8px;
+            font-size: 13px;
+            color: var(--text-light);
+            background: var(--bg-faint);
+            text-align: center;
+            min-height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .rp-chip.rp-chip-set {
+            border-color: var(--primary-blue);
+            color: var(--primary-blue);
+            font-weight: 600;
+            background: white;
+        }
+        .rp-sep { color: var(--text-light); font-size: 16px; flex-shrink: 0; }
+        .rp-clear {
+            display: none; flex-shrink: 0;
+            background: none; border: none; padding: 4px 6px;
+            font-size: 16px; color: var(--text-light); cursor: pointer;
+            touch-action: manipulation; line-height: 1;
+            border-radius: 50%; transition: color 0.15s, background 0.15s;
+            min-width: 44px;
+            min-height: 44px;
+            align-items: center;
+            justify-content: center;
+        }
+        .rp-clear.visible { display: inline-flex; }
+        .rp-clear:active { color: var(--error-red); }
+        .rp-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .rp-nav-btn {
+            background: none;
+            border: none;
+            color: var(--primary-blue);
+            font-size: 22px;
+            line-height: 1;
+            cursor: pointer;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            -webkit-tap-highlight-color: transparent;
+        }
+        @media (hover: hover) and (pointer: fine) { .rp-nav-btn:hover { background: var(--bg-light); } }
+        .rp-label { font-size: 14px; font-weight: 700; color: var(--text-dark); }
+        .rp-clip {
+            position: relative;
+            overflow: hidden;  /* clips adjacent panels during carousel swipe */
+        }
+        .rp-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            margin-bottom: 8px;
+            touch-action: pan-y; /* allow vertical scroll; JS handles horizontal swipe */
+        }
+        .rp-adj-panel {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            pointer-events: none; /* off-screen panels must not intercept taps */
+        }
+        .rp-dow {
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+        .rp-day {
+            height: 44px;
+            min-height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            color: var(--text-dark);
+            cursor: pointer;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            position: relative;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .rp-day:hover:not(.rp-from):not(.rp-to):not(.rp-in-range):not(.rp-filler) {
+                background: var(--bg-light);
+                border-radius: 50%;
+            }
+        }
+        .rp-day:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: -2px; border-radius: 50%; }
+        .rp-filler { cursor: default; pointer-events: none; min-height: 44px; }
+        .rp-today { color: var(--primary-blue); font-weight: 700; }
+        .rp-today::after {
+            content: '';
+            position: absolute;
+            bottom: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 3px;
+            height: 3px;
+            border-radius: 50%;
+            background: var(--accent-gold);
+        }
+        .rp-in-range { background: var(--blue-light); color: var(--text-dark); }
+        .rp-preview  { background: rgba(0,30,60,0.06); }
+        .rp-preview-end { background: rgba(0,30,60,0.12); border-radius: 50%; }
+        .rp-from, .rp-to {
+            background: var(--primary-blue);
+            color: white;
+            font-weight: 700;
+            border-radius: 50%;
+        }
+
+        /* ---- Booked AL dates collapsible box ---- */
+        .al-booked-box {
+            margin-top: 10px;
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .al-booked-header {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px;
+            background: var(--bg-faint);
+            cursor: pointer;
+            user-select: none;
+            -webkit-user-select: none;
+            gap: 8px;
+        }
+        .al-booked-title {
+            font-weight: 600;
+            font-size: 13px;
+            flex: 1;
+        }
+        .al-booked-body {
+            display: none;
+            padding: 12px 14px;
+        }
+        .al-booked-body.open { display: block; }
+        .al-period-month { margin-bottom: 12px; }
+        .al-period-month:last-child { margin-bottom: 0; }
+        .al-period-month-hdr {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: .04em;
+            margin-bottom: 4px;
+        }
+        .al-period-row {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            padding: 8px 0;
+            gap: 5px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .al-period-month > .al-period-row:last-child { border-bottom: none; }
+        .al-period-dates {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-dark);
+        }
+        .al-period-row-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+        .al-period-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--al-deep);
+            background: var(--al-light);
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        .sick-period-count {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--absence);
+            background: var(--absence-light);
+            padding: 2px 8px;
+            border-radius: 10px;
+            white-space: nowrap;
+        }
+        .btn-period-delete {
+            padding: 2px 10px;
+            border: none;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--text-light);
+            font-size: 11px;
+            font-family: inherit;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .btn-period-delete:hover { color: var(--absence); } }
+        .btn-period-delete.confirming {
+            background: var(--absence);
+            color: #fff;
+        }
+
+        .al-preview {
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            min-height: 28px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .al-preview.empty { color: var(--text-light); }
+        .al-preview.ready { background: var(--al-light); color: var(--al-deep); }
+        .al-preview.error { background: var(--error-bg); color: var(--error-red); }
+
+        /* Absence preview — reuses al-preview layout */
+        .sick-preview.ready { background: var(--absence-light); color: var(--absence-text); }
+        /* Absence visibility note */
+        .absence-visibility-note {
+            font-size: var(--type-small);
+            color: var(--text-mid);
+            margin: 4px 0 8px;
+        }
+        /* Absence period count in the booked-dates list */
+
+        /* ---- Touch device enhancements ---- */
+
+        /* Prevent long-press text selection; remove 300ms tap delay on interactive elements */
+        .type-pill-btn, .btn-bulk-select, .btn-bulk-apply, .btn-save,
+        .btn-delete, .week-nav-btn {
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Larger tap targets and slightly bigger text on touch screens */
+        @media (hover: none) and (pointer: coarse) {
+            .type-pill-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+                min-height: 36px;
+            }
+
+            .col-pills .type-pill-btn {
+                padding: 7px 11px;
+                min-height: 36px;
+            }
+
+            .btn-bulk-select {
+                padding: 8px 12px;
+                font-size: 12px;
+                min-height: 36px;
+            }
+
+            .btn-bulk-apply {
+                padding: 9px 16px;
+                min-height: 36px;
+            }
+
+            .btn-delete {
+                padding: 8px 12px;
+                min-height: 36px;
+            }
+
+            .week-nav-btn {
+                width: 44px;
+                height: 44px;
+            }
+
+            .col-check input[type="checkbox"] {
+                width: 20px;
+                height: 20px;
+            }
+
+            /* Time inputs: larger tap target on touch, with padding restored.
+               The base rule reduces padding to 5px 7px for desktop compactness.
+               Without restoring it here, iOS renders the box noticeably short
+               (29px tall vs 35px for other inputs) — Android tolerates this better
+               due to looser Roboto font metrics. */
+            .col-time input.time-input {
+                flex: 0 0 105px;
+                width: 105px;
+                max-width: 105px;
+                min-width: 0;
+                padding: 7px 8px;
+            }
+
+            /* Bulk time inputs fill available space */
+            .bulk-time-group .time-input {
+                flex: 1;
+                width: auto;
+            }
+
+        }
+
+        /* .btn-signout defined in shared.css */
+
+        /* Print header — hidden on screen, shown by @media print */
+        #printHeader { display: none; }
+
+        /* ---- Login overlay ---- */
+        /* ---- Unsaved changes confirmation banner ---- */
+        #unsavedBanner {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            background: var(--warning-amber);
+            color: white;
+            padding: max(12px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 12px max(16px, env(safe-area-inset-left));
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            z-index: 8000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #unsavedBannerMsg { flex: 1; min-width: 160px; }
+        .unsaved-banner-btns { display: flex; gap: 8px; }
+        .unsaved-discard-btn {
+            background: white; color: var(--warning-amber);
+            border: none; border-radius: var(--radius-sm);
+            padding: 10px 16px; min-height: 36px; font-size: 13px; font-weight: 600; cursor: pointer;
+        }
+        .unsaved-keep-btn {
+            background: transparent; color: white;
+            border: 1.5px solid rgba(255,255,255,0.6); border-radius: var(--radius-sm);
+            padding: 10px 16px; min-height: 36px; font-size: 13px; cursor: pointer;
+        }
+
+        /* Login overlay CSS in shared.css (v11.06) */
+
+        /* ---- Lightbox — admin.html additions ----
+           Base overlay, content card, close button, and .lightbox-badge are in shared.css. */
+
+
+        /* ---- Save hint (shown when button is disabled) ---- */
+        .save-hint {
+            font-size: 12px;
+            color: var(--text-light);
+            text-align: center;
+            margin-top: 6px;
+            min-height: 18px;
+        }
+
+        /* ---- Filter label in override list toolbar ---- */
+        .filter-label {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-mid);
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+        }
+
+        /* ---- List feedback (after delete) ---- */
+        .list-feedback {
+            display: none;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 600;
+            border-top: 1px solid var(--border-light);
+        }
+        .list-feedback.success { display: block; background: var(--green-light); color: var(--success-text); }
+        .list-feedback.error   { display: block; background: var(--error-bg);    color: var(--error-red); }
+
+        /* ---- Print styles ---- */
+        /* ---- Huddle upload card ---- */
+        .huddle-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+        .huddle-row input[type="date"] {
+            flex: 1;
+            min-width: 0;
+            padding: 8px 10px;
+            min-height: 44px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            box-sizing: border-box;
+        }
+        .huddle-file-label {
+            display: inline-block;
+            padding: 8px 14px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-blue);
+            background: var(--bg-light);
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-file-label:hover { border-color: var(--primary-blue); } }
+        .huddle-filename {
+            font-size: 13px;
+            color: var(--text-mid);
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        .huddle-upload-btn {
+            display: block;
+            width: 100%;
+            padding: 11px 16px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
+        .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+        /* ---- Generic action button utility classes ---- */
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 44px;
+            padding: 11px 16px;
+            border-radius: var(--radius-sm, 8px);
+            font-size: 16px;
+            font-weight: 700;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            touch-action: manipulation;
+            font-family: inherit;
+            transition: background 0.15s;
+            -webkit-tap-highlight-color: transparent;
+            box-sizing: border-box;
+        }
+        .btn-action + .btn-action { margin-top: 8px; }
+        .btn-primary {
+            background: var(--primary-blue);
+            color: white;
+        }
+        .btn-primary:active { background: var(--primary-blue-dark); }
+        .btn-secondary {
+            background: white;
+            color: var(--primary-blue);
+            border-color: var(--border-mid, #d0d5dd);
+        }
+        .btn-secondary:active { background: var(--bg-light, #f5f7fa); }
+        .huddle-feedback {
+            margin-top: 10px;
+            font-size: 13px;
+        }
+        .huddle-feedback--ok  { color: var(--success-green); }
+        .huddle-feedback--err { color: var(--error-red); }
+
+        /* ---- Roster upload card ---- */
+        /* Roster type dropdown — sits inside huddle-row, shrinks to content */
+        .roster-type-select {
+            flex: 0 0 auto;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border-light);
+            border-radius: var(--radius-sm);
+            font-size: 16px;
+            font-weight: 600;
+            background: var(--bg-light);
+            color: var(--text-dark);
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+        .roster-type-select:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 1px;
+        }
+
+        /* ---- Roster review — conflict banner ---- */
+        .roster-conflict-banner {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: var(--al-confirm-bg);
+            border: 1.5px solid var(--al-confirm-accent);
+            border-radius: var(--radius-md);
+            padding: 12px 14px;
+            margin-bottom: 12px;
+        }
+        .roster-conflict-icon { font-size: 18px; line-height: 1.2; flex-shrink: 0; }
+        .roster-conflict-text { font-size: 13px; line-height: 1.5; }
+        .roster-conflict-text strong { display: block; margin-bottom: 2px; color: var(--conflict-strong); }
+        .roster-conflict-text p { margin: 0; color: var(--conflict-text); }
+
+        /* Summary label */
+        .roster-review-label {
+            font-size: 12px;
+            color: var(--text-mid);
+            margin: 0 0 12px;
+        }
+
+        /* ---- Per-person change cards ---- */
+        #rosterChangeList { margin-bottom: 14px; }
+
+        .roster-person-section {
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .roster-person-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border-light);
+        }
+        .roster-person-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--primary-blue);
+            flex: 1;
+        }
+        .roster-change-badge {
+            font-size: 10px;
+            font-weight: 700;
+            background: var(--primary-blue);
+            color: white;
+            border-radius: 20px;
+            padding: 2px 7px;
+        }
+        .roster-skip-all-btn {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-mid);
+            background: none;
+            border: 1px solid var(--border-light);
+            border-radius: 20px;
+            padding: 3px 10px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
+
+        /* Change rows */
+        .roster-change-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .roster-change-row:last-child { border-bottom: none; }
+        .roster-change-row.is-skipped { opacity: 0.4; }
+        .roster-change-row.roster-change-conflict { background: #fff9f9; }
+
+        .roster-chg-day {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            min-width: 44px;
+        }
+        .roster-day-abbr {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-dark);
+        }
+        .roster-day-date {
+            font-size: 11px;
+            color: var(--text-light);
+        }
+
+        .roster-chg-vals {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex: 1;
+            flex-wrap: wrap;
+            font-size: 12px;
+        }
+        .roster-from-val {
+            opacity: 0.5;
+            font-size: 11px;
+        }
+        .roster-from-val .shift-badge { font-size: 10px; padding: 1px 5px; }
+        .roster-arrow { color: var(--text-light); font-size: 11px; }
+        .roster-to-val { font-size: 12px; }
+        .review-shift-time {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-mid);
+            margin-left: 4px;
+        }
+        /* Inside a val-active highlight, time text should also be white */
+        .val-active .review-shift-time { color: rgba(255,255,255,0.85); }
+        /* Conflict variant */
+        .roster-conflict-icon-sm { font-size: 13px; flex-shrink: 0; }
+        .roster-manual-val {
+            font-weight: 700;
+            font-size: 12px;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+        .roster-vs-sep { font-size: 11px; color: var(--text-light); }
+        .val-active { background: var(--primary-blue); color: white; }
+        .val-dim    { background: var(--val-dim-bg); color: var(--text-light); text-decoration: line-through; }
+
+        /* Save/Skip toggle button on DIFF rows */
+        .roster-approve-btn {
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 12px;
+            border-radius: 20px;
+            border: 1.5px solid;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s;
+        }
+        .roster-approve-btn.is-approved {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+        .roster-approve-btn.is-skipped {
+            background: none;
+            color: var(--text-light);
+            border-color: var(--border-light);
+        }
+
+        /* Manual / PDF toggle on CONFLICT rows */
+        .roster-conflict-choice { display: flex; gap: 4px; }
+        .roster-choice-btn {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1.5px solid var(--border-light);
+            background: none;
+            color: var(--text-mid);
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .roster-choice-btn.is-chosen {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+
+        /* Section skipped state */
+        .section-skipped .roster-change-row { opacity: 0.35; pointer-events: none; }
+        .section-skipped .roster-skip-all-btn {
+            background: var(--primary-blue);
+            color: white;
+            border-color: var(--primary-blue);
+        }
+
+        /* Empty / all-match state */
+        .roster-no-changes {
+            padding: 18px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--success-green);
+            background: var(--roster-success-bg);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--success-green-border);
+            margin-bottom: 14px;
+        }
+
+        /* Apply / cancel row */
+        .roster-cancel-btn {
+            display: block;
+            width: 100%;
+            background: none;
+            border: 1.5px solid var(--border-light);
+            color: var(--text-mid);
+            padding: 11px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+            font-family: inherit;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
+        }
+
+        /* ═════════════════════════════════════════════════════════════
+           TABLET & DESKTOP  —  min-width only; mobile (< 768px) untouched
+           ═════════════════════════════════════════════════════════════ */
+
+        /* ── Tablet: 768px — single-column with more breathing room ── */
+        @media (min-width: 768px) {
+            .container { gap: 14px; }
+
+            /* Override table: header text larger */
+            .override-table th { font-size: 11px; }
+            .override-table td { font-size: 13px; }
+
+            /* List toolbar: always on one line */
+            .list-toolbar { flex-wrap: nowrap; gap: 10px; }
+        }
+
+        /* ── Desktop: 1024px — two-column grid ──
+           Change a Shift is the main work area and gets the wide left column.
+           AL booking, sick, notifications, and admin tools sit on the right.
+           Column minimums (600+340+24=964px) safely fit in 1024px viewport
+           minus 40px body padding = 984px available. */
+        @media (min-width: 1024px) {
+            body.auth-ready .container {
+                max-width: 1400px;
+                grid-template-columns: minmax(600px, 1fr) minmax(340px, 420px);
+                column-gap: 24px;
+                align-items: start;
+            }
+
+            /* Align confirm bar padding with page content on wide screens */
+            .al-confirm-bar {
+                padding-left:  max(18px, calc((100vw - 1440px) / 2 + 20px));
+                padding-right: max(18px, calc((100vw - 1440px) / 2 + 20px));
+            }
+
+            /* Full-width rows spanning both columns */
+            .app-header              { grid-column: 1 / -1; }
+            /* Fallback: member bar spans full width if JS hasn't moved it into col-side yet */
+            .container > .member-context-bar { grid-column: 1 / -1; }
+            /* Saved Changes sits below Update a Shift in the left column */
+            #overridesCard           { grid-column: 1; }
+
+            /* Explicit column assignment — prevents auto-placement mis-ordering */
+            .col-main { grid-column: 1; }
+            .col-side { grid-column: 2; }
+
+            /* Column wrappers become flex containers with tighter gap */
+            .col-main,
+            .col-side {
+                display: flex;
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            /* Fix 6: sticky sidebar — action cards stay visible as the week grid grows.
+               max-height + overflow-y stops bottom cards being unreachable on short screens. */
+            .col-side {
+                position: sticky;
+                top: 20px;
+                max-height: calc(100vh - 40px);
+                max-height: calc(100dvh - 40px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            /* Fix 1: member bar restyled as compact white card once JS moves it into col-side */
+            .col-side .member-context-bar {
+                background: white;
+                border: 1px solid var(--border-light);
+                box-shadow: var(--shadow-1);
+            }
+            .col-side .member-context-bar label { color: var(--text-light); }
+            .col-side .member-context-bar select {
+                background: white;
+                border-color: var(--border-light);
+                color: var(--text-dark);
+            }
+            .col-side .member-context-bar select option { color: var(--text-dark); }
+
+            /* Fix 3: constrain week nav — looks loose stretching across a 600px column */
+            .week-nav { max-width: 480px; margin: 0 auto; }
+
+        }
+        /* At 1024–1399px the left column is too narrow for the 5-col template.
+           Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
+           Pills and time are always visible here (unlike narrow mobile where they're hidden). */
+        @media (min-width: 1024px) and (max-width: 1399px) {
+            .week-grid-header {
+                grid-template-columns: 32px 1fr auto;
+            }
+            .week-grid-header .hdr-pills,
+            .week-grid-header .hdr-time { display: none; }
+            .day-row {
+                grid-template-columns: 32px 1fr auto;
+                grid-template-rows: auto auto auto;
+            }
+            .day-row .col-check { grid-column: 1; grid-row: 1; }
+            .day-row .col-day   { grid-column: 2; grid-row: 1; }
+            .day-row .col-base  { grid-column: 3; grid-row: 1; justify-self: end; }
+            .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
+            .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
+        }
+        /* ≥1400px: left col inner width ~840px — comfortably fits 5-col min of 630px */
+        @media (min-width: 1400px) {
+            .week-grid-header,
+            .day-row {
+                grid-template-columns: 28px 80px 100px minmax(200px, 1fr) 190px;
+            }
+
+            /* Tighten week grid spacing */
+            .day-row { gap: 8px; }
+
+            /* Save button: no need to span a 600px column */
+            .btn-save { max-width: 320px; }
+
+            /* Bulk bar: slightly more spacious */
+            .bulk-bar { gap: 14px; }
+
+            /* Override table: comfortable column spacing */
+            .override-table th { font-size: 11px; letter-spacing: 0.3px; }
+            .override-table td { font-size: 13px; }
+            .list-toolbar { flex-wrap: nowrap; gap: 12px; }
+        }
+
+        @media print {
+            @page { margin: 1cm; size: A4 portrait; }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                box-sizing: border-box !important;
+                orphans: 2;
+                widows: 2;
+            }
+
+            /* Hide interactive chrome */
+            #loginOverlay,
+            .week-nav,
+            .bulk-bar,
+            .btn-bulk-select,
+            .btn-bulk-apply,
+            .btn-delete,
+            .btn-edit,
+            .col-check,
+
+            .overrides-month-filter,
+            .list-feedback,
+            .al-confirm-bar,
+            #saveToast { display: none !important; }
+
+            /* Reset backgrounds for print */
+            html, body { background: white !important; color: black !important; padding: 0 !important; }
+            .container { display: grid !important; max-width: 100% !important; grid-template-columns: 1fr !important; }
+            .col-main, .col-side { display: contents !important; }
+
+            /* Week header */
+            .week-header {
+                font-size: 14px;
+                font-weight: 700;
+                margin-bottom: 8px;
+                color: black !important;
+            }
+
+            /* Override rows */
+            .week-grid-header,
+            .day-row {
+                border-bottom: 1px solid var(--border-mid);
+                break-inside: avoid;
+            }
+
+            .day-row { background: white !important; }
+
+            /* Override dark header row for print — navy on screen, readable black on paper */
+            .week-grid-header {
+                background: white !important;
+                color: var(--text-mid) !important;
+                border-bottom: 2px solid var(--primary-blue) !important;
+            }
+
+            /* Type pills — keep colours for quick scanning */
+            .type-pill-btn.active {
+                border: 1px solid currentColor;
+            }
+
+            /* Page title — populated by beforeprint listener */
+            #printHeader {
+                display: block;
+                font-size: 15px;
+                font-weight: 700;
+                margin-bottom: 16px;
+                color: black;
+            }
+            #printHeader .print-sub {
+                display: block;
+                font-size: 12px;
+                font-weight: 400;
+                margin-top: 3px;
+                color: #444;
+            }
+
+        }
+
+        #adminBadge { background: var(--primary-blue); color: var(--accent-gold); }
+        #iconLightbox .lightbox-badge { background: rgba(245,200,0,0.15); border-color: rgba(245,200,0,0.35); color: var(--accent-gold); }
+
+        /* AL balance shown in the collapsed card header */
+        .al-header-balance {
+            font-size: 12px;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-top: 2px;
+        }
+        .al-header-balance.balance-low  { color: var(--accent-gold-dark); font-weight: 600; }
+        .al-header-balance.balance-none { color: #c0392b; font-weight: 700; }
+
+        /* Cultural calendar annual update reminder banner */
+        #culturalCalReminder {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 0 0 16px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        #culturalCalReminder .reminder-text { flex: 1; }
+        #culturalCalReminder .reminder-icon { font-size: 18px; flex-shrink: 0; }
+        #culturalCalReminder .reminder-dismiss {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            color: var(--primary-blue);
+            flex-shrink: 0;
+        }

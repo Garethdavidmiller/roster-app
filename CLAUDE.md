@@ -118,7 +118,10 @@ roster-app/
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init, exports db + all Firestore functions
 ├── ls.js                   ← shared localStorage wrappers: lsGet, lsSet, lsDel — iOS Safari safe
-├── shared.css              ← CSS shared by all three pages
+├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
+├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
+├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
+├── shared.css              ← CSS shared by all pages
 ├── service-worker.js       ← single SW for all pages; cache name includes app version
 ├── manifest.json           ← PWA manifest for all pages
 ├── paycalc-guide.html      ← printable pay calculator reference guide

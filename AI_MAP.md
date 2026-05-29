@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v11.40 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.41 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -278,6 +278,12 @@ Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
 - All other paths: denied.
+
+### `index.css` / `admin.css` / `paycalc.css`
+Page-specific CSS for each page — extracted from inline `<style>` blocks at v11.41.
+- Edit here for any visual change that is specific to one page
+- `operations.html` and `settings.html` keep their CSS inline (small enough not to warrant extraction)
+- All three are network-first in the service worker (same freshness guarantee as their HTML)
 
 ### `shared.css`
 All CSS shared across the three pages.
