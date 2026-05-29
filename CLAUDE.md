@@ -19,7 +19,7 @@ If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), th
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `11.33` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `11.39` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -49,7 +49,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 
 ## Version bumping (MANDATORY on every change)
 
-**6 places, every commit that touches behaviour:**
+**8 edit locations (7 files), every commit that touches behaviour:**
 
 | File | Location |
 |------|----------|
@@ -92,14 +92,17 @@ roster-app/
 ├── settings.html           ← staff self-service settings page: Notifications, Cultural Calendar (v11.06)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
+├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports applyHuddleButtonState, initHuddleViewer. Imported by app.js (v11.40)
 ├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js
 ├── notif.js                ← shared Web Push module: notifSupported, getNotifState, enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
+├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory. Singleton popstate listener. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js, nav-panel.js (v11.40)
+├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js (v11.40)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
 ├── app-override-utils.js   ← override priority and member-start helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart. Shared by app.js and app-team-view.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers, push notifications card
 ├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup (v10.99)
 ├── settings-app.js         ← coordinator for settings.html: session check (shared AUTH_KEY), login overlay, initHuddleNotifications, cultural calendar init, initNavPanel (v11.06)
-├── admin-huddle.js         ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → admin.html), Huddle card toggle
+├── huddle.js               ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → settings.html), Huddle card toggle. Renamed from admin-huddle.js at v11.40
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
 ├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
@@ -108,12 +111,17 @@ roster-app/
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds
+├── paycalc-help.js         ← HELP_CONTENT object (tooltip/help text for pay calculator). Pure data, no DOM/Firebase. Imported by paycalc.js (v11.40)
+├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, hppEstKey etc.) and runMigrations(). Imported by paycalc.js (v11.40)
 ├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion(p, member), fetchOverridesForPeriod
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init, exports db + all Firestore functions
 ├── ls.js                   ← shared localStorage wrappers: lsGet, lsSet, lsDel — iOS Safari safe
-├── shared.css              ← CSS shared by all three pages
+├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
+├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
+├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
+├── shared.css              ← CSS shared by all pages
 ├── service-worker.js       ← single SW for all pages; cache name includes app version
 ├── manifest.json           ← PWA manifest for all pages
 ├── paycalc-guide.html      ← printable pay calculator reference guide
@@ -221,7 +229,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | `initALSection()` / `initSickSection()` in `admin-app.js` | `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` are hoisted to module scope above the `fieldMember` change handler — that handler fires before init. Do not move them inside the init functions. |
 | SW synthesised offline page uses status 200 | Some browsers suppress 5xx response bodies. `Cache-Control: no-store` prevents caching the synthesised page. |
 | SW offline fallback only for navigation requests (v10.15) | Only `event.request.destination === 'document'` requests get the offline HTML page. JS/CSS get `Response.error()`. Without this, `/admin-app.js` matched `'admin'` in the fallback logic and got HTML for a JS request — MIME-type error. |
-| Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `app.js` listens for `hashchange` and triggers the viewer. `_autoOpen` is `let` so the hashchange handler can reset it. **PDF/DOCX huddles, notification auto-open path (`_triggerAutoOpen`): does NOT open the file directly. A notification tap carries no in-page user activation, so `window.open('_blank')` is blocked as a pop-up, and `location.href` to the cross-origin Storage URL knocks the standalone PWA out of standalone mode (returns wrapped in browser chrome). Instead it renders an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping that IS a real gesture, so `window.open('_blank')` opens the file as a Custom Tab over the intact standalone app and Back returns cleanly. The manual `#huddleBtn` click calls `window.open` directly (that click is already a real gesture). Do not unify the two paths, and do not revert the auto-open path to direct `window.open`/`location.href`.** `huddles` Firestore reads are open (no auth) — `app.js` has no Firebase Auth session, so requiring auth would break auto-open on fresh first visits. |
+| Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `app.js` `hashchange` handler triggers the viewer (`_autoOpen` is `let` so it can reset). **Two `_triggerAutoOpen` paths — do not unify, do not revert the auto-open path to direct `window.open`/`location.href`:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a notification tap has no user activation. The manual `#huddleBtn` click calls `window.open` directly (already a real gesture). `huddles` Firestore reads are open (no auth) — `app.js` has no Auth session, so requiring auth would break auto-open on fresh visits. Full rationale: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |

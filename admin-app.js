@@ -13,187 +13,24 @@
  */
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
+import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-
-// Lock/unlock body scroll for lightbox/overlay. iOS Safari otherwise scrolls
-// the page underneath an open overlay; the .lb-open class fixes the body and
-// preserves the scroll position so the page is restored on close.
-let _lbScrollY = 0;
-function lockBodyScroll() {
-    _lbScrollY = window.scrollY;
-    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
-    document.body.classList.add('lb-open');
-}
-function unlockBodyScroll() {
-    document.body.classList.remove('lb-open');
-    document.body.style.removeProperty('--lb-scroll-y');
-    window.scrollTo(0, _lbScrollY);
-}
-
-// Android Back button — overlay support (same pattern as app.js).
-let _overlayHistoryPushed = false;
-let _backHandler = null;
-function _pushOverlayState(closeHandler) {
-    if (!_overlayHistoryPushed) {
-        history.pushState({ mybOverlay: true }, '');
-        _overlayHistoryPushed = true;
-    }
-    _backHandler = closeHandler;
-}
-function _clearOverlayHistory() {
-    if (_overlayHistoryPushed) {
-        _overlayHistoryPushed = false;
-        _backHandler = null;
-        history.back();
-    }
-}
-window.addEventListener('popstate', () => {
-    if (!_overlayHistoryPushed) return;
-    _overlayHistoryPushed = false;
-    const fn = _backHandler;
-    _backHandler = null;
-    fn?.();
-});
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
-
-// ============================================
-// AUTH — SESSION MANAGEMENT
-// 30-day localStorage session.
-// Passwords are surnames (lowercase) — sufficient
-// to prevent casual misbehaviour, not cryptographic security.
-// ============================================
-const AUTH_KEY      = 'myb_admin_session';
-const SESSION_MS    = 30 * 24 * 60 * 60 * 1000; // 30 days
-const SESSION_VER   = 2; // bump to force all existing sessions to re-login
-
-/**
- * Derive the login password from a staff member's display name.
- *
- * Rules (must stay in sync with how passwords were originally set):
- *  - Take everything after the first word (the initial + dot), e.g. "G. Miller" → "Miller"
- *  - Join multi-word surnames without spaces, e.g. "M. De Silva" → "DeSilva"
- *  - Lowercase the result
- *  - Strip ALL non-alpha characters: hyphens, apostrophes, spaces, accents, etc.
- *    e.g. "C. Francisco-Charles" → "franciscocharles"
- *    e.g. "O'Brien" → "obrien"
- *
- * WARNING: changing this function will lock out every staff member.
- * Any change must be accompanied by a password reset for all affected users.
- *
- * @param {string} fullName - Display name exactly as stored in teamMembers, e.g. "G. Miller"
- * @returns {string} Lowercase password with all non-alpha characters removed
- */
-function getSurname(fullName) {
-    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-}
-
-/**
- * Guarantee a live Firebase Auth session for a logged-in member.
- *
- * Firestore Security Rules require `request.auth != null` for every write.
- * The login click handler signs in to Firebase — but a returning user with a
- * valid 30-day localStorage session skips that handler, so on a normal app open
- * the Firebase Auth session was never (re-)established.
- *
- * Strategy (each step falls through to the next on failure):
- * 1. Restore persisted session from IndexedDB — free, no network.
- * 2. signInWithEmailAndPassword — normal path.
- * 3. createUserWithEmailAndPassword — account doesn't exist yet (self-heal).
- * 4. signInAnonymously — fallback when email/password provider is disabled in
- *    Firebase Console, or account has a mismatched password. Anonymous sessions
- *    satisfy `request.auth != null` and are stable across page loads on Android
- *    PWAs. The error code from step 2 is stored on window._mybAuthError so it
- *    can be surfaced in diagnostic messages.
- *
- * @param {string} name - Member display name (exact teamMembers match)
- * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
- */
-async function ensureFirebaseSession(name) {
-    await authReady;
-    // auth.currentUser is null synchronously even when a session exists in
-    // IndexedDB. Wait for the first onAuthStateChanged to get the real state.
-    const existing = await new Promise(resolve => {
-        const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
-    });
-    if (existing) return true;
-
-    const pw         = getSurname(name);
-    const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
-    const email      = nameToEmail(name);
-    let   firstError = null;
-
-    try {
-        await signInWithEmailAndPassword(auth, email, fbPassword);
-        return true;
-    } catch (e) {
-        firstError = e.code;
-        console.warn('[Auth] signIn failed:', e.code, 'for', email);
-        if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-            try {
-                await createUserWithEmailAndPassword(auth, email, fbPassword);
-                console.log('[Auth] Created Firebase Auth account for', name);
-                return true;
-            } catch (createErr) {
-                console.warn('[Auth] createUser failed:', createErr.code, 'for', email);
-                firstError = createErr.code;
-            }
-        }
-    }
-
-    // Fallback: anonymous sign-in satisfies `request.auth != null`.
-    // Covers: email/password provider disabled (auth/operation-not-allowed),
-    // password mismatch on an existing account (auth/email-already-in-use),
-    // and any other persistent email/password failure.
-    console.warn('[Auth] Falling back to anonymous sign-in. Original error:', firstError);
-    window._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
-    try {
-        await signInAnonymously(auth);
-        console.log('[Auth] Anonymous session established for', name);
-        return true;
-    } catch (anonErr) {
-        console.error('[Auth] Anonymous sign-in failed:', anonErr.code);
-        window._mybAuthError = `${firstError} + anon:${anonErr.code}`;
-        return false;
-    }
-}
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
 if (new URLSearchParams(location.search).has('logout')) {
     lsDel(AUTH_KEY);
     history.replaceState(null, '', location.pathname); // remove ?logout from URL
-}
-
-function getSession() {
-    try {
-        const raw = lsGet(AUTH_KEY);
-        if (!raw) return null;
-        const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
-        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
-        return s;
-    } catch { return null; }
-}
-
-function saveSession(name) {
-    lsSet(AUTH_KEY, JSON.stringify({
-        name,
-        ver:    SESSION_VER,
-        expiry: Date.now() + SESSION_MS
-    }));
-}
-
-function clearSession() {
-    lsDel(AUTH_KEY);
-    firebaseSignOut(auth).catch(() => {}); // fire-and-forget
 }
 
 // ---- Check session immediately ----

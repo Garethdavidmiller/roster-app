@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v11.30 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.41 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -14,21 +14,26 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
 | Calendar UI, month view, swipe, shift display | `app.js` |
+| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
 | Override priority and member-start logic — tsToMillis, shouldReplaceOverride, isBeforeMemberStart | `app-override-utils.js` |
+| Body scroll lock, overlay history (lockBodyScroll, _pushOverlayState, etc.) | `overlay.js` |
+| Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
 | Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |
-| Huddle upload (admin-only, operations page) | `admin-huddle.js` → `initHuddleUpload` |
-| Push notifications card (all staff, settings page) | `admin-huddle.js` → `initHuddleNotifications` |
+| Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
+| Push notifications card (all staff, settings page) | `huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
 | Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
+| Pay calculator help/tooltip text | `paycalc-help.js` |
+| Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
 | Pre-fill suggestion engine, override fetch, BH detection | `paycalc-roster-suggestions.js` |
 | Navigation panel — burger menu, slide-out drawer, Information links, footer bell | `nav-panel.js` |
@@ -63,10 +68,14 @@ Everything that touches `index.html` at runtime.
 - Notification/push subscription wiring
 - Sync chip state machine
 - `navigateToPaycalc(paydayStr)` — shared helper for payday/cutoff cell clicks; checks session then navigates
-- `_triggerAutoOpen(huddle)` — called when app opens via a push notification tap (`#huddle` hash). **Two paths, do not unify:**
-  - HTML huddles: render `huddle.htmlContent` directly in the viewer overlay
-  - PDF/DOCX huddles: render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`). A notification tap has no transient user activation — `window.open('_blank')` would be pop-up-blocked, and `location.href` to the cross-origin Storage URL breaks standalone mode (Android wraps the app in browser chrome). Tapping the overlay button IS a real gesture, so `window.open` opens the PDF as a Custom Tab over the intact standalone app; Back returns cleanly.
-  - The manual `#huddleBtn` click path (line ~2231) calls `window.open` directly — that click is already a real gesture.
+- Calls `initHuddleViewer()` and uses `applyHuddleButtonState()` from `app-huddle-viewer.js`
+
+### `app-huddle-viewer.js`
+Huddle viewer overlay — extracted from `app.js` at v11.40.
+- `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler for notification taps
+- `applyHuddleButtonState()` — updates the Huddle button (badge, disabled state) in the calendar header; called on every calendar render by `app.js`
+- `sanitiseHtml(html)` — internal; DOMPurify sanitisation for DOCX huddles
+- `_triggerAutoOpen(huddle)` — **Two paths, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`). The manual `#huddleBtn` click path calls `window.open` directly (real user gesture). Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.
@@ -87,10 +96,24 @@ Coordinator for `settings.html` (all logged-in staff, v11.06).
 - `initCulturalCalendarCard()` — simplified vs admin-app.js: no `fieldMember` dropdown, always saves for `currentUser`; no `renderWeekGrid()` call; reads/writes Firestore `memberSettings/${currentUser}`
 - `initNavPanel` call passes `{ currentPage: 'settings', isAdmin: ..., onSignOut: ... }`
 
+### `overlay.js`
+Shared overlay helpers — singleton module, imported by every page that shows a modal overlay (v11.40).
+- `lockBodyScroll()` / `unlockBodyScroll()` — freezes body scroll position when an overlay opens; restores on close. Handles iOS Safari bounce-scroll.
+- `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support: pushes `{ mybOverlay: true }` history state on overlay open; registers `closeHandler` to fire on `popstate`. Module-level `popstate` listener is registered once (singleton) — multiple overlays on the same page are safe.
+- Imported by: `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, `settings-app.js`, `nav-panel.js`
+
+### `session.js`
+Shared auth/session module — canonical source for session logic (v11.40).
+- Constants: `AUTH_KEY`, `SESSION_MS` (30 days), `SESSION_VER`
+- `getSurname(name)` — derives Firebase Auth password from display name
+- `getSession()` / `saveSession(name)` / `clearSession()` — localStorage wrappers for the session object
+- `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`. Returns `Promise<boolean>`.
+- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`
+
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
-- Session guard: reads the shared `myb_admin_session` localStorage key; redirects to `admin.html` if not authenticated or not in `CONFIG.ADMIN_NAMES`
-- `ensureFirebaseSession(name)` — same pattern as `admin-app.js`; re-establishes Firebase Auth on page load
+- Session guard: reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; redirects to `admin.html` if not authenticated or not in `CONFIG.ADMIN_NAMES`
+- Calls `ensureFirebaseSession(name)` from `session.js` to re-establish Firebase Auth on page load
 - Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`
 - Owns icon lightbox, tips lightbox, and collapsible card wiring for the three operations cards
 
@@ -121,8 +144,8 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - Imports `DAY_NAMES`, `MONTH_ABB`, `MONTH_NAMES`, `formatISO`, `SWIPE_THRESHOLD`, `SWIPE_VELOCITY` from `roster-data.js`
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
-### `admin-huddle.js`
-Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
+### `huddle.js`
+Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle. Renamed from `admin-huddle.js` at v11.40.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
 - `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)
 - `initHuddleCards(opts)` — **deprecated** combined entry point; prefer the above two
@@ -152,6 +175,20 @@ UI layer for `paycalc.html`. No pure pay maths here.
 - `getLoggedMember()`, `getEffectiveContr(p)` — session/period helpers
 - `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
 - `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
+- Imports `HELP_CONTENT` from `paycalc-help.js`; imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `ytdPayKey`, `ytdTaxKey`, `runMigrations` from `paycalc-migrations.js`
+
+### `paycalc-help.js`
+Pure data module — help/tooltip text for the pay calculator (v11.40).
+- `HELP_CONTENT` object with keys: `hours`, `settings`, `accuracy`, `hpp`, `backpay`
+- Imports `TAX_YEARS` from `paycalc-calc.js` for the London Allowance figure in tip text
+- No DOM, no Firebase — safe to import anywhere
+
+### `paycalc-migrations.js`
+localStorage key constants and data migration logic for the pay calculator (v11.40).
+- `SK` — object of top-level localStorage key strings
+- `periodKey(pNum)`, `hppEstKey(pNum)`, `hppActualKey(pNum)`, `ytdPayKey(year)`, `ytdTaxKey(year)` — key builder functions
+- `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations; receives deps as params to avoid circular imports with `paycalc.js`
+- `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
 
 ### `paycalc-calc.js`
 Pure functions only — no DOM, no Firebase, no localStorage.
@@ -201,7 +238,7 @@ Shared Web Push module — single source of truth for the VAPID key and subscrip
 - `enableNotifications()` — async; subscribe + Firestore save → returns `Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>`
 - `disableNotifications()` — async; unsubscribe + Firestore delete
 - Imports `savePushSubscription`/`deletePushSubscription` from `firebase-client.js`, `lsGet`/`lsSet` from `ls.js`
-- `app.js` and `admin-huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
+- `app.js` and `huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
 
 ### `app-override-utils.js`
 Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.
@@ -239,8 +276,14 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 ### `storage.rules`
 Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
-- `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `admin-huddle.js`.
+- `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
 - All other paths: denied.
+
+### `index.css` / `admin.css` / `paycalc.css`
+Page-specific CSS for each page — extracted from inline `<style>` blocks at v11.41.
+- Edit here for any visual change that is specific to one page
+- `operations.html` and `settings.html` keep their CSS inline (small enough not to warrant extraction)
+- All three are network-first in the service worker (same freshness guarantee as their HTML)
 
 ### `shared.css`
 All CSS shared across the three pages.
@@ -298,4 +341,4 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 
 ## Version bump checklist
 
-See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". Six places, authoritative source is `APP_VERSION` in `roster-data.js`.
+See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". 8 edit locations (7 files); authoritative source is `APP_VERSION` in `roster-data.js`.

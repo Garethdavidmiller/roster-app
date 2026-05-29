@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: May 2026 — v11.07 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.39 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -30,21 +30,18 @@ forged localStorage session can see the UI but cannot write to Firestore.
 Practical risk is low for a small known team.
 
 ### Firebase Auth session is re-established on page load (v10.93)
-The login click handler signs in to Firebase Auth, but a returning user with a valid
-30-day localStorage session skips that handler on every subsequent app open — leaving
-`auth.currentUser` null and breaking all Firestore writes.
+A returning user with a valid 30-day localStorage session skips the login click handler on
+every subsequent open, which would leave `auth.currentUser` null and break all Firestore
+writes. Fixed in v10.93 by `ensureFirebaseSession()`, which runs on page load whenever a
+localStorage session exists (waits for `onAuthStateChanged`, signs in if none found,
+self-heals a missing account). Full description and the "do not remove this call" rule:
+**CLAUDE.md → "Firebase Auth (complete — v7.94)"**.
 
-Fixed in v10.93: `ensureFirebaseSession()` in `admin-app.js` runs on page load whenever
-a localStorage session exists. It waits for the first `onAuthStateChanged` callback to
-detect any persisted session, and if none is found it re-derives the member's password
-(surname, lowercase, alpha only, padded to 6 chars) and signs in. If the Firebase Auth
-account doesn't exist yet (e.g. `setupRosterAuth` was never run) it self-heals via
-`createUserWithEmailAndPassword` with the same derived credentials.
+### ⏰ The four v11 security tasks — current status
 
-### ⏰ Four tasks scheduled for v11
-
-Do all four together when the app reaches v11. (Originally pencilled in for v10.50;
-deferred to v11 so the v10.x line stays focused on incremental fixes.)
+Originally pencilled in for v10.50, deferred to v11. Status as of v11.39:
+**#1 done** (with a critical allowlist caveat — see below) · **#2 suspended** (caused a
+production outage) · **#3 done** · **#4 awaiting verification on a real payday**.
 
 **1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026) ⚠️ SEE NOTE**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
@@ -140,9 +137,9 @@ Pay awards at Chiltern are typically not decided until August — do not expect 
 rates before then.
 
 ### Back pay lump sum — HPP now included (v10.73)
-`calcBackPay()` now computes `_bpVarAmount` (the variable-pay portion of the lump sum:
-overtime, RDW, Sunday, BH, London Allowance uplifts). `calcHPP()` adds this to `totalVar`
-for the paid-in period, so the HPP estimate is correct after a back pay event.
+Resolved — `calcBackPay()` computes the variable-pay portion (`_bpVarAmount`) and
+`calcHPP()` folds it into the HPP estimate for the paid-in period. See task #3 above for the
+payslip confirmation detail.
 
 ### Pre-fill reads base roster + Firestore overrides only
 The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).

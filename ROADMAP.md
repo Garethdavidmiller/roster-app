@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v10.74*
+*Last updated: May 2026 — v11.39*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -123,11 +123,13 @@ A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navig
 
 ---
 
-### Security hardening ✓ (v10.72–v10.74)
+### Security hardening (v10.72–v10.74)
 
-Four v11 security tasks, all now complete:
+Progress on the four v11 security tasks. **Current status (v11.39): #1 done, #2 suspended,
+#3 done, #4 awaiting verification on a real payday.** Authoritative status and the
+re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 security tasks"**.
 
-- **v10.72 — Firestore member write isolation:** `firestore.rules` updated so each staff member can only write overrides for themselves (`memberName == request.auth.token.name`). Admin custom claim bypasses the check for G. Miller (roster upload writes on behalf of all members). Required fields validated server-side. `memberSettings` document isolation uses the path wildcard `{memberName}` rather than a data field check. `admin-app.js` updated to include `memberName` in the `setDoc` call so first-time creates pass the `hasAll` rule.
+- **v10.72 — Firestore member write isolation ⚠️ later suspended (v10.94):** `firestore.rules` was updated so each staff member could only write overrides for themselves (`memberName == request.auth.token.name`), with an admin claim bypass for G. Miller. This was **reverted at v10.94** after it caused a production outage; rules are back to `request.auth != null` with field validation retained. See KNOWN_LIMITATIONS.md task #2 for the full post-mortem and re-introduction checklist.
 
 - **v10.73 — Back pay variable pay included in HPP:** G. Miller's period 32 payslip confirmed Chiltern itemises back pay per category with explicit `(Back Pay)` suffix lines. `calcBackPay()` now computes `_bpVarAmount` (overtime, RDW, Sunday, BH, London Allowance uplifts in the rate-difference period). `calcHPP()` adds `_bpVarAmount` to `totalVar` for the paid-in period — HPP estimate is now correct after a back pay event.
 

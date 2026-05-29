@@ -17,6 +17,7 @@
 
 import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
 import { teamMembers, APP_VERSION } from './roster-data.js';
+import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -91,7 +92,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.add('open');
         panel.classList.add('open');
         burger.setAttribute('aria-expanded', 'true');
-        _lockBodyScroll();
+        lockBodyScroll();
         if (!_historyPushed) {
             history.pushState({ mybNavPanel: true }, '');
             _historyPushed = true;
@@ -111,7 +112,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
-        _unlockBodyScroll();
+        unlockBodyScroll();
         if (_historyPushed) {
             _historyPushed = false;
             history.back(); // removes the state we pushed — triggers popstate
@@ -128,7 +129,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
-        _unlockBodyScroll();
+        unlockBodyScroll();
         burger.focus();
     }
 
@@ -144,7 +145,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
-        _unlockBodyScroll();
+        unlockBodyScroll();
     }
 
     burger.addEventListener('click', openPanel);
@@ -245,7 +246,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     function _openComingSoon() {
         if (!csLightbox) return;
         _csReturnFocus = document.activeElement; // restore focus here on close
-        _lockBodyScroll();
+        lockBodyScroll();
         csLightbox.classList.add('visible');
         requestAnimationFrame(() => csLightbox.classList.add('open'));
         document.addEventListener('keydown', _onComingSoonKey);
@@ -271,7 +272,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         function done() {
             clearTimeout(t);
             csLightbox.classList.remove('visible');
-            _unlockBodyScroll();
+            unlockBodyScroll();
             _csReturnFocus?.focus();
             _csReturnFocus = null;
         }
@@ -288,7 +289,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         function done() {
             clearTimeout(t);
             csLightbox.classList.remove('visible');
-            _unlockBodyScroll();
+            unlockBodyScroll();
             _csReturnFocus?.focus();
             _csReturnFocus = null;
         }
@@ -346,19 +347,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     });
 }
 
-// Body-scroll lock for the coming-soon lightbox. Mirrors the per-page helpers in
-// app.js / admin-app.js / paycalc.js (not exported there, so re-implemented here).
-let _navScrollY = 0;
-function _lockBodyScroll() {
-    _navScrollY = window.scrollY || 0;
-    document.body.style.setProperty('--lb-scroll-y', `-${_navScrollY}px`);
-    document.body.classList.add('lb-open');
-}
-function _unlockBodyScroll() {
-    document.body.classList.remove('lb-open');
-    document.body.style.removeProperty('--lb-scroll-y');
-    window.scrollTo(0, _navScrollY);
-}
+// lockBodyScroll / unlockBodyScroll imported from overlay.js
 
 /** Build and inject the overlay + drawer HTML into document.body. */
 function _inject(currentPage, memberName, onSignOut, isAdmin) {

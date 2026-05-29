@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: May 2026 — v10.74 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.39 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -172,12 +172,16 @@ Yes branch (after noon) → PDF. No branch (before noon) → DOCX.
 
 ```
 match /huddles/{docId} {
-  allow read: if true;   // all authenticated staff can read huddle links
-  allow write: if false; // writes only via Cloud Function (server-side Admin SDK)
+  allow read:  if true;                          // app.js reads without an Auth session
+  allow write: if request.auth.token.admin == true;  // browser writes: admin only (v10.83)
 }
 ```
 
-The Admin SDK bypasses Security Rules — `allow write: if false` never blocks Cloud Functions.
+Read is open because `app.js` (index.html) has no Firebase Auth session — requiring auth
+broke notification auto-open on fresh first visits (v10.76). Browser writes (the manual admin
+upload path in `admin-huddle.js`) require the admin claim (v10.83); the automated
+`ingestHuddle` Cloud Function uses the Admin SDK, which bypasses rules entirely. The matching
+Storage rule (`storage.rules`) also requires the admin claim for huddle file writes.
 
 ### Huddle notification tap behaviour (v10.71)
 
@@ -291,6 +295,8 @@ Apply approved changes:
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
 `nameToEmail(name)` in `firebase-client.js` and `functions/index.js` must stay in sync with `getSurname()` in `admin-app.js`.
+
+**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is. The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load.
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 
