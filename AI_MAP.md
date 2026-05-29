@@ -46,6 +46,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` |
 | Print button for guide.html and paycalc-guide.html | `guide-print.js` |
+| Shared guide chrome — header, back/PDF buttons, print banner (all 4 guides) | `guide-shell.css` |
 
 ---
 
@@ -284,6 +285,12 @@ Page-specific CSS for each page — extracted from inline `<style>` blocks at v1
 - Edit here for any visual change that is specific to one page
 - `operations.html` and `settings.html` keep their CSS inline (small enough not to warrant extraction)
 - All three are network-first in the service worker (same freshness guarantee as their HTML)
+
+### `guide-shell.css`
+Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html`) — added v11.48.
+- Holds only the common header/back-button/PDF-button/print rules; uses `var(--navy)` from each page's own `:root`
+- This is the one place to change guide chrome — do not re-inline it into the pages
+- NOT the app's `shared.css` (which the guides deliberately don't import) — see CLAUDE.md "Unified guide shell"
 
 ### `shared.css`
 All CSS shared across the three pages.
