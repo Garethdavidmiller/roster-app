@@ -781,12 +781,31 @@ body.lb-open #stickyTotal { display: none !important; }
 
 /* The drawer itself */
 .nav-panel {
+    /* ── Dark drawer palette (v11.54) ───────────────────────────
+       The drawer is one continuous navy surface — the same navy as
+       the page header and the login overlay, so the three read as
+       one family. These scoped tokens are the on-navy equivalents
+       of the global neutral tokens (--text-*, --border-light,
+       --bg-faint): every child rule below reads them, so the whole
+       drawer re-tones from one place. Defined here (not as silent
+       overrides of the global --text-* tokens) so the dark context
+       is explicit. Alpha values are tuned to clear WCAG AA on navy:
+       0.70 ≈ 7:1 for body text, 0.55 ≈ 5:1 for small headings. */
+    --nav-surface:       var(--primary-blue);
+    --nav-raised:        rgba(255, 255, 255, 0.09);   /* chips, hover fills */
+    --nav-raised-strong: rgba(255, 255, 255, 0.16);   /* active / pressed */
+    --nav-text:          #ffffff;
+    --nav-text-muted:    rgba(255, 255, 255, 0.70);    /* secondary text */
+    --nav-text-faint:    rgba(255, 255, 255, 0.55);    /* small headings */
+    --nav-border:        rgba(255, 255, 255, 0.12);    /* hairline dividers */
+
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
     width: min(260px, 72vw);
-    background: white;
+    background: var(--nav-surface);
+    color: var(--nav-text);
     z-index: 301;
     transform: translateX(-100%);
     /* visibility:hidden removes the off-screen drawer's links/buttons from the
@@ -810,10 +829,11 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel { width: 380px; }
 }
 
-/* Navy header strip */
+/* Navy header strip — same surface as the body now, so a hairline border
+   (not a colour change) is what separates it from the scrolling content. */
 .nav-panel-head {
-    background: var(--primary-blue);
-    color: white;
+    background: var(--nav-surface);
+    color: var(--nav-text);
     padding: 16px 16px 14px;
     /* Push content below any top notch when panel is open */
     padding-top: max(16px, env(safe-area-inset-top));
@@ -821,6 +841,7 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
+    border-bottom: 1px solid var(--nav-border);
 }
 
 /* Brand button — logo + title + version. Tapping opens the page's About
@@ -871,7 +892,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-version {
     font-size: 11px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.6);
+    color: var(--nav-text-faint);
     letter-spacing: 0.2px;
     margin-top: 1px;
 }
@@ -912,13 +933,16 @@ body.lb-open #stickyTotal { display: none !important; }
     gap: 8px;
 }
 
+/* Base pill — on the navy drawer a plain navy fill would be invisible, so the
+   default is a raised (white-overlay) chip. The coloured variants below override
+   it; this base only shows for a variant-less pill (a safety fallback). */
 .nav-panel-pill {
     display: inline-flex;
     align-items: center;
     padding: 9px 20px;
     border-radius: 22px;
-    background: var(--primary-blue);
-    color: white;
+    background: var(--nav-raised);
+    color: var(--nav-text);
     font-size: 14px;
     font-weight: 600;
     text-decoration: none;
@@ -929,7 +953,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .nav-panel-pill:active { opacity: 0.75; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill:hover { background: var(--primary-blue-dark); }
+    .nav-panel-pill:hover { background: var(--nav-raised-strong); }
 }
 
 /* Pill colour variants — match the equivalent quick-action buttons on the calendar page */
@@ -941,12 +965,15 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill--calendar:hover { background: var(--accent-gold-dark); }
 }
 
+/* Admin keeps its navy + gold identity, but its old navy fill is now the drawer
+   itself — so it renders as a raised chip with gold text, clearly distinct from
+   the solid-gold Calendar pill. */
 .nav-panel-pill--admin {
-    background: var(--primary-blue);
+    background: var(--nav-raised);
     color: var(--accent-gold);
 }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--admin:hover { background: var(--primary-blue-dark); }
+    .nav-panel-pill--admin:hover { background: var(--nav-raised-strong); }
 }
 
 .nav-panel-pill--pay {
@@ -971,16 +998,16 @@ body.lb-open #stickyTotal { display: none !important; }
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.1em;
-    color: var(--text-light);
+    color: var(--nav-text-faint);
     margin: 0 0 10px;
     padding-bottom: 6px;
-    border-bottom: 1px solid var(--border-light);
+    border-bottom: 1px solid var(--nav-border);
 }
 
 .nav-panel-group-heading {
     font-size: 12px;
     font-weight: 600;
-    color: var(--text-mid);
+    color: var(--nav-text-muted);
     margin: 14px 0 2px;
 }
 
@@ -992,8 +1019,8 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: color-mix(in oklch, var(--primary-blue) 6%, white);
-    border: 1px solid var(--border-light);
+    background: var(--nav-raised);
+    border: 1px solid var(--nav-border);
     border-radius: 8px;
     padding: 9px 12px;
     margin: 0;
@@ -1004,7 +1031,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-guides-heading {
     font-size: 11px;
     font-weight: 700;
-    color: var(--primary-blue);
+    color: var(--nav-text);
 }
 .nav-panel-guides-arrow {
     font-size: 14px;
@@ -1016,7 +1043,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .nav-panel-guides-list { margin-top: 6px; }
 .nav-panel-guides-toggle:active { opacity: 0.7; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-guides-toggle:hover { background: color-mix(in oklch, var(--primary-blue) 10%, white); }
+    .nav-panel-guides-toggle:hover { background: var(--nav-raised-strong); }
 }
 
 .nav-panel-links {
@@ -1032,13 +1059,13 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 10px 8px;
     border-radius: 8px;
     text-decoration: none;
-    color: var(--text-dark);
+    color: var(--nav-text);
     font-size: 14px;
     transition: background 0.1s;
 }
-.nav-panel-link:active { background: var(--border-light); }
+.nav-panel-link:active { background: var(--nav-raised-strong); }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-link:hover { background: var(--bg-faint); }
+    .nav-panel-link:hover { background: var(--nav-raised); }
 }
 
 /* Coming-soon entries are <button>s, not <a>s — reset native button chrome
@@ -1084,7 +1111,7 @@ button.nav-panel-link--coming-soon {
     flex-shrink: 0;
     padding: 10px 16px;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--border-light);
+    border-top: 1px solid var(--nav-border);
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -1128,10 +1155,11 @@ button.nav-panel-link--coming-soon {
 }
 .nav-panel-bell:active { opacity: 0.5; }
 
-/* Browser-blocked hint, revealed when a denied bell is tapped */
+/* Browser-blocked hint, revealed when a denied bell is tapped.
+   Lifted toward white so the red clears AA on the navy footer. */
 .nav-panel-bell-hint {
     font-size: 11px;
-    color: var(--error-red);
+    color: color-mix(in oklch, var(--error-red) 65%, white);
     text-align: right;
 }
 
@@ -1146,7 +1174,7 @@ button.nav-panel-link--coming-soon {
 
 .nav-panel-member {
     font-size: 13px;
-    color: var(--text-mid);
+    color: var(--nav-text-muted);
     font-weight: 500;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1168,7 +1196,9 @@ button.nav-panel-link--coming-soon {
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;
-    color: var(--error-red);
+    /* Lifted toward white: raw --error-red is ~4:1 on navy (borderline);
+       mixing in white lands it comfortably above AA while still reading red. */
+    color: color-mix(in oklch, var(--error-red) 65%, white);
     padding: 4px 0;
     flex-shrink: 0;
     touch-action: manipulation;
@@ -1182,7 +1212,7 @@ button.nav-panel-link--coming-soon {
 
 /* ---- Nav panel settings link — flat, pinned above footer ---- */
 .nav-panel-settings {
-    border-top: 1px solid var(--border-light);
+    border-top: 1px solid var(--nav-border);
     padding: 8px 16px 8px;
 }
 
