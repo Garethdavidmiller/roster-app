@@ -103,7 +103,8 @@ roster-app/
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
 ├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
-├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
+├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities; exports recordRangeOverrides() shared AL/Sick save helper
+├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix) → { reset() }. Extracted from admin-app.js at v11.36. Imported directly by admin-al.js and admin-sick.js
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds
@@ -402,9 +403,30 @@ missing account via `createUserWithEmailAndPassword` if needed. Do not remove th
 reverted after it caused a production outage — see KNOWN_LIMITATIONS.md task #2 for full
 details and the re-introduction checklist.
 
-**Adding a new staff member:** Add to `teamMembers` in `roster-data.js`, then admin.html → **Staff Login Accounts** → **Set up accounts**.
+**New starter checklist — run through every time:**
 
-**Adding a mid-year joiner:**
+**Step 1 — `roster-data.js` (always required)**
+- [ ] Add entry to `teamMembers` with `name`, `currentWeek`, `rosterType`, `role`, `flags`
+- [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
+- [ ] If joining mid-year: add `proRatedAL: { year: N }` — formula: `⌈(daysRemainingInYear / 365) × entitlement⌉`
+  - Count from start date inclusive to 31 Dec inclusive
+  - CEA entitlement = 32 days; CES = 34 days
+  - Example: May 5 start → 241 days → ⌈241/365 × 32⌉ = 22
+
+**Step 2 — Firebase Auth (always required)**
+- [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
+- [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
+
+**Step 3 — Pay calculator verification (mid-year joiners only)**
+- [ ] Log in as the new member, open pay calculator, check the joining period shows the info banner and correct pro-rated contracted hours
+- [ ] Joining period = the pay period whose cutoff is on or after the start date
+- [ ] Expected pro-rated hours = `Math.round(140 × daysEmployed / totalDays)` where totalDays = cutoff − prevCutoff and daysEmployed = `Math.round((cutoff − startDate) / msPerDay) + 1`
+
+**That's everything** — calendar display, team view, override eligibility, roster-assist pre-fill, and all subsequent pay periods are automatic.
+
+---
+
+**Adding a mid-year joiner — field reference:**
 
 | Field | Example | Purpose |
 |-------|---------|---------|

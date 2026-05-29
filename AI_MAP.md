@@ -25,6 +25,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Push notifications card (all staff, settings page) | `admin-huddle.js` → `initHuddleNotifications` |
 | Staff Firebase Auth account setup card | `admin-auth.js` |
 | Change a Shift — week grid, override entry, bulk bar, save logic | `admin-overrides.js` |
+| Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
 | Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
@@ -97,12 +98,12 @@ Coordinator for `operations.html` (admin-only, v10.99).
 Annual Leave Booking section (extracted v9.93).
 - `initALSection(deps)` — sets up date picker, preview, entitlement check, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
 - `triggerConfirmedALSave()` — called by the confirm bar in `admin-app.js` when the user accepts booking over their AL entitlement; sets internal flag and re-fires the save button.
-- Imports `teamMembers`, `getALEntitlement`, `getBaseShift`, `formatISO`, `isSunday`, `escapeHtml` from `roster-data.js`; `writeBatch`, `db`, etc. from `firebase-client.js`; `getAllOverrides`, `setAllOverrides`, `renderWeekGrid`, `renderTable`, `formatDisplay` from `admin-overrides.js`.
+- Imports `teamMembers`, `getALEntitlement`, `getBaseShift`, `formatISO`, `isSunday`, `escapeHtml` from `roster-data.js`; `getAllOverrides`, `recordRangeOverrides`, `formatDisplay` from `admin-overrides.js`; `buildRangePicker` from `admin-rangepicker.js`.
 
 ### `admin-sick.js`
 Sick Days Recording section (extracted v9.93).
 - `initSickSection(deps)` — sets up date picker, preview, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
-- Same direct imports as `admin-al.js` (roster-data, firebase-client, admin-overrides). No `lsSet` or `confirmNavigate` needed — the sick section has no member-change handler.
+- Imports `teamMembers`, `getBaseShift`, `formatISO`, `isSunday`, `escapeHtml` from `roster-data.js`; `getAllOverrides`, `recordRangeOverrides`, `formatDisplay` from `admin-overrides.js`; `buildRangePicker` from `admin-rangepicker.js`. No `lsSet` or `confirmNavigate` needed — the sick section has no member-change handler.
 
 ### `admin-overrides.js`
 The Change a Shift module. Owns the week grid and override list entirely.
@@ -112,6 +113,13 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `executeSave()` — writes override to Firestore
 - `updateSaveBtn()` — exported so swipe carousel can call it
 - State accessors: `getAllOverrides()` / `setAllOverrides()` — used by `admin-al.js` and `admin-sick.js`
+- `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper used by both `admin-al.js` and `admin-sick.js`; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
+
+### `admin-rangepicker.js`
+Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
+- `buildRangePicker(prefix)` — builds a month grid with from/to selection, chip labels, and swipe navigation between months; returns `{ reset() }`
+- Imports `DAY_NAMES`, `MONTH_ABB`, `MONTH_NAMES`, `formatISO`, `SWIPE_THRESHOLD`, `SWIPE_VELOCITY` from `roster-data.js`
+- Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
 ### `admin-huddle.js`
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.

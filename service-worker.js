@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v11.33
+// MYB Roster — Service Worker v11.36
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '11.33';
+const APP_VERSION = '11.36';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -25,7 +25,7 @@ const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html',
     'app.js', 'app-team-view.js', 'app-override-utils.js', 'admin-app.js', 'admin-huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
-    'admin-roster-upload.js', 'admin-overrides.js',
+    'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js',
     'operations-app.js', 'settings-app.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js',
@@ -52,6 +52,7 @@ const CORE_ASSETS = [
     "./admin-auth.js",
     "./admin-roster-upload.js",
     "./admin-overrides.js",
+    "./admin-rangepicker.js",
     "./admin-al.js",
     "./admin-sick.js",
     "./operations-app.js",

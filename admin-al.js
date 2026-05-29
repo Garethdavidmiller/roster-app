@@ -5,8 +5,8 @@
 // and shared functions via initALSection(deps) to avoid circular imports.
 
 import { teamMembers, getALEntitlement, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
-import { db, collection, doc, writeBatch, serverTimestamp, auth } from './firebase-client.js';
-import { getAllOverrides, setAllOverrides, renderWeekGrid, renderTable, formatDisplay } from './admin-overrides.js';
+import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
+import { buildRangePicker } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
 
@@ -38,7 +38,6 @@ export function triggerConfirmedALSave() {
  * @param {Function}          deps.updateALBanner      Refreshes the AL entitlement banner
  * @param {Function}          deps.updateALBookedBox   Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox Refreshes the sick booked-periods box
- * @param {Function}          deps.buildRangePicker    Builds the date range picker for a given prefix
  * @param {string|null}       deps.currentUser         Logged-in user name (for changedBy field)
  * @param {Function}          deps.showALConfirm       Shows the over-entitlement confirmation bar
  * @param {Function}          deps.lsSet               Safe localStorage.setItem wrapper
@@ -48,7 +47,7 @@ export function initALSection({
     syncMemberDisplay, syncSickMemberDisplay,
     populateMemberDropdown, lastMember,
     confirmNavigate, updateALBanner, updateALBookedBox, updateSickBookedBox,
-    buildRangePicker, currentUser, showALConfirm, lsSet,
+    currentUser, showALConfirm, lsSet,
 }) {
 const alFrom     = document.getElementById('alFrom');
 const alTo       = document.getElementById('alTo');
@@ -162,10 +161,10 @@ function updateAlPreview() {
     const workDays  = dates.length - restCount;
     const label     = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
     const restNote  = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
-    // Warn for CEA/CES when spare days will be booked as AL: prompt admin to add RDs first if needed
+    // Warn for CEA/CES when spare (unconfirmed) shifts will be booked as AL
     const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
     const spareNote = (isSpareRole && spareCount > 0)
-        ? `<br><em>⚠ Includes ${spareCount} spare day${spareCount !== 1 ? 's' : ''}. For shifts over 7h, add RD corrections in the week editor first to reduce to 4 AL days.</em>`
+        ? `<br><em>⚠ ${spareCount} of these day${spareCount !== 1 ? 's are' : ' is'} an unconfirmed "Spare" shift. If the actual shift ends up longer than 7 hours, it may use more than 1 AL day — check with management if unsure.</em>`
         : '';
 
     alPreview.className = 'al-preview ready';
@@ -213,111 +212,32 @@ alSaveBtn.addEventListener('click', async () => {
     alSaveBtn.disabled    = true;
     alSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
-    // Filter out rest days and Sundays — Sundays are uncontracted for all staff.
-    // Also skips base-roster RDs/OFFs and existing RD/OFF overrides.
-    const workingDates = memberObj
-        ? dates.filter(dateStr => {
-            if (isSunday(dateStr)) return false;
-            const d    = new Date(dateStr + 'T12:00:00');
-            const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') return false;
-            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
-            return true;
-          })
-        : dates;
-
-    // Sundays within the AL block that have a worked base shift need an explicit
-    // RD correction — otherwise the base roster shift still shows on the calendar.
-    const sundayCorrections = memberObj
-        ? dates.filter(dateStr => {
-            if (!isSunday(dateStr)) return false;
-            const d    = new Date(dateStr + 'T12:00:00');
-            const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') return false;
-            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
-            return true;
-          })
-        : [];
-
-    if (!workingDates.length) {
-        alFeedback.className = 'feedback error';
-        alFeedback.textContent = '⚠ No working days in that range — nothing to record.';
-        alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Record annual leave';
-        return;
-    }
-
-    if (!auth.currentUser) {
-        alFeedback.className = 'feedback error';
-        alFeedback.textContent = '⚠ Session expired — please sign out and sign back in.';
-        alSaveBtn.disabled    = false;
-        alSaveBtn.textContent = 'Record annual leave';
-        return;
-    }
-
     try {
-        const alNewDocs    = [];   // track new docs for in-memory update
-        const alDeletedIds = new Set();
-        const alBatch      = writeBatch(db);
-        workingDates.forEach(date => {
-            // Overwrite any existing override for this member+date
-            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
-            if (existing) { alBatch.delete(doc(db, 'overrides', existing.id)); alDeletedIds.add(existing.id); }
-            const newRef = doc(collection(db, 'overrides'));
-            alBatch.set(newRef, {
-                memberName: member,
-                date,
-                type:      'annual_leave',
-                value:     'AL',
-                note:      '',
-                source:    'manual',
-                createdAt: serverTimestamp(),
-                changedBy: currentUser
-            });
-            // Capture the new ID so we can update allOverrides without a round-trip
-            alNewDocs.push({ id: newRef.id, memberName: member, date, type: 'annual_leave', value: 'AL', source: 'manual', note: '', createdAt: new Date() });
+        const { workingCount } = await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL', memberName: member, dates, changedBy: currentUser,
         });
-        sundayCorrections.forEach(date => {
-            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
-            if (existing) { alBatch.delete(doc(db, 'overrides', existing.id)); alDeletedIds.add(existing.id); }
-            const newRef = doc(collection(db, 'overrides'));
-            alBatch.set(newRef, {
-                memberName: member,
-                date,
-                type:      'correction',
-                value:     'RD',
-                note:      '',
-                source:    'manual',
-                createdAt: serverTimestamp(),
-                changedBy: currentUser
-            });
-            alNewDocs.push({ id: newRef.id, memberName: member, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
-        });
-        await alBatch.commit();
+
+        if (!workingCount) {
+            alFeedback.className = 'feedback error';
+            alFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+            return;
+        }
 
         alFeedback.className = 'feedback success';
-        alFeedback.textContent = `✓ Recorded ${workingDates.length} day${workingDates.length > 1 ? 's' : ''} of Annual Leave for ${member}`;
+        alFeedback.textContent = `✓ Recorded ${workingCount} day${workingCount > 1 ? 's' : ''} of Annual Leave for ${member}`;
         setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
 
         alPicker.reset();
         updateAlPreview();
-
-        // Update in-memory cache — no Firestore round-trip needed
-        const alUpdated = getAllOverrides().filter(o => !alDeletedIds.has(o.id));
-        alUpdated.push(...alNewDocs);
-        alUpdated.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        setAllOverrides(alUpdated);
-        renderTable();
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
-        if (fieldMember.value && fieldDate.value) renderWeekGrid();
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
         alFeedback.className = 'feedback error';
-        alFeedback.textContent = '⚠ Could not save — check your connection and try again.';
+        alFeedback.textContent = err.message === 'auth/session-expired'
+            ? '⚠ Session expired — please sign out and sign back in.'
+            : '⚠ Could not save — check your connection and try again.';
     } finally {
         alSaveBtn.disabled    = false;
         alSaveBtn.textContent = 'Record annual leave';
