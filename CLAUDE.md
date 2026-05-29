@@ -19,7 +19,7 @@ If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), th
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `11.33` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `11.39` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -49,7 +49,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 
 ## Version bumping (MANDATORY on every change)
 
-**6 places, every commit that touches behaviour:**
+**8 edit locations (7 files), every commit that touches behaviour:**
 
 | File | Location |
 |------|----------|
@@ -221,7 +221,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | `initALSection()` / `initSickSection()` in `admin-app.js` | `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` are hoisted to module scope above the `fieldMember` change handler — that handler fires before init. Do not move them inside the init functions. |
 | SW synthesised offline page uses status 200 | Some browsers suppress 5xx response bodies. `Cache-Control: no-store` prevents caching the synthesised page. |
 | SW offline fallback only for navigation requests (v10.15) | Only `event.request.destination === 'document'` requests get the offline HTML page. JS/CSS get `Response.error()`. Without this, `/admin-app.js` matched `'admin'` in the fallback logic and got HTML for a JS request — MIME-type error. |
-| Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `app.js` listens for `hashchange` and triggers the viewer. `_autoOpen` is `let` so the hashchange handler can reset it. **PDF/DOCX huddles, notification auto-open path (`_triggerAutoOpen`): does NOT open the file directly. A notification tap carries no in-page user activation, so `window.open('_blank')` is blocked as a pop-up, and `location.href` to the cross-origin Storage URL knocks the standalone PWA out of standalone mode (returns wrapped in browser chrome). Instead it renders an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping that IS a real gesture, so `window.open('_blank')` opens the file as a Custom Tab over the intact standalone app and Back returns cleanly. The manual `#huddleBtn` click calls `window.open` directly (that click is already a real gesture). Do not unify the two paths, and do not revert the auto-open path to direct `window.open`/`location.href`.** `huddles` Firestore reads are open (no auth) — `app.js` has no Firebase Auth session, so requiring auth would break auto-open on fresh first visits. |
+| Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `app.js` `hashchange` handler triggers the viewer (`_autoOpen` is `let` so it can reset). **Two `_triggerAutoOpen` paths — do not unify, do not revert the auto-open path to direct `window.open`/`location.href`:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a notification tap has no user activation. The manual `#huddleBtn` click calls `window.open` directly (already a real gesture). `huddles` Firestore reads are open (no auth) — `app.js` has no Auth session, so requiring auth would break auto-open on fresh visits. Full rationale: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |

@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v11.30 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.39 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -63,10 +63,7 @@ Everything that touches `index.html` at runtime.
 - Notification/push subscription wiring
 - Sync chip state machine
 - `navigateToPaycalc(paydayStr)` — shared helper for payday/cutoff cell clicks; checks session then navigates
-- `_triggerAutoOpen(huddle)` — called when app opens via a push notification tap (`#huddle` hash). **Two paths, do not unify:**
-  - HTML huddles: render `huddle.htmlContent` directly in the viewer overlay
-  - PDF/DOCX huddles: render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`). A notification tap has no transient user activation — `window.open('_blank')` would be pop-up-blocked, and `location.href` to the cross-origin Storage URL breaks standalone mode (Android wraps the app in browser chrome). Tapping the overlay button IS a real gesture, so `window.open` opens the PDF as a Custom Tab over the intact standalone app; Back returns cleanly.
-  - The manual `#huddleBtn` click path (line ~2231) calls `window.open` directly — that click is already a real gesture.
+- `_triggerAutoOpen(huddle)` — called when app opens via a push notification tap (`#huddle` hash). **Two paths, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`). The manual `#huddleBtn` click path (line ~2231) calls `window.open` directly. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.
@@ -298,4 +295,4 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 
 ## Version bump checklist
 
-See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". Six places, authoritative source is `APP_VERSION` in `roster-data.js`.
+See `CLAUDE.md` → "Version bumping (MANDATORY on every change)". 8 edit locations (7 files); authoritative source is `APP_VERSION` in `roster-data.js`.
