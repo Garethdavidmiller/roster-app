@@ -252,9 +252,11 @@ function initTipsLightbox() {
         },
     };
 
+    let _tipsFocusReturn = null;
     function openTips(key) {
         const tips = CARD_TIPS[key];
         if (!tips || !titleEl || !bodyEl) return;
+        _tipsFocusReturn = document.activeElement;
         lb.setAttribute('aria-label', tips.title);
         titleEl.textContent = tips.title;
         let html = '';
@@ -266,7 +268,7 @@ function initTipsLightbox() {
         }
         bodyEl.innerHTML = html;
         lb.classList.add('visible');
-        requestAnimationFrame(() => lb.classList.add('open'));
+        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
         lockBodyScroll();
         _pushOverlayState(closeTips);
         document.addEventListener('keydown', onKey);
@@ -275,11 +277,18 @@ function initTipsLightbox() {
     function closeTips() {
         _clearOverlayHistory();
         lb.classList.remove('open');
+        const t = setTimeout(() => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, 500);
         lb.addEventListener('transitionend', () => {
+            clearTimeout(t);
             lb.classList.remove('visible');
             unlockBodyScroll();
         }, { once: true });
         document.removeEventListener('keydown', onKey);
+        _tipsFocusReturn?.focus();
+        _tipsFocusReturn = null;
     }
 
     function onKey(e) { if (e.key === 'Escape') closeTips(); }
@@ -310,20 +319,27 @@ function initIconLightbox() {
         bugLink.href = `mailto:gdmiller1979@gmail.com?subject=MYB Roster bug report (v${APP_VERSION})&body=Page: Settings%0ADevice: ${encodeURIComponent(navigator.userAgent)}%0A%0ADescribe the issue:%0A`;
     }
 
+    let _lbFocusReturn = null;
     function openLightbox() {
+        _lbFocusReturn = document.activeElement;
         if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
         lb.classList.add('visible');
-        requestAnimationFrame(() => lb.classList.add('open'));
+        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
         lockBodyScroll();
         _pushOverlayState(closeLightbox);
+        document.addEventListener('keydown', onKey);
     }
     function closeLightbox() {
         lb.classList.remove('open');
         _clearOverlayHistory();
-        const t = setTimeout(done, 300);
+        const t = setTimeout(done, 500);
         function done() { clearTimeout(t); lb.classList.remove('visible'); unlockBodyScroll(); }
         lb.addEventListener('transitionend', done, { once: true });
+        document.removeEventListener('keydown', onKey);
+        _lbFocusReturn?.focus();
+        _lbFocusReturn = null;
     }
+    function onKey(e) { if (e.key === 'Escape') closeLightbox(); }
 
     // Header logo is a back-to-calendar button (About moved to the drawer logo).
     openAboutLightbox = openLightbox;
@@ -332,14 +348,9 @@ function initIconLightbox() {
     iconBtn.addEventListener('click', () => { window.location.href = './index.html'; });
     closeBtn.addEventListener('click', closeLightbox);
     lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
-
-    // Coming soon lightbox (nav panel)
-    const csLb    = document.getElementById('navComingSoonLightbox');
-    const csClose = document.getElementById('navComingSoonClose');
-    if (csLb && csClose) {
-        csClose.addEventListener('click', () => { csLb.classList.remove('open'); unlockBodyScroll(); });
-        csLb.addEventListener('click',    e => { if (e.target === csLb) { csLb.classList.remove('open'); unlockBodyScroll(); } });
-    }
+    // The coming-soon lightbox is owned entirely by nav-panel.js (open/close, Escape,
+    // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to
+    // live in this function and left the nav-panel state flags out of sync (v11.50).
 }
 
 // ── Service worker ────────────────────────────────────────────────────────────

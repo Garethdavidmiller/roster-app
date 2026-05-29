@@ -1587,7 +1587,7 @@ try {
                     bugLink.href   = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster v${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
                 }
                 lightbox.classList.add('visible');
-                requestAnimationFrame(() => lightbox.classList.add('open'));
+                requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });
                 lockBodyScroll();
                 _pushOverlayState(closeLightbox);
                 document.addEventListener('keydown', onKeyDown);
