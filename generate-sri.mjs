@@ -26,13 +26,11 @@ const ROOT  = dirname(fileURLToPath(import.meta.url));
 const APPLY = process.argv.includes('--apply');
 
 // ── CDN resources to hash ─────────────────────────────────────────────────────
-// DOMPurify: @3 is a floating tag — the resolved URL after redirect contains the
-// pinned version (e.g. @3.2.4). That pinned URL is what gets written back to
-// app-huddle-viewer.js and the modulepreload link in index.html.
+// Update the URL here when upgrading a CDN dependency, then re-run --apply.
 const CDN = [
     {
         key: 'dompurify',
-        url: 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs',
+        url: 'https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.es.mjs',
         type: 'esmodule',
         usedIn: 'app-huddle-viewer.js',
     },
