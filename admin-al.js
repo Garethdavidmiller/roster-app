@@ -162,10 +162,10 @@ function updateAlPreview() {
     const workDays  = dates.length - restCount;
     const label     = workDays === 1 ? '1 working day' : `${workDays} working day${workDays !== 1 ? 's' : ''}`;
     const restNote  = restCount > 0 ? ` <em>(+ ${restCount} rest day${restCount > 1 ? 's' : ''} skipped)</em>` : '';
-    // Warn for CEA/CES when spare days will be booked as AL: prompt admin to add RDs first if needed
+    // Warn for CEA/CES when spare (unconfirmed) shifts will be booked as AL
     const isSpareRole = memberObj && (memberObj.role === 'CEA' || memberObj.role === 'CES');
     const spareNote = (isSpareRole && spareCount > 0)
-        ? `<br><em>⚠ Includes ${spareCount} spare day${spareCount !== 1 ? 's' : ''}. For shifts over 7h, add RD corrections in the week editor first to reduce to 4 AL days.</em>`
+        ? `<br><em>⚠ ${spareCount} of these day${spareCount !== 1 ? 's are' : ' is'} an unconfirmed "Spare" shift. If the actual shift ends up longer than 7 hours, it may use more than 1 AL day — check with management if unsure.</em>`
         : '';
 
     alPreview.className = 'al-preview ready';

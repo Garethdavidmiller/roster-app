@@ -124,7 +124,7 @@ export function buildWeekGridInto(container, dateStr) {
         <div class="hdr-check"></div>
         <div class="hdr-day">Day</div>
         <div class="hdr-base">Base roster</div>
-        <div class="hdr-pills">Change to</div>
+        <div class="hdr-pills">Record as</div>
         <div class="hdr-time">Shift time</div>`;
     container.appendChild(header);
 
@@ -216,6 +216,15 @@ export function buildWeekGridInto(container, dateStr) {
                     _deactivateRow(row, checkbox, pills, startEl, endEl);
                 } else {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
+                    // Pre-fill times from the base roster shift when choosing Shift or RDW,
+                    // but only if the user hasn't already entered something.
+                    if (!TYPES[type]?.fixed && !startEl.value && !endEl.value) {
+                        if ((type === 'shift' || type === 'rdw') && baseShift && baseShift.includes('-')) {
+                            const [prefillS, prefillE] = baseShift.split('-');
+                            startEl.value = prefillS;
+                            endEl.value   = prefillE;
+                        }
+                    }
                     if (!TYPES[type]?.fixed) startEl.focus();
                 }
                 // Show RD hint when Shift is chosen on a base-rest day
@@ -408,12 +417,16 @@ function _initBulkBar() {
         const memberName = document.getElementById('fieldMember')?.value;
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
         weekGrid?.querySelectorAll('.day-row').forEach(row => {
-            const date     = new Date(row.dataset.date + 'T12:00:00');
+            const dateISO  = row.dataset.date;
+            const date     = new Date(dateISO + 'T12:00:00');
             const checkbox = row.querySelector('.day-cb');
             if (!checkbox) return;
-            const base  = member ? getBaseShift(member, date) : 'RD';
-            const works = base !== 'RD' && base !== 'OFF';
-            if (works) {
+            const base = member ? getBaseShift(member, date) : 'RD';
+            // Also respect recorded RD corrections so corrected days aren't re-selected
+            const ov    = memberName ? _allOverrides.find(o => o.memberName === memberName && o.date === dateISO) : null;
+            const isRD  = base === 'RD' || base === 'OFF'
+                       || (ov && (ov.value === 'RD' || ov.value === 'OFF'));
+            if (!isRD) {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {

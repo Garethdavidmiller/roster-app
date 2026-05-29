@@ -408,7 +408,7 @@ let openAboutLightbox = null;
     /** Tips content keyed by data-card attribute on each .btn-card-tips button. */
     const CARD_TIPS = {
         'change-shift': {
-            title: 'Updating shifts',
+            title: 'Record a Shift',
             sections: [
                 { heading: 'One shift', items: [
                     { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top', adminOnly: true },
@@ -943,7 +943,12 @@ function updateALBanner() {
     const warnEl      = document.getElementById('alBannerWarn');
     const memberName  = alMember.value;
 
-    if (!memberName) { banner.hidden = true; return; }
+    if (!memberName) {
+        banner.hidden = true;
+        const _hb = document.getElementById('alHeaderBalance');
+        if (_hb) _hb.hidden = true;
+        return;
+    }
 
     const member      = teamMembers.find(m => m.name === memberName);
     if (!member)      { banner.hidden = true; return; }
@@ -985,6 +990,16 @@ function updateALBanner() {
 
     warnEl.hidden      = remaining > 0;
     warnEl.textContent = remaining === 0 ? 'Limit reached' : `${Math.abs(remaining)} over limit`;
+
+    // Show remaining balance on the collapsed card header so staff see it at a glance
+    const headerBalEl = document.getElementById('alHeaderBalance');
+    const headerRemEl = document.getElementById('alHeaderRemaining');
+    if (headerBalEl && headerRemEl) {
+        headerRemEl.textContent = remaining;
+        headerBalEl.hidden = false;
+        headerBalEl.className = 'al-header-balance'
+            + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
+    }
 }
 
 // ============================================
@@ -1812,6 +1827,12 @@ function applyPermissions() {
     if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
     if (sickHint)  sickHint.textContent = 'Record your own absence days — sickness, family, or any other reason';
     if (savedHint) savedHint.textContent = 'Your schedule changes — tap any row to edit or delete';
+
+    // Auto-open the Annual Leave card — most staff visit here primarily to book AL
+    const alBody    = document.getElementById('alBody');
+    const alChevron = document.getElementById('alChevron');
+    if (alBody)    alBody.classList.add('open');
+    if (alChevron) alChevron.classList.add('open');
 }
 
 // ============================================
@@ -1857,38 +1878,32 @@ stampAdminPrintHeader();
 window.addEventListener('beforeprint', stampAdminPrintHeader);
 
 /**
- * One-time cleanup: finds and deletes any annual_leave overrides that fall on
- * a Sunday. These can't be created any more but may exist from before v5.73.
- * Runs silently on admin page load — logs a summary to the console only.
- * Skipped after the first clean run via localStorage flag to avoid a full
- * Firestore scan on every subsequent page load.
+ * One-time cleanup: deletes any annual_leave overrides that fall on a Sunday.
+ * These can't be created any more but may exist from before v5.73.
+ * Scans the in-memory cache (populated by loadOverrides) — no extra Firestore read.
+ * Runs silently on admin page load; skipped after the first clean run.
  */
 async function purgeSundayAL() {
     if (lsGet('purgeSundayAL_done') === '1') return;
     try {
-        const snap = await getDocs(query(
-            collection(db, 'overrides'),
-            where('type', '==', 'annual_leave')
-        ));
+        const toDelete = getAllOverrides().filter(o => o.type === 'annual_leave' && isSunday(o.date));
 
-        const toDelete = snap.docs.filter(d => isSunday(d.data().date));
-
-        if (toDelete.length === 0) {
+        if (!toDelete.length) {
             console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
             lsSet('purgeSundayAL_done', '1');
             return;
         }
 
         const batch = writeBatch(db);
-        toDelete.forEach(d => batch.delete(doc(db, 'overrides', d.id)));
+        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
         await batch.commit();
 
         console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,
-            toDelete.map(d => `${d.data().memberName} ${d.data().date}`));
+            toDelete.map(o => `${o.memberName} ${o.date}`));
         lsSet('purgeSundayAL_done', '1');
 
-        // Refresh the in-memory cache so Saved Changes reflects the cleanup
-        const removedIds = new Set(toDelete.map(d => d.id));
+        // Update in-memory cache so Saved Changes reflects the cleanup
+        const removedIds = new Set(toDelete.map(o => o.id));
         setAllOverrides(getAllOverrides().filter(o => !removedIds.has(o.id)));
         renderTable();
         updateALBanner();
@@ -1925,8 +1940,9 @@ if (!isAuthenticated) {
         markChanged,
         onEditRow: handleEdit,
     });
-    loadOverrides(); // internally calls renderWeekGrid() after data loads
-    if (currentIsAdmin || currentIsManager) purgeSundayAL();
+    const _loadPromise = loadOverrides(); // internally calls renderWeekGrid() after data loads
+    // purgeSundayAL scans the in-memory cache, so it must run after loadOverrides completes
+    if (currentIsAdmin || currentIsManager) _loadPromise.then(() => purgeSundayAL());
 
     // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
     if (location.hash) {
@@ -2014,27 +2030,15 @@ if (currentIsAdmin && new Date().getMonth() >= 10) {
     const nextYear = new Date().getFullYear() + 1;
     const banner   = document.createElement('div');
     banner.id      = 'culturalCalReminder';
-    banner.setAttribute('style', [
-        'background: var(--accent-gold)',
-        'color: var(--primary-blue)',
-        'border-radius: 8px',
-        'padding: 12px 16px',
-        'margin: 0 0 16px',
-        'font-size: 13px',
-        'font-weight: 500',
-        'display: flex',
-        'align-items: flex-start',
-        'gap: 10px',
-    ].join(';'));
     const icon = document.createElement('span');
-    icon.setAttribute('style', 'font-size:18px;flex-shrink:0');
+    icon.className = 'reminder-icon';
     icon.setAttribute('aria-hidden', 'true');
     icon.textContent = '📅';
     const text = document.createElement('span');
-    text.style.flex = '1';
+    text.className = 'reminder-text';
     text.innerHTML = `<strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.`;
     const dismissBtn = document.createElement('button');
-    dismissBtn.setAttribute('style', 'background:none;border:none;cursor:pointer;font-size:20px;line-height:1;padding:0;color:var(--primary-blue);flex-shrink:0');
+    dismissBtn.className = 'reminder-dismiss';
     dismissBtn.setAttribute('aria-label', 'Dismiss reminder');
     dismissBtn.textContent = '×';
     dismissBtn.addEventListener('click', function () { banner.remove(); });

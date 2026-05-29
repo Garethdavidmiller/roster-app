@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Admin v11.34 -->
+<!-- MYB Roster Admin v11.35 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -2057,6 +2057,42 @@
 
         #adminBadge { background: var(--primary-blue); color: var(--accent-gold); }
         #iconLightbox .lightbox-badge { background: rgba(245,200,0,0.15); border-color: rgba(245,200,0,0.35); color: var(--accent-gold); }
+
+        /* AL balance shown in the collapsed card header */
+        .al-header-balance {
+            font-size: 12px;
+            color: var(--text-light);
+            font-weight: 500;
+            margin-top: 2px;
+        }
+        .al-header-balance.balance-low  { color: var(--accent-gold-dark); font-weight: 600; }
+        .al-header-balance.balance-none { color: #c0392b; font-weight: 700; }
+
+        /* Cultural calendar annual update reminder banner */
+        #culturalCalReminder {
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 0 0 16px;
+            font-size: 13px;
+            font-weight: 500;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+        #culturalCalReminder .reminder-text { flex: 1; }
+        #culturalCalReminder .reminder-icon { font-size: 18px; flex-shrink: 0; }
+        #culturalCalReminder .reminder-dismiss {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            line-height: 1;
+            padding: 0;
+            color: var(--primary-blue);
+            flex-shrink: 0;
+        }
     </style>
 </head>
 <body>
@@ -2166,7 +2202,7 @@
     <div class="card">
         <div class="card-header">
             <h2>Record a Shift <button class="btn-card-tips" data-card="change-shift" aria-label="Tips for recording a shift" title="Tips for recording a shift">?</button></h2>
-            <span class="hint">Tap any day to expand it, choose a type, then save — or tick multiple days and use Apply to all below</span>
+            <span class="hint">Tap any day to choose a type and save — or tick multiple days and use Apply to ticked days below. To book several days of annual leave at once, use the Annual Leave card.</span>
         </div>
         <div class="card-body">
 
@@ -2238,6 +2274,7 @@
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
             <h2>🏖️ Record Annual Leave <button class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave" title="Tips for recording annual leave">?</button></h2>
+            <span class="al-header-balance" id="alHeaderBalance" hidden>Remaining: <strong id="alHeaderRemaining">—</strong></span>
             <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
