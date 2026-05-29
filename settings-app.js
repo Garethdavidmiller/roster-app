@@ -7,112 +7,13 @@
  */
 
 import { CONFIG, teamMembers, CALENDAR_NAMES, resolveFaithCalendar, APP_VERSION } from './roster-data.js';
-import { db, doc, getDoc, setDoc, auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
+import { db, doc, getDoc, setDoc } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { initHuddleNotifications } from './admin-huddle.js';
+import { initHuddleNotifications } from './huddle.js';
+import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
 
-// ── Scroll lock (iOS Safari) ──────────────────────────────────────────────────
-let _lbScrollY = 0;
-function lockBodyScroll() {
-    _lbScrollY = window.scrollY;
-    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
-    document.body.classList.add('lb-open');
-}
-function unlockBodyScroll() {
-    document.body.classList.remove('lb-open');
-    document.body.style.removeProperty('--lb-scroll-y');
-    window.scrollTo(0, _lbScrollY);
-}
-
-// ── Android Back button pattern ───────────────────────────────────────────────
-let _overlayHistoryPushed = false;
-let _backHandler = null;
-function _pushOverlayState(closeHandler) {
-    if (!_overlayHistoryPushed) {
-        history.pushState({ mybOverlay: true }, '');
-        _overlayHistoryPushed = true;
-    }
-    _backHandler = closeHandler;
-}
-function _clearOverlayHistory() {
-    if (_overlayHistoryPushed) {
-        _overlayHistoryPushed = false;
-        _backHandler = null;
-        history.back();
-    }
-}
-window.addEventListener('popstate', () => {
-    if (!_overlayHistoryPushed) return;
-    _overlayHistoryPushed = false;
-    const fn = _backHandler;
-    _backHandler = null;
-    fn?.();
-});
-
-// ── Session (shared key with admin-app.js) ────────────────────────────────────
-const AUTH_KEY    = 'myb_admin_session';
-const SESSION_MS  = 30 * 24 * 60 * 60 * 1000;
-const SESSION_VER = 2;
-
-function getSurname(fullName) {
-    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-}
-
-async function ensureFirebaseSession(name) {
-    await authReady;
-    const existing = await new Promise(resolve => {
-        const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
-    });
-    if (existing) return true;
-
-    const pw       = getSurname(name);
-    const fbPw     = pw.length >= 6 ? pw : pw.padEnd(6, pw);
-    const email    = nameToEmail(name);
-    let firstError = null;
-
-    try {
-        await signInWithEmailAndPassword(auth, email, fbPw);
-        return true;
-    } catch (e) {
-        firstError = e.code;
-        if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-            try {
-                await createUserWithEmailAndPassword(auth, email, fbPw);
-                return true;
-            } catch (createErr) {
-                firstError = createErr.code;
-            }
-        }
-    }
-    try {
-        await signInAnonymously(auth);
-        return true;
-    } catch (anonErr) {
-        console.error('[Auth] Anonymous sign-in failed:', anonErr.code);
-        return false;
-    }
-}
-
-function getSession() {
-    try {
-        const raw = lsGet(AUTH_KEY);
-        if (!raw) return null;
-        const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
-        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
-        return s;
-    } catch { return null; }
-}
-
-function saveSession(name) {
-    lsSet(AUTH_KEY, JSON.stringify({ name, ver: SESSION_VER, expiry: Date.now() + SESSION_MS }));
-}
-
-function clearSession() {
-    lsDel(AUTH_KEY);
-    firebaseSignOut(auth).catch(() => {});
-}
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();

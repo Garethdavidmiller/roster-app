@@ -92,14 +92,17 @@ roster-app/
 ├── settings.html           ← staff self-service settings page: Notifications, Cultural Calendar (v11.06)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
+├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports applyHuddleButtonState, initHuddleViewer. Imported by app.js (v11.40)
 ├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js
 ├── notif.js                ← shared Web Push module: notifSupported, getNotifState, enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
+├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory. Singleton popstate listener. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js, nav-panel.js (v11.40)
+├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js (v11.40)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
 ├── app-override-utils.js   ← override priority and member-start helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart. Shared by app.js and app-team-view.js
 ├── admin-app.js            ← coordinator for admin.html: login, cultural calendar, module wiring, booked-box helpers, push notifications card
 ├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup (v10.99)
 ├── settings-app.js         ← coordinator for settings.html: session check (shared AUTH_KEY), login overlay, initHuddleNotifications, cultural calendar init, initNavPanel (v11.06)
-├── admin-huddle.js         ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → admin.html), Huddle card toggle
+├── huddle.js               ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → settings.html), Huddle card toggle. Renamed from admin-huddle.js at v11.40
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
 ├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
@@ -108,6 +111,8 @@ roster-app/
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds
+├── paycalc-help.js         ← HELP_CONTENT object (tooltip/help text for pay calculator). Pure data, no DOM/Firebase. Imported by paycalc.js (v11.40)
+├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, hppEstKey etc.) and runMigrations(). Imported by paycalc.js (v11.40)
 ├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion(p, member), fetchOverridesForPeriod
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only

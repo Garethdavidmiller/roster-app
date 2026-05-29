@@ -9,37 +9,18 @@
  */
 
 import { CONFIG, escapeHtml } from './roster-data.js';
-import { auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut } from './firebase-client.js';
+import { auth } from './firebase-client.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
-import { initHuddleUpload } from './admin-huddle.js';
+import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
+import { getSession, clearSession, ensureFirebaseSession } from './session.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
 
 // ============================================
-// SESSION — read from localStorage (shared with admin-app.js)
+// SESSION — read from localStorage (shared with admin-app.js via session.js)
 // ============================================
-const AUTH_KEY    = 'myb_admin_session';
-const SESSION_MS  = 30 * 24 * 60 * 60 * 1000;
-const SESSION_VER = 2;
-
-function getSession() {
-    try {
-        const raw = lsGet(AUTH_KEY);
-        if (!raw) return null;
-        const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
-        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
-        return s;
-    } catch { return null; }
-}
-
-function clearSession() {
-    lsDel(AUTH_KEY);
-    signOut(auth).catch(() => {});
-}
-
 const currentSession = getSession();
 const currentUser    = currentSession?.name ?? null;
 const isAdmin        = CONFIG.ADMIN_NAMES.includes(currentUser);
@@ -51,94 +32,9 @@ if (!currentUser || !isAdmin) {
     throw new Error('Not authorised — redirecting');
 }
 
-// ============================================
-// FIREBASE AUTH — re-establish session on page load
-// (same pattern as admin-app.js ensureFirebaseSession)
-// ============================================
-
-/**
- * @param {string} name - Member display name
- * @returns {Promise<boolean>}
- */
-async function ensureFirebaseSession(name) {
-    await authReady;
-    const existing = await new Promise(resolve => {
-        const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
-    });
-    if (existing) return true;
-
-    const pw         = name.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
-    const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
-    const email      = nameToEmail(name);
-    let   firstError = null;
-
-    try {
-        await signInWithEmailAndPassword(auth, email, fbPassword);
-        return true;
-    } catch (e) {
-        firstError = e.code;
-        if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
-            try {
-                await createUserWithEmailAndPassword(auth, email, fbPassword);
-                return true;
-            } catch (createErr) { firstError = createErr.code; }
-        }
-    }
-
-    window._mybAuthError = firstError;
-    try {
-        await signInAnonymously(auth);
-        return true;
-    } catch (anonErr) {
-        window._mybAuthError = `${firstError} + anon:${anonErr.code}`;
-        return false;
-    }
-}
-
 // Store as a Promise so admin-auth.js can await it before "Set up accounts"
 window._mybSession = ensureFirebaseSession(currentUser);
 
-// ============================================
-// SCROLL LOCK — prevents iOS Safari scrolling behind open lightboxes
-// ============================================
-let _lbScrollY = 0;
-function lockBodyScroll() {
-    _lbScrollY = window.scrollY;
-    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
-    document.body.classList.add('lb-open');
-}
-function unlockBodyScroll() {
-    document.body.classList.remove('lb-open');
-    document.body.style.removeProperty('--lb-scroll-y');
-    window.scrollTo(0, _lbScrollY);
-}
-
-// ============================================
-// ANDROID BACK BUTTON — overlay history helpers
-// ============================================
-let _overlayHistoryPushed = false;
-let _backHandler = null;
-function _pushOverlayState(closeHandler) {
-    if (!_overlayHistoryPushed) {
-        history.pushState({ mybOverlay: true }, '');
-        _overlayHistoryPushed = true;
-    }
-    _backHandler = closeHandler;
-}
-function _clearOverlayHistory() {
-    if (_overlayHistoryPushed) {
-        _overlayHistoryPushed = false;
-        _backHandler = null;
-        history.back();
-    }
-}
-window.addEventListener('popstate', () => {
-    if (!_overlayHistoryPushed) return;
-    _overlayHistoryPushed = false;
-    const fn = _backHandler;
-    _backHandler = null;
-    fn?.();
-});
 
 // ============================================
 // PAGE INIT

@@ -17,48 +17,11 @@ import {
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
+import { HELP_CONTENT } from './paycalc-help.js';
+import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations } from './paycalc-migrations.js';
 'use strict';
 
-// Body-scroll lock for lightboxes — iOS Safari otherwise lets the page underneath
-// scroll/drag when a fixed overlay is open. position:fixed is applied via the
-// body.lb-open class (defined in shared.css) and the scroll position is restored
-// on close.
-let _lbScrollY = 0;
-function lockBodyScroll() {
-    _lbScrollY = window.scrollY;
-    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
-    document.body.classList.add('lb-open');
-}
-function unlockBodyScroll() {
-    document.body.classList.remove('lb-open');
-    document.body.style.removeProperty('--lb-scroll-y');
-    window.scrollTo(0, _lbScrollY);
-}
-
-// Android Back button — overlay support (same pattern as app.js).
-let _overlayHistoryPushed = false;
-let _backHandler = null;
-function _pushOverlayState(closeHandler) {
-    if (!_overlayHistoryPushed) {
-        history.pushState({ mybOverlay: true }, '');
-        _overlayHistoryPushed = true;
-    }
-    _backHandler = closeHandler;
-}
-function _clearOverlayHistory() {
-    if (_overlayHistoryPushed) {
-        _overlayHistoryPushed = false;
-        _backHandler = null;
-        history.back();
-    }
-}
-window.addEventListener('popstate', () => {
-    if (!_overlayHistoryPushed) return;
-    _overlayHistoryPushed = false;
-    const fn = _backHandler;
-    _backHandler = null;
-    fn?.();
-});
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
 // Redirect unsigned-in users to admin.html to sign in, then return here.
@@ -147,11 +110,7 @@ function getPensionDefault(pObj) {
   return GRADES[grade]?.pension ?? '';
 }
 
-// ── STORAGE KEYS ──────────────────────────────────────────────────────────────
-// Keys use the myb_pc_ prefix (previously cea_ — migrated in _migrateCeaKeys below).
-const SK = { rate:'myb_pc_rate', rates:'myb_pc_rates', code:'myb_pc_code', sl:'myb_pc_sl', pension:'myb_pc_pension', setup:'myb_pc_setup', ytdPay:'myb_pc_ytd_pay', ytdTax:'myb_pc_ytd_tax', grade:'myb_pc_grade' };
-// myb_pc_rates is a JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
-// Separate rate per tax year so updating for a pay award doesn't distort historical periods.
+// SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey imported from paycalc-migrations.js
 
 // ── BACK PAY STATE ────────────────────────────────────────────────────────────
 // Set by calcBackPay() when a "paid in" period is chosen. Read by calculate()
@@ -161,15 +120,6 @@ let _bpVarAmount = 0; // variable (HPP-accruing) portion of the back pay lump su
 let _bpPNum      = 0; // period number that receives the back pay (0 = none)
 
 
-// myb_pc_hpp_est_2025_26  — running/final estimate, written on every calcHPP() call
-// myb_pc_hpp_actual_2025_26 — confirmed amount from January payslip, written by user
-function hppEstKey(ty)    { return `myb_pc_hpp_est_${ty.label.replace('/', '_')}`; }
-function hppActualKey(ty) { return `myb_pc_hpp_actual_${ty.label.replace('/', '_')}`; }
-// YTD (Year to Date) figures are specific to each tax year — storing them per-year
-// prevents 2025/26 YTD values from corrupting the cumulative tax calculation in 2026/27.
-function ytdPayKey(ty)    { return `myb_pc_ytd_pay_${ty.label.replace('/', '_')}`; }
-function ytdTaxKey(ty)    { return `myb_pc_ytd_tax_${ty.label.replace('/', '_')}`; }
-
 // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
 // per browser session. Cleared on page reload. Uses tax year label as the key.
 const _settingsPrompted = new Set();
@@ -178,63 +128,8 @@ const _settingsPrompted = new Set();
 // the ● today-period button to know when to show itself.
 let _defaultPeriodNum = null;
 
-// ── HELP CONTENT — per-card tip text ─────────────────────────────────────────
-// Keys match the data-help attribute on each .help-btn.
-// Tips support <strong> for emphasis — rendered via innerHTML in the lightbox.
-const HELP_CONTENT = {
-  hours: {
-    title: 'Your Hours — how it works',
-    tips: [
-      '<strong>Glossary:</strong> AL = Annual Leave · RDW = Rest Day Worked (you worked on your scheduled day off) · BH = Bank Holiday · CEA / CES = your pay grade · HPP = Holiday Pay Premium (annual lump sum in January).',
-      'Your contract includes <strong>140 hours per period</strong> at your base rate. You don\'t enter those — they\'re included automatically as basic pay. (CES and CEA are both 140 hours.)',
-      'If your name is in the roster, a gold hint card appears at the top of this section showing your special shifts for the period — Saturday, Sunday, bank holiday, rest day working (RDW), and Boxing Day. Tap a category row to fill just that one from the roster. Tap <strong>Fill from my roster</strong> to fill every category in one go — once you\'ve typed values, the same button reads <strong>Replace with roster hours</strong> as a reminder it will overwrite them (tap "Clear all entries" to undo). Filled fields turn gold; the highlight clears as soon as you edit them. When online, all counts include any shift changes recorded by admin — the count reflects your actual roster, not just the base.',
-      'Only enter hours at a <strong>different rate</strong>: rostered Saturdays (time-and-a-quarter, 1.25×), overtime (time-and-a-quarter, 1.25×), rest days and unrostered Saturdays (1.25×), Sundays (time-and-a-half, 1.5×), Boxing Day (triple time, 3×).',
-      '<strong>Bank holiday rows</strong> appear automatically in periods that contain one. "Bank Holiday Rostered" is for contracted shifts on a bank holiday; "Bank Holiday Overtime" is for working a rest day that happened to fall on a bank holiday.',
-      'Boxing Day rows only appear in the January payslip period — they\'re hidden the rest of the time. In January 2027 (P60), Boxing Day 3× applies to shifts worked on 26 Dec; the substitute bank holiday (Mon 28 Dec 2026) goes in Bank Holiday Rostered, not Boxing Day.',
-      'The <strong>cut-off date</strong> is the last shift date counted in this pay period. Shifts on or after that date go into the next period.',
-      'Each entry updates the estimate instantly — no need to tap a calculate button.',
-    ],
-  },
-  settings: {
-    title: 'Settings — where to find things',
-    tips: [
-      '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. CEA rate is currently £20.74; CES rate is currently £21.81. Both change each April with the pay award.',
-      '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). It tells HMRC how much tax-free income you get. Most Marylebone staff are on 1257L. If you\'re unsure, check your payslip or contact payroll.',
-      '<strong>Pension contribution:</strong> your payslip calls this "Smart RPS CR Scheme" — it\'s the same thing. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
-      '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one. <strong>Most staff who started university after 2012 are on Plan 2.</strong>',
-      `<strong>London Allowance (£${TAX_YEARS[TAX_YEARS.length - 1].londonAllow.toFixed(2)}/period):</strong> a fixed supplement paid to all Marylebone staff (CEA and CES). It\'s included automatically — you don\'t need to enter it.`,
-      'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
-    ],
-  },
-  accuracy: {
-    title: 'Improve accuracy — why it helps',
-    tips: [
-      'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
-      'Entering <strong>Year to Date figures</strong> gives a more accurate estimate based on everything you\'ve earned so far this tax year — usually much closer to your payslip, especially later in the year.',
-      'Find <strong>"Total taxable pay"</strong> and <strong>"Total tax deducted"</strong> in the <strong>Year to Date</strong> box on your payslip (usually bottom-right). Update them each time you get a new payslip.',
-      'Once your January payslip arrives with the confirmed Holiday Pay Premium amount, enter it in the <strong>Holiday Pay Premium</strong> card below to replace the running estimate.',
-    ],
-  },
-  hpp: {
-    title: 'Holiday Pay Premium (HPP)',
-    tips: [
-      'When you take annual leave, Chiltern only pay your <strong>basic contracted rate</strong> — you miss out on overtime, rest day pay, and Sunday pay for those days.',
-      'To compensate, Chiltern calculate a <strong>Holiday Pay Premium of 7.69%</strong> of your extra pay above basic hours (overtime, rest day working, Sundays, and London Allowance) across the whole tax year.',
-      'This is paid as a <strong>single lump sum in your January payslip</strong> every year — it doesn\'t appear on any other payslip.',
-      'The estimate builds across all periods you\'ve entered in the current tax year. When you move into the next tax year, the prior year\'s estimate carries forward into this card — enter the confirmed January payslip figure there to replace it.',
-    ],
-  },
-  backpay: {
-    title: 'Pay Rise Back Pay — when to use it',
-    tips: [
-      'Use this when a pay award is <strong>backdated to 1 April</strong>. Chiltern calculate the rate difference across every period since April, then pay the total on one payslip.',
-      'Enter your <strong>old and new hourly rates</strong> and London Allowance figures. The calculator uses the hours you\'ve already entered for each period.',
-      'The lump sum is taxed in the period it lands — if it pushes your income over a higher tax band that month, you may receive less than the gross figure shown.',
-      'Tap <strong>"Apply new rate"</strong> to update Settings with the new rate so all future estimates use the correct figure.',
-    ],
-  },
-};
-function periodKey(pNum) { return `myb_pc_p${pNum}`; }
+// HELP_CONTENT imported from paycalc-help.js
+// periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
 
 // Period data schema — all fields that get saved per period
 function emptyPeriodData() {
@@ -932,129 +827,7 @@ function confirmSettings() {
   calculate();
 }
 
-// ── KEY MIGRATION ─────────────────────────────────────────────────────────────
-// Renames all cea_ prefixed localStorage keys to myb_pc_ in one pass.
-// Idempotent: guarded by myb_pc_cea_migrated flag so it runs once per device.
-function _migrateCeaKeys() {
-  if (lsGet('myb_pc_cea_migrated')) return;
-
-  const migrate = (oldKey, newKey) => {
-    const val = lsGet(oldKey);
-    if (val !== null && !lsGet(newKey)) { lsSet(newKey, val); lsDel(oldKey); }
-    else if (val !== null) { lsDel(oldKey); } // new key already present — just remove old
-  };
-
-  // Fixed single keys
-  migrate('cea_rate',    SK.rate);
-  migrate('cea_rates',   SK.rates);
-  migrate('cea_code',    SK.code);
-  migrate('cea_sl',      SK.sl);
-  migrate('cea_pension', SK.pension);
-  migrate('cea_setup',   SK.setup);
-  migrate('cea_ytd_pay', SK.ytdPay);
-  migrate('cea_ytd_tax', SK.ytdTax);
-  migrate('cea_grade',   SK.grade);
-  migrate('cea_pension_v882_migrated', 'myb_pc_pension_v882_migrated');
-  migrate('cea_pay_welcome_shown',     'myb_pc_pay_welcome_shown');
-
-  // Per-period keys: cea_p{N} → myb_pc_p{N}
-  getPeriods().forEach(p => migrate(`cea_p${p.num}`, periodKey(p.num)));
-
-  // Per-tax-year keys
-  CONFIG.TAX_YEARS.forEach(ty => {
-    const slug = ty.label.replace('/', '_');
-    migrate(`cea_setup_${slug}`,      `myb_pc_setup_${slug}`);
-    migrate(`cea_hpp_est_${slug}`,    `myb_pc_hpp_est_${slug}`);
-    migrate(`cea_hpp_actual_${slug}`, `myb_pc_hpp_actual_${slug}`);
-    migrate(`cea_ytd_pay_${slug}`,    `myb_pc_ytd_pay_${slug}`);
-    migrate(`cea_ytd_tax_${slug}`,    `myb_pc_ytd_tax_${slug}`);
-  });
-
-  lsSet('myb_pc_cea_migrated', '1');
-}
-
-// ── ALL DATA MIGRATIONS ───────────────────────────────────────────────────────
-// Called once at startup before loadSettings(). Order matters: key prefix
-// migration runs first so all subsequent migrations read the new key names.
-function runMigrations() {
-  _migrateCeaKeys();
-
-  // Migration: legacy single rate → per-tax-year rates
-  if (!lsGet(SK.rates)) {
-    const legacyRate = lsGet(SK.rate);
-    if (legacyRate) {
-      const rates = {};
-      CONFIG.TAX_YEARS.forEach(ty => { rates[ty.label] = parseFloat(legacyRate); });
-      lsSet(SK.rates, JSON.stringify(rates));
-    }
-  }
-
-  // Migration: legacy global YTD values (myb_pc_ytd_pay / ytd_tax) to per-year keys
-  const legacyYtdPay = lsGet(SK.ytdPay);
-  const legacyYtdTax = lsGet(SK.ytdTax);
-  if (legacyYtdPay || legacyYtdTax) {
-    const firstTy = CONFIG.TAX_YEARS[0];
-    if (!lsGet(ytdPayKey(firstTy))) lsSet(ytdPayKey(firstTy), legacyYtdPay || '');
-    if (!lsGet(ytdTaxKey(firstTy))) lsSet(ytdTaxKey(firstTy), legacyYtdTax || '');
-    lsDel(SK.ytdPay);
-    lsDel(SK.ytdTax);
-  }
-
-  // Migration: legacy global hppActual (cea_hpp_actual) to per-year key
-  const legacyHppActual = lsGet('cea_hpp_actual');
-  if (legacyHppActual) {
-    const firstTy = CONFIG.TAX_YEARS[0];
-    if (!lsGet(hppActualKey(firstTy))) lsSet(hppActualKey(firstTy), legacyHppActual);
-    lsDel('cea_hpp_actual');
-  }
-
-  // Migration (v8.88): two-part pension localStorage cleanup.
-  //
-  // Part A — pension rate cut-over (all users, P51+):
-  //   Any period with payday ≥ May 8 2026 and pension === £154.77 (old full-period
-  //   default) is updated to £147.36. Only the exact old default is patched — custom
-  //   values are untouched.
-  //
-  // Part B — joining-period anchor bug (joiners only):
-  //   ANCHOR_DATE was midnight before v8.88; it must be noon to maintain the
-  //   calcProRateFactor half-day invariant. With a midnight anchor, M. Okeke's P51
-  //   pro-ration factor was 13/28 instead of the correct 14/28, producing auto-saved
-  //   pension values of £71.86 or £68.42 instead of £73.68. The old-rate noon-anchor
-  //   value (£77.39) is also stale. All three are fingerprint values that cannot
-  //   plausibly be intentional custom entries.
-  if (!lsGet('myb_pc_pension_v882_migrated')) {
-    const _pensionCutover = new Date(2026, 4, 8);
-    const _member = getLoggedMember();
-    const _joiningP = _member?.startDate
-      ? getPeriods().find(p => _member.startDate > p.start && _member.startDate <= p.cutoff)
-      : null;
-
-    getPeriods().forEach(p => {
-      const raw = lsGet(periodKey(p.num));
-      if (!raw) return;
-      try {
-        const d = JSON.parse(raw);
-        let changed = false;
-        if (p.payday >= _pensionCutover && d.pension === 154.77) {
-          d.pension = 147.36;
-          changed = true;
-        }
-        if (_joiningP && p.num === _joiningP.num && !changed) {
-          const _correctPension = parseFloat(
-            (getPensionDefault(p) * calcProRateFactor(_member.startDate, p.start, p.cutoff)).toFixed(2)
-          );
-          const _stale = new Set([71.86, 68.42, 77.39]);
-          if (_stale.has(d.pension) && d.pension !== _correctPension) {
-            d.pension = _correctPension;
-            changed = true;
-          }
-        }
-        if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
-      } catch(e) {}
-    });
-    lsSet('myb_pc_pension_v882_migrated', '1');
-  }
-}
+// _migrateCeaKeys and runMigrations moved to paycalc-migrations.js
 
 function loadSettings() {
   // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
@@ -2155,7 +1928,7 @@ function toggleBD() {
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
-runMigrations();
+runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 loadSettings();
 buildPeriodSelect();
 
