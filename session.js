@@ -14,7 +14,8 @@ import { auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPas
 import { lsGet, lsSet, lsDel } from './ls.js';
 
 export const AUTH_KEY    = 'myb_admin_session';
-export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days
+export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days — absolute outer bound
+export const IDLE_MS     =  7 * 24 * 60 * 60 * 1000; // 7 days — inactivity cutoff
 export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 
 /**
@@ -105,7 +106,16 @@ export async function ensureFirebaseSession(name) {
     }
 }
 
-/** Read and validate the current localStorage session. Returns null if missing/expired/stale. */
+/**
+ * Read and validate the current localStorage session. Returns null if
+ * missing, absolutely expired (30 days), version-stale, or idle (7 days).
+ * Auto-touches lastActivity on every valid call so opening the app resets
+ * the idle clock — no separate touchSession() needed.
+ *
+ * Backward compat: sessions written before v11.44 have no lastActivity.
+ * Those are treated as fresh on first check so no one is force-logged-out
+ * the moment the update deploys. lastActivity is written going forward.
+ */
 export function getSession() {
     try {
         const raw = lsGet(AUTH_KEY);
@@ -113,16 +123,25 @@ export function getSession() {
         const s = JSON.parse(raw);
         if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
+        // Idle check — missing lastActivity means pre-v11.44 session: treat as active.
+        if (s.lastActivity && Date.now() - s.lastActivity > IDLE_MS) {
+            lsDel(AUTH_KEY); return null;
+        }
+        // Refresh lastActivity on every valid page-load check.
+        s.lastActivity = Date.now();
+        lsSet(AUTH_KEY, JSON.stringify(s));
         return s;
     } catch { return null; }
 }
 
-/** Persist a new 30-day session for the named user. */
+/** Persist a new session for the named user (30-day absolute expiry, idle clock starts now). */
 export function saveSession(name) {
+    const now = Date.now();
     lsSet(AUTH_KEY, JSON.stringify({
         name,
-        ver:    SESSION_VER,
-        expiry: Date.now() + SESSION_MS,
+        ver:          SESSION_VER,
+        expiry:       now + SESSION_MS,
+        lastActivity: now,
     }));
 }
 
