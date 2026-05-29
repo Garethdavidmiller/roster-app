@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 11.38 -->
+<!-- MYB Roster Calendar - Version 11.39 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -359,7 +359,7 @@
             font-weight: 700;
         }
 
-.controls select:focus-visible, .controls button:focus-visible {
+        .controls select:focus-visible, .controls button:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
@@ -2343,7 +2343,7 @@
     <!-- Annual Leave lightbox — opened by tapping the 🏖️ AL button -->
     <div id="alLightbox" class="lb-overlay" role="dialog" aria-label="Annual Leave balance" aria-modal="true">
         <div id="alLightboxContent" class="lb-content">
-        <span id="alLightboxClose" class="lb-close" aria-label="Close">✕</span>
+        <button id="alLightboxClose" class="lb-close" aria-label="Close">✕</button>
             <div class="al-lb-icon">🏖️</div>
             <div class="al-lb-title">Annual Leave</div>
             <div class="al-lb-year" id="alLbYear"></div>
@@ -2408,7 +2408,7 @@
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--absence-light);border-color:var(--absence)"></span>🪑 Absence</div>
                 <div class="team-info-key-item"><span class="tv-key-dot" style="background:var(--rest-day-bg);border-color:var(--border-mid)"></span>🏠 Rest day</div>
             </div>
-            <p class="team-info-note">Shifts shown are base roster plus any recorded changes. The view updates automatically when you navigate between weeks — changes saved right now in admin will appear when you next move to a different week and back.</p>
+            <p class="team-info-note">Shifts shown are your base roster plus any recorded changes. Changes saved on the Admin page appear here when you move to a different week and back.</p>
         </div>
     </div>
 
