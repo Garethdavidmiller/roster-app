@@ -240,11 +240,11 @@
             /* 16px prevents iOS Safari from zooming the page on focus */
             font-size: 16px;
             color: var(--text-dark);
-            background: white;
+            background-color: var(--field-bg);
             -webkit-appearance: none;
             appearance: none;
             font-family: inherit;
-            transition: border-color 0.12s;
+            transition: border-color 0.12s, background-color 0.12s;
         }
 
         /* iOS Safari collapses date inputs when -webkit-appearance:none removes native chrome */
@@ -267,10 +267,14 @@
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            /* Brighten to white when active — the field 'fills in' on focus */
+            background-color: var(--surface);
         }
 
         select:disabled, input:disabled {
-            background: var(--bg-faint);
+            /* Flatter, darker neutral grey — distinct from the cool enabled
+               tint so a disabled control still reads as inert. */
+            background-color: var(--field-bg-disabled);
             color: var(--text-light);
             cursor: not-allowed;
         }
@@ -279,7 +283,10 @@
            their own data), but it should look like a normal display box — not a greyed-out
            disabled input. Higher specificity (0,2,1) beats select:disabled (0,1,1). */
         #fieldMember:disabled {
-            background: white;
+            /* Locked for non-admins but must read as a normal field, not
+               disabled — so it matches the enabled sunken fill, not the
+               darker --field-bg-disabled grey. */
+            background-color: var(--field-bg);
             color: var(--text-dark);
             cursor: default;
             opacity: 1;

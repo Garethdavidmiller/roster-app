@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.54 -->
+<!-- MYB Roster Operations v11.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -285,7 +285,7 @@
             border-radius: var(--radius-sm);
             font-size: 16px;
             font-weight: 600;
-            background: var(--bg-light);
+            background: var(--field-bg);
             color: var(--text-dark);
             cursor: pointer;
             box-sizing: border-box;
@@ -424,11 +424,11 @@
             border-radius: 8px;
             font-size: 16px;
             color: var(--text-dark);
-            background: white;
+            background-color: var(--field-bg);
             -webkit-appearance: none;
             appearance: none;
             font-family: inherit;
-            transition: border-color 0.12s;
+            transition: border-color 0.12s, background-color 0.12s;
         }
         input[type="date"] { min-height: 44px; }
         select {
@@ -442,6 +442,8 @@
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            /* Brighten to white when active — the field 'fills in' on focus */
+            background-color: var(--surface);
         }
 
         /* ── Tablet: 768px ── */
