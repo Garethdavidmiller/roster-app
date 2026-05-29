@@ -655,6 +655,10 @@
         align-items: start;
       }
 
+      /* Cards have margin-bottom: 16px for mobile stacking. Reset at desktop so
+         row-gap is the only source of vertical spacing (avoids 32px double-gaps). */
+      main > * { margin-bottom: 0; }
+
       /* Full-width rows — all items get explicit grid-row so nothing auto-places
          into a free slot above the main content area.
          Row 1 = setupBanner: display:none when hidden, which removes it from the
@@ -682,6 +686,9 @@
       /* Headline figure benefits from the extra horizontal space */
       .net-amount { font-size: 60px; }
       .net-period { font-size: 17px; }
+
+      /* Period controls: the tablet grid layout persists here. On desktop the
+         card sits in a 636px column — comfortable for the form controls. */
 
       /* Peek button is redundant on desktop — result card is sticky and always visible */
       .result-peek-btn { display: none; }

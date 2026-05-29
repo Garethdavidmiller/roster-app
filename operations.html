@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.51 -->
+<!-- MYB Roster Operations v11.52 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -448,12 +448,26 @@
             .container { gap: 14px; }
         }
 
-        /* ── Desktop: 1024px — single column, centred, max 900px ── */
+        /* ── Desktop: 1024px — two-column grid ──
+           Left column: Huddle upload (top) + Auth setup (below) — action cards.
+           Right column: Roster upload — the main work area (review table grows here). */
         @media (min-width: 1024px) {
             body.auth-ready .container {
-                max-width: 900px;
-                grid-template-columns: 1fr;
+                max-width: var(--page-max-width);
+                grid-template-columns: minmax(320px, 420px) minmax(460px, 1fr);
+                column-gap: 24px;
+                align-items: start;
             }
+            /* Header spans both columns */
+            .app-header       { grid-column: 1 / -1; }
+            /* Left column: action cards */
+            #huddleUploadCard { grid-column: 1; grid-row: 2; }
+            #authSetupCard    { grid-column: 1; grid-row: 3; }
+            /* Right column: roster spans the full column height */
+            #rosterUploadCard { grid-column: 2; grid-row: 2 / 4; }
+
+            /* Full-width upload button looks wrong inside a 420px column */
+            .huddle-upload-btn { max-width: 280px; }
         }
 
         #opsBadge { background: var(--orange); color: var(--primary-blue); }
@@ -485,7 +499,7 @@
 <!-- Tips lightbox -->
 <div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
     <div id="tipsLightboxContent" class="lb-content">
-    <span id="tipsLightboxClose" class="lb-close" aria-label="Close">✕</span>
+    <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
         <div class="tips-lb-title" id="tipsLbTitle"></div>
         <div id="tipsLbBody"></div>
     </div>

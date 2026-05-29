@@ -780,7 +780,7 @@ body.lb-open #stickyTotal { display: none !important; }
     visibility: visible;
 }
 @media (min-width: 1024px) {
-    .nav-panel { width: 320px; }
+    .nav-panel { width: 380px; }
 }
 
 /* Navy header strip */
