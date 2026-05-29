@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Calendar - Version 11.52 -->
+<!-- MYB Roster Calendar - Version 11.53 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -31,6 +31,8 @@
     <link rel="modulepreload" href="./roster-data.js">
     <link rel="modulepreload" href="./firebase-client.js">
 
+    <!-- Preload the self-hosted Inter typeface so it's ready before first paint (crossorigin is required even same-origin for fonts) -->
+    <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
     <link rel="stylesheet" href="shared.css">
     <!-- SRI: locks DOMPurify to the exact bytes we've verified — run generate-sri.mjs --apply after upgrading -->

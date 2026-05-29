@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v11.52
+// MYB Roster — Service Worker v11.53
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '11.52';
+const APP_VERSION = '11.53';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -94,6 +94,13 @@ const SUPPLEMENTARY_ASSETS = [
     "./guide-shell.css",
 ];
 
+// Self-hosted typeface — stable asset, cache-first like icons. Precached so the
+// app renders in Inter on the first offline launch (otherwise it would fall back
+// to the system font until the file was fetched online once).
+const FONT_ASSETS = [
+    "./fonts/inter-latin.woff2",
+];
+
 const ICON_ASSETS = [
     "./icon-120.png",
     "./icon-152.png",
@@ -120,6 +127,7 @@ self.addEventListener("install", event => {
                 })
             )).then(() => Promise.allSettled([
                     ...SUPPLEMENTARY_ASSETS,
+                    ...FONT_ASSETS,
                     ...ICON_ASSETS,
                 ].map(asset =>
                     cache.add(asset).catch(err =>
