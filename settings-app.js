@@ -13,29 +13,42 @@ import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './admin-huddle.js';
 
 // ── Scroll lock (iOS Safari) ──────────────────────────────────────────────────
+let _lbScrollY = 0;
 function lockBodyScroll() {
-    lsSet('--lb-scroll-y', String(window.scrollY));
+    _lbScrollY = window.scrollY;
+    document.body.style.setProperty('--lb-scroll-y', `-${_lbScrollY}px`);
     document.body.classList.add('lb-open');
 }
 function unlockBodyScroll() {
     document.body.classList.remove('lb-open');
-    const y = parseInt(lsGet('--lb-scroll-y') || '0', 10);
-    window.scrollTo(0, y);
+    document.body.style.removeProperty('--lb-scroll-y');
+    window.scrollTo(0, _lbScrollY);
 }
 
 // ── Android Back button pattern ───────────────────────────────────────────────
-let _overlayCloseHandler = null;
-window.addEventListener('popstate', e => {
-    if (e.state?.mybOverlay && _overlayCloseHandler) _overlayCloseHandler();
-});
-function _pushOverlayState(handler) {
-    _overlayCloseHandler = handler;
-    history.pushState({ mybOverlay: true }, '');
+let _overlayHistoryPushed = false;
+let _backHandler = null;
+function _pushOverlayState(closeHandler) {
+    if (!_overlayHistoryPushed) {
+        history.pushState({ mybOverlay: true }, '');
+        _overlayHistoryPushed = true;
+    }
+    _backHandler = closeHandler;
 }
 function _clearOverlayHistory() {
-    _overlayCloseHandler = null;
-    if (history.state?.mybOverlay) history.back();
+    if (_overlayHistoryPushed) {
+        _overlayHistoryPushed = false;
+        _backHandler = null;
+        history.back();
+    }
 }
+window.addEventListener('popstate', () => {
+    if (!_overlayHistoryPushed) return;
+    _overlayHistoryPushed = false;
+    const fn = _backHandler;
+    _backHandler = null;
+    fn?.();
+});
 
 // ── Session (shared key with admin-app.js) ────────────────────────────────────
 const AUTH_KEY    = 'myb_admin_session';
@@ -127,6 +140,7 @@ if (isAuthenticated) {
 } else {
     initLoginOverlay();
 }
+registerSW();
 
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {
@@ -210,9 +224,6 @@ function initApp() {
 
     // Icon lightbox
     initIconLightbox();
-
-    // Service worker
-    registerSW();
 }
 
 // ── Card collapse helper ──────────────────────────────────────────────────────
@@ -392,12 +403,14 @@ function initIconLightbox() {
     const versionEl = document.getElementById('lightboxVersion');
     if (versionEl) versionEl.textContent = APP_VERSION;
 
+    const statusEl = document.getElementById('lightboxUpdateStatus');
     const bugLink = document.getElementById('bugReportLink');
     if (bugLink) {
         bugLink.href = `mailto:gdmiller1979@gmail.com?subject=MYB Roster bug report (v${APP_VERSION})&body=Page: Settings%0ADevice: ${encodeURIComponent(navigator.userAgent)}%0A%0ADescribe the issue:%0A`;
     }
 
     function openLightbox() {
+        if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
         lb.classList.add('visible');
         requestAnimationFrame(() => lb.classList.add('open'));
         lockBodyScroll();
@@ -432,5 +445,19 @@ function initIconLightbox() {
 function registerSW() {
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('./service-worker.js')
+        .then(registration => {
+            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
+            if (registration.waiting) activate(registration.waiting);
+            registration.addEventListener('updatefound', () => {
+                const nw = registration.installing;
+                if (!nw) return;
+                nw.addEventListener('statechange', () => {
+                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
+                });
+            });
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
+            }, { once: true });
+        })
         .catch(e => console.warn('[SW] Registration failed:', e));
 }

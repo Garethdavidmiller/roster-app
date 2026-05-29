@@ -47,6 +47,7 @@ const isAdmin        = CONFIG.ADMIN_NAMES.includes(currentUser);
 // Guard: must be signed in AND be an admin — redirect otherwise
 if (!currentUser || !isAdmin) {
     window.location.replace('./admin.html');
+    // Throw to halt module execution immediately — location.replace is async and JS continues otherwise.
     throw new Error('Not authorised — redirecting');
 }
 
@@ -192,11 +193,11 @@ initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron
 // reject silently without this warning.
 window._mybSession.then(ok => {
     if (!ok || window._mybAuthError) {
-        const main   = document.querySelector('main');
+        const main   = document.querySelector('.container');
         if (!main) return;
         const banner = document.createElement('p');
         banner.style.cssText = 'margin:12px 16px 0;padding:12px 14px;background:#ffeaea;border-left:4px solid #c0392b;border-radius:6px;font-size:14px;color:#333;';
-        banner.textContent   = 'Couldn\'t establish your admin Firebase session. Please sign out and sign back in before using Operations tools.';
+        banner.textContent   = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
         main.prepend(banner);
     }
 });
