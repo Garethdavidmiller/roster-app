@@ -1866,8 +1866,8 @@
 
             /* Align confirm bar padding with page content on wide screens */
             .al-confirm-bar {
-                padding-left:  max(18px, calc((100vw - 1440px) / 2 + 20px));
-                padding-right: max(18px, calc((100vw - 1440px) / 2 + 20px));
+                padding-left:  max(20px, calc((100vw - var(--page-max-width)) / 2 + 20px));
+                padding-right: max(20px, calc((100vw - var(--page-max-width)) / 2 + 20px));
             }
 
             /* Full-width rows spanning both columns */

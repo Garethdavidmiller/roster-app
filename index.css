@@ -703,8 +703,8 @@
         }
 
         /* Desktop: lock entire layout to one screen — no scrolling needed */
-        /* ── Desktop (≥1025px) ─────────────────────────────────────────────── */
-        @media (min-width: 1025px) {
+        /* ── Desktop (≥1024px) ─────────────────────────────────────────────── */
+        @media (min-width: 1024px) {
 
             /* Viewport-locked layout */
             body {
@@ -846,6 +846,10 @@
             /* Legend: wider spacing on desktop */
             .legend { gap: 6px 20px; padding: 12px 24px; }
             .legend-text { font-size: 13px; }
+
+            /* Mobile-only UI: hide on desktop */
+            .notif-prompt { display: none !important; }
+            .swipe-hint   { display: none !important; }
         }
 
         @media (max-width: 1024px) {
@@ -1100,7 +1104,7 @@
             /* On tablet widths cap the team table so 7 columns don't stretch too wide. */
             .team-view-container { width: 100%; max-width: 1040px; margin: 0 auto; }
         }
-        @media (min-width: 1025px) {
+        @media (min-width: 1024px) {
             /* Desktop: body has overflow:hidden so the team container must own its
                own scroll path, otherwise the table is clipped on short viewports. */
             .team-view-container {
