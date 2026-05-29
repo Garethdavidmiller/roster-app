@@ -5,8 +5,8 @@
 // and shared functions via initSickSection(deps) to avoid circular imports.
 
 import { teamMembers, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
-import { db, collection, doc, writeBatch, serverTimestamp, auth } from './firebase-client.js';
-import { getAllOverrides, setAllOverrides, renderWeekGrid, renderTable, formatDisplay } from './admin-overrides.js';
+import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
+import { buildRangePicker } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
 
@@ -21,13 +21,12 @@ const esc = escapeHtml;
  * @param {Function}          deps.populateMemberDropdown Fills a <select> with teamMembers
  * @param {string|null}       deps.lastMember           Last-used member name from localStorage
  * @param {Function}          deps.updateSickBookedBox  Refreshes the sick booked-periods box
- * @param {Function}          deps.buildRangePicker     Builds the date range picker for a given prefix
  * @param {string|null}       deps.currentUser          Logged-in user name (for changedBy field)
  */
 export function initSickSection({
     sickMember, fieldMember, fieldDate,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateSickBookedBox, buildRangePicker, currentUser,
+    updateSickBookedBox, currentUser,
 }) {
 const sickFrom     = document.getElementById('sickFrom');
 const sickTo       = document.getElementById('sickTo');
@@ -136,107 +135,34 @@ sickSaveBtn.addEventListener('click', async () => {
     const dates  = getSickDates();
     if (!member || !dates || !dates.length) return;
 
-    const memberObj    = teamMembers.find(m => m.name === member);
-    // Sundays are uncontracted — never record sick on a Sunday
-    const workingDates = memberObj
-        ? dates.filter(dateStr => {
-            if (isSunday(dateStr)) return false;
-            const d    = new Date(dateStr + 'T12:00:00');
-            const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') return false;
-            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
-            return true;
-          })
-        : dates;
-
-    // Sundays within the absence block that have a worked base shift need an explicit
-    // RD correction — otherwise the base roster shift still shows on the calendar.
-    const sundayCorrections = memberObj
-        ? dates.filter(dateStr => {
-            if (!isSunday(dateStr)) return false;
-            const d    = new Date(dateStr + 'T12:00:00');
-            const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') return false;  // already a rest day
-            const ov = getAllOverrides().find(o => o.memberName === member && o.date === dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;  // already corrected
-            return true;
-          })
-        : [];
-
-    if (!workingDates.length) {
-        sickFeedback.className = 'feedback error';
-        sickFeedback.textContent = '⚠ No working days in that range — nothing to record.';
-        return;
-    }
-
-    if (!auth.currentUser) {
-        sickFeedback.className = 'feedback error';
-        sickFeedback.textContent = '⚠ Session expired — please sign out and sign back in.';
-        return;
-    }
-
     sickFeedback.className = 'feedback';
     sickSaveBtn.disabled    = true;
-    sickSaveBtn.textContent = `Saving ${workingDates.length} day${workingDates.length > 1 ? 's' : ''}…`;
+    sickSaveBtn.textContent = `Saving ${dates.length} day${dates.length > 1 ? 's' : ''}…`;
 
     try {
-        const sickNewDocs    = [];
-        const sickDeletedIds = new Set();
-        const sickBatch      = writeBatch(db);
-        workingDates.forEach(date => {
-            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
-            if (existing) { sickBatch.delete(doc(db, 'overrides', existing.id)); sickDeletedIds.add(existing.id); }
-            const newRef = doc(collection(db, 'overrides'));
-            sickBatch.set(newRef, {
-                memberName: member,
-                date,
-                type:      'sick',
-                value:     'SICK',
-                note:      '',
-                source:    'manual',
-                createdAt: serverTimestamp(),
-                changedBy: currentUser
-            });
-            sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'sick', value: 'SICK', source: 'manual', note: '', createdAt: new Date() });
+        const { workingCount } = await recordRangeOverrides({
+            type: 'sick', value: 'SICK', memberName: member, dates, changedBy: currentUser,
         });
-        sundayCorrections.forEach(date => {
-            const existing = getAllOverrides().find(o => o.memberName === member && o.date === date);
-            if (existing) { sickBatch.delete(doc(db, 'overrides', existing.id)); sickDeletedIds.add(existing.id); }
-            const newRef = doc(collection(db, 'overrides'));
-            sickBatch.set(newRef, {
-                memberName: member,
-                date,
-                type:      'correction',
-                value:     'RD',
-                note:      '',
-                source:    'manual',
-                createdAt: serverTimestamp(),
-                changedBy: currentUser
-            });
-            sickNewDocs.push({ id: newRef.id, memberName: member, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
-        });
-        await sickBatch.commit();
+
+        if (!workingCount) {
+            sickFeedback.className = 'feedback error';
+            sickFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+            return;
+        }
 
         sickFeedback.className = 'feedback success';
-        sickFeedback.textContent = `✓ Recorded ${workingDates.length} absence day${workingDates.length > 1 ? 's' : ''} for ${member}`;
+        sickFeedback.textContent = `✓ Recorded ${workingCount} absence day${workingCount > 1 ? 's' : ''} for ${member}`;
         setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
 
         sickPicker.reset();
         updateSickPreview();
-
-        // Update in-memory cache — no Firestore round-trip needed
-        const sickUpdated = getAllOverrides().filter(o => !sickDeletedIds.has(o.id));
-        sickUpdated.push(...sickNewDocs);
-        sickUpdated.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-        setAllOverrides(sickUpdated);
-        renderTable();
         updateSickBookedBox();
-        if (fieldMember.value && fieldDate.value) renderWeekGrid();
     } catch (err) {
         console.error('[Admin] Sick save failed:', err);
         sickFeedback.className = 'feedback error';
-        sickFeedback.textContent = '⚠ Could not save — check your connection and try again.';
+        sickFeedback.textContent = err.message === 'auth/session-expired'
+            ? '⚠ Session expired — please sign out and sign back in.'
+            : '⚠ Could not save — check your connection and try again.';
     } finally {
         sickSaveBtn.disabled    = false;
         sickSaveBtn.textContent = 'Record absence';

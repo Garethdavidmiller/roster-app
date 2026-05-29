@@ -902,6 +902,102 @@ export function validateShiftRules(toSave, memberName) {
     return ruleErrors;
 }
 
+// ── RANGE ABSENCE SAVE ───────────────────────────────────────────────────────
+/**
+ * Writes a batch of AL or absence overrides for a date range.
+ * Filters out rest days and Sundays; writes RD corrections for Sundays that
+ * have a worked base shift. Updates the in-memory cache and re-renders the
+ * table and week grid.
+ *
+ * Does NOT handle entitlement checks, UI feedback, or picker reset — those
+ * remain in admin-al.js and admin-sick.js respectively.
+ *
+ * @param {object} opts
+ * @param {string}   opts.type        'annual_leave' | 'sick'
+ * @param {string}   opts.value       'AL' | 'SICK'
+ * @param {string}   opts.memberName
+ * @param {string[]} opts.dates       Full date range including rest days
+ * @param {string}   opts.changedBy   Written to the Firestore changedBy field
+ * @returns {Promise<{workingCount: number, sundayCount: number}>}
+ * @throws {Error} 'auth/session-expired' if no Firebase Auth session, or Firestore error
+ */
+export async function recordRangeOverrides({ type, value, memberName, dates, changedBy }) {
+    if (!auth.currentUser) throw new Error('auth/session-expired');
+
+    const memberObj = teamMembers.find(m => m.name === memberName);
+
+    // Build a Map<date, override> once to avoid O(N×D) linear scan per date
+    const ovByDate = new Map();
+    for (const o of _allOverrides) {
+        if (o.memberName === memberName) ovByDate.set(o.date, o);
+    }
+
+    const workingDates = memberObj
+        ? dates.filter(dateStr => {
+            if (isSunday(dateStr)) return false;
+            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+            if (base === 'RD' || base === 'OFF') return false;
+            const ov = ovByDate.get(dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
+            return true;
+          })
+        : [...dates];
+
+    // Sundays within the range that have a worked base shift need an explicit RD correction
+    // so the base roster shift doesn't still show on the calendar during the absence period.
+    const sundayCorrections = memberObj
+        ? dates.filter(dateStr => {
+            if (!isSunday(dateStr)) return false;
+            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+            if (base === 'RD' || base === 'OFF') return false;
+            const ov = ovByDate.get(dateStr);
+            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
+            return true;
+          })
+        : [];
+
+    if (!workingDates.length) return { workingCount: 0, sundayCount: sundayCorrections.length };
+
+    const newDocs    = [];
+    const deletedIds = new Set();
+    const batch      = writeBatch(db);
+
+    workingDates.forEach(date => {
+        const existing = ovByDate.get(date);
+        if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
+        const newRef = doc(collection(db, 'overrides'));
+        batch.set(newRef, {
+            memberName, date, type, value, note: '', source: 'manual',
+            createdAt: serverTimestamp(), changedBy,
+        });
+        newDocs.push({ id: newRef.id, memberName, date, type, value, source: 'manual', note: '', createdAt: new Date() });
+    });
+
+    sundayCorrections.forEach(date => {
+        const existing = ovByDate.get(date);
+        if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
+        const newRef = doc(collection(db, 'overrides'));
+        batch.set(newRef, {
+            memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
+            createdAt: serverTimestamp(), changedBy,
+        });
+        newDocs.push({ id: newRef.id, memberName, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
+    });
+
+    await batch.commit();
+
+    // Update in-memory cache — no Firestore round-trip needed
+    _allOverrides = _allOverrides.filter(o => !deletedIds.has(o.id));
+    _allOverrides.push(...newDocs);
+    _allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    renderTable();
+    const fieldMember = document.getElementById('fieldMember');
+    const fieldDate   = document.getElementById('fieldDate');
+    if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
+
+    return { workingCount: workingDates.length, sundayCount: sundayCorrections.length };
+}
+
 // ── DATE DISPLAY ──────────────────────────────────────────────────────────────
 /** Formats YYYY-MM-DD as "18 Mar 2026". Returns "—" for empty input. */
 export function formatDisplay(str) {

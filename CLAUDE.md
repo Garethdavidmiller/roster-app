@@ -103,7 +103,8 @@ roster-app/
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
 ├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
-├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities
+├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities; exports recordRangeOverrides() shared AL/Sick save helper
+├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix) → { reset() }. Extracted from admin-app.js at v11.36. Imported directly by admin-al.js and admin-sick.js
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds
