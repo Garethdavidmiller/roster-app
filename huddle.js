@@ -1,5 +1,6 @@
 /**
- * admin-huddle.js — Huddle upload, Huddle collapse card, and push notifications.
+ * huddle.js — Huddle upload, Huddle card toggle, and notification card wiring.
+ * (Renamed from admin-huddle.js at v11.40.)
  *
  * Owns: Notifications card (all staff), daily Huddle manual upload (admin only),
  *   Huddle viewer card collapse/expand toggle.
@@ -217,6 +218,15 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
         uploadBtn.textContent = 'Uploading…';
 
         try {
+            // Operations starts Firebase Auth restoration in the background
+            // (window._mybSession). A returning admin with a valid localStorage
+            // session skips the login handler, so auth.currentUser may still be
+            // null for a moment after the page opens. uploadHuddle writes to
+            // Storage + Firestore, both admin-gated — without this await a fast
+            // click (especially a PDF, which skips DOCX conversion) could hit a
+            // permission failure before the session is live. Mirrors the roster
+            // upload path's getIdToken guard in operations-app.js.
+            if (window._mybSession) await window._mybSession;
             await uploadHuddle(date, file, currentUser, htmlContent);
             feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
             feedback.className = 'huddle-feedback huddle-feedback--ok';

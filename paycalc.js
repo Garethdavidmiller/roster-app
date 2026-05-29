@@ -2251,7 +2251,7 @@ Device: ${navigator.userAgent}
     lockBodyScroll();
     _pushOverlayState(closeLightbox);
     lightbox.classList.add('visible');
-    requestAnimationFrame(() => lightbox.classList.add('open'));
+    requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });
     document.addEventListener('keydown', onKeyDown);
   }
   function closeLightbox() {
@@ -2302,7 +2302,7 @@ Device: ${navigator.userAgent}
     lockBodyScroll();
     _pushOverlayState(closeHelp);
     lb.classList.add('visible');
-    requestAnimationFrame(() => lb.classList.add('open'));
+    requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
     document.addEventListener('keydown', onKey);
   }
 
@@ -2366,7 +2366,9 @@ Device: ${navigator.userAgent}
   const guideLink = lb && lb.querySelector('.welcome-guide-link');
   if (!lb) return;
 
+  let _welcomeFocusReturn = null;
   function openWelcome() {
+    _welcomeFocusReturn = document.activeElement;
     const badge = document.getElementById('welcomeGradeBadge');
     if (badge) {
       const g = lsGet(SK.grade);
@@ -2377,7 +2379,7 @@ Device: ${navigator.userAgent}
     lockBodyScroll();
     _pushOverlayState(closeWelcome);
     lb.classList.add('visible');
-    requestAnimationFrame(() => lb.classList.add('open'));
+    requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
     document.addEventListener('keydown', onKeyDown);
   }
 
@@ -2392,6 +2394,8 @@ Device: ${navigator.userAgent}
       lb.classList.remove('visible');
     }, { once: true });
     document.removeEventListener('keydown', onKeyDown);
+    _welcomeFocusReturn?.focus();
+    _welcomeFocusReturn = null;
   }
 
   function onKeyDown(e) { if (e.key === 'Escape') closeWelcome(); }

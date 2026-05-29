@@ -176,7 +176,9 @@ let openAboutLightbox = null;
         if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
     }
 
+    let _lbFocusReturn = null;
     function openLightbox() {
+        _lbFocusReturn = document.activeElement;
         checkUpdateStatus();
         if (bugLink) {
             const name   = currentUser || 'Unknown';
@@ -186,7 +188,7 @@ let openAboutLightbox = null;
             bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin v${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
         }
         lightbox.classList.add('visible');
-        requestAnimationFrame(() => lightbox.classList.add('open'));
+        requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });
         lockBodyScroll();
         _pushOverlayState(closeLightbox);
         document.addEventListener('keydown', onKey);
@@ -195,11 +197,18 @@ let openAboutLightbox = null;
     function closeLightbox() {
         _clearOverlayHistory();
         lightbox.classList.remove('open');
+        const t = setTimeout(() => {
+            lightbox.classList.remove('visible');
+            unlockBodyScroll();
+        }, 500);
         lightbox.addEventListener('transitionend', () => {
+            clearTimeout(t);
             lightbox.classList.remove('visible');
             unlockBodyScroll();
         }, { once: true });
         document.removeEventListener('keydown', onKey);
+        _lbFocusReturn?.focus();
+        _lbFocusReturn = null;
     }
 
     function onKey(e) { if (e.key === 'Escape') closeLightbox(); }
@@ -374,9 +383,11 @@ let openAboutLightbox = null;
         },
     };
 
+    let _tipsFocusReturn = null;
     function openTips(key) {
         const tips = CARD_TIPS[key];
         if (!tips || !titleEl || !bodyEl) return;
+        _tipsFocusReturn = document.activeElement;
         lb.setAttribute('aria-label', tips.title);
         titleEl.textContent = tips.title;
         let html = '';
@@ -392,7 +403,7 @@ let openAboutLightbox = null;
         }
         bodyEl.innerHTML = html;
         lb.classList.add('visible');
-        requestAnimationFrame(() => lb.classList.add('open'));
+        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
         lockBodyScroll();
         _pushOverlayState(closeTips);
         document.addEventListener('keydown', onKey);
@@ -401,11 +412,18 @@ let openAboutLightbox = null;
     function closeTips() {
         _clearOverlayHistory();
         lb.classList.remove('open');
+        const t = setTimeout(() => {
+            lb.classList.remove('visible');
+            unlockBodyScroll();
+        }, 500);
         lb.addEventListener('transitionend', () => {
+            clearTimeout(t);
             lb.classList.remove('visible');
             unlockBodyScroll();
         }, { once: true });
         document.removeEventListener('keydown', onKey);
+        _tipsFocusReturn?.focus();
+        _tipsFocusReturn = null;
     }
 
     function onKey(e) { if (e.key === 'Escape') closeTips(); }

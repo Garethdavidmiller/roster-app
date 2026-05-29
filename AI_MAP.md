@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v11.41 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.51 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -100,6 +100,8 @@ Coordinator for `settings.html` (all logged-in staff, v11.06).
 ### `overlay.js`
 Shared overlay helpers — singleton module, imported by every page that shows a modal overlay (v11.40).
 - `lockBodyScroll()` / `unlockBodyScroll()` — freezes body scroll position when an overlay opens; restores on close. Handles iOS Safari bounce-scroll.
+
+**Canonical `.lb-overlay` lightbox lifecycle (standardised v11.50)** — when adding or editing any lightbox, match the existing shape exactly: open = capture `document.activeElement` → `.visible` → rAF `.open` + focus close-button → `lockBodyScroll()` + `_pushOverlayState(close)` + add Escape listener; close = `_clearOverlayHistory()` → remove `.open` → `transitionend` **with a 500ms `setTimeout` fallback** removing `.visible` + `unlockBodyScroll()` → remove Escape listener → restore captured focus. Close controls must be `<button class="lb-close">`. Full rationale in CLAUDE.md → "Canonical lightbox lifecycle".
 - `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support: pushes `{ mybOverlay: true }` history state on overlay open; registers `closeHandler` to fire on `popstate`. Module-level `popstate` listener is registered once (singleton) — multiple overlays on the same page are safe.
 - Imported by: `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, `settings-app.js`, `nav-panel.js`
 
