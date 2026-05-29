@@ -8,7 +8,7 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, getDocs, subscribeToLatestHuddle } from './firebase-client.js';
 import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3/dist/purify.es.mjs';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -674,7 +674,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     function openALLightbox() {
         _alFocusReturn = document.activeElement;
         lb.classList.add('visible');
-        requestAnimationFrame(() => lb.classList.add('open'));
+        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
         lockBodyScroll();
         _pushOverlayState(closeALLightbox);
         document.addEventListener('keydown', onKey);
@@ -684,12 +684,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     function closeALLightbox() {
         _clearOverlayHistory();
         lb.classList.remove('open');
-        const _alUnlockTimer = setTimeout(() => {
+        const t = setTimeout(() => {
             lb.classList.remove('visible');
             unlockBodyScroll();
         }, 500);
         lb.addEventListener('transitionend', () => {
-            clearTimeout(_alUnlockTimer);
+            clearTimeout(t);
             lb.classList.remove('visible');
             unlockBodyScroll();
         }, { once: true });
@@ -698,7 +698,16 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         _alFocusReturn = null;
     }
 
-    function onKey(e) { if (e.key === 'Escape') closeALLightbox(); }
+    function onKey(e) {
+        if (e.key === 'Escape') { closeALLightbox(); return; }
+        if (e.key === 'Tab') {
+            const focusable = [...lb.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+            if (!focusable.length) { e.preventDefault(); return; }
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        }
+    }
 
     async function loadALStats() {
         const member  = getCurrentMember();
@@ -1023,7 +1032,7 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t load the schedule</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
+            errDiv.innerHTML = '<h2>⚠️ Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -1040,23 +1049,10 @@ document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
     saveSelectedMember(parseInt(e.target.value, 10));
     updateLegend();
     renderCalendar();
-    updateFaithHint();
     // Close AL lightbox if open — data would be stale for the new member
-    if (typeof closeALLightbox === 'function') closeALLightbox();
+    window.closeALLightbox?.();
 });
 
-function updateFaithHint() {
-    const member = getCurrentMember();
-    const hint = document.getElementById('faithHint');
-    if (!hint) return;
-    const cal = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
-    if (cal !== 'none') {
-        hint.textContent = (CALENDAR_NAMES[cal] || 'Cultural') + ' calendar markers active';
-        hint.style.display = '';
-    } else {
-        hint.style.display = 'none';
-    }
-}
 
 document.getElementById('prevMonth').addEventListener('click', () => {
     if (swipeCooldown) return;
@@ -1198,7 +1194,7 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
     function closeTeamInfo() {
         _clearOverlayHistory();
         lb.classList.remove('open');
-        const _teamInfoUnlockTimer = setTimeout(() => {
+        const t = setTimeout(() => {
             lb.classList.remove('visible');
             unlockBodyScroll();
             if (_trigger && typeof _trigger.focus === 'function') {
@@ -1207,7 +1203,7 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
             }
         }, 500);
         lb.addEventListener('transitionend', () => {
-            clearTimeout(_teamInfoUnlockTimer);
+            clearTimeout(t);
             lb.classList.remove('visible');
             unlockBodyScroll();
             if (_trigger && typeof _trigger.focus === 'function') {
@@ -1269,8 +1265,6 @@ try {
         } else {
             renderCalendar();
         }
-
-        updateFaithHint();
 
         // Dismiss splash screen after first render — rAF ensures the calendar
         // is painted before the fade starts (setTimeout(300) was arbitrary).
@@ -1527,7 +1521,6 @@ try {
                     changeMonth(direction === 'left' ? 1 : -1);
                     document.title = `MYB Roster — ${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
                     updateLegend();
-                    updateFaithHint();
 
                     current.style.transition       = TRANSITION;
                     current.style.transform        = `translate3d(${direction === 'left' ? -w : w}px, 0, 0)`;
@@ -1628,48 +1621,6 @@ try {
                 if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
             }
 
-            // Auto-update: skip waiting immediately, reload silently on controllerchange.
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.ready.then(registration => {
-                    function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-
-                    if (registration.waiting) activate(registration.waiting);
-
-                    registration.addEventListener('updatefound', () => {
-                        const nw = registration.installing;
-                        if (!nw) return;
-                        nw.addEventListener('statechange', () => {
-                            if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-                        });
-                    });
-
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        // Small delay so any in-flight render cycle completes before
-                        // the page tears down — prevents overrides flashing then disappearing
-                        // if the SW activates at the exact moment overrides have just rendered.
-                        setTimeout(() => window.location.reload(), 500);
-                    }, { once: true });
-
-                    let swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                    document.addEventListener('visibilitychange', () => {
-                        if (document.hidden) {
-                            clearInterval(swUpdateInterval);
-                        } else {
-                            clearInterval(swUpdateInterval);
-                            registration.update();
-                            swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                        }
-                    });
-                    // iOS does not always fire visibilitychange when the tab is suspended/restored.
-                    // pagehide/pageshow are more reliable triggers for the same lifecycle.
-                    window.addEventListener('pagehide', () => clearInterval(swUpdateInterval));
-                    window.addEventListener('pageshow', () => {
-                        clearInterval(swUpdateInterval);
-                        swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                    });
-                });
-            }
-
             // ---- Open / close ----
 
             // Elements that swap depending on whether the calendar or team view is active
@@ -1709,12 +1660,12 @@ try {
             function closeLightbox() {
                 _clearOverlayHistory();
                 lightbox.classList.remove('open');
-                const _aboutUnlockTimer = setTimeout(() => {
+                const t = setTimeout(() => {
                     lightbox.classList.remove('visible');
                     unlockBodyScroll();
                 }, 500);
                 lightbox.addEventListener('transitionend', () => {
-                    clearTimeout(_aboutUnlockTimer);
+                    clearTimeout(t);
                     lightbox.classList.remove('visible');
                     unlockBodyScroll();
                 }, { once: true });
@@ -1803,7 +1754,7 @@ try {
                 selMonth.value = currentDisplayMonth;
                 selYear.value  = currentDisplayYear;
                 overlay.classList.add('visible');
-                requestAnimationFrame(() => overlay.classList.add('open'));
+                requestAnimationFrame(() => { overlay.classList.add('open'); selMonth.focus(); });
                 lockBodyScroll();
                 _pushOverlayState(closePicker);
             }
@@ -1811,12 +1762,12 @@ try {
             function closePicker() {
                 _clearOverlayHistory();
                 overlay.classList.remove('open');
-                const _pickerUnlockTimer = setTimeout(() => {
+                const t = setTimeout(() => {
                     overlay.classList.remove('visible');
                     unlockBodyScroll();
                 }, 500);
                 overlay.addEventListener('transitionend', () => {
-                    clearTimeout(_pickerUnlockTimer);
+                    clearTimeout(t);
                     overlay.classList.remove('visible');
                     unlockBodyScroll();
                 }, { once: true });
@@ -1845,7 +1796,15 @@ try {
             card.addEventListener('click', e => e.stopPropagation());
 
             document.addEventListener('keydown', e => {
-                if (e.key === 'Escape' && overlay.classList.contains('open')) closePicker();
+                if (!overlay.classList.contains('open')) return;
+                if (e.key === 'Escape') { closePicker(); return; }
+                if (e.key === 'Tab') {
+                    const focusable = [...card.querySelectorAll('button, select, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+                    if (!focusable.length) { e.preventDefault(); return; }
+                    const first = focusable[0], last = focusable[focusable.length - 1];
+                    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+                }
             });
         })();
 
@@ -2085,7 +2044,6 @@ async function ensureOverridesCached(year, month) {
 
         syncResolved = true;
         if (!teamView.isTeamViewMode()) renderCalendar();
-        updateFaithHint();
 
         // Silently remove the chip on success — "Up to date" is noise.
         if (syncChip) { syncChip.remove(); syncChip = null; }
@@ -2111,7 +2069,6 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
-// Register service worker for PWA functionality
 // ============================================
 // PRINT HEADER — stamp timestamp before printing
 // ============================================
@@ -2127,10 +2084,30 @@ stampPrintDate();
 window.addEventListener('beforeprint', stampPrintDate);
 
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
-            .catch(err => console.error('Service Worker registration failed:', err));
-    });
+    navigator.serviceWorker.register('./service-worker.js')
+        .then(registration => {
+            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
+            if (registration.waiting) activate(registration.waiting);
+            registration.addEventListener('updatefound', () => {
+                const nw = registration.installing;
+                if (!nw) return;
+                nw.addEventListener('statechange', () => {
+                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
+                });
+            });
+            // Small delay so any in-flight render cycle completes before the page tears down.
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                setTimeout(() => window.location.reload(), 500);
+            }, { once: true });
+            let swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) { clearInterval(swUpdateInterval); }
+                else { clearInterval(swUpdateInterval); registration.update(); swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000); }
+            });
+            window.addEventListener('pagehide', () => clearInterval(swUpdateInterval));
+            window.addEventListener('pageshow', () => { clearInterval(swUpdateInterval); swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000); });
+        })
+        .catch(err => console.error('[SW] Registration failed:', err));
 }
 
 // ============================================
@@ -2187,12 +2164,12 @@ function sanitiseHtml(html) {
     function closeViewer() {
         _clearOverlayHistory();
         viewer.classList.remove('open');
-        const _huddleUnlockTimer = setTimeout(() => {
+        const t = setTimeout(() => {
             viewer.classList.remove('visible');
             unlockBodyScroll();
         }, 500);
         viewer.addEventListener('transitionend', () => {
-            clearTimeout(_huddleUnlockTimer);
+            clearTimeout(t);
             viewer.classList.remove('visible');
             unlockBodyScroll();
         }, { once: true });
