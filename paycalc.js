@@ -201,13 +201,13 @@ const HELP_CONTENT = {
       '<strong>Hourly rate:</strong> shown on your payslip next to your name, or on your contract. CEA rate is currently £20.74; CES rate is currently £21.81. Both change each April with the pay award.',
       '<strong>Tax code:</strong> shown at the top of your payslip (e.g. 1257L). It tells HMRC how much tax-free income you get. Most Marylebone staff are on 1257L. If you\'re unsure, check your payslip or contact payroll.',
       '<strong>Pension contribution:</strong> your payslip calls this "Smart RPS CR Scheme" — it\'s the same thing. <strong>Pension is saved separately for each period</strong> — so if yours changes mid-year, update it here and past periods will keep their own recorded amount. The label next to the field shows which period you\'re editing.',
-      '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one.',
+      '<strong>Student loan:</strong> only tick this if you see a student loan deduction line on your payslip. If you repay by direct debit (not through your wages), leave this as None. The plan number is printed on your payslip next to the deduction — choose the matching one. <strong>Most staff who started university after 2012 are on Plan 2.</strong>',
       `<strong>London Allowance (£${TAX_YEARS[TAX_YEARS.length - 1].londonAllow.toFixed(2)}/period):</strong> a fixed supplement paid to all Marylebone staff (CEA and CES). It\'s included automatically — you don\'t need to enter it.`,
       'Your hourly rate is saved per tax year — updating it for 2026/27 won\'t affect your 2025/26 figures. Pension and hours are saved per individual period.',
     ],
   },
   accuracy: {
-    title: 'Match Your Payslip — why it helps',
+    title: 'Improve accuracy — why it helps',
     tips: [
       'By default, the app divides your tax-free allowance equally across all 13 pay periods. This is usually accurate, but can drift if you had an unusually high or low pay period earlier in the year.',
       'Entering <strong>Year to Date figures</strong> gives a more accurate estimate based on everything you\'ve earned so far this tax year — usually much closer to your payslip, especially later in the year.',
@@ -262,7 +262,7 @@ function numVal(id) {
         .trim();
     return parseFloat(cleaned) || 0;
 }
-function intVal(id)    { return parseInt(document.getElementById(id).value)   || 0; }
+function intVal(id)    { return parseInt(document.getElementById(id)?.value ?? '') || 0; }
 function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
 
 function clampMins(mId) {
@@ -282,7 +282,7 @@ function autoDecimalHours(hId, mId) {
   const m = Math.round((val - h) * 60);
   document.getElementById(hId).value = h || '';
   document.getElementById(mId).value = m || '';
-  calculate();
+  autosave();
 }
 
 function onHhMm(hId, mId, warnId) {
@@ -297,10 +297,9 @@ function onHhMm(hId, mId, warnId) {
       document.getElementById(mId).value = 0;
       warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`;
       warn.classList.add('show');
-    } else if (hrs < contr) {
+    } else {
       warn.classList.remove('show');
     }
-    // hrs === contr: warning stays as-is so it remains visible after clamping
   }
   calculate();
 }
@@ -375,6 +374,28 @@ function updateBhRows(p) {
 // are imported from paycalc-calc.js above.
 
 // ── PERIOD SELECT ─────────────────────────────────────────────────────────────
+function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = {}) {
+  if (!el) return;
+  el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';
+  let currentGroup = null, currentTyLabel = null;
+  periods.forEach(p => {
+    const ty = getTaxYearForOffset(p.num - 48);
+    if (ty.label !== currentTyLabel) {
+      currentGroup = document.createElement('optgroup');
+      currentGroup.label = `Tax year ${ty.label}`;
+      el.appendChild(currentGroup);
+      currentTyLabel = ty.label;
+    }
+    const o = document.createElement('option');
+    o.value = p.num;
+    const payStr = p.payday.toLocaleDateString('en-GB', {
+      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
+    });
+    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `P${p.num} · Paid ${payStr}`;
+    currentGroup.appendChild(o);
+  });
+}
+
 function buildPeriodSelect() {
   const sel     = document.getElementById('periodSelect');
   const periods = getPeriods();
@@ -407,33 +428,12 @@ function buildPeriodSelect() {
     if (_matched) defPNum = _matched.num;
   }
 
-  sel.innerHTML = '';
-  let currentGroup    = null;
-  let currentTyLabel  = null;
-
-  periods.forEach(p => {
-    // Start a new <optgroup> when the tax year changes
-    const ty = getTaxYearForOffset(p.num - 48);
-    if (ty.label !== currentTyLabel) {
-      currentGroup = document.createElement('optgroup');
-      currentGroup.label = `Tax year ${ty.label}`;
-      sel.appendChild(currentGroup);
-      currentTyLabel = ty.label;
-    }
-
-    const o = document.createElement('option');
-    o.value = p.num;
-    const payStr = p.payday.toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
-    });
-    const isCurrent = upcoming ? p.num === upcoming.num : p.num === periods[periods.length - 1].num;
-    o.textContent = (isCurrent ? '● ' : '') + `P${p.num} · Paid ${payStr}`;
-    currentGroup.appendChild(o);
-  });
+  const _currentPNum = upcoming ? upcoming.num : periods[periods.length - 1].num;
+  _populatePeriodSelect(sel, periods, { currentPNum: _currentPNum });
 
   sel.value = defPNum;
   // Always point the ● button at the current earning period regardless of URL params
-  _defaultPeriodNum = upcoming ? upcoming.num : periods[periods.length - 1].num;
+  _defaultPeriodNum = _currentPNum;
   onPeriodChange();
   buildBackPayPeriodSelect();
 }
@@ -442,33 +442,9 @@ function buildBackPayPeriodSelect() {
   const sel     = document.getElementById('backPayPeriod');
   const fromSel = document.getElementById('backPayFrom');
   if (!sel && !fromSel) return;
-
   const periods = getPeriods();
-
-  function populate(el, placeholder) {
-    if (!el) return;
-    el.innerHTML = `<option value="">${placeholder}</option>`;
-    let currentGroup = null, currentTyLabel = null;
-    periods.forEach(p => {
-      const ty = getTaxYearForOffset(p.num - 48);
-      if (ty.label !== currentTyLabel) {
-        currentGroup = document.createElement('optgroup');
-        currentGroup.label = `Tax year ${ty.label}`;
-        el.appendChild(currentGroup);
-        currentTyLabel = ty.label;
-      }
-      const o = document.createElement('option');
-      o.value = p.num;
-      const payStr = p.payday.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
-      });
-      o.textContent = `P${p.num} · Paid ${payStr}`;
-      currentGroup.appendChild(o);
-    });
-  }
-
-  populate(sel,     '— select when the lump sum will land —');
-  populate(fromSel, '— all periods with saved data —');
+  _populatePeriodSelect(sel,     periods, { placeholder: '— select when the lump sum will land —' });
+  _populatePeriodSelect(fromSel, periods, { placeholder: '— all periods with saved data —' });
 }
 
 // ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
@@ -577,7 +553,7 @@ function onPeriodChange() {
   document.getElementById('overtimeSub').textContent =
     `Extra hours on top of a rostered shift (cut-off: ${cutStr}). Shows as "Overtime 1.25" on your payslip.`;
   document.getElementById('rdwSub').textContent =
-    `You came in on a rest day, including any unrostered Saturdays (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
+    `Came in on a rest day, or worked a Saturday that wasn't in your roster (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
   document.getElementById('sundaySub').textContent =
     `Any hours you worked on a Sunday (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
 
@@ -788,7 +764,7 @@ function loadPeriodData(pNum) {
     extraBody.classList.remove('open');
     extraBtn.classList.remove('open');
     extraBtn.querySelector('.show-more-arrow').textContent = '▼';
-    document.getElementById('hoursShowMoreLabel').textContent = 'Other adjustments';
+    document.getElementById('hoursShowMoreLabel').textContent = 'Unusual deductions or corrections';
   }
   updateSaveStatus(pNum);
   calculate();
@@ -2145,7 +2121,7 @@ function toggleHoursExtra() {
   btn.querySelector('.show-more-arrow').textContent = open ? '▲' : '▼';
   document.getElementById('hoursShowMoreLabel').textContent = open
     ? 'Hide adjustments'
-    : 'Other adjustments';
+    : 'Unusual deductions or corrections';
 }
 
 function toggleHppNote() {
@@ -2343,7 +2319,10 @@ document.getElementById('tyTab1').addEventListener('click', () => jumpToTaxYear(
 document.getElementById('gradeSelect').addEventListener('change', () => {
   const g = document.getElementById('gradeSelect').value;
   if (g && GRADES[g]) document.getElementById('hourlyRate').value = GRADES[g].rate.toFixed(2);
-  saveSettings();
+  saveSettings(); // calls invalidateGrade() so getGrade() returns the new grade below
+  const _gP = getPeriods().find(x => x.num === currentPeriodNum());
+  const _pa = document.getElementById('pensionAmt');
+  if (_pa) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
   calculate();
 });
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });

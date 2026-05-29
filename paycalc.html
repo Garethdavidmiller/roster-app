@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v11.36 -->
+<!-- MYB Roster — Pay Calculator v11.37 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -644,7 +644,7 @@
       .nav-pill       { flex: none; padding: 10px 18px; }
       .period-meta    { grid-area: meta; }
       .save-row       { grid-area: save; }
-      .period-hint    { display: none; } /* not needed once layout is clear */
+      .period-hint    { margin-top: 0; }
       #rosterViewLink { grid-column: 1 / -1; } /* span both cols of the period-controls subgrid */
 
       /* Buttons: stop at 280px — no need to span a 720px card */
@@ -1135,10 +1135,10 @@
       <div class="field">
         <label>Grade</label>
         <select id="gradeSelect">
-          <option value="cea">CEA — Customer Experience Ambassador</option>
-          <option value="ces">CES — Customer Experience Supervisor</option>
+          <option value="cea">CEA</option>
+          <option value="ces">CES</option>
         </select>
-        <div class="field-hint">Your grade sets the default hourly rate below. CEA: £20.74/hr · CES: £21.81/hr.</div>
+        <div class="field-hint">CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. Your grade sets the default hourly rate below. CEA: £20.74/hr · CES: £21.81/hr.</div>
       </div>
 
       <div class="field">
@@ -1159,7 +1159,7 @@
       </div>
 
       <div class="field">
-        <label>Pension contribution <span class="note">Smart RPS CR Scheme</span> <span id="pensionPeriodLabel" class="rate-year-label"></span></label>
+        <label>Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -1246,7 +1246,7 @@
     <div class="card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <h2>⏱️ Your Hours This Period</h2>
-        <span class="hint">Saved automatically as you type</span>
+        <span class="hint">Saved automatically as you type · type 7.5 to auto-convert to 7h 30m</span>
         <button class="result-peek-btn" id="resultPeekBtn" type="button">↑ Estimated take-home: £–</button>
       </div>
       <button class="help-btn" data-help="hours" aria-label="Help: Your Hours">?</button>
@@ -1279,7 +1279,7 @@
         <div class="h-info">
           <div class="h-title">🗓️ Rostered Saturday Hours</div>
           <span class="rate-badge badge-sat" id="badge-sat">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub">A Saturday shift from your roster. If Saturday is your rest day that week, use Rest Day Working below instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
+          <div class="h-sub">A Saturday that was in your regular roster. If you weren't scheduled to work that Saturday, use Rest Day Working instead. Shows as <strong>Ord Basic Pay @1.25</strong> on your payslip.</div>
           <div class="val-warn" id="satWarn">⚠ You've entered more Saturday hours than your roster allows — check the total</div>
         </div>
         <div>
@@ -1371,7 +1371,7 @@
         <div class="h-info">
           <div class="h-title">💼 Rest Day Working</div>
           <span class="rate-badge badge-rdw" id="badge-rdw">1.25×  ·  £25.92/hr</span>
-          <div class="h-sub" id="rdwSub">Shifts worked on your rest day — including any Saturday that isn't in your contracted roster. Shows as "RDW 1.25" on your payslip.</div>
+          <div class="h-sub" id="rdwSub">Came in on a rest day, or worked a Saturday that wasn't in your roster. Shows as "RDW 1.25" on your payslip.</div>
         </div>
         <div>
           <div class="hhmm-wrap">
@@ -1450,12 +1450,12 @@
 
       <!-- ── SHOW MORE TOGGLE ── -->
       <button class="show-more-btn" id="hoursShowMore">
-        <span id="hoursShowMoreLabel">Other adjustments</span><span class="show-more-arrow">▼</span>
+        <span id="hoursShowMoreLabel">Unusual deductions or corrections</span><span class="show-more-arrow">▼</span>
       </button>
 
       <div class="hours-extra" id="hoursExtra">
 
-        <div class="sec-hd" style="margin-top:4px">Other adjustments</div>
+        <div class="sec-hd" style="margin-top:4px">Unusual deductions or corrections</div>
 
         <div class="toggle-row hidden" id="slSkipRow">
           <input type="checkbox" id="slSkipCheck">
@@ -1485,8 +1485,8 @@
   <div class="content-card" id="payslipCard">
     <div class="card-header card-header-toggle" id="payslipCardToggle">
       <div>
-        <h2>📊 Match Your Payslip <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
-        <span class="hint">Optional: enter Year to Date figures from your payslip for a more accurate tax estimate</span>
+        <h2>📊 Improve Accuracy <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
+        <span class="hint">Enter Year to Date figures from your last payslip to get a more accurate tax estimate</span>
       </div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
         <button class="help-btn" data-help="accuracy" aria-label="Help: Improve Accuracy">?</button>
@@ -1557,7 +1557,7 @@
         <div style="font-size:13px;font-weight:700;color:var(--text-mid);margin-bottom:4px" id="currentHppTitle">This year (2026/27)</div>
       </div>
 
-      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. <button class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
+      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered above. <button class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
       <div class="hpp-result">
         <div class="hpp-label" id="hppLabel">Estimated Holiday Pay Premium for this tax year</div>
         <div class="hpp-amount" id="hppAmount">£–</div>
