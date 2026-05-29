@@ -193,6 +193,28 @@
     --bg-light: oklch(97.9% 0 0);
     --bg-faint: oklch(97.0% 0 0);
 
+    /* ── Surface scale — three-surface model (v11.55) ─────────────
+       Depth comes from three layers, deepest first:
+         canvas → the brand navy page background (body)
+         card   → white panels that lift off the canvas (shadows)
+         sunken → a faint, just-cool off-white for RECESSED elements
+                  inside cards (form fields, wells) so the white
+                  cards gain internal depth rather than reading flat.
+       Form fields rest on --field-bg (sunken) and brighten to white
+       (--surface) on focus — a tactile 'fills in when active' cue.
+       Disabled fields use --field-bg-disabled: a flatter, slightly
+       darker NEUTRAL grey, kept deliberately distinct (different hue
+       AND lightness) from the cool enabled tint so locked/disabled
+       controls still read as inert. Always set field fills with
+       'background-color' (longhand) — selects layer their dropdown
+       arrow via 'background-image', which the 'background' shorthand
+       would wipe. */
+    --surface-canvas:    var(--primary-blue);
+    --surface:           #ffffff;
+    --surface-sunken:    oklch(96.3% 0.006 250deg);
+    --field-bg:          var(--surface-sunken);
+    --field-bg-disabled: oklch(92.8% 0 0);
+
     --today-print: oklch(99.0% 0.0288 102.7deg); /* soft gold for print today-cell */
 
     /* ── Page shell ──────────────────────────────────────────────── */
