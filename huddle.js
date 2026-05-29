@@ -186,9 +186,11 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
                 await new Promise((resolve, reject) => {
                     if (window.mammoth) { resolve(); return; }
                     const s = document.createElement('script');
-                    s.src     = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
-                    s.onload  = resolve;
-                    s.onerror = () => reject(new Error('load'));
+                    s.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
+                    s.crossOrigin = 'anonymous';
+                    // integrity hash is set by `node generate-sri.mjs --apply` — run after any version bump
+                    s.onload      = resolve;
+                    s.onerror     = () => reject(new Error('load'));
                     document.head.appendChild(s);
                 });
                 const arrayBuffer = await file.arrayBuffer();
