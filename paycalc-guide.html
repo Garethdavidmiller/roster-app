@@ -55,17 +55,15 @@
             font-size: 12px;
             line-height: 1.5;
             color: var(--text);
-            background: #e8ecf2;
-            padding: 0 max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+            background: #f4f5f8;
+            padding: 0 0 max(40px, env(safe-area-inset-bottom));
         }
 
+        /* Shared guide shell: full-bleed sticky header + 760px flat content wrapper */
         .page {
-            background: white;
             max-width: 760px;
-            margin: 0 auto 28px;
-            padding: 28px 28px 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.14);
+            margin: 0 auto 24px;
+            padding: 8px max(16px, env(safe-area-inset-right)) 16px max(16px, env(safe-area-inset-left));
         }
 
         /* ── Sticky page header ──────────────────────────────── */
@@ -135,6 +133,11 @@
             flex-shrink: 0;
         }
 
+        /* On screen the sticky page-header carries identity + version, so the
+           in-document banner is redundant — hide it on screen only. It still
+           prints (the sticky header is .no-print), titling the printed page. */
+        @media screen { .guide-header { display: none; } }
+
         /* ── Section headings ────────────────────────────────── */
         h2 {
             font-size: 10.5px;
@@ -153,8 +156,8 @@
 
         /* ── Mobile: single column ── */
         @media screen and (max-width: 640px) {
-            body  { padding: 0 max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
-            .page { padding: 16px 14px 14px; }
+            body  { padding: 0 0 max(28px, env(safe-area-inset-bottom)); }
+            .page { padding: 8px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); }
             .cols { grid-template-columns: 1fr; gap: 0; }
             .guide-header { padding: 10px 12px; margin-bottom: 14px; }
             .guide-header h1 { font-size: 14px; }
@@ -254,7 +257,7 @@
     <a href="./paycalc.html" class="btn-back" aria-label="Back to Pay Calculator">←</a>
     <div>
         <h1>💷 Pay Calculator Guide</h1>
-        <div class="sub">Chiltern Railways · MYB Station</div>
+        <div class="sub">Chiltern Railways · MYB Station · v11.x</div>
     </div>
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
 </header>

@@ -502,9 +502,19 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 **What not to flag as defects:**
 - No JS modules — static page, intentional.
 - Sticky header + sticky chip bar eating vertical space on small phones — acceptable trade-off for fast navigation.
-- `max-width: 620px` on desktop — this is a reference sheet, not a dashboard. Narrow is fine.
 - A–Z order with numeric cards first — intentional, easy to scan.
 
 ## FIP guide
 
 `fip.html` is a low-frequency educational reference — not a core workflow. Judge it as an article-like reference page. Do not flag reference-page format as a design defect. Care about: factual accuracy, "last checked" date, source links, mobile layout, navy/gold palette.
+
+## Unified guide shell (v11.47)
+
+All four guide pages — `guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html` — share one chrome so they behave consistently on iOS, Android, desktop and print. Each page is still self-contained (own `<style>`, no `shared.css` import), so the shell is duplicated, not centralised — **keep the four copies in sync** when changing any of:
+
+- **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card — the v11.46-and-earlier card on `guide.html`/`paycalc-guide.html` was removed at v11.47 so all four match.
+- **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←` `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding always `max(14px, env(safe-area-inset-top))` for the iOS notch.
+- **Content width:** `max-width: 760px`, centred. `guide.html`/`paycalc-guide.html` keep their two-column `.cols` grid inside this for print density; `railcard.html`/`fip.html` are single-column. (The old 620px reference width was widened to 760 at v11.47.)
+- **Safe-area:** side insets via `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
+- **Print:** every page prints a navy title banner. `guide.html`/`paycalc-guide.html` use their in-document `.guide-header` banner (the sticky header is `.no-print`); `railcard.html`/`fip.html` print the sticky header itself (`position: static`, buttons hidden). Either way the navy background must keep `print-color-adjust: exact` or it prints white-on-white.
+- **PDF button:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard.js` wires `#savePdfBtn` itself because it also owns the chip-bar.
