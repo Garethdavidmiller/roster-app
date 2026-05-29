@@ -94,7 +94,7 @@ roster-app/
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
 ├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports applyHuddleButtonState, initHuddleViewer. Imported by app.js (v11.40)
 ├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js
-├── notif.js                ← shared Web Push module: notifSupported, getNotifState, enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
+├── notif.js                ← shared Web Push module: notifSupported, getNotifState, peekNotifState (read-only), enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory. Singleton popstate listener. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js, nav-panel.js (v11.40)
 ├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js (v11.40)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
@@ -121,7 +121,8 @@ roster-app/
 ├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
 ├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
 ├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
-├── shared.css              ← CSS shared by all pages
+├── shared.css              ← CSS shared by the app pages (nav panel, lightbox, login) — NOT the guides
+├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Linked by guide/paycalc-guide/railcard-guide/fip (v11.48)
 ├── service-worker.js       ← single SW for all pages; cache name includes app version
 ├── manifest.json           ← PWA manifest for all pages
 ├── paycalc-guide.html      ← printable pay calculator reference guide
@@ -496,7 +497,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 - Senior Railcard Chiltern note — must say "journeys within the Network area" not "all Marylebone services"; through journeys to Birmingham are different. Do not collapse these into a single blanket rule.
 - Family & Friends — the morning-peak restriction is on Network-area journeys only, not the whole card. The subtext must not imply the card is Network-area-only.
 - Two Together photocard — the current wording is deliberately softened ("check names/photos on the card or its photocard") because the physical card format was not verified from an authoritative source. Do not strengthen the claim without confirmation.
-- `railcard-guide.html` is self-contained CSS (no shared.css import) — intentional, consistent with `fip.html`, `guide.html`, `paycalc-guide.html`. Do not add a shared.css import.
+- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). They share only `guide-shell.css` — the small common header/button/print chrome (v11.48). Each page keeps its own `<style>` for its content. Do not add a `shared.css` import to any guide.
 - Guide pages use no inline `<script>` or `onclick` handlers — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84) and `guide-print.js` (v10.84, shared by `guide.html` and `paycalc-guide.html`). Do not add inline scripts or `onclick` attributes to any of these pages.
 
 **What not to flag as defects:**
@@ -510,11 +511,14 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 
 ## Unified guide shell (v11.47)
 
-All four guide pages — `guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html` — share one chrome so they behave consistently on iOS, Android, desktop and print. Each page is still self-contained (own `<style>`, no `shared.css` import), so the shell is duplicated, not centralised — **keep the four copies in sync** when changing any of:
+All four guide pages — `guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html` — share one chrome so they behave consistently on iOS, Android, desktop and print. The common chrome lives in **`guide-shell.css`** (linked by all four, before each page's inline `<style>`). Edit the shell there once — do not re-inline it. The shell uses `var(--navy)` from each page's own `:root` (every guide defines `--navy: #001e3c`), so it carries no design tokens itself.
 
-- **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card — the v11.46-and-earlier card on `guide.html`/`paycalc-guide.html` was removed at v11.47 so all four match.
-- **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←` `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding always `max(14px, env(safe-area-inset-top))` for the iOS notch.
-- **Content width:** `max-width: 760px`, centred. `guide.html`/`paycalc-guide.html` keep their two-column `.cols` grid inside this for print density; `railcard.html`/`fip.html` are single-column. (The old 620px reference width was widened to 760 at v11.47.)
-- **Safe-area:** side insets via `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
-- **Print:** every page prints a navy title banner. `guide.html`/`paycalc-guide.html` use their in-document `.guide-header` banner (the sticky header is `.no-print`); `railcard.html`/`fip.html` print the sticky header itself (`position: static`, buttons hidden). Either way the navy background must keep `print-color-adjust: exact` or it prints white-on-white.
-- **PDF button:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard.js` wires `#savePdfBtn` itself because it also owns the chip-bar.
+**In `guide-shell.css` (shared — change once):**
+- **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←` `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding `max(14px, env(safe-area-inset-top))` for the iOS notch.
+- **Print:** `.page-header { position: static; print-color-adjust: exact }` and `.btn-back, .btn-pdf { display: none }`. railcard/fip print the sticky header as their title banner; on guide/paycalc the header is `.no-print` so these rules are inert there (they print their own in-document `.guide-header` banner instead — `print-color-adjust: exact` on that banner stays inline).
+
+**Still per-page in each inline `<style>` (keep aligned by eye):**
+- **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card (removed at v11.47).
+- **Content width:** `max-width: 760px`, centred. guide/paycalc keep their two-column `.cols` grid inside this for print density; railcard/fip are single-column. (Old 620px reference width widened to 760 at v11.47.)
+- **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.
+- **PDF button markup:** `<button id="savePdfBtn" class="btn-print btn-pdf">⤓ PDF</button>`. Wired by `guide-print.js` (`.btn-print`) on guide/paycalc/fip; `railcard-guide.js` wires `#savePdfBtn` itself because it also owns the chip-bar.

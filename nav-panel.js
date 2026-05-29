@@ -15,7 +15,7 @@
  * and refreshes the bell.
  */
 
-import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
 import { teamMembers, APP_VERSION } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 
@@ -61,9 +61,11 @@ const NAV_GUIDES = [
     { icon: '🇪🇺', label: 'FIP Travel Guide',     url: './fip.html'            },
 ];
 
-let _panelOpen    = false;
-let _historyPushed = false;
-let _csHistoryPushed = false;
+let _panelOpen      = false;
+// A single shallow history entry, shared by the panel and the coming-soon
+// lightbox that opens from inside it — so Android Back pops exactly one entry.
+let _historyPushed  = false;
+let _comingSoonOpen = false;
 
 /**
  * Initialise the navigation panel for the current page.
@@ -105,32 +107,34 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         setTimeout(() => closeBtn?.focus(), 60);
     }
 
-    function closePanel() {
-        _panelOpen    = false;
+    // Shared closed-state DOM mutations. Callers move focus OUT of the panel
+    // before calling this, so we never set aria-hidden over the focused element.
+    function _applyClosedState() {
+        _panelOpen = false;
         panel.setAttribute('aria-hidden', 'true');
         overlay.setAttribute('aria-hidden', 'true');
         overlay.classList.remove('open');
         panel.classList.remove('open');
         burger.setAttribute('aria-expanded', 'false');
+    }
+
+    // Close via ✕, overlay tap, or Escape. Pops the entry we pushed.
+    function closePanel() {
+        burger.focus();          // move focus out before aria-hidden (a11y)
+        _applyClosedState();
         unlockBodyScroll();
         if (_historyPushed) {
             _historyPushed = false;
             history.back(); // removes the state we pushed — triggers popstate
         }
-        burger.focus();
     }
 
     // Called from popstate — history.back() already happened, don't call it again.
     function closePanelFromBack() {
-        _panelOpen    = false;
         _historyPushed = false;
-        panel.setAttribute('aria-hidden', 'true');
-        overlay.setAttribute('aria-hidden', 'true');
-        overlay.classList.remove('open');
-        panel.classList.remove('open');
-        burger.setAttribute('aria-expanded', 'false');
-        unlockBodyScroll();
         burger.focus();
+        _applyClosedState();
+        unlockBodyScroll();
     }
 
     // Visual-only close used when a link inside the panel is clicked.
@@ -138,13 +142,17 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // transitions, and for hash-only links (e.g. #huddle) history.back() would
     // race with the hash navigation and cause unexpected behaviour.
     function closePanelForNavigation() {
-        _panelOpen    = false;
         _historyPushed = false; // consumed — popstate won't reopen the panel
-        panel.setAttribute('aria-hidden', 'true');
-        overlay.setAttribute('aria-hidden', 'true');
-        overlay.classList.remove('open');
-        panel.classList.remove('open');
-        burger.setAttribute('aria-expanded', 'false');
+        _applyClosedState();
+        unlockBodyScroll();
+    }
+
+    // Visual-only close that PRESERVES the pushed history entry, so the
+    // coming-soon lightbox opened from inside the panel can reuse that single
+    // entry instead of leaking it and pushing a second one (which used to leave
+    // a phantom entry that swallowed an Android Back press).
+    function _closePanelVisualOnly() {
+        _applyClosedState();
         unlockBodyScroll();
     }
 
@@ -158,8 +166,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     panel.addEventListener('click', e => {
         const comingSoon = e.target.closest('.nav-panel-link--coming-soon');
         if (comingSoon) {
-            closePanelForNavigation();
-            _openComingSoon();
+            _closePanelVisualOnly();    // keep the history entry for the lightbox
+            _openComingSoon(comingSoon);
             return;
         }
         if (e.target.closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
@@ -210,10 +218,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (bellHint) bellHint.hidden = true;
     }
 
-    /** Re-read and repaint the bell. No-op when the bell is not rendered. */
+    /**
+     * Re-read and repaint the bell. No-op when the bell is not rendered.
+     * Uses peekNotifState (no side effects) — repainting on every panel open
+     * must not write to Firestore. VAPID rotation runs from app.js on load.
+     */
     async function _refreshBell() {
         if (!bell) return;
-        _paintBell(await getNotifState());
+        _paintBell(await peekNotifState());
     }
 
     bell?.addEventListener('click', async () => {
@@ -241,59 +253,73 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // "Coming soon" placeholder lightbox — reuses the shared .lb-overlay pattern.
     const csLightbox = document.getElementById('navComingSoonLightbox');
     const csClose    = document.getElementById('navComingSoonClose');
-    let _csReturnFocus = null;
+    const csTitle    = document.getElementById('navComingSoonTitle');
+    const csIcon     = document.getElementById('navComingSoonIcon');
 
-    function _openComingSoon() {
+    /**
+     * Open the placeholder lightbox for a "coming soon" link.
+     * @param {HTMLElement} [triggerEl] the link that was tapped — its
+     *   data-cs-title / data-cs-icon drive the heading, so the one generic
+     *   lightbox shows the right title for whichever item opened it.
+     */
+    function _openComingSoon(triggerEl) {
         if (!csLightbox) return;
-        _csReturnFocus = document.activeElement; // restore focus here on close
+        const title = triggerEl?.dataset.csTitle || 'Coming soon';
+        const icon  = triggerEl?.dataset.csIcon  || '🔔';
+        if (csTitle) csTitle.textContent = title;
+        if (csIcon)  csIcon.textContent  = icon;
+        csLightbox.setAttribute('aria-label', title);
+
         lockBodyScroll();
         csLightbox.classList.add('visible');
         requestAnimationFrame(() => csLightbox.classList.add('open'));
         document.addEventListener('keydown', _onComingSoonKey);
-        if (!_csHistoryPushed) {
-            history.pushState({ mybNavComingSoon: true }, '');
-            _csHistoryPushed = true;
+        // Reuse the panel's single history entry (normally already present, as
+        // the lightbox opens from the open panel); push one only if missing.
+        if (!_historyPushed) {
+            history.pushState({ mybNavOverlay: true }, '');
+            _historyPushed = true;
         }
+        _comingSoonOpen = true;
         setTimeout(() => csClose?.focus(), 60);
     }
 
-    // Called by user action (Escape, click) — history entry still exists, remove it.
-    function _closeComingSoon() {
-        if (!csLightbox) return;
-        document.removeEventListener('keydown', _onComingSoonKey);
-        csLightbox.classList.remove('open');
-        if (_csHistoryPushed) {
-            _csHistoryPushed = false;
-            history.back();
-        }
-        // Fallback timer ensures body scroll is always unlocked even if
-        // transitionend never fires (prefers-reduced-motion, iOS quirks, etc.).
+    // Shared teardown: hide after the slide-out transition, with a fallback
+    // timer in case transitionend never fires (prefers-reduced-motion, iOS
+    // quirks). Returns focus to the burger that owns the menu.
+    function _finishComingSoonClose() {
         const t = setTimeout(done, 400);
         function done() {
             clearTimeout(t);
+            csLightbox.removeEventListener('transitionend', done);
             csLightbox.classList.remove('visible');
             unlockBodyScroll();
-            _csReturnFocus?.focus();
-            _csReturnFocus = null;
+            burger.focus();
         }
         csLightbox.addEventListener('transitionend', done, { once: true });
+    }
+
+    // Called by user action (Escape, ✕, backdrop) — pop the shared entry.
+    function _closeComingSoon() {
+        if (!csLightbox) return;
+        _comingSoonOpen = false;
+        document.removeEventListener('keydown', _onComingSoonKey);
+        csLightbox.classList.remove('open');
+        if (_historyPushed) {
+            _historyPushed = false;
+            history.back();
+        }
+        _finishComingSoonClose();
     }
 
     // Called from popstate — history.back() already happened.
     function _closeComingSoonFromBack() {
         if (!csLightbox) return;
-        _csHistoryPushed = false;
+        _comingSoonOpen = false;
+        _historyPushed  = false;
         document.removeEventListener('keydown', _onComingSoonKey);
         csLightbox.classList.remove('open');
-        const t = setTimeout(done, 400);
-        function done() {
-            clearTimeout(t);
-            csLightbox.classList.remove('visible');
-            unlockBodyScroll();
-            _csReturnFocus?.focus();
-            _csReturnFocus = null;
-        }
-        csLightbox.addEventListener('transitionend', done, { once: true });
+        _finishComingSoonClose();
     }
 
     // Escape closes the lightbox. Tab is trapped — the lightbox has only one
@@ -319,7 +345,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (e.key === 'Tab') {
             const focusable = Array.from(panel.querySelectorAll(
                 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-            ));
+            )).filter(el => el.offsetParent !== null); // visible only — skip the collapsed Guides links
             if (focusable.length === 0) return;
             const first  = focusable[0];
             const last   = focusable[focusable.length - 1];
@@ -338,10 +364,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
     });
 
-    // Android Back button closes whichever overlay is currently open.
-    // Coming-soon lightbox is checked first (it sits on top of the nav panel).
+    // Android Back button closes whichever overlay is currently open. The
+    // coming-soon lightbox shares the panel's single history entry, so check
+    // it first (it sits on top of the visually-closed panel).
     window.addEventListener('popstate', () => {
-        if (_csHistoryPushed) { _closeComingSoonFromBack(); return; }
+        if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
         if (!_historyPushed) return;
         closePanelFromBack();
     });
@@ -361,7 +388,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
         <p class="nav-panel-group-heading">${group.heading}</p>
         <ul class="nav-panel-links">
             ${group.links.map(link => link.comingSoon
-                ? `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon">${link.icon} ${link.label}</button></li>`
+                ? `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}">${link.icon} ${link.label}</button></li>`
                 : `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`
             ).join('')}
         </ul>`).join('');
@@ -444,11 +471,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin) {
             ${footerHtml}
         </div>
         <div id="navComingSoonLightbox" class="lb-overlay" role="dialog"
-             aria-label="Weekly Retail Circular" aria-modal="true">
+             aria-label="Coming soon" aria-modal="true">
             <div class="lb-content" id="navComingSoonContent">
                 <button id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
-                <div class="nav-cs-icon" aria-hidden="true">📰</div>
-                <div class="nav-cs-title">Weekly Retail Circular</div>
+                <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>
+                <div class="nav-cs-title" id="navComingSoonTitle">Coming soon</div>
                 <div class="nav-cs-body">Coming soon</div>
             </div>
         </div>`;

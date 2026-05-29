@@ -7,9 +7,11 @@
  *
  * Public API:
  *   notifSupported()        → boolean — push usable on this device/browser
- *   getNotifState()         → Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>
+ *   getNotifState()         → Promise<state> — reads state AND runs VAPID-rotation/persist side effects
+ *   peekNotifState()        → Promise<state> — reads state only, no side effects (for frequent UI reads)
  *   enableNotifications()   → Promise<state> — requests permission if needed, subscribes
  *   disableNotifications()  → Promise<state> — unsubscribes, removes server record
+ *   state = 'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'
  */
 
 import { savePushSubscription, deletePushSubscription } from './firebase-client.js';
@@ -88,6 +90,32 @@ export async function getNotifState() {
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {
         console.warn('[Notifications] State check failed:', err.message);
+        return 'off-lapsed';
+    }
+}
+
+/**
+ * Read-only notification state — same return values as getNotifState() but with
+ * NO side effects: it never writes to Firestore, never re-subscribes, and never
+ * runs the VAPID-rotation migration. Use this for UI that re-reads state often
+ * (e.g. the nav-panel bell repaints on every drawer open) so opening the menu
+ * doesn't trigger a Firestore write each time. The migration still runs from
+ * app.js on page load via getNotifState().
+ * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
+ */
+export async function peekNotifState() {
+    if (!notifSupported()) return 'unsupported';
+
+    const perm = Notification.permission;
+    if (perm === 'denied') return 'denied';
+    if (perm !== 'granted') return 'off-default';
+
+    try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        return sub ? 'on' : 'off-lapsed';
+    } catch (err) {
+        console.warn('[Notifications] State peek failed:', err.message);
         return 'off-lapsed';
     }
 }

@@ -12,6 +12,7 @@
     <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
     <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
     <title>FIP Travel Guide — MYB Roster</title>
+    <link rel="stylesheet" href="./guide-shell.css">
     <style>
         :root {
             --navy:        #001e3c;
@@ -33,8 +34,8 @@
             --blue-text:   #1565c0;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-
+        /* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
+           lives in guide-shell.css. Page-specific styles only below. */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             font-size: 15px;
@@ -42,48 +43,6 @@
             color: var(--text);
             background: var(--bg);
         }
-
-        /* ── Page header ─────────────────────────── */
-        .page-header {
-            background: var(--navy);
-            color: white;
-            padding: 14px 16px 16px;
-            padding-top: max(14px, env(safe-area-inset-top));
-            padding-left: max(16px, env(safe-area-inset-left));
-            padding-right: max(16px, env(safe-area-inset-right));
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-        }
-        .btn-back {
-            color: white;
-            text-decoration: none;
-            font-size: 22px;
-            line-height: 1;
-            padding: 2px 6px 2px 0;
-            flex-shrink: 0;
-        }
-        .page-header h1 { font-size: 17px; font-weight: 700; }
-        .page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
-        .btn-pdf {
-            flex-shrink: 0;
-            background: rgba(255,255,255,0.12);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.32);
-            border-radius: 6px;
-            font-family: inherit;
-            font-size: 12px;
-            font-weight: 600;
-            padding: 6px 10px;
-            cursor: pointer;
-            margin-left: auto;
-            touch-action: manipulation;
-            -webkit-tap-highlight-color: transparent;
-        }
-        .btn-pdf:hover { background: rgba(255,255,255,0.22); }
 
         /* ── Content wrapper ─────────────────────── */
         .content {
@@ -386,14 +345,8 @@
         @media print {
             * { orphans: 2; widows: 2; }
 
-            /* Keep the header as the printed page's title banner; drop its
-               buttons and the rest of the screen-only chrome. */
-            .page-header {
-                position: static;
-                -webkit-print-color-adjust: exact;
-                print-color-adjust: exact;
-            }
-            .btn-back, .btn-pdf,
+            /* The shell prints .page-header as the title banner and hides its
+               buttons; here we just drop the remaining screen-only chrome. */
             .country-jump,
             .btn-primary,
             .btn-secondary,
