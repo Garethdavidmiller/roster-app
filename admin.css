@@ -1917,6 +1917,9 @@
             /* Fix 3: constrain week nav — looks loose stretching across a 600px column */
             .week-nav { max-width: 480px; margin: 0 auto; }
 
+            /* Save button: no need to span the full left column */
+            .btn-save { max-width: 320px; }
+
         }
         /* At 1024–1399px the left column is too narrow for the 5-col template.
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
@@ -1946,9 +1949,6 @@
 
             /* Tighten week grid spacing */
             .day-row { gap: 8px; }
-
-            /* Save button: no need to span a 600px column */
-            .btn-save { max-width: 320px; }
 
             /* Bulk bar: slightly more spacious */
             .bulk-bar { gap: 14px; }
