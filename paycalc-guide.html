@@ -135,6 +135,11 @@
             flex-shrink: 0;
         }
 
+        /* On screen the sticky page-header carries identity + version, so the
+           in-document banner is redundant — hide it on screen only. It still
+           prints (the sticky header is .no-print), titling the printed page. */
+        @media screen { .guide-header { display: none; } }
+
         /* ── Section headings ────────────────────────────────── */
         h2 {
             font-size: 10.5px;
@@ -254,7 +259,7 @@
     <a href="./paycalc.html" class="btn-back" aria-label="Back to Pay Calculator">←</a>
     <div>
         <h1>💷 Pay Calculator Guide</h1>
-        <div class="sub">Chiltern Railways · MYB Station</div>
+        <div class="sub">Chiltern Railways · MYB Station · v11.x</div>
     </div>
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
 </header>
