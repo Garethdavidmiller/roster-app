@@ -13,6 +13,26 @@
 }
 
 /* ============================================================
+   TYPEFACE — Inter (self-hosted, v11.53)
+   Self-hosted (not Google Fonts CDN) for three reasons: (1) the
+   app's CSP is locked to `font-src 'self'` — a CDN would mean
+   loosening it; (2) offline-first — the file is a same-origin
+   asset the service worker caches, so it renders on the very
+   first offline load with no flash; (3) no third-party request.
+   One variable woff2 (latin subset, ~47 KB, wght 100–900) covers
+   every weight the app uses. `font-display: swap` shows the system
+   fallback instantly and swaps Inter in once loaded, so a cold or
+   offline first paint looks exactly like the old system-font app.
+   ============================================================ */
+@font-face {
+    font-family: 'Inter';
+    font-style: normal;
+    font-weight: 100 900;       /* variable axis — one file, all weights */
+    font-display: swap;
+    src: url('fonts/inter-latin.woff2') format('woff2');
+}
+
+/* ============================================================
    CSS CUSTOM PROPERTIES
    All CSS variables for the entire app live here — both pages
    read them. Variables only used by one page are commented to
@@ -20,6 +40,13 @@
    spacing changes only ever need one edit.
    ============================================================ */
 :root {
+    /* ── Typeface ────────────────────────────────────────────────
+       Inter first (self-hosted @font-face above), then the original
+       system-font stack as graceful fallback. Every page sets its
+       body font-family to var(--font-sans) so the typeface is changed
+       in exactly one place. */
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+
     /* ── Brand identity ─────────────────────────────────────────
        Chiltern Railways navy and gold. Use for structural elements
        and highlights only — not decorative fills. */

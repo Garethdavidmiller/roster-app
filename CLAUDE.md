@@ -132,6 +132,8 @@ roster-app/
 ├── railcard-guide.js       ← JS for railcard-guide.html: print button, chip-bar navigation, sticky-offset calculation. No modules.
 ├── guide-print.js          ← Shared print button handler for guide.html and paycalc-guide.html. No modules.
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── fonts/
+│   └── inter-latin.woff2   ← self-hosted Inter (variable, latin subset, wght 100–900). @font-face in shared.css; preloaded in every page head; precached by the SW (v11.53)
 ├── CLAUDE.md               ← this file
 ├── OPERATIONS_REFERENCE.md ← Power Automate, Cloud Function formats, Firebase Auth detail
 ├── AI_MAP.md               ← routing guide: which file to edit for a given task
@@ -179,6 +181,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 |----------|------|
 | No framework (vanilla JS) | No build step. Do not introduce React, Vue, or any library beyond Firebase. |
 | No bundler | CDN-only external dependencies. |
+| **Self-hosted Inter typeface (v11.53)** | `fonts/inter-latin.woff2` is served from origin, NOT Google Fonts CDN. CSP is `font-src 'self'` — a CDN would mean loosening it, and self-hosting keeps the app offline-first (SW precaches the file) with no third-party request. One variable woff2 (latin, wght 100–900) covers every weight. `@font-face` lives in `shared.css`; `--font-sans` token in `:root` is the single place the stack is defined; every page's `body` uses `var(--font-sans)`. Do not re-add a Google Fonts `<link>`. |
 | Pointer Events API for swipe | Handles touch, mouse, and trackpad in one handler. Do not revert to Touch Events. |
 | `aria-live` for month announcements | Programmatic `.focus()` on the month heading caused mobile layout reflow. Do not switch. |
 | `Math.ceil()` on carousel panel width | Eliminates sub-pixel seam on high-DPI screens. Do not remove. |
