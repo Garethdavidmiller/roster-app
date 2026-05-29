@@ -36,7 +36,11 @@ initNavPanel({
 });
 
 if (isAuthenticated) {
-    ensureFirebaseSession(currentUser); // re-establish Firebase Auth in background
+    // Re-establish Firebase Auth in the background. Stored as a Promise (matching
+    // operations-app.js) so the cultural-calendar Firestore write can await it —
+    // a returning user skips the login handler, so auth.currentUser may still be
+    // null for a moment and an immediate setDoc would fail the request.auth rule.
+    window._mybSession = ensureFirebaseSession(currentUser);
     initApp();
 } else {
     initLoginOverlay();
@@ -193,7 +197,7 @@ function initCulturalCalendarCard() {
 
     let saveTimer;
     radios.forEach(radio => {
-        radio.addEventListener('change', () => {
+        radio.addEventListener('change', async () => {
             updateDisclaimer(radio.value);
             updateActiveTag(radio.value);
             clearTimeout(saveTimer);
@@ -202,13 +206,17 @@ function initCulturalCalendarCard() {
             saved.textContent = '✓ Saved';
             saved.classList.add('visible');
             saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
-            setDoc(doc(db, 'memberSettings', currentUser), { memberName: currentUser, faithCalendar: radio.value }, { merge: true })
-                .catch(e => {
-                    console.warn('[Firestore] memberSettings sync failed:', e);
-                    clearTimeout(saveTimer);
-                    saved.textContent = '✓ Saved — other devices will update when you\'re back online';
-                    saveTimer = setTimeout(() => saved.classList.remove('visible'), 4000);
-                });
+            try {
+                // Wait for Firebase Auth restoration before the write — otherwise an
+                // immediate change after a cold open can fail the request.auth rule.
+                if (window._mybSession) await window._mybSession;
+                await setDoc(doc(db, 'memberSettings', currentUser), { memberName: currentUser, faithCalendar: radio.value }, { merge: true });
+            } catch (e) {
+                console.warn('[Firestore] memberSettings sync failed:', e);
+                clearTimeout(saveTimer);
+                saved.textContent = '✓ Saved — other devices will update when you\'re back online';
+                saveTimer = setTimeout(() => saved.classList.remove('visible'), 4000);
+            }
         });
     });
 
