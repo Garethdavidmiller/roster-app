@@ -68,6 +68,22 @@
         }
         .page-header h1 { font-size: 17px; font-weight: 700; }
         .page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+        .btn-pdf {
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.12);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.32);
+            border-radius: 6px;
+            font-family: inherit;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 10px;
+            cursor: pointer;
+            margin-left: auto;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .btn-pdf:hover { background: rgba(255,255,255,0.22); }
 
         /* ── Content wrapper ─────────────────────── */
         .content {
@@ -416,6 +432,7 @@
             <h1>🇪🇺 FIP Travel</h1>
             <p class="sub">European rail travel for Chiltern staff · May 2026</p>
         </div>
+        <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
     </header>
 
     <main class="content">
@@ -1215,5 +1232,6 @@
 
     </main>
 
+<script src="./guide-print.js" defer></script>
 </body>
 </html>

@@ -56,7 +56,7 @@
             line-height: 1.5;
             color: var(--text);
             background: #e8ecf2;
-            padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+            padding: 0 max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
         }
 
         .page {
@@ -68,30 +68,45 @@
             box-shadow: 0 2px 20px rgba(0,0,0,0.14);
         }
 
-        /* ── Print / action bar ──────────────────────────────── */
-        .action-bar {
-            max-width: 760px;
-            margin: 0 auto 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-        .btn-print {
+        /* ── Sticky page header ──────────────────────────────── */
+        .page-header {
             background: var(--navy);
             color: white;
-            border: none;
-            padding: 12px 18px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 700;
-            cursor: pointer;
+            padding: max(14px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) 14px max(16px, env(safe-area-inset-left));
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            margin-bottom: 16px;
+        }
+        .btn-back {
+            color: white;
+            text-decoration: none;
+            font-size: 22px;
+            line-height: 1;
+            padding: 2px 6px 2px 0;
+            flex-shrink: 0;
+        }
+        .page-header h1 { font-size: 17px; font-weight: 700; }
+        .page-header .sub { font-size: 12px; opacity: 0.65; margin-top: 2px; }
+        .btn-pdf {
+            flex-shrink: 0;
+            background: rgba(255,255,255,0.12);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.32);
+            border-radius: 6px;
             font-family: inherit;
-            min-height: 44px;
+            font-size: 12px;
+            font-weight: 600;
+            padding: 6px 10px;
+            cursor: pointer;
+            margin-left: auto;
             touch-action: manipulation;
             -webkit-tap-highlight-color: transparent;
         }
-        .btn-print:hover { background: #00152a; }
-        .action-hint { font-size: 12px; color: var(--mid); }
+        .btn-pdf:hover { background: rgba(255,255,255,0.22); }
 
         /* ── Page header ─────────────────────────────────────── */
         .guide-header {
@@ -138,7 +153,7 @@
 
         /* ── Mobile: single column (screen only — print keeps two cols) ── */
         @media screen and (max-width: 640px) {
-            body  { padding: max(12px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+            body  { padding: 0 max(10px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
             .page { padding: 16px 14px 14px; }
             .cols { grid-template-columns: 1fr; gap: 0; }
             .feature-row { grid-template-columns: 1fr; }
@@ -290,12 +305,14 @@
 </head>
 <body>
 
-<!-- ── Action bar (screen only) ───────────────────────────────── -->
-<div class="action-bar no-print">
-    <button class="btn-print">🖨 Save as PDF / Print</button>
-    <span class="action-hint">In your browser: File → Print → Save as PDF &nbsp;·&nbsp; Two pages (staff + admin)</span>
-    <a href="./index.html" style="font-size:12px;color:#555;text-decoration:none;margin-left:auto;white-space:nowrap;">← Back to calendar</a>
-</div>
+<header class="page-header no-print">
+    <a href="./index.html" class="btn-back" aria-label="Back to roster">←</a>
+    <div>
+        <h1>📋 Staff &amp; Admin Guide</h1>
+        <div class="sub">Chiltern Railways · MYB Station</div>
+    </div>
+    <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
+</header>
 
 <!-- ══════════════════════════════════════════════════════════════
      PAGE 1 — STAFF GUIDE
