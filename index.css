@@ -594,13 +594,12 @@
         }
 
         .day-number {
-            font-weight: 500;
-            font-size: var(--type-body);
-            color: var(--text-mid);
-            margin-bottom: 6px;
+            font-weight: 700;
+            font-size: 20px;
+            color: var(--text-dark);
+            margin-bottom: 8px;
             text-align: center;
             width: 100%;
-            font-variant-numeric: tabular-nums;
         }
 
         .calendar-day.other-month .day-number {
@@ -627,7 +626,7 @@
 
         /* Spring press on the badge when the parent day-cell is tapped */
         .calendar-day:active .shift-badge {
-            transform: scale(var(--press-scale));
+            transform: scale(0.94);
         }
 
         .shift-time {
@@ -805,8 +804,8 @@
             }
 
             .day-number {
-                font-size: var(--type-small);
-                margin-bottom: 3px;
+                font-size: 15px;
+                margin-bottom: 4px;
             }
 
             .shift-badge {
@@ -915,8 +914,8 @@
             }
 
             .day-number {
-                font-size: var(--type-small);
-                margin-bottom: 3px;
+                font-size: 14px;
+                margin-bottom: 4px;
             }
 
             .shift-badge {
@@ -1000,7 +999,7 @@
             }
 
             .day-number {
-                font-size: 11px;
+                font-size: 12px;
             }
 
             .shift-badge {
@@ -1054,7 +1053,7 @@
             .month-year { font-size: 16px; }
             .calendar-grid { gap: 4px; }
             .calendar-day { min-height: 55px; padding: 4px; }
-            .day-number { font-size: var(--type-micro); margin-bottom: 2px; }
+            .day-number { font-size: 11px; margin-bottom: 2px; }
             .shift-badge { font-size: 7px; padding: 2px 6px; margin-bottom: 2px; }
             .shift-time { font-size: 11px; }
             .legend { padding: 6px 12px; margin-bottom: 0; }
