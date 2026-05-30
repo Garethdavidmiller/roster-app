@@ -192,7 +192,7 @@
             background: white;
             font-family: inherit;
             font-weight: 600;
-            transition: background-color 0.2s cubic-bezier(0.4,0,0.2,1), border-color 0.2s cubic-bezier(0.4,0,0.2,1), box-shadow 0.2s cubic-bezier(0.4,0,0.2,1), transform 0.2s cubic-bezier(0.4,0,0.2,1);
+            transition: background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
             touch-action: manipulation; /* Removes 300ms tap delay */
         }
 
@@ -246,7 +246,7 @@
         }
 
         .controls button:active {
-            transform: scale(0.96);
+            transform: scale(var(--press-scale));
             opacity: 0.8;
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
         }
@@ -621,7 +621,7 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
             min-width: 80%;
-            transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transition: transform 0.12s var(--ease-spring);
         }
 
         /* Spring press on the badge when the parent day-cell is tapped */
@@ -1987,7 +1987,7 @@
             flex-direction: column;
             opacity: 0;
             transform: translateY(100%);
-            transition: opacity 0.22s ease, transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+            transition: opacity 0.22s ease, transform 0.25s var(--ease-emphasized);
         }
         #huddleViewer.visible { display: flex; }
         #huddleViewer.open    { opacity: 1; transform: translateY(0); }

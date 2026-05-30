@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v11.55 -->
+<!-- MYB Roster — Settings v11.56 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -84,7 +84,7 @@
         cursor: pointer;
         touch-action: manipulation;
         font-family: inherit;
-        transition: background 0.15s, transform 0.1s;
+        transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
         margin-bottom: 8px;
         text-align: center;
     }
@@ -94,7 +94,7 @@
         .btn-primary:hover   { background: var(--primary-blue-dark); }
         .btn-secondary:hover { background: var(--border-light); }
     }
-    .btn-action:active { transform: scale(0.98); }
+    .btn-action:active { transform: scale(var(--press-scale)); }
 
     /* Settings badge — indigo */
     #settingsBadge { background: var(--indigo); color: white; }

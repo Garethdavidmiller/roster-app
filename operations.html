@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.55 -->
+<!-- MYB Roster Operations v11.56 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -185,10 +185,11 @@
             cursor: pointer;
             touch-action: manipulation;
             font-family: inherit;
-            transition: background 0.15s;
+            transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
             -webkit-tap-highlight-color: transparent;
             box-sizing: border-box;
         }
+        .btn-action:active { transform: scale(var(--press-scale)); }
         .btn-action + .btn-action { margin-top: 8px; }
         .btn-primary { background: var(--primary-blue); color: white; }
         .btn-primary:active { background: var(--primary-blue-dark); }
