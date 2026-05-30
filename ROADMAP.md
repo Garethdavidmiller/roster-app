@@ -259,6 +259,38 @@ The calendar header (`.header`) was redesigned to bleed edge-to-edge with a navy
 - Print reset: `@media print { .header { background: white !important; } .header h1, .btn-burger { color: var(--primary-blue) !important; } }`
 - `.title-icon { box-shadow: none; }` — shadow is invisible on navy, remove it
 
+### Calendar cell type hierarchy
+**Status:** Built at v11.57, reverted — needs more consideration before shipping.
+
+The calendar day cell has two competing elements: the `.day-number` (date) and the `.shift-badge` (shift type). At v11.57 the hierarchy was inverted so the shift badge reads as primary — the date quieter and supporting — on the theory that on any given day the shift type is what staff actually need to identify at a glance.
+
+**What was built (v11.57):**
+- `.day-number`: `font-size: 20px; font-weight: 700; color: var(--text-dark)` → `font-size: 14px; font-weight: 500; color: var(--text-mid)` — quieter, supporting role
+- `.calendar-day:active .shift-badge`: `transform: scale(0.94)` → `transform: scale(var(--press-scale))` — wired to the unified press token so the reduced-motion override works correctly
+
+**Why it was held back:**
+- Needs broader review before committing — the date is also important context (particularly for spotting upcoming RDs and AL days across the month at a glance), and shrinking it significantly changes how the grid reads at the month level.
+- The press-scale fix is a safe, independent change and could be shipped on its own.
+
+**When to revisit:**
+- Review the calendar grid in real daily use with both sizes side by side — compare scanning for a specific date vs identifying shift patterns across a week.
+- If revisting: consider whether a middle position (e.g. 16px/600) is a better balance than the full step down to 14px/500.
+
+**Implementation notes (already written, can be restored):**
+```css
+/* index.css */
+.day-number {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-mid);
+}
+
+.calendar-day:active .shift-badge {
+  transform: scale(var(--press-scale)); /* was scale(0.94) — use token for reduced-motion */
+}
+```
+Note: the press-scale fix alone (`scale(0.94)` → `scale(var(--press-scale))`) is a clean independent change with no visual effect at default settings — it just ensures the `@media (prefers-reduced-motion)` override in `shared.css` correctly suppresses the press animation on that element too.
+
 ---
 
 ## Design audit — April 2026
