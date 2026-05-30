@@ -520,7 +520,6 @@
 
         .calendar-day.today .day-number {
             color: var(--primary-blue);
-            font-weight: 900;
         }
 
         .calendar-day.bank-holiday::before {
