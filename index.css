@@ -62,7 +62,7 @@
         }
 
         .header {
-            background: white;
+            background: var(--surface);
             padding: 9px 16px;
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
@@ -131,7 +131,7 @@
         }
 
         .controls {
-            background: white;
+            background: var(--surface);
             padding: 10px 16px;
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
@@ -329,7 +329,7 @@
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
         /* Brighten the field to white when active (selects only — buttons keep their fill) */
-        .controls select:focus-visible { background-color: var(--surface); }
+        .controls select:focus-visible { background-color: white; }
 
         #calendarDisplay {
             position: relative;
@@ -348,7 +348,7 @@
         }
 
         .calendar-container {
-            background: white;
+            background: var(--surface);
             padding: 16px 24px 24px 24px;
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
@@ -621,7 +621,9 @@
             box-shadow: 0 2px 6px rgba(0,0,0,0.1);
             white-space: nowrap;
             min-width: 80%;
-            transition: transform 0.12s var(--ease-spring);
+            transition: transform 0.12s var(--ease-spring),
+                        background-color var(--dur-fast) var(--ease-standard),
+                        color var(--dur-fast) var(--ease-standard);
         }
 
         /* Spring press on the badge when the parent day-cell is tapped */
@@ -640,7 +642,7 @@
         }
 
         .legend {
-            background: white;
+            background: var(--surface);
             padding: 10px 16px;
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
@@ -1094,7 +1096,7 @@
         }
 
         .team-view-container {
-            background: white;
+            background: var(--surface);
             border-radius: var(--radius-lg);
             box-shadow: var(--shadow-2);
             /* overflow:hidden creates a sticky containing block on iOS, breaking position:sticky on the team table headers */

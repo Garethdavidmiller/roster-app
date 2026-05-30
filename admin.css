@@ -103,7 +103,7 @@
 
         /* ---- Cards ---- */
         .card {
-            background: white;
+            background: var(--surface);
             border-radius: var(--radius-md);
             box-shadow: var(--shadow-1);
             overflow: hidden;
@@ -268,7 +268,7 @@
             outline-offset: 2px;
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
             /* Brighten to white when active — the field 'fills in' on focus */
-            background-color: var(--surface);
+            background-color: white;
         }
 
         select:disabled, input:disabled {
