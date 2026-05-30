@@ -1994,6 +1994,14 @@
 
             /* Reset backgrounds for print */
             html, body { background: white !important; color: black !important; padding: 0 !important; }
+            .app-header {
+                background: white !important;
+                border: 1.5px solid var(--primary-blue) !important;
+                border-radius: 8px !important;
+                margin: 0 0 10px 0 !important;
+                padding: 8px 12px !important;
+            }
+            .app-header h1, .app-header .btn-burger { color: var(--primary-blue) !important; }
             .container { display: grid !important; max-width: 100% !important; grid-template-columns: 1fr !important; }
             .col-main, .col-side { display: contents !important; }
 
