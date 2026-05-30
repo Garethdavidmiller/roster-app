@@ -729,10 +729,12 @@
       #rosterHintBar, .joiner-notice, #stickyTotal,
       #payBreakBar, #payBreakLegend { display: none !important; }
       .app-header {
-        box-shadow: none !important;
+        background: white !important;
         border: 1.5px solid var(--primary-blue) !important;
+        border-bottom: 1.5px solid var(--primary-blue) !important;
         border-radius: 8px !important;
-        margin-bottom: 10px !important;
+        margin: 0 0 10px 0 !important;
+        padding: 8px 12px !important;
         page-break-after: avoid !important;
         page-break-inside: avoid !important;
       }
@@ -742,7 +744,7 @@
         color: var(--text-light); margin-top: 3px;
         grid-column: 1 / -1;
       }
-      .app-header h1 { font-size: 16px !important; }
+      .app-header h1 { font-size: 16px !important; color: var(--primary-blue) !important; }
       .app-header .hint { font-size: 10px !important; }
       .result-card {
         box-shadow: none !important;
