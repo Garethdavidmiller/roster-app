@@ -604,19 +604,11 @@ body.lb-open #stickyTotal { display: none !important; }
    Used by admin.html and paycalc.html. Index.html has its own
    full-bleed header and does not use these rules.
    ============================================================ */
-/* Full-bleed navy header — see index.css .header for the same pattern on the calendar page.
-   Negative margins cancel the body's safe-area padding; longhand padding restores internal space. */
 .app-header {
-    background: var(--primary-blue);
-    border-bottom: 1px solid rgba(255,255,255,0.12);
-    padding-top:    max(14px, env(safe-area-inset-top));
-    padding-bottom: 14px;
-    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
-    margin-top:   calc(-1 * max(20px, env(safe-area-inset-top)));
-    margin-left:  calc(-1 * max(clamp(20px, 3vw, 48px), env(safe-area-inset-left)));
-    margin-right: calc(-1 * max(clamp(20px, 3vw, 48px), env(safe-area-inset-right)));
-    margin-bottom: 16px;
+    background: var(--bg-light);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
+    padding: 14px 18px;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
     align-items: center;
@@ -643,7 +635,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .app-header h1 {
     font-size: 18px;
     font-weight: 800;
-    color: white;
+    color: var(--primary-blue);
     margin: 0;
     letter-spacing: -0.3px;
     line-height: 1.2;
@@ -690,19 +682,11 @@ body.lb-open #stickyTotal { display: none !important; }
         padding-left:  max(10px, env(safe-area-inset-left));
         padding-right: max(10px, env(safe-area-inset-right));
     }
-    /* Body left/right drops to max(10px,...) — update header full-bleed margins to match */
-    .app-header {
-        margin-left:  calc(-1 * max(10px, env(safe-area-inset-left)));
-        margin-right: calc(-1 * max(10px, env(safe-area-inset-right)));
-        padding-left:  max(16px, env(safe-area-inset-left));
-        padding-right: max(16px, env(safe-area-inset-right));
-    }
 }
 
 @media (max-width: 480px) {
     .app-header {
-        padding-top: max(10px, env(safe-area-inset-top));
-        padding-bottom: 10px;
+        padding: 10px 12px;
     }
     .app-header-brand { gap: 6px; }
     .app-header h1 {
@@ -720,11 +704,7 @@ body.lb-open #stickyTotal { display: none !important; }
 /* ── Shared header: desktop (≥ 768px) ── */
 @media (min-width: 768px) {
     .app-header {
-        padding-top: 16px;
-        padding-bottom: 16px;
-        /* Left/right padding matches the clamp body padding so content aligns with cards below */
-        padding-left:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
-        padding-right: max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+        padding: 16px 20px;
     }
     .app-header-brand { gap: 14px; }
     .app-header h1 { font-size: 20px; }
@@ -804,7 +784,8 @@ body.lb-open #stickyTotal { display: none !important; }
    Opened by .btn-burger (#navMenuBtn); driven by nav-panel.js.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Burger button — navy by default; white override applied wherever the header is navy. */
+/* Burger button — navy on the calendar page (white bg header);
+   inherits white colour inside .app-header (navy bg) via cascade. */
 .btn-burger {
     background: none;
     border: none;
@@ -825,8 +806,8 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .btn-burger:active { opacity: 0.5; }
 
-/* Both header types are now navy — burger must be white in both */
-.app-header .btn-burger { color: white; }
+/* Inside .app-header (admin + paycalc) the background is white so navy works fine.
+   No colour override needed — var(--primary-blue) reads correctly on white. */
 
 /* Dim overlay behind the drawer */
 .nav-panel-overlay {
