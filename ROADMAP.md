@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.51*
+*Last updated: May 2026 — v11.58*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -216,6 +216,48 @@ On a phone the calendar itself is the primary information — the strip adds a l
 - JS: `updateSummaryStrip()` in app.js — called from `renderCalendar()`
 - The AL query is de-duplicated via `_summaryALFetched` flag, reset in `clearMemberCaches()`
 - All data sources are already imported — no new dependencies needed
+
+### Full-bleed navy header (calendar page)
+**Status:** Built at v11.59, reverted — icon needs updating and the design needs more polish before shipping.
+
+The calendar header (`.header`) was redesigned to bleed edge-to-edge with a navy background, matching the nav drawer and creating a single continuous navy band across the top of the page. The idea was to give the calendar page a stronger visual identity — the drawer already opens as navy, so extending that colour into the header would feel cohesive rather than abrupt.
+
+**What was built (v11.59):**
+- `.header` loses its white card surface (`background: var(--surface)`) and becomes `background: var(--primary-blue)`
+- Burger and h1 flipped to `color: white`
+- `.title-icon` box-shadow removed (shadow on a navy field is invisible)
+- Full-bleed achieved via negative margins that cancel the body's safe-area side padding at every breakpoint, with the header restoring its own internal padding — the panel's own content stays at the same 16px–48px inset as the cards below it
+
+**Why it was held back:**
+- The `.title-icon` brand icon is currently an image sized for a white/card background. On navy it needs either a white-circle version or the icon itself redesigned — shipping the current icon on a navy strip looks rough.
+- The overall composition needs more review: border between the header strip and the first card below it, how the today-button gold contrasts on navy, and whether the month/year text weight reads cleanly at all sizes.
+
+**When to revisit:**
+- After the brand icon has been updated to a version that reads clearly on navy (ideally a white circular background or a reversed variant)
+- Review the full composition in context — nav drawer open/close, today button, month jump, the controls card directly below
+
+**Implementation notes (already written, can be restored):**
+- The core CSS pattern for full-bleed at the main body breakpoints (≤599px body has 16px side padding; 600–1039px uses `clamp(20px, 3vw, 48px)`):
+  ```css
+  /* Inside index.css .header */
+  background: var(--primary-blue);
+  margin-left: calc(-1 * max(16px, env(safe-area-inset-left)));
+  margin-right: calc(-1 * max(16px, env(safe-area-inset-right)));
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+  border-radius: 0;
+  box-shadow: none;
+
+  @media (min-width: 600px) {
+    margin-left: calc(-1 * max(clamp(20px, 3vw, 48px), env(safe-area-inset-left)));
+    margin-right: calc(-1 * max(clamp(20px, 3vw, 48px), env(safe-area-inset-right)));
+    padding-left: max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+    padding-right: max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+  }
+  ```
+- `.header h1 { color: white; }` and `.btn-burger { color: white; }` (override the navy text colour from the card version)
+- Print reset: `@media print { .header { background: white !important; } .header h1, .btn-burger { color: var(--primary-blue) !important; } }`
+- `.title-icon { box-shadow: none; }` — shadow is invisible on navy, remove it
 
 ---
 
