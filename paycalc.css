@@ -68,11 +68,13 @@
       background: var(--primary-blue); color: white;
       border: none; border-radius: var(--radius-sm);
       font-family: inherit; font-size: 15px; font-weight: 700;
-      cursor: pointer; touch-action: manipulation; transition: background 0.15s;
+      cursor: pointer; touch-action: manipulation;
+      transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
     }
     @media (hover: hover) and (pointer: fine) {
       .btn-primary:hover { background: var(--primary-blue-dark); }
     }
+    .btn-primary:active:not(:disabled) { transform: scale(var(--press-scale)); }
     .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
     /* ── PERIOD SELECTOR (controls card) ── */
@@ -105,8 +107,9 @@
       border: none; border-radius: var(--radius-md);
       font-family: inherit; font-size: 13px; font-weight: 700;
       cursor: pointer; touch-action: manipulation;
-      transition: background 0.15s; white-space: nowrap;
+      transition: background 0.15s, transform var(--dur-fast) var(--ease-standard); white-space: nowrap;
     }
+    .nav-pill:active:not(:disabled) { transform: scale(var(--press-scale)); }
     .nav-pill:disabled { opacity: 0.28; cursor: not-allowed; }
     @media (hover: hover) and (pointer: fine) {
       .nav-pill:hover:not(:disabled) { background: var(--primary-blue-dark); }
@@ -899,9 +902,10 @@
     border: 1.5px solid var(--border-mid); border-radius: var(--radius-sm);
     font-size: var(--type-small); font-weight: 700;
     cursor: pointer; touch-action: manipulation;
-    transition: background 0.15s, color 0.15s, border-color 0.15s;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, transform var(--dur-fast) var(--ease-standard);
     font-family: inherit;
   }
+  .ty-tab:active { transform: scale(var(--press-scale)); }
   .ty-tab.active {
     background: var(--primary-blue); color: white; border-color: var(--primary-blue);
   }

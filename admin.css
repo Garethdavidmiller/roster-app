@@ -801,12 +801,12 @@
             font-weight: 800;
             cursor: pointer;
             letter-spacing: 0.2px;
-            transition: background 0.15s, transform 0.1s;
+            transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
             font-family: inherit;
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-save:hover { background: var(--primary-blue-dark); } }
-        .btn-save:active  { transform: scale(0.98); }
+        .btn-save:active  { transform: scale(var(--press-scale)); }
         .btn-save:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
 
         /* ---- Feedback ---- */

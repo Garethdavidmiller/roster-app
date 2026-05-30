@@ -240,6 +240,19 @@
     --shadow-2: 0 2px 12px rgba(0,30,60,0.12);
     --shadow-3: 0 8px 32px rgba(0,0,0,0.18);
 
+    /* ── Motion (v11.56) ──────────────────────────────────────────
+       One vocabulary for the whole app instead of cubic-beziers
+       scattered inline. --press-scale is the unified tactile 'push'
+       every primary button gets on :active; it is forced to 1 under
+       prefers-reduced-motion (below) so the transform becomes a
+       no-op without each rule needing its own guard. */
+    --ease-standard:   cubic-bezier(0.4, 0, 0.2, 1);   /* general transitions */
+    --ease-emphasized: cubic-bezier(0.32, 0.72, 0, 1); /* entrances, iOS-like decel */
+    --ease-spring:     cubic-bezier(0.34, 1.56, 0.64, 1); /* playful overshoot */
+    --dur-fast: 0.12s;
+    --dur-base: 0.2s;
+    --press-scale: 0.97;
+
     /* ── Native form control tinting ─────────────────────────────
        Themes browser checkboxes and radios to the brand gold. */
     accent-color: var(--accent-gold);
@@ -251,6 +264,14 @@
        Contextual  = per-section accent (gold, green, teal)
        Back/nav  = outline only (.btn-back)
        Never use plain blue — clashes with sync chip and Firestore status. */
+}
+
+/* Reduced motion: neutralise the button press so scale(var(--press-scale))
+   collapses to scale(1). Scoped to the one token rather than a global
+   transition-killer, which would interfere with the lightbox's
+   transitionend-driven close. */
+@media (prefers-reduced-motion: reduce) {
+    :root { --press-scale: 1; }
 }
 
 /* ============================================================
@@ -326,7 +347,7 @@ body.lb-open #stickyTotal { display: none !important; }
     position: relative;
     cursor: default;
     transform: scale(0.88);
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition: transform 0.25s var(--ease-spring);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: contain;
@@ -1321,11 +1342,11 @@ button.nav-panel-link--coming-soon {
     cursor: pointer;
     touch-action: manipulation;
     font-family: inherit;
-    transition: background 0.15s, transform 0.1s;
+    transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
     margin-bottom: 16px;
 }
 @media (hover: hover) and (pointer: fine) { #loginSubmit:hover { background: var(--primary-blue-dark); } }
-#loginSubmit:active { transform: scale(0.98); }
+#loginSubmit:active { transform: scale(var(--press-scale)); }
 #loginName:disabled {
     background: white;
     color: var(--text-light);
