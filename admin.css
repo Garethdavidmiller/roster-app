@@ -24,12 +24,14 @@
         /* overflow-x: clip clips any child that overflows the container at the container
            boundary — prevents overflow from bleeding into body's 16px right padding
            (which would hide the blue edge). clip is safe: no scroll container created. */
-        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 4px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
+        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 12px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
+        /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
+        .app-header { margin-bottom: -8px; }
         body.auth-ready .container { display: grid; }
         /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
         /* Gap matches the container gap so cards stack with one even rhythm when the
            layout collapses to a single column on mobile. Overridden per breakpoint below. */
-        .col-main, .col-side { display: flex; flex-direction: column; gap: 4px; }
+        .col-main, .col-side { display: flex; flex-direction: column; gap: 12px; }
 
 
         /* Small ? button inside each card heading */
@@ -1851,7 +1853,7 @@
         /* ── Tablet: 768px — single-column with more breathing room ── */
         @media (min-width: 768px) {
             .container { gap: 14px; }
-            /* Keep the single-column card rhythm even — match the container gap */
+            .app-header { margin-bottom: 0; }
             .col-main, .col-side { gap: 14px; }
 
             /* Override table: header text larger */

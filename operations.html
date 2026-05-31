@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.75 -->
+<!-- MYB Roster Operations v11.76 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -43,13 +43,15 @@
             width: 100%;
             margin: 0 auto;
             display: none;
-            gap: 4px;
+            gap: 12px;
             box-sizing: border-box;
             overflow-x: hidden; overflow-x: clip;
         }
         body.auth-ready .container { display: grid; }
+        /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
+        .app-header { margin-bottom: -8px; }
 
-        .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
+        .col-main, .col-side { display: flex; flex-direction: column; gap: 12px; }
 
         /* Small ? button inside each card heading */
         .btn-card-tips {
@@ -450,6 +452,7 @@
         /* ── Tablet: 768px ── */
         @media (min-width: 768px) {
             .container { gap: 14px; }
+            .app-header { margin-bottom: 0; }
         }
 
         /* ── Desktop: 1024px — two-column grid ──
