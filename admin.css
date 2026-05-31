@@ -2044,7 +2044,7 @@
 
         }
 
-        #adminBadge { background: rgba(255,255,255,0.09); color: var(--accent-gold); border: 1px solid rgba(255,255,255,0.18); }
+        #adminBadge { background: var(--accent-gold); color: var(--primary-blue); border: none; }
         #iconLightbox .lightbox-badge { background: rgba(245,200,0,0.15); border-color: rgba(245,200,0,0.35); color: var(--accent-gold); }
 
         /* AL balance shown in the collapsed card header */
