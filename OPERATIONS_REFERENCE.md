@@ -164,7 +164,7 @@ If a filter condition finds nothing, `body('find_docx')[0]` throws "array index 
   `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
 - "From" field must reference `triggerOutputs()?['body/attachments']` directly
 
-**3. London timezone** — The Compose action must be named `London_time` (underscore, not space). Action names with spaces cause `InvalidTemplate` errors.
+**3. London timezone** — The Compose action must be named `London_time` (underscore, not space). Action names with spaces cause `InvalidTemplate` errors. The expression **must include the `'yyyy-MM-dd'` format argument** — omitting it returns a full ISO datetime string (e.g. `2026-05-31T08:00:00.0000000`) which fails the strict `^\d{4}-\d{2}-\d{2}$` regex in `ingestHuddle` with HTTP 400. Every request would be rejected silently.
 
 ```
 convertTimeZone(triggerOutputs()?['body/receivedDateTime'], 'UTC', 'GMT Standard Time', 'yyyy-MM-dd')
