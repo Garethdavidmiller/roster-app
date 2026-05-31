@@ -1053,14 +1053,14 @@ body.lb-open #stickyTotal { display: none !important; }
     margin: 14px 0 2px;
 }
 
-/* Guides — collapsible submenu. Styled as a tappable row so it reads as
-   interactive rather than a plain section heading. */
+/* Guides — collapsible submenu. The gold chevron sits directly beside the
+   label (not pushed to the far edge) so the word + arrow read as one tappable
+   control rather than a heading with a stray marker. */
 .nav-panel-guides-toggle {
-    width: 100%;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    justify-content: flex-start;
+    gap: 6px;
     background: none;
     border: none;
     border-radius: 8px;
