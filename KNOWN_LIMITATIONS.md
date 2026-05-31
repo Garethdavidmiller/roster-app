@@ -113,19 +113,19 @@ was needed — `calcBackPay()` already iterates saved period data by category, s
 `_bpVarAmount` is computed automatically. `calcHPP()` now adds `_bpVarAmount` to
 `totalVar` for the paid-in period so the HPP estimate is correct after a back pay event.
 
-**4. Pay reminder push notification — did not fire on 30 May 2026 ⚠️ AWAITING DIAGNOSIS**
-`sendPayReminderNotification` in `functions/index.js` is a scheduled Cloud Function that
-sends a push notification to subscribed staff on pay cutoff Saturdays. It did not fire on
-30 May 2026 (the Saturday before the 5 Jun 2026 payday). The code logic has been verified
-correct — `isPayCutoffDay` returns `true` for May 30 and all tests pass. The schedule
-format has been changed from `every day 08:00` to the more portable `0 8 * * *` (cron),
-and a try/catch added to ensure runtime errors are logged (v11.65).
-
-**To diagnose (human action required):**
-1. **GCP Console → Cloud Scheduler** — check that a job named `firebase-schedule-sendPayReminderNotification-europe-west2` exists and is not paused. Check its "Last run" and "Result" columns for May 30.
-2. **Firebase Console → Functions → Logs** — filter for `sendPayReminderNotification`, date May 30. Look for: `[payReminder] Not a cutoff date — skipping` (wrong date logic — ruled out), `[payReminder] Cutoff day — sending pay reminder` (ran correctly), an error stack trace, or no entries (function never triggered).
-3. If the scheduler job is missing or paused, re-deploy functions (`git push` to main with a functions/ change or trigger `deploy-functions.yml` workflow manually) to recreate the Cloud Scheduler job.
-4. Verify the next cutoff date (28 Jun 2026 → 4 Jul payday) fires correctly.
+**4. Pay reminder push notification — infrastructure fixed May 2026 ✓ AWAITING LIVE VERIFICATION**
+`sendPayReminderNotification` did not fire on 30 May 2026 because the Cloud Scheduler job
+had never been created. Root causes (both fixed in May 2026):
+- The `FIREBASE_SERVICE_ACCOUNT` lacked `roles/cloudscheduler.admin` — deployment failed
+  silently trying to manage the scheduler job.
+- A stale `us-central1` deployment record blocked redeployment (the function had initially
+  deployed to us-central1 before the region was set to `europe-west2`). Deleted manually
+  from Firebase Console, then redeployed cleanly.
+The Cloud Scheduler job `firebase-schedule-sendPayReminderNotification-europe-west2` now
+exists. A force-run on 31 May confirmed the function executes and correctly skips on
+non-cutoff days (`[payReminder] Not a cutoff date — skipping`).
+**Next live test: Saturday 27 June 2026** (cutoff for the 3 Jul payday). If the notification
+arrives, mark this done. If not, check Firebase Console → Functions → Logs for that date.
 
 ---
 
