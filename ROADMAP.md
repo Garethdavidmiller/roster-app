@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.66*
+*Last updated: May 2026 — v11.67*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -172,6 +172,17 @@ A full line-by-line CSS audit across all five stylesheets (`index.css`, `admin.c
 - `#c0392b` → `var(--error-red)` (AL balance at zero)
 - `#111` → `var(--text-dark)` (huddle viewer body text)
 
+### Navy header — unified chrome across all pages ✓ (v11.67)
+
+The floating card header (white background, drop shadow, rounded corners) was replaced with a transparent navy chrome on all five pages. Since the body canvas is already navy and theme-color is navy, the old light card created a visual seam at the top of every page. Removing the card chrome makes the header flow continuously from the OS status bar — matching the nav drawer and login overlay that were unified at v11.54.
+
+- All pages: `.header` / `.app-header` — `background`, `box-shadow`, `border-radius` removed
+- Burger button and h1 flipped to `white` throughout; comment cleaned up
+- Brand icon sized up to 32px, `border-radius: 7px`, dark shadow removed — matches `.nav-panel-icon` exactly
+- Admin badge: was navy-on-navy (invisible) → now raised chip (`rgba(255,255,255,0.09)` fill, hairline border, gold text) — mirrors the drawer's Admin pill treatment
+- Print resets added: `background: white !important` on `.header` / `.app-header`, `color: var(--primary-blue) !important` on h1 and burger — navy would print solid ink without these
+- ROADMAP "Full-bleed navy header" entry updated from "reverted" to shipped; icon blocker (white fringe, white ring) was resolved by the icon processing changes in the same session
+
 ### Huddle DOCX flow rework ✓ (v11.66)
 
 Power Automate flow redesigned: old flow used a noon time-of-day condition (before noon = DOCX branch, after noon = PDF branch), meaning afternoon emails always sent PDF even when DOCX was attached. New flow is DOCX-first: filter attachments for DOCX MIME type → if found send DOCX to `ingestHuddle`; else filter for PDF → if found send PDF. No time condition at all.
@@ -255,7 +266,7 @@ On a phone the calendar itself is the primary information — the strip adds a l
 - All data sources are already imported — no new dependencies needed
 
 ### Full-bleed navy header (calendar page)
-**Status:** Built at v11.59, reverted — icon needs updating and the design needs more polish before shipping.
+**Status:** ✓ Shipped at v11.67 — see "Navy header — unified chrome across all pages" entry above. Implemented as transparent/canvas chrome (not negative-margin full-bleed) unified across all 5 pages. Icon blocker resolved by the icon processing changes in the same session.
 
 The calendar header (`.header`) was redesigned to bleed edge-to-edge with a navy background, matching the nav drawer and creating a single continuous navy band across the top of the page. The idea was to give the calendar page a stronger visual identity — the drawer already opens as navy, so extending that colour into the header would feel cohesive rather than abrupt.
 
