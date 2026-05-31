@@ -737,6 +737,7 @@
         margin-bottom: 10px !important;
         page-break-after: avoid !important;
         page-break-inside: avoid !important;
+        flex-wrap: wrap !important;
       }
       .app-header h1 { color: var(--primary-blue) !important; }
       .btn-burger { color: var(--primary-blue) !important; }
@@ -744,7 +745,7 @@
         content: attr(data-print-line);
         display: block; font-size: 10px;
         color: var(--text-light); margin-top: 3px;
-        grid-column: 1 / -1;
+        flex-basis: 100%;
       }
       .app-header h1 { font-size: 16px !important; }
       .app-header .hint { font-size: 10px !important; }

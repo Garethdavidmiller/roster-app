@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.68*
+*Last updated: May 2026 — v11.69*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -172,7 +172,7 @@ A full line-by-line CSS audit across all five stylesheets (`index.css`, `admin.c
 - `#c0392b` → `var(--error-red)` (AL balance at zero)
 - `#111` → `var(--text-dark)` (huddle viewer body text)
 
-### Navy header — unified chrome across all pages ✓ (v11.68)
+### Navy header — unified chrome across all pages ✓ (v11.69)
 
 The floating card header (white background, drop shadow, rounded corners) was replaced with a transparent navy chrome on all five pages. Since the body canvas is already navy and theme-color is navy, the old light card created a visual seam at the top of every page. Removing the card chrome makes the header flow continuously from the OS status bar — matching the nav drawer and login overlay that were unified at v11.54.
 
@@ -266,7 +266,7 @@ On a phone the calendar itself is the primary information — the strip adds a l
 - All data sources are already imported — no new dependencies needed
 
 ### Full-bleed navy header (calendar page)
-**Status:** ✓ Shipped at v11.68 — see "Navy header — unified chrome across all pages" entry above. Implemented as transparent/canvas chrome (not negative-margin full-bleed) unified across all 5 pages. Icon blocker resolved by the icon processing changes in the same session.
+**Status:** ✓ Shipped at v11.69 — see "Navy header — unified chrome across all pages" entry above. Implemented as transparent/canvas chrome (not negative-margin full-bleed) unified across all 5 pages. Icon blocker resolved by the icon processing changes in the same session.
 
 The calendar header (`.header`) was redesigned to bleed edge-to-edge with a navy background, matching the nav drawer and creating a single continuous navy band across the top of the page. The idea was to give the calendar page a stronger visual identity — the drawer already opens as navy, so extending that colour into the header would feel cohesive rather than abrupt.
 
