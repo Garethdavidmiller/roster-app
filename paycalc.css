@@ -55,7 +55,7 @@
       border-bottom: 1px solid var(--border-light);
     }
     .card-header h2 {
-      font-size: 15px; font-weight: 700; color: var(--primary-blue); margin: 0;
+      font-size: 13px; font-weight: 700; color: var(--primary-blue); margin: 0;
     }
     .hint {
       font-size: var(--type-small); color: var(--text-light);
