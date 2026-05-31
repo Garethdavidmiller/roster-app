@@ -1044,8 +1044,6 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: 0.1em;
     color: var(--nav-text-faint);
     margin: 0 0 10px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--nav-border);
 }
 
 .nav-panel-group-heading {
