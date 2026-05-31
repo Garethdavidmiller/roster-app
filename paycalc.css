@@ -47,7 +47,7 @@
     #iconLightbox .lightbox-badge { background: rgba(76,175,80,0.15); border-color: rgba(76,175,80,0.35); color: var(--green); }
 
     /* paycalc-specific: header has bottom margin (admin uses grid gap) */
-    .app-header { margin-bottom: 6px; }
+    .app-header { margin-bottom: 4px; }
 
     /* ── CARD HEADER (roster-app component pattern) ── */
     .card-header {
