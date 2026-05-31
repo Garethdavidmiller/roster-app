@@ -27,7 +27,9 @@
         .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 4px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
         body.auth-ready .container { display: grid; }
         /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
-        .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
+        /* Gap matches the container gap so cards stack with one even rhythm when the
+           layout collapses to a single column on mobile. Overridden per breakpoint below. */
+        .col-main, .col-side { display: flex; flex-direction: column; gap: 4px; }
 
 
         /* Small ? button inside each card heading */
@@ -1849,6 +1851,8 @@
         /* ── Tablet: 768px — single-column with more breathing room ── */
         @media (min-width: 768px) {
             .container { gap: 14px; }
+            /* Keep the single-column card rhythm even — match the container gap */
+            .col-main, .col-side { gap: 14px; }
 
             /* Override table: header text larger */
             .override-table th { font-size: 11px; }
