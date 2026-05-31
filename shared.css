@@ -695,9 +695,6 @@ body.lb-open #stickyTotal { display: none !important; }
     }
 }
 
-/* Mobile default: show short title, hide long version */
-.title-desktop { display: none; }
-
 /* ── Shared header: desktop (≥ 768px) ── */
 @media (min-width: 768px) {
     .app-header {
@@ -711,8 +708,6 @@ body.lb-open #stickyTotal { display: none !important; }
         font-size: 11px;
         padding: 5px 12px;
     }
-    .title-mobile { display: none; }
-    .title-desktop { display: inline; }
 }
 
 /* ---- Utility ---- */
