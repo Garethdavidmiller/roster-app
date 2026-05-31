@@ -874,19 +874,18 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel { width: 380px; }
 }
 
-/* Navy header strip — same surface as the body now, so a hairline border
-   (not a colour change) is what separates it from the scrolling content. */
+/* Navy header — same surface as the body; extra bottom padding provides
+   breathing room without a visible separator line. */
 .nav-panel-head {
     background: var(--nav-surface);
     color: var(--nav-text);
-    padding: 16px 16px 14px;
+    padding: 16px 16px 18px;
     /* Push content below any top notch when panel is open */
     padding-top: max(16px, env(safe-area-inset-top));
     display: flex;
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
-    border-bottom: 1px solid var(--nav-border);
 }
 
 /* Brand button — logo + title + version. Tapping opens the page's About
@@ -1064,19 +1063,19 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: var(--nav-raised);
+    background: none;
     border: none;
     border-radius: 8px;
-    padding: 9px 12px;
+    padding: 4px 8px;
     margin: 0;
     font-family: inherit;
     cursor: pointer;
     touch-action: manipulation;
 }
 .nav-panel-guides-heading {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--nav-text);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--nav-text-muted);
 }
 .nav-panel-guides-arrow {
     font-size: 14px;
@@ -1086,9 +1085,9 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .nav-panel-guides-toggle.open .nav-panel-guides-arrow { transform: rotate(180deg); }
 .nav-panel-guides-list { margin-top: 6px; }
-.nav-panel-guides-toggle:active { opacity: 0.7; }
+.nav-panel-guides-toggle:active { opacity: 0.6; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-guides-toggle:hover { background: var(--nav-raised-strong); }
+    .nav-panel-guides-toggle:hover { background: var(--nav-raised); }
 }
 
 .nav-panel-links {
@@ -1156,7 +1155,6 @@ button.nav-panel-link--coming-soon {
     flex-shrink: 0;
     padding: 10px 16px;
     padding-bottom: max(10px, env(safe-area-inset-bottom));
-    border-top: 1px solid var(--nav-border);
     display: flex;
     flex-direction: column;
     gap: 4px;
