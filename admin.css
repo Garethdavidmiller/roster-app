@@ -843,13 +843,13 @@
             box-shadow: 0 -4px 24px rgba(0,0,0,0.12);
             visibility: hidden;
             transform: translateY(100%);
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+            transition: transform 0.25s var(--ease-standard),
                         visibility 0s linear 0.25s;
         }
         .al-confirm-bar.visible {
             visibility: visible;
             transform: translateY(0);
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.25s var(--ease-standard);
         }
         .al-confirm-bar .al-confirm-icon { font-size: 20px; flex-shrink: 0; }
         .al-confirm-bar .al-confirm-body { flex: 1; }
@@ -885,7 +885,7 @@
             z-index: 7500;
             opacity: 0;
             pointer-events: none;
-            transition: opacity 0.2s ease, transform 0.2s ease;
+            transition: opacity var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
             white-space: nowrap;
         }
         #saveToast.visible {
@@ -1585,7 +1585,7 @@
             cursor: pointer;
             touch-action: manipulation;
             font-family: inherit;
-            transition: background 0.15s;
+            transition: background var(--dur-fast) var(--ease-standard);
             -webkit-tap-highlight-color: transparent;
             box-sizing: border-box;
         }
@@ -1707,7 +1707,7 @@
         }
         .roster-change-row:last-child { border-bottom: none; }
         .roster-change-row.is-skipped { opacity: 0.4; }
-        .roster-change-row.roster-change-conflict { background: #fff9f9; }
+        .roster-change-row.roster-change-conflict { background: var(--error-bg); }
 
         .roster-chg-day {
             display: flex;
@@ -2055,7 +2055,7 @@
             margin-top: 2px;
         }
         .al-header-balance.balance-low  { color: var(--accent-gold-dark); font-weight: 600; }
-        .al-header-balance.balance-none { color: #c0392b; font-weight: 700; }
+        .al-header-balance.balance-none { color: var(--error-red); font-weight: 700; }
 
         /* Cultural calendar annual update reminder banner */
         #culturalCalReminder {

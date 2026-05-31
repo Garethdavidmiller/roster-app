@@ -39,7 +39,13 @@
     line-height: 1;
     padding: 2px 6px 2px 0;
     flex-shrink: 0;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    touch-action: manipulation;
 }
+.btn-back:active { opacity: 0.7; }
 
 .btn-pdf {
     flex-shrink: 0;
@@ -56,7 +62,10 @@
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
 }
-.btn-pdf:hover { background: rgba(255, 255, 255, 0.22); }
+@media (hover: hover) and (pointer: fine) {
+    .btn-pdf:hover { background: rgba(255, 255, 255, 0.22); }
+}
+.btn-pdf:active { opacity: 0.8; }
 
 /* ── Print ──────────────────────────────────────────────────────────────────
    railcard/fip print the sticky header itself as the page's title banner;
