@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.58*
+*Last updated: May 2026 — v11.65*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -151,6 +151,35 @@ re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 secur
 - Each card is self-contained — its exact time rule lives in its own **When** row so staff never have to cross-reference a key
 - Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
 - Static HTML, no module — kept deliberately simple as a low-frequency reference page
+
+### Comprehensive UI polish ✓ (v11.64)
+
+A full line-by-line CSS audit across all five stylesheets (`index.css`, `admin.css`, `paycalc.css`, `shared.css`, `guide-shell.css`) with fixes for iOS, Android, desktop, and print.
+
+**Motion tokens applied throughout:**
+- All hardcoded `cubic-bezier(0.4, 0, 0.2, 1)` animation values replaced with the shared motion vocabulary tokens (`--ease-standard`, `--dur-fast`, `--dur-base`) so timing is consistent and controlled from one place.
+- All `scale(0.94)` press effects replaced with `scale(var(--press-scale))` so the `@media (prefers-reduced-motion)` override in `shared.css` correctly suppresses them (previously the hardcoded scale bypassed the override).
+
+**Focus and accessibility fixes:**
+- `.decimal-hrs-input:focus` (paycalc) was `outline: none` with no visible replacement — keyboard users had no focus indicator. Replaced with `:focus-visible` + gold ring (`border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25)`) matching every other input.
+
+**Touch affordances (guide-shell.css):**
+- `.btn-back` gained `min-width: 44px; min-height: 44px; display: inline-flex; align-items: center` (44×44 tap target per iOS HIG).
+- `.btn-pdf:hover` moved inside `@media (hover: hover) and (pointer: fine)` so touch devices don't get sticky hover states; `.btn-back:active` and `.btn-pdf:active` added for tactile feedback on tap.
+
+**Hardcoded colours replaced with design tokens:**
+- `#fff9f9` → `var(--error-bg)` (roster conflict row background)
+- `#c0392b` → `var(--error-red)` (AL balance at zero)
+- `#111` → `var(--text-dark)` (huddle viewer body text)
+
+### Pay reminder infrastructure fix ✓ (v11.65)
+
+`sendPayReminderNotification` (scheduled Cloud Function, daily 08:00 London) had never fired because its Cloud Scheduler job was never created. Two root causes:
+
+- The `FIREBASE_SERVICE_ACCOUNT` lacked `roles/cloudscheduler.admin` — Firebase silently failed to create the scheduler job on every deploy. Fixed by adding the role in GCP IAM.
+- A stale `us-central1` deployment record (from the function's first deployment before the region was pinned to `europe-west2`) blocked all subsequent deploys with a 404 on cleanup. Fixed by deleting the old function manually from Firebase Console.
+
+Schedule format also hardened from `'every day 08:00'` (App Engine cron) to `'0 8 * * *'` (standard Unix cron, better supported by firebase-functions v2). A try/catch wrapper ensures runtime errors are explicitly logged. Force-run on 31 May 2026 confirmed the function executes and correctly skips non-cutoff days. First live test: **27 June 2026** (cutoff for the 3 Jul payday).
 
 ---
 
