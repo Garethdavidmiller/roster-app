@@ -113,14 +113,19 @@ was needed — `calcBackPay()` already iterates saved period data by category, s
 `_bpVarAmount` is computed automatically. `calcHPP()` now adds `_bpVarAmount` to
 `totalVar` for the paid-in period so the HPP estimate is correct after a back pay event.
 
-**4. Pay reminder push notification — confirm it fires correctly**
+**4. Pay reminder push notification — did not fire on 30 May 2026 ⚠️ AWAITING DIAGNOSIS**
 `sendPayReminderNotification` in `functions/index.js` is a scheduled Cloud Function that
-sends a push notification to subscribed staff the day before each payday. It has not yet
-been observed firing on a real payday — first payday after this was written is the first
-opportunity to verify it.
-**To check (human action — requires a payday):** On the eve of a payday, confirm that
-subscribed staff receive a pay reminder push notification. If nothing arrives, check the
-Cloud Function logs in the Firebase Console for any errors.
+sends a push notification to subscribed staff on pay cutoff Saturdays. It did not fire on
+30 May 2026 (the Saturday before the 5 Jun 2026 payday). The code logic has been verified
+correct — `isPayCutoffDay` returns `true` for May 30 and all tests pass. The schedule
+format has been changed from `every day 08:00` to the more portable `0 8 * * *` (cron),
+and a try/catch added to ensure runtime errors are logged (v11.65).
+
+**To diagnose (human action required):**
+1. **GCP Console → Cloud Scheduler** — check that a job named `firebase-schedule-sendPayReminderNotification-europe-west2` exists and is not paused. Check its "Last run" and "Result" columns for May 30.
+2. **Firebase Console → Functions → Logs** — filter for `sendPayReminderNotification`, date May 30. Look for: `[payReminder] Not a cutoff date — skipping` (wrong date logic — ruled out), `[payReminder] Cutoff day — sending pay reminder` (ran correctly), an error stack trace, or no entries (function never triggered).
+3. If the scheduler job is missing or paused, re-deploy functions (`git push` to main with a functions/ change or trigger `deploy-functions.yml` workflow manually) to recreate the Cloud Scheduler job.
+4. Verify the next cutoff date (28 Jun 2026 → 4 Jul payday) fires correctly.
 
 ---
 
