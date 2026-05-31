@@ -26,7 +26,7 @@
       min-height: 100vh;
       min-height: 100dvh;
       padding-top:    max(20px, env(safe-area-inset-top));
-      padding-bottom: max(20px, env(safe-area-inset-bottom));
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
       padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
       padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
       overflow-x: hidden; overflow-x: clip; overscroll-behavior: none; /* clip avoids creating a scroll container that breaks position:sticky on iOS */
@@ -55,7 +55,7 @@
       border-bottom: 1px solid var(--border-light);
     }
     .card-header h2 {
-      font-size: 15px; font-weight: 600; color: var(--primary-blue); margin: 0;
+      font-size: 13px; font-weight: 700; color: var(--primary-blue); margin: 0;
     }
     .hint {
       font-size: var(--type-small); color: var(--text-light);
