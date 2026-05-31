@@ -24,7 +24,7 @@
         /* overflow-x: clip clips any child that overflows the container at the container
            boundary — prevents overflow from bleeding into body's 16px right padding
            (which would hide the blue edge). clip is safe: no scroll container created. */
-        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 10px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
+        .container { max-width: var(--page-max-width); width: 100%; margin: 0 auto; display: none; gap: 6px; box-sizing: border-box; overflow-x: hidden; overflow-x: clip; }
         body.auth-ready .container { display: grid; }
         /* Column wrappers — transparent flex-column stacks at mobile; 2-col grid items at desktop */
         .col-main, .col-side { display: flex; flex-direction: column; gap: 10px; }
