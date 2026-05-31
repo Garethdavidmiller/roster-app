@@ -415,7 +415,7 @@ body.lb-open #stickyTotal { display: none !important; }
     width: 100px;
     height: 100px;
     border-radius: 22px;
-    box-shadow: 0 0 0 3px rgba(255,255,255,0.2), 0 12px 40px rgba(0,0,0,0.5);
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
     object-fit: cover;
     margin-bottom: 8px;
 }
