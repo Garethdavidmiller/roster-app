@@ -7,13 +7,14 @@
  *   (firebase-client.js), push notification logic (notif.js).
  * Edit here for: viewer open/close behaviour, auto-open paths, button state.
  *
- * Two _triggerAutoOpen paths — do NOT unify, do NOT revert auto-open to
- * window.open/location.href:
- *   HTML huddles render inline.
- *   PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button because a
- *   notification tap has no user activation (window.open is blocked; location.href
- *   to a cross-origin PDF breaks standalone mode). The manual #huddleBtn click
- *   calls window.open directly — that click IS a real gesture.
+ * Two viewer paths — do NOT collapse into one, do NOT revert notification path
+ * to window.open/location.href:
+ *   htmlContent present (DOCX converted server-side) → render inline in viewer.
+ *   No htmlContent (PDF, or DOCX where conversion failed) → manual click calls
+ *     window.open directly (real gesture); notification tap shows an in-overlay
+ *     "📄 Open Huddle" button because a notification tap has no user activation
+ *     (window.open is blocked; location.href to a cross-origin file breaks
+ *     standalone mode). The button tap IS a real gesture.
  * Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
  */
 
@@ -123,18 +124,14 @@ export function initHuddleViewer() {
         const huddle = _huddleData;
         try {
             if (huddle.htmlContent) {
+                // DOCX converted to HTML server-side — render inline.
                 body.innerHTML = sanitiseHtml(huddle.htmlContent);
                 openViewer();
                 close.focus();
-            } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
-                // Open the PDF directly — Android Chrome's built-in PDF viewer
-                // handles this natively and is far faster than routing through
-                // Google Docs Viewer (which fetches, renders, and re-serves the file).
-                window.open(huddle.storageUrl, '_blank', 'noopener');
             } else {
-                body.innerHTML = '<p class="huddle-error">This Huddle could not be previewed — please re-upload the Word file from the Admin page.</p>';
-                openViewer();
-                close.focus();
+                // PDF, or DOCX where conversion failed — open from Storage.
+                // This click is a real user gesture so window.open is allowed.
+                window.open(huddle.storageUrl, '_blank', 'noopener');
             }
         } catch (err) {
             console.error('[Huddle] Viewer error:', err);
@@ -148,16 +145,18 @@ export function initHuddleViewer() {
         _autoOpened = true;
         try {
             if (huddle.htmlContent) {
+                // DOCX converted to HTML server-side — render inline.
                 body.innerHTML = sanitiseHtml(huddle.htmlContent);
                 openViewer();
                 close.focus();
-            } else if (huddle.fileType === 'pdf' || !huddle.fileType) {
+            } else {
+                // PDF, or DOCX where conversion failed — show an explicit button.
                 // A notification tap carries no in-page user activation, so calling
                 // window.open() directly here would be blocked as a pop-up — and
                 // navigating the standalone window itself (location.href) to the
-                // cross-origin PDF knocks the app out of standalone mode (it comes
+                // cross-origin file knocks the app out of standalone mode (it comes
                 // back wrapped in browser chrome). Instead, open the viewer with an
-                // explicit button: tapping it IS a real gesture, so the PDF opens as
+                // explicit button: tapping it IS a real gesture, so the file opens as
                 // a separate Custom Tab over the intact standalone app, and Back
                 // returns to the clean app. (The manual #huddleBtn handler can call
                 // window.open directly — that click is already a real gesture.)

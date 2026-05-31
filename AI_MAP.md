@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v11.51 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.66 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -331,7 +331,7 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 - `huddleDayLabel(huddleDate, nowLondon)` — "Today's" / "Tomorrow's" / "Thursday's"
 - `isPayCutoffDay(date)` — mirrors isCutoffDate() from roster-data.js
 - `nameToEmail(fullName)` / `nameToPassword(fullName)` — Firebase Auth credential derivation
-- Covered by `roster-parse-helpers.test.mjs` (76 tests)
+- Covered by `roster-parse-helpers.test.mjs` (78 tests)
 
 ---
 
