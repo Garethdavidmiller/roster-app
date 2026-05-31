@@ -1,17 +1,5 @@
 # Claude Code Instructions — MYB Roster App
 
-## ⚠️ One-time session check (remove after actioning)
-
-**Trigger date: 2026-05-30 or later**
-
-Check `currentDate` in your context. If today is **2026-05-30 or later** and this note is still present, ask Gareth at the start of the session — before anything else:
-
-> "Saturday 30 May was the pay cutoff date — the `sendPayReminderNotification` Cloud Function should have fired that morning. Did you receive the pay reminder push notification? If yes, v11 task #4 is confirmed. I'll mark it done in KNOWN_LIMITATIONS.md and remove this note."
-
-If Gareth confirms it fired: update KNOWN_LIMITATIONS.md (mark task #4 done), then delete this entire section from CLAUDE.md. If it didn't fire: check Cloud Function logs in the Firebase Console and investigate. Either way, remove this note once actioned.
-
----
-
 ## Project identity — read this first
 
 | Property | Value |

@@ -399,24 +399,29 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
  */
 exports.sendPayReminderNotification = onSchedule(
     {
-        schedule:  'every day 08:00',
+        schedule:  '0 8 * * *',
         timeZone:  'Europe/London',
         region:    'europe-west2',
         secrets:   [VAPID_PRIVATE_KEY],
     },
     async () => {
-        const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-        const today     = new Date(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
+        try {
+            const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
+            const today     = new Date(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
 
-        if (!isPayCutoffDay(today)) {
-            console.log('[payReminder] Not a cutoff date — skipping');
-            return;
+            if (!isPayCutoffDay(today)) {
+                console.log('[payReminder] Not a cutoff date — skipping');
+                return;
+            }
+
+            const payday = new Date(today);
+            payday.setDate(today.getDate() + 6);
+            console.log(`[payReminder] Cutoff day — sending pay reminder`);
+            await sendPayPushNotifications(payday, VAPID_PRIVATE_KEY);
+        } catch (err) {
+            console.error('[payReminder] Unhandled error:', err);
+            throw err;
         }
-
-        const payday = new Date(today);
-        payday.setDate(today.getDate() + 6);
-        console.log(`[payReminder] Cutoff day — sending pay reminder`);
-        await sendPayPushNotifications(payday, VAPID_PRIVATE_KEY);
     }
 );
 

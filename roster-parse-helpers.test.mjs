@@ -375,6 +375,13 @@ describe('isPayCutoffDay', () => {
     test('May 2 2026 is a cutoff day', () => {
         assert.equal(isPayCutoffDay(new Date(2026, 4, 2)), true);
     });
+    // 28-day cycle: May 30 2026 is next after May 2 → Jun 5 payday
+    test('May 30 2026 is a cutoff day', () => {
+        assert.equal(isPayCutoffDay(new Date(2026, 4, 30)), true);
+    });
+    test('May 29 2026 (Friday before cutoff) is not a cutoff day', () => {
+        assert.equal(isPayCutoffDay(new Date(2026, 4, 29)), false);
+    });
 });
 
 // ── nameToEmail ───────────────────────────────────────────────────────────────
