@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: May 2026 — v11.69 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.82 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -186,7 +186,7 @@ match /huddles/{docId} {
 
 Read is open because `app.js` (index.html) has no Firebase Auth session — requiring auth
 broke notification auto-open on fresh first visits (v10.76). Browser writes (the manual admin
-upload path in `admin-huddle.js`) require the admin claim (v10.83); the automated
+upload path in `huddle.js`) require the admin claim (v10.83); the automated
 `ingestHuddle` Cloud Function uses the Admin SDK, which bypasses rules entirely. The matching
 Storage rule (`storage.rules`) also requires the admin claim for huddle file writes.
 

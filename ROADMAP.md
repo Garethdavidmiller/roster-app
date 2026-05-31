@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.69*
+*Last updated: May 2026 — v11.82*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -151,6 +151,15 @@ re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 secur
 - Each card is self-contained — its exact time rule lives in its own **When** row so staff never have to cross-reference a key
 - Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
 - Static HTML, no module — kept deliberately simple as a low-frequency reference page
+
+### Cross-page consistency pass ✓ (v11.70–v11.82)
+
+A second polish pass focused on making the four sub-pages (admin, paycalc, operations, settings) and the calendar read as one consistent family. No new features — spacing and typography only.
+
+- **v11.70–v11.76** — Header title optically centred (absolute-positioned `.app-header-brand` / `.header h1`, decoupled from badge width — the iOS/Material nav-bar pattern); admin badge standardised to solid gold; header→first-card gap tightened to 4px and inter-card gaps unified at 12px across the sub-pages; white-card padding standardised (`11px 16px` header, `12px 16px` body).
+- **v11.77–v11.79** — Typography scale standardised on the `shared.css --type-*` tokens. Card-header `h2` settled at 13px/700 on all four sub-pages; `.hint` at 12px; form labels at `--type-small` (12px); inputs/selects at `--type-medium` (16px — also prevents iOS focus-zoom); primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) at 15px; `body` base at `--type-body` (14px). Genuinely distinct components (nav pills, dense roster-review rows, badges) intentionally keep their own sizes. Body bottom padding reduced from `max(20px, safe-area)` to `max(10px, safe-area)` to trim the navy floor on Android phones without a gesture bar.
+- **v11.80–v11.81** — Calendar `.header` padding brought into line with the sub-pages' `.app-header` at every breakpoint (16px 20px / 14px 18px / 10px 12px); the header→controls margin was then trimmed (16→8px) to absorb the extra height the taller bar added, keeping the nav buttons the same visual distance from the title.
+- **v11.82** — Nav drawer head→pills gap reduced 36→22px (head bottom padding 18→10px, body top padding 18→12px) so the page pills sit closer to the drawer header.
 
 ### Comprehensive UI polish ✓ (v11.64)
 
