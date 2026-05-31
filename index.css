@@ -62,7 +62,7 @@
         }
 
         .header {
-            padding: 9px 16px;
+            padding: 16px 20px;
             margin-bottom: 16px;
             position: relative;
             display: flex;
@@ -884,7 +884,7 @@
             }
 
             .header {
-                padding: 12px 16px;
+                padding: 14px 18px;
             }
 
             .calendar-container {
@@ -958,7 +958,7 @@
             }
 
             .header {
-                padding: 10px 14px;
+                padding: 10px 12px;
             }
 
             .controls {
