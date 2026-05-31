@@ -605,9 +605,6 @@ body.lb-open #stickyTotal { display: none !important; }
    full-bleed header and does not use these rules.
    ============================================================ */
 .app-header {
-    background: var(--bg-light);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-2);
     padding: 14px 18px;
     display: grid;
     grid-template-columns: 1fr auto 1fr;
@@ -635,7 +632,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .app-header h1 {
     font-size: 18px;
     font-weight: 800;
-    color: var(--primary-blue);
+    color: white;
     margin: 0;
     letter-spacing: -0.3px;
     line-height: 1.2;
@@ -784,8 +781,7 @@ body.lb-open #stickyTotal { display: none !important; }
    Opened by .btn-burger (#navMenuBtn); driven by nav-panel.js.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Burger button — navy on the calendar page (white bg header);
-   inherits white colour inside .app-header (navy bg) via cascade. */
+/* Burger button — white on all headers (all headers are now navy canvas). */
 .btn-burger {
     background: none;
     border: none;
@@ -793,7 +789,7 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 4px 6px;
     font-size: 22px;
     line-height: 1;
-    color: var(--primary-blue);
+    color: white;
     touch-action: manipulation;
     display: inline-flex;
     align-items: center;
@@ -806,8 +802,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 .btn-burger:active { opacity: 0.5; }
 
-/* Inside .app-header (admin + paycalc) the background is white so navy works fine.
-   No colour override needed — var(--primary-blue) reads correctly on white. */
+/* All headers are now navy canvas — burger is white throughout. */
 
 /* Dim overlay behind the drawer */
 .nav-panel-overlay {
