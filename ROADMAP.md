@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.65*
+*Last updated: May 2026 — v11.66*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
 
@@ -171,6 +171,14 @@ A full line-by-line CSS audit across all five stylesheets (`index.css`, `admin.c
 - `#fff9f9` → `var(--error-bg)` (roster conflict row background)
 - `#c0392b` → `var(--error-red)` (AL balance at zero)
 - `#111` → `var(--text-dark)` (huddle viewer body text)
+
+### Huddle DOCX flow rework ✓ (v11.66)
+
+Power Automate flow redesigned: old flow used a noon time-of-day condition (before noon = DOCX branch, after noon = PDF branch), meaning afternoon emails always sent PDF even when DOCX was attached. New flow is DOCX-first: filter attachments for DOCX MIME type → if found send DOCX to `ingestHuddle`; else filter for PDF → if found send PDF. No time condition at all.
+
+Viewer code hardened to match: `app-huddle-viewer.js` now uses simple `if (htmlContent) render inline; else show "📄 Open Huddle" button` — eliminating a silent DOCX failure in `_triggerAutoOpen` and an incorrect error message in the manual click handler. The auto-open notification path and manual-click path are now logically identical in their branching.
+
+---
 
 ### Pay reminder infrastructure fix ✓ (v11.65)
 

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: May 2026 — v11.65 · Updated every 0.10 version*
+*Last updated: May 2026 — v11.66 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -79,6 +79,8 @@ Uses the **HTTP** (Premium) connector — not "Send an HTTP request (Office 365)
 
 **Trigger:** "When a new email arrives (V3)" on the Huddle mailbox, filtered to emails with attachments.
 
+**Priority:** DOCX is preferred — it converts to HTML server-side and renders inline in the app. PDF is the fallback if no DOCX attachment is present. The old time-of-day condition (before/after noon) has been replaced with an attachment-type check.
+
 **Overall structure:**
 
 ```
@@ -90,40 +92,51 @@ Trigger: new email with attachment
 │
 ├── Set variable: huddleDate  ← outputs('London_time')
 │
-└── Condition: is it after noon? (to avoid duplicate early-morning emails)
+├── Filter array: find_docx
+│   From: triggerOutputs()?['body/attachments']    (expression tab)
+│   Condition: item()?['contentType']              (expression tab)
+│              is equal to
+│              application/vnd.openxmlformats-officedocument.wordprocessingml.document
+│                                                  (value tab)
+│
+└── Condition: DOCX found?
+    greater(length(body('find_docx')), 0)          (expression tab)
     │
-    ├── YES branch (afternoon/main email):
-    │   ├── Filter array: filter_array_1
-    │   │   From: triggerOutputs()?['body/attachments']
-    │   │   Condition: item()?['contentType']  is equal to  application/pdf
-    │   │             (LEFT = expression tab; RIGHT = value tab)
-    │   │
-    │   ├── Compose: attachment
-    │   │   body('filter_array_1')[0]?['contentBytes']
+    ├── YES branch — send the DOCX:
+    │   ├── Compose: huddle_bytes
+    │   │   body('find_docx')[0]?['contentBytes']  (expression tab)
     │   │
     │   └── HTTP action (Premium)
     │       Method: POST
     │       URI: https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle
-    │         (URI goes in value tab, NOT expression tab)
+    │         (value tab)
     │       Headers:
-    │         Authorization  →  Bearer <paste secret here>  (value tab)
-    │         Content-Type   →  text/plain                  (value tab)
-    │         X-Huddle-Date  →  @{variables('huddleDate')}  (value tab, @{} syntax)
-    │         X-Huddle-Filename → @{body('filter_array_1')[0]?['name']}  (value tab)
-    │       Body: @{outputs('attachment')}  (value tab, @{} syntax — NOT expression tab)
+    │         Authorization     →  Bearer <paste secret here>              (value tab)
+    │         Content-Type      →  text/plain                              (value tab)
+    │         X-Huddle-Date     →  @{variables('huddleDate')}             (value tab)
+    │         X-Huddle-Filename →  @{body('find_docx')[0]?['name']}       (value tab)
+    │       Body: @{outputs('huddle_bytes')}                               (value tab)
     │
-    └── NO branch (morning/DOCX email):
-        ├── Filter array: filter_array_2
-        │   From: triggerOutputs()?['body/attachments']
-        │   Condition: item()?['contentType']  is equal to
-        │     application/vnd.openxmlformats-officedocument.wordprocessingml.document
-        │             (LEFT = expression tab; RIGHT = value tab)
+    └── NO branch — try PDF fallback:
+        ├── Filter array: find_pdf
+        │   From: triggerOutputs()?['body/attachments']  (expression tab)
+        │   Condition: item()?['contentType']            (expression tab)
+        │              is equal to
+        │              application/pdf                   (value tab)
         │
-        ├── Compose: attachment
-        │   body('filter_array_2')[0]?['contentBytes']
-        │
-        └── HTTP action (Premium)
-            (same structure as YES branch but references filter_array_2)
+        └── Condition: PDF found?
+            greater(length(body('find_pdf')), 0)         (expression tab)
+            │
+            ├── YES branch — send the PDF:
+            │   ├── Compose: huddle_bytes_pdf
+            │   │   body('find_pdf')[0]?['contentBytes'] (expression tab)
+            │   │
+            │   └── HTTP action (Premium)
+            │       (same structure as DOCX branch)
+            │       X-Huddle-Filename → @{body('find_pdf')[0]?['name']}   (value tab)
+            │       Body: @{outputs('huddle_bytes_pdf')}                   (value tab)
+            │
+            └── NO branch — no suitable attachment, do nothing
 ```
 
 ### Critical Power Automate gotchas
@@ -135,18 +148,20 @@ Trigger: new email with attachment
 | `item()?['contentType']` — left side of filter condition | Expression |
 | `application/pdf` — right side of filter condition | Value |
 | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` — DOCX filter | Value |
-| `body('filter_array_1')[0]?['contentBytes']` — Compose source | Expression |
+| `greater(length(body('find_docx')), 0)` — condition expression | Expression |
+| `body('find_docx')[0]?['contentBytes']` — Compose source | Expression |
 | The Cloud Function URL | Value |
 | `Bearer <secret>` — Authorization header value | Value |
 | `text/plain` — Content-Type header value | Value |
 | `@{variables('huddleDate')}` — X-Huddle-Date header value | Value (the @{} syntax works in value tab) |
-| `@{body('filter_array_1')[0]?['name']}` — X-Huddle-Filename | Value |
-| `@{outputs('attachment')}` — HTTP body | Value |
+| `@{body('find_docx')[0]?['name']}` — X-Huddle-Filename | Value |
+| `@{outputs('huddle_bytes')}` — HTTP body | Value |
 
 **2. Filter array returning empty — the most common failure**
-If `body('filter_array_1')[0]` throws "array index 0 cannot be selected from empty array":
+If a filter condition finds nothing, `body('find_docx')[0]` throws "array index 0 cannot be selected from empty array". The nested condition structure (check length first) prevents this — never reference `[0]` outside a condition that guards it.
 - Left side of filter condition must be on **expression** tab (value tab compares literal string)
-- DOCX MIME type is 71 characters and easy to mistype
+- DOCX MIME type is 71 characters and easy to mistype — copy it exactly:
+  `application/vnd.openxmlformats-officedocument.wordprocessingml.document`
 - "From" field must reference `triggerOutputs()?['body/attachments']` directly
 
 **3. London timezone** — The Compose action must be named `London_time` (underscore, not space). Action names with spaces cause `InvalidTemplate` errors.
@@ -159,14 +174,6 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 **4. `@{}` syntax in value tab** — Use `@{expression}` syntax to reference dynamic values in header/body fields while on the value tab. Do not switch to expression tab.
 
 **5. HTTP action body** — Cannot reference a Compose action by name inside the action's own "inputs" scope. Always prepare the value in a separate Compose action first.
-
-### Condition logic
-
-```
-greater(int(formatDateTime(outputs('London_time'), 'HH')), 12)
-```
-
-Yes branch (after noon) → PDF. No branch (before noon) → DOCX.
 
 ### Firestore Security Rules — `huddles` collection
 
@@ -187,24 +194,22 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 
 When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is `./index.html#huddle`. The app's `hashchange` listener fires `_triggerAutoOpen(huddle)` in `app.js`.
 
-**Two code paths inside `_triggerAutoOpen` — do not unify:**
+**Two code paths — do not unify:**
 
-| Huddle type | What happens |
-|-------------|-------------|
-| HTML (`huddle.htmlContent` present) | Renders the HTML directly in the viewer overlay; focuses the close button |
-| PDF / DOCX (`storageUrl` only) | Renders an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) |
+| Condition | Manual tap (📋 button) | Notification tap |
+|-----------|----------------------|-----------------|
+| `htmlContent` present (DOCX converted server-side) | Renders HTML inline in the viewer overlay | Renders HTML inline in the viewer overlay |
+| No `htmlContent` (PDF, or DOCX conversion failed) | `window.open(storageUrl)` directly — the button tap IS a user gesture | In-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) |
 
-**Why the in-overlay button for PDF/DOCX:**
+**Why the in-overlay button for notification taps (no `htmlContent`):**
 
 A notification tap provides no transient user activation in the page. This means:
 - `window.open('_blank', ...)` → pop-up blocked by the browser (no user gesture)
 - `window.location.href = storageUrl` → navigates the standalone PWA's top-level window to a cross-origin URL; Android wraps the app in browser chrome and the standalone window is lost
 
-Tapping the in-overlay button IS a real user gesture. `window.open(storageUrl, '_blank', 'noopener')` then opens the PDF as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
+Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window.open(storageUrl, '_blank', 'noopener')` then opens the file as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
 
-**Manual 📋 Huddle button** (in `index.html` / `app.js` `#huddleBtn` click handler) calls `window.open(storageUrl, '_blank', 'noopener')` directly — that click is already a real user gesture, so no in-overlay button is needed there.
-
-**Important:** Do not merge these two paths. The popup-blocking and standalone-mode constraints apply only to the notification-triggered code path.
+**Important:** Do not merge the manual-click and notification-tap paths. The popup-blocking and standalone-mode constraints apply only to the notification-triggered code path. DOCX files with `htmlContent` bypass both constraints entirely — they render inline.
 
 ---
 
