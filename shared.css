@@ -1065,7 +1065,7 @@ body.lb-open #stickyTotal { display: none !important; }
     justify-content: space-between;
     gap: 8px;
     background: var(--nav-raised);
-    border: 1px solid var(--nav-border);
+    border: none;
     border-radius: 8px;
     padding: 9px 12px;
     margin: 0;
@@ -1257,7 +1257,6 @@ button.nav-panel-link--coming-soon {
 
 /* ---- Nav panel settings link — flat, pinned above footer ---- */
 .nav-panel-settings {
-    border-top: 1px solid var(--nav-border);
     padding: 8px 16px 8px;
 }
 
