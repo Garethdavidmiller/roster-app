@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `11.88` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `11.90` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -132,6 +132,7 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js (tax, NI, gross)
 ├── paycalc-roster-suggestions.test.mjs ← tests for paycalc-roster-suggestions.js (requires --experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs ← tests for functions/roster-parse-helpers.js
+├── sw-asset-check.test.mjs ← verifies every root JS module is listed in service-worker.js asset lists
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
@@ -140,6 +141,7 @@ roster-app/
 
 **Run all tests:**
 ```
+node --test sw-asset-check.test.mjs
 node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
 ```
 

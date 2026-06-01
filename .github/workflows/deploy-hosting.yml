@@ -54,6 +54,7 @@ jobs:
           node --check ls.js
           node --check railcard-guide.js
           node --check guide-print.js
+          node --test sw-asset-check.test.mjs
           node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs app.test.mjs
 
       - name: Install Firebase CLI
