@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v11.86
+// MYB Roster — Service Worker v11.87
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '11.86';
+const APP_VERSION = '11.87';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -211,7 +211,7 @@ self.addEventListener("fetch", event => {
                     // Serving HTML for a JS/CSS request causes a MIME type error in the browser.
                     const isDoc = event.request.destination === 'document';
                     const fallback = isDoc
-                        ? (path.includes('paycalc') ? './paycalc.html' : path.includes('admin') ? './admin.html' : './index.html')
+                        ? (path.includes('paycalc') ? './paycalc.html' : path.includes('operations') ? './operations.html' : path.includes('settings') ? './settings.html' : path.includes('admin') ? './admin.html' : './index.html')
                         : null;
                     // iOS can evict the entire Cache Storage under storage pressure —
                     // synthesise a minimal offline page so the request still resolves.
