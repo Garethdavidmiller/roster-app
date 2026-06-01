@@ -875,7 +875,7 @@
 
   .card-header-toggle {
     cursor: pointer; user-select: none;
-    display: flex; align-items: flex-start; justify-content: space-between;
+    display: flex; flex-direction: row; align-items: flex-start; justify-content: space-between;
     -webkit-tap-highlight-color: transparent; touch-action: manipulation;
   }
   @media (hover: hover) and (pointer: fine) {
