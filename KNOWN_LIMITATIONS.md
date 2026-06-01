@@ -155,6 +155,12 @@ The suggestion is advisory; staff should verify it against their actual payslip.
 
 ## Calendar / roster
 
+### Team View summary chips — considered and declined (v11.85)
+A summary chip strip showing aggregate counts per week (e.g. "Working 10 · AL 2 · RDW 1")
+was considered for Team View. Declined: the working environment uses the grid for individual
+planning, not aggregate operational analysis. The dense row grid already gives sufficient
+at-a-glance clarity. Do not re-add without a specific operational use case from Gareth.
+
 ### Override cache is never cleared on member switch
 `rosterOverridesCache` in `app.js` is keyed `"memberName|date"` and accumulates
 overrides for all members without a size limit. It is not cleared when the selected

@@ -1080,3 +1080,73 @@
     background: var(--roster-suggested-bg); border-color: var(--accent-gold);
   }
 
+  /* ── LAYOUT UTILITIES ── (replaces inline styles in paycalc.html) */
+
+  /* Right-side button cluster inside a card header (help btn + toggle arrow) */
+  .card-header-actions {
+    display: flex; align-items: center; gap: 6px;
+    flex-shrink: 0; padding-top: 2px;
+  }
+
+  /* Card header that lays out left content + right actions in a row.
+     Overrides shared.css .card-header flex-direction:column. */
+  .card-header--row {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  /* Two side-by-side field columns (YTD pair, back-pay rate pair) */
+  .field-pair {
+    display: flex; gap: 8px; margin-bottom: 6px;
+  }
+
+  /* Growing column inside a field-pair or pfx-row */
+  .field-col {
+    flex: 1; min-width: 0;
+  }
+
+  /* Eyebrow label above an input (all-caps, small, muted) */
+  .field-eyebrow {
+    font-size: var(--type-micro);
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  /* The → arrow separator between Old and New rate columns */
+  .rate-sep {
+    display: flex; align-items: center;
+    font-size: 18px; color: var(--text-light); flex-shrink: 0;
+  }
+
+  /* HPP prior-year section header row: title left, badge right */
+  .hpp-section-header {
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 8px; margin-bottom: 8px;
+  }
+
+  /* Primary section sub-heading (dark) — HPP confirmed title etc. */
+  .hpp-section-title {
+    font-size: var(--type-label); font-weight: 700; color: var(--text-dark);
+  }
+
+  /* Secondary period heading (muted) — "This year (2026/27)" etc. */
+  .section-subhead {
+    font-size: var(--type-label); font-weight: 700;
+    color: var(--text-mid); margin-bottom: 4px;
+  }
+
+  /* Thin rule divider between HPP prior-year and current-year sections */
+  .field-divider {
+    border-top: 1px solid var(--border-light); margin-bottom: 10px;
+  }
+
+  /* "Due this January" badge on the HPP prior-year card */
+  .badge-hpp-due {
+    background: var(--accent-gold); color: var(--primary-blue);
+  }
+

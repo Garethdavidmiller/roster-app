@@ -1484,6 +1484,14 @@
             flex-shrink: 0;
             border: 1px solid rgba(255,255,255,0.25);
         }
+        .tv-key-dot--early  { background: var(--orange-light);  border-color: var(--orange); }
+        .tv-key-dot--late   { background: var(--blue-light);    border-color: var(--blue-sky); }
+        .tv-key-dot--night  { background: var(--night-cell-bg); border-color: var(--night-cell-border); }
+        .tv-key-dot--al     { background: var(--al-light);      border-color: var(--al); }
+        .tv-key-dot--rdw    { background: var(--rdw-light);     border-color: var(--rdw); }
+        .tv-key-dot--spare  { background: var(--purple-light);  border-color: var(--purple); }
+        .tv-key-dot--absent { background: var(--absence-light); border-color: var(--absence); }
+        .tv-key-dot--rest   { background: var(--rest-day-bg);   border-color: var(--border-mid); }
         .team-info-note {
             font-size: 11px;
             color: rgba(255, 255, 255, 0.35);

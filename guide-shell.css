@@ -7,12 +7,25 @@
    This is NOT the app's shared.css (nav panel, lightbox, login). The guides
    stay independent of the app shell; they share only this small chrome file.
 
-   Colours come from each page's own :root (--navy is defined in all four), so
-   this file carries no design tokens of its own.
+   Base palette tokens are defined here so all four pages stay in sync with
+   the brand. Page-specific tokens (status colours, secondary navy tints) stay
+   in each page's own :root and override freely — this file is linked first.
 
    Linked BEFORE each page's inline <style>, so any page-specific override in
    that inline block still wins on equal specificity.
    ────────────────────────────────────────────────────────────────────────── */
+
+/* ── Shared brand palette ─────────────────────────────────────────────────
+   These values intentionally match --primary-blue / --primary-blue-dark /
+   --accent-gold in shared.css. Update both files together if the brand
+   colours ever change. Page-specific :root blocks may reference these
+   tokens freely without re-defining them. */
+:root {
+    --navy:      #001e3c;   /* = --primary-blue      */
+    --navy-dark: #00152a;   /* = --primary-blue-dark */
+    --navy-mid:  #0a2d52;   /* mid-navy tint, used by guide + paycalc-guide */
+    --gold:      #f5c800;   /* = --accent-gold       */
+}
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
