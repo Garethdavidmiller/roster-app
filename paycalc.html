@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v11.84 -->
+<!-- MYB Roster — Pay Calculator v11.85 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -59,7 +59,7 @@
         <h2>⚙️ Your Settings</h2>
         <span class="hint" id="settingsHint">Check once per tax year — tap Save when done</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
+      <div class="card-header-actions">
         <button class="help-btn" data-help="settings" aria-label="Help: Settings">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -179,7 +179,7 @@
 
   <!-- HOURS THIS PERIOD -->
   <div class="content-card" id="hoursCard">
-    <div class="card-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+    <div class="card-header card-header--row">
       <div>
         <h2>⏱️ Your Hours This Period</h2>
         <span class="hint">Saved automatically as you type · type 7.5 to auto-convert to 7h 30m</span>
@@ -424,7 +424,7 @@
         <h2>📊 Improve Accuracy <span style="font-size:12px;font-weight:400;color:var(--text-light)">(optional)</span></h2>
         <span class="hint">Enter Year to Date figures from your last payslip to get a more accurate tax estimate</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
+      <div class="card-header-actions">
         <button class="help-btn" data-help="accuracy" aria-label="Help: Improve Accuracy">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -432,16 +432,16 @@
     <div class="card-body collapsible-body" id="payslipCardBody">
 
       <div class="field">
-        <div style="display:flex;gap:8px;margin-bottom:6px">
-          <div style="flex:1;min-width:0">
-            <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Taxable pay — year to date</div>
+        <div class="field-pair">
+          <div class="field-col">
+            <div class="field-eyebrow">Taxable pay — year to date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
               <input type="text" id="ytdPay" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
             </div>
           </div>
-          <div style="flex:1;min-width:0">
-            <div style="font-size:var(--type-micro);font-weight:700;color:var(--text-light);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px">Tax deducted — year to date</div>
+          <div class="field-col">
+            <div class="field-eyebrow">Tax deducted — year to date</div>
             <div class="pfx">
               <span class="pfx-sym">£</span>
               <input type="text" id="ytdTax" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -463,7 +463,7 @@
         <h2>🏖️ Holiday Pay Premium (HPP)</h2>
         <span class="hint">Chiltern pay this once a year, each January</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
+      <div class="card-header-actions">
         <button class="help-btn" data-help="hpp" aria-label="Help: Holiday Pay Premium">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -472,9 +472,9 @@
 
       <!-- Prior year HPP — hidden when viewing the first tax year (no prior year exists) -->
       <div id="priorHppSection" class="hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px">
-          <span style="font-size:13px;font-weight:700;color:var(--text-dark)" id="priorHppTitle">2025/26 Holiday Pay Premium</span>
-          <span class="period-badge hidden" id="priorHppDueBadge" style="background:var(--accent-gold);color:var(--primary-blue)">Due this January</span>
+        <div class="hpp-section-header">
+          <span class="hpp-section-title" id="priorHppTitle">2025/26 Holiday Pay Premium</span>
+          <span class="period-badge badge-hpp-due hidden" id="priorHppDueBadge">Due this January</span>
         </div>
         <div class="hpp-result">
           <div class="hpp-label" id="priorHppAmtLabel">ESTIMATED</div>
@@ -489,8 +489,8 @@
           </div>
           <div class="field-hint">Enter the HPP lump sum from your January payslip to replace the estimate above.</div>
         </div>
-        <div style="border-top:1px solid var(--border-light);margin-bottom:10px"></div>
-        <div style="font-size:13px;font-weight:700;color:var(--text-mid);margin-bottom:4px" id="currentHppTitle">This year (2026/27)</div>
+        <div class="field-divider"></div>
+        <div class="section-subhead" id="currentHppTitle">This year (2026/27)</div>
       </div>
 
       <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered above. <button class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
@@ -513,7 +513,7 @@
         <h2>📈 Pay Rise Back Pay</h2>
         <span class="hint">Use when a pay award has been backdated to April</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;padding-top:2px">
+      <div class="card-header-actions">
         <button class="help-btn" data-help="backpay" aria-label="Help: Back Pay">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
@@ -531,13 +531,13 @@
 
       <div class="field">
         <label>Hourly rate</label>
-        <div style="display:flex; gap:8px;">
-          <div class="pfx" style="flex:1;min-width:0">
+        <div class="field-pair">
+          <div class="pfx field-col">
             <span class="pfx-sym">£</span>
             <input type="text" id="oldRate" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
-          <div style="display:flex; align-items:center; font-size:18px; color:var(--text-light); flex-shrink:0">→</div>
-          <div class="pfx" style="flex:1;min-width:0">
+          <div class="rate-sep">→</div>
+          <div class="pfx field-col">
             <span class="pfx-sym">£</span>
             <input type="text" id="newRateInput" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
@@ -546,13 +546,13 @@
 
       <div class="field">
         <label>London Allowance <span class="note">per period</span></label>
-        <div style="display:flex; gap:8px;">
-          <div class="pfx" style="flex:1;min-width:0">
+        <div class="field-pair">
+          <div class="pfx field-col">
             <span class="pfx-sym">£</span>
             <input type="text" id="oldLondon" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
-          <div style="display:flex; align-items:center; font-size:18px; color:var(--text-light); flex-shrink:0">→</div>
-          <div class="pfx" style="flex:1;min-width:0">
+          <div class="rate-sep">→</div>
+          <div class="pfx field-col">
             <span class="pfx-sym">£</span>
             <input type="text" id="newLondon" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
