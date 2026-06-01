@@ -1,8 +1,8 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: May 2026 — v11.82*
+*Last updated: June 2026 — v11.88*
 
-This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth migration, etc.), see CLAUDE.md.
+This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
 ---
 
@@ -23,7 +23,7 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 - Dispatcher and fixed roster types
 - Firestore security rules — server-side validation of all writes
 
-**Auth note:** The original plan specified Firebase Auth (Microsoft SSO or email/password). The implementation uses a simpler surname-based password with localStorage sessions. This was a deliberate divergence — no Chiltern IT dependency, no registration flow, works immediately for all staff. Firebase Auth is now partially wired in (v7.61) for future hardening; see CLAUDE.md → "Firebase Auth migration".
+**Auth note:** The original plan specified Firebase Auth (Microsoft SSO or email/password). The implementation uses a simpler surname-based password with localStorage sessions. This was a deliberate divergence — no Chiltern IT dependency, no registration flow, works immediately for all staff. Firebase Auth is now partially wired in (v7.61) for future hardening; see CLAUDE.md — "Firebase Auth (complete — v7.94)".
 
 ---
 
@@ -152,7 +152,7 @@ re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 secur
 - Accuracy verified per card against the relevant official railcard site (nationalrail.co.uk and the individual card sites), re-checked May 2026
 - Static HTML, no module — kept deliberately simple as a low-frequency reference page
 
-### Cross-page consistency pass ✓ (v11.70–v11.82)
+### Cross-page consistency pass ✓ (v11.70–v11.88)
 
 A second polish pass focused on making the four sub-pages (admin, paycalc, operations, settings) and the calendar read as one consistent family. No new features — spacing and typography only.
 
@@ -160,6 +160,11 @@ A second polish pass focused on making the four sub-pages (admin, paycalc, opera
 - **v11.77–v11.79** — Typography scale standardised on the `shared.css --type-*` tokens. Card-header `h2` settled at 13px/700 on all four sub-pages; `.hint` at 12px; form labels at `--type-small` (12px); inputs/selects at `--type-medium` (16px — also prevents iOS focus-zoom); primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) at 15px; `body` base at `--type-body` (14px). Genuinely distinct components (nav pills, dense roster-review rows, badges) intentionally keep their own sizes. Body bottom padding reduced from `max(20px, safe-area)` to `max(10px, safe-area)` to trim the navy floor on Android phones without a gesture bar.
 - **v11.80–v11.81** — Calendar `.header` padding brought into line with the sub-pages' `.app-header` at every breakpoint (16px 20px / 14px 18px / 10px 12px); the header→controls margin was then trimmed (16→8px) to absorb the extra height the taller bar added, keeping the nav buttons the same visual distance from the title.
 - **v11.82** — Nav drawer head→pills gap reduced 36→22px (head bottom padding 18→10px, body top padding 18→12px) so the page pills sit closer to the drawer header.
+- **v11.84** — Shared CSS components (card-header, collapsible, btn-action, btn-primary, btn-secondary, btn-card-tips, tips lightbox) extracted from page-inline `<style>` blocks and consolidated into `shared.css`. All transitions tokenised to `--dur-fast`/`--ease-standard`; hardcoded `scale(0.98)` press effect in operations.html replaced with `var(--press-scale)`.
+- **v11.85** — Guide brand palette (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) moved from each guide page's `:root` into `guide-shell.css :root`. 23 inline `style=` attributes in `paycalc.html` extracted to named utility classes in `paycalc.css`. Team View key-dot spans switched from inline `style=` to `.tv-key-dot--*` modifier classes in `index.css`.
+- **v11.86** — `admin.css` 1024–1399px stacked layout now correctly hides `.col-pills` and `.col-time` on inactive rows. Settings and Operations print blocks show a "not designed for printing" message via `body::before` instead of a blank page.
+- **v11.87** — SW offline document fallback extended: `operations.html` and `settings.html` added to routing chain (previously both fell back to `index.html`).
+- **v11.88** — Stale comments cleaned across 10 JS/CSS files: old filename references (`admin-huddle.js`), wrong page attributions, provenance notes ("Extracted from admin-app.js at vX.YZ"), and drifting cross-file line numbers.
 
 ### Comprehensive UI polish ✓ (v11.64)
 
