@@ -1,15 +1,17 @@
 /**
  * admin-app.js — Coordinator and primary feature file for admin.html.
  *
- * Owns: login/session, AL booking, absence recording, cultural calendar preferences,
- *   Team Week View, page coordinator wiring (initialises modules on load).
+ * Owns: login/session, AL booking, absence recording, Team Week View,
+ *   page coordinator wiring (initialises modules on load),
+ *   admin-only annual cultural-calendar maintenance reminder (Nov/Dec only).
  * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
  *   roster PDF upload/review (admin-roster-upload.js), huddle upload/notifications
- *   (admin-huddle.js), staff Firebase Auth setup (admin-auth.js),
+ *   (huddle.js), staff Firebase Auth setup (admin-auth.js),
+ *   Notifications card or Cultural Calendar card (both moved to settings-app.js v11.06),
  *   pay maths (paycalc-calc.js), calendar display (app.js), roster data (roster-data.js).
- * Edit here for: login, AL/absence forms, cultural calendar settings, Team Week View.
+ * Edit here for: login, AL/absence forms, Team Week View.
  * Do not edit here for: shift override grid or forms, roster PDF pipeline,
- *   pay calculator, roster data structure, shared CSS.
+ *   notifications, cultural calendar preferences, pay calculator, roster data structure, shared CSS.
  */
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';

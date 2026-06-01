@@ -36,75 +36,9 @@
 
 
         /* Small ? button inside each card heading */
-        .btn-card-tips {
-            display: inline-flex; align-items: center; justify-content: center;
-            width: 20px; height: 20px;
-            border-radius: 50%;
-            border: 1.5px solid var(--border-mid);
-            background: var(--bg-faint);
-            color: var(--text-light);
-            font-size: 11px; font-weight: 700;
-            cursor: pointer;
-            vertical-align: middle;
-            flex-shrink: 0;
-            margin-left: 5px;
-            touch-action: manipulation;
-            transition: background 0.15s, border-color 0.15s, color 0.15s;
-            position: relative;
-        }
-        /* Invisible expanded hit area — the visible button is tiny but the tap region
-           extends 12px in every direction so it's reliably tappable. */
-        .btn-card-tips::before {
-            content: '';
-            position: absolute;
-            inset: -12px;
-        }
-        .btn-card-tips:active { background: var(--primary-blue); color: white; border-color: var(--primary-blue); }
-        @media (hover: hover) and (pointer: fine) { .btn-card-tips:hover { background: var(--primary-blue); color: white; border-color: var(--primary-blue); } }
-
-        /* ---- Tips lightbox ---- */
-        /* #tipsLightbox uses .lb-overlay; unique: extra padding for white-card feel */
-        #tipsLightbox { padding: 20px; }
-        #tipsLightboxContent {
-            background: white;
-            border-radius: var(--radius-lg);
-            padding: 28px 28px 24px;
-            max-width: 360px;
-            width: 100%;
-            max-height: 85vh;
-            box-shadow: var(--shadow-3);
-        }
-
-        .tips-lb-title {
-            font-size: 17px;
-            font-weight: 800;
-            color: var(--primary-blue);
-            margin-bottom: 16px;
-        }
-        .tips-lb-section {
-            font-size: 11px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: var(--text-light);
-            margin: 14px 0 6px;
-        }
-        .tips-lb-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-            font-size: 13px;
-            color: var(--text-dark);
-            line-height: 1.5;
-            padding: 5px 0;
-            border-bottom: 1px solid var(--border-light);
-        }
-        .tips-lb-item:last-child { border-bottom: none; }
-        .tips-lb-icon { font-size: 15px; flex-shrink: 0; width: 20px; text-align: center; }
-        #tipsLightboxClose { color: rgba(0,0,0,0.35); }
-        @media (hover: hover) and (pointer: fine) {
-            #tipsLightboxClose:hover { color: rgba(0,0,0,0.7); }
-        }
+        /* .btn-card-tips, tips lightbox, .card-header/.card-body,
+           .card-collapsible-*, .collapse-chevron, .btn-action/.btn-primary/.btn-secondary
+           — all consolidated into shared.css */
 
         /* ---- Cards ---- */
         .card {
@@ -115,20 +49,6 @@
             container-type: inline-size;
         }
 
-        .card-header {
-            background: var(--bg-light);
-            border-bottom: 1px solid var(--border-light);
-            padding: 11px 16px;
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 3px;
-        }
-
-        .card-header h2 { font-size: 13px; font-weight: 700; color: var(--primary-blue); }
-        .card-header .hint { font-size: 12px; color: var(--text-light); }
-
-        .card-body { padding: 12px 16px; }
 
         /* ---- Member context bar — single member selector spanning all sections ---- */
         .member-context-bar {
@@ -567,7 +487,7 @@
             align-items: center;
             padding: 8px 12px;
             border-bottom: 1px solid var(--border-light);
-            transition: background 0.1s;
+            transition: background var(--dur-fast) var(--ease-standard);
         }
 
         .day-row:last-child { border-bottom: none; }
@@ -766,7 +686,7 @@
             margin-left: 4px;
             vertical-align: middle;
             white-space: nowrap;
-            transition: background 0.15s;
+            transition: background var(--dur-fast) var(--ease-standard);
         }
         .day-row.active .overwrite-badge {
             background: var(--blue-sky);
@@ -794,12 +714,12 @@
             background: var(--primary-blue);
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 15px;
+            border-radius: var(--radius-button);
+            font-size: var(--type-button);
             font-weight: 800;
             cursor: pointer;
             letter-spacing: 0.2px;
-            transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
+            transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
             font-family: inherit;
         }
 
@@ -891,33 +811,7 @@
             transform: translateX(-50%) translateY(0);
         }
 
-        /* ---- Collapsible card shared styles ---- */
-        /* Override to grid: title + hint fill the left column, chevron sits on the right */
-        .card-collapsible-header {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            grid-template-rows: auto auto;
-            align-items: center;
-            cursor: pointer;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        .card-collapsible-header h2           { grid-column: 1; grid-row: 1; }
-        .card-collapsible-header .hint        { grid-column: 1; grid-row: 2; }
-        .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
-        .card-collapsible-body {
-            display: none; /* collapsed by default */
-            padding: 12px;
-        }
-        .card-collapsible-body.open { display: block; }
-        .collapse-chevron {
-            margin-left: auto;
-            font-size: 12px;
-            color: var(--text-light);
-            transition: transform 0.2s ease;
-            flex-shrink: 0;
-        }
-        .collapse-chevron.open { transform: rotate(180deg); }
+        /* .card-collapsible-header/.card-collapsible-body/.collapse-chevron — consolidated into shared.css */
 
         /* Cultural calendar + login overlay CSS moved to shared.css (v11.06) */
 
@@ -1153,7 +1047,7 @@
             background: none; border: none; padding: 4px 6px;
             font-size: 16px; color: var(--text-light); cursor: pointer;
             touch-action: manipulation; line-height: 1;
-            border-radius: 50%; transition: color 0.15s, background 0.15s;
+            border-radius: 50%; transition: color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
             min-width: 44px;
             min-height: 44px;
             align-items: center;
@@ -1563,42 +1457,12 @@
             font-size: 15px;
             font-weight: 700;
             cursor: pointer;
-            transition: background 0.15s;
+            transition: background var(--dur-fast) var(--ease-standard);
         }
         @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
         .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-        /* ---- Generic action button utility classes ---- */
-        .btn-action {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            min-height: 44px;
-            padding: 11px 16px;
-            border-radius: var(--radius-sm, 8px);
-            font-size: 15px;
-            font-weight: 700;
-            border: 1.5px solid transparent;
-            cursor: pointer;
-            touch-action: manipulation;
-            font-family: inherit;
-            transition: background var(--dur-fast) var(--ease-standard);
-            -webkit-tap-highlight-color: transparent;
-            box-sizing: border-box;
-        }
-        .btn-action + .btn-action { margin-top: 8px; }
-        .btn-primary {
-            background: var(--primary-blue);
-            color: white;
-        }
-        .btn-primary:active { background: var(--primary-blue-dark); }
-        .btn-secondary {
-            background: white;
-            color: var(--primary-blue);
-            border-color: var(--border-mid, #d0d5dd);
-        }
-        .btn-secondary:active { background: var(--bg-light, #f5f7fa); }
+        /* .btn-action/.btn-primary/.btn-secondary — consolidated into shared.css */
         .huddle-feedback {
             margin-top: 10px;
             font-size: 13px;
@@ -1689,7 +1553,7 @@
             padding: 3px 10px;
             cursor: pointer;
             white-space: nowrap;
-            transition: border-color 0.15s, color 0.15s;
+            transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
         }
         @media (hover: hover) and (pointer: fine) {
             .roster-skip-all-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
@@ -1767,7 +1631,7 @@
             border: 1.5px solid;
             cursor: pointer;
             white-space: nowrap;
-            transition: background 0.15s, color 0.15s;
+            transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
         }
         .roster-approve-btn.is-approved {
             background: var(--primary-blue);
@@ -1791,7 +1655,7 @@
             background: none;
             color: var(--text-mid);
             cursor: pointer;
-            transition: background 0.15s, color 0.15s, border-color 0.15s;
+            transition: background var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard);
         }
         .roster-choice-btn.is-chosen {
             background: var(--primary-blue);
@@ -1834,7 +1698,7 @@
             cursor: pointer;
             margin-top: 10px;
             font-family: inherit;
-            transition: border-color 0.15s, color 0.15s;
+            transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard);
         }
         @media (hover: hover) and (pointer: fine) {
             .roster-cancel-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
