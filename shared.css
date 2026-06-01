@@ -1,5 +1,5 @@
 /* MYB Roster App — shared.css
-   CSS shared between all three pages (index.html, admin.html, paycalc.html).
+   CSS shared by all app pages (index.html, admin.html, paycalc.html, operations.html, settings.html).
    Loaded via <link rel="stylesheet" href="shared.css">
    before their own <style> block, so page-specific rules can override. */
 

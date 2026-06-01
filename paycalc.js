@@ -2270,7 +2270,16 @@ Device: ${navigator.userAgent}
     _lbFocusReturn?.focus();
     _lbFocusReturn = null;
   }
-  function onKeyDown(e) { if (e.key === 'Escape') closeLightbox(); }
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { closeLightbox(); return; }
+    if (e.key === 'Tab' && contentCard) {
+        const els = [...contentCard.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+        if (!els.length) { e.preventDefault(); return; }
+        const first = els[0], last = els[els.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   // Header logo is a back-to-calendar button (About moved to the drawer logo).
   openAboutLightbox = openLightbox;
@@ -2320,7 +2329,16 @@ Device: ${navigator.userAgent}
     _helpFocusReturn = null;
   }
 
-  function onKey(e) { if (e.key === 'Escape') closeHelp(); }
+  function onKey(e) {
+    if (e.key === 'Escape') { closeHelp(); return; }
+    if (e.key === 'Tab' && content) {
+        const els = [...content.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+        if (!els.length) { e.preventDefault(); return; }
+        const first = els[0], last = els[els.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   lb.addEventListener('click', closeHelp);
   if (content) content.addEventListener('click', e => e.stopPropagation());
@@ -2398,7 +2416,16 @@ Device: ${navigator.userAgent}
     _welcomeFocusReturn = null;
   }
 
-  function onKeyDown(e) { if (e.key === 'Escape') closeWelcome(); }
+  function onKeyDown(e) {
+    if (e.key === 'Escape') { closeWelcome(); return; }
+    if (e.key === 'Tab' && content) {
+        const els = [...content.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+        if (!els.length) { e.preventDefault(); return; }
+        const first = els[0], last = els[els.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  }
 
   lb.addEventListener('click', closeWelcome);
   if (content)   content.addEventListener('click',  e => e.stopPropagation());

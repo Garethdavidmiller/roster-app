@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.85 -->
+<!-- MYB Roster Operations v11.93 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -10,6 +10,12 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="MYB Operations">
     <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
     <title>MYB Roster — Operations</title>
 
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -140,7 +146,7 @@
             font-size: 15px;
             font-weight: 700;
             cursor: pointer;
-            transition: background 0.15s;
+            transition: background var(--dur-fast);
         }
         @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
         .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -219,7 +225,7 @@
         }
         .roster-change-row:last-child { border-bottom: none; }
         .roster-change-row.is-skipped { opacity: 0.4; }
-        .roster-change-row.roster-change-conflict { background: #fff9f9; }
+        .roster-change-row.roster-change-conflict { background: var(--error-bg); }
         .roster-chg-day { display: flex; flex-direction: column; align-items: flex-start; min-width: 44px; }
         .roster-day-abbr { font-size: 12px; font-weight: 700; color: var(--text-dark); }
         .roster-day-date { font-size: 11px; color: var(--text-light); }
@@ -352,6 +358,15 @@
             #huddleUploadCard,
             #rosterUploadCard,
             #authSetupCard { display: none !important; }
+            .app-header { display: none; }
+            body::before {
+                content: "This is an interactive operations page and is not designed for printing.";
+                display: block;
+                text-align: center;
+                padding: 3cm 2cm;
+                font-size: 13px;
+                color: #555;
+            }
         }
     </style>
 </head>

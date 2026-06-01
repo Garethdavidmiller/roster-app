@@ -10,7 +10,7 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v11.07 — huddle writes now require admin claim (browser path).
+// Last updated: v11.92 — pushSubscriptions shape validation added.
 // v10.94 — revert per-member claim requirement to auth-only.
 // v10.83 — restrict huddle writes to admin; fix Storage rules to allow admin uploads.
 // v10.72 — member write isolation (v11 task #2). Suspended — see note above.
@@ -78,8 +78,16 @@ service cloud.firestore {
     match /pushSubscriptions/{docId} {
       // Push subscriptions are written from index.html (public, no login required).
       // The stored data is a browser endpoint URL and encryption keys — not PII.
+      // Shape validation ensures only well-formed subscription objects are stored.
       allow read: if request.auth != null;
-      allow write: if true;
+      allow create, update: if
+        request.resource.data.keys().hasAll(['endpoint', 'keys', 'subscribedAt']) &&
+        request.resource.data.endpoint is string &&
+        request.resource.data.endpoint.size() > 0 &&
+        request.resource.data.keys is map &&
+        request.resource.data.keys.p256dh is string &&
+        request.resource.data.keys.auth is string;
+      allow delete: if true;
     }
 
   }

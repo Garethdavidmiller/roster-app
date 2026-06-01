@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: May 2026 — v11.82 · Updated every 0.10 version*
+*Last updated: June 2026 — v11.88 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -158,7 +158,7 @@ Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle. 
 
 ### `admin-auth.js`
 Staff Firebase Auth account setup (admin only).
-- `initAuthSetup(opts)` — called once by `admin-app.js` after login
+- `initAuthSetup(opts)` — called once by `operations-app.js`
 - Wires up the Staff Login Accounts card; calls `setupRosterAuth` Cloud Function
 - Sends a fresh Firebase ID token (`getIdTokenResult(true)`) as the bearer token — no client-side secret since v9.88
 
@@ -263,7 +263,7 @@ Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted
 - No modules; plain script with `defer`
 
 ### `ls.js`
-Safe localStorage wrappers for all three pages (iOS Safari private mode compatibility).
+Safe localStorage wrappers for all app pages (iOS Safari private mode compatibility).
 - `lsGet(k)`, `lsSet(k, v)`, `lsDel(k)` — wrap every `localStorage` call in try/catch
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
 - **Never call `localStorage` directly** in `app.js`, `admin-app.js`, or `paycalc.js` — always use these wrappers
@@ -286,17 +286,17 @@ Firebase Storage security rules.
 ### `index.css` / `admin.css` / `paycalc.css`
 Page-specific CSS for each page — extracted from inline `<style>` blocks at v11.41.
 - Edit here for any visual change that is specific to one page
-- `operations.html` and `settings.html` keep their CSS inline (small enough not to warrant extraction)
+- `operations.html` and `settings.html` have no separate CSS file — shared component CSS was consolidated into `shared.css` at v11.84; page-specific overrides remain in each page's inline `<style>`
 - All three are network-first in the service worker (same freshness guarantee as their HTML)
 
 ### `guide-shell.css`
 Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html`) — added v11.48.
-- Holds only the common header/back-button/PDF-button/print rules; uses `var(--navy)` from each page's own `:root`
+- Holds common header/back-button/PDF-button/print rules and defines shared brand palette tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) in its own `:root` (v11.85) — guide pages no longer define these themselves
 - This is the one place to change guide chrome — do not re-inline it into the pages
 - NOT the app's `shared.css` (which the guides deliberately don't import) — see CLAUDE.md "Unified guide shell"
 
 ### `shared.css`
-All CSS shared across the three pages.
+All CSS shared across all five app pages (index, admin, paycalc, operations, settings).
 - CSS custom properties (`--primary-blue`, `--accent-gold`, etc.) — **never hardcode hex**
 - Typography scale, badge/pill variants, button types
 - `touch-only` class — hidden by default, revealed on `@media (pointer: coarse)` (touch devices)

@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `11.82` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `11.90` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -75,13 +75,13 @@ Gareth built this app through extended Claude.ai collaboration. He has strong op
 ```
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
-├── admin.html              ← staff self-service portal: AL booking, absence, notifications, cultural calendar, override list
+├── admin.html              ← staff self-service portal: AL booking, absence, override list
 ├── operations.html         ← admin-only operations page: Huddle upload, Roster upload, Staff Login Accounts (v10.99)
 ├── settings.html           ← staff self-service settings page: Notifications, Cultural Calendar (v11.06)
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
 ├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports applyHuddleButtonState, initHuddleViewer. Imported by app.js (v11.40)
-├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js
+├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js
 ├── notif.js                ← shared Web Push module: notifSupported, getNotifState, peekNotifState (read-only), enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory. Singleton popstate listener. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js, nav-panel.js (v11.40)
 ├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js (v11.40)
@@ -95,7 +95,7 @@ roster-app/
 ├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
 ├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
 ├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities; exports recordRangeOverrides() shared AL/Sick save helper
-├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix) → { reset() }. Extracted from admin-app.js at v11.36. Imported directly by admin-al.js and admin-sick.js
+├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix) → { reset() }. Imported by admin-al.js and admin-sick.js
 ├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc.js              ← all JavaScript for paycalc.html (UI, DOM, period logic)
 ├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds
@@ -109,8 +109,8 @@ roster-app/
 ├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
 ├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
 ├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
-├── shared.css              ← CSS shared by the app pages (nav panel, lightbox, login) — NOT the guides
-├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Linked by guide/paycalc-guide/railcard-guide/fip (v11.48)
+├── shared.css              ← CSS shared by all five app pages (index, admin, paycalc, operations, settings): nav panel, lightbox, login, card-header, collapsible, btn-action, btn-card-tips, tips lightbox — NOT the guides
+├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Defines brand palette tokens (--navy, --navy-dark, --navy-mid, --gold) in :root — guide pages no longer define these themselves. Linked by guide/paycalc-guide/railcard-guide/fip (v11.48; palette tokens added v11.85)
 ├── service-worker.js       ← single SW for all pages; cache name includes app version
 ├── manifest.json           ← PWA manifest for all pages
 ├── paycalc-guide.html      ← printable pay calculator reference guide
@@ -132,6 +132,7 @@ roster-app/
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js (tax, NI, gross)
 ├── paycalc-roster-suggestions.test.mjs ← tests for paycalc-roster-suggestions.js (requires --experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs ← tests for functions/roster-parse-helpers.js
+├── sw-asset-check.test.mjs ← verifies every root JS module is listed in service-worker.js asset lists
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
@@ -140,6 +141,7 @@ roster-app/
 
 **Run all tests:**
 ```
+node --test sw-asset-check.test.mjs
 node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
 ```
 
@@ -181,7 +183,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Network-first SW for app files | Ensures staff always receive roster updates on next open. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and bulk bar pills in `admin.html` (~line 2215) must stay in sync. Current order: AL · Spare · Shift · Swap · RDW · Absence · Rest Day |
+| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and bulk bar pills in `admin.html` (~line 164) must stay in sync. Current order: AL · Spare · Shift · RDW · Absent · Rest Day |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
@@ -198,7 +200,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | PWA shortcuts in `manifest.json` | Three long-press shortcuts. Changes require reinstall to take effect on existing installs. |
 | Sticky take-home bar (`#stickyTotal`) | Fixed bar on mobile (hidden ≥1040px). `IntersectionObserver` shows it when `.result-card` scrolls off. `body.sticky-active` adds bottom padding. |
 | 3-digit time input auto-correction in `admin-overrides.js` | On blur, if length is 3 and `parseInt(raw.slice(0,2)) > 23`, prepend `'0'`. Without this, `"630"` produced `"63:0"`. |
-| Range picker clear button (`.rp-clear`) | Resets both `from` and `to` dates. Built into `buildRangePicker()` in `admin-app.js`. |
+| Range picker clear button (`.rp-clear`) | Resets both `from` and `to` dates. Built into `buildRangePicker()` in `admin-rangepicker.js`. |
 | Sunday RD corrections on absence/AL save | Every Sunday in the range is checked; if `getBaseShift` returns a non-RD shift, an explicit `correction/RD` override is written alongside the AL/sick overrides. Used in both save handlers. |
 | Range picker swipe — pointer capture on `grid` not `clip` | Events dispatched to a capture target do not bubble down to children — captures on `clip` breaks the drag animation. |
 | Team Week View | Available to all logged-in staff. Grade state (`currentTeamGrade`) persists across re-renders. Fetch token = week-start timestamp — stale Firestore results are discarded. Week navigation clamped to `CONFIG.MIN_YEAR`/`MAX_YEAR`. **No override-load status indicator** — deliberately not added (minimal-noise app). |
@@ -225,7 +227,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | **BH + `rdw` override is additive, not replacement** | `rdw` override on a worked BH day adds hours to `bhOt`; base hours stay in `bh`. Do not change to "override replaces base" without specific confirmation. |
 | `initALSection()` / `initSickSection()` in `admin-app.js` | `alMember`, `sickMember`, `syncMemberDisplay`, `syncSickMemberDisplay` are hoisted to module scope above the `fieldMember` change handler — that handler fires before init. Do not move them inside the init functions. |
 | SW synthesised offline page uses status 200 | Some browsers suppress 5xx response bodies. `Cache-Control: no-store` prevents caching the synthesised page. |
-| SW offline fallback only for navigation requests (v10.15) | Only `event.request.destination === 'document'` requests get the offline HTML page. JS/CSS get `Response.error()`. Without this, `/admin-app.js` matched `'admin'` in the fallback logic and got HTML for a JS request — MIME-type error. |
+| SW offline fallback only for navigation requests (v10.15) | Only `event.request.destination === 'document'` requests get the offline HTML page. JS/CSS get `Response.error()`. Without this, `/admin-app.js` matched `'admin'` in the fallback logic and got HTML for a JS request — MIME-type error. Fallback routing chain (v11.87): `paycalc` → `paycalc.html` · `operations` → `operations.html` · `settings` → `settings.html` · `admin` → `admin.html` · otherwise → `index.html`. |
 | Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `app.js` `hashchange` handler triggers the viewer (`_autoOpen` is `let` so it can reset). **Two viewer paths — do not unify, do not revert notification path to direct `window.open`/`location.href`:** `htmlContent` present (DOCX converted server-side) → renders inline in both paths. No `htmlContent` (PDF or failed conversion) → manual `#huddleBtn` click calls `window.open` directly (real gesture); notification tap shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a tap has no user activation. `huddles` Firestore reads are open (no auth) — `app.js` has no Auth session, so requiring auth would break auto-open on fresh visits. Full rationale: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
@@ -324,7 +326,7 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication
 
-Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions persist 30 days via localStorage. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access.
+Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access.
 
 **Password security note:** Passwords are surname-derived and not secrets — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`).
 
@@ -399,7 +401,7 @@ All staff have Firebase Auth accounts. Firestore rules require `request.auth != 
 both on fresh login AND on every page load when a localStorage session already exists. This is
 critical — a returning user with a valid 30-day localStorage session skips the login screen, so
 without the page-load sign-in, `auth.currentUser` stays null and all Firestore writes fail.
-`ensureFirebaseSession(name)` in `admin-app.js` handles this: waits for `onAuthStateChanged`
+`ensureFirebaseSession(name)` in `session.js` handles this: waits for `onAuthStateChanged`
 (to detect any IndexedDB-persisted session), then signs in if none exists, self-healing a
 missing account via `createUserWithEmailAndPassword` if needed. Do not remove this call.
 
@@ -507,7 +509,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 
 ## Unified guide shell (v11.47)
 
-All four guide pages — `guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html` — share one chrome so they behave consistently on iOS, Android, desktop and print. The common chrome lives in **`guide-shell.css`** (linked by all four, before each page's inline `<style>`). Edit the shell there once — do not re-inline it. The shell uses `var(--navy)` from each page's own `:root` (every guide defines `--navy: #001e3c`), so it carries no design tokens itself.
+All four guide pages — `guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html` — share one chrome so they behave consistently on iOS, Android, desktop and print. The common chrome lives in **`guide-shell.css`** (linked by all four, before each page's inline `<style>`). Edit the shell there once — do not re-inline it. As of v11.85, `guide-shell.css` defines the shared brand palette tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) in its own `:root` — guide pages no longer redefine these themselves.
 
 **In `guide-shell.css` (shared — change once):**
 - **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←` `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding `max(14px, env(safe-area-inset-top))` for the iOS notch.

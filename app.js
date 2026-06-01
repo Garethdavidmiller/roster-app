@@ -28,7 +28,7 @@ import { applyHuddleButtonState, initHuddleViewer } from './app-huddle-viewer.js
 // - CSS variables for instant theme changes
 // ============================================
 
-// CONFIG.APP_VERSION is now set in roster-data.js from the exported APP_VERSION constant.
+// CONFIG.APP_VERSION is set in roster-data.js from the exported APP_VERSION constant.
 // No manual version override needed here.
 
 // ============================================
@@ -1179,7 +1179,7 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
 // Modules are always deferred — the DOM is fully parsed before this code runs.
 // No DOMContentLoaded wrapper needed; initialize directly.
 try {
-        // validateRosterPatterns() already ran at module load (roster-data.js line 1242).
+        // validateRosterPatterns() already ran at module load in roster-data.js.
         // Only run the team-member shape check here — it's unique to this file.
         const allErrors = validateTeamMembers();
         if (allErrors.length > 0) {
@@ -1531,13 +1531,6 @@ try {
         // ============================================
         // ICON LIGHTBOX / ABOUT PANEL
         // ============================================
-        // Shows app name, version, and live SW update status.
-        // Update detection works by watching the SW registration:
-        //   - registration.waiting  → a new SW has installed and is waiting
-        //   - updatefound event     → a new SW has started installing
-        // When a waiting SW is found, the "Update now" button appears.
-        // Pressing it sends SKIP_WAITING to the waiting SW, which activates
-        // it immediately. The page then reloads to run the new version.
         (function() {
             const lightbox     = document.getElementById('iconLightbox');
             const titleIcon    = document.querySelector('.title-icon');
@@ -1549,13 +1542,8 @@ try {
 
             if (!lightbox || !titleIcon) return;
 
-            // Populate version from CONFIG
             if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
-
-            // ---- Update status ----
-            function checkUpdateStatus() {
-                if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
-            }
+            if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
 
             // ---- Open / close ----
 
@@ -1577,7 +1565,6 @@ try {
                 if (printBtn)  printBtn.textContent  = inTeam ? '🖨️ Print this week\'s roster' : '🖨️ Print this calendar';
                 if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month\'s calendar';
 
-                checkUpdateStatus(); // Refresh status every time it opens
                 if (bugLink) {
                     const member   = getCurrentMember();
                     const name     = member ? member.name : 'Not selected';

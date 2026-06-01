@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v11.85 -->
+<!-- MYB Roster — Settings v11.93 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -11,7 +11,12 @@
   <meta name="apple-mobile-web-app-title" content="MYB Settings">
   <title>MYB Roster — Settings</title>
   <link rel="manifest" href="./manifest.json">
-  <link rel="apple-touch-icon" href="./icon-180.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="apple-touch-icon" sizes="167x167" href="./icon-167.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="./icon-152.png">
+  <link rel="apple-touch-icon" sizes="120x120" href="./icon-120.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+  <link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
   <link rel="preload" href="./fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="./shared.css">
   <style>
@@ -88,6 +93,15 @@
     @media print {
         #notificationsCard,
         #religiousCard { display: none !important; }
+        .app-header { display: none; }
+        body::before {
+            content: "This is an interactive settings page and is not designed for printing.";
+            display: block;
+            text-align: center;
+            padding: 3cm 2cm;
+            font-size: 13px;
+            color: #555;
+        }
     }
   </style>
 </head>
@@ -150,7 +164,7 @@
             aria-label="Open navigation menu" aria-expanded="false">☰</button>
     <div class="app-header-brand">
         <img src="icon-192.png" class="app-icon" id="appIcon" alt="Chiltern Railways" loading="eager">
-        <h1>MYB Roster</h1>
+        <h1>Marylebone Roster</h1>
     </div>
     <span class="badge-page" id="settingsBadge"><span class="badge-glyph" aria-hidden="true">⚙</span> Settings</span>
 </header>

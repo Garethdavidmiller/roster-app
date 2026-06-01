@@ -3,7 +3,7 @@
  *
  * Owns: session guard (redirect to admin.html if not admin), Firebase Auth
  *   re-establishment, page init wiring for the three operations cards.
- * Does NOT own: Huddle upload logic (admin-huddle.js), roster PDF pipeline
+ * Does NOT own: Huddle upload logic (huddle.js), roster PDF pipeline
  *   (admin-roster-upload.js), staff auth setup (admin-auth.js).
  * Edit here for: page-level session handling, card order, nav wiring.
  */
@@ -92,7 +92,7 @@ window._mybSession.then(ok => {
         const main   = document.querySelector('.container');
         if (!main) return;
         const banner = document.createElement('p');
-        banner.style.cssText = 'margin:12px 16px 0;padding:12px 14px;background:#ffeaea;border-left:4px solid #c0392b;border-radius:6px;font-size:14px;color:#333;';
+        banner.style.cssText = 'margin:12px 16px 0;padding:12px 14px;background:var(--error-bg);border-left:4px solid var(--error-banner);border-radius:6px;font-size:14px;color:var(--text-dark);';
         banner.textContent   = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
         main.prepend(banner);
     }

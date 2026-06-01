@@ -3,7 +3,7 @@
  *
  * Single source of truth for the VAPID key and the push-subscription lifecycle.
  * Imported by nav-panel.js (footer bell), app.js (silent renewal + one-off prompt),
- * and admin-huddle.js (Notifications card enable/disable UI).
+ * and huddle.js (Notifications card enable/disable UI).
  *
  * Public API:
  *   notifSupported()        → boolean — push usable on this device/browser

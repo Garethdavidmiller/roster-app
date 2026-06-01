@@ -189,7 +189,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
 
         calendarDisplay.innerHTML = `
             <div class="team-view-container">
-                <div class="tv-print-header">${grade} — ${weekLabel}</div>
+                <div class="tv-print-header">Team View · ${grade} · ${weekLabel} · Printed ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
                 <div class="grade-tabs-row">
                     <div></div>
                     <div class="grade-tabs" role="tablist" aria-label="Grade selector">${gradeBtns}</div>

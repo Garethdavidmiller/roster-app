@@ -1,8 +1,7 @@
 // MYB Roster — Weekly Roster Upload Pipeline
 // Handles: file selection, Cloud Function call, AI-parsed shift review,
 // conflict detection, and Firestore batch write.
-// Extracted from admin-app.js at v8.55 to keep admin-app.js manageable.
-// Called by admin-app.js via initRosterUpload().
+// Called by operations-app.js via initRosterUpload().
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js';
