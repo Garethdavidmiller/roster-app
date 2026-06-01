@@ -10,7 +10,7 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v11.07 — huddle writes now require admin claim (browser path).
+// Last updated: v11.92 — pushSubscriptions shape validation added.
 // v10.94 — revert per-member claim requirement to auth-only.
 // v10.83 — restrict huddle writes to admin; fix Storage rules to allow admin uploads.
 // v10.72 — member write isolation (v11 task #2). Suspended — see note above.

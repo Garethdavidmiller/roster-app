@@ -183,7 +183,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Network-first SW for app files | Ensures staff always receive roster updates on next open. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and bulk bar pills in `admin.html` (~line 164) must stay in sync. Current order: AL · Spare · Shift · Swap · RDW · Absence · Rest Day |
+| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and bulk bar pills in `admin.html` (~line 164) must stay in sync. Current order: AL · Spare · Shift · RDW · Absent · Rest Day |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
@@ -326,7 +326,7 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication
 
-Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions persist 30 days via localStorage. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access.
+Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access.
 
 **Password security note:** Passwords are surname-derived and not secrets — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`).
 
