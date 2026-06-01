@@ -3,7 +3,7 @@
 // and shared functions via initALSection(deps) to avoid circular imports.
 
 import { teamMembers, getALEntitlement, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
-import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
+import { getAllOverrides, recordRangeOverrides, formatDisplay, renderWeekGrid, renderTable } from './admin-overrides.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 
 const esc = escapeHtml;

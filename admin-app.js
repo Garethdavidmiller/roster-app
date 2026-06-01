@@ -31,7 +31,7 @@ const ADMIN_VERSION = CONFIG.APP_VERSION;
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
 if (new URLSearchParams(location.search).has('logout')) {
-    lsDel(AUTH_KEY);
+    clearSession();
     history.replaceState(null, '', location.pathname); // remove ?logout from URL
 }
 
