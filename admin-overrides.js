@@ -7,7 +7,7 @@
  * Edit here for: grid rendering, override CRUD, bulk bar, validation rules.
  * Do not edit here for: AL/sick booking flows, auth, roster upload.
  *
- * Extracted from admin-app.js. Initialised by admin-app.js via initOverrides().
+ * Initialised by admin-app.js via initOverrides().
  */
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,

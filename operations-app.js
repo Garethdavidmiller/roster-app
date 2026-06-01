@@ -3,7 +3,7 @@
  *
  * Owns: session guard (redirect to admin.html if not admin), Firebase Auth
  *   re-establishment, page init wiring for the three operations cards.
- * Does NOT own: Huddle upload logic (admin-huddle.js), roster PDF pipeline
+ * Does NOT own: Huddle upload logic (huddle.js), roster PDF pipeline
  *   (admin-roster-upload.js), staff auth setup (admin-auth.js).
  * Edit here for: page-level session handling, card order, nav wiring.
  */

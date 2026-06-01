@@ -19,7 +19,7 @@ import {
     doc, serverTimestamp, writeBatch, onSnapshot
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
-// admin.html actually uploads files, so index.html and paycalc.html avoid the cost.
+// operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 import {
     getAuth,
     onAuthStateChanged,

@@ -7,7 +7,7 @@
  * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
  *   roster PDF upload/review (admin-roster-upload.js), huddle upload/notifications
  *   (huddle.js), staff Firebase Auth setup (admin-auth.js),
- *   Notifications card or Cultural Calendar card (both moved to settings-app.js v11.06),
+ *   Notifications card or Cultural Calendar card (settings-app.js),
  *   pay maths (paycalc-calc.js), calendar display (app.js), roster data (roster-data.js).
  * Edit here for: login, AL/absence forms, Team Week View.
  * Do not edit here for: shift override grid or forms, roster PDF pipeline,
@@ -160,7 +160,7 @@ function initLoginOverlay() {
 
 // ---- Lightbox ----
 // Exposed to module scope so the nav-panel drawer logo can open it (the header
-// logo is now a back button — see headerIcon handler below).
+// logo is a back button — see headerIcon handler below).
 let openAboutLightbox = null;
 (function() {
     const lightbox   = document.getElementById('iconLightbox');
@@ -1136,8 +1136,6 @@ alConfirmCancelBtn.addEventListener('click', () => {
     saveBtn.disabled    = false;
     saveBtn.textContent = 'Save changes';
 });
-
-// buildRangePicker extracted to admin-rangepicker.js at v11.36
 
 // ============================================
 // ANNUAL LEAVE BOOKING  (logic in admin-al.js)

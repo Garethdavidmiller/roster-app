@@ -1,6 +1,4 @@
 // admin-al.js — Annual Leave Booking section for admin.html
-// Extracted from admin-app.js at v9.93.
-//
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles
 // and shared functions via initALSection(deps) to avoid circular imports.
 

@@ -28,7 +28,7 @@ import { applyHuddleButtonState, initHuddleViewer } from './app-huddle-viewer.js
 // - CSS variables for instant theme changes
 // ============================================
 
-// CONFIG.APP_VERSION is now set in roster-data.js from the exported APP_VERSION constant.
+// CONFIG.APP_VERSION is set in roster-data.js from the exported APP_VERSION constant.
 // No manual version override needed here.
 
 // ============================================
@@ -1179,7 +1179,7 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
 // Modules are always deferred — the DOM is fully parsed before this code runs.
 // No DOMContentLoaded wrapper needed; initialize directly.
 try {
-        // validateRosterPatterns() already ran at module load (roster-data.js line 1242).
+        // validateRosterPatterns() already ran at module load in roster-data.js.
         // Only run the team-member shape check here — it's unique to this file.
         const allErrors = validateTeamMembers();
         if (allErrors.length > 0) {

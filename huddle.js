@@ -1,6 +1,5 @@
 /**
  * huddle.js — Huddle upload, Huddle card toggle, and notification card wiring.
- * (Renamed from admin-huddle.js at v11.40.)
  *
  * Owns: Notifications card (all staff), daily Huddle manual upload (admin only),
  *   Huddle viewer card collapse/expand toggle.

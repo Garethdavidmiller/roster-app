@@ -1,7 +1,6 @@
 /**
  * admin-rangepicker.js — Inline date-range picker calendar for admin.html.
  *
- * Extracted from admin-app.js at v11.36.
  * Owns: buildRangePicker() — creates an inline swipe-able month calendar
  *   wired to hidden <input type="date"> elements and chip labels.
  * Does NOT own: AL/sick save logic, week grid, or any other admin section.
