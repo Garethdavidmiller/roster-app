@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.85 -->
+<!-- MYB Roster Operations v11.86 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -352,6 +352,15 @@
             #huddleUploadCard,
             #rosterUploadCard,
             #authSetupCard { display: none !important; }
+            .app-header { display: none; }
+            body::before {
+                content: "This is an interactive operations page and is not designed for printing.";
+                display: block;
+                text-align: center;
+                padding: 3cm 2cm;
+                font-size: 13px;
+                color: #555;
+            }
         }
     </style>
 </head>

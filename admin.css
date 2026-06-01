@@ -1810,6 +1810,9 @@
             .day-row .col-base  { grid-column: 3; grid-row: 1; justify-self: end; }
             .day-row .col-pills { grid-column: 1 / -1; grid-row: 2; display: flex; }
             .day-row .col-time  { grid-column: 1 / -1; grid-row: 3; }
+            /* Hide pills and time on inactive rows — same pattern as ≤680px */
+            .day-row:not(.active):not(.selected) .col-pills { display: none; }
+            .day-row:not(.active):not(.selected) .col-time  { display: none; }
         }
         /* ≥1400px: left col inner width ~840px — comfortably fits 5-col min of 630px */
         @media (min-width: 1400px) {
