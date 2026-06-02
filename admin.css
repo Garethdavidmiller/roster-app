@@ -835,7 +835,7 @@
             border: none;
             border-radius: 8px;
             background: var(--error-banner);
-            color: #fff;
+            color: white;
             font-size: 12px;
             font-family: inherit;
             cursor: pointer;
@@ -1236,7 +1236,7 @@
         @media (hover: hover) and (pointer: fine) { .btn-period-delete:hover { color: var(--absence); } }
         .btn-period-delete.confirming {
             background: var(--absence);
-            color: #fff;
+            color: white;
         }
 
         .al-preview {
@@ -1906,7 +1906,7 @@
                 font-size: 12px;
                 font-weight: 400;
                 margin-top: 3px;
-                color: #444;
+                color: var(--print-muted);
             }
 
         }
@@ -1949,3 +1949,6 @@
             color: var(--primary-blue);
             flex-shrink: 0;
         }
+
+        /* Checkbox column in the override table */
+        .cb-col { width: 32px; }

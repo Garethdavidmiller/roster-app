@@ -109,6 +109,8 @@ roster-app/
 ├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
 ├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
 ├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
+├── operations.css          ← all CSS for operations.html (extracted from inline <style> at v12.01)
+├── settings.css            ← all CSS for settings.html (extracted from inline <style> at v12.01)
 ├── shared.css              ← CSS shared by all five app pages (index, admin, paycalc, operations, settings): nav panel, lightbox, login, card-header, collapsible, btn-action, btn-card-tips, tips lightbox — NOT the guides
 ├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Defines brand palette tokens (--navy, --navy-dark, --navy-mid, --gold) in :root — guide pages no longer define these themselves. Linked by guide/paycalc-guide/railcard-guide/fip (v11.48; palette tokens added v11.85)
 ├── service-worker.js       ← single SW for all pages; cache name includes app version

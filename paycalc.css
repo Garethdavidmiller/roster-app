@@ -1150,3 +1150,26 @@
     background: var(--accent-gold); color: var(--primary-blue);
   }
 
+  /* ---- Extracted from paycalc.html inline styles ---- */
+  #taxCode { text-transform: uppercase; }
+
+  #absenceCaveat {
+    color: var(--text-mid);
+    font-size: var(--type-small);
+    border-top: 1px solid var(--border-light);
+    padding-top: 8px;
+    margin-top: 4px;
+  }
+
+  #resultRateNotice {
+    background: var(--al-confirm-bg);
+    border: 1px solid var(--accent-gold);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-top: 8px;
+    font-size: var(--type-small);
+    color: var(--primary-blue);
+  }
+
+  .adj-controls { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+

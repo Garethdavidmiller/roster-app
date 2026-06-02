@@ -218,6 +218,7 @@
     --field-bg-disabled: oklch(92.8% 0 0);
 
     --today-print: oklch(99.0% 0.0288 102.7deg); /* soft gold for print today-cell */
+    --print-muted: oklch(37% 0 0); /* ≈#444 — secondary text on printed pages (timestamps, sub-lines) */
 
     /* ── Page shell ──────────────────────────────────────────────── */
     --page-max-width: 1400px;
@@ -615,7 +616,9 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* Logo + title group — absolutely centred on the header so badge width can
-   never shift the brand position. Matches iOS/Material nav-bar pattern. */
+   never shift the brand position. Matches iOS/Material nav-bar pattern.
+   max-width leaves 60px clearance each side for the burger and badge, then
+   clips the h1 with an ellipsis so a wide title can't overlap either control. */
 .app-header-brand {
     position: absolute;
     left: 50%;
@@ -625,6 +628,8 @@ body.lb-open #stickyTotal { display: none !important; }
     display: flex;
     align-items: center;
     gap: 10px;
+    max-width: calc(100% - 120px);
+    overflow: hidden;
 }
 
 .app-header img, .app-icon {
@@ -645,6 +650,9 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: -0.3px;
     line-height: 1.2;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 /* Badge — pushed to the right edge of the flex header */
@@ -708,8 +716,13 @@ body.lb-open #stickyTotal { display: none !important; }
     .app-header {
         padding: 16px 20px;
     }
-    .app-header-brand { gap: 14px; }
-    .app-header h1 { font-size: 20px; }
+    /* Desktop header mode — there is ample horizontal room here, so lift the
+       narrow-screen clip (the max-width cap + ellipsis added for phones) and
+       always render the full "Marylebone Roster" title. The brand stays
+       absolutely centred; the badge and burger are far too small at these
+       widths to ever collide with a ~200px centred title. */
+    .app-header-brand { gap: 14px; max-width: none; }
+    .app-header h1 { font-size: 20px; overflow: visible; text-overflow: clip; }
     .app-icon,
     .app-header img { width: 40px; height: 40px; }
     .badge-page {
@@ -1255,6 +1268,21 @@ button.nav-panel-link--coming-soon {
     padding: 8px 16px;
 }
 
+/* Keyboard focus rings for the whole drawer — gold reads clearly on the navy
+   surface. Without these, desktop keyboard users got only the browser default
+   (often invisible on dark backgrounds), so Tab-navigating the drawer felt
+   inconsistent with the calendar/admin/paycalc buttons, which all ring. */
+.nav-panel-pill:focus-visible,
+.nav-panel-link:focus-visible,
+.nav-panel-brand:focus-visible,
+.nav-panel-close:focus-visible,
+.nav-panel-bell:focus-visible,
+.nav-panel-signout:focus-visible,
+.nav-panel-guides-toggle:focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: 2px;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    LOGIN OVERLAY — shared by admin.html and settings.html
    ═══════════════════════════════════════════════════════════════ */
@@ -1403,6 +1431,10 @@ button.nav-panel-link--coming-soon {
     flex-shrink: 0;
     margin-top: 1px;
 }
+.faith-radio-label input[type="radio"]:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+}
 .faith-radio-label strong { font-weight: 600; }
 .faith-radio-sublabel {
     font-size: 12px;
@@ -1500,10 +1532,10 @@ button.nav-panel-link--coming-soon {
 @media (hover: hover) and (pointer: fine) {
     .btn-primary:hover       { background: var(--primary-blue-dark); }
 }
-.btn-secondary               { background: white; color: var(--primary-blue); border-color: var(--border-mid, #d0d5dd); }
-.btn-secondary:active        { background: var(--bg-light, #f5f7fa); }
+.btn-secondary               { background: white; color: var(--primary-blue); border-color: var(--border-mid); }
+.btn-secondary:active        { background: var(--bg-light); }
 @media (hover: hover) and (pointer: fine) {
-    .btn-secondary:hover     { background: var(--bg-light, #f5f7fa); }
+    .btn-secondary:hover     { background: var(--bg-light); }
 }
 
 /* ── ? Tips button (inside card headings) ───────────────────────── */
