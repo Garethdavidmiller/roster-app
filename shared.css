@@ -615,7 +615,9 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* Logo + title group — absolutely centred on the header so badge width can
-   never shift the brand position. Matches iOS/Material nav-bar pattern. */
+   never shift the brand position. Matches iOS/Material nav-bar pattern.
+   max-width leaves 60px clearance each side for the burger and badge, then
+   clips the h1 with an ellipsis so a wide title can't overlap either control. */
 .app-header-brand {
     position: absolute;
     left: 50%;
@@ -625,6 +627,8 @@ body.lb-open #stickyTotal { display: none !important; }
     display: flex;
     align-items: center;
     gap: 10px;
+    max-width: calc(100% - 120px);
+    overflow: hidden;
 }
 
 .app-header img, .app-icon {
@@ -645,6 +649,9 @@ body.lb-open #stickyTotal { display: none !important; }
     letter-spacing: -0.3px;
     line-height: 1.2;
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
 }
 
 /* Badge — pushed to the right edge of the flex header */

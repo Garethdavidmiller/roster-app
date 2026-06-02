@@ -1124,7 +1124,7 @@ function fillCategoryFromRoster(cat) {
 
 /** Applies a suggestion object to all H/M field pairs.
  *  force=false (default): skips fields already manually entered.
- *  force=true: overwrites all fields — used by the "Replace from roster" button. */
+ *  force=true: overwrites all fields — used by the "Replace with roster hours" button. */
 function _applyRosterSuggestion(s, force = false) {
   const pairs = [
     ['satH',  'satM',  s.satH,  s.satM ],
@@ -2207,10 +2207,7 @@ Device: ${navigator.userAgent}
   }
 
   if (versionEl) versionEl.textContent = APP_VERSION;
-
-  function checkUpdateStatus() {
-    if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
-  }
+  if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
@@ -2247,7 +2244,6 @@ Device: ${navigator.userAgent}
   let _lbFocusReturn = null;
   function openLightbox() {
     _lbFocusReturn = document.activeElement;
-    checkUpdateStatus();
     lockBodyScroll();
     _pushOverlayState(closeLightbox);
     lightbox.classList.add('visible');
