@@ -148,7 +148,7 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
 ### `huddle.js`
-Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle. Renamed from `admin-huddle.js` at v11.40.
+Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
 - `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)
 - `initHuddleCards(opts)` — **deprecated** combined entry point; prefer the above two
