@@ -1,0 +1,104 @@
+/* settings.css — all CSS for settings.html (extracted from inline <style> at v12.01) */
+
+body {
+    font-family: var(--font-sans);
+    font-size: var(--type-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--primary-blue);
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding-top:    max(20px, env(safe-area-inset-top));
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    padding-left:   max(clamp(20px, 3vw, 48px), env(safe-area-inset-left));
+    padding-right:  max(clamp(20px, 3vw, 48px), env(safe-area-inset-right));
+    overflow-x: hidden; overflow-x: clip;
+    overscroll-behavior: none;
+    color: var(--text-dark);
+}
+@media (max-width: 768px) {
+    body {
+        padding-left:  max(10px, env(safe-area-inset-left));
+        padding-right: max(10px, env(safe-area-inset-right));
+    }
+}
+
+.app { max-width: 560px; margin: 0 auto; }
+@media (min-width: 768px) { .app { max-width: 720px; } }
+.app-header { margin-bottom: 4px; }
+
+/* ── CARD ── */
+.card {
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+/* .card-header/.card-body, .card-collapsible-*, .collapse-chevron,
+   .btn-action/.btn-primary/.btn-secondary — consolidated into shared.css */
+/* Settings-specific: primary buttons use gold text instead of white */
+.btn-primary { color: var(--accent-gold); }
+
+/* Settings badge — indigo */
+#settingsBadge { background: var(--indigo); color: white; }
+#iconLightbox .lightbox-badge {
+    background: color-mix(in oklch, var(--indigo) 15%, white);
+    border-color: color-mix(in oklch, var(--indigo) 35%, white);
+    color: var(--indigo);
+}
+
+/* .btn-card-tips, tips lightbox — consolidated into shared.css */
+
+/* ── Desktop: 1024px — two-column layout ── */
+@media (min-width: 1024px) {
+    .app {
+        max-width: 1100px;
+        display: grid;
+        grid-template-columns: minmax(280px, 380px) 1fr;
+        column-gap: 24px;
+        align-items: start;
+    }
+    /* Header aligns with the grid */
+    .app-header { max-width: 1100px; margin-left: auto; margin-right: auto; }
+
+    /* Cards sit directly in the grid — no wrappers needed */
+    #notificationsCard { grid-column: 1; margin-bottom: 0; }
+    #religiousCard     { grid-column: 2; margin-bottom: 0; }
+
+    /* Buttons: no reason to span a full column on desktop */
+    .btn-action { max-width: 280px; }
+}
+
+/* ---- Notifications card ---- */
+#notifStatusMsg { font-size: 13px; color: var(--text-mid); margin-bottom: 14px; }
+
+/* ---- Cultural calendar card ---- */
+/* Override shared.css card-collapsible-body padding (12px) — needs extra breathing room */
+#religiousBody { padding: 16px; }
+
+@media print {
+    /* Settings is an interactive-only page (notification + cultural-calendar
+       preferences) — nothing here is meaningful on paper. Reset the navy body
+       to white (so the message stays legible even with "Background graphics"
+       enabled), hide every interactive surface, and show one clear branded
+       notice in its place. */
+    html, body { background: white !important; }
+    .app,
+    .app-header,
+    #loginOverlay,
+    .lb-overlay,
+    .nav-panel,
+    .nav-panel-overlay { display: none !important; }
+    body::before {
+        content: "⚙ Settings\A\A This is an interactive page — notification and cultural-calendar preferences. There is nothing here to print.";
+        white-space: pre-line;
+        display: block;
+        max-width: 16cm;
+        margin: 4cm auto;
+        text-align: center;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--text-dark);
+    }
+}

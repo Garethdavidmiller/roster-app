@@ -1949,3 +1949,6 @@
             color: var(--primary-blue);
             flex-shrink: 0;
         }
+
+        /* Checkbox column in the override table */
+        .cb-col { width: 32px; }

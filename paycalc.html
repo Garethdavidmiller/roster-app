@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v12.00 -->
+<!-- MYB Roster — Pay Calculator v12.01 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -85,7 +85,7 @@
 
       <div class="field">
         <label>Tax Code</label>
-        <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" style="text-transform:uppercase">
+        <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
         <div class="field-hint">Most people are 1257L. Check your payslip or P60.</div>
       </div>
 
@@ -160,10 +160,10 @@
     <div class="payslip-note" id="payslipNote" style="display:none">
       ℹ️ Your pension (£<span id="pensionRef">–</span>/period) is deducted before tax — so your payslip's gross figure will be lower than the total above. This is normal.
     </div>
-    <div id="absenceCaveat" class="payslip-note" style="display:none;color:var(--text-mid);font-size:var(--type-small);border-top:1px solid var(--border-light);padding-top:8px;margin-top:4px">
+    <div id="absenceCaveat" class="payslip-note" style="display:none">
       ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
     </div>
-    <div id="resultRateNotice" class="payslip-note" style="display:none;background:var(--al-confirm-bg);border:1px solid var(--accent-gold);border-radius:var(--radius-sm);padding:10px 12px;margin-top:8px;font-size:var(--type-small);color:var(--primary-blue)">
+    <div id="resultRateNotice" class="payslip-note" style="display:none">
       ⚠️ <strong>2026/27 pay rates not yet confirmed by Chiltern.</strong> This estimate uses a placeholder rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
     </div>
     <button class="bd-btn" id="bdBtn">
@@ -398,7 +398,7 @@
             <div class="h-title">Any other payslip adjustment</div>
             <div class="h-sub">For absence deductions, corrections, or any extra payslip line. Tap <strong>+/−</strong> to switch between adding or deducting.</div>
           </div>
-          <div style="display:flex;gap:5px;align-items:center;flex-shrink:0">
+          <div class="adj-controls">
             <button id="adjSignBtn" type="button" class="adj-sign-btn" aria-label="Toggle sign: currently positive">+</button>
             <div class="pfx" style="width:90px">
               <span class="pfx-sym">£</span>
