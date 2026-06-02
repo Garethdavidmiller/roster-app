@@ -1997,11 +1997,13 @@ document.addEventListener('visibilitychange', () => {
 // ============================================
 // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp
 // eagerly on load. The beforeprint handler is kept for desktop browsers, where it
-// updates the timestamp to the moment of printing.
+// updates both attributes to the moment of printing.
 function stampPrintDate() {
     const now    = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
     const header = document.querySelector('.header');
-    if (header) header.setAttribute('data-print-date', `Printed: ${now}`);
+    if (!header) return;
+    header.setAttribute('data-print-date', `Printed: ${now}`);
+    header.setAttribute('data-member-name', getCurrentMember().name);
 }
 stampPrintDate();
 window.addEventListener('beforeprint', stampPrintDate);
