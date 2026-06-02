@@ -392,7 +392,7 @@ let openAboutLightbox = null;
         for (const section of tips.sections) {
             if (section.adminOnly && !currentIsAdmin) continue;
             if (section.staffOnly &&  currentIsAdmin) continue;
-            if (section.heading) html += `<div class="tips-lb-section">${section.heading}</div>`;
+            if (section.heading) html += `<div class="tips-lb-section">${escapeHtml(section.heading)}</div>`;
             for (const { icon, html: content, adminOnly, staffOnly } of section.items) {
                 if (adminOnly && !currentIsAdmin) continue;
                 if (staffOnly &&  currentIsAdmin) continue;

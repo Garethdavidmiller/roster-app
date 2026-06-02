@@ -6,7 +6,7 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, teamMembers, CALENDAR_NAMES, resolveFaithCalendar, APP_VERSION } from './roster-data.js';
+import { CONFIG, teamMembers, CALENDAR_NAMES, resolveFaithCalendar, APP_VERSION, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
@@ -269,7 +269,7 @@ function initTipsLightbox() {
         titleEl.textContent = tips.title;
         let html = '';
         for (const section of tips.sections) {
-            if (section.heading) html += `<div class="tips-lb-section">${section.heading}</div>`;
+            if (section.heading) html += `<div class="tips-lb-section">${escapeHtml(section.heading)}</div>`;
             for (const { icon, html: content } of section.items) {
                 html += `<div class="tips-lb-item"><span class="tips-lb-icon">${icon}</span><span>${content}</span></div>`;
             }
