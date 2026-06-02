@@ -1507,10 +1507,10 @@ button.nav-panel-link--coming-soon {
 @media (hover: hover) and (pointer: fine) {
     .btn-primary:hover       { background: var(--primary-blue-dark); }
 }
-.btn-secondary               { background: white; color: var(--primary-blue); border-color: var(--border-mid, #d0d5dd); }
-.btn-secondary:active        { background: var(--bg-light, #f5f7fa); }
+.btn-secondary               { background: white; color: var(--primary-blue); border-color: var(--border-mid); }
+.btn-secondary:active        { background: var(--bg-light); }
 @media (hover: hover) and (pointer: fine) {
-    .btn-secondary:hover     { background: var(--bg-light, #f5f7fa); }
+    .btn-secondary:hover     { background: var(--bg-light); }
 }
 
 /* ── ? Tips button (inside card headings) ───────────────────────── */

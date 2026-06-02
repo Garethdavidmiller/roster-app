@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.96 -->
+<!-- MYB Roster Operations v11.97 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -355,17 +355,28 @@
         #iconLightbox .lightbox-badge { background: rgba(234,137,0,0.15); border-color: rgba(234,137,0,0.35); color: var(--orange); }
 
         @media print {
-            #huddleUploadCard,
-            #rosterUploadCard,
-            #authSetupCard { display: none !important; }
-            .app-header { display: none; }
+            /* Operations is an interactive-only page (Huddle upload, Roster upload,
+               Staff Logins) — nothing here is meaningful on paper. Reset the navy
+               body to white (so the message stays legible even with "Background
+               graphics" enabled), hide every interactive surface, and show one
+               clear branded notice in its place. */
+            html, body { background: white !important; }
+            .container,
+            .app-header,
+            #loginOverlay,
+            .lb-overlay,
+            .nav-panel,
+            .nav-panel-overlay { display: none !important; }
             body::before {
-                content: "This is an interactive operations page and is not designed for printing.";
+                content: "🔧 Operations\A\A This is an interactive page — Daily Huddle upload, Weekly Roster upload and Staff Login accounts. There is nothing here to print.";
+                white-space: pre-line;
                 display: block;
+                max-width: 16cm;
+                margin: 4cm auto;
                 text-align: center;
-                padding: 3cm 2cm;
-                font-size: 13px;
-                color: #555;
+                font-size: 14px;
+                line-height: 1.7;
+                color: var(--text-dark);
             }
         }
     </style>

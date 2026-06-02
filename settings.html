@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v11.96 -->
+<!-- MYB Roster — Settings v11.97 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -91,16 +91,28 @@
     }
 
     @media print {
-        #notificationsCard,
-        #religiousCard { display: none !important; }
-        .app-header { display: none; }
+        /* Settings is an interactive-only page (notification + cultural-calendar
+           preferences) — nothing here is meaningful on paper. Reset the navy body
+           to white (so the message stays legible even with "Background graphics"
+           enabled), hide every interactive surface, and show one clear branded
+           notice in its place. */
+        html, body { background: white !important; }
+        .app,
+        .app-header,
+        #loginOverlay,
+        .lb-overlay,
+        .nav-panel,
+        .nav-panel-overlay { display: none !important; }
         body::before {
-            content: "This is an interactive settings page and is not designed for printing.";
+            content: "⚙ Settings\A\A This is an interactive page — notification and cultural-calendar preferences. There is nothing here to print.";
+            white-space: pre-line;
             display: block;
+            max-width: 16cm;
+            margin: 4cm auto;
             text-align: center;
-            padding: 3cm 2cm;
-            font-size: 13px;
-            color: #555;
+            font-size: 14px;
+            line-height: 1.7;
+            color: var(--text-dark);
         }
     }
   </style>
