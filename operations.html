@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster Operations v11.97 -->
+<!-- MYB Roster Operations v11.98 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -129,6 +129,24 @@
             white-space: nowrap;
         }
         @media (hover: hover) and (pointer: fine) { .huddle-file-label:hover { border-color: var(--primary-blue); } }
+        /* File inputs are visually hidden but MUST stay focusable (display:none
+           drops them from the tab order, so a keyboard admin couldn't reach
+           "Choose file"/"Choose PDF" at all). Hide via the clip technique and
+           ring the styled label when the input behind it takes keyboard focus. */
+        .visually-hidden-file {
+            position: absolute;
+            width: 1px; height: 1px;
+            padding: 0; margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        .huddle-file-label:has(+ .visually-hidden-file:focus-visible) {
+            border-color: var(--primary-blue);
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+        }
         .huddle-filename {
             font-size: 13px;
             color: var(--text-mid);
@@ -430,7 +448,7 @@
                 <div class="huddle-row">
                     <input type="date" id="huddleDate" aria-label="Huddle date">
                     <label for="huddleFileInput" class="huddle-file-label">Choose file</label>
-                    <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style="display:none" aria-label="Choose huddle PDF or Word document">
+                    <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose huddle PDF or Word document">
                 </div>
                 <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
                 <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
@@ -459,7 +477,7 @@
                         </select>
                         <input type="date" id="rosterWeekEnding" aria-label="Week ending (always a Saturday)">
                         <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
-                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" style="display:none" aria-label="Choose roster PDF">
+                        <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose roster PDF">
                     </div>
                     <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
                     <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>

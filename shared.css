@@ -218,6 +218,7 @@
     --field-bg-disabled: oklch(92.8% 0 0);
 
     --today-print: oklch(99.0% 0.0288 102.7deg); /* soft gold for print today-cell */
+    --print-muted: oklch(37% 0 0); /* ≈#444 — secondary text on printed pages (timestamps, sub-lines) */
 
     /* ── Page shell ──────────────────────────────────────────────── */
     --page-max-width: 1400px;
@@ -715,8 +716,13 @@ body.lb-open #stickyTotal { display: none !important; }
     .app-header {
         padding: 16px 20px;
     }
-    .app-header-brand { gap: 14px; }
-    .app-header h1 { font-size: 20px; }
+    /* Desktop header mode — there is ample horizontal room here, so lift the
+       narrow-screen clip (the max-width cap + ellipsis added for phones) and
+       always render the full "Marylebone Roster" title. The brand stays
+       absolutely centred; the badge and burger are far too small at these
+       widths to ever collide with a ~200px centred title. */
+    .app-header-brand { gap: 14px; max-width: none; }
+    .app-header h1 { font-size: 20px; overflow: visible; text-overflow: clip; }
     .app-icon,
     .app-header img { width: 40px; height: 40px; }
     .badge-page {
@@ -1262,6 +1268,21 @@ button.nav-panel-link--coming-soon {
     padding: 8px 16px;
 }
 
+/* Keyboard focus rings for the whole drawer — gold reads clearly on the navy
+   surface. Without these, desktop keyboard users got only the browser default
+   (often invisible on dark backgrounds), so Tab-navigating the drawer felt
+   inconsistent with the calendar/admin/paycalc buttons, which all ring. */
+.nav-panel-pill:focus-visible,
+.nav-panel-link:focus-visible,
+.nav-panel-brand:focus-visible,
+.nav-panel-close:focus-visible,
+.nav-panel-bell:focus-visible,
+.nav-panel-signout:focus-visible,
+.nav-panel-guides-toggle:focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: 2px;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    LOGIN OVERLAY — shared by admin.html and settings.html
    ═══════════════════════════════════════════════════════════════ */
@@ -1409,6 +1430,10 @@ button.nav-panel-link--coming-soon {
     cursor: pointer;
     flex-shrink: 0;
     margin-top: 1px;
+}
+.faith-radio-label input[type="radio"]:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
 }
 .faith-radio-label strong { font-weight: 600; }
 .faith-radio-sublabel {
