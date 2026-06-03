@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `11.90` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `12.01` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -83,7 +83,7 @@ roster-app/
 ├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports applyHuddleButtonState, initHuddleViewer. Imported by app.js (v11.40)
 ├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js
 ├── notif.js                ← shared Web Push module: notifSupported, getNotifState, peekNotifState (read-only), enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
-├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory. Singleton popstate listener. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js, nav-panel.js (v11.40)
+├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay. Singleton popstate listener. Imported by app.js, admin-app.js, paycalc.js, operations-app.js, settings-app.js, nav-panel.js (v11.40)
 ├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js (v11.40)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by app.js
 ├── app-override-utils.js   ← override priority and member-start helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart. Shared by app.js and app-team-view.js

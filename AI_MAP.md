@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v11.88 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.01 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -148,7 +148,7 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 
 ### `huddle.js`
-Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle. Renamed from `admin-huddle.js` at v11.40.
+Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
 - `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)
 - `initHuddleCards(opts)` — **deprecated** combined entry point; prefer the above two
@@ -283,11 +283,10 @@ Firebase Storage security rules.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
 - All other paths: denied.
 
-### `index.css` / `admin.css` / `paycalc.css`
-Page-specific CSS for each page — extracted from inline `<style>` blocks at v11.41.
+### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css`
+Page-specific CSS for each page — extracted from inline `<style>` blocks (index/admin/paycalc at v11.41; operations/settings at v12.01).
 - Edit here for any visual change that is specific to one page
-- `operations.html` and `settings.html` have no separate CSS file — shared component CSS was consolidated into `shared.css` at v11.84; page-specific overrides remain in each page's inline `<style>`
-- All three are network-first in the service worker (same freshness guarantee as their HTML)
+- All five are network-first in the service worker (same freshness guarantee as their HTML)
 
 ### `guide-shell.css`
 Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html`) — added v11.48.

@@ -17,7 +17,7 @@ import {
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations } from './paycalc-migrations.js';
 'use strict';
@@ -2251,19 +2251,7 @@ Device: ${navigator.userAgent}
     document.addEventListener('keydown', onKeyDown);
   }
   function closeLightbox() {
-    _clearOverlayHistory();
-    lightbox.classList.remove('open');
-    // Safety fallback: if transitionend never fires (e.g. tab backgrounded on iOS
-    // during the close animation), still unlock after the transition would have
-    // completed.
-    const unlockTimer = setTimeout(unlockBodyScroll, 500);
-    lightbox.addEventListener('transitionend', () => {
-      clearTimeout(unlockTimer);
-      unlockBodyScroll();
-      lightbox.classList.remove('visible');
-    }, { once: true });
-    document.removeEventListener('keydown', onKeyDown);
-    _lbFocusReturn?.focus();
+    dismissOverlay(lightbox, { onKey: onKeyDown, focusReturn: _lbFocusReturn });
     _lbFocusReturn = null;
   }
   function onKeyDown(e) {
@@ -2312,16 +2300,7 @@ Device: ${navigator.userAgent}
   }
 
   function closeHelp() {
-    _clearOverlayHistory();
-    lb.classList.remove('open');
-    const unlockTimer = setTimeout(unlockBodyScroll, 500);
-    lb.addEventListener('transitionend', () => {
-      clearTimeout(unlockTimer);
-      unlockBodyScroll();
-      lb.classList.remove('visible');
-    }, { once: true });
-    document.removeEventListener('keydown', onKey);
-    _helpFocusReturn?.focus();
+    dismissOverlay(lb, { onKey, focusReturn: _helpFocusReturn });
     _helpFocusReturn = null;
   }
 
@@ -2398,17 +2377,8 @@ Device: ${navigator.userAgent}
   }
 
   function closeWelcome() {
-    _clearOverlayHistory();
     lsSet(WELCOME_KEY, '1');
-    lb.classList.remove('open');
-    const unlockTimer = setTimeout(unlockBodyScroll, 500);
-    lb.addEventListener('transitionend', () => {
-      clearTimeout(unlockTimer);
-      unlockBodyScroll();
-      lb.classList.remove('visible');
-    }, { once: true });
-    document.removeEventListener('keydown', onKeyDown);
-    _welcomeFocusReturn?.focus();
+    dismissOverlay(lb, { onKey: onKeyDown, focusReturn: _welcomeFocusReturn });
     _welcomeFocusReturn = null;
   }
 

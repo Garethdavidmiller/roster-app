@@ -16,7 +16,7 @@ import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
 
 // ============================================
 // SESSION — read from localStorage (shared with admin-app.js via session.js)
@@ -128,17 +128,7 @@ window._mybSession.then(ok => {
     }
 
     function close() {
-        _clearOverlayHistory();
-        lightbox.classList.remove('open');
-        document.removeEventListener('keydown', onKey);
-        let done = false;
-        function finish() {
-            if (done) return; done = true;
-            lightbox.classList.remove('visible');
-            unlockBodyScroll();
-        }
-        const t = setTimeout(finish, 400);
-        lightbox.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
+        dismissOverlay(lightbox, { onKey });
     }
 
     function onKey(e) { if (e.key === 'Escape') close(); }
@@ -219,17 +209,7 @@ window._mybSession.then(ok => {
     }
 
     function closeTips() {
-        _clearOverlayHistory();
-        lb.classList.remove('open');
-        document.removeEventListener('keydown', onKey);
-        let done = false;
-        function finish() {
-            if (done) return; done = true;
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-        }
-        const t = setTimeout(finish, 400);
-        lb.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
+        dismissOverlay(lb, { onKey });
     }
 
     function onKey(e) { if (e.key === 'Escape') closeTips(); }
