@@ -23,7 +23,7 @@ import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -193,19 +193,7 @@ let openAboutLightbox = null;
     }
 
     function closeLightbox() {
-        _clearOverlayHistory();
-        lightbox.classList.remove('open');
-        const t = setTimeout(() => {
-            lightbox.classList.remove('visible');
-            unlockBodyScroll();
-        }, 500);
-        lightbox.addEventListener('transitionend', () => {
-            clearTimeout(t);
-            lightbox.classList.remove('visible');
-            unlockBodyScroll();
-        }, { once: true });
-        document.removeEventListener('keydown', onKey);
-        _lbFocusReturn?.focus();
+        dismissOverlay(lightbox, { onKey, focusReturn: _lbFocusReturn });
         _lbFocusReturn = null;
     }
 
@@ -408,19 +396,7 @@ let openAboutLightbox = null;
     }
 
     function closeTips() {
-        _clearOverlayHistory();
-        lb.classList.remove('open');
-        const t = setTimeout(() => {
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-        }, 500);
-        lb.addEventListener('transitionend', () => {
-            clearTimeout(t);
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-        }, { once: true });
-        document.removeEventListener('keydown', onKey);
-        _tipsFocusReturn?.focus();
+        dismissOverlay(lb, { onKey, focusReturn: _tipsFocusReturn });
         _tipsFocusReturn = null;
     }
 

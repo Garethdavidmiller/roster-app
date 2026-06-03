@@ -15,7 +15,7 @@ import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
 import { applyHuddleButtonState, initHuddleViewer } from './app-huddle-viewer.js';
 
 // ============================================
@@ -618,19 +618,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     }
 
     function closeALLightbox() {
-        _clearOverlayHistory();
-        lb.classList.remove('open');
-        const t = setTimeout(() => {
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-        }, 500);
-        lb.addEventListener('transitionend', () => {
-            clearTimeout(t);
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-        }, { once: true });
-        document.removeEventListener('keydown', onKey);
-        _alFocusReturn?.focus();
+        dismissOverlay(lb, { onKey, focusReturn: _alFocusReturn });
         _alFocusReturn = null;
     }
 
@@ -1128,25 +1116,7 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
         _pushOverlayState(closeTeamInfo);
     }
     function closeTeamInfo() {
-        _clearOverlayHistory();
-        lb.classList.remove('open');
-        const t = setTimeout(() => {
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-            if (_trigger && typeof _trigger.focus === 'function') {
-                _trigger.focus();
-                _trigger = null;
-            }
-        }, 500);
-        lb.addEventListener('transitionend', () => {
-            clearTimeout(t);
-            lb.classList.remove('visible');
-            unlockBodyScroll();
-            if (_trigger && typeof _trigger.focus === 'function') {
-                _trigger.focus();
-                _trigger = null;
-            }
-        }, { once: true });
+        dismissOverlay(lb, { afterClose: () => { _trigger?.focus(); _trigger = null; } });
     }
 
     document.getElementById('teamInfoClose')?.addEventListener('click', closeTeamInfo);
@@ -1581,19 +1551,7 @@ try {
             }
 
             function closeLightbox() {
-                _clearOverlayHistory();
-                lightbox.classList.remove('open');
-                const t = setTimeout(() => {
-                    lightbox.classList.remove('visible');
-                    unlockBodyScroll();
-                }, 500);
-                lightbox.addEventListener('transitionend', () => {
-                    clearTimeout(t);
-                    lightbox.classList.remove('visible');
-                    unlockBodyScroll();
-                }, { once: true });
-                document.removeEventListener('keydown', onKeyDown);
-                _lbFocusReturn?.focus();
+                dismissOverlay(lightbox, { onKey: onKeyDown, focusReturn: _lbFocusReturn });
                 _lbFocusReturn = null;
             }
 
@@ -1683,17 +1641,7 @@ try {
             }
 
             function closePicker() {
-                _clearOverlayHistory();
-                overlay.classList.remove('open');
-                const t = setTimeout(() => {
-                    overlay.classList.remove('visible');
-                    unlockBodyScroll();
-                }, 500);
-                overlay.addEventListener('transitionend', () => {
-                    clearTimeout(t);
-                    overlay.classList.remove('visible');
-                    unlockBodyScroll();
-                }, { once: true });
+                dismissOverlay(overlay);
             }
 
             // Delegated click: any .month-year element (rebuilt on each render)

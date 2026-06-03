@@ -42,6 +42,26 @@ export function _pushOverlayState(closeHandler) {
     _backHandler = closeHandler;
 }
 
+/**
+ * Close an overlay: remove .open, then once the CSS fade-out ends (or after a
+ * 500 ms safety fallback) remove .visible and unlock body scroll.
+ *
+ * @param {Element}  el                  - The .lb-overlay element
+ * @param {object}   [opts]
+ * @param {Function} [opts.onKey]        - document keydown listener to remove
+ * @param {Element}  [opts.focusReturn]  - element to focus synchronously on close
+ * @param {Function} [opts.afterClose]   - called once .visible is removed and scroll unlocked
+ */
+export function dismissOverlay(el, { onKey, focusReturn, afterClose } = {}) {
+    _clearOverlayHistory();
+    el.classList.remove('open');
+    if (onKey) document.removeEventListener('keydown', onKey);
+    focusReturn?.focus();
+    function finish() { el.classList.remove('visible'); unlockBodyScroll(); afterClose?.(); }
+    const t = setTimeout(finish, 500);
+    el.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
+}
+
 /** Remove the pushed history entry when the overlay is closed by a button. */
 export function _clearOverlayHistory() {
     if (_overlayHistoryPushed) {
