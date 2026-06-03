@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v12.02
+// MYB Roster — Service Worker v12.03
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '12.02';
+const APP_VERSION = '12.03';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -117,30 +117,24 @@ const ICON_ASSETS = [
 // ============================================
 self.addEventListener("install", event => {
     console.log(`[SW ${APP_VERSION}] Installing`);
-    event.waitUntil(
-        caches.open(CACHE_NAME).then(cache =>
-            // allSettled (instead of addAll) means a single 404 / network blip on one file
-            // does not abort the whole SW install. Each asset is cached if available; failures
-            // are logged but install proceeds. Network-first fetch handler can re-fetch later.
-            Promise.allSettled(CORE_ASSETS.map(asset =>
-                cache.add(asset).catch(err => {
-                    console.warn(`[SW ${APP_VERSION}] Core asset cache skipped (${asset}):`, err);
-                    throw err;
-                })
-            )).then(() => Promise.allSettled([
-                    ...SUPPLEMENTARY_ASSETS,
-                    ...FONT_ASSETS,
-                    ...ICON_ASSETS,
-                ].map(asset =>
-                    cache.add(asset).catch(err =>
-                        console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err)
-                    )
-                ))).then(() => {
-                    console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
-                    return self.skipWaiting();
-                })
-        )
-    );
+    // allSettled (instead of addAll) means a single 404 / network blip on one file
+    // does not abort the whole SW install. Each asset is cached if available; failures
+    // are logged but install proceeds. Network-first fetch handler can re-fetch later.
+    event.waitUntil((async () => {
+        const cache = await caches.open(CACHE_NAME);
+        await Promise.allSettled(CORE_ASSETS.map(asset =>
+            cache.add(asset).catch(err =>
+                console.warn(`[SW ${APP_VERSION}] Core asset cache skipped (${asset}):`, err)
+            )
+        ));
+        await Promise.allSettled([...SUPPLEMENTARY_ASSETS, ...FONT_ASSETS, ...ICON_ASSETS].map(asset =>
+            cache.add(asset).catch(err =>
+                console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err)
+            )
+        ));
+        console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
+        return self.skipWaiting();
+    })());
 });
 
 // ============================================
@@ -148,21 +142,19 @@ self.addEventListener("install", event => {
 // ============================================
 self.addEventListener("activate", event => {
     console.log(`[SW ${APP_VERSION}] Activating`);
-    event.waitUntil(
-        caches.keys()
-            .then(cacheNames => Promise.all(
-                cacheNames
-                    .filter(name => name !== CACHE_NAME)
-                    .map(name => {
-                        console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
-                        return caches.delete(name);
-                    })
-            ))
-            .then(() => {
-                console.log(`[SW ${APP_VERSION}] Claiming all clients`);
-                return self.clients.claim();
-            })
-    );
+    event.waitUntil((async () => {
+        const cacheNames = await caches.keys();
+        await Promise.all(
+            cacheNames
+                .filter(name => name !== CACHE_NAME)
+                .map(name => {
+                    console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
+                    return caches.delete(name);
+                })
+        );
+        console.log(`[SW ${APP_VERSION}] Claiming all clients`);
+        return self.clients.claim();
+    })());
 });
 
 // ============================================
