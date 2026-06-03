@@ -610,25 +610,20 @@ body.lb-open #stickyTotal { display: none !important; }
    ============================================================ */
 .app-header {
     padding: 14px 18px;
-    position: relative;
     display: flex;
     align-items: center;
 }
 
-/* Logo + title group — absolutely centred on the header so badge width can
-   never shift the brand position. Matches iOS/Material nav-bar pattern.
-   max-width leaves 60px clearance each side for the burger and badge, then
-   clips the h1 with an ellipsis so a wide title can't overlap either control. */
+/* Logo + title group — flex:1 fills the space between burger and badge so
+   overlap is impossible regardless of badge width. Brand content is centred
+   within that remaining space. */
 .app-header-brand {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
+    flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
-    max-width: calc(100% - 120px);
     overflow: hidden;
 }
 
@@ -655,10 +650,7 @@ body.lb-open #stickyTotal { display: none !important; }
     min-width: 0;
 }
 
-/* Badge — pushed to the right edge of the flex header */
-.app-header .badge-page {
-    margin-left: auto;
-}
+/* Badge — sits at the right edge naturally; brand's flex:1 fills all space before it */
 
 /* Gold pill badge — shown in header to identify the current section */
 .badge-page {
@@ -721,7 +713,7 @@ body.lb-open #stickyTotal { display: none !important; }
        always render the full "Marylebone Roster" title. The brand stays
        absolutely centred; the badge and burger are far too small at these
        widths to ever collide with a ~200px centred title. */
-    .app-header-brand { gap: 14px; max-width: none; }
+    .app-header-brand { gap: 14px; }
     .app-header h1 { font-size: 20px; overflow: visible; text-overflow: clip; }
     .app-icon,
     .app-header img { width: 40px; height: 40px; }
@@ -1157,7 +1149,6 @@ button.nav-panel-link--coming-soon {
 
 @media print {
     .nav-panel, .nav-panel-overlay, .btn-burger { display: none !important; }
-    .app-header-brand { position: static !important; transform: none !important; }
 }
 
 /* Nav panel footer — member name + bell + sign-out; only rendered when a session exists */
