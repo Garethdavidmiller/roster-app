@@ -1,12 +1,32 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: June 2026 — v12.04 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.05 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
 ---
 
 ## Security
+
+### Override data is publicly readable (intentional trade-off)
+The `overrides` Firestore collection — which contains AL dates, sick days, and shift
+changes for all staff members — is readable without any authentication. Anyone who
+finds the app URL can view any staff member's recorded absences and leave.
+
+**Why:** Requiring auth to read overrides was attempted at v12.04 using an anonymous
+Firebase Auth session established at app startup. This was reverted at v12.05 because:
+- The anonymous session workaround added complexity without meaningfully improving
+  security (a malicious user could obtain an anonymous session just as easily as the
+  app does).
+- The correct fix — requiring a *named* staff login before viewing the calendar — was
+  considered and declined as it adds friction to the primary daily workflow.
+
+**Current mitigations:** The URL is not publicly advertised; the team is small and
+known; writes still require a named Firebase Auth session (`request.auth != null`).
+
+**If this becomes a concern:** Gate the calendar on a named session, remove the
+anonymous read from `firestore.rules`, and remove the anonymous auth block from
+`app.js`. See the June 2026 conversation for the full trade-off analysis.
 
 ### Huddle Firestore writes restricted to admin (v11.07)
 `firestore.rules` now requires `request.auth.token.admin == true` for all browser
