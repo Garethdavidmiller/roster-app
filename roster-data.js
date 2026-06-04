@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.05';
+export const APP_VERSION = '12.06';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -41,6 +41,7 @@ export const CONFIG = {
     NIGHT_START_THRESHOLD:            21,                                        // Shifts starting 21:00–03:59 are Night
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
+    LINKS_DESIGNERS:                  ['G. Miller'],                              // Names with access to the Links design workspace — add 'S. Silva' when ready
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files

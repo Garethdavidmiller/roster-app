@@ -48,7 +48,8 @@ let openAboutLightbox = null;
 initNavPanel({
     currentPage: 'operations',
     memberName:  currentUser,
-    isAdmin:     true,
+    isAdmin:         true,
+    isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   () => { clearSession(); window.location.href = './admin.html'; },
 });

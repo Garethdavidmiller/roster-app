@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `12.05` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `12.06` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -118,6 +118,9 @@ roster-app/
 ├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
 ├── operations.css          ← all CSS for operations.html (extracted from inline <style> at v12.01)
 ├── settings.css            ← all CSS for settings.html (extracted from inline <style> at v12.01)
+├── links.html              ← 28-position link design workspace (v12.06); visible only to CONFIG.LINKS_DESIGNERS
+├── links.css               ← all CSS for links.html — grid table, cell colours, coverage chart, staff panel (v12.06)
+├── links-app.js            ← coordinator for links.html: auth guard, Firestore load/save for linkDesigns/combined-28, grid render, coverage analysis, staff assignment, init-from-rosters (v12.06)
 ├── shared.css              ← CSS shared by all five app pages (index, admin, paycalc, operations, settings): nav panel, lightbox, login, card-header, collapsible, btn-action, btn-card-tips, tips lightbox — NOT the guides
 ├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Defines brand palette tokens (--navy, --navy-dark, --navy-mid, --gold) in :root — guide pages no longer define these themselves. Linked by guide/paycalc-guide/railcard-guide/fip (v11.48; palette tokens added v11.85)
 ├── guide.css               ← page-specific styles for guide.html (extracted from inline <style> at v12.04)
@@ -229,6 +232,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Nav-panel logo = About; drawer head shows version (v11.21) | The drawer head is a `#navPanelBrand` button (logo + title + `v{APP_VERSION}` muted text). Tapping it closes the panel (via `closePanelForNavigation`) then calls `onLogoClick`, which each page passes as `() => openAboutLightbox?.()` — opening that page's existing `#iconLightbox` (version, update status, bug report, and page-specific print/guide links). Each page exposes its scoped open fn through a module-level `let openAboutLightbox` assigned inside its About-lightbox IIFE. This replaces the header logo's old role (see header-logo back button entry). |
 | Settings page — shared session, flat nav link (v11.06) | `settings.html` uses the same `AUTH_KEY` as `admin-app.js` — a user already signed in on any page arrives without seeing the login overlay. `initNavPanel` is called at module scope in `settings-app.js` regardless of sign-in state so unsigned users can navigate away via the Calendar/Admin pills. Settings link renders outside the scrollable `nav-panel-body` (pinned above footer) so it is always visible without scrolling. Hidden only on the settings page itself. Styled as a flat link (not a pill). `--indigo` badge colour. |
 | Operations page — admin-only pill (v10.99) | `NAV_PAGES` entry for Operations has `adminOnly: true`. `initNavPanel({ isAdmin })` filters it out for non-admins. `app.js`, `admin-app.js`, and `paycalc.js` pass `isAdmin: CONFIG.ADMIN_NAMES.includes(member)`. `operations-app.js` passes `isAdmin: true` (page already guards against non-admins). Operations page has NO login overlay — JS redirects to `admin.html` immediately if the user is not authenticated or not an admin. |
+| Links page — designer-only pill (v12.06) | `NAV_PAGES` entry for Links has `linksDesignerOnly: true`. `initNavPanel({ isLinksDesigner })` filters it out for non-designers. Each page passes `isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(member)`. `links-app.js` passes `isLinksDesigner: true` (page already guards against non-designers, redirecting to `admin.html`). To grant S. Silva access, add `'S. Silva'` to `CONFIG.LINKS_DESIGNERS` in `roster-data.js` and pass `isLinksDesigner: true` in the relevant pages' `initNavPanel` calls. |
 | Header back button removed (v10.63) | `admin.html` / `paycalc.html` no longer have a header `←` back button — it duplicated the nav drawer's Calendar pill (two competing nav paradigms) and clashed visually with the logo box. Navigation back to the roster is via the drawer. Header is now `[☰] [logo] Title … [badge]`. The admin "open calendar on the month I was editing" behaviour moved from the back button onto the `.nav-panel-pill--calendar` click in `admin-app.js`. `.btn-back` CSS removed from `shared.css` (still defined locally in `fip.html` / `railcard-guide.html`). |
 | Header logo = back to calendar on sub-pages (v11.21) | On `admin.html` / `paycalc.html` / `operations.html` / `settings.html` the header logo `#appIcon` now navigates to `./index.html` (`title`/`aria-label` = "Back to calendar"). This restores an iOS-friendly back affordance (iOS standalone PWA has no system back) without re-adding a visible back button — kept "invisible" as just the logo. The About lightbox it used to open moved to the **nav-panel drawer logo** (see that entry). The **calendar page keeps its header logo opening About** (`.title-icon` in `app.js`) — home has no "back" target. Do not wire the calendar header logo to navigate. |
 | `.app-header` brand centering (v10.66) | `admin.html` / `paycalc.html` headers use `display:grid; grid-template-columns:1fr auto 1fr`. Burger sits in col 1 (`justify-self:start`), logo+title in an `.app-header-brand` flex wrapper in col 2 (auto, truly centred), badge in col 3 (`justify-self:end`). Equal `1fr` side columns guarantee the brand is always centred regardless of burger/badge width asymmetry. The calendar uses a different `.header` (balanced spacers), unaffected. |
@@ -341,7 +345,7 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication
 
-Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access.
+Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller']` — access to the Links design workspace; add `'S. Silva'` when ready.
 
 **Password security note:** Passwords are surname-derived and not secrets — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`).
 

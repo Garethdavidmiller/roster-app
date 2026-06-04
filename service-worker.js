@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v12.05
+// MYB Roster — Service Worker v12.06
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,20 +15,20 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '12.05';
+const APP_VERSION = '12.06';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
 // Note: matching uses `path === '/' + f` — an exact root-path check.
 // All network-first files live at the origin root, so this is always correct.
 const NETWORK_FIRST_FILES = [
-    'index.html', 'admin.html', 'operations.html', 'settings.html',
-    'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css',
+    'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html',
+    'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
     'app.js', 'app-team-view.js', 'app-override-utils.js', 'app-huddle-viewer.js',
     'admin-app.js', 'huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js',
-    'operations-app.js', 'settings-app.js',
+    'operations-app.js', 'settings-app.js', 'links-app.js',
     'overlay.js', 'session.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js',
     'shared.css',
@@ -48,11 +48,14 @@ const CORE_ASSETS = [
     "./admin.html",
     "./operations.html",
     "./settings.html",
+    "./links.html",
     "./index.css",
     "./admin.css",
     "./paycalc.css",
     "./operations.css",
     "./settings.css",
+    "./links.css",
+    "./links-app.js",
     "./settings-app.js",
     "./app.js",
     "./app-team-view.js",
@@ -219,6 +222,7 @@ self.addEventListener("fetch", event => {
                         ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
                         ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
                         ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
+                        ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
                         ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
                     ];
                     const match       = isDoc && PAGE_FALLBACKS.find(([seg]) => path.includes(seg));

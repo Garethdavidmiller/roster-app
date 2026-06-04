@@ -31,6 +31,7 @@ const NAV_PAGES = [
     { id: 'admin',      label: '📝 Admin',       url: './admin.html',      colorClass: 'nav-panel-pill--admin'      },
     { id: 'paycalc',    label: '💷 Pay',         url: './paycalc.html',    colorClass: 'nav-panel-pill--pay'        },
     { id: 'operations', label: '🔧 Ops',          url: './operations.html', colorClass: 'nav-panel-pill--operations', adminOnly: true },
+    { id: 'links',      label: '🔗 Links',         url: './links.html',      colorClass: 'nav-panel-pill--links',      linksDesignerOnly: true },
 ];
 
 /**
@@ -74,13 +75,13 @@ let _comingSoonOpen = false;
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
  */
-export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, onLogoClick = null } = {}) {
+export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null } = {}) {
     const burger = document.getElementById('navMenuBtn');
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
     burger.dataset.navPanelInit = '1';
 
-    _inject(currentPage, memberName, onSignOut, isAdmin);
+    _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner);
 
     const panel    = document.getElementById('navPanel');
     const overlay  = document.getElementById('navPanelOverlay');
@@ -377,10 +378,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 // lockBodyScroll / unlockBodyScroll imported from overlay.js
 
 /** Build and inject the overlay + drawer HTML into document.body. */
-function _inject(currentPage, memberName, onSignOut, isAdmin) {
+function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     const pills = NAV_PAGES
         .filter(p => p.id !== currentPage)
         .filter(p => !p.adminOnly || isAdmin)
+        .filter(p => !p.linksDesignerOnly || isLinksDesigner)
         .map(p => `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
         .join('');
 

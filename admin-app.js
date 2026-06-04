@@ -1544,7 +1544,8 @@ if ('serviceWorker' in navigator) {
 initNavPanel({
     currentPage: 'admin',
     memberName:  currentUser,
-    isAdmin:     currentIsAdmin,
+    isAdmin:         currentIsAdmin,
+    isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   () => { clearSession(); window.location.reload(); },
 });
