@@ -10,7 +10,10 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v11.92 — pushSubscriptions shape validation added.
+// Last updated: v12.05 — overrides read reverted to open (no auth required); see KNOWN_LIMITATIONS.md.
+// v12.04 — overrides read required auth (reverted); pushSubscriptions delete requires auth;
+//   legacy override types removed from create/update allowlist.
+// v11.92 — pushSubscriptions shape validation added.
 // v10.94 — revert per-member claim requirement to auth-only.
 // v10.83 — restrict huddle writes to admin; fix Storage rules to allow admin uploads.
 // v10.72 — member write isolation (v11 task #2). Suspended — see note above.
@@ -19,8 +22,12 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /overrides/{document=**} {
-      // Intentionally open read: index.html (calendar) reads overrides without a
-      // Firebase Auth session. Shift data is operational / non-sensitive.
+      // Read is intentionally open — no auth required. Override data (AL dates,
+      // sick days, shift changes) is readable by anyone with the app URL.
+      // This is a known trade-off: requiring auth broke the anonymous calendar view
+      // and the anonymous session workaround added unnecessary complexity. The app
+      // URL is not publicly advertised and the team is small and known.
+      // See KNOWN_LIMITATIONS.md → "Override data is publicly readable".
       allow read;
       allow create, update: if
         request.auth != null &&
@@ -33,7 +40,7 @@ service cloud.firestore {
         request.resource.data.memberName.size() > 0 &&
         request.resource.data.memberName.size() < 100 &&
         request.resource.data.type in [
-          'spare_shift', 'shift', 'allocated', 'overtime', 'rdw', 'swap',
+          'spare_shift', 'shift', 'rdw',
           'annual_leave', 'correction', 'sick'
         ] &&
         request.resource.data.source in ['manual', 'roster_import'] &&
@@ -41,6 +48,8 @@ service cloud.firestore {
         request.resource.data.value.size() > 0 &&
         request.resource.data.note is string &&
         request.resource.data.note.size() < 500;
+      // Any authenticated user may delete their own overrides. Per-member isolation
+      // (limiting deletes to the owning member) is deferred — see KNOWN_LIMITATIONS.md.
       allow delete: if request.auth != null;
     }
 
@@ -87,7 +96,9 @@ service cloud.firestore {
         request.resource.data.keys is map &&
         request.resource.data.keys.p256dh is string &&
         request.resource.data.keys.auth is string;
-      allow delete: if true;
+      // Anonymous sessions satisfy this — the unsubscribe path in notif.js always has
+      // at least an anonymous Auth session from the push subscription flow.
+      allow delete: if request.auth != null;
     }
 
   }

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: June 2026 — v12.01*
+*Last updated: June 2026 — v12.05*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -125,9 +125,7 @@ A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navig
 
 ### Security hardening (v10.72–v10.74)
 
-Progress on the four v11 security tasks. **Current status (v11.39): #1 done, #2 suspended,
-#3 done, #4 awaiting verification on a real payday.** Authoritative status and the
-re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 security tasks"**.
+Progress on the four v11 security tasks. Authoritative current status and the re-introduction checklist live in **KNOWN_LIMITATIONS.md → "The four v11 security tasks"**.
 
 - **v10.72 — Firestore member write isolation ⚠️ later suspended (v10.94):** `firestore.rules` was updated so each staff member could only write overrides for themselves (`memberName == request.auth.token.name`), with an admin claim bypass for G. Miller. This was **reverted at v10.94** after it caused a production outage; rules are back to `request.auth != null` with field validation retained. See KNOWN_LIMITATIONS.md task #2 for the full post-mortem and re-introduction checklist.
 
@@ -213,6 +211,14 @@ Viewer code hardened to match: `app-huddle-viewer.js` now uses simple `if (htmlC
 - A stale `us-central1` deployment record (from the function's first deployment before the region was pinned to `europe-west2`) blocked all subsequent deploys with a 404 on cleanup. Fixed by deleting the old function manually from Firebase Console.
 
 Schedule format also hardened from `'every day 08:00'` (App Engine cron) to `'0 8 * * *'` (standard Unix cron, better supported by firebase-functions v2). A try/catch wrapper ensures runtime errors are explicitly logged. Force-run on 31 May 2026 confirmed the function executes and correctly skips non-cutoff days. First live test: **27 June 2026** (cutoff for the 3 Jul payday).
+
+### CSS extraction and infrastructure hardening ✓ (v12.01–v12.05)
+
+Refactoring and security hardening with no end-user visible behaviour change.
+
+- **v12.01** — `operations.css` and `settings.css` extracted from inline `<style>` blocks into external CSS files, completing the extraction that began at v11.41 (`index.css`, `admin.css`, `paycalc.css`).
+- **v12.04** — Guide page styles extracted to `guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css` — every page now uses `<link rel="stylesheet">` rather than inline `<style>` blocks. DOMPurify self-hosted at `./purify.es.mjs` (v3.4.8) — CDN import replaced; `<link rel="modulepreload">` in `index.html`; SW caches it network-first. Security headers added to `firebase.json`: `Strict-Transport-Security`, `Cross-Origin-Opener-Policy`, expanded `Permissions-Policy`. `normaliseSurname()` extracted to `firebase-client.js` (shared implementation for Auth password derivation). `PAGE_FALLBACKS` array in `service-worker.js` replaces long ternary chain in offline routing. Cultural calendar admin banner upgraded: `warnIfCulturalCalendarMissingYear()` now returns missing dataset names — a ⚠️ urgent banner appears year-round if data is missing, not just in Nov/Dec. ESLint and Firebase SDK version consistency checks added to the pre-commit hook. `@media (prefers-reduced-motion: reduce)` guards added for `sync-pulse` and `pulse-confirm` CSS animations.
+- **v12.05** — Firestore `overrides` read auth requirement reverted. v12.04 required anonymous Firebase Auth for calendar reads — more complexity than value (anyone can obtain an anonymous token as easily as the app does). Intentionally left open; decision and trade-offs documented in `KNOWN_LIMITATIONS.md` and commented in `firestore.rules`.
 
 ---
 
@@ -357,22 +363,7 @@ Note: the press-scale fix alone (`scale(0.94)` → `scale(var(--press-scale))`) 
 
 ## Design audit — April 2026
 
-A full design review was run against a generic 10-point modernisation list. The app turned out to be more mature than the generic advice implied. Recorded here so future audits don't re-tread the same ground.
-
-**Already well-implemented (no action needed):**
-- Shadows — `0 1px 4px` at 10% opacity (minimal by modern standards)
-- Typography — 6-tier scale (`--type-micro` → `--type-xl`) applied throughout
-- Motion — today-pulse, skeleton shimmer, spring lightbox, swipe transitions all exist
-- Colour contrast — every shift colour audited and darkened to WCAG AA
-- Touch target size, safe-area padding, reduced-motion — all handled
-
-**Real gap identified — navigation.** Addressed (and held back) by the "Bottom navigation bar" experiment above.
-
-**Not real problems for this app:**
-- "Heavy cards / 2018 feel" — only an issue at very wide desktop viewports; v7.62 desktop layout changes already addressed this
-- "Glanceable layouts" — a UX principle, not an actionable change
-
-**Shipped from this audit:** Pay result hierarchy (v7.67) — the period line and hint text under the £ figure were too dim (72% / 48% opacity). Increased to 88% / 62% with slightly larger sizes for clearer hierarchy.
+Design review against a 10-point modernisation list. Already well-implemented: shadows (minimal, 10% opacity), 5-tier type scale (`--type-micro` → `--type-large`), motion tokens, WCAG AA colour contrast across all shift types, touch targets, safe-area padding, and reduced-motion support. Navigation was the one real gap — addressed by the nav panel overhaul (v10.57). **Shipped from this audit:** Pay result hierarchy (v7.67) — period line and hint text brightened from 72%/48% to 88%/62% opacity.
 
 ---
 
@@ -473,10 +464,10 @@ Do not build speculatively. The PWA works well for the current use case.
 
 ## Open decisions
 
-**Auth hardening:** The surname password is practical for a roster app. If approval workflows or formal AL management are added, consider whether a colleague logging in as another person is an acceptable risk. Assess at the time. See CLAUDE.md → "Firebase Auth migration" for the migration plan.
+**Auth hardening:** The surname password is practical for a roster app. If approval workflows or formal AL management are added, consider whether a colleague logging in as another person is an acceptable risk. Assess at the time. See KNOWN_LIMITATIONS.md for the current suspended task (#2) and the re-introduction checklist.
 
 **Multi-admin:** ✓ Resolved — `CONFIG.ADMIN_NAMES` is now an array in `roster-data.js`. Adding another admin is a one-line change (name must match `teamMembers[n].name` exactly).
 
 **Official status:** Is this app sanctioned by Chiltern Railways? The more operationally critical it becomes, the more important this question is.
 
-**GDPR:** Staff shift data is personal data. If the app becomes official infrastructure, data controller status and retention policies will need documenting.
+**GDPR:** Staff shift data is personal data. The `faithCalendar` field stores a religious preference — see KNOWN_LIMITATIONS.md for the note on handling. If the app becomes official infrastructure, data controller status and full retention policies will need documenting.

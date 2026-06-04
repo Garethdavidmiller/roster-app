@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.03';
+export const APP_VERSION = '12.05';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1055,6 +1055,7 @@ export function validateRosterPatterns() {
  * Missing entries silently remove all markers for that calendar — this warning surfaces the gap.
  * Checks all 15 datasets that require manual annual updates (Islamic, Hindu, Chinese lunisolar).
  * Fixed-date and Easter-relative datasets are auto-computed and excluded from this check.
+ * @returns {string[]} Names of calendars missing the current year's data (empty if all present).
  */
 export function warnIfCulturalCalendarMissingYear() {
     const year    = new Date().getFullYear();
@@ -1084,6 +1085,7 @@ export function warnIfCulturalCalendarMissingYear() {
         { name: 'Chinese (Mid-Autumn)',    dates: MID_AUTUMN_DATES },
     ];
 
+    const missing = [];
     lunarCalendarDatasets.forEach(({ name, dates }) => {
         // Sets store 'YYYY-MM-DD' strings; Maps (CHINESE_NEW_YEAR_DATES) store date string keys
         const hasYear = dates instanceof Map
@@ -1091,8 +1093,10 @@ export function warnIfCulturalCalendarMissingYear() {
             : [...dates].some(d => d.startsWith(yearStr));
         if (!hasYear) {
             console.warn(`warnIfCulturalCalendarMissingYear: no entries for ${year} in ${name}. Cultural markers will be missing for this year.`);
+            missing.push(name);
         }
     });
+    return missing;
 }
 
 // ============================================

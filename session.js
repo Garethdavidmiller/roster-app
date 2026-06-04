@@ -10,7 +10,7 @@
  *   must be accompanied by a password reset for all affected users.
  */
 
-import { auth, authReady, onAuthStateChanged, nameToEmail, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
+import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 
 export const AUTH_KEY    = 'myb_admin_session';
@@ -33,7 +33,7 @@ export const SESSION_VER = 2; // bump to force all existing sessions to re-login
  * @returns {string} Lowercase password with all non-alpha characters removed
  */
 export function getSurname(fullName) {
-    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return normaliseSurname(fullName);
 }
 
 /**
@@ -67,6 +67,7 @@ export async function ensureFirebaseSession(name) {
     if (existing) return true;
 
     const pw         = getSurname(name);
+    // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.
     const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
     const email      = nameToEmail(name);
     let   firstError = null;
@@ -77,7 +78,7 @@ export async function ensureFirebaseSession(name) {
     } catch (e) {
         firstError = e.code;
         console.warn('[Auth] signIn failed:', e.code, 'for', email);
-        if (e.code === 'auth/user-not-found' || e.code === 'auth/invalid-credential') {
+        if (e.code === 'auth/user-not-found') {
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
                 console.log('[Auth] Created Firebase Auth account for', name);
@@ -87,6 +88,9 @@ export async function ensureFirebaseSession(name) {
                 firstError = createErr.code;
             }
         }
+        // auth/invalid-credential means the account exists with a different password —
+        // attempting createUser would fail with auth/email-already-in-use.
+        // Fall through to anonymous sign-in directly.
     }
 
     // Fallback: anonymous sign-in satisfies `request.auth != null`.
@@ -111,10 +115,6 @@ export async function ensureFirebaseSession(name) {
  * missing, absolutely expired (30 days), version-stale, or idle (7 days).
  * Auto-touches lastActivity on every valid call so opening the app resets
  * the idle clock — no separate touchSession() needed.
- *
- * Backward compat: sessions written before v11.44 have no lastActivity.
- * Those are treated as fresh on first check so no one is force-logged-out
- * the moment the update deploys. lastActivity is written going forward.
  */
 export function getSession() {
     try {
@@ -123,8 +123,8 @@ export function getSession() {
         const s = JSON.parse(raw);
         if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
         if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
-        // Idle check — missing lastActivity means pre-v11.44 session: treat as active.
-        if (s.lastActivity && Date.now() - s.lastActivity > IDLE_MS) {
+        // Idle check. Missing lastActivity: Date.now() - undefined = NaN, NaN > IDLE_MS = false → kept active.
+        if (Date.now() - s.lastActivity > IDLE_MS) {
             lsDel(AUTH_KEY); return null;
         }
         // Refresh lastActivity on every valid page-load check.
@@ -148,5 +148,5 @@ export function saveSession(name) {
 /** Clear the session from localStorage and sign out of Firebase Auth. */
 export function clearSession() {
     lsDel(AUTH_KEY);
-    firebaseSignOut(auth).catch(() => {});
+    firebaseSignOut(auth).catch(err => console.warn('[Auth] signOut failed:', err));
 }

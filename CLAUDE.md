@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `12.01` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `12.05` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -39,6 +39,13 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 
 **8 edit locations (7 files), every commit that touches behaviour:**
 
+> **What requires a bump:** any change that alters runtime behaviour — logic, data, UI,
+> CSS layout/appearance, security rules, HTTP headers, manifest, service worker caching.
+> **What does NOT require a bump:** pure documentation edits (`.md` files only), comment-only
+> changes inside JS/CSS with no runtime effect, and whitespace/formatting fixes with no
+> semantic change. If in doubt, bump — the cache invalidation cost is zero and the benefit
+> of always-fresh assets is real.
+
 | File | Location |
 |------|----------|
 | `roster-data.js` | `export const APP_VERSION = '...'` — **primary source** |
@@ -54,7 +61,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 
 **Documentation update policy:** Update every **0.10 version** (e.g. 10.10 → 10.20), or immediately on: new pay grade, auth/Firestore model change, SW strategy change, new page or module, data model change.
 
-**Same-commit rule:** Any commit that adds, removes, or renames a JS module must also update `CLAUDE.md` and `AI_MAP.md` in the same commit. The pre-commit hook (`githooks/pre-commit`) enforces this.
+**Same-commit rule:** Any commit that adds, removes, or renames a JS module must also update `CLAUDE.md` and `AI_MAP.md` in the same commit. The pre-commit hook (`githooks/pre-commit`) enforces this. The hook also runs ESLint on all staged JS files (if ESLint is installed) and checks that `firebase-client.js` does not import multiple different Firebase SDK versions at once.
 
 ---
 
@@ -113,6 +120,11 @@ roster-app/
 ├── settings.css            ← all CSS for settings.html (extracted from inline <style> at v12.01)
 ├── shared.css              ← CSS shared by all five app pages (index, admin, paycalc, operations, settings): nav panel, lightbox, login, card-header, collapsible, btn-action, btn-card-tips, tips lightbox — NOT the guides
 ├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Defines brand palette tokens (--navy, --navy-dark, --navy-mid, --gold) in :root — guide pages no longer define these themselves. Linked by guide/paycalc-guide/railcard-guide/fip (v11.48; palette tokens added v11.85)
+├── guide.css               ← page-specific styles for guide.html (extracted from inline <style> at v12.04)
+├── paycalc-guide.css       ← page-specific styles for paycalc-guide.html (extracted from inline <style> at v12.04)
+├── railcard-guide.css      ← page-specific styles for railcard-guide.html (extracted from inline <style> at v12.04)
+├── fip.css                 ← page-specific styles for fip.html (extracted from inline <style> at v12.04)
+├── purify.es.mjs           ← self-hosted DOMPurify (v3.4.8 ES module). Used by app-huddle-viewer.js to sanitise Huddle HTML. To upgrade: `npm pack dompurify@<ver>`, extract package/dist/purify.es.mjs, replace this file, update version comment in app-huddle-viewer.js (v12.04)
 ├── service-worker.js       ← single SW for all pages; cache name includes app version
 ├── manifest.json           ← PWA manifest for all pages
 ├── paycalc-guide.html      ← printable pay calculator reference guide
@@ -208,6 +220,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Team Week View | Available to all logged-in staff. Grade state (`currentTeamGrade`) persists across re-renders. Fetch token = week-start timestamp — stale Firestore results are discarded. Week navigation clamped to `CONFIG.MIN_YEAR`/`MAX_YEAR`. **No override-load status indicator** — deliberately not added (minimal-noise app). |
 | `persistentLocalCache()` in `firebase-client.js` | Firestore stores queries in IndexedDB. Do not revert to `getFirestore()` — Huddle viewer and override cache depend on instant load. |
 | `subscribeToLatestHuddle` in `firebase-client.js` | Persistent `onSnapshot` — Huddle viewer updates automatically when a new Huddle arrives. Do not replace with one-time fetch. |
+| `normaliseSurname()` in `firebase-client.js` (v12.04) | Shared surname derivation for Firebase Auth: lowercases, strips non-alpha, pads to 6 chars. Exported from `firebase-client.js`; `getSurname()` in `session.js` delegates to it. A deliberate duplicate also exists in `functions/roster-parse-helpers.js` — Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build step. If the rule ever changes, update both locations. |
 | `cors: true` on `parseRosterPDF` and `setupRosterAuth` | firebase-functions v6 `cors: [array]` doesn't consistently set `Access-Control-Allow-Headers` on preflight. Both functions use Firebase ID token auth, so wildcard origin adds no attack surface. `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all three pages. |
 | Canonical lightbox lifecycle (standardised v11.50) | Every `.lb-overlay` lightbox (About `#iconLightbox`, AL, Team info, Month jump, per-card Tips, paycalc Help/Welcome) follows one open/close shape so behaviour is identical across pages. **Open:** store `document.activeElement` in a `_*FocusReturn`, add `.visible`, then in `requestAnimationFrame` add `.open` **and** focus the close button, `lockBodyScroll()`, `_pushOverlayState(close)`, add an Escape `keydown` listener. **Close:** `_clearOverlayHistory()`, remove `.open`, then a `transitionend` **with a 500ms `setTimeout` fallback** removes `.visible` + `unlockBodyScroll()` (the fallback is mandatory — iOS suppresses `transitionend` on a backgrounded tab and the body stays scroll-locked without it), remove the Escape listener, restore focus to `_*FocusReturn`. Close controls are `<button class="lb-close">` (never `<span>` — spans aren't keyboard-focusable). The coming-soon lightbox is owned **only** by `nav-panel.js` — never re-wire `#navComingSoonLightbox` from a page module. The huddle viewer (`#huddleViewer`) is a full-bleed panel, not a centred `.lb-content` card, so it has no overlay-click-to-close — that difference is intentional. |
@@ -497,7 +510,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 - Senior Railcard Chiltern note — must say "journeys within the Network area" not "all Marylebone services"; through journeys to Birmingham are different. Do not collapse these into a single blanket rule.
 - Family & Friends — the morning-peak restriction is on Network-area journeys only, not the whole card. The subtext must not imply the card is Network-area-only.
 - Two Together photocard — the current wording is deliberately softened ("check names/photos on the card or its photocard") because the physical card format was not verified from an authoritative source. Do not strengthen the claim without confirmation.
-- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). They share only `guide-shell.css` — the small common header/button/print chrome (v11.48). Each page keeps its own `<style>` for its content. Do not add a `shared.css` import to any guide.
+- Guide pages do **not** import the app's `shared.css` (nav panel / lightbox / login chrome they don't use). They share only `guide-shell.css` — the small common header/button/print chrome (v11.48). Each page has its own external CSS file (`guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css`) for its content — extracted from inline `<style>` blocks at v12.04. Do not add a `shared.css` import to any guide.
 - Guide pages use no inline `<script>` or `onclick` handlers — Firebase Hosting CSP (`script-src 'self'`) blocks them. All guide JS is in external files: `railcard-guide.js` (v10.84) and `guide-print.js` (v10.84, shared by `guide.html` and `paycalc-guide.html`). Do not add inline scripts or `onclick` attributes to any of these pages.
 
 **What not to flag as defects:**
@@ -517,7 +530,7 @@ All four guide pages — `guide.html`, `paycalc-guide.html`, `railcard-guide.htm
 - **Header:** full-bleed sticky navy `.page-header`, `align-items: center`, `top: 0`, with `←` `.btn-back` (left) · title `<h1>` + `.sub` · `⤓ PDF` `.btn-pdf` (right, `margin-left:auto`). Top padding `max(14px, env(safe-area-inset-top))` for the iOS notch.
 - **Print:** `.page-header { position: static; print-color-adjust: exact }` and `.btn-back, .btn-pdf { display: none }`. railcard/fip print the sticky header as their title banner; on guide/paycalc the header is `.no-print` so these rules are inert there (they print their own in-document `.guide-header` banner instead — `print-color-adjust: exact` on that banner stays inline).
 
-**Still per-page in each inline `<style>` (keep aligned by eye):**
+**Still per-page in each page's own CSS file (keep aligned by eye):**
 - **Background:** flat `#f4f5f8` edge-to-edge. No white "page" card (removed at v11.47).
 - **Content width:** `max-width: 760px`, centred. guide/paycalc keep their two-column `.cols` grid inside this for print density; railcard/fip are single-column. (Old 620px reference width widened to 760 at v11.47.)
 - **Safe-area:** side insets `max(16px, env(safe-area-inset-*))` on the content wrapper; bottom `max(40px, env(safe-area-inset-bottom))`.

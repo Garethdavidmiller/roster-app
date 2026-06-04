@@ -898,9 +898,10 @@ function renderCalendar() {
             _staleMemberName = null;
             const banner = document.getElementById('errorBanner');
             if (banner) {
-                banner.textContent = `${stale} is no longer in the roster — now showing ${member.name}'s calendar.`;
+                banner.textContent = `"${stale}" is no longer in the roster — showing ${member.name}'s calendar. Use the dropdown to select the correct person.`;
                 banner.classList.add('visible');
-                setTimeout(() => banner.classList.remove('visible'), 5000);
+                // Keep visible for 30s — this is actionable (user needs to re-select).
+                setTimeout(() => banner.classList.remove('visible'), 30000);
             }
         }
 

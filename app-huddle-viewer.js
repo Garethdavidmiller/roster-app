@@ -18,8 +18,10 @@
  * Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
  */
 
-// Pinned to 3.4.7 — run `node generate-sri.mjs --apply` after upgrading.
-import DOMPurify from 'https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.es.mjs';
+// Self-hosted at ./purify.es.mjs (v3.4.8). To upgrade: npm pack dompurify@<new>, extract
+// package/dist/purify.es.mjs, replace the file, update the version comment here, and
+// re-run `node generate-sri.mjs --apply` to update the <link rel="modulepreload"> SRI in index.html.
+import DOMPurify from './purify.es.mjs';
 import { subscribeToLatestHuddle } from './firebase-client.js';
 import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
 

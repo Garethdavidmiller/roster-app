@@ -1526,7 +1526,14 @@
 
         /* ---- Pay lightbox — coming-soon panel ---- */
 
-        /* Print styles */
+        /* Print styles
+         * Checklist — update when adding new shift types, cell classes, or badges:
+         * [ ] New shift type badge visible / coloured correctly in print
+         * [ ] New cell class (e.g. .payday, .cutoff, .faith-*) has print-color-adjust
+         * [ ] New overlay / lightbox hidden in print
+         * [ ] New sticky / fixed element repositioned or hidden in print
+         * [ ] Team View print header shows new columns if added
+         */
         @media print {
             @page {
                 margin: 0.5cm;
@@ -2270,6 +2277,9 @@
         @keyframes sync-pulse {
             0%, 100% { opacity: 0.7; }
             50%       { opacity: 1;   }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .sync-chip { animation: none; }
         }
 
         /* ---- Skeleton shimmer — shown on calendar grid during initial Firestore fetch ---- */

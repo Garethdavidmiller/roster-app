@@ -972,6 +972,9 @@
             50%  { transform: scale(1.12); }
             100% { transform: scale(1); }
         }
+        @media (prefers-reduced-motion: reduce) {
+            .btn-save-confirm { animation: none; }
+        }
 
         .state-row td {
             text-align: center;
@@ -998,6 +1001,9 @@
             animation: spin 0.7s linear infinite;
             vertical-align: middle;
             margin-right: 6px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .spinner { animation: none; border-top-color: var(--primary-blue); }
         }
 
         /* ---- Annual Leave booking form ---- */
