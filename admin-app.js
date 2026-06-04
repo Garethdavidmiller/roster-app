@@ -14,7 +14,7 @@
  *   notifications, cultural calendar preferences, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY, warnIfCulturalCalendarMissingYear } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
@@ -103,6 +103,8 @@ function initLoginOverlay() {
 
     let _failCount = 0;
     let _lockedUntil = 0;
+    // Note: this client-side lockout is a UX measure only — it resets on page reload.
+    // Real rate limiting is enforced server-side by Firebase Auth.
 
     async function attempt() {
         if (Date.now() < _lockedUntil) return;
@@ -147,8 +149,11 @@ function initLoginOverlay() {
         // network request before Firebase can save the auth token to IndexedDB.
         await ensureFirebaseSession(name);
         const redirect = new URLSearchParams(location.search).get('redirect');
-        if (redirect === 'paycalc') {
-            window.location.replace('./paycalc.html');
+        // Whitelist redirect values to prevent open-redirect. New redirect targets
+        // require an entry here — the pattern catches them at compile time.
+        const REDIRECT_MAP = { paycalc: './paycalc.html' };
+        if (redirect && REDIRECT_MAP[redirect]) {
+            window.location.replace(REDIRECT_MAP[redirect]);
         } else {
             window.location.reload();
         }
@@ -1560,25 +1565,36 @@ document.querySelector('.nav-panel-pill--calendar')?.addEventListener('click', (
 // In November and December, remind the admin to update the 15 lunar/lunisolar
 // datasets before the new year begins. Only shown to the admin user.
 // Data sources and dataset list: CLAUDE.md → "Annual maintenance reminder".
-if (currentIsAdmin && new Date().getMonth() >= 10) {
-    const nextYear = new Date().getFullYear() + 1;
-    const banner   = document.createElement('div');
-    banner.id      = 'culturalCalReminder';
-    const icon = document.createElement('span');
-    icon.className = 'reminder-icon';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = '📅';
-    const text = document.createElement('span');
-    text.className = 'reminder-text';
-    text.innerHTML = `<strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.`;
-    const dismissBtn = document.createElement('button');
-    dismissBtn.className = 'reminder-dismiss';
-    dismissBtn.setAttribute('aria-label', 'Dismiss reminder');
-    dismissBtn.textContent = '×';
-    dismissBtn.addEventListener('click', function () { banner.remove(); });
-    banner.appendChild(icon);
-    banner.appendChild(text);
-    banner.appendChild(dismissBtn);
-    const anchor = document.querySelector('.card') || document.querySelector('main') || document.body;
-    anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
+// warnIfCulturalCalendarMissingYear() logs missing calendars and returns their names —
+// used both for the yearly reminder (Nov/Dec) and a year-round "currently missing" warning.
+if (currentIsAdmin) {
+    const missingNow = warnIfCulturalCalendarMissingYear();
+    const isRemindMonth = new Date().getMonth() >= 10;
+
+    if (isRemindMonth || missingNow.length > 0) {
+        const nextYear = new Date().getFullYear() + 1;
+        const banner   = document.createElement('div');
+        banner.id      = 'culturalCalReminder';
+        const icon = document.createElement('span');
+        icon.className = 'reminder-icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = missingNow.length > 0 ? '⚠️' : '📅';
+        const text = document.createElement('span');
+        text.className = 'reminder-text';
+        if (missingNow.length > 0) {
+            text.innerHTML = `<strong>Cultural calendar data missing for ${new Date().getFullYear()}</strong> — the following datasets have no entries this year and their markers will not appear on staff calendars: ${missingNow.join(', ')}. Update <code>roster-data.js</code> and see CLAUDE.md → "Annual maintenance reminder".`;
+        } else {
+            text.innerHTML = `<strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.`;
+        }
+        const dismissBtn = document.createElement('button');
+        dismissBtn.className = 'reminder-dismiss';
+        dismissBtn.setAttribute('aria-label', 'Dismiss reminder');
+        dismissBtn.textContent = '×';
+        dismissBtn.addEventListener('click', function () { banner.remove(); });
+        banner.appendChild(icon);
+        banner.appendChild(text);
+        banner.appendChild(dismissBtn);
+        const anchor = document.querySelector('.card') || document.querySelector('main') || document.body;
+        anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
+    }
 }

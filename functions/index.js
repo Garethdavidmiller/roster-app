@@ -53,6 +53,9 @@ const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
 // Staff browsers use this to encrypt push payloads so only this server can read them.
 const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
+// Claude model used by parseRosterPDF. Pin here so version bumps are explicit and grep-able.
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
+
 /**
  * POST /ingestHuddle
  *
@@ -107,6 +110,11 @@ exports.ingestHuddle = onRequest(
 
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             res.status(400).json({ error: 'Invalid date format — expected YYYY-MM-DD' });
+            return;
+        }
+        const parsedDate = new Date(date + 'T12:00:00Z');
+        if (isNaN(parsedDate.getTime())) {
+            res.status(400).json({ error: 'Invalid date value — month or day out of range' });
             return;
         }
 
@@ -179,6 +187,9 @@ exports.ingestHuddle = onRequest(
             // iam.serviceAccountTokenCreator role needed to sign URLs.
             let storageUrl;
             try {
+                // 1-year expiry: after 365 days this URL returns 403. Staff viewing an
+                // archive huddle older than one year will see an access error. The
+                // Firestore document remains, but the file itself must be re-uploaded.
                 const [signedUrl] = await file.getSignedUrl({
                     version: 'v4',
                     action:  'read',
@@ -272,8 +283,9 @@ exports.onHuddleCreated = onDocumentCreated(
         const uploadedBy = event.data.data().uploadedBy || '';
 
         // Power Automate uploads are handled directly inside ingestHuddle (before the
-        // HTTP response, so the container is guaranteed to be alive). Skip here to
-        // avoid double-notifying staff for the same huddle.
+        // HTTP response, so the container is guaranteed to be alive). This guard is
+        // essential — without it, both ingestHuddle and this trigger would fan out push
+        // notifications for the same date, double-notifying all staff.
         if (uploadedBy === 'power-automate') {
             console.log(`[onHuddleCreated] Skipping — Power Automate upload already notified via ingestHuddle`);
             return;
@@ -289,13 +301,19 @@ exports.onHuddleCreated = onDocumentCreated(
     }
 );
 
-/** Configures web-push VAPID credentials for this invocation. */
+// Module-level flag so setVapidDetails() is only called once per warm instance.
+// Secrets are not available at module init, so we defer to first call.
+let _vapidConfigured = false;
+
+/** Configures web-push VAPID credentials once per process lifetime. */
 function setupWebPush(vapidPrivate) {
+    if (_vapidConfigured) return;
     webpush.setVapidDetails(
         'mailto:noreply@myb-roster.web.app',
         VAPID_PUBLIC_KEY,
         vapidPrivate.value(),
     );
+    _vapidConfigured = true;
 }
 
 /**
@@ -721,7 +739,7 @@ Every column header must appear as a key in every member object.`;
             const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY.value() });
 
             const message = await client.messages.create({
-                model:      'claude-sonnet-4-6',
+                model:      CLAUDE_MODEL,
                 max_tokens: 8192,
                 messages: [{
                     role: 'user',
@@ -860,17 +878,8 @@ exports.setupRosterAuth = onRequest(
         } catch (_) {
             return res.status(401).json({ error: 'Unauthorised' });
         }
-        // Normal path: caller already has the admin claim.
-        // Bootstrap path: caller is a known admin email but the claim has not been
-        // set yet (e.g. rules were tightened before setupRosterAuth was first run).
-        // Scope is limited to the hardcoded email so this is not a privilege-escalation risk.
-        const BOOTSTRAP_ADMIN_EMAIL = 'g.miller@myb-roster.local';
-        const isBootstrap = !decodedAuth.admin && decodedAuth.email === BOOTSTRAP_ADMIN_EMAIL;
-        if (!decodedAuth.admin && !isBootstrap) {
+        if (!decodedAuth.admin) {
             return res.status(403).json({ error: 'Forbidden — admin claim required' });
-        }
-        if (isBootstrap) {
-            console.log('[setupRosterAuth] Bootstrap mode — granting first-run access to', decodedAuth.email);
         }
 
         const body    = req.body || {};

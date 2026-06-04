@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v12.03 -->
+<!-- MYB Roster — Calendar v12.04 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -35,8 +35,8 @@
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
     <link rel="stylesheet" href="shared.css">
-    <!-- SRI: locks DOMPurify to the exact bytes we've verified — run generate-sri.mjs --apply after upgrading -->
-    <link rel="modulepreload" integrity="sha384-iwQ63xeXeCJmVOwihV+YG1ZTZSe+pL+1X9OgiZQikgf+juy+bYFkn3HvaRqFVVyO" crossorigin="anonymous" href="https://cdn.jsdelivr.net/npm/dompurify@3.4.7/dist/purify.es.mjs">
+    <!-- DOMPurify self-hosted at ./purify.es.mjs (v3.4.8). modulepreload speeds up initial load. -->
+    <link rel="modulepreload" href="./purify.es.mjs">
 
     <link rel="stylesheet" href="./index.css">
 </head>

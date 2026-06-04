@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v12.03
+// MYB Roster — Service Worker v12.04
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,13 +15,12 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '12.03';
+const APP_VERSION = '12.04';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
-// Note: matching uses path.endsWith(filename), which is a suffix check, not an
-// exact path check. This is intentional — all these files live at the root of
-// the PWA origin so partial suffix matches never collide in practice.
+// Note: matching uses `path === '/' + f` — an exact root-path check.
+// All network-first files live at the origin root, so this is always correct.
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html',
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css',
@@ -39,6 +38,8 @@ const NETWORK_FIRST_FILES = [
     'fip.html', 'guide.html',
     'railcard-guide.html',
     'railcard-guide.js', 'guide-print.js', 'guide-shell.css',
+    'guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'fip.css',
+    'purify.es.mjs',
 ];
 
 // Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
@@ -94,11 +95,18 @@ const SUPPLEMENTARY_ASSETS = [
     "./railcard-guide.js",
     "./guide-print.js",
     "./guide-shell.css",
+    "./guide.css",
+    "./paycalc-guide.css",
+    "./railcard-guide.css",
+    "./fip.css",
+    "./purify.es.mjs",
 ];
 
 // Self-hosted typeface — stable asset, cache-first like icons. Precached so the
 // app renders in Inter on the first offline launch (otherwise it would fall back
 // to the system font until the file was fetched online once).
+// cache-first: the old version persists until APP_VERSION bumps the cache name.
+// If the font file ever needs updating, bump the app version in the same commit.
 const FONT_ASSETS = [
     "./fonts/inter-latin.woff2",
 ];
@@ -167,8 +175,9 @@ self.addEventListener("fetch", event => {
     if (url.origin !== self.location.origin) return;
 
     const path = url.pathname;
-    const isNetworkFirst = path.endsWith("/")
-        || NETWORK_FIRST_FILES.some(f => path.endsWith(f));
+    const isNetworkFirst = path === '/'
+        || path.endsWith('/')
+        || NETWORK_FIRST_FILES.some(f => path === '/' + f);
 
     if (isNetworkFirst) {
         // Network-first: revalidate against the server (304 if unchanged → no body download),
@@ -194,7 +203,9 @@ self.addEventListener("fetch", event => {
                     clearTimeout(timeoutId);
                     if (response && response.status === 200) {
                         const clone = response.clone();
-                        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+                        caches.open(CACHE_NAME)
+                            .then(cache => cache.put(event.request, clone))
+                            .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err));
                     }
                     return response;
                 })
@@ -204,16 +215,22 @@ self.addEventListener("fetch", event => {
                     // Only use an HTML page as a fallback for document (navigation) requests.
                     // Serving HTML for a JS/CSS request causes a MIME type error in the browser.
                     const isDoc = event.request.destination === 'document';
-                    const fallback = isDoc
-                        ? (path.includes('paycalc') ? './paycalc.html' : path.includes('operations') ? './operations.html' : path.includes('settings') ? './settings.html' : path.includes('admin') ? './admin.html' : './index.html')
-                        : null;
+                    const PAGE_FALLBACKS = [
+                        ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
+                        ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
+                        ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
+                        ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
+                    ];
+                    const match       = isDoc && PAGE_FALLBACKS.find(([seg]) => path.includes(seg));
+                    const fallback    = match ? match[1] : (isDoc ? './index.html' : null);
+                    const offlineMsg  = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
                     // iOS can evict the entire Cache Storage under storage pressure —
                     // synthesise a minimal offline page so the request still resolves.
                     return caches.match(event.request)
                         .then(r => r || (fallback ? caches.match(fallback) : null))
                         .then(r => r || (isDoc
                             ? new Response(
-                                '<h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">Cache was cleared. Please reconnect and reload.</p>',
+                                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — MYB Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
                                 { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
                               )
                             : Response.error()

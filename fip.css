@@ -1,0 +1,376 @@
+/* MYB Roster — FIP Travel Guide page styles. Linked by fip.html after guide-shell.css. */
+
+:root {
+    /* --navy / --navy-dark / --gold defined in guide-shell.css */
+    --text:       #1a1a2e;
+    --mid:        #555;
+    --light:      #888;
+    --border:     #dde1e8;
+    --bg:         #f4f5f8;
+    --white:      #fff;
+    --green-bg:   #e8f5e9;
+    --green-text: #2e7d32;
+    --red-bg:     #ffebee;
+    --red-text:   #c62828;
+    --yellow-bg:  #fff9e6;
+    --yellow-bdr: #d4a800;
+    --blue-bg:    #e3f2fd;
+    --blue-text:  #1565c0;
+}
+
+/* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
+   lives in guide-shell.css. Page-specific styles only below. */
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text);
+    background: var(--bg);
+}
+
+/* ── Content wrapper ─────────────────────── */
+.content {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 20px max(16px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+/* ── Section label ───────────────────────── */
+.section-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--navy);
+    border-bottom: 2px solid var(--gold);
+    padding-bottom: 5px;
+    margin: 24px 0 12px;
+}
+.section-label:first-child { margin-top: 0; }
+
+/* ── Plain card ──────────────────────────── */
+.card {
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,30,60,0.10);
+    margin-bottom: 10px;
+}
+.card-pad { padding: 14px 16px; }
+
+/* ── Two-column cards ────────────────────── */
+.two-up {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.two-up .card { margin-bottom: 0; }
+.two-up .card .icon { font-size: 26px; margin-bottom: 6px; }
+.two-up .card h3 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+.two-up .card p { font-size: 12px; color: var(--mid); line-height: 1.45; }
+
+/* ── Steps ───────────────────────────────── */
+.steps { list-style: none; counter-reset: step; }
+.steps li {
+    counter-increment: step;
+    position: relative;
+    padding: 12px 14px 12px 48px;
+    border-bottom: 1px solid var(--border);
+}
+.steps li:last-child { border-bottom: none; }
+.steps li::before {
+    content: counter(step);
+    position: absolute;
+    left: 12px;
+    top: 14px;
+    width: 26px; height: 26px;
+    background: var(--navy);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+}
+.steps li strong { display: block; font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.steps li span { font-size: 13px; color: var(--mid); }
+
+/* ── Info / warning boxes ────────────────── */
+.box {
+    border-radius: 8px;
+    padding: 11px 13px;
+    font-size: 13px;
+    line-height: 1.5;
+    margin-bottom: 10px;
+}
+.box-yellow { background: var(--yellow-bg); border: 1px solid var(--yellow-bdr); }
+.box-red    { background: var(--red-bg);    border: 1px solid #f5c0c0; }
+.box-blue   { background: var(--blue-bg);   border: 1px solid #90caf9; }
+.box strong { display: block; font-size: 13px; margin-bottom: 4px; }
+
+/* ── Eurostar pricing ────────────────────── */
+.price-row {
+    display: flex;
+    gap: 16px;
+    padding: 12px 16px 14px;
+    border-bottom: 1px solid var(--border);
+}
+.price-item { flex: 1; }
+.price-amount { font-size: 26px; font-weight: 800; color: var(--navy); line-height: 1; margin-bottom: 3px; }
+.price-amount.grey { color: var(--light); }
+.price-desc { font-size: 12px; color: var(--mid); }
+
+.detail-list { padding: 12px 16px; }
+.detail-row {
+    display: flex;
+    gap: 10px;
+    padding: 5px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+.detail-row:last-child { border-bottom: none; }
+.detail-key { color: var(--mid); flex-shrink: 0; min-width: 88px; font-size: 13px; }
+
+/* ── Country/ferry collapsibles ──────────── */
+details {
+    background: var(--white);
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,30,60,0.10);
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 13px 14px;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    list-style: none;
+    user-select: none;
+    -webkit-user-select: none;
+    background: var(--white);
+}
+summary::-webkit-details-marker { display: none; }
+summary .chevron {
+    font-size: 11px;
+    color: var(--light);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+details[open] > summary .chevron { transform: rotate(180deg); }
+details[open] > summary { border-bottom: 1px solid var(--border); }
+
+.detail-body {
+    padding: 14px;
+    font-size: 14px;
+}
+.detail-body p { margin-bottom: 8px; }
+.detail-body p:last-child { margin-bottom: 0; }
+
+/* ── Tags ────────────────────────────────── */
+.tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.tag {
+    display: inline-block;
+    padding: 3px 9px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.tag-yes  { background: var(--green-bg);  color: var(--green-text); }
+.tag-no   { background: var(--red-bg);   color: var(--red-text); }
+.tag-warn { background: var(--yellow-bg); color: #7a5500; }
+.tag-note { background: var(--blue-bg);  color: var(--blue-text); }
+
+/* ── Rules list ──────────────────────────── */
+.rule-list { list-style: none; }
+.rule-list li {
+    padding: 9px 14px 9px 34px;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+.rule-list li:last-child { border-bottom: none; }
+.rule-list li::before {
+    position: absolute;
+    left: 12px;
+    font-weight: 700;
+}
+.rule-list li.yes::before { content: '✓'; color: var(--green-text); }
+.rule-list li.no::before  { content: '✗'; color: var(--red-text); }
+
+/* ── CTA buttons ─────────────────────────── */
+.btn-primary, .btn-secondary {
+    display: block;
+    width: 100%;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s, border-color 0.15s;
+    margin-bottom: 10px;
+}
+.btn-primary {
+    background: var(--navy);
+    color: white;
+    border: none;
+    padding: 14px 20px;
+    font-size: 15px;
+    font-weight: 700;
+}
+.btn-primary:active { background: var(--navy-dark); }
+.btn-secondary {
+    background: white;
+    color: var(--navy);
+    border: 2px solid var(--navy);
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 700;
+}
+.btn-text-link {
+    display: inline-flex;
+    align-items: center;
+    width: 100%;
+    text-align: center;
+    text-decoration: underline;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-bottom: 10px;
+    color: var(--navy);
+    font-size: 13px;
+    padding: 8px;
+    background: none;
+    border: none;
+    min-height: 44px;
+}
+
+/* ── Divider ─────────────────────────────── */
+hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+
+/* ── Utility ─────────────────────────────── */
+.not-fip-card   { opacity: 0.45; }
+.not-fip-header { display: flex; justify-content: space-between; align-items: center; }
+.not-fip-name   { font-size: 15px; font-weight: 600; }
+.not-fip-desc   { font-size: 13px; color: var(--mid); margin-top: 6px; margin-bottom: 0; }
+.section-intro  { font-size: 13px; color: var(--mid); margin-bottom: 12px; }
+.page-intro     { font-size: 14px; line-height: 1.6; margin-bottom: 16px; }
+.price-subtitle { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--mid); }
+.price-subtitle + .price-subtitle { margin-top: 12px; }
+.source-note    { font-size: 12px; color: var(--mid); margin-bottom: 0; }
+.sub-label      { font-size: 11px; font-weight: 700; text-transform: uppercase;
+                  letter-spacing: 0.06em; color: var(--light); margin: 0 0 8px; }
+.sub-label + .sub-label { margin-top: 14px; }
+.mb-0  { margin-bottom: 0; }
+.mb-8  { margin-bottom: 8px; }
+.mb-12 { margin-bottom: 12px; }
+.mt-0  { margin-top: 0; }
+.mt-8  { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+
+/* ── Checklist ───────────────────────────── */
+.checklist { list-style: none; }
+.checklist li {
+    padding: 8px 14px 8px 36px;
+    position: relative;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+}
+.checklist li:last-child { border-bottom: none; }
+.checklist li::before {
+    content: '☐';
+    position: absolute;
+    left: 12px;
+    color: var(--mid);
+    font-size: 15px;
+}
+
+/* ── Country jump list ───────────────────── */
+.country-jump {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 14px;
+}
+.country-jump a {
+    font-size: 12px;
+    padding: 8px 12px;
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    text-decoration: none;
+    color: var(--text);
+    white-space: nowrap;
+    touch-action: manipulation;
+}
+.country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
+.country-jump a.not-fip { opacity: 0.45; }
+
+/* ── Summary warning badge ───────────────── */
+.summary-warn {
+    font-size: 11px;
+    font-weight: 700;
+    background: var(--yellow-bg);
+    color: #7a5500;
+    border: 1px solid var(--yellow-bdr);
+    border-radius: 8px;
+    padding: 2px 7px;
+    margin-left: 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+/* ── Print ───────────────────────────────── */
+@media print {
+    * { orphans: 2; widows: 2; }
+
+    /* The shell prints .page-header as the title banner and hides its
+       buttons; here we just drop the remaining screen-only chrome. */
+    .country-jump,
+    .btn-primary,
+    .btn-secondary,
+    .btn-text-link { display: none !important; }
+
+    body { background: white; font-size: 13px; }
+
+    .content { max-width: 100%; padding: 0 0 16px; }
+
+    /* Expand all <details> without JS */
+    details { display: block !important; box-shadow: none; border: 1px solid var(--border); }
+    summary { display: none !important; }
+    .detail-body { display: block !important; }
+
+    /* Remove box shadows throughout */
+    .card { box-shadow: none; border: 1px solid var(--border); }
+
+    /* Keep tag/box colours — they carry semantic meaning in a reference doc */
+    .tag-yes, .tag-no, .tag-warn,
+    .box-yellow, .box-red, .box-blue {
+        -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }
+
+    /* Ensure expanded details don't clip content in print engines */
+    details { overflow: visible; }
+
+    /* Keep country cards together where possible */
+    details, .card { break-inside: avoid; }
+
+    /* Section headings start a new block but don't orphan */
+    .section-label { break-after: avoid; margin-top: 16px; }
+
+    hr { border-top-color: var(--border); margin: 12px 0; }
+}
+
+/* Footer disclaimer text */
+.foot-disclaimer {
+    font-size: 11px;
+    color: var(--light);
+    opacity: 0.7;
+    text-align: center;
+    margin-top: 20px;
+    line-height: 1.6;
+}

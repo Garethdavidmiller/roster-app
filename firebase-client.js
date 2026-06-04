@@ -93,6 +93,25 @@ export const authReady = setPersistence(auth, indexedDBLocalPersistence)
 export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
 
 /**
+ * Normalise a full display name down to a surname fragment: everything after
+ * the first word, lowercased, letters only.
+ *   "G. Miller"            → "miller"
+ *   "C. Francisco-Charles" → "franciscocharles"
+ *
+ * Exported so session.js getSurname can reuse it — prevents the two
+ * implementations drifting apart independently.
+ * NOTE: functions/roster-parse-helpers.js contains a deliberate copy of this
+ * logic (nameToPassword) because Firebase Functions cannot import browser ES
+ * modules. Do not attempt to unify them — the Functions build will break.
+ *
+ * @param {string} fullName
+ * @returns {string}
+ */
+export function normaliseSurname(fullName) {
+    return fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+}
+
+/**
  * Derive a stable Firebase Auth email from a teamMembers display name.
  *
  * Convention: initial.surname@myb-roster.local
@@ -100,8 +119,10 @@ export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnony
  *   "C. Francisco-Charles" → "c.franciscocharles@myb-roster.local"
  *   "L. Atrakimaviciene"   → "l.atrakimaviciene@myb-roster.local"
  *
- * The @myb-roster.local domain is synthetic — these accounts are never used for email.
- * The password matches the existing localStorage password (surname, lowercase, alpha only).
+ * The @myb-roster.local domain is synthetic — these accounts are never used for
+ * email delivery. Note: Firebase Auth's distinct error codes for
+ * auth/user-not-found vs auth/invalid-credential can reveal whether an account
+ * exists for a given email; documented in KNOWN_LIMITATIONS.md.
  *
  * @param {string} fullName - Display name exactly as stored in teamMembers
  * @returns {string} Firebase Auth email address
@@ -109,7 +130,7 @@ export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnony
 export function nameToEmail(fullName) {
     const parts   = fullName.split(' ');
     const initial = parts[0].replace(/[^a-zA-Z]/g, '').toLowerCase();
-    const surname = parts.slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    const surname = normaliseSurname(fullName);
     return `${initial}.${surname}@myb-roster.local`;
 }
 
@@ -152,6 +173,10 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
         : 'application/pdf';
     const storageRef = ref(storage, `huddles/${date}.${fileType}`);
     await uploadBytes(storageRef, file, { contentType: mimeType });
+    // getDownloadURL returns a permanent tokenised URL (never expires). Note: huddles
+    // ingested by the Cloud Function use a 1-year signed URL instead — so manual-upload
+    // and PA-ingest huddles have different URL lifetimes. Both work; the difference is
+    // documented so a future unification decision is deliberate.
     const storageUrl = await getDownloadURL(storageRef);
     const firestoreDoc = { date, storageUrl, fileType, uploadedAt: serverTimestamp(), uploadedBy };
     if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
@@ -170,6 +195,7 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
  * @returns {function} Unsubscribe function (call to clean up the listener)
  */
 export function subscribeToLatestHuddle(onData, onError) {
+    // Requires Firestore composite index: huddles/date desc — see Firebase Console → Indexes.
     const q = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
     return onSnapshot(q, (snap) => {
         if (snap.empty) { onData(null); return; }
@@ -193,7 +219,11 @@ async function endpointId(endpoint) {
     return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 20);
 }
 
-/** Converts an ArrayBuffer from getKey() into a URL-safe base64 string for Firestore. */
+/**
+ * Converts an ArrayBuffer from getKey() into a URL-safe base64 string for Firestore.
+ * The spread is safe here: VAPID keys are always ≤65 bytes (p256dh) and 16 bytes
+ * (auth), so the argument list never risks a stack overflow.
+ */
 function keyToBase64(buffer) {
     return btoa(String.fromCharCode(...new Uint8Array(buffer)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');

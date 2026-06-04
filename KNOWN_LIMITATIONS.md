@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: June 2026 — v12.01 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.04 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -15,6 +15,16 @@ member could alter huddle metadata (storageUrl, fileType, htmlContent) even thou
 Storage rules prevented them from uploading files. The two rules now match: both Storage
 and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
 bypass rules and are unaffected.
+
+### faithCalendar field stores a personal religious preference (GDPR note)
+The `faithCalendar` field in `memberSettings/{memberName}` stores the staff member's
+chosen cultural calendar (e.g. `'islamic'`, `'hindu'`). This is a personal religious/
+cultural preference and constitutes special-category personal data under UK GDPR Article 9.
+Current mitigations: Firestore rules require `request.auth != null` for all reads and
+writes; only the member themselves can write their own setting. No additional retention
+policy or right-to-erasure flow has been implemented — `allow delete: if request.auth != null`
+in `firestore.rules` covers self-deletion. If this data is ever exported or shared beyond
+the app, a DPIA should be completed.
 
 ### CSP connect-src includes firebasestorage.googleapis.com (v11.07)
 Firebase Storage browser uploads (manual Huddle upload in Operations) use
@@ -228,6 +238,19 @@ to name-match the AI-parsed roster output. This must stay in sync with `teamMemb
 comment in `functions/index.js` acknowledges this. For now: when adding or removing a
 member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
 in the same commit.
+
+### Test coverage gaps
+Current test suites cover: override priority logic (`app.test.mjs`), roster data / bank
+holidays / paydays / AL (`roster-data.test.mjs`), pay maths (`paycalc.test.mjs`),
+roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse helpers
+(`roster-parse-helpers.test.mjs`), and SW asset completeness (`sw-asset-check.test.mjs`).
+
+Not currently tested: DOM rendering in `app.js` / `admin-app.js`, the Firestore read/write
+layer in all page modules, nav panel injection and overlay lifecycle (`nav-panel.js`,
+`overlay.js`), session management edge cases (`session.js`), push notification subscribe/
+unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration tests).
+Before adding new untested behaviour in these modules, consider whether a unit or
+integration test can be added first.
 
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but

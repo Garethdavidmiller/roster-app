@@ -9,7 +9,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, getDocs } from './firebase-client.js';
+import { db, auth, collection, query, where, getDocs, onAuthStateChanged, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
@@ -898,9 +898,10 @@ function renderCalendar() {
             _staleMemberName = null;
             const banner = document.getElementById('errorBanner');
             if (banner) {
-                banner.textContent = `${stale} is no longer in the roster — now showing ${member.name}'s calendar.`;
+                banner.textContent = `"${stale}" is no longer in the roster — showing ${member.name}'s calendar. Use the dropdown to select the correct person.`;
                 banner.classList.add('visible');
-                setTimeout(() => banner.classList.remove('visible'), 5000);
+                // Keep visible for 30s — this is actionable (user needs to re-select).
+                setTimeout(() => banner.classList.remove('visible'), 30000);
             }
         }
 
@@ -1805,6 +1806,21 @@ async function ensureOverridesCached(year, month) {
 // ============================================
 (async () => {
     _initialFetchInProgress = true;
+
+    // Firestore overrides now require auth (request.auth != null). Establish an
+    // anonymous session if no session already exists (e.g. if the user opened the
+    // calendar directly without logging in). Signed-in users keep their existing
+    // session; this is a no-op for them. Failure is non-fatal — the calendar still
+    // renders from the base roster, just without any recorded overrides.
+    await new Promise(resolve => {
+        const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
+    }).then(async user => {
+        if (!user) {
+            await signInAnonymously(auth).catch(err =>
+                console.warn('[app.js] Anonymous auth failed — overrides may not load:', err.code)
+            );
+        }
+    });
 
     const now  = new Date();
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);

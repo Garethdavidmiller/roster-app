@@ -44,9 +44,13 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Firebase init and Firestore helpers | `firebase-client.js` |
 | localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
-| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` |
+| Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
 | Print button for guide.html and paycalc-guide.html | `guide-print.js` |
 | Shared guide chrome — header, back/PDF buttons, print banner (all 4 guides) | `guide-shell.css` |
+| Page-specific styles for guide.html | `guide.css` |
+| Page-specific styles for paycalc-guide.html | `paycalc-guide.css` |
+| Page-specific styles for fip.html | `fip.css` |
+| HTML sanitisation for Huddle viewer (self-hosted) | `purify.es.mjs` |
 
 ---
 
@@ -293,6 +297,18 @@ Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `rai
 - Holds common header/back-button/PDF-button/print rules and defines shared brand palette tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) in its own `:root` (v11.85) — guide pages no longer define these themselves
 - This is the one place to change guide chrome — do not re-inline it into the pages
 - NOT the app's `shared.css` (which the guides deliberately don't import) — see CLAUDE.md "Unified guide shell"
+
+### `guide.css` / `paycalc-guide.css` / `railcard-guide.css` / `fip.css`
+Page-specific CSS for each guide page — extracted from inline `<style>` blocks at v12.04.
+- Edit the corresponding file for any visual change specific to that guide page
+- All four are network-first in the service worker (same freshness guarantee as their HTML)
+- Linked after `guide-shell.css` in each guide's `<head>`
+
+### `purify.es.mjs`
+Self-hosted DOMPurify ES module (v3.4.8) — extracted from CDN at v12.04.
+- Imported by `app-huddle-viewer.js` for Huddle HTML sanitisation
+- To upgrade: `npm pack dompurify@<ver>`, extract `package/dist/purify.es.mjs`, replace this file, update version comment in `app-huddle-viewer.js`
+- Precached by the service worker (network-first)
 
 ### `shared.css`
 All CSS shared across all five app pages (index, admin, paycalc, operations, settings).
