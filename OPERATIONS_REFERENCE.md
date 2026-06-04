@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: June 2026 — v12.01 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.05 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -299,7 +299,7 @@ Apply approved changes:
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` in `firebase-client.js` and `functions/index.js` must stay in sync with `getSurname()` in `session.js`.
+`nameToEmail(name)` in `firebase-client.js` and `functions/index.js` must stay in sync with `getSurname()` in `session.js`. As of v12.04, `getSurname()` delegates to `normaliseSurname()` which is exported from `firebase-client.js`. The same derivation is also duplicated in `functions/roster-parse-helpers.js` — this is intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update all three locations.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is. The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load.
 
