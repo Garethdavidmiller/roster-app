@@ -414,25 +414,24 @@ body.lb-open #stickyTotal { display: none !important; }
     transform: scale(0.85);
 }
 
-/* Profile avatar in the About lightbox — shown below the section badge */
+/* Profile avatar in the About lightbox — replaces the app logo when a photo is set */
 .lightbox-avatar-badge {
-    width: 64px;
-    height: 64px;
+    width: 100px;
+    height: 100px;
     border-radius: 50%;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
+    font-size: 36px;
     font-weight: 700;
     line-height: 1;
     color: white;
     flex-shrink: 0;
-    margin-top: 10px;
+    margin-bottom: 8px;
     user-select: none;
 }
-/* Override the generic app-icon rule below so the avatar photo is circular,
-   not square with rounded corners. */
+/* Override the generic app-icon rule so the avatar photo is circular. */
 .lightbox-avatar-badge img {
     width: 100%;
     height: 100%;
