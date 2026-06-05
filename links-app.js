@@ -199,7 +199,6 @@ function buildSelectOptions(currentVal) {
         ...(isUnknown ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>'] : []),
         ...(EARLY_SHIFTS.length ? ['<optgroup label="Early (starting before 11:00)">', ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
         ...(LATE_SHIFTS.length  ? ['<optgroup label="Late (starting 11:00 or after)">', ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
-        ...(NIGHT_SHIFTS.length ? ['<optgroup label="Night (starting 21:00 or after)">', ...NIGHT_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
     ].join('');
 }
 
@@ -306,8 +305,8 @@ function renderFooter(cov) {
     if (!tfoot || !design) return;
     if (!cov) cov = calcCoverage(design.patterns);
     const cells = DAYS.map(d => {
-        const { early, late, spare, night } = cov[d];
-        const worked = early + late + spare + night;
+        const { early, late, spare } = cov[d];
+        const worked = early + late + spare;
         return `<td class="cov-cell">` +
             `<span class="cov-num">${worked}</span>` +
             `<span class="cov-label-e"> E:${early}</span>` +
@@ -398,17 +397,16 @@ function renderCoverageChart(cov) {
     const BAR_H = 96; // px
 
     const cols = DAYS.map((d, di) => {
-        const { early, late, spare, night } = cov[d];
-        const worked = early + late + spare + night;
+        const { early, late, spare } = cov[d];
+        const worked = early + late + spare;
         const eH = Math.round((early / TOTAL_POS) * BAR_H);
         const lH = Math.round((late  / TOTAL_POS) * BAR_H);
         const sH = Math.round((spare / TOTAL_POS) * BAR_H);
-        const nH = Math.round((night / TOTAL_POS) * BAR_H);
         // Warn only when absolutely no one is working — anything else is a design choice.
         const warn = worked === 0;
 
         // DOM order with column-reverse: first item sits at bottom.
-        // Order: early (bottom) → late → spare → night (top).
+        // Order: early (bottom) → late → spare (top).
         return `<div class="cov-day-col">` +
             `<span class="cov-count${warn ? ' cov-count-warn' : ''}">${worked}</span>` +
             `<div class="cov-bar-wrap" style="height:${BAR_H}px">` +
@@ -416,7 +414,6 @@ function renderCoverageChart(cov) {
             (eH ? `<div class="cov-bar-seg early" style="height:${eH}px"></div>` : '') +
             (lH ? `<div class="cov-bar-seg late"  style="height:${lH}px"></div>` : '') +
             (sH ? `<div class="cov-bar-seg spare" style="height:${sH}px"></div>` : '') +
-            (nH ? `<div class="cov-bar-seg night" style="height:${nH}px"></div>` : '') +
             `</div>` +
             `<span class="cov-day-label${warn ? ' cov-day-label-warn' : ''}">${DAY_LABELS[di]}</span>` +
             `</div>`;
@@ -428,7 +425,6 @@ function renderCoverageChart(cov) {
         `<div class="cov-legend-item"><div class="cov-legend-dot early"></div>Early</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot late"></div>Late</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot spare"></div>Spare</div>` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot night"></div>Night</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot rd"></div>Rest/vacant</div>` +
         `</div>`;
 }
@@ -641,7 +637,6 @@ window.addEventListener('beforeunload', e => {
                 { icon: '🔵', html: '<strong>Early</strong> — shifts starting before 11:00' },
                 { icon: '🟠', html: '<strong>Late</strong> — shifts starting at 11:00 or after' },
                 { icon: '🟡', html: '<strong>Spare</strong> — standby positions with no fixed shift time' },
-                { icon: '🟣', html: '<strong>Night</strong> — shifts starting at 21:00 or after' },
                 { icon: '⬜', html: 'The grey portion of each bar is rest-day or vacant positions' },
                 { icon: '💡', html: 'The dashed line marks 14 — half the link on shift. Coverage updates live as you edit cells.' },
             ]}],
