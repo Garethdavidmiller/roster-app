@@ -2453,7 +2453,8 @@ const _paycalcMember = getLoggedMember();
 initNavPanel({
     currentPage: 'paycalc',
     memberName:  _paycalcMember?.name || null,
-    isAdmin:     ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name),
+    isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name),
+    isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _paycalcMember ? () => {
         lsDel('myb_admin_session');

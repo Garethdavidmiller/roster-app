@@ -1039,6 +1039,15 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill--operations:hover { background: color-mix(in oklch, var(--orange) 91%, black); }
 }
 
+.nav-panel-pill--links {
+    background: var(--nav-raised);
+    color: var(--accent-gold);
+    border: 1px solid rgba(255,255,255,0.15);
+}
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-pill--links:hover { background: var(--nav-raised-strong); }
+}
+
 /* Information section — flat, always open */
 .nav-panel-section-heading {
     font-size: 10px;

@@ -2109,7 +2109,8 @@ const _calendarSession = (() => {
 initNavPanel({
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
-    isAdmin:     CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
+    isAdmin:         CONFIG.ADMIN_NAMES.includes(_calendarSession?.name),
+    isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _calendarSession ? () => {
         lsDel('myb_admin_session');

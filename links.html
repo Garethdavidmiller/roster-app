@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<!-- MYB Roster — Links v12.06 -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="color-scheme" content="light">
+    <meta name="theme-color" content="#001e3c">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="MYB Links">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png">
+    <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="icon-120.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+    <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
+    <title>MYB Roster — Links</title>
+    <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="shared.css">
+    <link rel="stylesheet" href="links.css">
+</head>
+<body>
+
+<!-- About lightbox -->
+<div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About MYB Roster" aria-modal="true">
+    <div id="iconLightboxContent" class="lb-content">
+    <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
+        <img src="icon-192.png" alt="Chiltern Railways app icon">
+        <div class="lightbox-app-name">Marylebone Roster</div>
+        <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
+        <div id="lightboxUpdateStatus" class="lightbox-status"></div>
+        <div class="lightbox-badge">Links</div>
+        <a href="./operations.html" class="lightbox-bug-link">🔧 Operations</a>
+        <a id="linksBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
+    </div>
+</div>
+
+<!-- Tips lightbox -->
+<div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">
+    <div id="tipsLightboxContent" class="lb-content">
+    <button id="tipsLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="tips-lb-title" id="tipsLbTitle"></div>
+        <div id="tipsLbBody"></div>
+    </div>
+</div>
+
+<div class="container">
+
+    <header class="app-header">
+        <button class="btn-burger" id="navMenuBtn"
+                aria-label="Open navigation menu" aria-expanded="false">☰</button>
+        <div class="app-header-brand">
+            <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
+            <h1>Marylebone Roster</h1>
+        </div>
+        <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
+    </header>
+
+    <!-- ==================== COVERAGE ANALYSIS ==================== -->
+    <div class="card" id="coverageCard">
+        <div class="card-header card-collapsible-header" id="coverageToggleHeader">
+            <h2>📊 Coverage analysis
+                <button class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
+            </h2>
+            <span class="hint">How many positions are on each shift type across the 28-position link</span>
+            <span class="collapse-chevron open" id="coverageChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="coverageBody">
+            <div class="card-body" id="coverageSummaryWrap">
+                <p class="links-empty-msg" id="coverageEmptyMsg">Load or initialise the link design to see coverage.</p>
+                <div id="coverageBarChart" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== LINK DESIGN GRID ==================== -->
+    <div class="card" id="linksGridCard">
+        <div class="card-header card-collapsible-header" id="linksGridToggleHeader">
+            <h2>🗓️ Link design — 28 positions
+                <button class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design" title="Tips for link design">?</button>
+            </h2>
+            <span class="hint">One row per position. Click any cell to change the shift. Coverage summary at the bottom.</span>
+            <span class="collapse-chevron open" id="linksGridChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="linksGridBody">
+            <div class="card-body">
+                <p class="links-empty-msg" id="linksEmptyMsg">No link design loaded yet. Use "Initialise from current rosters" below to start.</p>
+
+                <div class="links-grid-wrapper" id="linksGridWrapper" style="display:none">
+                    <table class="links-grid" id="linksGridTable">
+                        <thead>
+                            <tr>
+                                <th class="col-pos">#</th>
+                                <th class="col-staff">Staff</th>
+                                <th>Sun</th>
+                                <th>Mon</th>
+                                <th>Tue</th>
+                                <th>Wed</th>
+                                <th>Thu</th>
+                                <th>Fri</th>
+                                <th>Sat</th>
+                            </tr>
+                        </thead>
+                        <tbody id="linksGridBodyRows"></tbody>
+                        <tfoot id="linksCoverageFoot"></tfoot>
+                    </table>
+                </div>
+
+                <div id="linksSaveRow" class="links-save-row" style="display:none">
+                    <button id="linksSaveBtn" class="btn-save" disabled>Save design</button>
+                    <span id="linksSaveStatus" class="links-save-status" aria-live="polite"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== INITIALISE ==================== -->
+    <div class="card" id="linksInitCard">
+        <div class="card-header card-collapsible-header" id="linksInitToggleHeader">
+            <h2>⚙️ Initialise
+                <button class="btn-card-tips" data-card="links-init" aria-label="Tips for initialise" title="Tips for initialise">?</button>
+            </h2>
+            <span class="hint">Seed the design grid from the current CEA and BL roster patterns as a starting point</span>
+            <span class="collapse-chevron" id="linksInitChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="linksInitBody">
+            <div class="card-body">
+                <p class="links-desc">
+                    Seeds each of the 28 positions from the current roster data: positions 1–20 from the
+                    CEA main link (each member's current weekly pattern), positions 21–22 from the BL link,
+                    position 23 from C. Reen's fixed hours, and positions 24–28 as vacant (all RD).
+                    This gives you a working starting point — edit any cell to refine the design.
+                </p>
+                <p class="links-desc">
+                    <strong>⚠ This will overwrite any unsaved changes.</strong>
+                    Use it once to get started, then save and edit from there.
+                </p>
+                <button class="btn-action btn-primary" id="linksInitBtn">Initialise from current rosters</button>
+                <div id="linksInitStatus" class="links-save-status" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== STAFF ASSIGNMENT ==================== -->
+    <div class="card" id="linksStaffCard">
+        <div class="card-header card-collapsible-header" id="linksStaffToggleHeader">
+            <h2>👤 Staff assignment
+                <button class="btn-card-tips" data-card="links-staff" aria-label="Tips for staff assignment" title="Tips for staff assignment">?</button>
+            </h2>
+            <span class="hint">Change which staff member is assigned to each position, or mark a position as bilingual</span>
+            <span class="collapse-chevron" id="linksStaffChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="linksStaffBody">
+            <div class="card-body">
+                <p class="links-empty-msg" id="staffEmptyMsg">Load the link design first.</p>
+                <div id="linksStaffList" style="display:none"></div>
+                <div id="linksStaffSaveRow" class="links-save-row" style="display:none">
+                    <button id="linksStaffSaveBtn" class="btn-save" disabled>Save assignments</button>
+                    <span id="linksStaffSaveStatus" class="links-save-status" aria-live="polite"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /container -->
+
+<script type="module" src="./links-app.js"></script>
+</body>
+</html>
