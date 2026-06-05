@@ -3,7 +3,7 @@
  *
  * Owns: auth guard (LINKS_DESIGNERS check), Firestore load/save for
  *   linkDesigns/combined-28, 28×7 design grid, coverage analysis,
- *   staff assignment panel, and initialise-from-rosters action.
+ *   inline staff assignment, and initialise-from-rosters action.
  * Edit here for: link design logic, grid rendering, coverage maths,
  *   adding new positions or shift options.
  */
@@ -40,7 +40,11 @@ initNavPanel({
     memberName:      currentUser,
     isLinksDesigner: true,
     onLogoClick:     () => openAboutLightbox?.(),
-    onSignOut:       () => { clearSession(); window.location.href = './admin.html'; },
+    onSignOut: () => {
+        if (dirty && !confirm('You have unsaved changes. Sign out anyway?')) return;
+        clearSession();
+        window.location.href = './admin.html';
+    },
 });
 
 // ============================================
@@ -49,8 +53,8 @@ initNavPanel({
 const DAYS       = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS  = 28;
-const FIXED_POS  = 23;  // C. Reen — Mon–Fri 12:00–19:00, not editable
-const VACANT_FROM = 24; // positions 24–28 are vacant placeholders
+const FIXED_POS  = 23;   // C. Reen — Mon–Fri 12:00–19:00, not editable
+const VACANT_FROM = 24;  // positions 24–28 are vacant placeholders
 
 const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
 
@@ -75,11 +79,10 @@ const LATE_SHIFTS = [
 
 /**
  * @type {{ patterns: Object.<string,{sun:string,mon:string,tue:string,wed:string,thu:string,fri:string,sat:string}>,
- *          meta: Object.<string,{staffName:string,isBilingual:boolean,isFixed:boolean}> } | null}
+ *          meta: Object.<string,{staffName:string,isFixed:boolean}> } | null}
  */
-let design      = null;
-let designDirty = false;
-let staffDirty  = false;
+let design = null;
+let dirty  = false;  // true when shifts or staff names have unsaved changes
 
 // ============================================
 // HELPERS
@@ -116,12 +119,7 @@ function normalisePattern(week) {
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
 
 /**
- * Build a default 28-position design from the current roster data:
- *   Positions 1–20  — CEA main roster, one position per week number
- *   Positions 21–22 — CEA bilingual (D. Irvine week 3, T. Gherbi week 6)
- *   Position 23     — C. Reen fixed hours (Mon–Fri 12:00–19:00)
- *   Positions 24–28 — Vacant (all RD)
- *
+ * Build a default 28-position design from the current roster data.
  * @returns {{ patterns: Object, meta: Object }}
  */
 function buildDefaultDesign() {
@@ -138,7 +136,7 @@ function buildDefaultDesign() {
         meta[pos] = { staffName: member?.name ?? '', isFixed: false };
     }
 
-    // Positions 21–22: the two remaining bilingual CEAs
+    // Positions 21–22: the two BL CEAs
     const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
     for (let i = 0; i < 2; i++) {
         const pos    = String(21 + i);
@@ -165,17 +163,16 @@ function buildDefaultDesign() {
     return { patterns, meta };
 }
 
-/** Count early/late/spare/rd per day across all 28 positions. */
+/** Count early/late/spare/night/rd per day across all 28 positions. */
 function calcCoverage(patterns) {
     const cov = {};
-    for (const d of DAYS) cov[d] = { early: 0, late: 0, spare: 0, rd: 0 };
+    for (const d of DAYS) cov[d] = { early: 0, late: 0, spare: 0, night: 0, rd: 0 };
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const p = patterns[String(pos)];
         if (!p) continue;
         for (const d of DAYS) {
             const type = classifyShift(p[d] ?? 'RD');
-            if (cov[d][type] !== undefined) cov[d][type]++;
-            else cov[d].rd++;
+            cov[d][type]++;
         }
     }
     return cov;
@@ -204,26 +201,26 @@ function buildSelectOptions(currentVal) {
 // ============================================
 
 function renderGrid() {
-    const tbody    = document.getElementById('linksGridBodyRows');
-    const tfoot    = document.getElementById('linksCoverageFoot');
-    const wrapper  = document.getElementById('linksGridWrapper');
-    const emptyMsg = document.getElementById('linksEmptyMsg');
-    const saveRow  = document.getElementById('linksSaveRow');
+    const tbody      = document.getElementById('linksGridBodyRows');
+    const tfoot      = document.getElementById('linksCoverageFoot');
+    const wrapper    = document.getElementById('linksGridWrapper');
+    const emptyState = document.getElementById('linksEmptyState');
+    const saveRow    = document.getElementById('linksSaveRow');
 
     if (!design) {
-        if (wrapper)  wrapper.style.display  = 'none';
-        if (emptyMsg) emptyMsg.style.display = '';
-        if (saveRow)  saveRow.style.display  = 'none';
-        if (tbody)    tbody.innerHTML = '';
-        if (tfoot)    tfoot.innerHTML = '';
+        if (wrapper)    wrapper.style.display    = 'none';
+        if (emptyState) emptyState.style.display = '';
+        if (saveRow)    saveRow.style.display    = 'none';
+        if (tbody)      tbody.innerHTML          = '';
+        if (tfoot)      tfoot.innerHTML          = '';
+        renderCoverageChart();
         return;
     }
 
-    if (emptyMsg) emptyMsg.style.display = 'none';
-    if (wrapper)  wrapper.style.display  = '';
-    if (saveRow)  saveRow.style.display  = '';
+    if (emptyState) emptyState.style.display = 'none';
+    if (wrapper)    wrapper.style.display    = '';
+    if (saveRow)    saveRow.style.display    = '';
 
-    // Build body rows
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const posStr  = String(pos);
@@ -233,12 +230,12 @@ function renderGrid() {
         const isVacant = !isFixed && !m.staffName;
         const rowClass = isFixed ? 'row-fixed' : (isVacant ? 'row-vacant' : 'row-normal');
 
-        let staffHtml = escapeHtml(m.staffName || '—');
-        if (!m.staffName && !isFixed) {
-            staffHtml += ' <span class="vacant-tag">(vacant)</span>';
-        } else if (isFixed) {
-            staffHtml += ' <span class="fixed-tag">Fixed</span>';
-        }
+        // Staff name cell: plain text for fixed row; inline input for all others
+        const staffCellHtml = isFixed
+            ? `<td class="staff-name">${escapeHtml(m.staffName)}<span class="fixed-tag">Fixed</span></td>`
+            : `<td class="staff-name"><input class="staff-name-input-inline" type="text" ` +
+              `value="${escapeHtml(m.staffName)}" placeholder="Vacant" data-pos="${posStr}" ` +
+              `autocomplete="off" spellcheck="false" aria-label="Staff name, position ${posStr}"></td>`;
 
         const dayCells = DAYS.map((d, di) => {
             const shift = p[d] ?? 'RD';
@@ -252,29 +249,37 @@ function renderGrid() {
             }
             return `<td class="shift-cell">` +
                 `<button class="shift-cell-btn type-${type}" ` +
-                `data-pos="${pos}" data-day="${d}" ` +
-                `aria-label="Position ${pos} ${DAY_LABELS[di]}: ${shift} — tap to edit">` +
+                `data-pos="${posStr}" data-day="${d}" ` +
+                `aria-label="Position ${posStr} ${DAY_LABELS[di]}: ${shift} — tap to edit">` +
                 `${escapeHtml(label)}</button></td>`;
         }).join('');
 
         rows.push(
-            `<tr class="${rowClass}" data-pos="${pos}">` +
-            `<td class="pos-num">${pos}</td>` +
-            `<td class="staff-name">${staffHtml}</td>` +
-            dayCells +
+            `<tr class="${rowClass}" data-pos="${posStr}">` +
+            `<td class="pos-num">${posStr}</td>` +
+            staffCellHtml + dayCells +
             `</tr>`
         );
     }
     if (tbody) tbody.innerHTML = rows.join('');
 
-    // Coverage footer
-    renderFooter();
-
-    // Wire up cell click handlers
+    // Wire shift cell buttons
     tbody?.querySelectorAll('.shift-cell-btn:not(.fixed-cell)').forEach(btn => {
         btn.addEventListener('click', () => openCellEdit(btn));
     });
 
+    // Wire inline staff name inputs
+    tbody?.querySelectorAll('.staff-name-input-inline').forEach(input => {
+        input.addEventListener('input', () => {
+            const pos = input.dataset.pos;
+            if (!design.meta[pos]) design.meta[pos] = { staffName: '', isFixed: false };
+            design.meta[pos].staffName = input.value.trim();
+            dirty = true;
+            updateSaveBtn();
+        });
+    });
+
+    renderFooter();
     renderCoverageChart();
 }
 
@@ -283,8 +288,8 @@ function renderFooter() {
     if (!tfoot || !design) return;
     const cov = calcCoverage(design.patterns);
     const cells = DAYS.map(d => {
-        const { early, late, spare } = cov[d];
-        const worked = early + late + spare;
+        const { early, late, spare, night } = cov[d];
+        const worked = early + late + spare + night;
         return `<td class="cov-cell">` +
             `<span class="cov-num">${worked}</span>` +
             `<span class="cov-label-e"> E:${early}</span>` +
@@ -318,7 +323,7 @@ function openCellEdit(btn) {
         const newVal = select.value;
         if (!design.patterns[pos]) design.patterns[pos] = emptyPattern();
         design.patterns[pos][day] = newVal;
-        designDirty = true;
+        dirty = true;
         updateSaveBtn();
         cell.innerHTML = '';
         restoreBtn(cell, pos, day, newVal);
@@ -371,25 +376,30 @@ function renderCoverageChart() {
     wrap.style.display = '';
 
     const cov   = calcCoverage(design.patterns);
-    const BAR_H = 72; // px
+    const BAR_H = 96; // px
 
     const cols = DAYS.map((d, di) => {
-        const { early, late, spare } = cov[d];
-        const worked = early + late + spare;
-        // Heights proportional to share of total positions (28).
-        // DOM order: early, late, spare → with column-reverse, early sits at bottom.
+        const { early, late, spare, night } = cov[d];
+        const worked = early + late + spare + night;
         const eH = Math.round((early / TOTAL_POS) * BAR_H);
         const lH = Math.round((late  / TOTAL_POS) * BAR_H);
         const sH = Math.round((spare / TOTAL_POS) * BAR_H);
+        const nH = Math.round((night / TOTAL_POS) * BAR_H);
+        // Warn only when absolutely no one is working — anything else is a design choice.
+        const warn = worked === 0;
 
+        // DOM order with column-reverse: first item sits at bottom.
+        // Order: early (bottom) → late → spare → night (top).
         return `<div class="cov-day-col">` +
-            `<span class="cov-count">${worked}</span>` +
+            `<span class="cov-count${warn ? ' cov-count-warn' : ''}">${worked}</span>` +
             `<div class="cov-bar-wrap" style="height:${BAR_H}px">` +
+            `<div class="cov-bar-ref-line"></div>` +
             (eH ? `<div class="cov-bar-seg early" style="height:${eH}px"></div>` : '') +
             (lH ? `<div class="cov-bar-seg late"  style="height:${lH}px"></div>` : '') +
             (sH ? `<div class="cov-bar-seg spare" style="height:${sH}px"></div>` : '') +
+            (nH ? `<div class="cov-bar-seg night" style="height:${nH}px"></div>` : '') +
             `</div>` +
-            `<span class="cov-day-label">${DAY_LABELS[di]}</span>` +
+            `<span class="cov-day-label${warn ? ' cov-day-label-warn' : ''}">${DAY_LABELS[di]}</span>` +
             `</div>`;
     }).join('');
 
@@ -399,66 +409,9 @@ function renderCoverageChart() {
         `<div class="cov-legend-item"><div class="cov-legend-dot early"></div>Early</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot late"></div>Late</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot spare"></div>Spare</div>` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot rd"></div>RD/Vacant</div>` +
+        `<div class="cov-legend-item"><div class="cov-legend-dot night"></div>Night</div>` +
+        `<div class="cov-legend-item"><div class="cov-legend-dot rd"></div>Rest/vacant</div>` +
         `</div>`;
-}
-
-// ============================================
-// STAFF ASSIGNMENT PANEL
-// ============================================
-
-function renderStaffPanel() {
-    const list     = document.getElementById('linksStaffList');
-    const emptyMsg = document.getElementById('staffEmptyMsg');
-    const saveRow  = document.getElementById('linksStaffSaveRow');
-    if (!list) return;
-
-    if (!design) {
-        list.style.display      = 'none';
-        if (emptyMsg) emptyMsg.style.display = '';
-        if (saveRow)  saveRow.style.display  = 'none';
-        return;
-    }
-
-    if (emptyMsg) emptyMsg.style.display = 'none';
-    list.style.display     = '';
-    if (saveRow) saveRow.style.display   = '';
-
-    const rows = [];
-    for (let pos = 1; pos <= TOTAL_POS; pos++) {
-        const posStr = String(pos);
-        const m      = design.meta[posStr] || { staffName: '', isFixed: false };
-
-        if (m.isFixed) {
-            rows.push(
-                `<div class="links-staff-row" data-pos="${pos}">` +
-                `<span class="links-staff-pos">${pos}</span>` +
-                `<span style="flex:1;font-size:var(--type-body);color:var(--text-mid)">${escapeHtml(m.staffName)}</span>` +
-                `<span class="links-staff-fixed-badge">Fixed hours</span>` +
-                `</div>`
-            );
-        } else {
-            rows.push(
-                `<div class="links-staff-row" data-pos="${pos}">` +
-                `<span class="links-staff-pos">${pos}</span>` +
-                `<input class="links-staff-name-input" type="text" ` +
-                `value="${escapeHtml(m.staffName)}" placeholder="Vacant" ` +
-                `data-pos="${pos}" aria-label="Staff name for position ${pos}">` +
-                `</div>`
-            );
-        }
-    }
-    list.innerHTML = rows.join('');
-
-    list.querySelectorAll('.links-staff-name-input[data-pos]').forEach(input => {
-        input.addEventListener('input', () => {
-            const pos = input.dataset.pos;
-            if (!design.meta[pos]) design.meta[pos] = { staffName: '', isFixed: false };
-            design.meta[pos].staffName = input.value.trim();
-            staffDirty = true;
-            updateStaffSaveBtn();
-        });
-    });
 }
 
 // ============================================
@@ -468,18 +421,21 @@ function renderStaffPanel() {
 function updateSaveBtn() {
     const btn    = document.getElementById('linksSaveBtn');
     const status = document.getElementById('linksSaveStatus');
-    if (btn) btn.disabled = !designDirty;
-    if (status && designDirty) status.textContent = '';
+    if (btn) btn.disabled = !dirty;
+    if (status && dirty) status.textContent = '';
 }
 
-function updateStaffSaveBtn() {
-    const btn    = document.getElementById('linksStaffSaveBtn');
-    const status = document.getElementById('linksStaffSaveStatus');
-    if (btn) btn.disabled = !staffDirty;
-    if (status && staffDirty) status.textContent = '';
+function updateLastSaved(updatedBy, updatedAt) {
+    const el = document.getElementById('linksLastSaved');
+    if (!el) return;
+    if (!updatedBy) { el.textContent = ''; return; }
+    const d       = updatedAt?.toDate?.();
+    const timeStr = d ? d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
+    el.textContent = `Last saved by ${updatedBy}` + (timeStr ? ` at ${timeStr}` : '');
 }
 
-async function saveDesign() {
+/** Saves both patterns and staff meta in a single Firestore write. */
+async function saveChanges() {
     const btn    = document.getElementById('linksSaveBtn');
     const status = document.getElementById('linksSaveStatus');
     if (!design) return;
@@ -494,38 +450,21 @@ async function saveDesign() {
             updatedAt: serverTimestamp(),
             updatedBy: currentUser,
         });
-        designDirty = false;
+        dirty = false;
+        updateSaveBtn();
         if (status) { status.textContent = 'Saved ✓'; status.className = 'links-save-status ok'; }
+        updateLastSaved(currentUser, { toDate: () => new Date() });
+        // Update vacant/normal row classes in-place without wiping inputs or losing focus.
+        document.querySelectorAll('#linksGridBodyRows tr[data-pos]').forEach(row => {
+            const pos = row.dataset.pos;
+            const m   = design.meta[pos] || {};
+            if (m.isFixed) return;
+            row.classList.toggle('row-vacant', !m.staffName);
+            row.classList.toggle('row-normal', !!m.staffName);
+        });
     } catch (err) {
         console.error('[Links] Save failed:', err);
-        designDirty = true;
-        if (btn) btn.disabled = false;
-        if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
-    }
-}
-
-async function saveStaff() {
-    const btn    = document.getElementById('linksStaffSaveBtn');
-    const status = document.getElementById('linksStaffSaveStatus');
-    if (!design) return;
-    if (btn) btn.disabled = true;
-    if (status) { status.textContent = 'Saving…'; status.className = 'links-save-status'; }
-
-    try {
-        await window._mybSession;
-        // merge: true preserves any fields we don't explicitly write
-        await setDoc(DESIGN_REF, {
-            patterns:  design.patterns,
-            meta:      design.meta,
-            updatedAt: serverTimestamp(),
-            updatedBy: currentUser,
-        }, { merge: true });
-        staffDirty = false;
-        if (status) { status.textContent = 'Saved ✓'; status.className = 'links-save-status ok'; }
-        renderGrid(); // refresh staff names in the grid
-    } catch (err) {
-        console.error('[Links] Staff save failed:', err);
-        staffDirty = true;
+        dirty = true;
         if (btn) btn.disabled = false;
         if (status) { status.textContent = 'Save failed — try again'; status.className = 'links-save-status err'; }
     }
@@ -538,6 +477,7 @@ async function loadDesign() {
         if (snap.exists()) {
             const data = snap.data();
             design = { patterns: data.patterns || {}, meta: data.meta || {} };
+            updateLastSaved(data.updatedBy, data.updatedAt);
         } else {
             design = null;
         }
@@ -545,23 +485,17 @@ async function loadDesign() {
         console.error('[Links] Load failed:', err);
         design = null;
     }
-    designDirty = false;
-    staffDirty  = false;
+    dirty = false;
     renderGrid();
-    renderStaffPanel();
     updateSaveBtn();
-    updateStaffSaveBtn();
 }
 
 function initFromRosters() {
     if (!confirm('Initialise from current rosters? This will overwrite any unsaved changes to the design.')) return;
     design = buildDefaultDesign();
-    designDirty = true;
-    staffDirty  = true;
+    dirty  = true;
     renderGrid();
-    renderStaffPanel();
     updateSaveBtn();
-    updateStaffSaveBtn();
     const status = document.getElementById('linksInitStatus');
     if (status) {
         status.textContent = 'Design seeded — review and save when ready.';
@@ -583,17 +517,23 @@ function initCardCollapse(triggerId, bodyId, chevronId) {
     });
 }
 
-initCardCollapse('coverageToggleHeader',   'coverageBody',   'coverageChevron');
 initCardCollapse('linksGridToggleHeader',  'linksGridBody',  'linksGridChevron');
+initCardCollapse('coverageToggleHeader',   'coverageBody',   'coverageChevron');
 initCardCollapse('linksInitToggleHeader',  'linksInitBody',  'linksInitChevron');
-initCardCollapse('linksStaffToggleHeader', 'linksStaffBody', 'linksStaffChevron');
 
 // ============================================
 // BUTTON HANDLERS
 // ============================================
-document.getElementById('linksSaveBtn')?.addEventListener('click', saveDesign);
+document.getElementById('linksSaveBtn')?.addEventListener('click', saveChanges);
 document.getElementById('linksInitBtn')?.addEventListener('click', initFromRosters);
-document.getElementById('linksStaffSaveBtn')?.addEventListener('click', saveStaff);
+document.getElementById('linksInitBtnInline')?.addEventListener('click', initFromRosters);
+
+// ============================================
+// UNSAVED CHANGES GUARD
+// ============================================
+window.addEventListener('beforeunload', e => {
+    if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // ============================================
 // ICON LIGHTBOX — tap drawer logo for About
@@ -638,7 +578,10 @@ document.getElementById('linksStaffSaveBtn')?.addEventListener('click', saveStaf
     openAboutLightbox = open;
     headerIcon.title = 'Back to calendar';
     headerIcon.setAttribute('aria-label', 'Back to calendar');
-    headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
+    headerIcon.addEventListener('click', () => {
+        if (dirty && !confirm('You have unsaved changes. Leave anyway?')) return;
+        window.location.href = './index.html';
+    });
     lightbox.addEventListener('click', e => { if (e.target === lightbox || e.target === closeBtn) close(); });
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 })();
@@ -657,46 +600,40 @@ document.getElementById('linksStaffSaveBtn')?.addEventListener('click', saveStaf
         'links-coverage': {
             title: 'Coverage analysis',
             sections: [{ items: [
-                { icon: '📊', html: 'Shows how many positions are <strong>working</strong> each day across the 28-position link' },
+                { icon: '📊', html: 'Shows how many of the 28 positions are <strong>working</strong> each day' },
                 { icon: '🔵', html: '<strong>Early</strong> — shifts starting before 11:00' },
                 { icon: '🟠', html: '<strong>Late</strong> — shifts starting at 11:00 or after' },
                 { icon: '🟡', html: '<strong>Spare</strong> — standby positions with no fixed shift time' },
-                { icon: '💡', html: 'Coverage updates live as you edit cells in the grid below' },
+                { icon: '🟣', html: '<strong>Night</strong> — shifts starting at 21:00 or after' },
+                { icon: '⬜', html: 'The grey portion of each bar is rest-day or vacant positions' },
+                { icon: '💡', html: 'The dashed line marks 14 — half the link on shift. Coverage updates live as you edit cells.' },
             ]}],
         },
         'links-grid': {
             title: 'Link design grid',
             sections: [
                 { heading: 'How it works', items: [
-                    { icon: '📋', html: 'Each <strong>row</strong> is one position in the 28-position link. Each <strong>column</strong> is a day of the week (Sun–Sat).' },
-                    { icon: '🔄', html: 'In a 28-person link all 28 patterns are always in use simultaneously — one per person.' },
-                    { icon: '✏️', html: '<strong>Tap any cell</strong> to change the shift for that day. Fixed positions (C. Reen) are not editable.' },
-                    { icon: '💾', html: 'Tap <strong>Save design</strong> when happy with your changes.' },
+                    { icon: '📋', html: 'Each <strong>row</strong> is one of the 28 positions. Each <strong>column</strong> is a day of the week (Sun–Sat).' },
+                    { icon: '🔄', html: 'In a 28-person link all 28 patterns are always active simultaneously — one per person.' },
+                    { icon: '✏️', html: '<strong>Tap any shift cell</strong> to change it. <strong>Tap a name</strong> to edit the staff assignment for that position.' },
+                    { icon: '💾', html: 'Tap <strong>Save changes</strong> when done — saves both shifts and names in one go.' },
                 ]},
                 { heading: 'Row types', items: [
-                    { icon: '👤', html: '<strong>Normal</strong> — standard CEA position' },
+                    { icon: '👤', html: '<strong>Normal</strong> — standard CEA position with a name assigned' },
                     { icon: '🔒', html: '<strong>Fixed</strong> — C. Reen\'s fixed hours (Mon–Fri 12:00–19:00); not editable' },
-                    { icon: '⬜', html: '<strong>Vacant</strong> — placeholder for future recruitment' },
+                    { icon: '⬜', html: '<strong>Vacant</strong> — name field is empty; placeholder for future recruitment' },
                 ]},
             ],
         },
         'links-init': {
-            title: 'Initialise from current rosters',
+            title: 'Initialise from rosters',
             sections: [{ items: [
                 { icon: '⚙️', html: 'Seeds the design grid from the current roster data as a <strong>starting point</strong>' },
                 { icon: '1️⃣', html: 'Positions 1–20: each member\'s current weekly pattern from the CEA 20-week main roster' },
-                { icon: '2️⃣', html: 'Positions 21–22: D. Irvine and T. Gherbi\'s current patterns from the bilingual roster' },
+                { icon: '2️⃣', html: 'Positions 21–22: D. Irvine and T. Gherbi\'s current patterns from the BL roster' },
                 { icon: '3️⃣', html: 'Position 23: C. Reen\'s fixed Mon–Fri 12:00–19:00 pattern' },
                 { icon: '4️⃣', html: 'Positions 24–28: all RD (vacant placeholders for future recruitment)' },
-                { icon: '⚠️', html: '<strong>This will overwrite any unsaved changes.</strong> Use it once to get started, then save and edit from there.' },
-            ]}],
-        },
-        'links-staff': {
-            title: 'Staff assignment',
-            sections: [{ items: [
-                { icon: '👤', html: 'Change the staff member assigned to each position — useful when people move between positions' },
-                { icon: '💾', html: 'Tap <strong>Save assignments</strong> when done — the grid updates automatically' },
-                { icon: '🔒', html: 'Position 23 (C. Reen) is fixed and cannot be reassigned' },
+                { icon: '⚠️', html: '<strong>This will overwrite any unsaved changes.</strong> Use it once to get started, then save and edit.' },
             ]}],
         },
     };
