@@ -58,20 +58,26 @@ const VACANT_FROM = 24;  // positions 24–28 are vacant placeholders
 
 const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
 
-// All shift times from weeklyRoster + bilingualRoster, grouped by classification.
-const EARLY_SHIFTS = [
-    '06:20-13:35', '06:20-13:45', '06:20-14:00', '06:20-14:20', '06:20-14:50',
-    '07:00-15:00', '07:00-16:00', '07:15-15:45', '07:55-15:55',
-    '08:00-14:30', '08:00-16:30', '08:00-17:00',
-    '08:30-16:30', '08:30-17:00',
-];
-const LATE_SHIFTS = [
-    '11:00-19:30',
-    '12:00-19:00', '12:00-20:00', '12:00-21:00',
-    '13:00-21:00', '13:30-21:00', '13:30-22:00',
-    '14:00-22:30', '14:25-23:55', '14:30-22:00', '14:30-23:25',
-    '14:45-23:55', '15:00-23:30', '15:15-23:55', '15:25-23:25',
-];
+// Shift option lists — derived at module load from actual roster data so the
+// dropdown always matches real shifts without needing manual maintenance.
+const { EARLY_SHIFTS, LATE_SHIFTS, NIGHT_SHIFTS } = (() => {
+    const all = new Set();
+    for (const roster of [weeklyRoster, bilingualRoster]) {
+        for (const week of Object.values(roster)) {
+            for (const shift of Object.values(week)) {
+                if (shift && shift !== 'RD' && shift !== 'OFF' && shift !== 'SPARE') all.add(shift);
+            }
+        }
+    }
+    const early = [], late = [], night = [];
+    for (const s of [...all].sort()) {
+        const h = parseInt(s.slice(0, 2), 10);
+        if (h >= 4 && h < 11) early.push(s);
+        else if (h >= 11 && h < 21) late.push(s);
+        else night.push(s);
+    }
+    return { EARLY_SHIFTS: early, LATE_SHIFTS: late, NIGHT_SHIFTS: night };
+})();
 
 // ============================================
 // STATE
@@ -139,7 +145,7 @@ function buildDefaultDesign() {
     const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
     for (let i = 0; i < 2; i++) {
         const pos  = String(21 + i);
-        const week = blMembers[i]?.currentWeek ?? (i + 1);
+        const week = blMembers[i]?.currentWeek || (i + 1);
         patterns[pos] = normalisePattern(bilingualRoster[week]);
         meta[pos]     = { staffName: '', isFixed: false };
     }
@@ -182,15 +188,17 @@ function buildSelectOptions(currentVal) {
         const sel = val === currentVal ? ' selected' : '';
         return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
     };
+    // If the current value isn't in any known group (e.g. roster was updated since last
+    // save), add it as a plain option so the cell doesn't silently revert to RD on change.
+    const known = new Set([...EARLY_SHIFTS, ...LATE_SHIFTS, ...NIGHT_SHIFTS]);
+    const isUnknown = currentVal && currentVal !== 'RD' && currentVal !== 'SPARE' && !known.has(currentVal);
     return [
         opt('RD',    'RD — Rest Day'),
         opt('SPARE', 'SPARE — Standby'),
-        '<optgroup label="Early (before 11:00)">',
-        ...EARLY_SHIFTS.map(s => opt(s, s)),
-        '</optgroup>',
-        '<optgroup label="Late (11:00 onward)">',
-        ...LATE_SHIFTS.map(s => opt(s, s)),
-        '</optgroup>',
+        ...(isUnknown ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>'] : []),
+        ...(EARLY_SHIFTS.length ? ['<optgroup label="Early (starting before 11:00)">', ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
+        ...(LATE_SHIFTS.length  ? ['<optgroup label="Late (starting 11:00 or after)">', ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
+        ...(NIGHT_SHIFTS.length ? ['<optgroup label="Night (starting 21:00 or after)">', ...NIGHT_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
     ].join('');
 }
 
@@ -277,14 +285,15 @@ function renderGrid() {
         });
     });
 
-    renderFooter();
-    renderCoverageChart();
+    const cov = calcCoverage(design.patterns);
+    renderFooter(cov);
+    renderCoverageChart(cov);
 }
 
-function renderFooter() {
+function renderFooter(cov) {
     const tfoot = document.getElementById('linksCoverageFoot');
     if (!tfoot || !design) return;
-    const cov = calcCoverage(design.patterns);
+    if (!cov) cov = calcCoverage(design.patterns);
     const cells = DAYS.map(d => {
         const { early, late, spare, night } = cov[d];
         const worked = early + late + spare + night;
@@ -325,8 +334,9 @@ function openCellEdit(btn) {
         updateSaveBtn();
         cell.innerHTML = '';
         restoreBtn(cell, pos, day, newVal);
-        renderFooter();
-        renderCoverageChart();
+        const cov = calcCoverage(design.patterns);
+        renderFooter(cov);
+        renderCoverageChart(cov);
     });
 
     select.addEventListener('blur', () => {
@@ -359,7 +369,7 @@ function restoreBtn(cell, pos, day, shift) {
 // COVERAGE BAR CHART
 // ============================================
 
-function renderCoverageChart() {
+function renderCoverageChart(cov) {
     const wrap     = document.getElementById('coverageBarChart');
     const emptyMsg = document.getElementById('coverageEmptyMsg');
     if (!wrap) return;
@@ -373,7 +383,7 @@ function renderCoverageChart() {
     if (emptyMsg) emptyMsg.style.display = 'none';
     wrap.style.display = '';
 
-    const cov   = calcCoverage(design.patterns);
+    if (!cov) cov = calcCoverage(design.patterns);
     const BAR_H = 96; // px
 
     const cols = DAYS.map((d, di) => {
@@ -494,10 +504,18 @@ function initFromRosters() {
     dirty  = true;
     renderGrid();
     updateSaveBtn();
-    const status = document.getElementById('linksInitStatus');
-    if (status) {
-        status.textContent = 'Design seeded — review and save when ready.';
-        status.className   = 'links-save-status ok';
+    // Show feedback in the grid save row — always visible once the grid is shown,
+    // so this works whether triggered from the inline button or the Init card.
+    const saveStatus = document.getElementById('linksSaveStatus');
+    if (saveStatus) {
+        saveStatus.textContent = 'Design seeded — save when ready.';
+        saveStatus.className   = 'links-save-status ok';
+    }
+    // Also update the Init card status in case that card is open.
+    const initStatus = document.getElementById('linksInitStatus');
+    if (initStatus) {
+        initStatus.textContent = 'Design seeded — review and save when ready.';
+        initStatus.className   = 'links-save-status ok';
     }
 }
 
@@ -547,7 +565,9 @@ window.addEventListener('beforeunload', e => {
 
     if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
 
+    let _iconFocusReturn = null;
     function open() {
+        _iconFocusReturn = document.activeElement;
         if (statusEl) {
             statusEl.textContent = '';
             statusEl.className = 'lightbox-status';
@@ -570,7 +590,7 @@ window.addEventListener('beforeunload', e => {
         document.addEventListener('keydown', onKey);
     }
 
-    function close() { dismissOverlay(lightbox, { onKey }); }
+    function close() { dismissOverlay(lightbox, { onKey, focusReturn: _iconFocusReturn }); }
     function onKey(e) { if (e.key === 'Escape') close(); }
 
     openAboutLightbox = open;
@@ -636,7 +656,9 @@ window.addEventListener('beforeunload', e => {
         },
     };
 
+    let _tipsFocusReturn = null;
     function openTips(card) {
+        _tipsFocusReturn = document.activeElement;
         const data = CARD_TIPS[card];
         if (!data || !titleEl || !bodyEl) return;
         titleEl.textContent = data.title;
@@ -656,7 +678,7 @@ window.addEventListener('beforeunload', e => {
         document.addEventListener('keydown', onKey);
     }
 
-    function closeTips() { dismissOverlay(lb, { onKey }); }
+    function closeTips() { dismissOverlay(lb, { onKey, focusReturn: _tipsFocusReturn }); }
     function onKey(e)    { if (e.key === 'Escape') closeTips(); }
 
     document.querySelectorAll('.btn-card-tips').forEach(btn => {
@@ -682,7 +704,9 @@ if ('serviceWorker' in navigator) {
                 });
             });
             navigator.serviceWorker.addEventListener('controllerchange', () => {
-                window.location.reload();
+                if (!dirty || confirm('An update is available. Reload to apply it? Unsaved changes will be lost.')) {
+                    window.location.reload();
+                }
             }, { once: true });
         })
         .catch(e => console.warn('[SW] Registration failed:', e));
