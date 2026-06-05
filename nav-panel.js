@@ -381,6 +381,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const repaint = url => {
             _avatarSettled = true;
             paintAvatar(document.getElementById('navPanelAvatar'), url || null, memberName);
+            paintAvatar(document.getElementById('lightboxAvatar'), url || null, memberName);
         };
         document.addEventListener('myb:avatar-changed', e => {
             if (e.detail?.memberName !== memberName) return;
@@ -522,16 +523,20 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
         // URL (instant on repeat visits), then refresh from Firestore (covers a
         // photo set on another device). fetchAvatarUrl is open-read, so this
         // works on index.html which has no Firebase Auth session.
-        const avatarEl = document.getElementById('navPanelAvatar');
-        if (avatarEl) {
-            paintAvatar(avatarEl, lsGet(avatarCacheKey(memberName)) || null, memberName);
+        const avatarEl   = document.getElementById('navPanelAvatar');
+        const lbAvatarEl = document.getElementById('lightboxAvatar');
+        if (avatarEl || lbAvatarEl) {
+            const cachedUrl = lsGet(avatarCacheKey(memberName)) || null;
+            paintAvatar(avatarEl,   cachedUrl, memberName);
+            paintAvatar(lbAvatarEl, cachedUrl, memberName);
             fetchAvatarUrl(memberName).then(url => {
                 if (_avatarSettled) return; // a user action already set the truth
                 // Persist so the next load paints instantly and converges (without
                 // this write-back the nav path would re-fetch-and-flicker every load).
                 if (url) lsSet(avatarCacheKey(memberName), url);
                 else     lsDel(avatarCacheKey(memberName));
-                paintAvatar(avatarEl, url, memberName);
+                paintAvatar(avatarEl,   url, memberName);
+                paintAvatar(lbAvatarEl, url, memberName);
             });
         }
 
