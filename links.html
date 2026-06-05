@@ -58,35 +58,23 @@
         <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
     </header>
 
-    <!-- ==================== COVERAGE ANALYSIS ==================== -->
-    <div class="card" id="coverageCard">
-        <div class="card-header card-collapsible-header" id="coverageToggleHeader">
-            <h2>📊 Coverage analysis
-                <button class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
-            </h2>
-            <span class="hint">How many positions are on each shift type across the 28-position link</span>
-            <span class="collapse-chevron open" id="coverageChevron">▾</span>
-        </div>
-        <div class="card-collapsible-body open" id="coverageBody">
-            <div class="card-body" id="coverageSummaryWrap">
-                <p class="links-empty-msg" id="coverageEmptyMsg">Load or initialise the link design to see coverage.</p>
-                <div id="coverageBarChart" style="display:none"></div>
-            </div>
-        </div>
-    </div>
-
     <!-- ==================== LINK DESIGN GRID ==================== -->
     <div class="card" id="linksGridCard">
         <div class="card-header card-collapsible-header" id="linksGridToggleHeader">
             <h2>🗓️ Link design — 28 positions
                 <button class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design" title="Tips for link design">?</button>
             </h2>
-            <span class="hint">One row per position. Click any cell to change the shift. Coverage summary at the bottom.</span>
+            <span class="hint">Tap any shift cell to change it; tap a name to edit the assignment. Save when done.</span>
             <span class="collapse-chevron open" id="linksGridChevron">▾</span>
         </div>
         <div class="card-collapsible-body open" id="linksGridBody">
             <div class="card-body">
-                <p class="links-empty-msg" id="linksEmptyMsg">No link design loaded yet. Use "Initialise from current rosters" below to start.</p>
+
+                <!-- Empty state: shown before any design is loaded -->
+                <div id="linksEmptyState" class="links-empty-state">
+                    <p class="links-empty-msg">No link design loaded yet.</p>
+                    <button class="btn-action btn-primary" id="linksInitBtnInline">Initialise from current rosters</button>
+                </div>
 
                 <div class="links-grid-wrapper" id="linksGridWrapper" style="display:none">
                     <table class="links-grid" id="linksGridTable">
@@ -109,9 +97,30 @@
                 </div>
 
                 <div id="linksSaveRow" class="links-save-row" style="display:none">
-                    <button id="linksSaveBtn" class="btn-save" disabled>Save design</button>
-                    <span id="linksSaveStatus" class="links-save-status" aria-live="polite"></span>
+                    <button id="linksSaveBtn" class="btn-save" disabled>Save changes</button>
+                    <div class="links-save-meta">
+                        <span id="linksSaveStatus" class="links-save-status" aria-live="polite"></span>
+                        <span id="linksLastSaved" class="links-last-saved"></span>
+                    </div>
                 </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== COVERAGE ANALYSIS ==================== -->
+    <div class="card" id="coverageCard">
+        <div class="card-header card-collapsible-header" id="coverageToggleHeader">
+            <h2>📊 Coverage analysis
+                <button class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
+            </h2>
+            <span class="hint">How many of the 28 positions are on each shift type per day</span>
+            <span class="collapse-chevron open" id="coverageChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="coverageBody">
+            <div class="card-body" id="coverageSummaryWrap">
+                <p class="links-empty-msg" id="coverageEmptyMsg">Load or initialise the link design to see coverage.</p>
+                <div id="coverageBarChart" style="display:none"></div>
             </div>
         </div>
     </div>
@@ -119,10 +128,10 @@
     <!-- ==================== INITIALISE ==================== -->
     <div class="card" id="linksInitCard">
         <div class="card-header card-collapsible-header" id="linksInitToggleHeader">
-            <h2>⚙️ Initialise
+            <h2>⚙️ Initialise from rosters
                 <button class="btn-card-tips" data-card="links-init" aria-label="Tips for initialise" title="Tips for initialise">?</button>
             </h2>
-            <span class="hint">Seed the design grid from the current CEA and BL roster patterns as a starting point</span>
+            <span class="hint">Reset the design grid to current roster patterns as a starting point</span>
             <span class="collapse-chevron" id="linksInitChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="linksInitBody">
@@ -131,7 +140,6 @@
                     Seeds each of the 28 positions from the current roster data: positions 1–20 from the
                     CEA main link (each member's current weekly pattern), positions 21–22 from the BL link,
                     position 23 from C. Reen's fixed hours, and positions 24–28 as vacant (all RD).
-                    This gives you a working starting point — edit any cell to refine the design.
                 </p>
                 <p class="links-desc">
                     <strong>⚠ This will overwrite any unsaved changes.</strong>
@@ -139,27 +147,6 @@
                 </p>
                 <button class="btn-action btn-primary" id="linksInitBtn">Initialise from current rosters</button>
                 <div id="linksInitStatus" class="links-save-status" aria-live="polite"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ==================== STAFF ASSIGNMENT ==================== -->
-    <div class="card" id="linksStaffCard">
-        <div class="card-header card-collapsible-header" id="linksStaffToggleHeader">
-            <h2>👤 Staff assignment
-                <button class="btn-card-tips" data-card="links-staff" aria-label="Tips for staff assignment" title="Tips for staff assignment">?</button>
-            </h2>
-            <span class="hint">Change which staff member is assigned to each position, or mark a position as bilingual</span>
-            <span class="collapse-chevron" id="linksStaffChevron">▾</span>
-        </div>
-        <div class="card-collapsible-body" id="linksStaffBody">
-            <div class="card-body">
-                <p class="links-empty-msg" id="staffEmptyMsg">Load the link design first.</p>
-                <div id="linksStaffList" style="display:none"></div>
-                <div id="linksStaffSaveRow" class="links-save-row" style="display:none">
-                    <button id="linksStaffSaveBtn" class="btn-save" disabled>Save assignments</button>
-                    <span id="linksStaffSaveStatus" class="links-save-status" aria-live="polite"></span>
-                </div>
             </div>
         </div>
     </div>

@@ -1,8 +1,9 @@
-/* links.css — all CSS for links.html (Links design workspace, v12.06) */
+/* links.css — all CSS for links.html (Links design workspace, v12.07) */
 
 :root {
     --cov-early: #1a7fc1;
-    --cov-late: #e6700a;
+    --cov-late:  #e6700a;
+    --cov-night: rgba(80, 40, 120, 0.75);
 }
 
 body {
@@ -63,6 +64,15 @@ body.auth-ready .container { display: grid; }
 }
 .links-desc:last-of-type { margin-bottom: 0; }
 
+/* ---- Empty state ---- */
+.links-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 4px 0 2px;
+}
+
 /* ---- Save row ---- */
 .links-save-row {
     margin-top: 14px;
@@ -70,9 +80,17 @@ body.auth-ready .container { display: grid; }
     align-items: center;
     gap: 12px;
 }
-.links-save-status { font-size: 13px; color: var(--text-mid); flex: 1; }
+.links-save-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.links-save-status { font-size: 13px; color: var(--text-mid); }
 .links-save-status.ok  { color: var(--success-green); }
 .links-save-status.err { color: var(--error-red); }
+.links-last-saved  { font-size: 11px; color: var(--text-light); }
 
 .btn-save {
     flex: none;
@@ -117,6 +135,17 @@ body.auth-ready .container { display: grid; }
     border-radius: 4px;
     overflow: hidden;
     background: var(--surface-sunken);
+    position: relative; /* needed for the reference line */
+}
+/* Dashed line at 50% height — marks 14 of 28 positions on shift */
+.cov-bar-ref-line {
+    position: absolute;
+    left: 0; right: 0;
+    bottom: 50%;
+    height: 0;
+    border-top: 1px dashed var(--border-light);
+    pointer-events: none;
+    z-index: 1;
 }
 .cov-bar-seg {
     width: 100%;
@@ -126,6 +155,7 @@ body.auth-ready .container { display: grid; }
 .cov-bar-seg.early { background: var(--cov-early); }
 .cov-bar-seg.late  { background: var(--cov-late); }
 .cov-bar-seg.spare { background: var(--accent-gold); }
+.cov-bar-seg.night { background: var(--cov-night); }
 .cov-day-label {
     font-size: 10px;
     font-weight: 700;
@@ -133,6 +163,8 @@ body.auth-ready .container { display: grid; }
     text-transform: uppercase;
     letter-spacing: 0.3px;
 }
+.cov-count-warn      { color: var(--error-red); }
+.cov-day-label-warn  { color: var(--error-red); }
 .cov-legend {
     display: flex;
     gap: 12px;
@@ -154,6 +186,7 @@ body.auth-ready .container { display: grid; }
 .cov-legend-dot.early { background: var(--cov-early); }
 .cov-legend-dot.late  { background: var(--cov-late); }
 .cov-legend-dot.spare { background: var(--accent-gold); }
+.cov-legend-dot.night { background: var(--cov-night); }
 .cov-legend-dot.rd    { background: var(--surface-sunken); border: 1px solid var(--border-light); }
 
 /* ---- Grid wrapper — horizontal scroll on mobile ---- */
@@ -340,52 +373,28 @@ body.auth-ready .container { display: grid; }
 .cov-label-l { color: #7a3800; }
 .cov-label-s { color: #705600; }
 
-/* ---- Staff assignment panel ---- */
-.links-staff-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 0;
-    border-bottom: 1px solid var(--border-light);
-}
-.links-staff-row:last-child { border-bottom: none; }
-.links-staff-pos {
+/* ---- Inline staff name input (in the sticky Staff column) ---- */
+.staff-name-input-inline {
+    width: 100%;
+    border: none;
+    border-bottom: 1.5px solid transparent;
+    background: transparent;
     font-size: 11px;
-    font-weight: 700;
-    color: var(--text-light);
-    min-width: 22px;
-    text-align: right;
-    flex-shrink: 0;
-}
-.links-staff-name-input {
-    flex: 1;
-    min-width: 0;
-    padding: 6px 8px;
-    border: 1.5px solid var(--border-light);
-    border-radius: var(--radius-sm);
-    font-size: var(--type-body);
-    background-color: var(--field-bg);
-    color: var(--text-dark);
     font-family: inherit;
+    color: var(--text-dark);
+    padding: 0;
+    outline: none;
+    cursor: text;
     transition: border-color 0.12s, background-color 0.12s;
-    min-height: 36px;
     box-sizing: border-box;
 }
-.links-staff-name-input:focus-visible {
-    border-color: var(--primary-blue);
-    outline: 2px solid var(--primary-blue);
-    outline-offset: 2px;
+.staff-name-input-inline:focus {
+    border-bottom-color: var(--primary-blue);
     background-color: white;
 }
-.links-staff-fixed-badge {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-mid);
-    background: var(--surface-sunken);
-    border-radius: var(--radius-sm);
-    padding: 3px 8px;
-    white-space: nowrap;
-    flex-shrink: 0;
+.staff-name-input-inline::placeholder {
+    color: var(--text-light);
+    font-style: italic;
 }
 
 /* ---- Badge ---- */
