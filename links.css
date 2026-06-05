@@ -235,15 +235,6 @@ body.auth-ready .container { display: grid; }
     max-width: 110px;
     text-align: left;
 }
-.bl-tag {
-    font-size: 9px; font-weight: 700;
-    color: var(--primary-blue);
-    background: rgba(0,30,60,0.1);
-    border-radius: 3px;
-    padding: 1px 3px;
-    margin-left: 3px;
-    vertical-align: middle;
-}
 .fixed-tag {
     font-size: 9px; font-weight: 700;
     color: var(--text-mid);
@@ -385,25 +376,6 @@ body.auth-ready .container { display: grid; }
     outline: 2px solid var(--primary-blue);
     outline-offset: 2px;
     background-color: white;
-}
-.links-staff-bl-wrap {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-shrink: 0;
-    cursor: pointer;
-    min-height: 36px;
-}
-.links-staff-bl-label {
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--text-mid);
-    user-select: none;
-    -webkit-user-select: none;
-}
-.links-staff-bl-check {
-    width: 15px; height: 15px;
-    accent-color: var(--primary-blue);
 }
 .links-staff-fixed-badge {
     font-size: 11px;

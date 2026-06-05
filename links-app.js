@@ -135,7 +135,7 @@ function buildDefaultDesign() {
         const member  = teamMembers.find(
             m => m.rosterType === 'main' && !m.hidden && !m.managerOnly && m.currentWeek === week
         );
-        meta[pos] = { staffName: member?.name ?? '', isBilingual: false, isFixed: false };
+        meta[pos] = { staffName: member?.name ?? '', isFixed: false };
     }
 
     // Positions 21–22: the two remaining bilingual CEAs
@@ -145,7 +145,7 @@ function buildDefaultDesign() {
         const member = blMembers[i] ?? null;
         const week   = member?.currentWeek ?? (i + 1);
         patterns[pos] = normalisePattern(bilingualRoster[week]);
-        meta[pos]     = { staffName: member?.name ?? '', isBilingual: true, isFixed: false };
+        meta[pos]     = { staffName: member?.name ?? '', isFixed: false };
     }
 
     // Position 23: C. Reen — fixed Mon–Fri 12:00–19:00
@@ -153,13 +153,13 @@ function buildDefaultDesign() {
         sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00',
         wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD',
     };
-    meta[String(FIXED_POS)] = { staffName: 'C. Reen', isBilingual: false, isFixed: true };
+    meta[String(FIXED_POS)] = { staffName: 'C. Reen', isFixed: true };
 
     // Positions 24–28: vacant placeholders
     for (let i = 0; i < 5; i++) {
         const pos  = String(VACANT_FROM + i);
         patterns[pos] = emptyPattern();
-        meta[pos]     = { staffName: '', isBilingual: false, isFixed: false };
+        meta[pos]     = { staffName: '', isFixed: false };
     }
 
     return { patterns, meta };
@@ -228,7 +228,7 @@ function renderGrid() {
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const posStr  = String(pos);
         const p       = design.patterns[posStr] || emptyPattern();
-        const m       = design.meta[posStr] || { staffName: '', isBilingual: false, isFixed: false };
+        const m       = design.meta[posStr] || { staffName: '', isFixed: false };
         const isFixed  = m.isFixed;
         const isVacant = !isFixed && !m.staffName;
         const rowClass = isFixed ? 'row-fixed' : (isVacant ? 'row-vacant' : 'row-normal');
@@ -236,8 +236,6 @@ function renderGrid() {
         let staffHtml = escapeHtml(m.staffName || '—');
         if (!m.staffName && !isFixed) {
             staffHtml += ' <span class="vacant-tag">(vacant)</span>';
-        } else if (m.isBilingual) {
-            staffHtml += ' <span class="bl-tag">BL</span>';
         } else if (isFixed) {
             staffHtml += ' <span class="fixed-tag">Fixed</span>';
         }
@@ -429,7 +427,7 @@ function renderStaffPanel() {
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const posStr = String(pos);
-        const m      = design.meta[posStr] || { staffName: '', isBilingual: false, isFixed: false };
+        const m      = design.meta[posStr] || { staffName: '', isFixed: false };
 
         if (m.isFixed) {
             rows.push(
@@ -446,12 +444,6 @@ function renderStaffPanel() {
                 `<input class="links-staff-name-input" type="text" ` +
                 `value="${escapeHtml(m.staffName)}" placeholder="Vacant" ` +
                 `data-pos="${pos}" aria-label="Staff name for position ${pos}">` +
-                `<label class="links-staff-bl-wrap" title="Bilingual">` +
-                `<input class="links-staff-bl-check" type="checkbox" ` +
-                `${m.isBilingual ? 'checked' : ''} ` +
-                `data-pos="${pos}" aria-label="Bilingual — position ${pos}">` +
-                `<span class="links-staff-bl-label">BL</span>` +
-                `</label>` +
                 `</div>`
             );
         }
@@ -461,18 +453,8 @@ function renderStaffPanel() {
     list.querySelectorAll('.links-staff-name-input[data-pos]').forEach(input => {
         input.addEventListener('input', () => {
             const pos = input.dataset.pos;
-            if (!design.meta[pos]) design.meta[pos] = { staffName: '', isBilingual: false, isFixed: false };
+            if (!design.meta[pos]) design.meta[pos] = { staffName: '', isFixed: false };
             design.meta[pos].staffName = input.value.trim();
-            staffDirty = true;
-            updateStaffSaveBtn();
-        });
-    });
-
-    list.querySelectorAll('.links-staff-bl-check').forEach(cb => {
-        cb.addEventListener('change', () => {
-            const pos = cb.dataset.pos;
-            if (!design.meta[pos]) design.meta[pos] = { staffName: '', isBilingual: false, isFixed: false };
-            design.meta[pos].isBilingual = cb.checked;
             staffDirty = true;
             updateStaffSaveBtn();
         });
@@ -684,7 +666,6 @@ document.getElementById('linksStaffSaveBtn')?.addEventListener('click', saveStaf
                 ]},
                 { heading: 'Row types', items: [
                     { icon: '👤', html: '<strong>Normal</strong> — standard CEA position' },
-                    { icon: '🔵', html: '<strong>BL</strong> — bilingual CEA position' },
                     { icon: '🔒', html: '<strong>Fixed</strong> — C. Reen\'s fixed hours (Mon–Fri 12:00–19:00); not editable' },
                     { icon: '⬜', html: '<strong>Vacant</strong> — placeholder for future recruitment' },
                 ]},
@@ -705,7 +686,6 @@ document.getElementById('linksStaffSaveBtn')?.addEventListener('click', saveStaf
             title: 'Staff assignment',
             sections: [{ items: [
                 { icon: '👤', html: 'Change the staff member assigned to each position — useful when people move between positions' },
-                { icon: '🔵', html: 'Tick <strong>BL</strong> to flag a position as bilingual' },
                 { icon: '💾', html: 'Tap <strong>Save assignments</strong> when done — the grid updates automatically' },
                 { icon: '🔒', html: 'Position 23 (C. Reen) is fixed and cannot be reassigned' },
             ]}],
