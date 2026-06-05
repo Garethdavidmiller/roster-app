@@ -1263,14 +1263,6 @@ button.nav-panel-link--coming-soon {
     min-width: 0;
 }
 
-/* Nationality flags — emoji, up to two per member; never truncated */
-.nav-panel-flags {
-    flex-shrink: 0;
-    font-size: 15px;
-    line-height: 1;
-    letter-spacing: 1px;
-}
-
 .nav-panel-signout {
     background: none;
     border: none;

@@ -16,7 +16,7 @@
  */
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
-import { teamMembers, APP_VERSION } from './roster-data.js';
+import { APP_VERSION } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 import { fetchAvatarUrl } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
@@ -454,7 +454,6 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
                     <span class="nav-panel-member" id="navPanelMember"></span>
-                    <span class="nav-panel-flags" id="navPanelFlags" aria-hidden="true"></span>
                 </div>
                 <div class="nav-panel-footer-actions">
                     ${bellHtml}
@@ -536,14 +535,5 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
             });
         }
 
-        // Nationality flags (optional `flags` array on the teamMember). Shown
-        // between the name and the bell. Up to two flags per member.
-        // Hidden on Windows — flag emoji render as 2-letter country codes there.
-        const isWindows = /Win/.test(navigator.userAgentData?.platform ?? navigator.platform) || /Windows/.test(navigator.userAgent);
-        const member    = teamMembers.find(m => m.name === memberName);
-        const flagsEl   = document.getElementById('navPanelFlags');
-        if (flagsEl && member?.flags?.length && !isWindows) {
-            flagsEl.textContent = member.flags.join(' ');
-        }
     }
 }
