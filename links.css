@@ -1,4 +1,4 @@
-/* links.css — all CSS for links.html (Links design workspace, v12.09) */
+/* links.css — all CSS for links.html (Links design workspace, v12.10) */
 
 :root {
     --cov-early: #1a7fc1;
@@ -297,7 +297,7 @@ body.auth-ready .container { display: grid; }
 
 /* Shift cell — contains a button or a select */
 .links-grid .shift-cell {
-    height: 34px;
+    height: 38px;
     min-width: 62px;
     padding: 0;
     position: relative;
@@ -313,12 +313,10 @@ body.auth-ready .container { display: grid; }
     font-weight: 700;
     font-family: inherit;
     letter-spacing: 0.1px;
-    padding: 0 3px;
+    padding: 2px 3px;
     transition: filter var(--dur-fast) var(--ease-standard);
-    line-height: 1.2;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.35;
+    white-space: pre-line; /* allows \n in shiftLabel() to wrap start/end times */
 }
 .shift-cell-btn.fixed-cell { cursor: default; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
@@ -336,7 +334,7 @@ body.auth-ready .container { display: grid; }
 /* Vacant row — subtle muting */
 .links-grid tr.row-vacant td { opacity: 0.6; }
 
-/* Inline select (edit state) */
+/* Inline select (edit state — matches .shift-cell height) */
 .shift-cell-select {
     display: block;
     width: 100%; height: 100%;

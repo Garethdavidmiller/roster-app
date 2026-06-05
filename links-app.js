@@ -104,11 +104,12 @@ function classifyShift(shift) {
     return 'night';
 }
 
-/** Compact label for a shift in a narrow grid cell. */
+/** Compact label for a shift in a grid cell — full time shown on two lines. */
 function shiftLabel(shift) {
     if (!shift || shift === 'RD' || shift === 'OFF') return 'RD';
     if (shift === 'SPARE') return 'SP';
-    return shift.slice(0, 5); // "HH:MM"
+    const dash = shift.indexOf('-');
+    return dash > 0 ? `${shift.slice(0, dash)}\n${shift.slice(dash + 1)}` : shift;
 }
 
 /** Normalise a weekly-roster pattern entry: replaces OFF with RD. */
