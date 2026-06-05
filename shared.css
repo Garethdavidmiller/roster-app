@@ -1040,12 +1040,11 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .nav-panel-pill--links {
-    background: var(--nav-raised);
-    color: var(--accent-gold);
-    border: 1px solid rgba(255,255,255,0.15);
+    background: var(--purple);
+    color: white;
 }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-pill--links:hover { background: var(--nav-raised-strong); }
+    .nav-panel-pill--links:hover { background: color-mix(in oklch, var(--purple) 91%, black); }
 }
 
 /* Information section — flat, always open */

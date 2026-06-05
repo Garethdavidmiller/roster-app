@@ -389,15 +389,11 @@ body.auth-ready .container { display: grid; }
 }
 
 /* ---- Badge ---- */
-#linksBadge {
-    background: rgba(245,200,0,0.18);
-    color: var(--accent-gold-dark);
-    border: 1px solid rgba(245,200,0,0.35);
-}
+#linksBadge { background: var(--purple); color: white; }
 #iconLightbox .lightbox-badge {
-    background: rgba(245,200,0,0.15);
-    border-color: rgba(245,200,0,0.35);
-    color: var(--accent-gold-dark);
+    background: var(--purple-light);
+    border-color: var(--purple);
+    color: var(--purple);
 }
 
 /* ---- Tablet/Desktop ---- */
