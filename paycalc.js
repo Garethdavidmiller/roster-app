@@ -2203,7 +2203,7 @@ Device: ${navigator.userAgent}
 
 --- Describe the bug ---
 `;
-    bugLink.href = `mailto:${ROSTER_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator v${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
+    bugLink.href = `mailto:${ROSTER_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
   }
 
   if (versionEl) versionEl.textContent = APP_VERSION;

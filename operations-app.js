@@ -127,8 +127,8 @@ window._mybSession.then(ok => {
         }
         if (bugLink) {
             const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Operations v${OPS_VERSION}\nUser: ${currentUser}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;
-            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Operations v${OPS_VERSION}`)}&body=${encodeURIComponent(body)}`;
+            const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Operations Version ${OPS_VERSION}\nUser: ${currentUser}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;
+            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Operations Version ${OPS_VERSION}`)}&body=${encodeURIComponent(body)}`;
         }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => lightbox.classList.add('open'));
