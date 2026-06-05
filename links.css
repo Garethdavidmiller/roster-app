@@ -1,9 +1,8 @@
-/* links.css — all CSS for links.html (Links design workspace, v12.10) */
+/* links.css — all CSS for links.html (Links design workspace, v12.11) */
 
 :root {
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
-    --cov-night: rgba(80, 40, 120, 0.75);
 }
 
 body {
@@ -155,7 +154,6 @@ body.auth-ready .container { display: grid; }
 .cov-bar-seg.early { background: var(--cov-early); }
 .cov-bar-seg.late  { background: var(--cov-late); }
 .cov-bar-seg.spare { background: var(--accent-gold); }
-.cov-bar-seg.night { background: var(--cov-night); }
 .cov-day-label {
     font-size: 10px;
     font-weight: 700;
@@ -186,7 +184,6 @@ body.auth-ready .container { display: grid; }
 .cov-legend-dot.early { background: var(--cov-early); }
 .cov-legend-dot.late  { background: var(--cov-late); }
 .cov-legend-dot.spare { background: var(--accent-gold); }
-.cov-legend-dot.night { background: var(--cov-night); }
 .cov-legend-dot.rd    { background: var(--surface-sunken); border: 1px solid var(--border-light); }
 
 /* ---- Grid wrapper — horizontal scroll on mobile ---- */

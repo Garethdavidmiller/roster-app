@@ -13,6 +13,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { initAvatarCard } from './settings-avatar.js';
 
 
 // ── Check session ─────────────────────────────────────────────────────────────
@@ -116,8 +117,13 @@ function initLoginOverlay() {
 
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
-    // Card collapse — notif card is wired by initHuddleNotifications() below; only wire religious here
-    initCardCollapse('religiousToggleHeader','religiousBody',  'religiousChevron');
+    // Card collapse — notif card is wired by initHuddleNotifications() below; wire the rest here
+    initCardCollapse('profileToggleHeader',  'profileBody',    'profileChevron');
+    initCardCollapse('religiousToggleHeader', 'religiousBody',  'religiousChevron');
+
+    // Profile photo card — awaitSession so the Storage/Firestore write happens
+    // after Firebase Auth is re-established (matches the cultural-calendar write).
+    initAvatarCard({ memberName: currentUser, awaitSession: window._mybSession });
 
     // Notifications card
     initHuddleNotifications();
@@ -233,6 +239,17 @@ function initTipsLightbox() {
     if (!lb || !closeBtn) return;
 
     const CARD_TIPS = {
+        'profile': {
+            title: 'Profile photo',
+            sections: [
+                { items: [
+                    { icon: '📷', html: 'Tap <strong>Choose photo</strong> to pick a picture from your phone, then <strong>Save photo</strong>' },
+                    { icon: '🙂', html: 'It shows as a small circle next to your name in the menu' },
+                    { icon: '✂️', html: 'The photo is shrunk and squared off on your phone before it’s saved — it stays tiny' },
+                    { icon: '🗑️', html: 'Tap <strong>Remove photo</strong> any time to go back to your initials' },
+                ]},
+            ],
+        },
         'notifications': {
             title: 'Notifications',
             sections: [
