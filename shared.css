@@ -414,6 +414,35 @@ body.lb-open #stickyTotal { display: none !important; }
     transform: scale(0.85);
 }
 
+/* Profile avatar in the About lightbox — shown below the section badge */
+.lightbox-avatar-badge {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1;
+    color: white;
+    flex-shrink: 0;
+    margin-top: 10px;
+    user-select: none;
+}
+/* Override the generic app-icon rule below so the avatar photo is circular,
+   not square with rounded corners. */
+.lightbox-avatar-badge img {
+    width: 100%;
+    height: 100%;
+    border-radius: 0;
+    box-shadow: none;
+    margin-bottom: 0;
+    object-fit: cover;
+    display: block;
+}
+
 /* Enlarged app icon */
 #iconLightboxContent img {
     width: 100px;

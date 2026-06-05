@@ -196,8 +196,8 @@ let openAboutLightbox = null;
             const name   = currentUser || 'Unknown';
             const date   = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             const ua     = navigator.userAgent;
-            const body   = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Admin v${ADMIN_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
-            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin v${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
+            const body   = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Admin Version ${ADMIN_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
+            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin Version ${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
         }
         lightbox.classList.add('visible');
         requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });

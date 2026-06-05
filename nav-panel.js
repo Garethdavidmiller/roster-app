@@ -27,6 +27,20 @@ import { avatarCacheKey, paintAvatar } from './avatar.js';
 // it with the pre-change value it was already fetching.
 let _avatarSettled = false;
 
+// Show the About-lightbox avatar only when the member has an actual photo.
+// When there's none, hide the element so the app logo remains the sole visual.
+function _paintLbAvatar(el, url, memberName) {
+    if (!el) return;
+    if (url) {
+        el.style.display = '';
+        paintAvatar(el, url, memberName);
+    } else {
+        el.style.display = 'none';
+        el.textContent   = '';
+        el.style.background = '';
+    }
+}
+
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
  * colorClass mirrors the equivalent quick-action button on the calendar page:
@@ -381,6 +395,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const repaint = url => {
             _avatarSettled = true;
             paintAvatar(document.getElementById('navPanelAvatar'), url || null, memberName);
+            _paintLbAvatar(document.getElementById('lightboxAvatar'), url || null, memberName);
         };
         document.addEventListener('myb:avatar-changed', e => {
             if (e.detail?.memberName !== memberName) return;
@@ -473,7 +488,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                     <img src="./icon-192.png" alt="" class="nav-panel-icon" loading="eager">
                     <span class="nav-panel-brand-text">
                         <span class="nav-panel-title">Marylebone Roster</span>
-                        <span class="nav-panel-version">v${APP_VERSION}</span>
+                        <span class="nav-panel-version">Version ${APP_VERSION}</span>
                     </span>
                 </button>
                 <button class="nav-panel-close" id="navPanelClose"
@@ -522,9 +537,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
         // URL (instant on repeat visits), then refresh from Firestore (covers a
         // photo set on another device). fetchAvatarUrl is open-read, so this
         // works on index.html which has no Firebase Auth session.
-        const avatarEl = document.getElementById('navPanelAvatar');
-        if (avatarEl) {
-            paintAvatar(avatarEl, lsGet(avatarCacheKey(memberName)) || null, memberName);
+        const avatarEl   = document.getElementById('navPanelAvatar');
+        const lbAvatarEl = document.getElementById('lightboxAvatar');
+        if (avatarEl || lbAvatarEl) {
+            const cachedUrl = lsGet(avatarCacheKey(memberName)) || null;
+            paintAvatar(avatarEl, cachedUrl, memberName);
+            _paintLbAvatar(lbAvatarEl, cachedUrl, memberName);
             fetchAvatarUrl(memberName).then(url => {
                 if (_avatarSettled) return; // a user action already set the truth
                 // Persist so the next load paints instantly and converges (without
@@ -532,6 +550,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 if (url) lsSet(avatarCacheKey(memberName), url);
                 else     lsDel(avatarCacheKey(memberName));
                 paintAvatar(avatarEl, url, memberName);
+                _paintLbAvatar(lbAvatarEl, url, memberName);
             });
         }
 

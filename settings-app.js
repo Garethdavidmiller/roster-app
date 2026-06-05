@@ -330,7 +330,7 @@ function initIconLightbox() {
     const statusEl = document.getElementById('lightboxUpdateStatus');
     const bugLink = document.getElementById('bugReportLink');
     if (bugLink) {
-        bugLink.href = `mailto:gdmiller1979@gmail.com?subject=MYB Roster bug report (v${APP_VERSION})&body=Page: Settings%0ADevice: ${encodeURIComponent(navigator.userAgent)}%0A%0ADescribe the issue:%0A`;
+        bugLink.href = `mailto:gdmiller1979@gmail.com?subject=MYB Roster bug report (Version ${APP_VERSION})&body=Page: Settings%0ADevice: ${encodeURIComponent(navigator.userAgent)}%0A%0ADescribe the issue:%0A`;
     }
 
     let _lbFocusReturn = null;
