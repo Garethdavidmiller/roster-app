@@ -319,7 +319,16 @@ function initIconLightbox() {
     let _lbFocusReturn = null;
     function openLightbox() {
         _lbFocusReturn = document.activeElement;
-        if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
+        if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.className = 'lightbox-status';
+            (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
+                .then(reg => {
+                    statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
+                    statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
+                })
+                .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
+        }
         lb.classList.add('visible');
         requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
         lockBodyScroll();

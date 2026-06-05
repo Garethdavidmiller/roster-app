@@ -115,7 +115,16 @@ window._mybSession.then(ok => {
     if (versionEl) versionEl.textContent = OPS_VERSION;
 
     function open() {
-        if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
+        if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.className = 'lightbox-status';
+            (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
+                .then(reg => {
+                    statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
+                    statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
+                })
+                .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
+        }
         if (bugLink) {
             const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
             const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Operations v${OPS_VERSION}\nUser: ${currentUser}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;

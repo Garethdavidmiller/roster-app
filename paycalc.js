@@ -2207,7 +2207,6 @@ Device: ${navigator.userAgent}
   }
 
   if (versionEl) versionEl.textContent = APP_VERSION;
-  if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(reg => {
@@ -2244,6 +2243,16 @@ Device: ${navigator.userAgent}
   let _lbFocusReturn = null;
   function openLightbox() {
     _lbFocusReturn = document.activeElement;
+    if (statusEl) {
+      statusEl.textContent = '';
+      statusEl.className = 'lightbox-status';
+      (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
+        .then(reg => {
+          statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
+          statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
+        })
+        .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
+    }
     lockBodyScroll();
     _pushOverlayState(closeLightbox);
     lightbox.classList.add('visible');

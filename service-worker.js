@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v12.06
+// MYB Roster — Service Worker v12.07
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '12.06';
+const APP_VERSION = '12.07';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -128,9 +128,14 @@ const ICON_ASSETS = [
 // ============================================
 self.addEventListener("install", event => {
     console.log(`[SW ${APP_VERSION}] Installing`);
-    // allSettled (instead of addAll) means a single 404 / network blip on one file
-    // does not abort the whole SW install. Each asset is cached if available; failures
-    // are logged but install proceeds. Network-first fetch handler can re-fetch later.
+    // skipWaiting here (not inside event.waitUntil) so the new SW activates
+    // and the page reloads immediately — without waiting for pre-caching to finish.
+    // All app files are network-first anyway, so offline pre-caching is a convenience
+    // that must not delay activation.
+    self.skipWaiting();
+    // event.waitUntil keeps the SW alive while background pre-caching completes.
+    // allSettled means a single 404 / network blip on one file does not abort the
+    // whole install; failures are logged and the fetch handler re-fetches on demand.
     event.waitUntil((async () => {
         const cache = await caches.open(CACHE_NAME);
         await Promise.allSettled(CORE_ASSETS.map(asset =>
@@ -143,8 +148,7 @@ self.addEventListener("install", event => {
                 console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err)
             )
         ));
-        console.log(`[SW ${APP_VERSION}] Cached — activating immediately`);
-        return self.skipWaiting();
+        console.log(`[SW ${APP_VERSION}] Pre-cached`);
     })());
 });
 
