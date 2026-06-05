@@ -27,16 +27,19 @@ import { avatarCacheKey, paintAvatar } from './avatar.js';
 // it with the pre-change value it was already fetching.
 let _avatarSettled = false;
 
-// Show the About-lightbox avatar only when the member has an actual photo.
-// When there's none, hide the element so the app logo remains the sole visual.
+// When a photo is set, show it in place of the app logo in the About lightbox.
+// When there's no photo, restore the logo so the lightbox looks as it always did.
 function _paintLbAvatar(el, url, memberName) {
     if (!el) return;
+    const appIcon = document.getElementById('lightboxAppIcon');
     if (url) {
+        if (appIcon) appIcon.style.display = 'none';
         el.style.display = '';
         paintAvatar(el, url, memberName);
     } else {
-        el.style.display = 'none';
-        el.textContent   = '';
+        if (appIcon) appIcon.style.display = '';
+        el.style.display    = 'none';
+        el.textContent      = '';
         el.style.background = '';
     }
 }
