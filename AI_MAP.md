@@ -22,7 +22,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
 | Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
-| Links design workspace — 28-position link design grid, coverage analysis, staff assignment | `links-app.js` + `links.html` + `links.css` |
+| Links design workspace — 28-position link design grid, inline staff assignment, coverage analysis | `links-app.js` + `links.html` + `links.css` |
 | Annual Leave Booking section | `admin-al.js` |
 | Sick Days Recording section | `admin-sick.js` |
 | Huddle upload (admin-only, operations page) | `huddle.js` → `initHuddleUpload` |
