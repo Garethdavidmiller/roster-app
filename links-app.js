@@ -126,24 +126,22 @@ function buildDefaultDesign() {
     const patterns = {};
     const meta     = {};
 
-    // Positions 1–20: one entry per week of the CEA main 20-week roster
+    // Positions 1–20: one entry per week of the CEA main 20-week roster.
+    // Staff names are intentionally blank — who goes in which position is a
+    // separate decision made after the link patterns themselves are agreed.
     for (let week = 1; week <= 20; week++) {
         const pos     = String(week);
         patterns[pos] = normalisePattern(weeklyRoster[week]);
-        const member  = teamMembers.find(
-            m => m.rosterType === 'main' && !m.hidden && !m.managerOnly && m.currentWeek === week
-        );
-        meta[pos] = { staffName: member?.name ?? '', isFixed: false };
+        meta[pos]     = { staffName: '', isFixed: false };
     }
 
-    // Positions 21–22: the two BL CEAs
+    // Positions 21–22: the two BL slots (patterns only — names left blank).
     const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
     for (let i = 0; i < 2; i++) {
-        const pos    = String(21 + i);
-        const member = blMembers[i] ?? null;
-        const week   = member?.currentWeek ?? (i + 1);
+        const pos  = String(21 + i);
+        const week = blMembers[i]?.currentWeek ?? (i + 1);
         patterns[pos] = normalisePattern(bilingualRoster[week]);
-        meta[pos]     = { staffName: member?.name ?? '', isFixed: false };
+        meta[pos]     = { staffName: '', isFixed: false };
     }
 
     // Position 23: C. Reen — fixed Mon–Fri 12:00–19:00
@@ -629,8 +627,8 @@ window.addEventListener('beforeunload', e => {
             title: 'Initialise from rosters',
             sections: [{ items: [
                 { icon: '⚙️', html: 'Seeds the design grid from the current roster data as a <strong>starting point</strong>' },
-                { icon: '1️⃣', html: 'Positions 1–20: each member\'s current weekly pattern from the CEA 20-week main roster' },
-                { icon: '2️⃣', html: 'Positions 21–22: D. Irvine and T. Gherbi\'s current patterns from the BL roster' },
+                { icon: '1️⃣', html: 'Positions 1–20: the shift pattern for each week of the CEA 20-week main roster (names left blank — assign people after the link design is agreed)' },
+                { icon: '2️⃣', html: 'Positions 21–22: the two BL roster patterns (names left blank)' },
                 { icon: '3️⃣', html: 'Position 23: C. Reen\'s fixed Mon–Fri 12:00–19:00 pattern' },
                 { icon: '4️⃣', html: 'Positions 24–28: all RD (vacant placeholders for future recruitment)' },
                 { icon: '⚠️', html: '<strong>This will overwrite any unsaved changes.</strong> Use it once to get started, then save and edit.' },
