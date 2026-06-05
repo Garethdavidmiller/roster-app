@@ -141,8 +141,8 @@ let _storagePromise = null;
 function _getStorageSdk() {
     if (!_storagePromise) {
         _storagePromise = import('https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js')
-            .then(({ getStorage, ref, uploadBytes, getDownloadURL }) =>
-                ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL }));
+            .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
+                ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }));
     }
     return _storagePromise;
 }
@@ -255,4 +255,82 @@ export async function deletePushSubscription(endpoint) {
     if (!endpoint) return;
     const id = await endpointId(endpoint);
     await deleteDoc(doc(db, 'pushSubscriptions', id));
+}
+
+// ---- Profile Avatars ----
+// A member's profile photo lives at avatars/<slug>.jpg in Storage, with a
+// pointer document at memberAvatars/<memberName> in Firestore holding the
+// download URL. The pointer doc is open-read (like huddles/overrides) because
+// the nav footer renders the avatar on index.html, which has no Firebase Auth
+// session — and the image is already public via its tokenised Storage URL.
+
+/**
+ * Storage object path for a member's avatar. Non-alphanumeric characters in the
+ * display name are collapsed to underscores so the path is filesystem-safe.
+ * "G. Miller" → "avatars/G__Miller.jpg".
+ * @param {string} memberName
+ * @returns {string}
+ */
+function avatarStoragePath(memberName) {
+    return `avatars/${memberName.replace(/[^a-zA-Z0-9]/g, '_')}.jpg`;
+}
+
+/**
+ * Upload a compressed JPEG avatar for a member and record its download URL.
+ * Overwrites any existing avatar for that member (latest wins). The caller is
+ * responsible for compressing the image client-side before calling this.
+ * @param {string} memberName - Display name, exact teamMembers match
+ * @param {Blob}   blob       - JPEG image blob (compressed client-side)
+ * @returns {Promise<string>} Public download URL of the stored avatar
+ */
+export async function uploadAvatar(memberName, blob) {
+    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
+    const storageRef = ref(storage, avatarStoragePath(memberName));
+    await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
+    const url = await getDownloadURL(storageRef);
+    await setDoc(doc(db, 'memberAvatars', memberName), {
+        avatarUrl: url,
+        updatedAt: serverTimestamp(),
+        updatedBy: memberName,
+    });
+    return url;
+}
+
+/**
+ * Remove a member's avatar. The Firestore pointer is the source of truth, so it
+ * is deleted FIRST — if that fails (e.g. offline) the call rejects and the UI can
+ * surface the error without having touched Storage. Once the pointer is gone the
+ * Storage delete is best-effort: any failure (including 'object-not-found') is
+ * logged but NOT rethrown, so a Storage hiccup never blocks a remove the user
+ * sees as done. An orphaned Storage object is harmless (nothing references it).
+ * @param {string} memberName
+ * @returns {Promise<void>}
+ */
+export async function deleteAvatar(memberName) {
+    await deleteDoc(doc(db, 'memberAvatars', memberName));
+    try {
+        const { storage, ref, deleteObject } = await _getStorageSdk();
+        await deleteObject(ref(storage, avatarStoragePath(memberName)));
+    } catch (e) {
+        if (e?.code !== 'storage/object-not-found') {
+            console.warn('[Avatar] storage delete failed (orphan left, pointer already removed):', e);
+        }
+    }
+}
+
+/**
+ * Read a member's avatar download URL from the Firestore pointer document.
+ * Returns null on any failure or when no avatar is set — callers fall back to
+ * the initials badge. Open-read, so this works without a Firebase Auth session.
+ * @param {string} memberName
+ * @returns {Promise<string|null>}
+ */
+export async function fetchAvatarUrl(memberName) {
+    try {
+        const snap = await getDoc(doc(db, 'memberAvatars', memberName));
+        return snap.exists() ? (snap.data().avatarUrl || null) : null;
+    } catch (e) {
+        console.warn('[Avatar] fetch failed:', e);
+        return null;
+    }
 }

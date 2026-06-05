@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.11';
+export const APP_VERSION = '12.12';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1281,6 +1281,37 @@ export function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Derive up-to-two-letter initials from a member display name, for the avatar
+ * fallback shown when no profile photo is set. "G. Miller" → "GM";
+ * "C. Francisco-Charles" → "CF"; single-word names → first letter only.
+ * Shared by settings-avatar.js (large preview) and nav-panel.js (footer badge)
+ * so both render the exact same fallback.
+ * @param {string} name
+ * @returns {string} 1–2 uppercase letters, or "?" if none can be derived
+ */
+export function avatarInitials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    const first = parts[0]?.[0] ?? '';
+    const last  = parts.length > 1 ? parts[parts.length - 1][0] : '';
+    return (first + last).toUpperCase().replace(/[^A-Z]/g, '') || '?';
+}
+
+/**
+ * Derive a stable background colour for a member's initials avatar from their
+ * name, so the same person always gets the same colour. Returns an oklch()
+ * string (consistent with the app's colour system) at a fixed lightness/chroma
+ * that keeps white initials legible (WCAG AA) across the hue wheel.
+ * @param {string} name
+ * @returns {string} CSS oklch() colour
+ */
+export function avatarHue(name) {
+    let h = 0;
+    for (let i = 0; i < (name?.length ?? 0); i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+    return `oklch(52% 0.12 ${h}deg)`;
 }
 
 /**

@@ -57,18 +57,73 @@ body {
         display: grid;
         grid-template-columns: minmax(280px, 380px) 1fr;
         column-gap: 24px;
+        row-gap: 24px;
         align-items: start;
     }
     /* Header aligns with the grid */
     .app-header { max-width: 1100px; margin-left: auto; margin-right: auto; }
 
-    /* Cards sit directly in the grid — no wrappers needed */
-    #notificationsCard { grid-column: 1; margin-bottom: 0; }
-    #religiousCard     { grid-column: 2; margin-bottom: 0; }
+    /* Cards sit directly in the grid — no wrappers needed. Left column stacks
+       Profile above Notifications; Cultural Calendar fills the right column.
+       Rows are pinned explicitly so the layout doesn't rely on auto-placement
+       backfill (which would shift if a card is added or reordered). */
+    #profileCard       { grid-column: 1; grid-row: 1; margin-bottom: 0; }
+    #notificationsCard { grid-column: 1; grid-row: 2; margin-bottom: 0; }
+    #religiousCard     { grid-column: 2; grid-row: 1; margin-bottom: 0; }
 
     /* Buttons: no reason to span a full column on desktop */
     .btn-action { max-width: 280px; }
 }
+
+/* ---- Profile photo card ---- */
+.avatar-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+.avatar-preview {
+    flex-shrink: 0;
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--surface-sunken);
+    color: white;
+    font-size: 30px;
+    font-weight: 700;
+    line-height: 1;
+    user-select: none;
+}
+.avatar-preview .avatar-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.avatar-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+/* Save/Cancel for a freshly chosen photo — two buttons side by side */
+.avatar-pending {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+.avatar-pending .btn-action { flex: 1; }
+.avatar-status {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-top: 10px;
+    min-height: 1.2em;
+}
+.avatar-status.error { color: var(--error-red); }
 
 /* ---- Notifications card ---- */
 #notifStatusMsg { font-size: 13px; color: var(--text-mid); margin-bottom: 14px; }
