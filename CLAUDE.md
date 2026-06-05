@@ -37,7 +37,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 
 ## Version bumping (MANDATORY on every change)
 
-**8 edit locations (7 files), every commit that touches behaviour:**
+**9 edit locations (8 files), every commit that touches behaviour:**
 
 > **What requires a bump:** any change that alters runtime behaviour — logic, data, UI,
 > CSS layout/appearance, security rules, HTTP headers, manifest, service worker caching.
@@ -56,6 +56,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 | `paycalc.html` | Line 2 HTML comment |
 | `operations.html` | Line 2 HTML comment |
 | `settings.html` | Line 2 HTML comment |
+| `links.html` | Line 2 HTML comment |
 
 `?v=` cache-busting strings were removed at v9.94 — do not add them back. Cache freshness is handled by `Cache-Control: no-cache` in `firebase.json`.
 
