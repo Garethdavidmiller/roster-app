@@ -53,8 +53,8 @@ initNavPanel({
 const DAYS       = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS  = 28;
-const FIXED_POS  = 23;   // C. Reen — Mon–Fri 12:00–19:00, not editable
-const VACANT_FROM = 24;  // positions 24–28 are vacant placeholders
+const FIXED_POS   = 28;  // C. Reen — fixed link, shown separately at bottom of grid
+const VACANT_FROM = 23;  // lines 23–27 are vacant placeholders
 
 const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
 
@@ -150,19 +150,19 @@ function buildDefaultDesign() {
         meta[pos]     = { staffName: '', isFixed: false };
     }
 
-    // Position 23: C. Reen — fixed Mon–Fri 12:00–19:00
-    patterns[String(FIXED_POS)] = {
-        sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00',
-        wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD',
-    };
-    meta[String(FIXED_POS)] = { staffName: 'C. Reen', isFixed: true };
-
-    // Positions 24–28: vacant placeholders
+    // Lines 23–27: vacant placeholders
     for (let i = 0; i < 5; i++) {
         const pos  = String(VACANT_FROM + i);
         patterns[pos] = emptyPattern();
         meta[pos]     = { staffName: '', isFixed: false };
     }
+
+    // Line 28: C. Reen — fixed link, Mon–Fri 12:00–19:00, shown separately at bottom
+    patterns[String(FIXED_POS)] = {
+        sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00',
+        wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD',
+    };
+    meta[String(FIXED_POS)] = { staffName: 'C. Reen', isFixed: true };
 
     return { patterns, meta };
 }
@@ -229,6 +229,15 @@ function renderGrid() {
 
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
+        // Insert a visual separator row immediately before the fixed link (Line 28).
+        if (pos === FIXED_POS) {
+            rows.push(
+                `<tr class="fixed-link-separator">` +
+                `<td colspan="9">Fixed Link — additional cover</td>` +
+                `</tr>`
+            );
+        }
+
         const posStr  = String(pos);
         const p       = design.patterns[posStr] || emptyPattern();
         const m       = design.meta[posStr] || { staffName: '', isFixed: false };
@@ -236,12 +245,13 @@ function renderGrid() {
         const isVacant = !isFixed && !m.staffName;
         const rowClass = isFixed ? 'row-fixed' : (isVacant ? 'row-vacant' : 'row-normal');
 
-        // Staff name cell: plain text for fixed row; inline input for all others
+        // Staff name cell: plain text for fixed row; inline input for all others.
+        // Placeholder shows the line name so vacant rows are identifiable at a glance.
         const staffCellHtml = isFixed
             ? `<td class="staff-name">${escapeHtml(m.staffName)}<span class="fixed-tag">Fixed</span></td>`
             : `<td class="staff-name"><input class="staff-name-input-inline" type="text" ` +
-              `value="${escapeHtml(m.staffName)}" placeholder="Vacant" data-pos="${posStr}" ` +
-              `autocomplete="off" spellcheck="false" aria-label="Staff name, position ${posStr}"></td>`;
+              `value="${escapeHtml(m.staffName)}" placeholder="Line ${posStr}" data-pos="${posStr}" ` +
+              `autocomplete="off" spellcheck="false" aria-label="Staff name for Line ${posStr}"></td>`;
 
         const dayCells = DAYS.map((d, di) => {
             const shift = p[d] ?? 'RD';
@@ -256,7 +266,7 @@ function renderGrid() {
             return `<td class="shift-cell">` +
                 `<button class="shift-cell-btn type-${type}" ` +
                 `data-pos="${posStr}" data-day="${d}" ` +
-                `aria-label="Position ${posStr} ${DAY_LABELS[di]}: ${shift} — tap to edit">` +
+                `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${shift} — tap to edit">` +
                 `${escapeHtml(label)}</button></td>`;
         }).join('');
 
@@ -485,6 +495,14 @@ async function loadDesign() {
         if (snap.exists()) {
             const data = snap.data();
             design = { patterns: data.patterns || {}, meta: data.meta || {} };
+            // Migrate pre-v12.09 data: C. Reen was at position 23, now at position 28.
+            // Swap if 23 is marked fixed and 28 is not yet populated as fixed.
+            if (design.meta['23']?.isFixed && !design.meta['28']?.isFixed) {
+                design.patterns['28'] = design.patterns['23'];
+                design.meta['28']    = design.meta['23'];
+                design.patterns['23'] = emptyPattern();
+                design.meta['23']    = { staffName: '', isFixed: false };
+            }
             updateLastSaved(data.updatedBy, data.updatedAt);
         } else {
             design = null;
@@ -631,15 +649,15 @@ window.addEventListener('beforeunload', e => {
             title: 'Link design grid',
             sections: [
                 { heading: 'How it works', items: [
-                    { icon: '📋', html: 'Each <strong>row</strong> is one of the 28 positions. Each <strong>column</strong> is a day of the week (Sun–Sat).' },
-                    { icon: '🔄', html: 'In a 28-person link all 28 patterns are always active simultaneously — one per person.' },
-                    { icon: '✏️', html: '<strong>Tap any shift cell</strong> to change it. <strong>Tap a name</strong> to edit the staff assignment for that position.' },
+                    { icon: '📋', html: 'Each <strong>row</strong> is one of the 28 lines. Each <strong>column</strong> is a day of the week (Sun–Sat).' },
+                    { icon: '🔄', html: 'Lines 1–27 are the main rotating link. Line 28 is the fixed link (C. Reen) — shown separately at the bottom as additional cover.' },
+                    { icon: '✏️', html: '<strong>Tap any shift cell</strong> to change it. <strong>Tap a name field</strong> to assign staff to that line.' },
                     { icon: '💾', html: 'Tap <strong>Save changes</strong> when done — saves both shifts and names in one go.' },
                 ]},
                 { heading: 'Row types', items: [
-                    { icon: '👤', html: '<strong>Normal</strong> — standard CEA position with a name assigned' },
-                    { icon: '🔒', html: '<strong>Fixed</strong> — C. Reen\'s fixed hours (Mon–Fri 12:00–19:00); not editable' },
-                    { icon: '⬜', html: '<strong>Vacant</strong> — name field is empty; placeholder for future recruitment' },
+                    { icon: '👤', html: '<strong>Named</strong> — a line with a staff member assigned' },
+                    { icon: '🔒', html: '<strong>Fixed Link</strong> — Line 28, C. Reen\'s fixed hours (Mon–Fri 12:00–19:00); not editable. She covers gaps and breaks across the link.' },
+                    { icon: '⬜', html: '<strong>Unassigned</strong> — placeholder shows the line number; tap to assign someone once the patterns are agreed' },
                 ]},
             ],
         },
@@ -647,10 +665,10 @@ window.addEventListener('beforeunload', e => {
             title: 'Initialise from rosters',
             sections: [{ items: [
                 { icon: '⚙️', html: 'Seeds the design grid from the current roster data as a <strong>starting point</strong>' },
-                { icon: '1️⃣', html: 'Positions 1–20: the shift pattern for each week of the CEA 20-week main roster (names left blank — assign people after the link design is agreed)' },
-                { icon: '2️⃣', html: 'Positions 21–22: the two BL roster patterns (names left blank)' },
-                { icon: '3️⃣', html: 'Position 23: C. Reen\'s fixed Mon–Fri 12:00–19:00 pattern' },
-                { icon: '4️⃣', html: 'Positions 24–28: all RD (vacant placeholders for future recruitment)' },
+                { icon: '1️⃣', html: 'Lines 1–20: the shift pattern for each week of the CEA 20-week main roster (names left blank — assign people after the link design is agreed)' },
+                { icon: '2️⃣', html: 'Lines 21–22: the two BL roster patterns (names left blank)' },
+                { icon: '3️⃣', html: 'Lines 23–27: all RD (vacant placeholders for future recruitment)' },
+                { icon: '4️⃣', html: 'Line 28: C. Reen\'s fixed link (Mon–Fri 12:00–19:00) — shown separately at the bottom as additional cover' },
                 { icon: '⚠️', html: '<strong>This will overwrite any unsaved changes.</strong> Use it once to get started, then save and edit.' },
             ]}],
         },

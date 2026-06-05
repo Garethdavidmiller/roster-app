@@ -1,4 +1,4 @@
-/* links.css — all CSS for links.html (Links design workspace, v12.07) */
+/* links.css — all CSS for links.html (Links design workspace, v12.09) */
 
 :root {
     --cov-early: #1a7fc1;
@@ -226,7 +226,7 @@ body.auth-ready .container { display: grid; }
     top: 0;
     z-index: 1;
 }
-.links-grid th.col-pos  { width: 28px; min-width: 28px; }
+.links-grid th.col-pos  { width: 36px; min-width: 36px; }
 .links-grid th.col-staff { text-align: left; padding-left: 8px; min-width: 84px; }
 
 /* Sticky first two columns on mobile */
@@ -240,7 +240,7 @@ body.auth-ready .container { display: grid; }
 .links-grid .staff-name,
 .links-grid thead th.col-staff {
     position: sticky;
-    left: 28px;
+    left: 36px;
     background: var(--surface);
     z-index: 2;
 }
@@ -254,7 +254,7 @@ body.auth-ready .container { display: grid; }
     font-weight: 700;
     color: var(--text-light);
     padding: 0 4px;
-    width: 28px;
+    width: 36px;
 }
 
 /* Staff name cell */
@@ -277,13 +277,23 @@ body.auth-ready .container { display: grid; }
     margin-left: 3px;
     vertical-align: middle;
 }
-.vacant-tag {
-    font-size: 9px;
-    color: var(--text-light);
-    font-style: italic;
-    margin-left: 2px;
-    vertical-align: middle;
+
+/* Separator row above the fixed link (Line 28 / C. Reen) */
+.links-grid tr.fixed-link-separator td {
+    background: var(--primary-blue);
+    border-top: 2px solid var(--primary-blue);
+    border-bottom: 1px solid var(--primary-blue);
+    padding: 5px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    text-align: left;
+    white-space: nowrap;
 }
+/* Prevent the vacant-row opacity rule from bleeding onto the separator */
+.links-grid tr.fixed-link-separator td { opacity: 1 !important; }
 
 /* Shift cell — contains a button or a select */
 .links-grid .shift-cell {
