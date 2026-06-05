@@ -178,11 +178,20 @@ let openAboutLightbox = null;
     if (!lightbox || !headerIcon) return;
 
     if (versionEl) versionEl.textContent = ADMIN_VERSION;
-    if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
 
     let _lbFocusReturn = null;
     function openLightbox() {
         _lbFocusReturn = document.activeElement;
+        if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.className = 'lightbox-status';
+            (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
+                .then(reg => {
+                    statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
+                    statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
+                })
+                .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
+        }
         if (bugLink) {
             const name   = currentUser || 'Unknown';
             const date   = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });

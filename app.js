@@ -1514,7 +1514,6 @@ try {
             if (!lightbox || !titleIcon) return;
 
             if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
-            if (statusEl) { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; }
 
             // ---- Open / close ----
 
@@ -1528,6 +1527,16 @@ try {
             let _lbFocusReturn = null;
             function openLightbox() {
                 _lbFocusReturn = document.activeElement;
+                if (statusEl) {
+                    statusEl.textContent = '';
+                    statusEl.className = 'lightbox-status';
+                    (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
+                        .then(reg => {
+                            statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
+                            statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
+                        })
+                        .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
+                }
                 // Swap content based on current view mode
                 const inTeam = teamView.isTeamViewMode();
                 if (calendarTips)  calendarTips.hidden = inTeam;
