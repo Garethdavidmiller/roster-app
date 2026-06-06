@@ -2231,9 +2231,9 @@ Device: ${navigator.userAgent}
         if (document.visibilityState === 'hidden') {
           clearInterval(updateInterval);
           updateInterval = null;
-        } else if (!updateInterval) {
-          // Null-guard so rapid visibilitychange events on iOS can't spawn
-          // multiple concurrent intervals.
+        } else {
+          clearInterval(updateInterval);
+          reg.update();
           updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
         }
       });

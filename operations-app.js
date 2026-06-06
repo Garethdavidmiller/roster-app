@@ -253,6 +253,16 @@ if ('serviceWorker' in navigator) {
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 window.location.reload();
             }, { once: true });
+            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') {
+                    clearInterval(updateInterval);
+                } else {
+                    clearInterval(updateInterval);
+                    registration.update();
+                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+                }
+            });
         })
         .catch(e => console.warn('[SW] Registration failed:', e));
 }

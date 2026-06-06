@@ -1542,6 +1542,7 @@ if ('serviceWorker' in navigator) {
                     clearInterval(updateInterval);
                 } else {
                     clearInterval(updateInterval);
+                    registration.update();
                     updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
                 }
             });
