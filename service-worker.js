@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v12.15
+// MYB Roster — Service Worker v12.16
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '12.15';
+const APP_VERSION = '12.16';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -140,16 +140,11 @@ self.addEventListener("install", event => {
     // whole install; failures are logged and the fetch handler re-fetches on demand.
     event.waitUntil((async () => {
         const cache = await caches.open(CACHE_NAME);
-        await Promise.allSettled(CORE_ASSETS.map(asset =>
-            cache.add(asset).catch(err =>
-                console.warn(`[SW ${APP_VERSION}] Core asset cache skipped (${asset}):`, err)
-            )
-        ));
-        await Promise.allSettled([...SUPPLEMENTARY_ASSETS, ...FONT_ASSETS, ...ICON_ASSETS].map(asset =>
-            cache.add(asset).catch(err =>
-                console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err)
-            )
-        ));
+        const precache = asset => fetch(new Request(asset, { cache: 'no-cache' }))
+            .then(res => { if (res.ok) return cache.put(asset, res); })
+            .catch(err => console.warn(`[SW ${APP_VERSION}] Asset cache skipped (${asset}):`, err));
+        await Promise.allSettled(CORE_ASSETS.map(precache));
+        await Promise.allSettled([...SUPPLEMENTARY_ASSETS, ...FONT_ASSETS, ...ICON_ASSETS].map(precache));
         console.log(`[SW ${APP_VERSION}] Pre-cached`);
     })());
 });
