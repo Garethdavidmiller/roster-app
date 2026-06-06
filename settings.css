@@ -110,13 +110,73 @@ body {
     flex: 1;
     min-width: 0;
 }
-/* Save/Cancel for a freshly chosen photo — two buttons side by side */
-.avatar-pending {
+/* ---- Reposition editor ---- */
+.avatar-editor {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+}
+/* Square frame: width caps at 264px but shrinks on narrow phones. aspect-ratio
+   keeps it square; the canvas fills it absolutely so getBoundingClientRect on
+   the canvas reports the exact on-screen size used for the crop math. */
+.avatar-editor-frame {
+    position: relative;
+    width: min(264px, 78vw);
+    aspect-ratio: 1 / 1;
+}
+.avatar-editor-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 14px;
+    background: var(--surface-sunken);
+    /* touch-action:none — the canvas owns drag/pinch; the page must not scroll
+       or pinch-zoom while the finger is on it. */
+    touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+    cursor: grab;
+    display: block;
+}
+.avatar-editor-canvas:active { cursor: grabbing; }
+.avatar-editor-canvas:focus-visible {
+    outline: 3px solid var(--primary-blue);
+    outline-offset: 2px;
+}
+/* Circle guide: shows the inscribed circle the nav-footer badge will clip to,
+   so the user can see corners (kept by the rounded-square lightbox) vs the
+   circle. Purely visual — never intercepts pointer events. */
+.avatar-editor-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85),
+                inset 0 0 0 3px rgba(0, 30, 60, 0.25);
+    pointer-events: none;
+}
+.avatar-editor-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: min(264px, 78vw);
+}
+.avatar-zoom-icon { font-size: 14px; }
+.avatar-zoom-slider { flex: 1; height: 24px; }
+.avatar-editor-hint {
+    font-size: 12px;
+    color: var(--text-mid);
+    text-align: center;
+    margin: 0;
+}
+.avatar-editor-actions {
     display: flex;
     gap: 8px;
-    margin-top: 10px;
+    width: min(264px, 78vw);
 }
-.avatar-pending .btn-action { flex: 1; }
+.avatar-editor-actions .btn-action { flex: 1; }
 .avatar-status {
     font-size: 13px;
     color: var(--text-mid);

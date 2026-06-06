@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v12.18 -->
+<!-- MYB Roster — Settings v12.19 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -97,7 +97,7 @@
         </div>
         <div class="card-collapsible-body" id="profileBody">
             <div class="card-body">
-                <div class="avatar-row">
+                <div class="avatar-row" id="avatarRow">
                     <div class="avatar-preview" id="avatarPreview" aria-hidden="true"></div>
                     <div class="avatar-actions">
                         <button class="btn-action btn-primary" id="avatarChooseBtn">Choose photo</button>
@@ -105,10 +105,27 @@
                     </div>
                 </div>
                 <input type="file" id="avatarFileInput" accept="image/*" hidden>
-                <div class="avatar-pending" id="avatarPending" style="display:none">
-                    <button class="btn-action btn-primary" id="avatarSaveBtn">Save photo</button>
-                    <button class="btn-action btn-secondary" id="avatarCancelBtn">Cancel</button>
+
+                <!-- Reposition editor: shown after a photo is chosen. Drag to pan,
+                     pinch / slider / wheel to zoom, then Save (uploads) or Cancel. -->
+                <div class="avatar-editor" id="avatarEditor" hidden>
+                    <div class="avatar-editor-frame">
+                        <canvas id="avatarEditorCanvas" class="avatar-editor-canvas" tabindex="0"
+                                aria-label="Drag to reposition your photo; use the zoom slider or arrow keys to adjust"></canvas>
+                        <div class="avatar-editor-ring" aria-hidden="true"></div>
+                    </div>
+                    <div class="avatar-editor-controls">
+                        <span class="avatar-zoom-icon" aria-hidden="true">🔍</span>
+                        <input type="range" id="avatarZoom" class="avatar-zoom-slider"
+                               min="1" max="4" step="0.01" value="1" aria-label="Zoom photo">
+                    </div>
+                    <p class="avatar-editor-hint">Drag to move · pinch or use the slider to zoom</p>
+                    <div class="avatar-editor-actions">
+                        <button class="btn-action btn-primary" id="avatarEditorSaveBtn">Save photo</button>
+                        <button class="btn-action btn-secondary" id="avatarEditorCancelBtn">Cancel</button>
+                    </div>
                 </div>
+
                 <div id="avatarStatus" class="avatar-status" aria-live="polite"></div>
             </div>
         </div>

@@ -103,9 +103,9 @@ Coordinator for `settings.html` (all logged-in staff, v11.06).
 - `initCulturalCalendarCard()` — simplified vs admin-app.js: no `fieldMember` dropdown, always saves for `currentUser`; no `renderWeekGrid()` call; reads/writes Firestore `memberSettings/${currentUser}`
 
 ### `settings-avatar.js`
-Profile photo card for `settings.html` (v12.12).
-- `initAvatarCard({ memberName, awaitSession })` — wires Choose / Save / Cancel / Remove; `awaitSession` (= `window._mybSession`) is awaited before any write so Firebase Auth is live.
-- Client-side image handling: `fileToDrawable()` (createImageBitmap with EXIF orientation, `<img>` fallback) → `compressToJpeg()` (centre-crop square + canvas → ~256px JPEG blob). No server-side processing.
+Profile photo card for `settings.html` (v12.12; reposition editor v12.19).
+- `initAvatarCard({ memberName, awaitSession })` — wires Choose / reposition editor (Save / Cancel) / Remove; `awaitSession` (= `window._mybSession`) is awaited before any write so Firebase Auth is live.
+- Client-side image handling: `fileToDrawable()` (createImageBitmap with EXIF orientation, `<img>` fallback) → inline `<canvas>` reposition editor (drag-pan via Pointer Events + zoom via slider/pinch/wheel/arrow keys) → `exportBlob()` crops the framed square to a ~256px JPEG. Both preview and export draw from the same `ImageBitmap` with identical geometry (`coverScale`, `z`, `px`, `py`), so display == saved. A `ResizeObserver` re-fits on width change while preserving framing. No server-side processing.
 - Renders the preview via DOM methods (no innerHTML). Falls back to initials via shared `avatarInitials`/`avatarHue` from `roster-data.js`.
 - After save/remove: caches the URL in `localStorage('myb_avatar_<name>')` and dispatches `myb:avatar-changed` (nav-panel.js listens to update the footer badge live).
 - Upload/delete/fetch logic itself lives in `firebase-client.js` — this file is UI only.
