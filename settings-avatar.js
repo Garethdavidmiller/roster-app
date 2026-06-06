@@ -307,8 +307,13 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
         } else if (pointers.size === 2 && pinchPrev) {
             const cur = computePinch();
             const ratio = (cur.dist > 0 && pinchPrev.dist > 0) ? cur.dist / pinchPrev.dist : 1;
-            setZoom(z * ratio, cur.x, cur.y); // zoom about the current midpoint
-            px += cur.x - pinchPrev.x;        // follow the two-finger drag
+            // Anchor the zoom on the PREVIOUS midpoint, then translate by the
+            // midpoint's movement. Together these reproduce the exact two-finger
+            // transform T(p) = m1 + ratio·(p − m0): scale about m0, slide m0→m1 —
+            // so the image points under both fingers stay under the fingers, with
+            // no drift when pinch and drag happen at once.
+            setZoom(z * ratio, pinchPrev.x, pinchPrev.y);
+            px += cur.x - pinchPrev.x;
             py += cur.y - pinchPrev.y;
             clampPos();
             scheduleRender();
@@ -428,9 +433,10 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
             setStatus('That file isn’t an image — please choose a photo.', true);
             return;
         }
-        // Note: `touched` is set only on a committed save/remove, not on choose —
-        // so a Choose→Cancel (no persistent change) still lets the init fetch
-        // reconcile with the server, and the hidden preview is repainted on close.
+        // Note: `touched` is set only on a committed save/remove, not on choose.
+        // A Choose→Cancel makes no persistent change, so we must NOT latch
+        // `touched` (which would suppress the one-shot init fetch if it is still
+        // in flight). On Cancel we repaint the preview from `currentUrl` directly.
         setStatus('');
         let drawable;
         try {
@@ -452,7 +458,10 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
 
     // ── Editor Save (export → upload) ──
     editorSave.addEventListener('click', async () => {
-        if (!src) return;
+        // editorReady guards the one-frame gap between the editor becoming
+        // visible and openEditor's measure/centre rAF: before it fires, V is 0,
+        // so exporting would crop a zero-size square and upload a blank photo.
+        if (!src || !editorReady) return;
         editorSave.disabled = true;
         editorCancel.disabled = true;
         setStatus('Saving…');

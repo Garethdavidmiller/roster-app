@@ -21,7 +21,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
 | Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
-| Profile photo — choose/compress/save/remove, avatar badge | `settings-avatar.js` + `avatar.js` (shared painter/cache key) + `firebase-client.js` (upload/delete/fetch) |
+| Profile photo — choose/reposition/save/remove, avatar badge (⚠️ non-vital, revert candidate — see ROADMAP.md) | `settings-avatar.js` + `avatar.js` (shared painter/cache key) + `firebase-client.js` (upload/delete/fetch) |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Links design workspace — 28-position link design grid, inline staff assignment, coverage analysis | `links-app.js` + `links.html` + `links.css` |
 | Annual Leave Booking section | `admin-al.js` |
@@ -113,7 +113,7 @@ Profile photo card for `settings.html` (v12.12; reposition editor v12.19).
 ### `avatar.js`
 Shared avatar helpers (v12.12) — imported by `settings-avatar.js` and `nav-panel.js`.
 - `avatarCacheKey(memberName)` — the single source of the `myb_avatar_<name>` localStorage key (do not redefine it elsewhere).
-- `paintAvatar(el, url, memberName)` — DOM painter: cover-fitted `<img>` (with `onerror` → initials fallback) or initials on a stable colour. Keeps the settings preview and footer badge identical.
+- `paintAvatar(el, url, memberName, onError?)` — DOM painter: cover-fitted `<img>` or initials on a stable colour. On image-load failure it falls back to initials by default, or runs the optional `onError` callback (the About lightbox uses this to restore the app logo instead of an initials block). Keeps the settings preview and footer badge identical.
 - Pure name→initials / name→colour logic stays in `roster-data.js` (`avatarInitials`/`avatarHue`); this module is the DOM/cache layer.
 - `initNavPanel` call passes `{ currentPage: 'settings', isAdmin: ..., onSignOut: ... }`
 
@@ -235,7 +235,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy)` — writes to Firebase Storage + Firestore `huddles` collection
-- `uploadAvatar(memberName, blob)` / `deleteAvatar(memberName)` / `fetchAvatarUrl(memberName)` — profile photos: Storage object at `avatars/<slug>.jpg` + open-read pointer doc at `memberAvatars/<memberName>` (v12.12). `fetchAvatarUrl` returns null on any failure (callers fall back to initials).
+- `uploadAvatar(memberName, blob)` / `deleteAvatar(memberName)` / `fetchAvatarUrl(memberName)` — profile photos: Storage object at `avatars/<slug>.jpg` + open-read pointer doc at `memberAvatars/<memberName>` (v12.12). `uploadAvatar` retries the pointer write once (Storage overwrite rotates the token, so a failed pointer write would strand the old URL). `fetchAvatarUrl` **rejects** on a read error and resolves `null` only for a genuine no-avatar read — callers clear the cache on real removal but keep it (`.catch`) on a transient error.
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
@@ -304,7 +304,7 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
-- `avatars/{fileName}` read: requires auth (tokenised download URLs bypass rules, so `<img src>` works on the no-auth calendar page). Write: requires auth + image MIME + size < 2 MB; the `request.resource == null` branch permits deletes (v12.12).
+- `avatars/{fileName}` read: requires auth (tokenised download URLs bypass rules, so `<img src>` works on the no-auth calendar page). Write: requires auth + MIME in an explicit allowlist (`image/jpeg`/`png`/`webp` — NOT `image/.*`, which would admit script-bearing SVG) + size < 2 MB; the `request.resource == null` branch permits deletes (v12.12, allowlist v12.20).
 - All other paths: denied.
 
 ### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css`
