@@ -115,15 +115,15 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
     if (cached) { currentUrl = cached; paintAvatar(preview, cached, memberName); }
     syncButtons();
     fetchAvatarUrl(memberName).then(url => {
-        // Don't clobber a choice/save/remove the user has already made — this
-        // fetch was issued at load and may resolve after a quick user action.
+        // Don't clobber a save/remove the user has already committed — this fetch
+        // was issued at load and may resolve after a quick authoritative action.
         if (touched) return;
         currentUrl = url || null;
         if (currentUrl) lsSet(avatarCacheKey(memberName), currentUrl);
-        else            lsDel(avatarCacheKey(memberName));
+        else            lsDel(avatarCacheKey(memberName)); // genuine no-avatar (successful read)
         paintAvatar(preview, currentUrl, memberName);
         syncButtons();
-    });
+    }).catch(() => { /* transient read error — keep the cached value + paint */ });
 
     // ════════════════════════════════════════════════════════════════════════
     //  Editor rendering + geometry
@@ -408,6 +408,7 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
     async function commitUpload(blob) {
         if (awaitSession) await awaitSession;
         const url = await uploadAvatar(memberName, blob);
+        touched = true; // authoritative local state — the late init fetch must not undo it
         currentUrl = url;
         lsSet(avatarCacheKey(memberName), url);
         paintAvatar(preview, url, memberName);
@@ -427,7 +428,9 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
             setStatus('That file isn’t an image — please choose a photo.', true);
             return;
         }
-        touched = true;
+        // Note: `touched` is set only on a committed save/remove, not on choose —
+        // so a Choose→Cancel (no persistent change) still lets the init fetch
+        // reconcile with the server, and the hidden preview is repainted on close.
         setStatus('');
         let drawable;
         try {
@@ -477,12 +480,12 @@ export function initAvatarCard({ memberName, awaitSession = null }) {
 
     // ── Remove ──
     removeBtn?.addEventListener('click', async () => {
-        touched = true;
         removeBtn.disabled = true;
         setStatus('Removing…');
         try {
             if (awaitSession) await awaitSession;
             await deleteAvatar(memberName);
+            touched = true; // authoritative — block a late init fetch from re-adding the photo
             currentUrl = null;
             lsDel(avatarCacheKey(memberName));
             paintAvatar(preview, null, memberName);

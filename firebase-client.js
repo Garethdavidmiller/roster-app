@@ -288,11 +288,22 @@ export async function uploadAvatar(memberName, blob) {
     const storageRef = ref(storage, avatarStoragePath(memberName));
     await uploadBytes(storageRef, blob, { contentType: 'image/jpeg' });
     const url = await getDownloadURL(storageRef);
-    await setDoc(doc(db, 'memberAvatars', memberName), {
+    // The pointer doc is the source of truth for display. Storage was just
+    // overwritten (which rotates the download token), so a failed pointer write
+    // would leave the OLD pointer URL pointing at a now-invalid token — a visibly
+    // broken avatar until the next save. Retry the pointer write once so a single
+    // transient blip between the two awaits doesn't strand us in that state.
+    const pointer = {
         avatarUrl: url,
         updatedAt: serverTimestamp(),
         updatedBy: memberName,
-    });
+    };
+    try {
+        await setDoc(doc(db, 'memberAvatars', memberName), pointer);
+    } catch (e) {
+        console.warn('[Avatar] pointer write failed, retrying once:', e);
+        await setDoc(doc(db, 'memberAvatars', memberName), pointer);
+    }
     return url;
 }
 
@@ -320,17 +331,15 @@ export async function deleteAvatar(memberName) {
 
 /**
  * Read a member's avatar download URL from the Firestore pointer document.
- * Returns null on any failure or when no avatar is set — callers fall back to
- * the initials badge. Open-read, so this works without a Firebase Auth session.
+ * Resolves to the URL string, or `null` on a SUCCESSFUL read with no avatar set.
+ * REJECTS on a read failure (offline, rules, cold cache) — deliberately distinct
+ * from the no-avatar `null` so callers can tell "the photo was removed" (clear
+ * the cache) from "couldn't reach the server" (keep the cached value). Open-read,
+ * so it works without a Firebase Auth session.
  * @param {string} memberName
  * @returns {Promise<string|null>}
  */
 export async function fetchAvatarUrl(memberName) {
-    try {
-        const snap = await getDoc(doc(db, 'memberAvatars', memberName));
-        return snap.exists() ? (snap.data().avatarUrl || null) : null;
-    } catch (e) {
-        console.warn('[Avatar] fetch failed:', e);
-        return null;
-    }
+    const snap = await getDoc(doc(db, 'memberAvatars', memberName));
+    return snap.exists() ? (snap.data().avatarUrl || null) : null;
 }

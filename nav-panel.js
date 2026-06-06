@@ -27,15 +27,23 @@ import { avatarCacheKey, paintAvatar } from './avatar.js';
 // it with the pre-change value it was already fetching.
 let _avatarSettled = false;
 
+// The avatar live-update listeners (myb:avatar-changed + storage) bind to
+// document/window, which outlive a single initNavPanel call. Guard so a repeat
+// init can't stack duplicate handlers bound to a stale memberName closure.
+let _avatarLiveBound = false;
+
 // When a photo is set, show it in place of the app logo in the About lightbox.
-// When there's no photo, restore the logo so the lightbox looks as it always did.
+// When there's no photo — or the photo fails to load (stale/rotated/deleted
+// Storage token, offline) — restore the logo so the lightbox looks as it always
+// did. The onError hook is essential: the shared paintAvatar would otherwise
+// fall back to an initials block here, leaving the hidden logo hidden.
 function _paintLbAvatar(el, url, memberName) {
     if (!el) return;
     const appIcon = document.getElementById('lightboxAppIcon');
     if (url) {
         if (appIcon) appIcon.style.display = 'none';
         el.style.display = '';
-        paintAvatar(el, url, memberName);
+        paintAvatar(el, url, memberName, () => _paintLbAvatar(el, null, memberName));
     } else {
         if (appIcon) appIcon.style.display = '';
         el.style.display    = 'none';
@@ -394,7 +402,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // page. Same tab → CustomEvent (settings-avatar.js dispatches after save/remove).
     // Other tab of the same browser → the `storage` event on the cache key (the
     // storage event never fires in the tab that wrote it, so both are needed).
-    if (memberName) {
+    if (memberName && !_avatarLiveBound) {
+        _avatarLiveBound = true;
         const repaint = url => {
             _avatarSettled = true;
             paintAvatar(document.getElementById('navPanelAvatar'), url || null, memberName);
@@ -550,11 +559,13 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 if (_avatarSettled) return; // a user action already set the truth
                 // Persist so the next load paints instantly and converges (without
                 // this write-back the nav path would re-fetch-and-flicker every load).
+                // url === null here is a SUCCESSFUL no-avatar read, so clearing the
+                // cache is correct; a read ERROR rejects and is caught below.
                 if (url) lsSet(avatarCacheKey(memberName), url);
                 else     lsDel(avatarCacheKey(memberName));
                 paintAvatar(avatarEl, url, memberName);
                 _paintLbAvatar(lbAvatarEl, url, memberName);
-            });
+            }).catch(() => { /* transient read error — keep the cached badge */ });
         }
 
     }
