@@ -281,7 +281,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
             const detail = err?.code === 'permission-denied'
-                ? 'Permission denied — the Firestore security rules may need updating. Check the browser console for details.'
+                ? "Couldn't save — your session may have expired. Try signing in again on the Admin page."
                 : (err?.message || 'Unknown error — check the browser console.');
             applyFeedback.textContent = `Could not save: ${detail}`;
             applyFeedback.className   = 'huddle-feedback huddle-feedback--err';

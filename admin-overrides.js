@@ -326,7 +326,7 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     startEl.tabIndex = endEl.tabIndex = -1;
     delete row.dataset.type;
     const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ Saved';
+    if (badge) badge.textContent = '⚠ Existing';
 }
 
 export function updateSaveBtn() {
@@ -535,7 +535,7 @@ export async function executeSave(toSave, toDelete = []) {
     } catch (err) {
         console.error('[Admin] Save failed:', err);
         _showError(err?.code === 'permission-denied'
-            ? 'Permission denied — contact your admin to check Firestore rules.'
+            ? "Couldn't save — your session may have expired. Try signing out and back in."
             : 'Could not save — check your connection and try again.');
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }

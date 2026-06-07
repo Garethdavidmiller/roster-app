@@ -953,7 +953,7 @@
             100% { transform: scale(1); }
         }
         @media (prefers-reduced-motion: reduce) {
-            .btn-save-confirm { animation: none; }
+            .btn-delete.confirming { animation: none; }
         }
 
         .state-row td {

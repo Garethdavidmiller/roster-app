@@ -1234,7 +1234,6 @@ button.nav-panel-link--coming-soon {
     width: 26px;
     height: 26px;
     border-radius: 50%;
-    overflow: hidden;
     display: inline-flex;
     align-items: center;
     justify-content: center;

@@ -300,7 +300,9 @@ function initIconLightbox() {
     const statusEl = document.getElementById('lightboxUpdateStatus');
     const bugLink = document.getElementById('bugReportLink');
     if (bugLink) {
-        bugLink.href = `mailto:gdmiller1979@gmail.com?subject=MYB Roster bug report (Version ${APP_VERSION})&body=Page: Settings%0ADevice: ${encodeURIComponent(navigator.userAgent)}%0A%0ADescribe the issue:%0A`;
+        const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Settings Version ${APP_VERSION}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;
+        bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Settings Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
     }
 
     let _lbFocusReturn = null;
