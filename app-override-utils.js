@@ -1,5 +1,14 @@
-// Override priority and member-start helpers — shared by app.js and app-team-view.js.
-// Extracted so the logic is defined once and can be unit-tested.
+// Override priority, member-start, and shift-classification helpers.
+// Shared by app.js, app-team-view.js, and the admin modules.
+
+/**
+ * Returns true if the shift is a non-working rest day (RD or OFF).
+ * @param {string} shift
+ * @returns {boolean}
+ */
+export function isRestShift(shift) {
+    return shift === 'RD' || shift === 'OFF';
+}
 
 /**
  * Converts a Firestore Timestamp or plain {seconds} object to milliseconds.

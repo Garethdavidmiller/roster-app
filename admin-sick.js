@@ -4,6 +4,7 @@
 
 import { teamMembers, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
 import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
+import { isRestShift } from './app-override-utils.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
@@ -109,9 +110,9 @@ function updateSickPreview() {
             if (isSunday(dateStr)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') { restCount++; return; }
+            if (isRestShift(base)) { restCount++; return; }
             const ov = memberOvByDate.get(dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
+            if (ov && isRestShift(ov.value)) { restCount++; return; }
         });
     }
     const workDays = dates.length - restCount;

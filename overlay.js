@@ -81,6 +81,21 @@ window.addEventListener('popstate', () => {
 });
 
 /**
+ * Trap keyboard focus inside a lightbox container (accessibility).
+ * Call from the container's keydown handler — no-op if key is not Tab.
+ * @param {Element|null} container
+ * @param {KeyboardEvent} e
+ */
+export function trapFocus(container, e) {
+    if (e.key !== 'Tab' || !container) return;
+    const els = [...container.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+    if (!els.length) { e.preventDefault(); return; }
+    const first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+/**
  * Wire up a collapsible card header: clicking the header toggles .open on
  * the body and (optionally) the chevron. Safe to call before the page is
  * fully loaded — no-op if the header or body element is not found.

@@ -16,8 +16,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar UI, month view, swipe, shift display | `app.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
-| Override priority and member-start logic — tsToMillis, shouldReplaceOverride, isBeforeMemberStart | `app-override-utils.js` |
-| Body scroll lock, overlay history (lockBodyScroll, _pushOverlayState, etc.) | `overlay.js` |
+| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `app-override-utils.js` |
+| Body scroll lock, overlay history, focus trap, card collapse (lockBodyScroll, trapFocus, initCardCollapse, etc.) | `overlay.js` |
+| Service worker registration + update lifecycle (all six app pages) | `sw-register.js` |
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
 | Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
@@ -108,7 +109,14 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 
 **Canonical `.lb-overlay` lightbox lifecycle (standardised v11.50)** — when adding or editing any lightbox, match the existing shape exactly: open = capture `document.activeElement` → `.visible` → rAF `.open` + focus close-button → `lockBodyScroll()` + `_pushOverlayState(close)` + add Escape listener; close = `_clearOverlayHistory()` → remove `.open` → `transitionend` **with a 500ms `setTimeout` fallback** removing `.visible` + `unlockBodyScroll()` → remove Escape listener → restore captured focus. Close controls must be `<button class="lb-close">`. Full rationale in CLAUDE.md → "Canonical lightbox lifecycle".
 - `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support: pushes `{ mybOverlay: true }` history state on overlay open; registers `closeHandler` to fire on `popstate`. Module-level `popstate` listener is registered once (singleton) — multiple overlays on the same page are safe.
-- Imported by: `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, `settings-app.js`, `nav-panel.js`
+- `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab.
+- `initCardCollapse(headerId, bodyId, chevronId)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
+- Imported by: `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
+
+### `sw-register.js`
+Shared service worker registration + update lifecycle (v12.28). All six app pages import this instead of duplicating the register/activate/reload pattern.
+- `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `app.js` only).
+- Per-page variants: `app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.
 
 ### `session.js`
 Shared auth/session module — canonical source for session logic (v11.40).
@@ -251,10 +259,11 @@ Shared Web Push module — single source of truth for the VAPID key and subscrip
 - `app.js` and `huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
 
 ### `app-override-utils.js`
-Override priority and member-start helpers — shared by `app.js` and `app-team-view.js`.
+Override priority, member-start, and shift-classification helpers — shared by `app.js`, `app-team-view.js`, and admin modules.
 - `tsToMillis(ts)` — converts Firestore Timestamp or `{seconds}` object to milliseconds
 - `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
+- `isRestShift(shift)` — returns true if the shift is `'RD'` or `'OFF'`. Use everywhere instead of repeating the two-value check. Imported by `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-app.js`.
 - Covered by `app.test.mjs`
 
 ### `railcard-guide.js`

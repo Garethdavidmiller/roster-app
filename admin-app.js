@@ -24,6 +24,8 @@ import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { isRestShift } from './app-override-utils.js';
+import { registerServiceWorker } from './sw-register.js';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1208,7 +1210,7 @@ function _isRestGap(dateStr, memberObj) {
     if (isSunday(dateStr)) return true; // Sunday — uncontracted
     if (!memberObj) return false;
     const shift = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-    return shift === 'RD' || shift === 'OFF';
+    return isRestShift(shift);
 }
 
 function _fmtPeriodDate(d) {
@@ -1499,46 +1501,15 @@ if (!isAuthenticated) {
 }
 
 // ============================================
-// SERVICE WORKER — registration + update toast
-// Registers the shared service worker. Auto-updates silently — skips waiting
-// immediately and reloads on controllerchange, consistent with index.html and paycalc.html.
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
-            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-
-            if (registration.waiting) activate(registration.waiting);
-
-            registration.addEventListener('updatefound', () => {
-                const nw = registration.installing;
-                if (!nw) return;
-                nw.addEventListener('statechange', () => {
-                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-                });
-            });
-
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                // If the admin has unsaved changes, wait until they navigate away
-                // before reloading so they don't lose their work mid-form.
-                if (!hasUnsavedChanges()) { window.location.reload(); return; }
-                document.addEventListener('visibilitychange', () => {
-                    if (document.visibilityState === 'hidden') window.location.reload();
-                }, { once: true });
-            }, { once: true });
-
-            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    clearInterval(updateInterval);
-                } else {
-                    clearInterval(updateInterval);
-                    registration.update();
-                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                }
-            });
-        })
-        .catch(e => console.warn('[SW] Registration failed:', e));
-}
+// If the admin has unsaved changes, wait until they navigate away before reloading.
+registerServiceWorker({
+    beforeReload() {
+        if (!hasUnsavedChanges()) { window.location.reload(); return; }
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') window.location.reload();
+        }, { once: true });
+    },
+});
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({

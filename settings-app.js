@@ -13,6 +13,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { registerServiceWorker } from './sw-register.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();
@@ -45,7 +46,7 @@ if (isAuthenticated) {
 } else {
     initLoginOverlay();
 }
-registerSW();
+registerServiceWorker();
 
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {
@@ -342,12 +343,6 @@ function initIconLightbox() {
     // live in this function and left the nav-panel state flags out of sync (v11.50).
 }
 
-// ── Service worker ────────────────────────────────────────────────────────────
-function registerSW() {
-    if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
-            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
             if (registration.waiting) activate(registration.waiting);
             registration.addEventListener('updatefound', () => {
                 const nw = registration.installing;
