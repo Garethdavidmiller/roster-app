@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v12.22 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.28 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -233,11 +233,13 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
 
 ### `nav-panel.js`
-Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, and `settings-app.js`.
-- `initNavPanel({ currentPage, memberName, onSignOut })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
+Shared slide-out navigation panel — imported by all six app pages.
+- `initNavPanel({ currentPage, memberName, onSignOut, isAdmin, isLinksDesigner, onLogoClick })` — injects overlay + drawer HTML, wires burger button, manages open/close. `memberName` displays in footer; `onSignOut` callback wires the Sign out button (omit both to hide footer).
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
-- `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay); current page is omitted from the pill row
-- `NAV_INFORMATION` — flat always-open Information section config: Workplace (Daily Huddle, Weekly Retail Circular, Railcard Guide) + Staff Travel (FIP Guide). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating.
+  - `isAdmin: true` enables the Operations pill (hidden from non-admins). `isLinksDesigner: true` enables the Links pill.
+  - `onLogoClick` — called when the drawer brand button is tapped; each page passes `() => openAboutLightbox?.()` to open the About lightbox.
+- `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay / Operations / Links); admin-only and links-designer-only pills filtered by flags. Current page omitted from the pill row.
+- `NAV_INFORMATION` — flat always-open Information section: Workplace (Daily Huddle, Weekly Retail Circular) + Guides (Staff Guide, Pay Guide, Railcard Guide, FIP Guide via `NAV_GUIDES` collapsed submenu, v11.21). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
 - Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
 - Initials badge (v12.22): 26px circle (`#navPanelAvatar`) before the member name in the footer. Painted with `avatarInitials(memberName)` and `avatarHue(memberName)` from `roster-data.js` — no fetch, no cache, no event listeners. Profile photo feature removed at v12.22; spec in ROADMAP.md.
