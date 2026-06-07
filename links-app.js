@@ -12,7 +12,8 @@ import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from '
 import { db, doc, getDoc, setDoc, serverTimestamp } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
-import { lockBodyScroll, _pushOverlayState, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, _pushOverlayState, dismissOverlay, initCardCollapse } from './overlay.js';
+import { registerServiceWorker } from './sw-register.js';
 
 // ============================================
 // SESSION — guard access to LINKS_DESIGNERS only
@@ -537,17 +538,6 @@ function initFromRosters() {
 // ============================================
 // COLLAPSIBLE CARDS
 // ============================================
-function initCardCollapse(triggerId, bodyId, chevronId) {
-    const trigger = document.getElementById(triggerId);
-    const body    = document.getElementById(bodyId);
-    const chevron = document.getElementById(chevronId);
-    if (!trigger || !body || !chevron) return;
-    trigger.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-}
-
 initCardCollapse('linksGridToggleHeader',  'linksGridBody',  'linksGridChevron');
 initCardCollapse('coverageToggleHeader',   'coverageBody',   'coverageChevron');
 initCardCollapse('linksInitToggleHeader',  'linksInitBody',  'linksInitChevron');
@@ -703,38 +693,13 @@ window.addEventListener('beforeunload', e => {
 })();
 
 // ============================================
-// SERVICE WORKER
-// ============================================
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
-            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-            if (registration.waiting) activate(registration.waiting);
-            registration.addEventListener('updatefound', () => {
-                const nw = registration.installing;
-                if (!nw) return;
-                nw.addEventListener('statechange', () => {
-                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-                });
-            });
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                if (!dirty || confirm('An update is available. Reload to apply it? Unsaved changes will be lost.')) {
-                    window.location.reload();
-                }
-            }, { once: true });
-            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    clearInterval(updateInterval);
-                } else {
-                    clearInterval(updateInterval);
-                    registration.update();
-                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                }
-            });
-        })
-        .catch(e => console.warn('[SW] Registration failed:', e));
-}
+registerServiceWorker({
+    beforeReload() {
+        if (!dirty || confirm('An update is available. Reload to apply it? Unsaved changes will be lost.')) {
+            window.location.reload();
+        }
+    },
+});
 
 // ============================================
 // BOOT — load design on page open

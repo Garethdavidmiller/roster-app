@@ -12,6 +12,7 @@
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
+import { isRestShift } from './app-override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth } from './firebase-client.js';
 
@@ -147,7 +148,7 @@ export function buildWeekGridInto(container, dateStr) {
         const isToday = dateISO === todayISO;
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
-        row.dataset.baseIsRd = (baseShift === 'RD' || baseShift === 'OFF') ? '1' : '';
+        row.dataset.baseIsRd = isRestShift(baseShift) ? '1' : '';
         if (existing) row.dataset.existingId = existing.id;
 
         row.innerHTML = `
@@ -326,7 +327,7 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     startEl.tabIndex = endEl.tabIndex = -1;
     delete row.dataset.type;
     const badge = row.querySelector('.overwrite-badge');
-    if (badge) badge.textContent = '⚠ Saved';
+    if (badge) badge.textContent = '⚠ Existing';
 }
 
 export function updateSaveBtn() {
@@ -424,8 +425,7 @@ function _initBulkBar() {
             const base = member ? getBaseShift(member, date) : 'RD';
             // Also respect recorded RD corrections so corrected days aren't re-selected
             const ov    = memberName ? _allOverrides.find(o => o.memberName === memberName && o.date === dateISO) : null;
-            const isRD  = base === 'RD' || base === 'OFF'
-                       || (ov && (ov.value === 'RD' || ov.value === 'OFF'));
+            const isRD  = isRestShift(base) || (ov && isRestShift(ov.value));
             if (!isRD) {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
@@ -535,7 +535,7 @@ export async function executeSave(toSave, toDelete = []) {
     } catch (err) {
         console.error('[Admin] Save failed:', err);
         _showError(err?.code === 'permission-denied'
-            ? 'Permission denied — contact your admin to check Firestore rules.'
+            ? "Couldn't save — your session may have expired. Try signing out and back in."
             : 'Could not save — check your connection and try again.');
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
@@ -936,9 +936,9 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
         ? dates.filter(dateStr => {
             if (isSunday(dateStr)) return false;
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-            if (base === 'RD' || base === 'OFF') return false;
+            if (isRestShift(base)) return false;
             const ov = ovByDate.get(dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
+            if (ov && isRestShift(ov.value)) return false;
             return true;
           })
         : [...dates];
@@ -949,9 +949,9 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
         ? dates.filter(dateStr => {
             if (!isSunday(dateStr)) return false;
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-            if (base === 'RD' || base === 'OFF') return false;
+            if (isRestShift(base)) return false;
             const ov = ovByDate.get(dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) return false;
+            if (ov && isRestShift(ov.value)) return false;
             return true;
           })
         : [];

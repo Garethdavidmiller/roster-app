@@ -4,6 +4,11 @@
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
+// Pay-rate multipliers — used by computeGross and imported by paycalc.js.
+export const RATE_125 = 1.25;
+export const RATE_150 = 1.50;
+export const RATE_300 = 3.00;
+
 // ── Tax year definitions ───────────────────────────────────────────────────
 // "Tax year" here means: payday falls in that Apr–Mar window.
 // Period offsets are relative to the P48 anchor (13 Feb 2026).
@@ -211,7 +216,7 @@ export function calcProRateFactor(startDate, periodStart, periodCutoff) {
  *             gRdw, gSunday, gBoxing, gPeer }}
  */
 export function computeGross(i) {
-  const r125 = i.rate * 1.25, r150 = i.rate * 1.50, r300 = i.rate * 3.00;
+  const r125 = i.rate * RATE_125, r150 = i.rate * RATE_150, r300 = i.rate * RATE_300;
   const satCapped  = Math.min(i.satHrs, i.effContr);
   const normHrs    = i.effContr - satCapped;
   const bhCapped   = Math.min(i.bhHrs, normHrs);

@@ -12,7 +12,8 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { registerServiceWorker } from './sw-register.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();
@@ -45,7 +46,7 @@ if (isAuthenticated) {
 } else {
     initLoginOverlay();
 }
-registerSW();
+registerServiceWorker();
 
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {
@@ -129,18 +130,6 @@ function initApp() {
 
     // Icon lightbox
     initIconLightbox();
-}
-
-// ── Card collapse helper ──────────────────────────────────────────────────────
-function initCardCollapse(headerId, bodyId, chevronId) {
-    const header  = document.getElementById(headerId);
-    const body    = document.getElementById(bodyId);
-    const chevron = document.getElementById(chevronId);
-    if (!header || !body) return;
-    header.addEventListener('click', () => {
-        const open = body.classList.toggle('open');
-        if (chevron) chevron.classList.toggle('open', open);
-    });
 }
 
 // ── Cultural calendar card ────────────────────────────────────────────────────
@@ -312,7 +301,9 @@ function initIconLightbox() {
     const statusEl = document.getElementById('lightboxUpdateStatus');
     const bugLink = document.getElementById('bugReportLink');
     if (bugLink) {
-        bugLink.href = `mailto:gdmiller1979@gmail.com?subject=MYB Roster bug report (Version ${APP_VERSION})&body=Page: Settings%0ADevice: ${encodeURIComponent(navigator.userAgent)}%0A%0ADescribe the issue:%0A`;
+        const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Settings Version ${APP_VERSION}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;
+        bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Settings Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
     }
 
     let _lbFocusReturn = null;
@@ -352,12 +343,6 @@ function initIconLightbox() {
     // live in this function and left the nav-panel state flags out of sync (v11.50).
 }
 
-// ── Service worker ────────────────────────────────────────────────────────────
-function registerSW() {
-    if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
-            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
             if (registration.waiting) activate(registration.waiting);
             registration.addEventListener('updatefound', () => {
                 const nw = registration.installing;

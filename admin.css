@@ -707,26 +707,6 @@
             font-size: 14px;
         }
 
-        /* ---- Save button ---- */
-        .btn-save {
-            width: 100%;
-            padding: 13px;
-            background: var(--primary-blue);
-            color: white;
-            border: none;
-            border-radius: var(--radius-button);
-            font-size: var(--type-button);
-            font-weight: 800;
-            cursor: pointer;
-            letter-spacing: 0.2px;
-            transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
-            font-family: inherit;
-        }
-
-        @media (hover: hover) and (pointer: fine) { .btn-save:hover { background: var(--primary-blue-dark); } }
-        .btn-save:active  { transform: scale(var(--press-scale)); }
-        .btn-save:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
-
         /* ---- Feedback ---- */
         .feedback {
             display: none;
@@ -973,7 +953,7 @@
             100% { transform: scale(1); }
         }
         @media (prefers-reduced-motion: reduce) {
-            .btn-save-confirm { animation: none; }
+            .btn-delete.confirming { animation: none; }
         }
 
         .state-row td {

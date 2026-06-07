@@ -3,6 +3,7 @@
 // and shared functions via initALSection(deps) to avoid circular imports.
 
 import { teamMembers, getALEntitlement, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
+import { isRestShift } from './app-override-utils.js';
 import { getAllOverrides, recordRangeOverrides, formatDisplay, renderWeekGrid, renderTable } from './admin-overrides.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 
@@ -147,10 +148,10 @@ function updateAlPreview() {
         dates.forEach(dateStr => {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
-            if (base === 'RD' || base === 'OFF') { restCount++; return; }
+            if (isRestShift(base)) { restCount++; return; }
             // Also treat existing RD/OFF overrides as rest days (same logic as the booking filter)
             const ov = memberOvByDate.get(dateStr);
-            if (ov && (ov.value === 'RD' || ov.value === 'OFF')) { restCount++; return; }
+            if (ov && isRestShift(ov.value)) { restCount++; return; }
             // Sundays are uncontracted for all staff — skip, don't book AL
             if (isSunday(dateStr)) { restCount++; return; }
             if (base === 'SPARE') spareCount++;

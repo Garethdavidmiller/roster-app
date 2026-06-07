@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: June 2026 — v12.05*
+*Last updated: June 2026 — v12.28*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -105,9 +105,9 @@ All logged-in staff can view the whole team's shifts for any week directly from 
 
 ### Navigation overhaul ✓ (v10.57–v10.71)
 
-A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navigation controls across all three pages.
+A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navigation controls. Started on the original three pages (index, admin, paycalc); extended to operations at v10.99, settings at v11.06, and links at v12.07 — all six app pages now have it.
 
-- **v10.57** — `nav-panel.js` module added. Burger `☰` button in all three page headers. `NAV_PAGES` drives the page-switcher pill row (current page omitted). `NAV_INFORMATION` drives the always-open Information section (Workplace: Daily Huddle, Weekly Retail Circular, Railcard Guide; Staff Travel: FIP Guide). Coming-soon lightbox placeholder added.
+- **v10.57** — `nav-panel.js` module added. Burger `☰` button in the first three page headers. `NAV_PAGES` drives the page-switcher pill row (current page omitted). `NAV_INFORMATION` drives the always-open Information section (Workplace: Daily Huddle, Weekly Retail Circular, Railcard Guide; Staff Travel: FIP Guide). Coming-soon lightbox placeholder added.
 - **v10.59** — Sign-out button moved from page headers to nav panel footer. `initNavPanel({ onSignOut })` pattern — each page passes its own callback.
 - **v10.61** — Notification bell 🔔/🔕 added to nav panel footer. States: on / off-default / off-lapsed / denied / unsupported. All push logic stays in `notif.js`; nav-panel.js owns only the UI.
 - **v10.63** — Header back buttons removed from `admin.html` and `paycalc.html` (duplicate nav paradigm; conflicted visually with the grid layout). Navigation back to the calendar is now via the nav panel's Calendar pill.

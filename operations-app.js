@@ -16,7 +16,8 @@ import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { registerServiceWorker } from './sw-register.js';
 
 // ============================================
 // SESSION — read from localStorage (shared with admin-app.js via session.js)
@@ -69,17 +70,6 @@ initAuthSetup({ currentIsAdmin: true });
 // ============================================
 // COLLAPSIBLE CARD HEADERS
 // ============================================
-function initCardCollapse(triggerId, bodyId, chevronId) {
-    const trigger = document.getElementById(triggerId);
-    const body    = document.getElementById(bodyId);
-    const chevron = document.getElementById(chevronId);
-    if (!trigger || !body || !chevron) return;
-    trigger.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-}
-
 initCardCollapse('huddleToggleHeader',      'huddleBody',      'huddleChevron');
 initCardCollapse('rosterUploadToggleHeader','rosterUploadBody','rosterUploadChevron');
 initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
@@ -242,33 +232,4 @@ window._mybSession.then(ok => {
 })();
 
 // ============================================
-// SERVICE WORKER — registration + silent update
-// ============================================
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
-            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-            if (registration.waiting) activate(registration.waiting);
-            registration.addEventListener('updatefound', () => {
-                const nw = registration.installing;
-                if (!nw) return;
-                nw.addEventListener('statechange', () => {
-                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-                });
-            });
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                window.location.reload();
-            }, { once: true });
-            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    clearInterval(updateInterval);
-                } else {
-                    clearInterval(updateInterval);
-                    registration.update();
-                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                }
-            });
-        })
-        .catch(e => console.warn('[SW] Registration failed:', e));
-}
+registerServiceWorker();

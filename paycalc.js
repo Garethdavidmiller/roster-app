@@ -10,14 +10,15 @@
 
 import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
 import {
-  P_YR, TAX_YEARS, GRADES, HPP_FRACTION,
+  P_YR, TAX_YEARS, GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, trapFocus } from './overlay.js';
+import { registerServiceWorker } from './sw-register.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations } from './paycalc-migrations.js';
 'use strict';
@@ -1171,13 +1172,13 @@ function fillFromRoster() {
 // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
 function updateBadges(rate) {
   const f = (r, mult) => `${mult}×  ·  £${(rate * r).toFixed(2)}/hr`;
-  document.getElementById('badge-sat').textContent = f(1.25, '1.25');
-  document.getElementById('badge-bh').textContent   = f(1.25, '1.25');
-  document.getElementById('badge-bhot').textContent = f(1.25, '1.25');
-  document.getElementById('badge-ot').textContent   = f(1.25, '1.25');
-  document.getElementById('badge-rdw').textContent = f(1.25, '1.25');
-  document.getElementById('badge-sun').textContent = f(1.50, '1.5');
-  document.getElementById('badge-box').textContent = f(3.00, '3');
+  document.getElementById('badge-sat').textContent = f(RATE_125, '1.25');
+  document.getElementById('badge-bh').textContent   = f(RATE_125, '1.25');
+  document.getElementById('badge-bhot').textContent = f(RATE_125, '1.25');
+  document.getElementById('badge-ot').textContent   = f(RATE_125, '1.25');
+  document.getElementById('badge-rdw').textContent = f(RATE_125, '1.25');
+  document.getElementById('badge-sun').textContent = f(RATE_150, '1.5');
+  document.getElementById('badge-box').textContent = f(RATE_300, '3');
 }
 
 /** Render the proportional pay breakdown bar and legend above the summary rows. */
@@ -1233,9 +1234,9 @@ function calculate() {
       _rateWarn.textContent = '';
   }
   updateBadges(rate);
-  const r125 = rate * 1.25;
-  const r150 = rate * 1.50;
-  const r300 = rate * 3.00;
+  const r125 = rate * RATE_125;
+  const r150 = rate * RATE_150;
+  const r300 = rate * RATE_300;
   const peer = +document.getElementById('peerVal').textContent;
 
   const satHrs  = hhmmDec('satH',  'satM');
@@ -1462,7 +1463,7 @@ function _decodeHours(p, d) {
 // bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0
 // and the BH premium must not contribute to HPP (it wasn't in that period's gross).
 function _varPayForPeriod(p, d, rate) {
-  const r125      = rate * 1.25, r150 = rate * 1.50, r300 = rate * 3.00;
+  const r125      = rate * RATE_125, r150 = rate * RATE_150, r300 = rate * RATE_300;
   const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
   const effContr  = getEffectiveContr(p);
   const satCapped = Math.min(satHrs, effContr);
@@ -2265,13 +2266,7 @@ Device: ${navigator.userAgent}
   }
   function onKeyDown(e) {
     if (e.key === 'Escape') { closeLightbox(); return; }
-    if (e.key === 'Tab' && contentCard) {
-        const els = [...contentCard.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
-        if (!els.length) { e.preventDefault(); return; }
-        const first = els[0], last = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
+    trapFocus(contentCard, e);
   }
 
   // Header logo is a back-to-calendar button (About moved to the drawer logo).
@@ -2315,13 +2310,7 @@ Device: ${navigator.userAgent}
 
   function onKey(e) {
     if (e.key === 'Escape') { closeHelp(); return; }
-    if (e.key === 'Tab' && content) {
-        const els = [...content.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
-        if (!els.length) { e.preventDefault(); return; }
-        const first = els[0], last = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
+    trapFocus(content, e);
   }
 
   lb.addEventListener('click', closeHelp);
@@ -2337,25 +2326,8 @@ Device: ${navigator.userAgent}
   });
 })();
 
-// ── SERVICE WORKER REGISTRATION + AUTO-UPDATE TOAST ──────────────────────────
-(function () {
-  if (!('serviceWorker' in navigator)) return;
-
-  // When a new SW takes control, store the new version and reload once.
-  // Guard on navigator.serviceWorker.controller so we don't reload on first install
-  // (when there was no previous controller).
-  if (navigator.serviceWorker.controller) {
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.location.reload();
-    }, { once: true });
-  }
-
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js')
-      .then(() => {})
-      .catch(err => console.error('SW registration failed:', err));
-  });
-})();
+// ── SERVICE WORKER ────────────────────────────────────────────────────────────
+registerServiceWorker();
 
 // ── WELCOME LIGHTBOX ──────────────────────────────────────────────────────────
 // Shown once, on the very first visit to the pay calculator. Never shown again.
@@ -2393,13 +2365,7 @@ Device: ${navigator.userAgent}
 
   function onKeyDown(e) {
     if (e.key === 'Escape') { closeWelcome(); return; }
-    if (e.key === 'Tab' && content) {
-        const els = [...content.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
-        if (!els.length) { e.preventDefault(); return; }
-        const first = els[0], last = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-    }
+    trapFocus(content, e);
   }
 
   lb.addEventListener('click', closeWelcome);

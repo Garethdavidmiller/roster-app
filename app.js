@@ -16,6 +16,7 @@ import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils
 import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { registerServiceWorker } from './sw-register.js';
 import { applyHuddleButtonState, initHuddleViewer } from './app-huddle-viewer.js';
 
 // ============================================
@@ -1970,32 +1971,11 @@ function stampPrintDate() {
 stampPrintDate();
 window.addEventListener('beforeprint', stampPrintDate);
 
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js')
-        .then(registration => {
-            function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-            if (registration.waiting) activate(registration.waiting);
-            registration.addEventListener('updatefound', () => {
-                const nw = registration.installing;
-                if (!nw) return;
-                nw.addEventListener('statechange', () => {
-                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-                });
-            });
-            // Small delay so any in-flight render cycle completes before the page tears down.
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                setTimeout(() => window.location.reload(), 500);
-            }, { once: true });
-            let swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-            document.addEventListener('visibilitychange', () => {
-                if (document.hidden) { clearInterval(swUpdateInterval); }
-                else { clearInterval(swUpdateInterval); registration.update(); swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000); }
-            });
-            window.addEventListener('pagehide', () => clearInterval(swUpdateInterval));
-            window.addEventListener('pageshow', () => { clearInterval(swUpdateInterval); swUpdateInterval = setInterval(() => registration.update(), 60 * 60 * 1000); });
-        })
-        .catch(err => console.error('[SW] Registration failed:', err));
-}
+// Small delay so any in-flight render cycle completes before the page tears down.
+registerServiceWorker({
+    beforeReload: () => setTimeout(() => window.location.reload(), 500),
+    bfcache: true,
+});
 
 // ============================================
 // HUDDLE VIEWER — initialised via app-huddle-viewer.js

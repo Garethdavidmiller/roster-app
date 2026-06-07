@@ -1,8 +1,9 @@
 /**
- * overlay.js — Shared scroll lock and Android Back button overlay helpers.
+ * overlay.js — Shared scroll lock, Android Back button overlay helpers,
+ * and card-collapse toggle.
  *
  * Imported by app.js, admin-app.js, paycalc.js, operations-app.js,
- * settings-app.js, and nav-panel.js.
+ * settings-app.js, links-app.js, and nav-panel.js.
  *
  * Body scroll lock: iOS Safari ignores overflow:hidden on body, so we pin
  * position:fixed at the current scroll offset and restore on close. The
@@ -78,3 +79,37 @@ window.addEventListener('popstate', () => {
     _backHandler = null;
     fn?.();
 });
+
+/**
+ * Trap keyboard focus inside a lightbox container (accessibility).
+ * Call from the container's keydown handler — no-op if key is not Tab.
+ * @param {Element|null} container
+ * @param {KeyboardEvent} e
+ */
+export function trapFocus(container, e) {
+    if (e.key !== 'Tab' || !container) return;
+    const els = [...container.querySelectorAll('button,a[href],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+    if (!els.length) { e.preventDefault(); return; }
+    const first = els[0], last = els[els.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+}
+
+/**
+ * Wire up a collapsible card header: clicking the header toggles .open on
+ * the body and (optionally) the chevron. Safe to call before the page is
+ * fully loaded — no-op if the header or body element is not found.
+ * @param {string} headerId   - id of the clickable header element
+ * @param {string} bodyId     - id of the collapsible body element
+ * @param {string} [chevronId] - optional id of the ▾ chevron element
+ */
+export function initCardCollapse(headerId, bodyId, chevronId) {
+    const header  = document.getElementById(headerId);
+    const body    = document.getElementById(bodyId);
+    const chevron = chevronId ? document.getElementById(chevronId) : null;
+    if (!header || !body) return;
+    header.addEventListener('click', () => {
+        const open = body.classList.toggle('open');
+        if (chevron) chevron.classList.toggle('open', open);
+    });
+}
