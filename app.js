@@ -445,11 +445,15 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (paydayIso) { navigateToPaycalc(paydayIso); return; }
         const cutoffIso = cell.dataset.cutoffIso;
         if (cutoffIso) {
-            const [y, mo, d] = cutoffIso.split('-').map(Number);
-            const paydayDate = new Date(y, mo - 1, d);
-            const _daysToPayday = ((CONFIG.FIRST_PAYDAY.getDay() - 6 + 7) % 7) || 7;
-            paydayDate.setDate(paydayDate.getDate() + _daysToPayday);
-            navigateToPaycalc(formatISO(paydayDate));
+            // Look up the payday paired with this cutoff rather than adding a fixed
+            // offset: paydays shift backwards over bank holidays, so the cutoff→payday
+            // gap is not constant. cutoffs[] and paydays[] are parallel arrays, and the
+            // cutoff cell only renders when isCutoffDate() is true for its own calendar
+            // year, so the cutoff is guaranteed to live in that year's result.
+            const cutoffYear = Number(cutoffIso.slice(0, 4));
+            const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
+            const idx = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
+            if (idx !== -1) navigateToPaycalc(formatISO(paydays[idx]));
         }
     });
 
