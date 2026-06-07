@@ -12,7 +12,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();
@@ -129,18 +129,6 @@ function initApp() {
 
     // Icon lightbox
     initIconLightbox();
-}
-
-// ── Card collapse helper ──────────────────────────────────────────────────────
-function initCardCollapse(headerId, bodyId, chevronId) {
-    const header  = document.getElementById(headerId);
-    const body    = document.getElementById(bodyId);
-    const chevron = document.getElementById(chevronId);
-    if (!header || !body) return;
-    header.addEventListener('click', () => {
-        const open = body.classList.toggle('open');
-        if (chevron) chevron.classList.toggle('open', open);
-    });
 }
 
 // ── Cultural calendar card ────────────────────────────────────────────────────

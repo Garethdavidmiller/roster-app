@@ -1551,6 +1551,25 @@ button.nav-panel-link--coming-soon {
     .btn-secondary:hover     { background: var(--bg-light); }
 }
 
+/* ── Save / primary-action button (admin, operations, links pages) ─ */
+.btn-save {
+    width: 100%;
+    padding: 13px;
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: var(--radius-button);
+    font-size: var(--type-button);
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: 0.2px;
+    transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    font-family: inherit;
+}
+@media (hover: hover) and (pointer: fine) { .btn-save:hover { background: var(--primary-blue-dark); } }
+.btn-save:active  { transform: scale(var(--press-scale)); }
+.btn-save:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
 /* ── ? Tips button (inside card headings) ───────────────────────── */
 .btn-card-tips {
     display: inline-flex;

@@ -12,7 +12,7 @@ import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from '
 import { db, doc, getDoc, setDoc, serverTimestamp } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
-import { lockBodyScroll, _pushOverlayState, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, _pushOverlayState, dismissOverlay, initCardCollapse } from './overlay.js';
 
 // ============================================
 // SESSION — guard access to LINKS_DESIGNERS only
@@ -537,17 +537,6 @@ function initFromRosters() {
 // ============================================
 // COLLAPSIBLE CARDS
 // ============================================
-function initCardCollapse(triggerId, bodyId, chevronId) {
-    const trigger = document.getElementById(triggerId);
-    const body    = document.getElementById(bodyId);
-    const chevron = document.getElementById(chevronId);
-    if (!trigger || !body || !chevron) return;
-    trigger.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
-    });
-}
-
 initCardCollapse('linksGridToggleHeader',  'linksGridBody',  'linksGridChevron');
 initCardCollapse('coverageToggleHeader',   'coverageBody',   'coverageChevron');
 initCardCollapse('linksInitToggleHeader',  'linksInitBody',  'linksInitChevron');

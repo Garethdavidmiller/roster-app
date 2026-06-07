@@ -23,7 +23,7 @@ import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
 
 // ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
 const ADMIN_VERSION = CONFIG.APP_VERSION;
@@ -1335,17 +1335,6 @@ function updateSickBookedBox() {
         countFn:    n => `${n} absence day${n !== 1 ? 's' : ''}`,
         countClass: 'sick-period-count',
         feedbackId: 'sickFeedback',
-    });
-}
-
-function initCardCollapse(triggerId, bodyId, chevronId) {
-    const trigger = document.getElementById(triggerId);
-    const body    = document.getElementById(bodyId);
-    const chevron = document.getElementById(chevronId);
-    if (!trigger || !body || !chevron) return;
-    trigger.addEventListener('click', () => {
-        const isOpen = body.classList.toggle('open');
-        chevron.classList.toggle('open', isOpen);
     });
 }
 
