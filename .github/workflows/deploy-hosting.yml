@@ -40,6 +40,8 @@ jobs:
           node --check huddle.js
           node --check overlay.js
           node --check session.js
+          node --check sw-register.js
+          node --check links-app.js
           node --check paycalc.js
           node --check paycalc-calc.js
           node --check paycalc-roster-suggestions.js
