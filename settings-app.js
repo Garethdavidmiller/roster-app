@@ -232,29 +232,29 @@ function initTipsLightbox() {
     if (!lb || !closeBtn) return;
 
     const CARD_TIPS = {
-        ‘notifications’: {
-            title: ‘Notifications’,
+        'notifications': {
+            title: 'Notifications',
             sections: [
-                { heading: ‘What you\’ll get’, items: [
-                    { icon: ‘📋’, html: ‘<strong>Daily Huddle</strong> — an alert when today\’s Huddle briefing has been uploaded’ },
-                    { icon: ‘💷’, html: ‘<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away’ },
+                { heading: 'What you\'ll get', items: [
+                    { icon: '📋', html: '<strong>Daily Huddle</strong> — an alert when today\'s Huddle briefing has been uploaded' },
+                    { icon: '💷', html: '<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away' },
                 ]},
-                { heading: ‘How it works’, items: [
-                    { icon: ‘📲’, html: ‘Tap <strong>Enable notifications</strong> and allow when your phone asks — that\’s it’ },
-                    { icon: ‘🔕’, html: ‘Tap <strong>Disable notifications</strong> to stop them at any time’ },
+                { heading: 'How it works', items: [
+                    { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow when your phone asks — that\'s it' },
+                    { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them at any time' },
                 ]},
-                { heading: ‘iPhone users’, items: [
-                    { icon: ‘🍎’, html: ‘Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari)’ },
+                { heading: 'iPhone users', items: [
+                    { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari)' },
                 ]},
             ],
         },
-        ‘cultural-calendar’: {
-            title: ‘Cultural calendar’,
+        'cultural-calendar': {
+            title: 'Cultural calendar',
             sections: [
                 { items: [
-                    { icon: ‘🌍’, html: ‘Shows key dates for the chosen tradition in the corner of matching days’ },
-                    { icon: ‘👁️’, html: ‘Visible to anyone who views your roster’ },
-                    { icon: ‘ℹ️’, html: ‘Only one calendar can be active per person at a time’ },
+                    { icon: '🌍', html: 'Shows key dates for the chosen tradition in the corner of matching days' },
+                    { icon: '👁️', html: 'Visible to anyone who views your roster' },
+                    { icon: 'ℹ️', html: 'Only one calendar can be active per person at a time' },
                 ]},
             ],
         },
