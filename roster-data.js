@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.22';
+export const APP_VERSION = '12.23';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1284,11 +1284,10 @@ export function escapeHtml(str) {
 }
 
 /**
- * Derive up-to-two-letter initials from a member display name, for the avatar
- * fallback shown when no profile photo is set. "G. Miller" → "GM";
- * "C. Francisco-Charles" → "CF"; single-word names → first letter only.
- * Shared by settings-avatar.js (large preview) and nav-panel.js (footer badge)
- * so both render the exact same fallback.
+ * Derive up-to-two-letter initials from a member display name, for the
+ * initials badge shown beside their name in the nav-panel footer.
+ * "G. Miller" → "GM"; "C. Francisco-Charles" → "CF"; single-word names → first
+ * letter only. Used by nav-panel.js (footer badge).
  * @param {string} name
  * @returns {string} 1–2 uppercase letters, or "?" if none can be derived
  */
