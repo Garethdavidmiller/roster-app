@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v12.12 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.22 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -21,7 +21,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
 | Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
-| Profile photo — choose/compress/save/remove, avatar badge | `settings-avatar.js` + `avatar.js` (shared painter/cache key) + `firebase-client.js` (upload/delete/fetch) |
+| Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Links design workspace — 28-position link design grid, inline staff assignment, coverage analysis | `links-app.js` + `links.html` + `links.css` |
 | Annual Leave Booking section | `admin-al.js` |
@@ -99,23 +99,8 @@ Coordinator for `settings.html` (all logged-in staff, v11.06).
 - Shared session: uses `AUTH_KEY = 'myb_admin_session'` (same key as `admin-app.js`) — a user signed in on admin.html arrives at settings.html without re-authenticating
 - Session check at module top: if authenticated → `ensureFirebaseSession(name)` in background + `initApp()`; else → `initLoginOverlay()`
 - `initLoginOverlay()` — same grade/name/password flow as admin; on success calls `saveSession()` + `location.reload()`
-- `initApp()` — calls `initNavPanel`, collapsible card wiring, `initAvatarCard()`, `initHuddleNotifications()`, `initCulturalCalendarCard()`, tips/icon lightboxes, SW registration
+- `initApp()` — calls `initNavPanel`, collapsible card wiring, `initHuddleNotifications()`, `initCulturalCalendarCard()`, tips/icon lightboxes, SW registration
 - `initCulturalCalendarCard()` — simplified vs admin-app.js: no `fieldMember` dropdown, always saves for `currentUser`; no `renderWeekGrid()` call; reads/writes Firestore `memberSettings/${currentUser}`
-
-### `settings-avatar.js`
-Profile photo card for `settings.html` (v12.12).
-- `initAvatarCard({ memberName, awaitSession })` — wires Choose / Save / Cancel / Remove; `awaitSession` (= `window._mybSession`) is awaited before any write so Firebase Auth is live.
-- Client-side image handling: `fileToDrawable()` (createImageBitmap with EXIF orientation, `<img>` fallback) → `compressToJpeg()` (centre-crop square + canvas → ~256px JPEG blob). No server-side processing.
-- Renders the preview via DOM methods (no innerHTML). Falls back to initials via shared `avatarInitials`/`avatarHue` from `roster-data.js`.
-- After save/remove: caches the URL in `localStorage('myb_avatar_<name>')` and dispatches `myb:avatar-changed` (nav-panel.js listens to update the footer badge live).
-- Upload/delete/fetch logic itself lives in `firebase-client.js` — this file is UI only.
-
-### `avatar.js`
-Shared avatar helpers (v12.12) — imported by `settings-avatar.js` and `nav-panel.js`.
-- `avatarCacheKey(memberName)` — the single source of the `myb_avatar_<name>` localStorage key (do not redefine it elsewhere).
-- `paintAvatar(el, url, memberName)` — DOM painter: cover-fitted `<img>` (with `onerror` → initials fallback) or initials on a stable colour. Keeps the settings preview and footer badge identical.
-- Pure name→initials / name→colour logic stays in `roster-data.js` (`avatarInitials`/`avatarHue`); this module is the DOM/cache layer.
-- `initNavPanel` call passes `{ currentPage: 'settings', isAdmin: ..., onSignOut: ... }`
 
 ### `overlay.js`
 Shared overlay helpers — singleton module, imported by every page that shows a modal overlay (v11.40).
@@ -235,7 +220,6 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy)` — writes to Firebase Storage + Firestore `huddles` collection
-- `uploadAvatar(memberName, blob)` / `deleteAvatar(memberName)` / `fetchAvatarUrl(memberName)` — profile photos: Storage object at `avatars/<slug>.jpg` + open-read pointer doc at `memberAvatars/<memberName>` (v12.12). `fetchAvatarUrl` returns null on any failure (callers fall back to initials).
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
@@ -248,7 +232,7 @@ Shared slide-out navigation panel — imported by `app.js`, `admin-app.js`, `pay
 - `NAV_INFORMATION` — flat always-open Information section config: Workplace (Daily Huddle, Weekly Retail Circular, Railcard Guide) + Staff Travel (FIP Guide). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
 - Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
-- Profile avatar badge (v12.12): 26px circle (`#navPanelAvatar`) before the member name in the footer — replaces the old `👤` glyph. Renders via `paintAvatar`/`avatarCacheKey` from `avatar.js`: cache paint → `fetchAvatarUrl()` refresh (open-read, works on index.html with no auth session) written back to the cache. Live updates via `myb:avatar-changed` (same tab) + `window` `storage` event (other tabs); a module-level `_avatarSettled` flag makes those win over the slower init-time fetch.
+- Initials badge (v12.22): 26px circle (`#navPanelAvatar`) before the member name in the footer. Painted with `avatarInitials(memberName)` and `avatarHue(memberName)` from `roster-data.js` — no fetch, no cache, no event listeners. Profile photo feature removed at v12.22; spec in ROADMAP.md.
 - Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`. Windows detection (v10.65) uses `navigator.userAgentData?.platform ?? navigator.platform` (modern API with legacy fallback) — flags are skipped on Windows where flag emoji render as two-letter codes.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
 - **Focus trap (v10.69):** a `document` keydown listener (active only while `_panelOpen`) cycles Tab/Shift+Tab within the panel's focusable elements. Escape closes the panel.
@@ -298,13 +282,11 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.
-- `memberAvatars/{memberName}` (v12.12): open read (nav footer renders on the no-auth calendar page; image is public-by-token anyway). Create/update requires auth + `{ avatarUrl, updatedAt, updatedBy }` shape. Delete requires auth.
 
 ### `storage.rules`
 Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
-- `avatars/{fileName}` read: requires auth (tokenised download URLs bypass rules, so `<img src>` works on the no-auth calendar page). Write: requires auth + image MIME + size < 2 MB; the `request.resource == null` branch permits deletes (v12.12).
 - All other paths: denied.
 
 ### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css`
