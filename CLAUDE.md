@@ -158,6 +158,9 @@ roster-app/
 ├── paycalc-roster-suggestions.test.mjs ← tests for paycalc-roster-suggestions.js (requires --experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs ← tests for functions/roster-parse-helpers.js
 ├── sw-asset-check.test.mjs ← verifies every root JS module is listed in service-worker.js asset lists
+├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
+├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date, memberName + createdAt, etc.)
+├── generate-sri.mjs        ← dev utility: fetches CDN resources and prints SRI (Subresource Integrity) hashes for use in HTML
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
