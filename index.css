@@ -2104,7 +2104,7 @@
             padding: 5px 7px;
             vertical-align: top;
         }
-        #huddleViewerBody th { background: var(--primary-blue); color: #fff; }
+        #huddleViewerBody th { background: var(--primary-blue); color: white; }
         #huddleViewerBody ul, #huddleViewerBody ol {
             padding-left: 1.5em;
             margin: 0.4em 0;

@@ -81,7 +81,7 @@ export async function ensureFirebaseSession(name) {
         if (e.code === 'auth/user-not-found') {
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
-                console.log('[Auth] Created Firebase Auth account for', name);
+                console.warn('[Auth] Created Firebase Auth account for', name);
                 return true;
             } catch (createErr) {
                 console.warn('[Auth] createUser failed:', createErr.code, 'for', email);
@@ -101,7 +101,7 @@ export async function ensureFirebaseSession(name) {
     window._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
     try {
         await signInAnonymously(auth);
-        console.log('[Auth] Anonymous session established for', name);
+        console.warn('[Auth] Anonymous session established for', name);
         return true;
     } catch (anonErr) {
         console.error('[Auth] Anonymous sign-in failed:', anonErr.code);

@@ -14,17 +14,6 @@ import { uploadHuddle } from './firebase-client.js';
 import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
 
 /**
- * Initialises all three Huddle-related cards. Call once after authentication resolves.
- * @param {{ currentIsAdmin: boolean, currentUser: object|null, lsGet: Function, lsSet: Function }} cfg
- * @deprecated Prefer the individual initHuddleUpload / initHuddleNotifications exports.
- */
-export function initHuddleCards({ currentIsAdmin, currentUser }) {
-    _initNotificationsCard();
-    _initHuddleUpload(currentIsAdmin, currentUser);
-    _initHuddleCard();
-}
-
-/**
  * Initialises the Huddle upload card and the Huddle collapse toggle.
  * Used by operations.html where the card is always present (admin-only page).
  * @param {{ currentIsAdmin: boolean, currentUser: string|null }} cfg
