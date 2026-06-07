@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v12.21 -->
+<!-- MYB Roster — Settings v12.22 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -65,7 +65,6 @@
     <div id="iconLightboxContent" class="lb-content">
     <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
         <img src="icon-192.png" id="lightboxAppIcon" alt="Chiltern Railways app icon">
-        <div id="lightboxAvatar" class="lightbox-avatar-badge" aria-hidden="true"></div>
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
@@ -87,49 +86,6 @@
 </header>
 
 <main class="app">
-
-    <!-- Profile photo -->
-    <div class="card" id="profileCard">
-        <div class="card-header card-collapsible-header" id="profileToggleHeader">
-            <h2>🙂 Profile photo <button class="btn-card-tips" data-card="profile" aria-label="Tips for profile photo" title="Tips for profile photo">?</button></h2>
-            <span class="hint">Add a photo so your name stands out in the menu</span>
-            <span class="collapse-chevron" id="profileChevron">▾</span>
-        </div>
-        <div class="card-collapsible-body" id="profileBody">
-            <div class="card-body">
-                <div class="avatar-row" id="avatarRow">
-                    <div class="avatar-preview" id="avatarPreview" aria-hidden="true"></div>
-                    <div class="avatar-actions">
-                        <button class="btn-action btn-primary" id="avatarChooseBtn">Choose photo</button>
-                        <button class="btn-action btn-secondary" id="avatarRemoveBtn" style="display:none">Remove photo</button>
-                    </div>
-                </div>
-                <input type="file" id="avatarFileInput" accept="image/*" hidden>
-
-                <!-- Reposition editor: shown after a photo is chosen. Drag to pan,
-                     pinch / slider / wheel to zoom, then Save (uploads) or Cancel. -->
-                <div class="avatar-editor" id="avatarEditor" hidden>
-                    <div class="avatar-editor-frame">
-                        <canvas id="avatarEditorCanvas" class="avatar-editor-canvas" tabindex="0"
-                                aria-label="Drag to reposition your photo; use the zoom slider or arrow keys to adjust"></canvas>
-                        <div class="avatar-editor-ring" aria-hidden="true"></div>
-                    </div>
-                    <div class="avatar-editor-controls">
-                        <span class="avatar-zoom-icon" aria-hidden="true">🔍</span>
-                        <input type="range" id="avatarZoom" class="avatar-zoom-slider"
-                               min="1" max="4" step="0.01" value="1" aria-label="Zoom photo">
-                    </div>
-                    <p class="avatar-editor-hint">Drag to move · pinch or use the slider to zoom</p>
-                    <div class="avatar-editor-actions">
-                        <button class="btn-action btn-primary" id="avatarEditorSaveBtn">Save photo</button>
-                        <button class="btn-action btn-secondary" id="avatarEditorCancelBtn">Cancel</button>
-                    </div>
-                </div>
-
-                <div id="avatarStatus" class="avatar-status" aria-live="polite"></div>
-            </div>
-        </div>
-    </div>
 
     <!-- Push notifications -->
     <div class="card" id="notificationsCard">

@@ -13,8 +13,6 @@ import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
-import { initAvatarCard } from './settings-avatar.js';
-
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();
@@ -118,12 +116,7 @@ function initLoginOverlay() {
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
     // Card collapse — notif card is wired by initHuddleNotifications() below; wire the rest here
-    initCardCollapse('profileToggleHeader',  'profileBody',    'profileChevron');
-    initCardCollapse('religiousToggleHeader', 'religiousBody',  'religiousChevron');
-
-    // Profile photo card — awaitSession so the Storage/Firestore write happens
-    // after Firebase Auth is re-established (matches the cultural-calendar write).
-    initAvatarCard({ memberName: currentUser, awaitSession: window._mybSession });
+    initCardCollapse('religiousToggleHeader', 'religiousBody', 'religiousChevron');
 
     // Notifications card
     initHuddleNotifications();
@@ -239,40 +232,29 @@ function initTipsLightbox() {
     if (!lb || !closeBtn) return;
 
     const CARD_TIPS = {
-        'profile': {
-            title: 'Profile photo',
+        ‘notifications’: {
+            title: ‘Notifications’,
             sections: [
-                { items: [
-                    { icon: '📷', html: 'Tap <strong>Choose photo</strong> to pick a picture from your phone, then <strong>Save photo</strong>' },
-                    { icon: '🙂', html: 'It shows as a small circle next to your name in the menu' },
-                    { icon: '✂️', html: 'The photo is shrunk and squared off on your phone before it’s saved — it stays tiny' },
-                    { icon: '🗑️', html: 'Tap <strong>Remove photo</strong> any time to go back to your initials' },
+                { heading: ‘What you\’ll get’, items: [
+                    { icon: ‘📋’, html: ‘<strong>Daily Huddle</strong> — an alert when today\’s Huddle briefing has been uploaded’ },
+                    { icon: ‘💷’, html: ‘<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away’ },
+                ]},
+                { heading: ‘How it works’, items: [
+                    { icon: ‘📲’, html: ‘Tap <strong>Enable notifications</strong> and allow when your phone asks — that\’s it’ },
+                    { icon: ‘🔕’, html: ‘Tap <strong>Disable notifications</strong> to stop them at any time’ },
+                ]},
+                { heading: ‘iPhone users’, items: [
+                    { icon: ‘🍎’, html: ‘Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari)’ },
                 ]},
             ],
         },
-        'notifications': {
-            title: 'Notifications',
-            sections: [
-                { heading: 'What you\'ll get', items: [
-                    { icon: '📋', html: '<strong>Daily Huddle</strong> — an alert when today\'s Huddle briefing has been uploaded' },
-                    { icon: '💷', html: '<strong>Pay reminder</strong> — an alert on the cutoff Saturday, reminding you that payday is 6 days away' },
-                ]},
-                { heading: 'How it works', items: [
-                    { icon: '📲', html: 'Tap <strong>Enable notifications</strong> and allow when your phone asks — that\'s it' },
-                    { icon: '🔕', html: 'Tap <strong>Disable notifications</strong> to stop them at any time' },
-                ]},
-                { heading: 'iPhone users', items: [
-                    { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari)' },
-                ]},
-            ],
-        },
-        'cultural-calendar': {
-            title: 'Cultural calendar',
+        ‘cultural-calendar’: {
+            title: ‘Cultural calendar’,
             sections: [
                 { items: [
-                    { icon: '🌍', html: 'Shows key dates for the chosen tradition in the corner of matching days' },
-                    { icon: '👁️', html: 'Visible to anyone who views your roster' },
-                    { icon: 'ℹ️', html: 'Only one calendar can be active per person at a time' },
+                    { icon: ‘🌍’, html: ‘Shows key dates for the chosen tradition in the corner of matching days’ },
+                    { icon: ‘👁️’, html: ‘Visible to anyone who views your roster’ },
+                    { icon: ‘ℹ️’, html: ‘Only one calendar can be active per person at a time’ },
                 ]},
             ],
         },

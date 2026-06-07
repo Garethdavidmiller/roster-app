@@ -414,39 +414,6 @@ body.lb-open #stickyTotal { display: none !important; }
     transform: scale(0.85);
 }
 
-/* Profile avatar in the About lightbox — replaces the app logo when a photo is
-   set. Matches the logo window's "unique shape" exactly: same 100px box, same
-   22px rounded-square radius, same drop shadow — so the square-cropped photo
-   sits in the logo slot identically rather than as a circle. */
-.lightbox-avatar-badge {
-    width: 100px;
-    height: 100px;
-    border-radius: 22px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 36px;
-    font-weight: 700;
-    line-height: 1;
-    color: white;
-    flex-shrink: 0;
-    margin-bottom: 8px;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
-    user-select: none;
-}
-/* Override the generic app-icon rule: the parent clips to the rounded square,
-   so the img itself just fills it (corners come from the parent's overflow). */
-.lightbox-avatar-badge img {
-    width: 100%;
-    height: 100%;
-    border-radius: 0;
-    box-shadow: none;
-    margin-bottom: 0;
-    object-fit: cover;
-    display: block;
-}
-
 /* Enlarged app icon */
 #iconLightboxContent img {
     width: 100px;
@@ -1261,8 +1228,7 @@ button.nav-panel-link--coming-soon {
     flex: 1;
 }
 
-/* Profile avatar badge — small circle before the name. Shows the member's
-   photo, or their initials on a stable colour when no photo is set. */
+/* Initials badge — small circle before the member name in the footer. */
 .nav-panel-avatar {
     flex-shrink: 0;
     width: 26px;
@@ -1278,12 +1244,6 @@ button.nav-panel-link--coming-soon {
     color: white;
     background: var(--nav-raised);
     user-select: none;
-}
-.nav-panel-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    display: block;
 }
 
 .nav-panel-member {

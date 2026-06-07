@@ -17,25 +17,7 @@ service firebase.storage {
               'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
           ];
     }
-    match /avatars/{fileName} {
-      // Profile photos. Read requires auth, but tokenised download URLs bypass
-      // Storage rules entirely, so <img src> still works on the no-auth calendar
-      // page. Write: any signed-in staff member may set their own photo — we
-      // cannot scope to the owner reliably (the per-member `name` JWT claim was
-      // suspended after a production outage, see KNOWN_LIMITATIONS.md task #2),
-      // so this matches the app's auth-only Firestore write posture. Image only,
-      // ≤2 MB (client compresses to ~256px, far under). Explicit MIME allowlist
-      // (NOT image/.* — that would admit image/svg+xml, which can carry embedded
-      // script if the tokenised URL is ever opened as a top-level navigation).
-      // On delete, request.resource is null — allow that branch so the
-      // Remove-photo button works.
-      allow read: if request.auth != null;
-      allow write: if request.auth != null
-          && (request.resource == null
-              || (request.resource.size < 2 * 1024 * 1024
-                  && request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp']));
-    }
-    // Deny everything else
+// Deny everything else
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -84,27 +84,6 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
-    match /memberAvatars/{memberName} {
-      // Profile photo pointer — { avatarUrl, updatedAt, updatedBy }.
-      // Open read: the nav footer renders the avatar on index.html, which has no
-      // Firebase Auth session (same constraint as huddles/overrides). The image
-      // itself is already public via its tokenised Storage URL, so the pointer
-      // doc being open-read adds no exposure.
-      allow read;
-      // Per-member write isolation is intentionally NOT enforced (the `name` JWT
-      // claim is suspended — see KNOWN_LIMITATIONS task #2), so any signed-in
-      // member can write any pointer. We at least constrain avatarUrl to our own
-      // Firebase Storage host so a pointer can't be aimed at an arbitrary external
-      // image (defence in depth alongside the img-src CSP).
-      allow create, update: if
-        request.auth != null &&
-        request.resource.data.keys().hasAll(['avatarUrl', 'updatedAt', 'updatedBy']) &&
-        request.resource.data.avatarUrl is string &&
-        request.resource.data.avatarUrl.matches('https://firebasestorage[.]googleapis[.]com/.*') &&
-        request.resource.data.updatedBy is string;
-      allow delete: if request.auth != null;
-    }
-
     match /linkDesigns/{document=**} {
       // Link design workspace data — read/write restricted to authenticated users.
       // Client-side: links-app.js redirects anyone not in CONFIG.LINKS_DESIGNERS
