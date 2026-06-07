@@ -1247,6 +1247,7 @@ function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countC
 
     const memberObj = teamMembers.find(m => m.name === memberName);
     const dateList  = [...new Set(entries.map(e => e.date))].filter(d => !isSunday(d)).sort();
+    if (!dateList.length) { box.hidden = true; return; }
     const periods   = [];
     let periodStart = dateList[0];
     let periodEnd   = dateList[0];
@@ -1490,7 +1491,7 @@ if (!isAuthenticated) {
     });
     const _loadPromise = loadOverrides(); // internally calls renderWeekGrid() after data loads
     // purgeSundayAL scans the in-memory cache, so it must run after loadOverrides completes
-    if (currentIsAdmin || currentIsManager) _loadPromise.then(() => purgeSundayAL());
+    if (currentIsAdmin) _loadPromise.then(() => purgeSundayAL());
 
     // If arriving via deep-link (e.g. from the AL lightbox), open and scroll to the target card
     if (location.hash) {

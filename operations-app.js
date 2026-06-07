@@ -114,7 +114,10 @@ window._mybSession.then(ok => {
     if (!lightbox || !headerIcon) return;
     if (versionEl) versionEl.textContent = OPS_VERSION;
 
+    let _focusReturn = null;
+
     function open() {
+        _focusReturn = document.activeElement;
         if (statusEl) {
             statusEl.textContent = '';
             statusEl.className = 'lightbox-status';
@@ -138,7 +141,7 @@ window._mybSession.then(ok => {
     }
 
     function close() {
-        dismissOverlay(lightbox, { onKey });
+        dismissOverlay(lightbox, { onKey, focusReturn: _focusReturn });
     }
 
     function onKey(e) { if (e.key === 'Escape') close(); }
@@ -161,6 +164,8 @@ window._mybSession.then(ok => {
     const titleEl  = document.getElementById('tipsLbTitle');
     const bodyEl   = document.getElementById('tipsLbBody');
     if (!lb) return;
+
+    let _tipsFocusReturn = null;
 
     const CARD_TIPS = {
         'daily-huddle': {
@@ -201,6 +206,7 @@ window._mybSession.then(ok => {
     function openTips(card) {
         const data = CARD_TIPS[card];
         if (!data || !titleEl || !bodyEl) return;
+        _tipsFocusReturn = document.activeElement;
         titleEl.textContent = data.title;
         bodyEl.innerHTML = data.sections.map(section => {
             const heading = section.heading
@@ -219,7 +225,7 @@ window._mybSession.then(ok => {
     }
 
     function closeTips() {
-        dismissOverlay(lb, { onKey });
+        dismissOverlay(lb, { onKey, focusReturn: _tipsFocusReturn });
     }
 
     function onKey(e) { if (e.key === 'Escape') closeTips(); }

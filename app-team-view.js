@@ -317,11 +317,18 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
                 const d          = doc.data();
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);
-                if (shouldReplaceOverride(existing, d)) {
+                const incoming   = {
+                    value:     d.value,
+                    note:      d.note      || '',
+                    type:      d.type      || '',
+                    source:    d.source    || null,
+                    createdAt: d.createdAt || null,
+                };
+                if (shouldReplaceOverride(existing, incoming)) {
                     // Skip re-render if the display-relevant fields haven't changed
                     // (common when IndexedDB and Firestore return identical data on repeat visits)
-                    if (existing && existing.type === d.type && existing.value === d.value) return;
-                    rosterOverridesCache.set(cacheKey, d);
+                    if (existing && existing.type === incoming.type && existing.value === incoming.value) return;
+                    rosterOverridesCache.set(cacheKey, incoming);
                     updated = true;
                 }
             });
