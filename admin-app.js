@@ -496,12 +496,23 @@ populateMemberDropdown(fieldMember);
 
 // Restore last used member — prefer the shared cross-page key (written by both index and admin)
 // so navigating between pages keeps the same person selected. Fall back to admin-only key.
-const lastMember = lsGet('myb_roster_selected_member') || lsGet('adminLastMember');
-if (lastMember && teamMembers.find(m => m.name === lastMember)) {
+// The member must still be SELECTABLE (exists AND not hidden): populateMemberDropdown omits
+// hidden members, so a stale saved name pointing at a colleague who has since left or been
+// hidden would set the <select> to a value with no matching <option> — leaving the STAFF
+// MEMBER dropdown blank. Reject and clear stale names so the field falls back to a real
+// member and the bad value can't recur. (v12.32)
+const _savedMember = lsGet('myb_roster_selected_member') || lsGet('adminLastMember');
+const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
+    ? _savedMember : null;
+if (lastMember) {
     fieldMember.value = lastMember;
     // Keep both keys in sync so the reverse journey (admin → index) always works
     lsSet('adminLastMember', lastMember);
     lsSet('myb_roster_selected_member', lastMember);
+} else if (_savedMember) {
+    // Stale (hidden/left) — drop both keys so the dropdown keeps its valid default
+    lsDel('adminLastMember');
+    lsDel('myb_roster_selected_member');
 }
 
 // Default date = today, or the date passed from index.html via ?date=YYYY-MM-DD.
@@ -977,6 +988,10 @@ fieldMember.addEventListener('change', () => {
     const chosen   = fieldMember.value;
     const previous = lastFieldMember;
     const go = () => {
+        // Re-assert the value: on the unsaved-changes path the select was reverted to
+        // `previous` (line below) and the banner's Discard runs this later, so without
+        // this the field would stay on the old member while the grid switched. (v12.32)
+        fieldMember.value = chosen;
         lastFieldMember  = chosen;
         lsSet('adminLastMember', chosen);
         lsSet('myb_roster_selected_member', chosen);

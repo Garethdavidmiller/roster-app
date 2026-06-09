@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `12.30` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | `12.31` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -312,9 +312,12 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
   proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
-  flags: ['🇬🇧', '🇳🇬'] // Optional — up to 2 nationality flag emojis; shown in nav panel footer (v10.64); hidden on Windows (v10.65)
+  flags: ['🇬🇧', '🇳🇬'], // Optional — up to 2 nationality flag emojis; shown in nav panel footer (v10.64); hidden on Windows (v10.65)
+  rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] // Optional — scheduled roster moves
 }
 ```
+
+**`rosterChanges` (v12.31)** — date-driven roster transitions for a member who changes rosterType/link mid-life (e.g. a new starter on a temporary `fixed` pattern who later joins a rotating link). Each entry is `{ from: Date, rosterType, currentWeek }`; from `from` (midnight, **inclusive**) onward the member follows that rosterType/currentWeek instead of the base fields. Array must be **sorted ascending by `from`** — the latest entry whose `from` ≤ date wins. Resolved by `resolveMemberRoster(member, date)` in `roster-data.js`; `getBaseShift` and `getWeekNumberForDate` apply it automatically, so **no call site needs special handling**. The base `rosterType`/`currentWeek` describe the member *before* the first change. `startDate` (join-date RD suppression) is independent and still applies.
 
 **AL entitlement** (`getALEntitlement` in `roster-data.js`) — `proRatedAL[year]` takes priority before any role check:
 

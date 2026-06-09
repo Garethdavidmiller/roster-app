@@ -416,14 +416,16 @@ function getSwipeDirection(startX, startY, endX, endY, elapsed) {
 // Defaults to currentDisplayMonth/Year so existing callers (renderCalendar) are unchanged.
 function buildCalendarContainer(month = currentDisplayMonth, year = currentDisplayYear) {
     const member = getCurrentMember();
-    const roster = getRosterForMember(member);
+    const firstDay = new Date(year, month, 1);
+    const lastDay  = new Date(year, month + 1, 0);
+    // Resolve the roster descriptor for the displayed month so the week-prefix
+    // label (e.g. "CES Week") follows any scheduled rosterChanges transition.
+    const roster = getRosterForMember(member, firstDay);
 
     const today = getToday();
     const calendarContainer = document.createElement('div');
     calendarContainer.className = 'calendar-container';
 
-    const firstDay = new Date(year, month, 1);
-    const lastDay  = new Date(year, month + 1, 0);
     const firstWeekNum = getWeekNumberForDate(firstDay, member);
     const lastWeekNum  = getWeekNumberForDate(lastDay,  member);
 
