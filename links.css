@@ -45,6 +45,53 @@ body {
 body.auth-ready .container { display: grid; }
 .app-header { margin-bottom: -8px; }
 
+/* ---- Header beta marker ----
+   Sits beside the gold "🔗 Links" page badge. Deliberately a gold-OUTLINE chip
+   (not solid gold like the page badge) so the two read as primary + secondary
+   tags rather than two identical pills. A slow sheen sweep keeps it lively
+   without drawing the eye away from the workspace; disabled for reduced motion. */
+.header-end {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    flex-shrink: 0;
+}
+.beta-chip {
+    position: relative;
+    overflow: hidden;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 3px 9px;
+    border-radius: 20px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.9px;
+    text-transform: uppercase;
+    color: var(--accent-gold);
+    background: rgba(245, 200, 0, 0.12);
+    border: 1px solid rgba(245, 200, 0, 0.42);
+}
+.beta-chip::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.5) 50%, transparent 62%);
+    transform: translateX(-130%);
+    animation: beta-sheen 5s var(--ease-standard) infinite;
+}
+@keyframes beta-sheen {
+    0%, 55%   { transform: translateX(-130%); }
+    78%, 100% { transform: translateX(130%); }
+}
+@media (max-width: 768px) {
+    .beta-chip { padding: 3px 7px; letter-spacing: 0.6px; }
+    .header-end { gap: 5px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .beta-chip::after { display: none; }
+}
+
 /* ---- Card ---- */
 .card {
     background: var(--surface);
@@ -404,6 +451,40 @@ body.auth-ready .container { display: grid; }
 @media (min-width: 768px) {
     .container { gap: 14px; }
     .app-header { margin-bottom: 0; }
+}
+
+/* ---- Beta notice lightbox (first-visit only) ----
+   Uses the shared .lb-overlay / .lb-content / .lb-close structure and the dark
+   "glass" card treatment from the About / paycalc Welcome lightboxes, so it
+   reads as one family with the rest of the app. Only the content card needs
+   theming here; structure, fade, scale and close-button geometry are shared. */
+#betaLightboxContent {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 36px 36px 30px;
+    width: min(320px, 86vw);
+    text-align: center;
+    max-height: 80vh;
+    max-height: 80dvh;
+    transform: scale(0.85);
+}
+.beta-lb-emoji { font-size: 52px; line-height: 1; margin-bottom: 2px; }
+.beta-lb-desc {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.7);
+}
+.beta-lb-desc strong { color: var(--accent-gold); font-weight: 700; }
+#betaLightboxClose { color: rgba(255, 255, 255, 0.45); }
+#betaLightboxClose:active { color: white; }
+@media (hover: hover) and (pointer: fine) {
+    #betaLightboxClose:hover { color: white; }
 }
 
 @media print {

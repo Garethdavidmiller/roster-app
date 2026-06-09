@@ -12,8 +12,9 @@ import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from '
 import { db, doc, getDoc, setDoc, serverTimestamp } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
-import { lockBodyScroll, _pushOverlayState, dismissOverlay, initCardCollapse } from './overlay.js';
+import { lockBodyScroll, _pushOverlayState, dismissOverlay, initCardCollapse, trapFocus } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
+import { lsGet, lsSet } from './ls.js';
 
 // ============================================
 // SESSION — guard access to LINKS_DESIGNERS only
@@ -690,6 +691,45 @@ window.addEventListener('beforeunload', e => {
     });
     if (closeBtn) closeBtn.addEventListener('click', closeTips);
     lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
+})();
+
+// ============================================
+// BETA NOTICE LIGHTBOX — shown once, on the very first visit to the Links
+// workspace; never shown again after close. Same open/close lifecycle as the
+// paycalc Welcome lightbox: dismissed by the ✕ button, the overlay, or Escape.
+// ============================================
+(function () {
+    const BETA_KEY = 'myb_links_beta_seen';
+    const lb       = document.getElementById('betaLightbox');
+    const content  = document.getElementById('betaLightboxContent');
+    const closeBtn = document.getElementById('betaLightboxClose');
+    if (!lb) return;
+
+    let _betaFocusReturn = null;
+    function open() {
+        _betaFocusReturn = document.activeElement;
+        // Lock synchronously (not inside rAF) so iOS can't scroll during the open animation.
+        lockBodyScroll();
+        _pushOverlayState(close);
+        lb.classList.add('visible');
+        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
+        document.addEventListener('keydown', onKey);
+    }
+    function close() {
+        lsSet(BETA_KEY, '1');
+        dismissOverlay(lb, { onKey, focusReturn: _betaFocusReturn });
+        _betaFocusReturn = null;
+    }
+    function onKey(e) {
+        if (e.key === 'Escape') { close(); return; }
+        trapFocus(content, e);
+    }
+
+    lb.addEventListener('click', close);
+    if (content)  content.addEventListener('click', e => e.stopPropagation());
+    if (closeBtn) closeBtn.addEventListener('click', close);
+
+    if (!lsGet(BETA_KEY)) open();
 })();
 
 // ============================================
