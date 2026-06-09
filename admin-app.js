@@ -1036,6 +1036,32 @@ function handleEdit(e) {
     if (confirmNavigate(go)) go();
 }
 
+/**
+ * Points the Change a Shift section at a member + date and re-renders its
+ * week grid and saved-changes list. Called after an AL or absence save so
+ * the section immediately reflects what was just recorded — without this it
+ * stays on whatever week it was showing, making the save look like it failed.
+ * @param {string} memberName
+ * @param {string} date        YYYY-MM-DD — any date within the week to show
+ */
+function showInChangeAShift(memberName, date) {
+    fieldMember.value = memberName;
+    fieldDate.value   = date;
+    lastFieldMember   = memberName;
+    lastFieldDate     = date;
+    alMember.value    = memberName;
+    sickMember.value  = memberName;
+    syncMemberDisplay();
+    syncSickMemberDisplay();
+    // Align the saved-changes month filter so the new days aren't filtered out.
+    const monthFilter = document.getElementById('overridesMonthFilter');
+    if (monthFilter) monthFilter.value = date.substring(0, 7);
+    renderTable();
+    renderWeekGrid();
+    // The grid was rebuilt fresh from saved data — no pending edits remain.
+    userMadeChanges = false;
+}
+
 
 // ============================================
 // UTILITIES
@@ -1133,7 +1159,7 @@ initALSection({
     syncMemberDisplay, syncSickMemberDisplay,
     populateMemberDropdown, lastMember,
     confirmNavigate, updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, lsSet,
+    currentUser, showALConfirm, lsSet, showInChangeAShift,
 });
 
 // ============================================
@@ -1142,7 +1168,7 @@ initALSection({
 initSickSection({
     sickMember, fieldMember, fieldDate,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateSickBookedBox, currentUser,
+    updateSickBookedBox, currentUser, showInChangeAShift,
 });
 
 

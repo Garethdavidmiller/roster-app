@@ -21,11 +21,12 @@ const esc = escapeHtml;
  * @param {string|null}       deps.lastMember           Last-used member name from localStorage
  * @param {Function}          deps.updateSickBookedBox  Refreshes the sick booked-periods box
  * @param {string|null}       deps.currentUser          Logged-in user name (for changedBy field)
+ * @param {Function}          deps.showInChangeAShift   Jumps the Change a Shift section to a member + date
  */
 export function initSickSection({
     sickMember, fieldMember, fieldDate,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateSickBookedBox, currentUser,
+    updateSickBookedBox, currentUser, showInChangeAShift,
 }) {
 const sickFrom     = document.getElementById('sickFrom');
 const sickTo       = document.getElementById('sickTo');
@@ -156,6 +157,8 @@ sickSaveBtn.addEventListener('click', async () => {
         sickPicker.reset();
         updateSickPreview();
         updateSickBookedBox();
+        // Jump the Change a Shift section to show what was just recorded.
+        showInChangeAShift?.(member, dates[0]);
     } catch (err) {
         console.error('[Admin] Sick save failed:', err);
         sickFeedback.className = 'feedback error';
