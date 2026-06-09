@@ -699,8 +699,8 @@
       /* Peek button is redundant on desktop — result card is sticky and always visible */
       .result-peek-btn { display: none; }
 
-      /* Buttons: fixed-width — no reason to span a wide card */
-      .btn-primary { max-width: 240px; }
+      /* Buttons keep the 280px cap from the 768px rule — re-declaring a
+         narrower 240px here caused a visible size jump when crossing 1024px. */
 
       /* Lightbox: comfortable reading width */
       #helpLightboxContent { width: min(620px, 85vw); }
