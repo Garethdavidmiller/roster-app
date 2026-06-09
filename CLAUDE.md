@@ -24,7 +24,7 @@
 | `ANTHROPIC_API_KEY` | Claude AI key for `parseRosterPDF` — Firebase Secret Manager only |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push keys — Firebase Secret Manager only |
 
-**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA only, added v8.14)
+**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting, added v8.14) · `deploy-rules.yml` (Firestore/Storage rules) · `deploy-pages.yml` (PWA → staff GitHub Pages site `garethdavidmiller.github.io`, added v12.33 — requires the `PAGES_DEPLOY_TOKEN` secret; see the workflow header for one-time setup)
 
 **⚠️ Firebase API key referrer restriction — add every domain the app is served from:**
 The Firebase web API key is restricted to specific HTTP referrers in GCP Console → APIs & Services → Credentials. If a domain is missing, **every Firebase Auth call silently fails** — sign-ins, Firestore writes, and push subscriptions all break with no visible error in the app UI. Current allowlist must include:
@@ -32,6 +32,32 @@ The Firebase web API key is restricted to specific HTTP referrers in GCP Console
 - `myb-roster.web.app/*`
 - `garethdavidmiller.github.io/*` ← staff-facing URL, must stay until GitHub Pages is retired
 If a new custom domain is ever added, update the GCP allowlist in the same change. See KNOWN_LIMITATIONS.md task #1 for full history.
+
+---
+
+## Deployment health check — do this occasionally (and in every review)
+
+> **⚠️ The installed PWA hides live-site breakage.** The app is offline-first, so
+> a phone that already has it installed launches — and even updates — straight
+> from the service-worker cache, **even when the live site is completely broken**
+> (splash that never clears, `404`, CSP failure, expired API-key referrer). You
+> will NOT see the problem from your own installed app. This is how a real outage
+> went unnoticed (Firebase URL stuck on splash + GitHub Pages staff URL `404`,
+> while every installed phone kept working). **"My phone works" is never evidence
+> the site is up.**
+
+**Verify the LIVE URLs in a fresh browser / private window (no cache, no SW):**
+
+- [ ] `https://myb-roster.web.app` — loads *past* the splash to the calendar
+- [ ] `https://garethdavidmiller.github.io` — loads (not `404`); this is the staff URL
+- [ ] A sub-page deep-link works (`/admin.html`, `/paycalc.html`) — not just the root
+- [ ] DevTools → Console on each shows **no red errors** (CSP / failed module / `404` / `api-key-not-valid` / referrer-blocked)
+
+**Cadence:** every code/app review, **and** immediately after any change to
+`firebase.json` (CSP/headers), the Firebase SDK version in `firebase-client.js`,
+the GCP API-key referrer allowlist, or the hosting/Pages setup. Full rationale
+and the symptom table: KNOWN_LIMITATIONS.md → "The installed PWA masks live-site
+breakage".
 
 ---
 
