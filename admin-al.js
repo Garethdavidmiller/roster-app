@@ -40,13 +40,14 @@ export function triggerConfirmedALSave() {
  * @param {string|null}       deps.currentUser         Logged-in user name (for changedBy field)
  * @param {Function}          deps.showALConfirm       Shows the over-entitlement confirmation bar
  * @param {Function}          deps.lsSet               Safe localStorage.setItem wrapper
+ * @param {Function}          deps.showInChangeAShift  Jumps the Change a Shift section to a member + date
  */
 export function initALSection({
     alMember, sickMember, fieldMember, fieldDate,
     syncMemberDisplay, syncSickMemberDisplay,
     populateMemberDropdown, lastMember,
     confirmNavigate, updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, lsSet,
+    currentUser, showALConfirm, lsSet, showInChangeAShift,
 }) {
 const alFrom     = document.getElementById('alFrom');
 const alTo       = document.getElementById('alTo');
@@ -231,6 +232,8 @@ alSaveBtn.addEventListener('click', async () => {
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
+        // Jump the Change a Shift section to show what was just recorded.
+        showInChangeAShift?.(member, dates[0]);
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
         alFeedback.className = 'feedback error';
