@@ -244,6 +244,18 @@ This check is now part of the routine review cadence — see CLAUDE.md →
 (CSP/headers), the Firebase SDK version in `firebase-client.js`, the GCP API-key
 referrer allowlist, or the hosting setup.
 
+**Root cause of the June 2026 splash outage (fixed v12.34):** `firebase.json`'s
+hosting `ignore` list contained `**/*.mjs` — intended to skip the `*.test.mjs`
+test files, but it also dropped the **runtime** `purify.es.mjs` from every
+Firebase deploy. The import is static (`index.html → app.js → app-huddle-viewer.js
+→ import './purify.es.mjs'`), so the 404 broke the whole module graph and the
+splash never cleared; it also failed the SW precache (`purify.es.mjs` is in
+`CORE_ASSETS`). Fixed by narrowing the ignore to `**/*.test.mjs` + `generate-sri.mjs`.
+**Lesson:** any deploy-ignore pattern must exclude *only* dev/test files — never
+match a file the app imports at runtime. When adding a new runtime asset with a
+test-like or tooling-like extension, confirm it is not caught by an `ignore`
+glob in `firebase.json` (and is present in the `deploy-pages.yml` rsync).
+
 ---
 
 ## Huddle ingest
