@@ -481,6 +481,16 @@ body.auth-ready .container { display: grid; }
     color: rgba(255, 255, 255, 0.7);
 }
 .beta-lb-desc strong { color: var(--accent-gold); font-weight: 700; }
+.beta-lb-desktop-note {
+    margin: 8px 0 0;
+    padding: 7px 10px;
+    border-radius: 8px;
+    background: rgba(245, 200, 0, 0.10);
+    border: 1px solid rgba(245, 200, 0, 0.28);
+    font-size: 12px;
+    line-height: 1.5;
+    color: rgba(255, 255, 255, 0.65);
+}
 #betaLightboxClose { color: rgba(255, 255, 255, 0.45); }
 #betaLightboxClose:active { color: white; }
 @media (hover: hover) and (pointer: fine) {
