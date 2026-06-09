@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.29';
+export const APP_VERSION = '12.30';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -104,7 +104,7 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    { name: 'Vacant',                  currentWeek: 4,  rosterType: 'ces',        role: 'CES', hidden: true },
+    { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), proRatedAL: { 2026: 20 } },
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },
