@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Links v12.32 -->
+<!-- MYB Roster — Links v12.33 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -46,6 +46,18 @@
     </div>
 </div>
 
+<!-- Beta notice lightbox — shown on first-ever visit to the Links workspace; never shown again after close -->
+<div id="betaLightbox" class="lb-overlay" role="dialog" aria-label="Links workspace is in beta" aria-modal="true">
+    <div id="betaLightboxContent" class="lb-content">
+    <button id="betaLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="beta-lb-emoji" aria-hidden="true">🔗</div>
+        <div class="lightbox-app-name">Links Workspace</div>
+        <div class="lightbox-badge">Beta</div>
+        <p class="beta-lb-desc">This is an early <strong>beta</strong> — a working sketch for designing the 28-line link. The finished version will likely look and behave quite differently.</p>
+        <p class="beta-lb-desc">Experiment freely: changes here only affect the link-design document, never the live roster.</p>
+    </div>
+</div>
+
 <div class="container">
 
     <header class="app-header">
@@ -55,7 +67,10 @@
             <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
             <h1>Marylebone Roster</h1>
         </div>
-        <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
+        <div class="header-end">
+            <span class="beta-chip" title="This workspace is in beta">Beta</span>
+            <span class="badge-page" id="linksBadge"><span class="badge-glyph" aria-hidden="true">🔗</span> Links</span>
+        </div>
     </header>
 
     <!-- ==================== LINK DESIGN GRID ==================== -->
