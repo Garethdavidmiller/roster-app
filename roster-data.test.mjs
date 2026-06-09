@@ -25,6 +25,7 @@ import {
     getShiftBadge,
     getWeekNumberForDate,
     getRosterForMember,
+    resolveMemberRoster,
     getBaseShift,
     isSameDay,
     teamMembers,
@@ -315,6 +316,61 @@ test('getWeekNumberForDate: returns a number between 1 and roster cycle length',
     const week = getWeekNumberForDate(d(2026, 3, 17), member);
     assert.ok(typeof week === 'number', 'Expected a number');
     assert.ok(week >= 1 && week <= 20, `Week ${week} out of range for 20-week main roster`);
+});
+
+// ---------------------------------------------------------------------------
+// resolveMemberRoster — scheduled roster transitions
+// ---------------------------------------------------------------------------
+
+test('resolveMemberRoster: returns member unchanged when no rosterChanges', () => {
+    const member = { name: 'X', rosterType: 'main', currentWeek: 3 };
+    assert.strictEqual(resolveMemberRoster(member, d(2026, 7, 1)), member);
+});
+
+test('resolveMemberRoster: keeps base fields before the first change date', () => {
+    const member = {
+        name: 'X', rosterType: 'fixed', currentWeek: 1,
+        rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 6, 30)); // 30 Jun — before 1 Jul
+    assert.equal(eff.rosterType, 'fixed');
+    assert.equal(eff.currentWeek, 1);
+});
+
+test('resolveMemberRoster: applies the change on the from date (inclusive)', () => {
+    const member = {
+        name: 'X', rosterType: 'fixed', currentWeek: 1,
+        rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }],
+    };
+    const eff = resolveMemberRoster(member, d(2026, 7, 1)); // 1 Jul — on the boundary
+    assert.equal(eff.rosterType, 'ces');
+    assert.equal(eff.currentWeek, 4);
+});
+
+// ---------------------------------------------------------------------------
+// B. Khalil — real new-starter transition (fixed → CES on 1 Jul 2026)
+// ---------------------------------------------------------------------------
+
+test('B. Khalil: RD before his 9 Jun 2026 start date', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.ok(k, 'B. Khalil not found in teamMembers');
+    assert.equal(getBaseShift(k, d(2026, 6, 8)), 'RD'); // 8 Jun — day before start
+});
+
+test('B. Khalil: fixed 12:00-19:00 on a June weekday', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getBaseShift(k, d(2026, 6, 9)), '12:00-19:00'); // 9 Jun is a Tuesday
+});
+
+test('B. Khalil: rests at weekends in June', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getBaseShift(k, d(2026, 6, 13)), 'RD'); // 13 Jun is a Saturday
+});
+
+test('B. Khalil: follows the CES roster from 1 July 2026', () => {
+    const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getRosterForMember(k, d(2026, 7, 1)).type, 'ces');
+    assert.equal(getRosterForMember(k, d(2026, 6, 30)).type, 'fixed');
 });
 
 // ---------------------------------------------------------------------------

@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.30';
+export const APP_VERSION = '12.31';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -60,6 +60,14 @@ export const CONFIG = {
 //   managerOnly    {boolean} Optional. true = management/clerk login; hidden from staff selector; appears in login dropdown under "Management" group
 //   permanentShift {string}  Optional. 'early' | 'late' — overrides badge colour on worked days,
 //                            suppresses shift time. Remove to restore normal roster display.
+//   rosterChanges  {Array}   Optional. Scheduled roster moves, e.g. a new starter on a
+//                            temporary fixed pattern who later joins a rotating link.
+//                            Each entry: { from: Date, rosterType, currentWeek }. From `from`
+//                            (midnight, inclusive) onward the member follows that rosterType/
+//                            currentWeek instead of the base fields. Must be sorted ascending
+//                            by `from`; the latest entry whose `from` ≤ date wins. Resolved by
+//                            resolveMemberRoster() — getBaseShift/getWeekNumberForDate apply it
+//                            automatically, so no call site needs special handling.
 
 export const teamMembers = [
     { name: 'L. Springer',             currentWeek: 1,  rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
@@ -104,7 +112,10 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), proRatedAL: { 2026: 20 } },
+    { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), proRatedAL: { 2026: 20 },
+      // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link on the
+      // former Vacant week-4 slot from 1 Jul 2026 (rotates automatically thereafter).
+      rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] },
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },
@@ -1190,6 +1201,31 @@ export function getShiftBadge(timeStr) {
 // ============================================
 
 /**
+ * Resolves a member's effective roster fields (rosterType, currentWeek) for a
+ * given date, applying any scheduled `rosterChanges`. Returns the member
+ * unchanged when there are no changes or none apply yet; otherwise returns a
+ * shallow copy with the matching change's rosterType/currentWeek overlaid.
+ * The latest change whose `from` (midnight, inclusive) ≤ date wins, so the
+ * `rosterChanges` array must be sorted ascending by `from`.
+ * @param {Object} member  teamMembers entry
+ * @param {Date}   date
+ * @returns {Object}  member, or a copy with effective roster fields
+ */
+export function resolveMemberRoster(member, date) {
+    if (!member || !member.rosterChanges || !member.rosterChanges.length) return member;
+    const dateMidnight = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    let eff = member;
+    for (const change of member.rosterChanges) {
+        const f = change.from;
+        const fromMidnight = new Date(f.getFullYear(), f.getMonth(), f.getDate());
+        if (dateMidnight >= fromMidnight) {
+            eff = { ...member, rosterType: change.rosterType, currentWeek: change.currentWeek };
+        }
+    }
+    return eff;
+}
+
+/**
  * Returns the roster week number (1-based, within the cycle) for a given date and member.
  * Each week runs Sunday–Saturday. Normalises to noon to avoid DST edge cases.
  * @param {Date} date
@@ -1198,6 +1234,7 @@ export function getShiftBadge(timeStr) {
  */
 export function getWeekNumberForDate(date, member) {
     if (!member) return 1; // safety fallback — should always be provided
+    member = resolveMemberRoster(member, date);
     const rosterType = member.rosterType || 'main';
     if (rosterType === 'fixed') return 1; // single week, always repeats
 
@@ -1226,13 +1263,16 @@ export function getWeekNumberForDate(date, member) {
  * Returns an object with: type, data (the roster map), cycleLength, weekPrefix.
  * admin.html's simple getRosterData can be replaced by `.data` on this result.
  * @param {Object} member  teamMembers entry
+ * @param {Date}   [date]  Optional — when supplied, applies any scheduled
+ *                         `rosterChanges` so the descriptor matches that date.
  * @returns {{ type: string, data: Object, cycleLength: number, weekPrefix: string }}
  */
-export function getRosterForMember(member) {
+export function getRosterForMember(member, date) {
     if (!member) {
         console.error('getRosterForMember called with null/undefined member');
         return { type: 'main', data: weeklyRoster, cycleLength: CONFIG.MAIN_ROSTER_WEEKS, weekPrefix: 'CEA Week' };
     }
+    if (date) member = resolveMemberRoster(member, date);
     const t = member.rosterType || 'main';
     if (t === 'fixed')      return { type: 'fixed',      data: fixedRoster,      cycleLength: 1,                           weekPrefix: '' };
     if (t === 'ces')        return { type: 'ces',        data: cesRoster,        cycleLength: CONFIG.CES_ROSTER_WEEKS,      weekPrefix: 'CES Week' };
@@ -1259,7 +1299,7 @@ export function getBaseShift(member, date) {
     }
     const weekNum = getWeekNumberForDate(date, member);
     const dayKey  = DAY_KEYS[date.getDay()];
-    const data    = getRosterForMember(member).data;
+    const data    = getRosterForMember(member, date).data;
     return (data[weekNum] && data[weekNum][dayKey]) || 'RD';
 }
 
