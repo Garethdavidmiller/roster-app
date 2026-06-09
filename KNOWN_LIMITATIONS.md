@@ -222,6 +222,28 @@ until the user reinstalls the PWA (removes and re-adds to home screen).
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.
 
+### ⚠️ The installed PWA masks live-site breakage — verify the URLs, not your phone
+Because the app is offline-first, an installed PWA launches (and updates) from
+the service-worker cache. It keeps working even when the **live deployment is
+completely broken** — a splash that never clears, a `404`, a CSP violation, an
+expired/missing API-key referrer entry. You will **not** notice from your own
+installed app, which is exactly how the June 2026 outage went unseen (Firebase
+URL stuck on splash, GitHub Pages staff URL returning 404, while every installed
+phone carried on fine).
+
+**Therefore: never treat "my phone works" as evidence the site is up.** Always
+test the **live URLs in a fresh browser / private window** (no SW, no cache):
+- `https://myb-roster.web.app` — must load *past* the splash to the calendar
+- `https://garethdavidmiller.github.io` — must load (not `404`); the staff URL
+- Deep-link a sub-page (`/admin.html`, `/paycalc.html`) — not just the root
+- DevTools → Console on each: no red errors (CSP / failed module / `404` /
+  `api-key-not-valid` / referrer-blocked)
+
+This check is now part of the routine review cadence — see CLAUDE.md →
+"Deployment health check". Re-run it after any change to `firebase.json`
+(CSP/headers), the Firebase SDK version in `firebase-client.js`, the GCP API-key
+referrer allowlist, or the hosting setup.
+
 ---
 
 ## Huddle ingest
