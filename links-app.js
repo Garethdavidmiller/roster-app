@@ -63,9 +63,7 @@ initNavPanel({
 // ============================================
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS  = 28;
-const FIXED_POS  = 28;       // C. Reen — fixed link, shown separately at the bottom
-const ROTATING_LINES = 27;   // lines 1–27 all rotate — every one must carry a real pattern
-const SEEDED_FROM_ROSTER = 22; // lines 1–22 have current roster source; 23–27 await a design
+const ROTATING_LINES = 28;     // all 28 lines rotate — every one must carry a real pattern
 
 const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
 
@@ -125,49 +123,8 @@ function formatShortTime(shift) {
     return dash > 0 ? shift.slice(0, dash) : shift;
 }
 
-/** Normalise a weekly-roster pattern entry: replaces OFF with RD. */
-function normalisePattern(week) {
-    const out = {};
-    for (const d of DAYS) {
-        const v = (week && week[d]) ? week[d] : 'RD';
-        out[d] = (v === 'OFF') ? 'RD' : v;
-    }
-    return out;
-}
-
 /** All-RD pattern — a starting blank for an as-yet-undesigned or unknown line. */
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
-
-/**
- * Build a default 28-line design from the current roster data.
- * Lines 1–20: one week per row of the CEA 20-week link.
- * Lines 21–22: bilingual roster patterns.
- * Lines 23–27: blank (all RD) — there is no current roster source for these,
- *   so they start empty for the designer to fill manually or via the generator.
- *   They are NOT vacancies: in the rotation everyone passes through every line,
- *   so all 27 must carry a real pattern before the link can be authorised. The
- *   "lines not yet designed" check flags them until they are filled.
- * Line 28: C. Reen's fixed Mon–Fri 12:00–19:00 link.
- */
-function buildDefaultDesign() {
-    const patterns = {};
-    for (let week = 1; week <= 20; week++) {
-        patterns[String(week)] = normalisePattern(weeklyRoster[week]);
-    }
-    const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
-    for (let i = 0; i < 2; i++) {
-        const week = blMembers[i]?.currentWeek || (i + 1);
-        patterns[String(21 + i)] = normalisePattern(bilingualRoster[week]);
-    }
-    for (let pos = SEEDED_FROM_ROSTER + 1; pos <= ROTATING_LINES; pos++) {
-        patterns[String(pos)] = emptyPattern();
-    }
-    patterns[String(FIXED_POS)] = {
-        sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00',
-        wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD',
-    };
-    return { patterns };
-}
 
 /** HTML for the shift dropdown inside an editing cell. */
 function buildSelectOptions(currentVal) {
@@ -247,64 +204,44 @@ function renderGrid() {
     const tbody      = document.getElementById('linksGridBodyRows');
     const tfoot      = document.getElementById('linksCoverageFoot');
     const wrapper    = document.getElementById('linksGridWrapper');
-    const emptyState = document.getElementById('linksEmptyState');
-    const saveRow    = document.getElementById('linksSaveRow');
-    const resetRow   = document.getElementById('linksResetRow');
+    const emptyState = document.getElementById(‘linksEmptyState’);
+    const saveRow    = document.getElementById(‘linksSaveRow’);
 
     if (!design) {
-        const emptyMsg  = document.getElementById('linksEmptyMsg');
-        const inlineBtn = document.getElementById('linksInitBtnInline');
+        const emptyMsg = document.getElementById(‘linksEmptyMsg’);
         if (emptyMsg) emptyMsg.textContent = loadFailed
-            ? 'Couldn’t load the saved design — check your connection and refresh the page.'
-            : 'No link design loaded yet.';
-        if (inlineBtn)  inlineBtn.style.display  = loadFailed ? 'none' : '';
-        if (wrapper)    wrapper.style.display    = 'none';
-        if (emptyState) emptyState.style.display = '';
-        if (saveRow)    saveRow.style.display    = 'none';
-        if (resetRow)   resetRow.style.display   = 'none';
-        if (tbody)      tbody.innerHTML          = '';
-        if (tfoot)      tfoot.innerHTML          = '';
+            ? ‘Couldn’t load the saved design — check your connection and refresh the page.’
+            : ‘No link design loaded yet — use the Auto-generate card below to create one.’;
+        if (wrapper)    wrapper.style.display    = ‘none’;
+        if (emptyState) emptyState.style.display = ‘’;
+        if (saveRow)    saveRow.style.display    = ‘none’;
+        if (tbody)      tbody.innerHTML          = ‘’;
+        if (tfoot)      tfoot.innerHTML          = ‘’;
         renderBrushBar();
         renderCoverageChart();
         renderDesignChecks();
         return;
     }
 
-    if (emptyState) emptyState.style.display = 'none';
-    if (wrapper)    wrapper.style.display    = '';
-    if (saveRow)    saveRow.style.display    = '';
-    if (resetRow)   resetRow.style.display   = '';
+    if (emptyState) emptyState.style.display = ‘none’;
+    if (wrapper)    wrapper.style.display    = ‘’;
+    if (saveRow)    saveRow.style.display    = ‘’;
 
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
-        if (pos === FIXED_POS) {
-            rows.push(
-                `<tr class="fixed-link-separator">` +
-                `<td colspan="8">Fixed Link — additional cover</td>` +
-                `</tr>`
-            );
-        }
-
         const posStr  = String(pos);
         const p       = design.patterns[posStr] || emptyPattern();
-        const isFixed  = pos === FIXED_POS;
         // An all-rest rotating line is "not yet designed" — flagged, not muted.
-        const isUnfilled = !isFixed && DAYS.every(d => {
+        const isUnfilled = DAYS.every(d => {
             const s = p[d] ?? 'RD';
             return s === 'RD' || s === 'OFF';
         });
-        const rowClass = isFixed ? 'row-fixed' : (isUnfilled ? 'row-unfilled' : 'row-normal');
+        const rowClass = isUnfilled ? 'row-unfilled' : 'row-normal';
 
         const dayCells = DAYS.map((d, di) => {
             const shift = p[d] ?? 'RD';
             const type  = classifyShift(shift);
             const label = shiftLabel(shift);
-            if (isFixed) {
-                return `<td class="shift-cell">` +
-                    `<button class="shift-cell-btn type-${type} fixed-cell" ` +
-                    `aria-label="${DAY_LABELS[di]}: ${shift}" tabindex="-1">` +
-                    `${escapeHtml(label)}</button></td>`;
-            }
             return `<td class="shift-cell">` +
                 `<button class="shift-cell-btn type-${type}" ` +
                 `data-pos="${posStr}" data-day="${d}" ` +
@@ -335,7 +272,7 @@ function renderGrid() {
 
     tbody.addEventListener('click', e => {
         const btn = e.target.closest('.shift-cell-btn');
-        if (!btn || btn.classList.contains('fixed-cell') || !design) return;
+        if (!btn || !design) return;
 
         const pos = btn.dataset.pos;
         const day = btn.dataset.day;
@@ -623,7 +560,7 @@ function renderDesignChecks() {
         `<div class="check-row check-neutral">` +
         `${info}<div class="check-body">` +
         `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
-        ` across the 27-line rotation` +
+        ` across the 28-line rotation` +
         `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
         `</div></div>`
     );
@@ -699,7 +636,7 @@ function renderGenTable() {
         `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
         `aria-label="Shift time for row ${i + 1}">${buildTimeOptions(slot.time)}</select></td>` +
         ['weekday', 'sat', 'sun'].map(cls =>
-            `<td><input type="number" class="gen-input gen-slot-count" min="0" max="27" ` +
+            `<td><input type="number" class="gen-input gen-slot-count" min="0" max="28" ` +
             `value="${slot[cls]}" data-slot="${i}" data-class="${cls}" ` +
             `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
         ).join('') +
@@ -718,8 +655,8 @@ function updateGenTotals() {
     for (const [cls, id] of [['weekday', 'genTotWeekday'], ['sat', 'genTotSat'], ['sun', 'genTotSun']]) {
         const el = document.getElementById(id);
         if (!el) continue;
-        el.textContent = `${tot[cls]} / 27`;
-        el.classList.toggle('gen-total-over', tot[cls] > 27);
+        el.textContent = `${tot[cls]} / 28`;
+        el.classList.toggle('gen-total-over', tot[cls] > 28);
     }
     return tot;
 }
@@ -799,30 +736,25 @@ function updateGenTotals() {
             return;
         }
         const tot = updateGenTotals();
-        const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > 27);
+        const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > 28);
         if (over.length) {
             if (errEl) {
                 const names = { weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' };
                 errEl.textContent = `Can’t generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
-                    `each day's total (shifts + spare) can't exceed 27 lines.`;
+                    `each day's total (shifts + spare) can't exceed 28 lines.`;
             }
             return;
         }
 
-        const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: 27 });
+        const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: ROTATING_LINES });
         if (!generated) {
             if (errEl) errEl.textContent = 'Can’t generate — check every row has a valid time and whole-number targets.';
             return;
         }
 
-        if (!confirm('Apply the generated pattern to lines 1–27?\nLine 28 (C. Reen) will not be changed.')) return;
+        if (!confirm('Apply the generated pattern to all 28 lines?')) return;
 
-        // Preserve line 28 if a design is already loaded.
-        const fixed28 = design?.patterns?.['28'] || {
-            sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00',
-            wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD',
-        };
-        design = { patterns: { ...generated, '28': fixed28 } };
+        design = { patterns: generated };
 
         dirty = true;
         dearmBrush();
@@ -939,57 +871,6 @@ async function loadDesign() {
     updateSaveBtn();
 }
 
-function initFromRosters() {
-    if (loadFailed) {
-        // Seeding defaults over a design that merely failed to load would risk
-        // wiping a real saved document. Make the user refresh first.
-        const saveStatus = document.getElementById('linksSaveStatus');
-        if (saveStatus) {
-            saveStatus.textContent = 'Can’t initialise — the saved design couldn’t be loaded. Refresh the page and try again.';
-            saveStatus.className   = 'links-save-status err';
-            const wrapper = document.getElementById('linksGridWrapper');
-            if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        return;
-    }
-    if (!confirm('Initialise from current rosters? This will overwrite any unsaved changes.')) return;
-    design = buildDefaultDesign();
-    dirty  = true;
-    dearmBrush();
-    renderGrid();
-    renderBrushBar();
-    renderDesignChecks();
-    updateSaveBtn();
-    const saveStatus = document.getElementById('linksSaveStatus');
-    if (saveStatus) {
-        saveStatus.textContent = 'Design seeded from rosters — save when ready.';
-        saveStatus.className   = 'links-save-status ok';
-    }
-}
-
-function resetFromRosters() {
-    if (loadFailed) {
-        alert('Can’t reset — the saved design couldn’t be loaded. Refresh the page and try again.');
-        return;
-    }
-    if (!confirm('Reset patterns from current rosters? Lines 1–27 will be overwritten. Line 28 (C. Reen) will not change.')) return;
-    const fresh = buildDefaultDesign();
-    // Preserve line 28 as loaded.
-    if (design?.patterns?.['28']) fresh.patterns['28'] = design.patterns['28'];
-    design = fresh;
-    dirty  = true;
-    dearmBrush();
-    renderGrid();
-    renderBrushBar();
-    renderDesignChecks();
-    updateSaveBtn();
-    const saveStatus = document.getElementById('linksSaveStatus');
-    if (saveStatus) {
-        saveStatus.textContent = 'Patterns reset from rosters — save when ready.';
-        saveStatus.className   = 'links-save-status ok';
-    }
-}
-
 // ============================================
 // COLLAPSIBLE CARDS
 // ============================================
@@ -1002,8 +883,6 @@ initCardCollapse('generatorToggleHeader', 'generatorBody',  'generatorChevron');
 // BUTTON HANDLERS
 // ============================================
 document.getElementById('linksSaveBtn')?.addEventListener('click', saveChanges);
-document.getElementById('linksInitBtnInline')?.addEventListener('click', initFromRosters);
-document.getElementById('linksResetBtn')?.addEventListener('click', resetFromRosters);
 
 // Disarm brush on Escape anywhere in the page.
 document.addEventListener('keydown', e => {
@@ -1097,15 +976,14 @@ document.addEventListener('click', e => {
             sections: [
                 { heading: 'How it works', items: [
                     { icon: '📋', html: 'Each <strong>row</strong> is one of the 28 lines. Each <strong>column</strong> is a day of the week (Sun–Sat).' },
-                    { icon: '🔄', html: 'Lines 1–27 are the main rotating link. Line 28 (C. Reen) is the fixed link — shown separately at the bottom.' },
+                    { icon: '🔄', html: 'All 28 lines rotate — everyone passes through every line over the cycle, so <strong>all 28 must be filled</strong> with a real pattern before the link can be authorised.' },
                     { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
                     { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom time…</strong> to type a new one.' },
                     { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
                 ]},
-                { heading: 'Row types', items: [
-                    { icon: '🔄', html: '<strong>Lines 1–27</strong> — the rotating link. Everyone passes through every line over the cycle, so <strong>all 27 must be filled</strong> with a real pattern before the link can be authorised.' },
-                    { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em>, not a vacancy — fill it manually or with the generator. The Design checks card flags any that are still empty.' },
-                    { icon: '🔒', html: '<strong>Line 28</strong> — C. Reen\'s fixed Mon–Fri 12:00–19:00 link; not editable in the grid' },
+                { heading: 'Filling the lines', items: [
+                    { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },
+                    { icon: '🙋', html: 'Empty lines are <strong>not vacancies</strong> — a vacancy is a missing person, not a missing pattern. The link must be a complete 28 so it still works whoever is in post.' },
                 ]},
             ],
         },
@@ -1122,10 +1000,10 @@ document.addEventListener('click', e => {
         'links-checks': {
             title: 'Design checks',
             sections: [{ items: [
-                { icon: '🔄', html: '<strong>All lines designed</strong> — every one of the 27 rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can\'t be authorised until they are all filled.' },
+                { icon: '🔄', html: '<strong>All lines designed</strong> — every one of the 28 rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can\'t be authorised until they are all filled.' },
                 { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
                 { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround.' },
-                { icon: '📅', html: '<strong>Longest run</strong> — how many consecutive working days appear anywhere in the 27-line cycle. Over 7 days is flagged.' },
+                { icon: '📅', html: '<strong>Longest run</strong> — how many consecutive working days appear anywhere in the 28-line cycle. Over 7 days is flagged.' },
                 { icon: '⚖️', html: '<strong>Shift balance</strong> — how the worked days split between early, late, and spare across the full rotation.' },
                 { icon: '🔄', html: 'Checks cover the <em>rotation</em>, not a single week — turnarounds and run lengths wrap across line boundaries.' },
             ]}],
@@ -1134,7 +1012,7 @@ document.addEventListener('click', e => {
             title: 'Auto-generator',
             sections: [
                 { heading: 'What it does', items: [
-                    { icon: '⚡', html: 'Builds a fair 27-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday.' },
+                    { icon: '⚡', html: 'Builds a fair 28-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday.' },
                     { icon: '🌊', html: 'The station is staffed in <strong>waves</strong> — opens, mid-morning, middles, afternoons, closes — so you can add as many shift rows as the day needs, not just one early and one late.' },
                     { icon: '🌅', html: 'Within each person\'s week, start times only move <strong>later</strong> — never a late finish then an early start — so body clocks shift in the easy direction.' },
                     { icon: '✅', html: 'Daily targets are met <strong>exactly</strong> by construction.' },
@@ -1142,7 +1020,7 @@ document.addEventListener('click', e => {
                 { heading: 'How to use it', items: [
                     { icon: '↺', html: 'The table starts <strong>pre-filled from the current roster</strong> — what today\'s 22 active lines actually provide. Edit from there, or use the reset link to get back to it.' },
                     { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
-                    { icon: '⚠️', html: 'Each day\'s total (all shifts + spare) can\'t exceed 27 — watch the Total row.' },
+                    { icon: '⚠️', html: 'Each day\'s total (all shifts + spare) can\'t exceed 28 — watch the Total row.' },
                     { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage heat map and Design Checks before saving.' },
                 ]},
             ],

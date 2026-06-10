@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Links v12.41 -->
+<!-- MYB Roster — Links v12.43 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -88,8 +88,7 @@
 
                 <!-- Empty state: shown before any design is loaded -->
                 <div id="linksEmptyState" class="links-empty-state">
-                    <p class="links-empty-msg" id="linksEmptyMsg">No link design loaded yet.</p>
-                    <button class="btn-action btn-primary" id="linksInitBtnInline">Initialise from current rosters</button>
+                    <p class="links-empty-msg" id="linksEmptyMsg">No link design loaded yet — use the Auto-generate card below to create one.</p>
                 </div>
 
                 <!-- Paint-mode brush bar — arm a shift then single-click cells to fill -->
@@ -120,10 +119,6 @@
                         <span id="linksSaveStatus" class="links-save-status" aria-live="polite"></span>
                         <span id="linksLastSaved" class="links-last-saved"></span>
                     </div>
-                </div>
-
-                <div id="linksResetRow" class="links-reset-row" style="display:none">
-                    <button class="btn-text-link" id="linksResetBtn">↺ Reset patterns from current rosters</button>
                 </div>
 
             </div>
@@ -191,9 +186,9 @@
                             <tfoot>
                                 <tr class="gen-spare-row">
                                     <td class="gen-td-label">Spare (standby)</td>
-                                    <td><input type="number" id="genSpareWeekday" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Mon–Fri"></td>
-                                    <td><input type="number" id="genSpareSat" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Saturday"></td>
-                                    <td><input type="number" id="genSpareSun" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Sunday"></td>
+                                    <td><input type="number" id="genSpareWeekday" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Mon–Fri"></td>
+                                    <td><input type="number" id="genSpareSat" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Saturday"></td>
+                                    <td><input type="number" id="genSpareSun" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Sunday"></td>
                                     <td></td>
                                 </tr>
                                 <tr class="gen-total-row">
@@ -211,8 +206,8 @@
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Reset targets from current roster</button>
                     </div>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
-                    <button class="btn-action btn-primary" id="genApplyBtn">Generate link (lines 1–27)</button>
-                    <p class="gen-note">Each day's total can't exceed 27 — the remaining lines become rest days. Line 28 (C. Reen's fixed link) is never changed by the generator.</p>
+                    <button class="btn-action btn-primary" id="genApplyBtn">Generate link (all 28 lines)</button>
+                    <p class="gen-note">Each day's total can't exceed 28 — the remaining lines become rest days.</p>
                 </div>
             </div>
         </div>

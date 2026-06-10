@@ -302,23 +302,25 @@ for now:
   cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff
   devices) behave correctly. Escape cancels cleanly in all browsers.
 - **Coverage heat map counts pattern positions, not a named headcount.** All 28
-  positions are counted, including line 28 (C. Reen's fixed link) and any line not
-  yet designed. Staff names were removed at v12.39 — the design is patterns-only —
-  so there is no distinction between named and unnamed positions. The heat map colour
-  scale is relative to the week's own peak, so a lightly staffed day naturally shows
-  cooler colours.
-- **All 27 rotating lines must be filled (v12.41).** The earlier model treated lines
-  23–27 as permanent "vacant placeholders" (all rest days). That was wrong: in a
-  rotating link everyone passes through every line, so an all-rest line is an
-  *unfinished* line, not a vacancy, and the link can't be authorised then re-cut each
-  time a post is filled. The `VACANT_FROM` constant was removed; `buildDefaultDesign()`
-  still only has roster source for lines 1–22 (`SEEDED_FROM_ROSTER = 22`), so 23–27
-  start blank to be filled manually or by the generator. A Design-checks row and an
-  amber grid marker (`.row-unfilled`) flag any all-rest line until it is designed.
+  positions are counted, including any line not yet designed. Staff names were removed
+  at v12.39 — the design is patterns-only — so there is no distinction between named
+  and unnamed positions. The heat map colour scale is relative to the week's own peak,
+  so a lightly staffed day naturally shows cooler colours.
+- **All 28 lines rotate and must be filled (v12.42).** Two earlier models were both
+  dropped: "lines 23–27 are vacant placeholders" (`VACANT_FROM`, removed v12.41) and
+  "line 28 is C. Reen's fixed link" (`FIXED_POS` + a separator row + non-editable
+  cells, removed v12.42). In a rotating link everyone passes through every line, so an
+  all-rest line is an *unfinished* line, not a vacancy, and the link can't be
+  authorised then re-cut each time a post is filled. The link is designed as a full 28
+  so it survives C. Reen leaving; her adjusted fixed shifts are handled as overrides on
+  the base roster, not in this designer. `buildDefaultDesign()` only has roster source
+  for lines 1–22 (`SEEDED_FROM_ROSTER = 22`), so 23–28 start blank to be filled manually
+  or by the generator. A Design-checks row and an amber grid marker (`.row-unfilled`)
+  flag any all-rest line until it is designed.
 - **The 28-line structure is hardcoded by design.** `TOTAL_POS`, `ROTATING_LINES`,
-  `FIXED_POS` and the 1–20/21–22 seeding split mirror the agreed link concept —
-  they are deliberately not derived from roster data. If the link concept changes
-  (more lines, different split), these constants change with it.
+  and the 1–20/21–22 seeding split mirror the agreed link concept — they are
+  deliberately not derived from roster data. If the link concept changes (more lines,
+  different split), these constants change with it.
 - **Save concurrency is warn-on-conflict, not merge.** Two designers saving at
   once get a confirm naming who saved last; the whole document is still replaced.
   A field-level merge is not worth the complexity for a 2-person beta tool.

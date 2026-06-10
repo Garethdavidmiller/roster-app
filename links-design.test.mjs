@@ -82,13 +82,13 @@ const SLOTS = [
 const SPARE = { weekday: 3, sat: 2, sun: 1 };
 
 test('generatePatterns meets every day-class target exactly', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 27 });
+    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
     assert.ok(patterns);
     for (const d of DAYS) {
         const cls = dayClass(d);
         const counts = {};
         let spare = 0;
-        for (let w = 1; w <= 27; w++) {
+        for (let w = 1; w <= 28; w++) {
             const s = patterns[String(w)][d];
             if (s === 'SPARE') spare++;
             else if (s !== 'RD') counts[s] = (counts[s] || 0) + 1;
@@ -100,9 +100,9 @@ test('generatePatterns meets every day-class target exactly', () => {
     }
 });
 
-test('generatePatterns produces all 27 lines with all 7 days', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 27 });
-    for (let w = 1; w <= 27; w++) {
+test('generatePatterns produces all 28 lines with all 7 days', () => {
+    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    for (let w = 1; w <= 28; w++) {
         const p = patterns[String(w)];
         assert.ok(p, `line ${w}`);
         for (const d of DAYS) assert.ok(typeof p[d] === 'string', `line ${w} ${d}`);
@@ -110,28 +110,28 @@ test('generatePatterns produces all 27 lines with all 7 days', () => {
 });
 
 test('generatePatterns never produces a short turnaround (forward body-clock rotation)', () => {
-    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 27 });
-    const checks = runDesignChecks(patterns, 27);
+    const patterns = generatePatterns({ slots: SLOTS, spare: SPARE, lines: 28 });
+    const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0,
         `expected no turnarounds, got: ${JSON.stringify(checks.turnarounds)}`);
 });
 
 test('generatePatterns rejects totals over the line count', () => {
-    const big = [{ time: '06:20-14:20', weekday: 28, sat: 0, sun: 0 }];
-    assert.equal(generatePatterns({ slots: big, lines: 27 }), null);
+    const big = [{ time: '06:20-14:20', weekday: 29, sat: 0, sun: 0 }];
+    assert.equal(generatePatterns({ slots: big, lines: 28 }), null);
     // spare pushes it over
     assert.equal(generatePatterns({
-        slots: [{ time: '06:20-14:20', weekday: 25, sat: 0, sun: 0 }],
+        slots: [{ time: '06:20-14:20', weekday: 26, sat: 0, sun: 0 }],
         spare: { weekday: 3, sat: 0, sun: 0 },
-        lines: 27,
+        lines: 28,
     }), null);
 });
 
 test('generatePatterns rejects invalid input', () => {
-    assert.equal(generatePatterns({ slots: [], lines: 27 }), null);
-    assert.equal(generatePatterns({ slots: [{ time: 'nonsense', weekday: 1, sat: 0, sun: 0 }], lines: 27 }), null);
-    assert.equal(generatePatterns({ slots: [{ time: '06:20-14:20', weekday: -1, sat: 0, sun: 0 }], lines: 27 }), null);
-    assert.equal(generatePatterns({ slots: [{ time: '06:20-14:20', weekday: 1.5, sat: 0, sun: 0 }], lines: 27 }), null);
+    assert.equal(generatePatterns({ slots: [], lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: [{ time: 'nonsense', weekday: 1, sat: 0, sun: 0 }], lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: [{ time: '06:20-14:20', weekday: -1, sat: 0, sun: 0 }], lines: 28 }), null);
+    assert.equal(generatePatterns({ slots: [{ time: '06:20-14:20', weekday: 1.5, sat: 0, sun: 0 }], lines: 28 }), null);
 });
 
 test('generatePatterns accepts a many-slot wave profile (real roster shape)', () => {
@@ -142,9 +142,9 @@ test('generatePatterns accepts a many-slot wave profile (real roster shape)', ()
         '13:30-22:00', '14:00-22:30', '15:00-23:30', '15:15-23:55',
     ].map(time => ({ time, weekday: 1, sat: 1, sun: 1 }));
     waves[2].weekday = 2; // 06:20-14:20 ×2
-    const patterns = generatePatterns({ slots: waves, spare: { weekday: 4, sat: 4, sun: 4 }, lines: 27 });
+    const patterns = generatePatterns({ slots: waves, spare: { weekday: 4, sat: 4, sun: 4 }, lines: 28 });
     assert.ok(patterns);
-    const checks = runDesignChecks(patterns, 27);
+    const checks = runDesignChecks(patterns, 28);
     assert.equal(checks.turnarounds.length, 0);
 });
 
