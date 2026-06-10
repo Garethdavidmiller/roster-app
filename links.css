@@ -1,8 +1,9 @@
-/* links.css — all CSS for links.html (Links design workspace, v12.11) */
+/* links.css — all CSS for links.html (Links design workspace) */
 
 :root {
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
+    --cov-night: #6b3fa0;
     /* Shift-cell text colours — dark tints of the early/late/spare/night hues */
     --shift-early-text: #0a4872;
     --shift-late-text:  #7a3800;
@@ -34,7 +35,9 @@ body {
 }
 
 .container {
-    max-width: var(--page-max-width);
+    /* 1100px matches paycalc/settings/operations. The old --page-max-width
+       (1400px) stretched each 10px shift label across a ~170px cell. */
+    max-width: 1100px;
     width: 100%;
     margin: 0 auto;
     display: none;
@@ -97,7 +100,11 @@ body.auth-ready .container { display: grid; }
     background: var(--surface);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-1);
+    /* clip keeps the rounded-corner clipping but, unlike hidden, is NOT a
+       scroll container — so the grid's sticky day-header row can stick to the
+       viewport on desktop. hidden first as a fallback for older browsers. */
     overflow: hidden;
+    overflow: clip;
     container-type: inline-size;
 }
 
@@ -190,6 +197,7 @@ body.auth-ready .container { display: grid; }
 }
 .cov-bar-seg.early { background: var(--cov-early); }
 .cov-bar-seg.late  { background: var(--cov-late); }
+.cov-bar-seg.night { background: var(--cov-night); }
 .cov-bar-seg.spare { background: var(--accent-gold); }
 .cov-day-label {
     font-size: 10px;
@@ -220,8 +228,15 @@ body.auth-ready .container { display: grid; }
 }
 .cov-legend-dot.early { background: var(--cov-early); }
 .cov-legend-dot.late  { background: var(--cov-late); }
+.cov-legend-dot.night { background: var(--cov-night); }
 .cov-legend-dot.spare { background: var(--accent-gold); }
 .cov-legend-dot.rd    { background: var(--surface-sunken); border: 1px solid var(--border-light); }
+.cov-staffed-note {
+    font-size: 11px;
+    color: var(--text-light);
+    margin: 10px 0 0;
+    line-height: 1.5;
+}
 
 /* ---- Grid wrapper — horizontal scroll on mobile ---- */
 .links-grid-wrapper {
@@ -231,7 +246,11 @@ body.auth-ready .container { display: grid; }
     padding: 0 16px;
 }
 @media (min-width: 1024px) {
-    .links-grid-wrapper { margin: 0; padding: 0; }
+    /* The table fits without horizontal scroll here. Removing the overflow
+       means the wrapper is no longer a scroll container, so the day-header
+       row's position:sticky finally sticks to the viewport while the
+       28-row grid scrolls. (.card uses overflow:clip for the same reason.) */
+    .links-grid-wrapper { margin: 0; padding: 0; overflow-x: visible; }
 }
 
 /* ---- Links grid table ---- */
@@ -413,6 +432,7 @@ body.auth-ready .container { display: grid; }
 }
 .cov-label-e { color: var(--shift-early-text); }
 .cov-label-l { color: var(--shift-late-text); }
+.cov-label-n { color: var(--shift-night-text); }
 .cov-label-s { color: var(--shift-spare-text); }
 
 /* ---- Inline staff name input (in the sticky Staff column) ---- */
@@ -437,6 +457,14 @@ body.auth-ready .container { display: grid; }
 .staff-name-input-inline::placeholder {
     color: var(--text-light);
     font-style: italic;
+}
+
+/* iOS force-zooms the page when a focused field is under 16px ("never go
+   below 16px on a focusable field" — CLAUDE.md). Scoped to coarse pointers
+   so the dense desktop grid keeps its compact type. */
+@media (pointer: coarse) {
+    .shift-cell-select       { font-size: 16px; }
+    .staff-name-input-inline { font-size: 16px; }
 }
 
 /* ---- Badge ---- */
@@ -497,19 +525,42 @@ body.auth-ready .container { display: grid; }
     #betaLightboxClose:hover { color: white; }
 }
 
+/* A 28-line link design is a paper artefact — consultations, noticeboards,
+   meeting handouts — so unlike settings/operations this page PRINTS its
+   content: the design grid and the coverage analysis, landscape A4. */
 @media print {
-    html, body { background: white !important; }
-    .container, .app-header, .lb-overlay,
-    .nav-panel, .nav-panel-overlay { display: none !important; }
-    body::before {
-        content: "🔗 Links\A\A This is an interactive link design workspace. There is nothing here to print.";
-        white-space: pre-line;
-        display: block;
-        max-width: 16cm;
-        margin: 4cm auto;
-        text-align: center;
-        font-size: 14px;
-        line-height: 1.7;
-        color: var(--text-dark);
+    @page { size: A4 landscape; margin: 1cm; }
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
+    html, body { background: white !important; padding: 0 !important; }
+
+    /* Interactive chrome only — the cards themselves stay */
+    .app-header, .lb-overlay, .nav-panel, .nav-panel-overlay,
+    .links-save-row, .links-empty-state, #linksInitCard,
+    .btn-card-tips, .collapse-chevron, .hint { display: none !important; }
+
+    .container { display: block !important; max-width: none; }
+    .card {
+        box-shadow: none;
+        border: 1px solid var(--border-light);
+        overflow: visible;
+        margin-bottom: 12px;
+    }
+    /* Print collapsed cards too — paper has no tap-to-expand */
+    .card-collapsible-body { display: block !important; }
+
+    .links-grid-wrapper { overflow: visible; margin: 0; padding: 0; }
+    .links-grid { min-width: 0; }
+    .links-grid tr { break-inside: avoid; }
+    /* Compact rows so the 28-line grid fits on (or close to) one sheet */
+    .links-grid .shift-cell { height: 26px; }
+    .shift-cell-btn { font-size: 8px; line-height: 1.2; padding: 1px 2px; }
+    /* Sticky positioning confuses print pagination — flatten it */
+    .links-grid thead th,
+    .links-grid .pos-num,
+    .links-grid .staff-name { position: static !important; }
+    .links-grid tr.row-vacant td { opacity: 1; } /* faded rows print illegibly */
+    .staff-name-input-inline { border-bottom-color: transparent; }
 }

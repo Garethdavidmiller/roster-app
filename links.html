@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Links v12.36 -->
+<!-- MYB Roster — Links v12.37 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -88,7 +88,7 @@
 
                 <!-- Empty state: shown before any design is loaded -->
                 <div id="linksEmptyState" class="links-empty-state">
-                    <p class="links-empty-msg">No link design loaded yet.</p>
+                    <p class="links-empty-msg" id="linksEmptyMsg">No link design loaded yet.</p>
                     <button class="btn-action btn-primary" id="linksInitBtnInline">Initialise from current rosters</button>
                 </div>
 
@@ -130,7 +130,7 @@
             <h2>📊 Coverage analysis
                 <button class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
             </h2>
-            <span class="hint">How many of the 28 positions are on each shift type per day</span>
+            <span class="hint">How many people are working each day, split by shift type</span>
             <span class="collapse-chevron open" id="coverageChevron">▾</span>
         </div>
         <div class="card-collapsible-body open" id="coverageBody">
@@ -154,7 +154,7 @@
             <div class="card-body">
                 <p class="links-desc">
                     Seeds the shift patterns for all 28 lines from the current roster data:
-                    lines 1–20 from the CEA main link, lines 21–22 from the BL link,
+                    lines 1–20 from the CEA main link, lines 21–22 from the Bilingual link,
                     lines 23–27 as vacant (all RD), and line 28 as C. Reen's fixed link
                     (Mon–Fri 12:00–19:00). Staff names are left blank — who goes on which
                     line is a separate decision made once the link patterns are agreed.
@@ -170,6 +170,9 @@
     </div>
 
 </div><!-- /container -->
+
+<!-- Staff-name suggestions for the grid's inline inputs — populated by links-app.js -->
+<datalist id="staffNamesList"></datalist>
 
 <script type="module" src="./links-app.js"></script>
 </body>
