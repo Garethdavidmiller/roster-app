@@ -79,10 +79,10 @@ const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
     }
     const early = [], late = [];
     for (const s of [...all].sort()) {
-        const h = parseInt(s.slice(0, 2), 10);
-        if (h >= 4 && h < 11) early.push(s);
-        else if (h >= 11 && h < 21) late.push(s);
-        // Night times never appear here — CEAs do not work nights.
+        const cls = classifyShift(s);
+        if (cls === 'early') early.push(s);
+        else if (cls === 'late') late.push(s);
+        // 'night' never appears here — CEAs do not work nights.
     }
     return { EARLY_SHIFTS: early, LATE_SHIFTS: late };
 })();
@@ -125,6 +125,12 @@ function formatShortTime(shift) {
 
 /** All-RD pattern — a starting blank for an as-yet-undesigned or unknown line. */
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
+
+/** An all-rest line is "not yet designed" — flagged amber, not muted. */
+const isUnfilledPattern = (p) => DAYS.every(d => {
+    const s = p?.[d] ?? 'RD';
+    return s === 'RD' || s === 'OFF';
+});
 
 /** HTML for the shift dropdown inside an editing cell. */
 function buildSelectOptions(currentVal) {
@@ -240,13 +246,8 @@ function renderGrid() {
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const posStr  = String(pos);
-        const p       = design.patterns[posStr] || emptyPattern();
-        // An all-rest rotating line is "not yet designed" — flagged, not muted.
-        const isUnfilled = DAYS.every(d => {
-            const s = p[d] ?? 'RD';
-            return s === 'RD' || s === 'OFF';
-        });
-        const rowClass = isUnfilled ? 'row-unfilled' : 'row-normal';
+        const p        = design.patterns[posStr] || emptyPattern();
+        const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : 'row-normal';
 
         const dayCells = DAYS.map((d, di) => {
             const shift = p[d] ?? 'RD';
@@ -255,7 +256,7 @@ function renderGrid() {
             return `<td class="shift-cell">` +
                 `<button class="shift-cell-btn type-${type}" ` +
                 `data-pos="${posStr}" data-day="${d}" ` +
-                `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${shift}">` +
+                `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
                 `${escapeHtml(label)}</button></td>`;
         }).join('');
 
@@ -307,6 +308,15 @@ function applyShift(pos, day, shift) {
     const tbody = document.getElementById('linksGridBodyRows');
     const oldBtn = tbody?.querySelector(`.shift-cell-btn[data-pos="${pos}"][data-day="${day}"]`);
     if (oldBtn) restoreBtn(oldBtn.parentElement, pos, day, shift);
+
+    // Keep the amber "not yet designed" line marker in step with the edit —
+    // renderGrid() isn't called here, so the row class must be updated in place.
+    const tr = tbody?.querySelector(`tr[data-pos="${pos}"]`);
+    if (tr) {
+        const unfilled = isUnfilledPattern(design.patterns[pos]);
+        tr.classList.toggle('row-unfilled', unfilled);
+        tr.classList.toggle('row-normal', !unfilled);
+    }
 
     const cov = calcCoverage(design.patterns);
     renderFooter(cov);
@@ -758,7 +768,7 @@ function updateGenTotals() {
 
         const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: ROTATING_LINES });
         if (!generated) {
-            if (errEl) errEl.textContent = 'Can't generate — check every row has a valid time and whole-number targets.';
+            if (errEl) errEl.textContent = `Can't generate — check every row has a valid time and whole-number targets.`;
             return;
         }
 
