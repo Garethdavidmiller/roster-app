@@ -229,3 +229,21 @@ test('runDesignChecks longest stretch wraps the cycle', () => {
     // line1 sun+mon = 2. Longest = 2.
     assert.equal(runDesignChecks(patterns, 2).longestStretch, 2);
 });
+
+test('runDesignChecks flags lines that are entirely rest days as unfilled', () => {
+    const patterns = {
+        '1': { sun: 'RD', mon: '06:20-14:20', tue: '06:20-14:20', wed: '06:20-14:20', thu: '06:20-14:20', fri: '06:20-14:20', sat: 'RD' },
+        '2': { sun: 'RD', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' }, // unfilled
+        '3': { sun: 'SPARE', mon: 'RD', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' }, // SPARE counts as filled
+    };
+    const checks = runDesignChecks(patterns, 3);
+    assert.deepEqual(checks.unfilledLines, [2]);
+});
+
+test('runDesignChecks reports no unfilled lines when every line works at least once', () => {
+    const patterns = {};
+    for (let w = 1; w <= 5; w++) {
+        patterns[String(w)] = { sun: 'RD', mon: '06:20-14:20', tue: 'RD', wed: 'RD', thu: 'RD', fri: 'RD', sat: 'RD' };
+    }
+    assert.deepEqual(runDesignChecks(patterns, 5).unfilledLines, []);
+});

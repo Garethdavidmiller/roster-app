@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: June 2026 — v12.28 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -293,7 +293,7 @@ comment in `functions/index.js` acknowledges this. For now: when adding or remov
 member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
 in the same commit.
 
-### Links design workspace — beta constraints (v12.37)
+### Links design workspace — beta constraints (v12.37–v12.40)
 The Links workspace (`links.html`) is flagged beta in the UI. Known limits accepted
 for now:
 
@@ -301,10 +301,21 @@ for now:
   arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
   cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff
   devices) behave correctly. Escape cancels cleanly in all browsers.
-- **Coverage counts patterns, not people.** The bars include the 5 vacant lines
-  (23–27) and any unnamed lines; the "Named lines: X of 28" note under the legend
-  makes this visible rather than changing the maths.
-- **The 28-line structure is hardcoded by design.** `TOTAL_POS`, `VACANT_FROM`,
+- **Coverage heat map counts pattern positions, not a named headcount.** All 28
+  positions are counted, including line 28 (C. Reen's fixed link) and any line not
+  yet designed. Staff names were removed at v12.39 — the design is patterns-only —
+  so there is no distinction between named and unnamed positions. The heat map colour
+  scale is relative to the week's own peak, so a lightly staffed day naturally shows
+  cooler colours.
+- **All 27 rotating lines must be filled (v12.41).** The earlier model treated lines
+  23–27 as permanent "vacant placeholders" (all rest days). That was wrong: in a
+  rotating link everyone passes through every line, so an all-rest line is an
+  *unfinished* line, not a vacancy, and the link can't be authorised then re-cut each
+  time a post is filled. The `VACANT_FROM` constant was removed; `buildDefaultDesign()`
+  still only has roster source for lines 1–22 (`SEEDED_FROM_ROSTER = 22`), so 23–27
+  start blank to be filled manually or by the generator. A Design-checks row and an
+  amber grid marker (`.row-unfilled`) flag any all-rest line until it is designed.
+- **The 28-line structure is hardcoded by design.** `TOTAL_POS`, `ROTATING_LINES`,
   `FIXED_POS` and the 1–20/21–22 seeding split mirror the agreed link concept —
   they are deliberately not derived from roster data. If the link concept changes
   (more lines, different split), these constants change with it.
@@ -316,7 +327,9 @@ for now:
 Current test suites cover: override priority logic (`app.test.mjs`), roster data / bank
 holidays / paydays / AL (`roster-data.test.mjs`), pay maths (`paycalc.test.mjs`),
 roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse helpers
-(`roster-parse-helpers.test.mjs`), and SW asset completeness (`sw-asset-check.test.mjs`).
+(`roster-parse-helpers.test.mjs`), SW asset completeness (`sw-asset-check.test.mjs`),
+and link-design pure maths including generator, coverage, and design checks
+(`links-design.test.mjs`, added v12.40).
 
 Not currently tested: DOM rendering in `app.js` / `admin-app.js`, the Firestore read/write
 layer in all page modules, nav panel injection and overlay lifecycle (`nav-panel.js`,

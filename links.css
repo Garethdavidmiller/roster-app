@@ -296,7 +296,7 @@ body.auth-ready .container { display: grid; }
     text-align: left;
     white-space: nowrap;
 }
-/* Prevent the vacant-row opacity rule from bleeding onto the separator */
+/* Keep the separator unaffected by the unfilled-row cue */
 .links-grid tr.fixed-link-separator td { opacity: 1 !important; }
 
 /* Shift cell — contains a button or a select */
@@ -335,8 +335,16 @@ body.auth-ready .container { display: grid; }
 .shift-cell-btn.type-late  { background: rgba(230,112,10,0.16); color: var(--shift-late-text); }
 .shift-cell-btn.type-night { background: rgba(80,40,120,0.18); color: var(--shift-night-text); }
 
-/* Vacant row — subtle muting */
-.links-grid tr.row-vacant td { opacity: 0.6; }
+/* Unfilled row — a line that is still all rest days needs designing, not
+   muting. A faint amber line-number cell flags it without hiding the cells. */
+.links-grid tr.row-unfilled .pos-num {
+    background: var(--shift-late-text);
+    color: white;
+}
+.links-grid tr.row-unfilled .pos-num::after {
+    content: " •";
+    font-weight: 700;
+}
 
 /* Inline select (edit state — matches .shift-cell height) */
 .shift-cell-select {
@@ -689,6 +697,4 @@ body.auth-ready .container { display: grid; }
     /* Sticky positioning confuses print pagination — flatten it */
     .links-grid thead th,
     .links-grid .pos-num { position: static !important; }
-    /* Faded vacant rows print illegibly */
-    .links-grid tr.row-vacant td { opacity: 1; }
 }
