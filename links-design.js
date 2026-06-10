@@ -295,5 +295,5 @@ export function runDesignChecks(patterns, rotatingLines = 28) {
         else balance.late++; // night folds into late here — defensive only, CEAs have no nights
     }
 
-    return { weekendsOff, totalWeeks: rotatingLines, unfilledLines, turnarounds, longestStretch, balance };
+    return { weekendsOff, weekendsOffPct: Math.round(weekendsOff / rotatingLines * 100), totalWeeks: rotatingLines, unfilledLines, turnarounds, longestStretch, balance };
 }
