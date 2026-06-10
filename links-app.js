@@ -1,15 +1,15 @@
 /**
  * links-app.js — Coordinator for links.html.
  *
- * Owns: auth guard, Firestore load/save for linkDesigns/combined-28,
- *   28-line design grid, paint-mode brush bar, coverage analysis,
- *   design quality checks, and the auto-generator.
+ * Owns: auth guard, Firestore load/save for named link-design documents,
+ *   28-line design grid, design picker, compare mode, paint-mode brush bar,
+ *   coverage analysis, design quality checks, and the auto-generator.
  * Pure maths (classifyShift, calcCoverage, generatePatterns, runDesignChecks)
  *   live in links-design.js — no DOM, no Firebase there.
  */
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, serverTimestamp } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, initCardCollapse, trapFocus } from './overlay.js';
@@ -62,11 +62,12 @@ initNavPanel({
 // ============================================
 // CONSTANTS
 // ============================================
-const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const TOTAL_POS  = 28;
-const ROTATING_LINES = 28;     // all 28 lines rotate — every one must carry a real pattern
+const DAY_LABELS    = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const TOTAL_POS     = 28;
+const ROTATING_LINES = 28;
 
-const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
+/** Firestore collection holding all named design documents. */
+const DESIGNS_COL = collection(db, 'linkDesigns');
 
 // Shift option lists derived from actual roster data so they always match real shifts.
 const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
@@ -91,20 +92,29 @@ const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
 // ============================================
 // STATE
 // ============================================
-/** @type {{ patterns: Object.<string,{sun:string,mon:string,tue:string,wed:string,thu:string,fri:string,sat:string}> } | null} */
+/**
+ * The currently active design. `id` is null for a freshly generated (not-yet-saved) design.
+ * @type {{ id: string|null, name: string, patterns: Object } | null}
+ */
 let design = null;
 let dirty  = false;
 let loadFailed      = false;
-let loadedUpdatedAt = null; // millis — for the save concurrency check
+let loadedUpdatedAt = null; // millis — for save concurrency check
 
 // Paint-mode brush: string = armed shift, null = no brush
 let brush = null;
 
-// Generator targets: one slot per distinct shift time, with separate weekday /
-// Saturday / Sunday headcounts (the real roster differs on all three).
+// Generator targets
 /** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
 let genSlots = [];
 let genSpare = { weekday: 0, sat: 0, sun: 0 };
+
+// Multi-design state
+/** @type {Array<{id:string, name:string, patterns:Object, updatedAt:*, updatedBy:string}>} */
+let designs         = [];
+let activeDesignId  = null; // null = design not yet saved to Firestore
+let compareDesignId = null;
+let compareMode     = false;
 
 // ============================================
 // HELPERS
@@ -124,7 +134,7 @@ function formatShortTime(shift) {
     return dash > 0 ? shift.slice(0, dash) : shift;
 }
 
-/** All-RD pattern — a starting blank for an as-yet-undesigned or unknown line. */
+/** All-RD pattern — a starting blank for an as-yet-undesigned line. */
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
 
 /** An all-rest line is "not yet designed" — flagged amber, not muted. */
@@ -132,6 +142,13 @@ const isUnfilledPattern = (p) => DAYS.every(d => {
     const s = p?.[d] ?? 'RD';
     return s === 'RD' || s === 'OFF';
 });
+
+/** Deep-copy a patterns object so edits don't mutate the designs array. */
+function deepCopyPatterns(patterns) {
+    const copy = {};
+    for (const [k, v] of Object.entries(patterns || {})) copy[k] = { ...v };
+    return copy;
+}
 
 /**
  * Shared HTML options for any shift dropdown.
@@ -165,6 +182,288 @@ function buildShiftOptions(currentVal, includeRdSpare = false) {
 }
 
 // ============================================
+// DESIGN MANAGEMENT
+// ============================================
+
+/** Wire design picker buttons — called once on page load. */
+function initDesignPicker() {
+    // Delegated clicks on the main chips container
+    document.getElementById('designChips')?.addEventListener('click', e => {
+        const renameBtn = e.target.closest('.design-chip-rename');
+        const deleteBtn = e.target.closest('.design-chip-delete');
+        const chip      = e.target.closest('.design-chip');
+        if (renameBtn)       { e.stopPropagation(); renameDesign(renameBtn.dataset.id); }
+        else if (deleteBtn)  { e.stopPropagation(); deleteDesign(deleteBtn.dataset.id); }
+        else if (chip)       selectDesign(chip.dataset.id);
+    });
+    // Delegated clicks on compare chips
+    document.getElementById('compareChips')?.addEventListener('click', e => {
+        const chip = e.target.closest('.design-chip');
+        if (chip) selectCompareDesign(chip.dataset.id);
+    });
+    document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
+    document.getElementById('dupDesignBtn')?.addEventListener('click',     duplicateDesign);
+    document.getElementById('compareBtn')?.addEventListener('click',       toggleCompareMode);
+}
+initDesignPicker();
+
+/** Rebuild the design picker HTML from the current state. */
+function renderDesignPicker() {
+    const wrap           = document.getElementById('designPickerWrap');
+    const chipsEl        = document.getElementById('designChips');
+    const compareChipsEl = document.getElementById('compareChips');
+    const comparePickerRow = document.getElementById('comparePickerRow');
+    const compareBtn     = document.getElementById('compareBtn');
+    const dupBtn         = document.getElementById('dupDesignBtn');
+    if (!wrap) return;
+
+    // Only show the picker once at least one design exists
+    wrap.style.display = designs.length > 0 ? '' : 'none';
+
+    // Render main design chips
+    if (chipsEl) {
+        const canDelete = designs.length > 1;
+        chipsEl.innerHTML = designs.map(d => {
+            const isActive = d.id === activeDesignId;
+            const actions = isActive
+                ? `<button class="design-chip-rename" data-id="${escapeHtml(d.id)}" type="button" ` +
+                  `title="Rename" aria-label="Rename ${escapeHtml(d.name)}">✎</button>` +
+                  `<button class="design-chip-delete" data-id="${escapeHtml(d.id)}" type="button" ` +
+                  `title="Delete" aria-label="Delete ${escapeHtml(d.name)}"` +
+                  `${canDelete ? '' : ' disabled'}>✕</button>`
+                : '';
+            return `<button class="design-chip${isActive ? ' design-chip--active' : ''}" ` +
+                `data-id="${escapeHtml(d.id)}">${escapeHtml(d.name)}${actions}</button>`;
+        }).join('');
+    }
+
+    // Duplicate button state
+    if (dupBtn) dupBtn.disabled = !activeDesignId;
+
+    // Compare button state
+    if (compareBtn) {
+        compareBtn.disabled = designs.length < 2;
+        compareBtn.classList.toggle('compare-active', compareMode);
+        compareBtn.setAttribute('aria-pressed', compareMode ? 'true' : 'false');
+    }
+
+    // Compare picker row
+    if (comparePickerRow) comparePickerRow.style.display = compareMode ? '' : 'none';
+    if (compareMode && compareChipsEl) {
+        compareChipsEl.innerHTML = designs
+            .filter(d => d.id !== activeDesignId)
+            .map(d => {
+                const isActive = d.id === compareDesignId;
+                return `<button class="design-chip${isActive ? ' design-chip--active' : ''}" ` +
+                    `data-id="${escapeHtml(d.id)}">${escapeHtml(d.name)}</button>`;
+            }).join('');
+    }
+}
+
+/** Create a new blank design. */
+async function createDesign() {
+    const name = prompt('Name for this design (e.g. "Option A"):')?.trim();
+    if (!name) return;
+    if (dirty && !confirm('You have unsaved changes in the current design. Create a new one anyway?')) return;
+    try {
+        const ref = await addDoc(DESIGNS_COL, {
+            name,
+            patterns:  {},
+            updatedAt: serverTimestamp(),
+            updatedBy: currentUser,
+        });
+        const d = { id: ref.id, name, patterns: {}, updatedAt: null, updatedBy: currentUser };
+        designs.push(d);
+        _activateDesign(d);
+    } catch (err) {
+        console.error('[Links] Create design failed:', err);
+    }
+}
+
+/** Duplicate the current design as a new named design. */
+async function duplicateDesign() {
+    if (!activeDesignId) return;
+    const source = designs.find(x => x.id === activeDesignId);
+    const baseName = (design?.name || source?.name || 'Design') + ' copy';
+    const name = prompt('Name for the duplicate:', baseName)?.trim();
+    if (!name) return;
+    const patterns = deepCopyPatterns(source?.patterns ?? {});
+    try {
+        const ref = await addDoc(DESIGNS_COL, {
+            name,
+            patterns,
+            updatedAt: serverTimestamp(),
+            updatedBy: currentUser,
+        });
+        const d = { id: ref.id, name, patterns, updatedAt: null, updatedBy: currentUser };
+        designs.push(d);
+        renderDesignPicker();
+    } catch (err) {
+        console.error('[Links] Duplicate design failed:', err);
+    }
+}
+
+/** Rename an existing design. */
+async function renameDesign(id) {
+    const d = designs.find(x => x.id === id);
+    if (!d) return;
+    const name = prompt('New name:', d.name)?.trim();
+    if (!name || name === d.name) return;
+    try {
+        await setDoc(doc(db, 'linkDesigns', id), { name }, { merge: true });
+        d.name = name;
+        if (id === activeDesignId && design) design.name = name;
+        renderDesignPicker();
+    } catch (err) {
+        console.error('[Links] Rename failed:', err);
+    }
+}
+
+/** Delete a design (with confirmation). */
+async function deleteDesign(id) {
+    if (designs.length <= 1) {
+        alert('You need at least one design — create another before deleting this one.');
+        return;
+    }
+    const d = designs.find(x => x.id === id);
+    if (!d || !confirm(`Delete "${d.name}"? This can't be undone.`)) return;
+    try {
+        await deleteDoc(doc(db, 'linkDesigns', id));
+        designs = designs.filter(x => x.id !== id);
+        if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
+        if (id === activeDesignId) _activateDesign(designs[0]);
+        else { renderDesignPicker(); renderCompare(); }
+    } catch (err) {
+        console.error('[Links] Delete failed:', err);
+    }
+}
+
+/** Switch the active design. Warns if dirty. */
+function selectDesign(id) {
+    if (id === activeDesignId) return;
+    if (dirty && !confirm('You have unsaved changes. Switch to another design? Changes will be lost.')) return;
+    const d = designs.find(x => x.id === id);
+    if (!d) return;
+    // If selecting the current compare target, exit compare mode first
+    if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
+    _activateDesign(d);
+}
+
+/** Internal: set a design as active and refresh all UI. */
+function _activateDesign(d) {
+    if (!d) return;
+    activeDesignId  = d.id;
+    design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
+    loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
+    dirty           = false;
+    dearmBrush();
+    renderDesignPicker();
+    renderGrid();
+    renderBrushBar();
+    renderDesignChecks();
+    renderCoverageChart();
+    renderCompare();
+    updateSaveBtn();
+    updateLastSaved(d.updatedBy, d.updatedAt);
+}
+
+// ============================================
+// COMPARE MODE
+// ============================================
+
+/** Toggle between single-design and compare views. */
+function toggleCompareMode() {
+    if (designs.length < 2) return;
+    compareMode = !compareMode;
+    if (compareMode && !compareDesignId) {
+        compareDesignId = designs.find(d => d.id !== activeDesignId)?.id ?? null;
+    }
+    if (!compareMode) compareDesignId = null;
+    renderDesignPicker();
+    renderGrid();
+    renderBrushBar();
+    renderCompare();
+}
+
+/** Select the design shown in the compare column. */
+function selectCompareDesign(id) {
+    compareDesignId = id;
+    renderDesignPicker();
+    renderCompare();
+}
+
+/** Render (or clear) the compare grid pair. */
+function renderCompare() {
+    const wrap = document.getElementById('compareGridsWrap');
+    if (!wrap) return;
+
+    if (!compareMode || !design || !compareDesignId) {
+        wrap.classList.remove('compare-mode-active');
+        return;
+    }
+    const other = designs.find(x => x.id === compareDesignId);
+    if (!other) { wrap.classList.remove('compare-mode-active'); return; }
+
+    const headA = document.getElementById('compareHeadA');
+    const headB = document.getElementById('compareHeadB');
+    if (headA) headA.textContent = design.name || 'Design A';
+    if (headB) headB.textContent = other.name   || 'Design B';
+
+    renderCompareGrid('compareGridBodyRowsA', 'compareGridFootA', design.patterns, other.patterns);
+    renderCompareGrid('compareGridBodyRowsB', 'compareGridFootB', other.patterns, design.patterns);
+    wrap.classList.add('compare-mode-active');
+}
+
+/**
+ * Render a read-only compare grid into tbodyId/tfootId.
+ * Cells that differ from otherPatterns get the .cell-diff class.
+ */
+function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
+    const tbody = document.getElementById(tbodyId);
+    const tfoot = document.getElementById(tfootId);
+    if (!tbody) return;
+
+    const rows = [];
+    for (let pos = 1; pos <= TOTAL_POS; pos++) {
+        const posStr   = String(pos);
+        const p        = patterns[posStr] || emptyPattern();
+        const op       = otherPatterns[posStr] || emptyPattern();
+        const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
+
+        const dayCells = DAYS.map((d, di) => {
+            const shift = p[d]  ?? 'RD';
+            const other = op[d] ?? 'RD';
+            const type  = classifyShift(shift);
+            const label = shiftLabel(shift);
+            const diff  = shift !== other ? ' cell-diff' : '';
+            return `<td class="shift-cell${diff}">` +
+                `<button class="shift-cell-btn type-${type}" tabindex="-1" ` +
+                `aria-label="Line ${posStr} ${DAY_LABELS[di]}: ${escapeHtml(shift)}">` +
+                `${escapeHtml(label)}</button></td>`;
+        }).join('');
+
+        rows.push(`<tr class="${rowClass}" data-pos="${posStr}"><td class="pos-num">${posStr}</td>${dayCells}</tr>`);
+    }
+    tbody.innerHTML = rows.join('');
+
+    if (tfoot) {
+        const cov   = calcCoverage(patterns);
+        const cells = DAYS.map(d => {
+            const { early, late, spare, night } = cov[d];
+            const worked = early + late + spare + night;
+            return `<td class="cov-cell">` +
+                `<span class="cov-num">${worked}</span>` +
+                `<span class="cov-label-e"> E:${early}</span>` +
+                ` <span class="cov-label-l">L:${late}</span>` +
+                (night ? ` <span class="cov-label-n">N:${night}</span>` : '') +
+                (spare ? ` <span class="cov-label-s">SP:${spare}</span>` : '') +
+                `</td>`;
+        }).join('');
+        tfoot.innerHTML = `<tr><td class="col-pos cov-foot-label">Cover</td>${cells}</tr>`;
+    }
+}
+
+// ============================================
 // PAINT BRUSH
 // ============================================
 
@@ -183,7 +482,7 @@ function dearmBrush() {
 function renderBrushBar() {
     const bar = document.getElementById('brushBar');
     if (!bar) return;
-    if (!design) { bar.style.display = 'none'; return; }
+    if (!design || compareMode) { bar.style.display = 'none'; return; }
     bar.style.display = '';
 
     const chip = (shift, label, typeClass, extra = '') =>
@@ -227,16 +526,15 @@ function renderGrid() {
 
     if (!design) {
         const emptyMsg = document.getElementById('linksEmptyMsg');
-        if (emptyMsg) emptyMsg.textContent = loadFailed
+        if (emptyMsg) emptyMsg.innerHTML = loadFailed
             ? `Couldn't load the saved design — check your connection and refresh the page.`
-            : 'No link design loaded yet — use the Auto-generate card below to create one.';
+            : `No designs saved yet — use the Auto-generate card below to create one, or tap <strong>+ New</strong> for a blank canvas.`;
         if (wrapper)    wrapper.style.display    = 'none';
         if (emptyState) emptyState.style.display = '';
         if (saveRow)    saveRow.style.display    = 'none';
         if (tbody)      tbody.innerHTML          = '';
         if (tfoot)      tfoot.innerHTML          = '';
-        // Open the generator card so the user can see it without having to discover
-        // the collapsed header — they've just been told to use it.
+        // Auto-expand the generator so the user sees it without having to discover it
         if (!loadFailed) {
             const genBody    = document.getElementById('generatorBody');
             const genChevron = document.getElementById('generatorChevron');
@@ -252,8 +550,16 @@ function renderGrid() {
     }
 
     if (emptyState) emptyState.style.display = 'none';
-    if (wrapper)    wrapper.style.display    = '';
     if (saveRow)    saveRow.style.display    = '';
+
+    // In compare mode the main grid is replaced by the compare pair
+    if (wrapper) wrapper.style.display = compareMode ? 'none' : '';
+
+    if (compareMode) {
+        if (tbody) tbody.innerHTML = '';
+        if (tfoot) tfoot.innerHTML = '';
+        return;
+    }
 
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
@@ -280,7 +586,6 @@ function renderGrid() {
         );
     }
     if (tbody) tbody.innerHTML = rows.join('');
-    // Grid clicks are handled by delegated listener in wireGridEvents() — nothing to re-attach.
 
     const cov = calcCoverage(design.patterns);
     renderFooter(cov);
@@ -288,7 +593,6 @@ function renderGrid() {
 }
 
 // Delegated grid events — one listener instead of one per cell button.
-// #linksGridBodyRows is a static element in links.html.
 (function wireGridEvents() {
     const tbody = document.getElementById('linksGridBodyRows');
     if (!tbody) return;
@@ -301,7 +605,6 @@ function renderGrid() {
         const day = btn.dataset.day;
 
         if (brush !== null) {
-            // Paint mode: apply brush directly without opening the dropdown.
             applyShift(pos, day, brush);
         } else {
             openCellEdit(btn);
@@ -316,13 +619,10 @@ function applyShift(pos, day, shift) {
     dirty = true;
     updateSaveBtn();
 
-    // Update the button in-place without calling renderGrid() (which would kill focus/brush).
     const tbody = document.getElementById('linksGridBodyRows');
     const oldBtn = tbody?.querySelector(`.shift-cell-btn[data-pos="${pos}"][data-day="${day}"]`);
     if (oldBtn) restoreBtn(oldBtn.parentElement, pos, day, shift);
 
-    // Keep the amber "not yet designed" line marker in step with the edit —
-    // renderGrid() isn't called here, so the row class must be updated in place.
     const tr = tbody?.querySelector(`tr[data-pos="${pos}"]`);
     if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(design.patterns[pos]));
 
@@ -416,9 +716,7 @@ function restoreBtn(cell, pos, day, shift) {
 }
 
 // ============================================
-// COVERAGE HEAT MAP — on-duty headcount per hour per day. The station is
-// staffed in waves through the day, so an early/late split hides the real
-// shape; this shows it directly.
+// COVERAGE HEAT MAP
 // ============================================
 
 function renderCoverageChart() {
@@ -437,8 +735,6 @@ function renderCoverageChart() {
 
     const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
 
-    // Show only the span of the working day: first to last staffed hour
-    // across the whole week (fallback 06:00–24:00 for an all-RD design).
     let minH = 24, maxH = 0, maxCount = 0;
     for (const d of DAYS) {
         hourly[d].hours.forEach((n, h) => {
@@ -459,8 +755,6 @@ function renderCoverageChart() {
     const rows = DAYS.map((d, di) => {
         const { hours, spare } = hourly[d];
         const dayHasWork = hours.some(n => n > 0);
-        // First/last staffed hour for THIS day — a zero inside that span is a
-        // gap in the day's coverage and gets flagged.
         const first = hours.findIndex(n => n > 0);
         const last  = hours.length - 1 - [...hours].reverse().findIndex(n => n > 0);
         const cells = [];
@@ -495,12 +789,10 @@ function renderDesignChecks() {
     if (!content) return;
 
     if (!design) {
-        // Rebuild the empty state — check rows may have replaced it earlier.
         content.innerHTML = '<p class="links-empty-msg">Load or create a link design to see quality checks.</p>';
         return;
     }
 
-    // All 28 lines rotate — every one must carry a real pattern before the link is authorised.
     const checks = runDesignChecks(design.patterns, ROTATING_LINES);
     const { weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
     const { early, late, spare, worked } = balance;
@@ -514,10 +806,6 @@ function renderDesignChecks() {
 
     const rows = [];
 
-    // Completeness: every rotating line must carry a real pattern. An all-rest
-    // line is unfinished, not a vacancy — the link can't be authorised with gaps,
-    // because by the time it goes live the posts will be filled and people will
-    // rotate through those weeks too.
     if (unfilledLines.length === 0) {
         rows.push(
             `<div class="check-row check-good">` +
@@ -537,7 +825,6 @@ function renderDesignChecks() {
         );
     }
 
-    // Weekends off: Sat of line w + Sun of line w+1 both rest days.
     const wkendGood = weekendsOffPct >= 40;
     rows.push(
         `<div class="check-row ${wkendGood ? 'check-good' : 'check-warn-row'}">` +
@@ -549,7 +836,6 @@ function renderDesignChecks() {
         `</div></div>`
     );
 
-    // Short turnarounds: consecutive shifts with less than 12 h rest.
     if (turnarounds.length === 0) {
         rows.push(
             `<div class="check-row check-good">` +
@@ -572,7 +858,6 @@ function renderDesignChecks() {
         );
     }
 
-    // Longest run of consecutive worked days.
     const stretchOk = longestStretch <= 7;
     rows.push(
         `<div class="check-row ${stretchOk ? 'check-good' : 'check-warn-row'}">` +
@@ -582,7 +867,6 @@ function renderDesignChecks() {
         `</div></div>`
     );
 
-    // Early/late/spare balance.
     rows.push(
         `<div class="check-row check-neutral">` +
         `${info}<div class="check-body">` +
@@ -596,10 +880,7 @@ function renderDesignChecks() {
 }
 
 // ============================================
-// AUTO-GENERATOR — slot-based: the station is staffed in waves (opens,
-// morning build, middles, afternoons, closes), so targets are a LIST of
-// shift times each with weekday / Sat / Sun headcounts, seeded from what
-// the current roster actually provides.
+// AUTO-GENERATOR
 // ============================================
 
 /**
@@ -677,15 +958,12 @@ function updateGenTotals() {
     const tbody = document.getElementById('genSlotRows');
     if (!tbody) return;
 
-    // Seed targets from the current roster on first open — the whole point is
-    // comparing the design against what today's roster actually provides.
     ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
     document.getElementById('genSpareWeekday').value = genSpare.weekday;
     document.getElementById('genSpareSat').value     = genSpare.sat;
     document.getElementById('genSpareSun').value     = genSpare.sun;
     renderGenTable();
 
-    // Delegated events on the slot table body.
     tbody.addEventListener('input', e => {
         const input = e.target.closest('.gen-slot-count');
         if (!input) return;
@@ -704,7 +982,7 @@ function updateGenTotals() {
             const typed = normaliseCustomShift(
                 prompt('Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', slot.time));
             if (typed) slot.time = typed;
-            renderGenTable(); // restores the select either way
+            renderGenTable();
             return;
         }
         slot.time = select.value;
@@ -766,13 +1044,23 @@ function updateGenTotals() {
 
         if (!confirm('Apply the generated pattern to all 28 lines?')) return;
 
-        design = { patterns: generated };
+        if (!design) {
+            // No active design yet — load into an unsaved in-memory design
+            design = { id: null, name: 'Design 1', patterns: generated };
+            activeDesignId = null;
+        } else {
+            design = { ...design, patterns: generated };
+        }
 
         dirty = true;
+        compareMode = false;
+        compareDesignId = null;
         dearmBrush();
+        renderDesignPicker();
         renderGrid();
         renderBrushBar();
         renderDesignChecks();
+        renderCompare();
         updateSaveBtn();
 
         const status = document.getElementById('linksSaveStatus');
@@ -810,13 +1098,37 @@ async function saveChanges() {
     try {
         await window._mybSession;
 
-        // Concurrency check: two designers can have this page open simultaneously.
-        // setDoc replaces the whole document — re-read and warn if someone else saved
-        // since we loaded; otherwise their work would be silently overwritten.
+        if (!activeDesignId) {
+            // First save of a generator-created design — create the Firestore document
+            const ref = await addDoc(DESIGNS_COL, {
+                name:      design.name || 'Design 1',
+                patterns:  design.patterns,
+                updatedAt: serverTimestamp(),
+                updatedBy: currentUser,
+            });
+            activeDesignId = ref.id;
+            design.id = ref.id;
+            // Read back to capture the server timestamp for concurrency tracking
+            try {
+                const snap = await getDoc(doc(db, 'linkDesigns', ref.id));
+                loadedUpdatedAt = snap.data()?.updatedAt?.toMillis?.() ?? null;
+            } catch { loadedUpdatedAt = null; }
+            const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: null, updatedBy: currentUser };
+            designs.push(newEntry);
+            dirty = false;
+            updateSaveBtn();
+            renderDesignPicker();
+            if (status) { status.textContent = 'Saved ✓'; status.className = 'links-save-status ok'; }
+            updateLastSaved(currentUser, { toDate: () => new Date() });
+            return;
+        }
+
+        // Concurrency check: two designers can have this page open simultaneously
+        const designRef = doc(db, 'linkDesigns', activeDesignId);
         try {
-            const fresh   = await getDoc(DESIGN_REF);
+            const fresh   = await getDoc(designRef);
             const freshTs = fresh.exists() ? (fresh.data().updatedAt?.toMillis?.() ?? null) : null;
-            if (freshTs !== null && freshTs !== loadedUpdatedAt) {
+            if (loadedUpdatedAt !== null && freshTs !== null && freshTs !== loadedUpdatedAt) {
                 const by   = fresh.data().updatedBy || 'Someone';
                 const when = fresh.data().updatedAt?.toDate?.()
                     ?.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) ?? '';
@@ -832,18 +1144,19 @@ async function saveChanges() {
                     return;
                 }
             }
-        } catch { /* offline — proceed; the write will report its own error */ }
+        } catch { /* offline — proceed */ }
 
-        await setDoc(DESIGN_REF, {
+        await setDoc(designRef, {
+            name:      design.name || 'Design 1',
             patterns:  design.patterns,
             updatedAt: serverTimestamp(),
             updatedBy: currentUser,
         });
-        // Capture the new timestamp so the next save's concurrency check compares
-        // against OUR write, not the version we first loaded.
         try {
-            const after = await getDoc(DESIGN_REF);
+            const after = await getDoc(designRef);
             loadedUpdatedAt = after.data()?.updatedAt?.toMillis?.() ?? null;
+            const entry = designs.find(x => x.id === activeDesignId);
+            if (entry) { entry.patterns = deepCopyPatterns(design.patterns); entry.updatedAt = after.data()?.updatedAt; entry.updatedBy = currentUser; }
         } catch { loadedUpdatedAt = null; }
 
         dirty = false;
@@ -858,18 +1171,61 @@ async function saveChanges() {
     }
 }
 
-async function loadDesign() {
+/**
+ * Load all named designs from Firestore.
+ * Migrates the legacy combined-28 document into a named design on first run.
+ */
+async function loadDesigns() {
     loadFailed = false;
     try {
         await window._mybSession;
-        const snap = await getDoc(DESIGN_REF);
-        if (snap.exists()) {
-            const data = snap.data();
-            design = { patterns: data.patterns || {} };
-            loadedUpdatedAt = data.updatedAt?.toMillis?.() ?? null;
-            updateLastSaved(data.updatedBy, data.updatedAt);
+        const snap = await getDocs(DESIGNS_COL);
+
+        const named = [];
+        let legacyData = null;
+        for (const d of snap.docs) {
+            const data = d.data();
+            if (typeof data.name === 'string' && data.name.trim()) {
+                named.push({
+                    id:        d.id,
+                    name:      data.name.trim(),
+                    patterns:  data.patterns || {},
+                    updatedAt: data.updatedAt,
+                    updatedBy: data.updatedBy || '',
+                });
+            } else if (d.id === 'combined-28' && data.patterns) {
+                legacyData = data;
+            }
+        }
+
+        // One-time migration: convert combined-28 to a named design
+        if (named.length === 0 && legacyData) {
+            const ref = await addDoc(DESIGNS_COL, {
+                name:      'Design 1',
+                patterns:  legacyData.patterns,
+                updatedAt: legacyData.updatedAt ?? serverTimestamp(),
+                updatedBy: legacyData.updatedBy ?? currentUser,
+            });
+            named.push({
+                id:        ref.id,
+                name:      'Design 1',
+                patterns:  legacyData.patterns,
+                updatedAt: legacyData.updatedAt,
+                updatedBy: legacyData.updatedBy || currentUser,
+            });
+        }
+
+        designs = named;
+
+        if (designs.length > 0) {
+            const d = designs[0];
+            activeDesignId  = d.id;
+            design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
+            loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
+            updateLastSaved(d.updatedBy, d.updatedAt);
         } else {
             design = null;
+            activeDesignId = null;
         }
     } catch (err) {
         console.error('[Links] Load failed:', err);
@@ -877,6 +1233,7 @@ async function loadDesign() {
         loadFailed = true;
     }
     dirty = false;
+    renderDesignPicker();
     renderGrid();
     renderBrushBar();
     renderDesignChecks();
@@ -887,16 +1244,15 @@ async function loadDesign() {
 // COLLAPSIBLE CARDS
 // ============================================
 initCardCollapse('linksGridToggleHeader', 'linksGridBody',  'linksGridChevron');
+initCardCollapse('generatorToggleHeader', 'generatorBody',  'generatorChevron');
 initCardCollapse('coverageToggleHeader',  'coverageBody',   'coverageChevron');
 initCardCollapse('checksToggleHeader',    'checksBody',     'checksChevron');
-initCardCollapse('generatorToggleHeader', 'generatorBody',  'generatorChevron');
 
 // ============================================
 // BUTTON HANDLERS
 // ============================================
 document.getElementById('linksSaveBtn')?.addEventListener('click', saveChanges);
 
-// Disarm brush on Escape anywhere in the page.
 document.addEventListener('keydown', e => {
     if (e.key === 'Escape' && brush !== null) dearmBrush();
 });
@@ -908,8 +1264,6 @@ window.addEventListener('beforeunload', e => {
     if (dirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
-// beforeunload is suppressed on Android/iOS — nav drawer links need an explicit
-// confirm. Capture phase so this runs before nav-panel.js's own click handling.
 document.addEventListener('click', e => {
     if (!dirty) return;
     const link = e.target.closest('.nav-panel a[href]');
@@ -992,6 +1346,10 @@ document.addEventListener('click', e => {
                     { icon: '🖌️', html: '<strong>Paint mode</strong> — arm a shift in the Paint bar above the grid, then click cells to fill them. Click the same chip again (or press Escape) to stop painting.' },
                     { icon: '✏️', html: '<strong>Single-cell edit</strong> — with no brush armed, tap any cell to pick a shift from the dropdown, or choose <strong>Custom time…</strong> to type a new one.' },
                     { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
+                ]},
+                { heading: 'Multiple designs', items: [
+                    { icon: '➕', html: '<strong>+ New</strong> starts a fresh blank design. <strong>⎘ Duplicate</strong> copies the current one so you can try a variation.' },
+                    { icon: '⇔', html: '<strong>Compare</strong> shows two designs side-by-side — cells that differ are highlighted in gold. Only available when you have at least two designs.' },
                 ]},
                 { heading: 'Filling the lines', items: [
                     { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em> — its line number turns amber. Fill it manually or with the generator. The Design checks card lists any that are still empty.' },
@@ -1119,4 +1477,4 @@ registerServiceWorker({
 // ============================================
 // BOOT
 // ============================================
-loadDesign();
+loadDesigns();
