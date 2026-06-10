@@ -19,6 +19,7 @@ import {
     DAYS,
     classifyShift,
     normaliseCustomShift,
+    dayClass,
     calcCoverage,
     calcHourlyCoverage,
     generatePatterns,
@@ -132,22 +133,33 @@ const isUnfilledPattern = (p) => DAYS.every(d => {
     return s === 'RD' || s === 'OFF';
 });
 
-/** HTML for the shift dropdown inside an editing cell. */
-function buildSelectOptions(currentVal) {
+/**
+ * Shared HTML options for any shift dropdown.
+ * @param {string|null} currentVal — currently selected value
+ * @param {boolean} includeRdSpare — true for cell-edit dropdowns, false for generator time selects
+ * CEAs do not work night shifts — night times are never offered here.
+ * normaliseCustomShift() also rejects starts between 21:00 and 03:59.
+ */
+function buildShiftOptions(currentVal, includeRdSpare = false) {
     const opt = (val, label) => {
         const sel = val === currentVal ? ' selected' : '';
         return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
     };
     const known = new Set([...EARLY_SHIFTS, ...LATE_SHIFTS]);
     const isUnknown = currentVal && currentVal !== 'RD' && currentVal !== 'SPARE' && !known.has(currentVal);
-    // CEAs do not work night shifts — night times are never offered here.
-    // normaliseCustomShift() also rejects starts between 21:00 and 03:59.
     return [
-        opt('RD',    'RD — Rest Day'),
-        opt('SPARE', 'SPARE — Standby'),
-        ...(isUnknown ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>'] : []),
-        ...(EARLY_SHIFTS.length ? ['<optgroup label="Early (starting before 11:00)">', ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
-        ...(LATE_SHIFTS.length  ? ['<optgroup label="Late (starting 11:00 or after)">', ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
+        ...(includeRdSpare ? [opt('RD', 'RD — Rest Day'), opt('SPARE', 'SPARE — Standby')] : []),
+        ...(isUnknown ? (includeRdSpare
+            ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>']
+            : [opt(currentVal, currentVal)]) : []),
+        ...(EARLY_SHIFTS.length ? [
+            `<optgroup label="Early${includeRdSpare ? ' (starting before 11:00)' : ''}">`,
+            ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>',
+        ] : []),
+        ...(LATE_SHIFTS.length ? [
+            `<optgroup label="Late${includeRdSpare ? ' (starting 11:00 or after)' : ''}">`,
+            ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>',
+        ] : []),
         opt('__custom__', 'Custom time…'),
     ].join('');
 }
@@ -247,7 +259,7 @@ function renderGrid() {
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const posStr  = String(pos);
         const p        = design.patterns[posStr] || emptyPattern();
-        const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : 'row-normal';
+        const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
 
         const dayCells = DAYS.map((d, di) => {
             const shift = p[d] ?? 'RD';
@@ -312,11 +324,7 @@ function applyShift(pos, day, shift) {
     // Keep the amber "not yet designed" line marker in step with the edit —
     // renderGrid() isn't called here, so the row class must be updated in place.
     const tr = tbody?.querySelector(`tr[data-pos="${pos}"]`);
-    if (tr) {
-        const unfilled = isUnfilledPattern(design.patterns[pos]);
-        tr.classList.toggle('row-unfilled', unfilled);
-        tr.classList.toggle('row-normal', !unfilled);
-    }
+    if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(design.patterns[pos]));
 
     const cov = calcCoverage(design.patterns);
     renderFooter(cov);
@@ -326,8 +334,7 @@ function applyShift(pos, day, shift) {
 
 function renderFooter(cov) {
     const tfoot = document.getElementById('linksCoverageFoot');
-    if (!tfoot || !design) return;
-    if (!cov) cov = calcCoverage(design.patterns);
+    if (!tfoot || !design || !cov) return;
     const cells = DAYS.map(d => {
         const { early, late, spare, night } = cov[d];
         const worked = early + late + spare + night;
@@ -356,7 +363,7 @@ function openCellEdit(btn) {
     const select = document.createElement('select');
     select.className = 'shift-cell-select';
     select.setAttribute('aria-label', `Line ${pos} ${dayLabel}: change shift`);
-    select.innerHTML = buildSelectOptions(current);
+    select.innerHTML = buildShiftOptions(current, true);
 
     let committed = false;
 
@@ -495,7 +502,7 @@ function renderDesignChecks() {
 
     // All 28 lines rotate — every one must carry a real pattern before the link is authorised.
     const checks = runDesignChecks(design.patterns, ROTATING_LINES);
-    const { weekendsOff, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
+    const { weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
     const { early, late, spare, worked } = balance;
     const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
     const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
@@ -531,13 +538,13 @@ function renderDesignChecks() {
     }
 
     // Weekends off: Sat of line w + Sun of line w+1 both rest days.
-    const wkendGood = weekendsOff >= Math.round(totalWeeks * 0.4); // 40% threshold
+    const wkendGood = weekendsOffPct >= 40;
     rows.push(
         `<div class="check-row ${wkendGood ? 'check-good' : 'check-warn-row'}">` +
         `${wkendGood ? tick : warn}` +
         `<div class="check-body">` +
         `<strong>Weekends off</strong> — ${weekendsOff} out of ${totalWeeks} weeks ` +
-        `<span class="check-note">(${Math.round(weekendsOff / totalWeeks * 100)}%)</span>` +
+        `<span class="check-note">(${weekendsOffPct}%)</span>` +
         `<div class="check-sub">A full weekend off = Saturday rest + next Sunday rest.</div>` +
         `</div></div>`
     );
@@ -606,7 +613,7 @@ function buildRosterTargets() {
     const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
     for (let i = 0; i < 2; i++) sources.push(bilingualRoster[blMembers[i]?.currentWeek || (i + 1)]);
 
-    const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
     const perDay = {};
     const spareByDay = Object.fromEntries(DAYS.map(d => [d, 0]));
     for (const src of sources) {
@@ -620,33 +627,18 @@ function buildRosterTargets() {
     }
     const slots = Object.keys(perDay).sort().map(time => ({
         time,
-        weekday: Math.max(...WEEKDAYS.map(d => perDay[time][d])),
+        weekday: Math.max(...weekdays.map(d => perDay[time][d])),
         sat:     perDay[time].sat,
         sun:     perDay[time].sun,
     }));
     const spare = {
-        weekday: Math.max(...WEEKDAYS.map(d => spareByDay[d])),
+        weekday: Math.max(...weekdays.map(d => spareByDay[d])),
         sat:     spareByDay.sat,
         sun:     spareByDay.sun,
     };
     return { slots, spare };
 }
 
-/** HTML options for a generator time select — early + late groups + custom. */
-function buildTimeOptions(currentVal) {
-    const opt = (val, label) => {
-        const sel = val === currentVal ? ' selected' : '';
-        return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
-    };
-    const known = new Set([...EARLY_SHIFTS, ...LATE_SHIFTS]);
-    const isUnknown = currentVal && !known.has(currentVal);
-    return [
-        ...(isUnknown ? [opt(currentVal, currentVal)] : []),
-        ...(EARLY_SHIFTS.length ? ['<optgroup label="Early">', ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
-        ...(LATE_SHIFTS.length  ? ['<optgroup label="Late">',  ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
-        opt('__custom__', 'Custom time…'),
-    ].join('');
-}
 
 function renderGenTable() {
     const tbody = document.getElementById('genSlotRows');
@@ -654,7 +646,7 @@ function renderGenTable() {
     tbody.innerHTML = genSlots.map((slot, i) =>
         `<tr data-slot="${i}">` +
         `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
-        `aria-label="Shift time for row ${i + 1}">${buildTimeOptions(slot.time)}</select></td>` +
+        `aria-label="Shift time for row ${i + 1}">${buildShiftOptions(slot.time)}</select></td>` +
         ['weekday', 'sat', 'sun'].map(cls =>
             `<td><input type="number" class="gen-input gen-slot-count" min="0" max="28" ` +
             `value="${slot[cls]}" data-slot="${i}" data-class="${cls}" ` +
