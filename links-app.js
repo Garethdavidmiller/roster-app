@@ -63,8 +63,9 @@ initNavPanel({
 // ============================================
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS  = 28;
-const FIXED_POS  = 28;  // C. Reen — fixed link, shown separately at the bottom
-const VACANT_FROM = 23; // lines 23–27 are vacant placeholders
+const FIXED_POS  = 28;       // C. Reen — fixed link, shown separately at the bottom
+const ROTATING_LINES = 27;   // lines 1–27 all rotate — every one must carry a real pattern
+const SEEDED_FROM_ROSTER = 22; // lines 1–22 have current roster source; 23–27 await a design
 
 const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
 
@@ -134,14 +135,18 @@ function normalisePattern(week) {
     return out;
 }
 
-/** All-RD pattern for vacant or unknown positions. */
+/** All-RD pattern — a starting blank for an as-yet-undesigned or unknown line. */
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
 
 /**
  * Build a default 28-line design from the current roster data.
  * Lines 1–20: one week per row of the CEA 20-week link.
  * Lines 21–22: bilingual roster patterns.
- * Lines 23–27: all RD (vacant placeholders).
+ * Lines 23–27: blank (all RD) — there is no current roster source for these,
+ *   so they start empty for the designer to fill manually or via the generator.
+ *   They are NOT vacancies: in the rotation everyone passes through every line,
+ *   so all 27 must carry a real pattern before the link can be authorised. The
+ *   "lines not yet designed" check flags them until they are filled.
  * Line 28: C. Reen's fixed Mon–Fri 12:00–19:00 link.
  */
 function buildDefaultDesign() {
@@ -154,8 +159,8 @@ function buildDefaultDesign() {
         const week = blMembers[i]?.currentWeek || (i + 1);
         patterns[String(21 + i)] = normalisePattern(bilingualRoster[week]);
     }
-    for (let i = 0; i < 5; i++) {
-        patterns[String(VACANT_FROM + i)] = emptyPattern();
+    for (let pos = SEEDED_FROM_ROSTER + 1; pos <= ROTATING_LINES; pos++) {
+        patterns[String(pos)] = emptyPattern();
     }
     patterns[String(FIXED_POS)] = {
         sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00',
@@ -283,8 +288,12 @@ function renderGrid() {
         const posStr  = String(pos);
         const p       = design.patterns[posStr] || emptyPattern();
         const isFixed  = pos === FIXED_POS;
-        const isVacant = !isFixed && pos >= VACANT_FROM;
-        const rowClass = isFixed ? 'row-fixed' : (isVacant ? 'row-vacant' : 'row-normal');
+        // An all-rest rotating line is "not yet designed" — flagged, not muted.
+        const isUnfilled = !isFixed && DAYS.every(d => {
+            const s = p[d] ?? 'RD';
+            return s === 'RD' || s === 'OFF';
+        });
+        const rowClass = isFixed ? 'row-fixed' : (isUnfilled ? 'row-unfilled' : 'row-normal');
 
         const dayCells = DAYS.map((d, di) => {
             const shift = p[d] ?? 'RD';
@@ -528,8 +537,8 @@ function renderDesignChecks() {
     }
 
     // Only check the 27 rotating lines — line 28 is fixed and does not rotate.
-    const checks = runDesignChecks(design.patterns, 27);
-    const { weekendsOff, totalWeeks, turnarounds, longestStretch, balance } = checks;
+    const checks = runDesignChecks(design.patterns, ROTATING_LINES);
+    const { weekendsOff, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
     const { early, late, spare, worked } = balance;
     const earlyPct = worked ? Math.round((early / worked) * 100) : 0;
     const latePct  = worked ? Math.round((late  / worked) * 100) : 0;
@@ -540,6 +549,29 @@ function renderDesignChecks() {
     const info  = `<span class="check-icon check-info-icon" aria-hidden="true">ℹ</span>`;
 
     const rows = [];
+
+    // Completeness: every rotating line must carry a real pattern. An all-rest
+    // line is unfinished, not a vacancy — the link can't be authorised with gaps,
+    // because by the time it goes live the posts will be filled and people will
+    // rotate through those weeks too.
+    if (unfilledLines.length === 0) {
+        rows.push(
+            `<div class="check-row check-good">` +
+            `${tick}<div class="check-body"><strong>All lines designed</strong> — every one of the ${totalWeeks} rotating lines has a pattern</div>` +
+            `</div>`
+        );
+    } else {
+        const cap  = unfilledLines.slice(0, 12);
+        const more = unfilledLines.length - cap.length;
+        rows.push(
+            `<div class="check-row check-bad">` +
+            `${cross}<div class="check-body">` +
+            `<strong>Lines not yet designed</strong> — ${unfilledLines.length} of ${totalWeeks} line${unfilledLines.length !== 1 ? 's are' : ' is'} still all rest days ` +
+            `<span class="check-note">(line${cap.length !== 1 ? 's' : ''} ${cap.join(', ')}${more > 0 ? `, +${more} more` : ''})</span>` +
+            `<div class="check-sub">Every rotating line must be filled — manually or by the generator — before the link is complete. Empty lines aren't vacancies; people rotate through them too.</div>` +
+            `</div></div>`
+        );
+    }
 
     // Weekends off: Sat of line w + Sun of line w+1 both rest days.
     const wkendGood = weekendsOff >= Math.round(totalWeeks * 0.4); // 40% threshold
@@ -1071,8 +1103,8 @@ document.addEventListener('click', e => {
                     { icon: '💾', html: 'Tap <strong>Save changes</strong> when done.' },
                 ]},
                 { heading: 'Row types', items: [
-                    { icon: '🔵', html: '<strong>Lines 1–22</strong> — the active rotating pattern (CEA main + bilingual lines)' },
-                    { icon: '⬜', html: '<strong>Lines 23–27</strong> — vacant placeholders for future recruits (all rest days by default)' },
+                    { icon: '🔄', html: '<strong>Lines 1–27</strong> — the rotating link. Everyone passes through every line over the cycle, so <strong>all 27 must be filled</strong> with a real pattern before the link can be authorised.' },
+                    { icon: '⬜', html: 'A line shown as <strong>all rest days</strong> is <em>not yet designed</em>, not a vacancy — fill it manually or with the generator. The Design checks card flags any that are still empty.' },
                     { icon: '🔒', html: '<strong>Line 28</strong> — C. Reen\'s fixed Mon–Fri 12:00–19:00 link; not editable in the grid' },
                 ]},
             ],
@@ -1090,6 +1122,7 @@ document.addEventListener('click', e => {
         'links-checks': {
             title: 'Design checks',
             sections: [{ items: [
+                { icon: '🔄', html: '<strong>All lines designed</strong> — every one of the 27 rotating lines must carry a real pattern. A line that is all rest days is unfinished (not a vacancy), and the link can\'t be authorised until they are all filled.' },
                 { icon: '✅', html: '<strong>Weekends off</strong> — a full weekend = Saturday rest + the following Sunday rest. Aim for at least 40% of weeks.' },
                 { icon: '⏱️', html: '<strong>Rest between shifts</strong> — checks every transition across the rotation for less than 12 hours rest. Late-to-early next morning is the classic short turnaround.' },
                 { icon: '📅', html: '<strong>Longest run</strong> — how many consecutive working days appear anywhere in the 27-line cycle. Over 7 days is flagged.' },

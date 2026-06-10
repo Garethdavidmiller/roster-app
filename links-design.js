@@ -215,6 +215,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
  * @param {number} [rotatingLines=27] - line 28 (fixed) is excluded
  * @returns {{
  *   weekendsOff: number, totalWeeks: number,
+ *   unfilledLines: number[],
  *   turnarounds: Array<{fromLine:number, fromDay:string, fromShift:string,
  *                       toLine:number, toDay:string, toShift:string, restMinutes:number}>,
  *   longestStretch: number,
@@ -231,6 +232,15 @@ export function runDesignChecks(patterns, rotatingLines = 27) {
         for (const d of DAYS) seq.push({ line: w, day: d, shift: shiftAt(w, d) });
     }
     const N = seq.length;
+
+    // Unfilled lines: a line with no worked day at all is not yet designed.
+    // Every rotating line MUST carry a real pattern — in the rotation everyone
+    // passes through every line, so an all-rest line is an incomplete line, not
+    // a "vacant" one. The link can't be authorised until all of them are filled.
+    const unfilledLines = [];
+    for (let w = 1; w <= rotatingLines; w++) {
+        if (DAYS.every(d => !isWorked(shiftAt(w, d)))) unfilledLines.push(w);
+    }
 
     // Full weekends off: Sat of week w + Sun of week w+1 both rest days.
     let weekendsOff = 0;
@@ -285,5 +295,5 @@ export function runDesignChecks(patterns, rotatingLines = 27) {
         else balance.late++; // night folds into late here — defensive only, CEAs have no nights
     }
 
-    return { weekendsOff, totalWeeks: rotatingLines, turnarounds, longestStretch, balance };
+    return { weekendsOff, totalWeeks: rotatingLines, unfilledLines, turnarounds, longestStretch, balance };
 }
