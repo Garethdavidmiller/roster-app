@@ -198,13 +198,14 @@ function buildSelectOptions(currentVal) {
     // doesn't silently revert to RD on change.
     const known = new Set([...EARLY_SHIFTS, ...LATE_SHIFTS, ...NIGHT_SHIFTS]);
     const isUnknown = currentVal && currentVal !== 'RD' && currentVal !== 'SPARE' && !known.has(currentVal);
+    // CEAs do not work night shifts — nights are deliberately NOT offered here,
+    // and normaliseCustomShift() rejects night start times. Do not re-add them.
     return [
         opt('RD',    'RD — Rest Day'),
         opt('SPARE', 'SPARE — Standby'),
         ...(isUnknown ? ['<optgroup label="Current">', opt(currentVal, `${currentVal} (current)`), '</optgroup>'] : []),
         ...(EARLY_SHIFTS.length ? ['<optgroup label="Early (starting before 11:00)">', ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
         ...(LATE_SHIFTS.length  ? ['<optgroup label="Late (starting 11:00 or after)">', ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
-        ...(NIGHT_SHIFTS.length ? ['<optgroup label="Night (starting 21:00 or later)">', ...NIGHT_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
         opt('__custom__', 'Custom time…'),
     ].join('');
 }
@@ -212,6 +213,7 @@ function buildSelectOptions(currentVal) {
 /**
  * Validate and tidy a typed shift time. Accepts "6:00-14:00" or "06:00-14:00";
  * returns the padded "HH:MM-HH:MM" form, or null if it isn't a valid time pair.
+ * Start times between 21:00 and 03:59 are rejected — CEAs do not work nights.
  */
 function normaliseCustomShift(raw) {
     if (!raw) return null;
@@ -219,6 +221,7 @@ function normaliseCustomShift(raw) {
     if (!m) return null;
     const [, h1, m1, h2, m2] = m;
     if (+h1 > 23 || +h2 > 23 || +m1 > 59 || +m2 > 59) return null;
+    if (+h1 >= 21 || +h1 < 4) return null; // night start — not a CEA shift
     return `${h1.padStart(2, '0')}:${m1}-${h2.padStart(2, '0')}:${m2}`;
 }
 
@@ -394,7 +397,8 @@ function openCellEdit(btn) {
             // Free-typed time for designing patterns that don't exist in the
             // current rosters yet. Invalid or cancelled input restores the cell.
             const typed = normaliseCustomShift(
-                prompt('Type the shift as start-end, e.g. 06:00-14:00', current.includes('-') ? current : ''));
+                prompt('Type the shift as start-end, e.g. 06:00-14:00 (CEA shifts start between 04:00 and 20:59)',
+                    current.includes('-') ? current : ''));
             if (!typed) { cancel(); return; }
             newVal = typed;
         }
@@ -495,7 +499,6 @@ function renderCoverageChart(cov) {
         `<div class="cov-legend">` +
         `<div class="cov-legend-item"><div class="cov-legend-dot early"></div>Early</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot late"></div>Late</div>` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot night"></div>Night</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot spare"></div>Spare</div>` +
         `<div class="cov-legend-item"><div class="cov-legend-dot rd"></div>Rest/vacant</div>` +
         `</div>` +
@@ -760,7 +763,6 @@ document.addEventListener('click', e => {
                 { icon: '📊', html: 'Shows how many of the 28 lines are <strong>working</strong> each day' },
                 { icon: '🔵', html: '<strong>Early</strong> — shifts starting before 11:00' },
                 { icon: '🟠', html: '<strong>Late</strong> — shifts starting at 11:00 or after' },
-                { icon: '🟣', html: '<strong>Night</strong> — shifts starting at 21:00 or later' },
                 { icon: '🟡', html: '<strong>Spare</strong> — standby positions with no fixed shift time' },
                 { icon: '⬜', html: 'The grey portion of each bar is rest-day or vacant positions' },
                 { icon: '💡', html: 'The dashed line marks 14 — half the link on shift. Coverage updates live as you edit cells.' },
