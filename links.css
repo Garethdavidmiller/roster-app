@@ -586,6 +586,195 @@ body.auth-ready .container { display: grid; }
     .app-header { margin-bottom: 0; }
 }
 
+/* ---- Design picker strip ---- */
+.design-picker-wrap {
+    margin-bottom: 12px;
+}
+.design-picker-main {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.design-chips {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    flex: 1;
+    min-width: 0;
+}
+.design-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    border: 1px solid var(--border-light);
+    background: var(--surface-sunken);
+    font-size: 12px;
+    font-weight: 600;
+    font-family: inherit;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+    .design-chip:not(.design-chip--active):hover {
+        background: var(--surface);
+        color: var(--text-dark);
+    }
+}
+.design-chip--active {
+    background: var(--primary-blue);
+    color: white;
+    border-color: var(--primary-blue);
+}
+/* Rename / delete buttons inside the active chip */
+.design-chip-rename,
+.design-chip-delete {
+    background: none;
+    border: none;
+    padding: 1px 3px;
+    font-size: 11px;
+    font-family: inherit;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.design-chip-rename:hover { color: white; }
+.design-chip-delete:hover { color: var(--accent-gold); }
+.design-chip-delete:disabled { opacity: 0.35; cursor: default; }
+
+.btn-design-new,
+.btn-design-dup {
+    background: none;
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+.btn-design-new:hover,
+.btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
+.btn-design-dup:disabled { opacity: 0.4; cursor: default; }
+
+.btn-design-compare {
+    background: none;
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--text-mid);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-left: auto;
+    transition: background var(--dur-fast) var(--ease-standard),
+                color var(--dur-fast) var(--ease-standard);
+}
+.btn-design-compare:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-dark); }
+.btn-design-compare.compare-active {
+    background: var(--primary-blue);
+    color: white;
+    border-color: var(--primary-blue);
+}
+.btn-design-compare:disabled { opacity: 0.4; cursor: default; }
+
+/* Compare picker row (shown in compare mode below the main chips) */
+.compare-picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: var(--surface-sunken);
+    border-radius: 6px;
+}
+.compare-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+.design-chips--compare .design-chip {
+    background: white;
+    border-color: var(--border-light);
+}
+.design-chips--compare .design-chip--active {
+    background: color-mix(in srgb, var(--accent-gold) 20%, white);
+    border-color: var(--accent-gold-dark, #e6bb00);
+    color: var(--text-dark);
+}
+
+/* ---- Compare mode: two read-only grids side by side ---- */
+.compare-grids-wrap {
+    display: none; /* JS adds .compare-mode-active to reveal */
+}
+.compare-grids-wrap.compare-mode-active {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+@media (min-width: 1024px) {
+    .compare-grids-wrap.compare-mode-active {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        align-items: start;
+    }
+}
+.compare-col { min-width: 0; }
+.compare-col-head {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    padding: 0 2px 6px;
+    border-bottom: 2px solid var(--border-light);
+    margin-bottom: 6px;
+}
+.compare-col-head--a { color: var(--primary-blue); border-color: var(--primary-blue); }
+.compare-col-head--b { color: var(--cov-late);      border-color: var(--cov-late); }
+
+/* Scrolls independently within its column */
+.compare-grid-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 0 -16px;
+    padding: 0 16px;
+}
+@media (min-width: 1024px) {
+    .compare-grid-scroll { margin: 0; padding: 0; overflow-x: visible; }
+}
+
+/* Read-only compare grid — no interactive feedback */
+.links-grid--compare { pointer-events: none; }
+
+/* Diff highlight — a gold outline on cells where the two designs differ */
+.cell-diff .shift-cell-btn {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: -2px;
+    position: relative;
+    z-index: 1;
+}
+
+/* Slightly larger touch targets on coarse-pointer devices */
+@media (pointer: coarse) {
+    .links-grid .shift-cell { height: 44px; }
+}
+
 /* ---- Beta notice lightbox (first-visit only) ----
    Uses the shared .lb-overlay / .lb-content / .lb-close structure and the dark
    "glass" card treatment from the About / paycalc Welcome lightboxes, so it
@@ -644,7 +833,7 @@ body.auth-ready .container { display: grid; }
     /* Interactive chrome — hide everything except the data cards */
     .app-header, .lb-overlay, .nav-panel, .nav-panel-overlay,
     .links-save-row, .links-empty-state,
-    #generatorCard, .brush-bar,
+    #generatorCard, .brush-bar, .design-picker-wrap, .compare-grids-wrap,
     .btn-card-tips, .collapse-chevron, .hint { display: none !important; }
 
     .container { display: block !important; max-width: none; }
