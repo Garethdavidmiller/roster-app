@@ -282,23 +282,6 @@ body.auth-ready .container { display: grid; }
     width: 36px;
 }
 
-/* Separator row above the fixed link (Line 28 / C. Reen) */
-.links-grid tr.fixed-link-separator td {
-    background: var(--primary-blue);
-    border-top: 2px solid var(--primary-blue);
-    border-bottom: 1px solid var(--primary-blue);
-    padding: 5px 8px;
-    font-size: 10px;
-    font-weight: 700;
-    color: rgba(255,255,255,0.7);
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-    text-align: left;
-    white-space: nowrap;
-}
-/* Keep the separator unaffected by the unfilled-row cue */
-.links-grid tr.fixed-link-separator td { opacity: 1 !important; }
-
 /* Shift cell — contains a button or a select */
 .links-grid .shift-cell {
     height: 38px;
@@ -322,11 +305,10 @@ body.auth-ready .container { display: grid; }
     line-height: 1.35;
     white-space: pre-line; /* allows \n in shiftLabel() to wrap start/end times */
 }
-.shift-cell-btn.fixed-cell { cursor: default; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) {
-    .shift-cell-btn:not(.fixed-cell):hover { filter: brightness(0.86); }
+    .shift-cell-btn:hover { filter: brightness(0.86); }
 }
-.shift-cell-btn:not(.fixed-cell):active { transform: scale(0.96); }
+.shift-cell-btn:active { transform: scale(0.96); }
 
 /* Cell background by shift type */
 .shift-cell-btn.type-rd    { background: var(--surface-sunken); color: var(--text-light); }

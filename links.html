@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Links v12.41 -->
+<!-- MYB Roster — Links v12.42 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -191,9 +191,9 @@
                             <tfoot>
                                 <tr class="gen-spare-row">
                                     <td class="gen-td-label">Spare (standby)</td>
-                                    <td><input type="number" id="genSpareWeekday" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Mon–Fri"></td>
-                                    <td><input type="number" id="genSpareSat" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Saturday"></td>
-                                    <td><input type="number" id="genSpareSun" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Sunday"></td>
+                                    <td><input type="number" id="genSpareWeekday" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Mon–Fri"></td>
+                                    <td><input type="number" id="genSpareSat" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Saturday"></td>
+                                    <td><input type="number" id="genSpareSun" class="gen-input" min="0" max="28" value="0" aria-label="Spare target Sunday"></td>
                                     <td></td>
                                 </tr>
                                 <tr class="gen-total-row">
@@ -211,8 +211,8 @@
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Reset targets from current roster</button>
                     </div>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
-                    <button class="btn-action btn-primary" id="genApplyBtn">Generate link (lines 1–27)</button>
-                    <p class="gen-note">Each day's total can't exceed 27 — the remaining lines become rest days. Line 28 (C. Reen's fixed link) is never changed by the generator.</p>
+                    <button class="btn-action btn-primary" id="genApplyBtn">Generate link (all 28 lines)</button>
+                    <p class="gen-note">Each day's total can't exceed 28 — the remaining lines become rest days.</p>
                 </div>
             </div>
         </div>

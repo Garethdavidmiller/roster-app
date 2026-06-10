@@ -127,7 +127,7 @@ export function calcHourlyCoverage(patterns, totalPos = 28) {
  * each with its own time and per-day-class headcount, rather than a single
  * "early" and "late".
  *
- * How it works ("rotating window"): picture the 27 lines around a wheel. Each
+ * How it works ("rotating window"): picture the 28 lines around a wheel. Each
  * day, a window of consecutive lines is "on duty"; the window slides forward
  * a few lines every day, completing exactly one lap per week — which is what
  * makes "everyone moves down one line each week" seamless. Within the window,
@@ -145,11 +145,11 @@ export function calcHourlyCoverage(patterns, totalPos = 28) {
  * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
  *   - one entry per distinct shift time, with target headcounts per day class
  * @param {{weekday:number, sat:number, sun:number}} [opts.spare] - standby targets
- * @param {number} [opts.lines=27]
+ * @param {number} [opts.lines=28]
  * @returns {Object|null} patterns for "1".."lines", or null if invalid /
  *   any day-class total exceeds lines
  */
-export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = 27 }) {
+export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = 28 }) {
     if (!Array.isArray(slots) || slots.length === 0) return null;
     const classes = ['weekday', 'sat', 'sun'];
     for (const cls of classes) {
@@ -212,7 +212,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
  * the weekend between two weeks is Sat of line w + Sun of line w+1.
  *
  * @param {Object} patterns - { "1".."N": { sun..sat } }
- * @param {number} [rotatingLines=27] - line 28 (fixed) is excluded
+ * @param {number} [rotatingLines=28] - all 28 lines rotate
  * @returns {{
  *   weekendsOff: number, totalWeeks: number,
  *   unfilledLines: number[],
@@ -222,7 +222,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
  *   balance: { early:number, late:number, spare:number, worked:number }
  * }}
  */
-export function runDesignChecks(patterns, rotatingLines = 27) {
+export function runDesignChecks(patterns, rotatingLines = 28) {
     const shiftAt = (w, d) => patterns[String(w)]?.[d] ?? 'RD';
     const isWorked = s => s !== 'RD' && s !== 'OFF';
 
