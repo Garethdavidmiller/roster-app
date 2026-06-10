@@ -293,7 +293,7 @@ comment in `functions/index.js` acknowledges this. For now: when adding or remov
 member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
 in the same commit.
 
-### Links design workspace — beta constraints (v12.37–v12.40)
+### Links design workspace — beta constraints (v12.37–v12.43)
 The Links workspace (`links.html`) is flagged beta in the UI. Known limits accepted
 for now:
 
@@ -310,17 +310,16 @@ for now:
   dropped: "lines 23–27 are vacant placeholders" (`VACANT_FROM`, removed v12.41) and
   "line 28 is C. Reen's fixed link" (`FIXED_POS` + a separator row + non-editable
   cells, removed v12.42). In a rotating link everyone passes through every line, so an
-  all-rest line is an *unfinished* line, not a vacancy, and the link can't be
-  authorised then re-cut each time a post is filled. The link is designed as a full 28
-  so it survives C. Reen leaving; her adjusted fixed shifts are handled as overrides on
-  the base roster, not in this designer. `buildDefaultDesign()` only has roster source
-  for lines 1–22 (`SEEDED_FROM_ROSTER = 22`), so 23–28 start blank to be filled manually
-  or by the generator. A Design-checks row and an amber grid marker (`.row-unfilled`)
-  flag any all-rest line until it is designed.
-- **The 28-line structure is hardcoded by design.** `TOTAL_POS`, `ROTATING_LINES`,
-  and the 1–20/21–22 seeding split mirror the agreed link concept — they are
-  deliberately not derived from roster data. If the link concept changes (more lines,
-  different split), these constants change with it.
+  all-rest line is an *unfinished* line, not a vacancy — the link can't be authorised
+  then re-cut each time a post is filled. The link is designed as a full 28 so it
+  survives staff changes; C. Reen's adjusted fixed shifts are handled as overrides on
+  the base roster, not in this designer. A Design-checks row and amber grid marker
+  (`.row-unfilled`) flag any unfilled line until it is designed. **The auto-generator
+  is the only way to create a new design (v12.43)** — it reads Mon–Fri/Sat/Sun
+  headcount targets and produces a complete 28-line rotation in one step.
+- **The 28-line structure is hardcoded by design.** `TOTAL_POS` and `ROTATING_LINES`
+  reflect the agreed link concept — they are deliberately not derived from roster data.
+  If the link concept changes (e.g. more lines), these constants change with it.
 - **Save concurrency is warn-on-conflict, not merge.** Two designers saving at
   once get a confirm naming who saved last; the whole document is still replaced.
   A field-level merge is not worth the complexity for a 2-person beta tool.
