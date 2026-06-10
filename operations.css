@@ -36,8 +36,6 @@ body.auth-ready .container { display: grid; }
 /* Pull the header closer to the first card — net gap = 12px - 8px = 4px */
 .app-header { margin-bottom: -8px; }
 
-.col-main, .col-side { display: flex; flex-direction: column; gap: 12px; }
-
 /* .btn-card-tips, tips lightbox — consolidated into shared.css */
 
 /* .card-header/.card-body, .card-collapsible-*, .collapse-chevron,
@@ -313,8 +311,11 @@ select:focus-visible, input:focus-visible {
    Right column: Roster upload — the main work area (review table grows here). */
 @media (min-width: 1024px) {
     body.auth-ready .container {
-        max-width: var(--page-max-width);
-        grid-template-columns: minmax(320px, 420px) minmax(460px, 1fr);
+        /* 1100px matches paycalc.css and settings.css — keeps all three
+           sub-pages a consistent width. var(--page-max-width) (1400px) let the
+           right column sprawl to ~956px, stretching the roster form controls. */
+        max-width: 1100px;
+        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
         column-gap: 24px;
         align-items: start;
     }

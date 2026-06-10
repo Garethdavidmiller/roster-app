@@ -293,6 +293,25 @@ comment in `functions/index.js` acknowledges this. For now: when adding or remov
 member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
 in the same commit.
 
+### Links design workspace — beta constraints (v12.37)
+The Links workspace (`links.html`) is flagged beta in the UI. Known limits accepted
+for now:
+
+- **Firefox keyboard editing commits early.** Firefox fires `change` on every
+  arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
+  cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff
+  devices) behave correctly. Escape cancels cleanly in all browsers.
+- **Coverage counts patterns, not people.** The bars include the 5 vacant lines
+  (23–27) and any unnamed lines; the "Named lines: X of 28" note under the legend
+  makes this visible rather than changing the maths.
+- **The 28-line structure is hardcoded by design.** `TOTAL_POS`, `VACANT_FROM`,
+  `FIXED_POS` and the 1–20/21–22 seeding split mirror the agreed link concept —
+  they are deliberately not derived from roster data. If the link concept changes
+  (more lines, different split), these constants change with it.
+- **Save concurrency is warn-on-conflict, not merge.** Two designers saving at
+  once get a confirm naming who saved last; the whole document is still replaced.
+  A field-level merge is not worth the complexity for a 2-person beta tool.
+
 ### Test coverage gaps
 Current test suites cover: override priority logic (`app.test.mjs`), roster data / bank
 holidays / paydays / AL (`roster-data.test.mjs`), pay maths (`paycalc.test.mjs`),
