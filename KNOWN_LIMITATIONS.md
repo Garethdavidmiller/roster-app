@@ -1,6 +1,6 @@
 # KNOWN_LIMITATIONS.md — Intentional constraints and deferred work
 
-*Last updated: June 2026 — v12.28 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.40 · Updated every 0.10 version*
 
 These are documented decisions, not oversights. Read before filing a bug or suggesting a fix.
 
@@ -293,7 +293,7 @@ comment in `functions/index.js` acknowledges this. For now: when adding or remov
 member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
 in the same commit.
 
-### Links design workspace — beta constraints (v12.37)
+### Links design workspace — beta constraints (v12.37–v12.40)
 The Links workspace (`links.html`) is flagged beta in the UI. Known limits accepted
 for now:
 
@@ -301,9 +301,12 @@ for now:
   arrow-key press inside a focused `<select>`, so keyboard-only editing of a shift
   cell commits on the first arrow instead of on Enter. Chrome/Safari (all staff
   devices) behave correctly. Escape cancels cleanly in all browsers.
-- **Coverage counts patterns, not people.** The bars include the 5 vacant lines
-  (23–27) and any unnamed lines; the "Named lines: X of 28" note under the legend
-  makes this visible rather than changing the maths.
+- **Coverage heat map counts pattern positions, not a named headcount.** All 28
+  positions are counted including the 5 vacant lines (23–27) and line 28 (C. Reen's
+  fixed link). Staff names were removed at v12.39 — the design is patterns-only —
+  so there is no distinction between named and unnamed positions. The heat map colour
+  scale is relative to the week's own peak, so a lightly staffed day naturally shows
+  cooler colours regardless of the vacant-line count.
 - **The 28-line structure is hardcoded by design.** `TOTAL_POS`, `VACANT_FROM`,
   `FIXED_POS` and the 1–20/21–22 seeding split mirror the agreed link concept —
   they are deliberately not derived from roster data. If the link concept changes
@@ -316,7 +319,9 @@ for now:
 Current test suites cover: override priority logic (`app.test.mjs`), roster data / bank
 holidays / paydays / AL (`roster-data.test.mjs`), pay maths (`paycalc.test.mjs`),
 roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse helpers
-(`roster-parse-helpers.test.mjs`), and SW asset completeness (`sw-asset-check.test.mjs`).
+(`roster-parse-helpers.test.mjs`), SW asset completeness (`sw-asset-check.test.mjs`),
+and link-design pure maths including generator, coverage, and design checks
+(`links-design.test.mjs`, added v12.40).
 
 Not currently tested: DOM rendering in `app.js` / `admin-app.js`, the Firestore read/write
 layer in all page modules, nav panel injection and overlay lifecycle (`nav-panel.js`,

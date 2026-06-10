@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: June 2026 — v12.28*
+*Last updated: June 2026 — v12.40*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -219,6 +219,26 @@ Refactoring and security hardening with no end-user visible behaviour change.
 - **v12.01** — `operations.css` and `settings.css` extracted from inline `<style>` blocks into external CSS files, completing the extraction that began at v11.41 (`index.css`, `admin.css`, `paycalc.css`).
 - **v12.04** — Guide page styles extracted to `guide.css`, `paycalc-guide.css`, `railcard-guide.css`, `fip.css` — every page now uses `<link rel="stylesheet">` rather than inline `<style>` blocks. DOMPurify self-hosted at `./purify.es.mjs` (v3.4.8) — CDN import replaced; `<link rel="modulepreload">` in `index.html`; SW caches it network-first. Security headers added to `firebase.json`: `Strict-Transport-Security`, `Cross-Origin-Opener-Policy`, expanded `Permissions-Policy`. `normaliseSurname()` extracted to `firebase-client.js` (shared implementation for Auth password derivation). `PAGE_FALLBACKS` array in `service-worker.js` replaces long ternary chain in offline routing. Cultural calendar admin banner upgraded: `warnIfCulturalCalendarMissingYear()` now returns missing dataset names — a ⚠️ urgent banner appears year-round if data is missing, not just in Nov/Dec. ESLint and Firebase SDK version consistency checks added to the pre-commit hook. `@media (prefers-reduced-motion: reduce)` guards added for `sync-pulse` and `pulse-confirm` CSS animations.
 - **v12.05** — Firestore `overrides` read auth requirement reverted. v12.04 required anonymous Firebase Auth for calendar reads — more complexity than value (anyone can obtain an anonymous token as easily as the app does). Intentionally left open; decision and trade-offs documented in `KNOWN_LIMITATIONS.md` and commented in `firestore.rules`.
+
+### Links design workspace ✓ (v12.06–v12.40)
+
+A 28-line rotating link design tool for Marylebone station. Accessible only to `CONFIG.LINKS_DESIGNERS` (currently G. Miller and S. Silva, added v12.33). Flagged beta — a working sketch for agreeing the pattern before the final link is built.
+
+**What was built:**
+- **v12.06–v12.07** — Initial Links page (`links.html` / `links-app.js` / `links.css`): auth guard, Firestore load/save to `linkDesigns/combined-28`, 28-line grid editable via per-cell dropdown (Line + staff name columns), early/late coverage bar chart, collapsible cards, nav panel integration.
+- **v12.33** — Beta marker (gold-outline chip + `#betaLightbox` first-visit notice following canonical lightbox lifecycle); S. Silva added to `LINKS_DESIGNERS`; `deploy-pages.yml` workflow added for GitHub Pages.
+- **v12.37** — Print layout (A4 landscape grid + coverage); sticky day headers at ≥1024px using `overflow: clip` (not `hidden`) on the card to avoid creating a scroll container; concurrency guard: `saveChanges()` re-reads `updatedAt` and names the other designer before overwriting; `loadFailed` flag to distinguish a Firestore error from "no design yet" (hides Initialise/Reset when the load itself failed).
+- **v12.39** — Full redesign: staff names removed (the design is patterns-only, "Line 1"–"Line 28" — who goes on which line is a separate decision made after patterns are agreed); paint-mode brush bar (arm a shift chip, then single-click cells to fill — no dropdown required; Escape or re-tap to disarm); Design Checks card (weekends off, short turnarounds <12h across the circular rotation, longest consecutive-days stretch, early/late/spare balance); auto-generator rebuilt as slot-based targets (see v12.40 entry); `links-design.js` extracted as pure-maths module.
+- **v12.40** — Slot-based generator: one row per distinct shift time, each with separate **Mon–Fri / Sat / Sun** headcount targets (the real roster genuinely differs on all three day classes); seeded from the current 22-line roster via `buildRosterTargets()` so designers start from what today's roster provides; rotating-window algorithm guarantees forward body-clock rotation (a person's week only moves later — never a late finish followed by an early start). Hourly coverage heat map: hour-by-hour on-duty headcount replacing the early/late bar chart; intensity buckets `heat-b0`–`heat-b5`; red `0` flags a coverage gap inside a staffed span; SP column for spares. `links-design.test.mjs` added — 18 tests covering all pure-maths functions.
+
+**Key design decisions:**
+- **Patterns-only document** — removing staff names decoupled the pattern-design decision from the assignment decision. The Firestore document (`linkDesigns/combined-28`) stores `{ patterns, updatedAt, updatedBy }` only; legacy `meta` from older saves is silently dropped on next write.
+- **Slot-based generator over early/late binary** — the station is staffed in waves (opens ~06:20, morning build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes 15:00+) with ~25 distinct shift times and genuinely different Saturday and Sunday patterns. A two-bucket binary cannot represent this shape.
+- **Hourly heat map over per-type bar chart** — the bar chart aggregated by shift class and hid whether the waves overlapped or left gaps mid-day. The heat map shows the actual on-duty headcount shape of the day.
+- **Pure-maths module** — all design maths in `links-design.js` (no DOM, no Firebase): `classifyShift`, `normaliseCustomShift`, `calcCoverage`, `calcHourlyCoverage`, `generatePatterns`, `runDesignChecks`, `dayClass`. Tested independently of the app.
+- **Night shifts not applicable (confirmed June 2026)** — CEAs do not work night shifts. `normaliseCustomShift()` rejects starts between 21:00–03:59; the Night option was never exposed.
+
+---
 
 ### Profile photo / avatar ✗ (v12.12–v12.21 → removed v12.22) — full spec preserved for future restoration
 
