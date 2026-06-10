@@ -1,10 +1,10 @@
 /**
  * links-design.js — Pure link-design maths for links.html. No DOM, no Firebase.
  *
- * Owns: shift classification, custom-time validation, coverage counting,
- *   the auto-generator (rotating-window construction), and the design
- *   quality checks (weekends off, short turnarounds, longest stretch,
- *   early/late balance).
+ * Owns: shift classification, custom-time validation, coverage counting
+ *   (per-type and hour-by-hour), the auto-generator (rotating-window
+ *   construction from per-shift staffing targets), and the design quality
+ *   checks (weekends off, short turnarounds, longest stretch, balance).
  * Edit here for: generator algorithm, check thresholds, coverage maths.
  * Tested by links-design.test.mjs.
  */
@@ -78,35 +78,103 @@ export function calcCoverage(patterns, totalPos = 28) {
 }
 
 /**
- * Auto-generate the rotating link (lines 1..lines) from daily staffing targets.
+ * Day class for staffing targets: the real roster uses different shift times
+ * and headcounts on Saturdays and Sundays than on weekdays.
+ * @param {string} d - day key from DAYS
+ * @returns {'weekday'|'sat'|'sun'}
+ */
+export function dayClass(d) {
+    return d === 'sun' ? 'sun' : d === 'sat' ? 'sat' : 'weekday';
+}
+
+/**
+ * Count on-duty headcount for each hour of the day, per day of week.
+ * Spare positions have no times, so they are counted separately.
+ * Overnight ends (end <= start) are clamped to midnight — defensive only,
+ * CEA shifts never wrap.
+ * @param {Object} patterns - { "1".."N": { sun..sat } }
+ * @param {number} [totalPos=28]
+ * @returns {Object.<string,{hours:number[], spare:number}>} keyed by day
+ */
+export function calcHourlyCoverage(patterns, totalPos = 28) {
+    const out = {};
+    for (const d of DAYS) out[d] = { hours: new Array(24).fill(0), spare: 0 };
+    for (let pos = 1; pos <= totalPos; pos++) {
+        const p = patterns[String(pos)];
+        if (!p) continue;
+        for (const d of DAYS) {
+            const s = p[d] ?? 'RD';
+            if (s === 'RD' || s === 'OFF') continue;
+            if (s === 'SPARE') { out[d].spare++; continue; }
+            const st = startMinutes(s);
+            const enRaw = endMinutes(s);
+            if (st === null || enRaw === null) continue;
+            const en = enRaw <= st ? 24 * 60 : enRaw;
+            for (let h = 0; h < 24; h++) {
+                if (st < (h + 1) * 60 && en > h * 60) out[d].hours[h]++;
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * Auto-generate the rotating link (lines 1..lines) from per-shift staffing targets.
+ *
+ * The real roster staffs the day in WAVES — opens around 06:20, a morning
+ * build 07:00–08:30, middles 11:00–12:00, afternoons 13:30–14:30, closes
+ * 15:00+ running to midnight — so the generator takes a list of shift slots,
+ * each with its own time and per-day-class headcount, rather than a single
+ * "early" and "late".
  *
  * How it works ("rotating window"): picture the 27 lines around a wheel. Each
- * day, a window of (early+late+spare) consecutive lines is "on duty"; the
- * window slides forward a few lines every day, completing exactly one full
- * lap per week — which is what makes "everyone moves down one line each week"
- * seamless. Within the window, late shifts sit at the front and earlies at
- * the back, so as the window slides past a line its week runs
- * earlies → spare → lates → rest days: a forward (body-clock-friendly)
- * rotation. Moving your body clock LATER each day is far easier than
- * dragging it earlier, which is why the generator never produces a late
- * shift followed by an early the next morning.
+ * day, a window of consecutive lines is "on duty"; the window slides forward
+ * a few lines every day, completing exactly one lap per week — which is what
+ * makes "everyone moves down one line each week" seamless. Within the window,
+ * slots are ordered latest-start at the front and earliest-start at the back
+ * (spare in the middle), so as the window slides past a line its week runs
+ * earliest → … → latest → rest days: a forward (body-clock-friendly)
+ * rotation. Moving your body clock LATER each day is far easier than dragging
+ * it earlier, which is why the generator never produces a late shift followed
+ * by an early start the next morning.
  *
  * Daily targets are met EXACTLY by construction (the window size equals the
- * target headcount).
+ * target headcount for that day).
  *
  * @param {Object} opts
- * @param {{early:number, late:number, spare:number}} opts.monSat - targets for Mon–Sat
- * @param {{early:number, late:number, spare:number}} opts.sunday - targets for Sunday
- * @param {string} opts.earlyTime - e.g. '06:20-14:20'
- * @param {string} opts.lateTime  - e.g. '15:15-23:55'
+ * @param {Array<{time:string, weekday:number, sat:number, sun:number}>} opts.slots
+ *   - one entry per distinct shift time, with target headcounts per day class
+ * @param {{weekday:number, sat:number, sun:number}} [opts.spare] - standby targets
  * @param {number} [opts.lines=27]
- * @returns {Object|null} patterns for "1".."lines", or null if a target exceeds lines
+ * @returns {Object|null} patterns for "1".."lines", or null if invalid /
+ *   any day-class total exceeds lines
  */
-export function generatePatterns({ monSat, sunday, earlyTime, lateTime, lines = 27 }) {
-    for (const t of [monSat, sunday]) {
-        if (t.early + t.late + t.spare > lines) return null;
-        if (t.early < 0 || t.late < 0 || t.spare < 0) return null;
+export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = 27 }) {
+    if (!Array.isArray(slots) || slots.length === 0) return null;
+    const classes = ['weekday', 'sat', 'sun'];
+    for (const cls of classes) {
+        let total = spare[cls] ?? 0;
+        if (!Number.isInteger(total) || total < 0) return null;
+        for (const s of slots) {
+            const n = s[cls] ?? 0;
+            if (!Number.isInteger(n) || n < 0) return null;
+            if (startMinutes(s.time) === null) return null;
+            total += n;
+        }
+        if (total > lines) return null;
     }
+
+    // Front-to-back window order: latest start first, earliest last, spare in
+    // the middle. A person's position moves front-ward through their week, so
+    // they progress earliest → spare → latest across the days they work.
+    const sorted = [...slots].sort((a, b) => startMinutes(b.time) - startMinutes(a.time));
+    const mid = Math.floor(sorted.length / 2);
+    const segdefs = [
+        ...sorted.slice(0, mid),
+        { isSpare: true },
+        ...sorted.slice(mid),
+    ];
+
     // Window start positions: strides sum to `lines` across the 7 days so the
     // wheel completes exactly one lap per week (the rotation is seamless).
     const base = Math.floor(lines / 7);
@@ -117,17 +185,21 @@ export function generatePatterns({ monSat, sunday, earlyTime, lateTime, lines = 
         starts.push(acc);
         acc += base + (i < rem ? 1 : 0);
     }
+
     const patterns = {};
     for (let row = 1; row <= lines; row++) {
         const p = {};
         DAYS.forEach((d, i) => {
-            const t   = i === 0 ? sunday : monSat;
-            const W   = t.early + t.late + t.spare;
+            const cls = dayClass(d);
             const pos = (((row - 1) - starts[i]) % lines + lines) % lines;
-            if (pos >= W)                    p[d] = 'RD';
-            else if (pos < t.late)           p[d] = lateTime;   // front of window
-            else if (pos < t.late + t.spare) p[d] = 'SPARE';
-            else                             p[d] = earlyTime;  // back of window
+            let cum = 0;
+            let val = 'RD';
+            for (const seg of segdefs) {
+                const n = seg.isSpare ? (spare[cls] ?? 0) : (seg[cls] ?? 0);
+                if (pos < cum + n) { val = seg.isSpare ? 'SPARE' : seg.time; break; }
+                cum += n;
+            }
+            p[d] = val;
         });
         patterns[String(row)] = p;
     }
