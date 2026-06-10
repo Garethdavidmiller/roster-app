@@ -64,7 +64,6 @@ initNavPanel({
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const TOTAL_POS  = 28;
 const ROTATING_LINES = 28;     // all 28 lines rotate — every one must carry a real pattern
-const SEEDED_FROM_ROSTER = 22; // lines 1–22 have current roster source; 23–28 await a design
 
 const DESIGN_REF = doc(db, 'linkDesigns', 'combined-28');
 
@@ -124,46 +123,8 @@ function formatShortTime(shift) {
     return dash > 0 ? shift.slice(0, dash) : shift;
 }
 
-/** Normalise a weekly-roster pattern entry: replaces OFF with RD. */
-function normalisePattern(week) {
-    const out = {};
-    for (const d of DAYS) {
-        const v = (week && week[d]) ? week[d] : 'RD';
-        out[d] = (v === 'OFF') ? 'RD' : v;
-    }
-    return out;
-}
-
 /** All-RD pattern — a starting blank for an as-yet-undesigned or unknown line. */
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
-
-/**
- * Build a default 28-line design from the current roster data.
- * Lines 1–20: one week per row of the CEA 20-week link.
- * Lines 21–22: bilingual roster patterns.
- * Lines 23–28: blank (all RD) — there is no current roster source for these,
- *   so they start empty for the designer to fill manually or via the generator.
- *   They are NOT vacancies: in the rotation everyone passes through every line,
- *   so all 28 must carry a real pattern before the link can be authorised. The
- *   "lines not yet designed" check flags them until they are filled.
- * All 28 lines rotate. C. Reen's adjusted shifts are handled as overrides on the
- *   base roster, not here — so the link stays a full 28 even if she ever leaves.
- */
-function buildDefaultDesign() {
-    const patterns = {};
-    for (let week = 1; week <= 20; week++) {
-        patterns[String(week)] = normalisePattern(weeklyRoster[week]);
-    }
-    const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
-    for (let i = 0; i < 2; i++) {
-        const week = blMembers[i]?.currentWeek || (i + 1);
-        patterns[String(21 + i)] = normalisePattern(bilingualRoster[week]);
-    }
-    for (let pos = SEEDED_FROM_ROSTER + 1; pos <= ROTATING_LINES; pos++) {
-        patterns[String(pos)] = emptyPattern();
-    }
-    return { patterns };
-}
 
 /** HTML for the shift dropdown inside an editing cell. */
 function buildSelectOptions(currentVal) {
@@ -243,33 +204,28 @@ function renderGrid() {
     const tbody      = document.getElementById('linksGridBodyRows');
     const tfoot      = document.getElementById('linksCoverageFoot');
     const wrapper    = document.getElementById('linksGridWrapper');
-    const emptyState = document.getElementById('linksEmptyState');
-    const saveRow    = document.getElementById('linksSaveRow');
-    const resetRow   = document.getElementById('linksResetRow');
+    const emptyState = document.getElementById(‘linksEmptyState’);
+    const saveRow    = document.getElementById(‘linksSaveRow’);
 
     if (!design) {
-        const emptyMsg  = document.getElementById('linksEmptyMsg');
-        const inlineBtn = document.getElementById('linksInitBtnInline');
+        const emptyMsg = document.getElementById(‘linksEmptyMsg’);
         if (emptyMsg) emptyMsg.textContent = loadFailed
-            ? 'Couldn’t load the saved design — check your connection and refresh the page.'
-            : 'No link design loaded yet.';
-        if (inlineBtn)  inlineBtn.style.display  = loadFailed ? 'none' : '';
-        if (wrapper)    wrapper.style.display    = 'none';
-        if (emptyState) emptyState.style.display = '';
-        if (saveRow)    saveRow.style.display    = 'none';
-        if (resetRow)   resetRow.style.display   = 'none';
-        if (tbody)      tbody.innerHTML          = '';
-        if (tfoot)      tfoot.innerHTML          = '';
+            ? ‘Couldn’t load the saved design — check your connection and refresh the page.’
+            : ‘No link design loaded yet — use the Auto-generate card below to create one.’;
+        if (wrapper)    wrapper.style.display    = ‘none’;
+        if (emptyState) emptyState.style.display = ‘’;
+        if (saveRow)    saveRow.style.display    = ‘none’;
+        if (tbody)      tbody.innerHTML          = ‘’;
+        if (tfoot)      tfoot.innerHTML          = ‘’;
         renderBrushBar();
         renderCoverageChart();
         renderDesignChecks();
         return;
     }
 
-    if (emptyState) emptyState.style.display = 'none';
-    if (wrapper)    wrapper.style.display    = '';
-    if (saveRow)    saveRow.style.display    = '';
-    if (resetRow)   resetRow.style.display   = '';
+    if (emptyState) emptyState.style.display = ‘none’;
+    if (wrapper)    wrapper.style.display    = ‘’;
+    if (saveRow)    saveRow.style.display    = ‘’;
 
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
@@ -604,7 +560,7 @@ function renderDesignChecks() {
         `<div class="check-row check-neutral">` +
         `${info}<div class="check-body">` +
         `<strong>Shift balance</strong> — ${early} early / ${late} late / ${spare} spare` +
-        ` across the 27-line rotation` +
+        ` across the 28-line rotation` +
         `<span class="check-note"> (${earlyPct}% early, ${latePct}% late)</span>` +
         `</div></div>`
     );
@@ -915,54 +871,6 @@ async function loadDesign() {
     updateSaveBtn();
 }
 
-function initFromRosters() {
-    if (loadFailed) {
-        // Seeding defaults over a design that merely failed to load would risk
-        // wiping a real saved document. Make the user refresh first.
-        const saveStatus = document.getElementById('linksSaveStatus');
-        if (saveStatus) {
-            saveStatus.textContent = 'Can’t initialise — the saved design couldn’t be loaded. Refresh the page and try again.';
-            saveStatus.className   = 'links-save-status err';
-            const wrapper = document.getElementById('linksGridWrapper');
-            if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-        return;
-    }
-    if (!confirm('Initialise from current rosters? This will overwrite any unsaved changes.')) return;
-    design = buildDefaultDesign();
-    dirty  = true;
-    dearmBrush();
-    renderGrid();
-    renderBrushBar();
-    renderDesignChecks();
-    updateSaveBtn();
-    const saveStatus = document.getElementById('linksSaveStatus');
-    if (saveStatus) {
-        saveStatus.textContent = 'Design seeded from rosters — save when ready.';
-        saveStatus.className   = 'links-save-status ok';
-    }
-}
-
-function resetFromRosters() {
-    if (loadFailed) {
-        alert('Can’t reset — the saved design couldn’t be loaded. Refresh the page and try again.');
-        return;
-    }
-    if (!confirm('Reset all 28 lines from current rosters? This overwrites every line in the grid.')) return;
-    design = buildDefaultDesign();
-    dirty  = true;
-    dearmBrush();
-    renderGrid();
-    renderBrushBar();
-    renderDesignChecks();
-    updateSaveBtn();
-    const saveStatus = document.getElementById('linksSaveStatus');
-    if (saveStatus) {
-        saveStatus.textContent = 'Patterns reset from rosters — save when ready.';
-        saveStatus.className   = 'links-save-status ok';
-    }
-}
-
 // ============================================
 // COLLAPSIBLE CARDS
 // ============================================
@@ -975,8 +883,6 @@ initCardCollapse('generatorToggleHeader', 'generatorBody',  'generatorChevron');
 // BUTTON HANDLERS
 // ============================================
 document.getElementById('linksSaveBtn')?.addEventListener('click', saveChanges);
-document.getElementById('linksInitBtnInline')?.addEventListener('click', initFromRosters);
-document.getElementById('linksResetBtn')?.addEventListener('click', resetFromRosters);
 
 // Disarm brush on Escape anywhere in the page.
 document.addEventListener('keydown', e => {

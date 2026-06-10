@@ -390,10 +390,6 @@ body.auth-ready .container { display: grid; }
     .gen-input, .gen-select { font-size: 16px; }
 }
 
-/* ---- Reset-from-rosters link row (below save row) ---- */
-.links-reset-row {
-    margin-top: 8px;
-}
 .btn-text-link {
     background: none;
     border: none;
@@ -656,7 +652,7 @@ body.auth-ready .container { display: grid; }
 
     /* Interactive chrome — hide everything except the data cards */
     .app-header, .lb-overlay, .nav-panel, .nav-panel-overlay,
-    .links-save-row, .links-reset-row, .links-empty-state,
+    .links-save-row, .links-empty-state,
     #generatorCard, .brush-bar,
     .btn-card-tips, .collapse-chevron, .hint { display: none !important; }
 
