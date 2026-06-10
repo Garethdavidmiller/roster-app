@@ -20,6 +20,7 @@ import {
     classifyShift,
     normaliseCustomShift,
     calcCoverage,
+    calcHourlyCoverage,
     generatePatterns,
     runDesignChecks,
 } from './links-design.js';
@@ -98,6 +99,12 @@ let loadedUpdatedAt = null; // millis — for the save concurrency check
 
 // Paint-mode brush: string = armed shift, null = no brush
 let brush = null;
+
+// Generator targets: one slot per distinct shift time, with separate weekday /
+// Saturday / Sunday headcounts (the real roster differs on all three).
+/** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
+let genSlots = [];
+let genSpare = { weekday: 0, sat: 0, sun: 0 };
 
 // ============================================
 // HELPERS
@@ -436,11 +443,13 @@ function restoreBtn(cell, pos, day, shift) {
 }
 
 // ============================================
-// COVERAGE BAR CHART
+// COVERAGE HEAT MAP — on-duty headcount per hour per day. The station is
+// staffed in waves through the day, so an early/late split hides the real
+// shape; this shows it directly.
 // ============================================
 
-function renderCoverageChart(cov) {
-    const wrap     = document.getElementById('coverageBarChart');
+function renderCoverageChart() {
+    const wrap     = document.getElementById('coverageHeatmap');
     const emptyMsg = document.getElementById('coverageEmptyMsg');
     if (!wrap) return;
 
@@ -453,39 +462,55 @@ function renderCoverageChart(cov) {
     if (emptyMsg) emptyMsg.style.display = 'none';
     wrap.style.display = '';
 
-    if (!cov) cov = calcCoverage(design.patterns);
-    const BAR_H = 96;
+    const hourly = calcHourlyCoverage(design.patterns, TOTAL_POS);
 
-    const cols = DAYS.map((d, di) => {
-        const { early, late, spare, night } = cov[d];
-        const worked = early + late + spare + night;
-        const eH = Math.round((early / TOTAL_POS) * BAR_H);
-        const lH = Math.round((late  / TOTAL_POS) * BAR_H);
-        const nH = Math.round((night / TOTAL_POS) * BAR_H);
-        const sH = Math.round((spare / TOTAL_POS) * BAR_H);
-        const warn = worked === 0;
+    // Show only the span of the working day: first to last staffed hour
+    // across the whole week (fallback 06:00–24:00 for an all-RD design).
+    let minH = 24, maxH = 0, maxCount = 0;
+    for (const d of DAYS) {
+        hourly[d].hours.forEach((n, h) => {
+            if (n > 0) {
+                if (h < minH) minH = h;
+                if (h + 1 > maxH) maxH = h + 1;
+                if (n > maxCount) maxCount = n;
+            }
+        });
+    }
+    if (minH >= maxH) { minH = 6; maxH = 24; }
 
-        return `<div class="cov-day-col">` +
-            `<span class="cov-count${warn ? ' cov-count-warn' : ''}">${worked}</span>` +
-            `<div class="cov-bar-wrap" style="height:${BAR_H}px">` +
-            `<div class="cov-bar-ref-line"></div>` +
-            (eH ? `<div class="cov-bar-seg early" style="height:${eH}px"></div>` : '') +
-            (lH ? `<div class="cov-bar-seg late"  style="height:${lH}px"></div>` : '') +
-            (nH ? `<div class="cov-bar-seg night" style="height:${nH}px"></div>` : '') +
-            (sH ? `<div class="cov-bar-seg spare" style="height:${sH}px"></div>` : '') +
-            `</div>` +
-            `<span class="cov-day-label${warn ? ' cov-day-label-warn' : ''}">${DAY_LABELS[di]}</span>` +
-            `</div>`;
+    const hourTh = [];
+    for (let h = minH; h < maxH; h++) {
+        hourTh.push(`<th class="cov-heat-hour">${String(h).padStart(2, '0')}</th>`);
+    }
+
+    const rows = DAYS.map((d, di) => {
+        const { hours, spare } = hourly[d];
+        const dayHasWork = hours.some(n => n > 0);
+        // First/last staffed hour for THIS day — a zero inside that span is a
+        // gap in the day's coverage and gets flagged.
+        const first = hours.findIndex(n => n > 0);
+        const last  = hours.length - 1 - [...hours].reverse().findIndex(n => n > 0);
+        const cells = [];
+        for (let h = minH; h < maxH; h++) {
+            const n = hours[h];
+            const bucket = n === 0 ? 0 : Math.max(1, Math.ceil((n / maxCount) * 5));
+            const isGap = dayHasWork && n === 0 && h > first && h < last;
+            cells.push(`<td class="cov-heat-cell heat-b${bucket}${isGap ? ' heat-gap' : ''}">${n || (isGap ? '0' : '')}</td>`);
+        }
+        return `<tr>` +
+            `<th class="cov-heat-day">${DAY_LABELS[di]}</th>` +
+            cells.join('') +
+            `<td class="cov-heat-spare">${spare || ''}</td>` +
+            `</tr>`;
     }).join('');
 
     wrap.innerHTML =
-        `<div class="links-cov-chart">${cols}</div>` +
-        `<div class="cov-legend">` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot early"></div>Early</div>` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot late"></div>Late</div>` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot spare"></div>Spare</div>` +
-        `<div class="cov-legend-item"><div class="cov-legend-dot rd"></div>Rest/vacant</div>` +
-        `</div>`;
+        `<div class="cov-heat-wrap"><table class="cov-heat">` +
+        `<thead><tr><th class="cov-heat-day"></th>${hourTh.join('')}<th class="cov-heat-spare-h">SP</th></tr></thead>` +
+        `<tbody>${rows}</tbody>` +
+        `</table></div>` +
+        `<p class="cov-heat-note">Each cell shows how many people are on duty during that hour — darker means more. ` +
+        `Red 0 = a gap inside the working day. SP = spares on standby (no fixed time). Peak this week: ${maxCount}.</p>`;
 }
 
 // ============================================
@@ -493,15 +518,14 @@ function renderCoverageChart(cov) {
 // ============================================
 
 function renderDesignChecks() {
-    const content  = document.getElementById('checksContent');
-    const emptyMsg = document.getElementById('checksEmptyMsg');
+    const content = document.getElementById('checksContent');
     if (!content) return;
 
     if (!design) {
-        if (emptyMsg) emptyMsg.style.display = '';
+        // Rebuild the empty state — check rows may have replaced it earlier.
+        content.innerHTML = '<p class="links-empty-msg">Load or create a link design to see quality checks.</p>';
         return;
     }
-    if (emptyMsg) emptyMsg.style.display = 'none';
 
     // Only check the 27 rotating lines — line 28 is fixed and does not rotate.
     const checks = runDesignChecks(design.patterns, 27);
@@ -576,57 +600,186 @@ function renderDesignChecks() {
 }
 
 // ============================================
-// AUTO-GENERATOR
+// AUTO-GENERATOR — slot-based: the station is staffed in waves (opens,
+// morning build, middles, afternoons, closes), so targets are a LIST of
+// shift times each with weekday / Sat / Sun headcounts, seeded from what
+// the current roster actually provides.
 // ============================================
 
-(function initGenerator() {
-    const earlySelect = document.getElementById('genEarlyTime');
-    const lateSelect  = document.getElementById('genLateTime');
-    if (!earlySelect || !lateSelect) return;
+/**
+ * Derive generator targets from the current roster: the main 20-week link
+ * plus the two bilingual lines the design uses. Weekday count = the busiest
+ * Mon–Fri day for that time (some shifts only run Tue/Thu/Fri).
+ */
+function buildRosterTargets() {
+    const sources = [];
+    for (let w = 1; w <= 20; w++) sources.push(weeklyRoster[w]);
+    const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
+    for (let i = 0; i < 2; i++) sources.push(bilingualRoster[blMembers[i]?.currentWeek || (i + 1)]);
 
-    // Populate shift-time dropdowns from real roster data.
-    EARLY_SHIFTS.forEach(s => earlySelect.appendChild(new Option(s, s)));
-    earlySelect.appendChild(new Option('Custom…', '__custom_early__'));
-    LATE_SHIFTS.forEach(s => lateSelect.appendChild(new Option(s, s)));
-    lateSelect.appendChild(new Option('Custom…', '__custom_late__'));
+    const WEEKDAYS = ['mon', 'tue', 'wed', 'thu', 'fri'];
+    const perDay = {};
+    const spareByDay = Object.fromEntries(DAYS.map(d => [d, 0]));
+    for (const src of sources) {
+        for (const d of DAYS) {
+            const s = src?.[d];
+            if (!s || s === 'RD' || s === 'OFF') continue;
+            if (s === 'SPARE') { spareByDay[d]++; continue; }
+            perDay[s] = perDay[s] || Object.fromEntries(DAYS.map(x => [x, 0]));
+            perDay[s][d]++;
+        }
+    }
+    const slots = Object.keys(perDay).sort().map(time => ({
+        time,
+        weekday: Math.max(...WEEKDAYS.map(d => perDay[time][d])),
+        sat:     perDay[time].sat,
+        sun:     perDay[time].sun,
+    }));
+    const spare = {
+        weekday: Math.max(...WEEKDAYS.map(d => spareByDay[d])),
+        sat:     spareByDay.sat,
+        sun:     spareByDay.sun,
+    };
+    return { slots, spare };
+}
+
+/** HTML options for a generator time select — early + late groups + custom. */
+function buildTimeOptions(currentVal) {
+    const opt = (val, label) => {
+        const sel = val === currentVal ? ' selected' : '';
+        return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
+    };
+    const known = new Set([...EARLY_SHIFTS, ...LATE_SHIFTS]);
+    const isUnknown = currentVal && !known.has(currentVal);
+    return [
+        ...(isUnknown ? [opt(currentVal, currentVal)] : []),
+        ...(EARLY_SHIFTS.length ? ['<optgroup label="Early">', ...EARLY_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
+        ...(LATE_SHIFTS.length  ? ['<optgroup label="Late">',  ...LATE_SHIFTS.map(s => opt(s, s)), '</optgroup>'] : []),
+        opt('__custom__', 'Custom time…'),
+    ].join('');
+}
+
+function renderGenTable() {
+    const tbody = document.getElementById('genSlotRows');
+    if (!tbody) return;
+    tbody.innerHTML = genSlots.map((slot, i) =>
+        `<tr data-slot="${i}">` +
+        `<td class="gen-td-time"><select class="gen-select gen-slot-time" data-slot="${i}" ` +
+        `aria-label="Shift time for row ${i + 1}">${buildTimeOptions(slot.time)}</select></td>` +
+        ['weekday', 'sat', 'sun'].map(cls =>
+            `<td><input type="number" class="gen-input gen-slot-count" min="0" max="27" ` +
+            `value="${slot[cls]}" data-slot="${i}" data-class="${cls}" ` +
+            `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
+        ).join('') +
+        `<td class="gen-td-remove"><button class="gen-remove-btn" data-slot="${i}" type="button" ` +
+        `aria-label="Remove ${escapeHtml(slot.time)} row" title="Remove this shift">✕</button></td>` +
+        `</tr>`
+    ).join('');
+    updateGenTotals();
+}
+
+function updateGenTotals() {
+    const tot = { weekday: genSpare.weekday, sat: genSpare.sat, sun: genSpare.sun };
+    for (const s of genSlots) {
+        tot.weekday += s.weekday; tot.sat += s.sat; tot.sun += s.sun;
+    }
+    for (const [cls, id] of [['weekday', 'genTotWeekday'], ['sat', 'genTotSat'], ['sun', 'genTotSun']]) {
+        const el = document.getElementById(id);
+        if (!el) continue;
+        el.textContent = `${tot[cls]} / 27`;
+        el.classList.toggle('gen-total-over', tot[cls] > 27);
+    }
+    return tot;
+}
+
+(function initGenerator() {
+    const tbody = document.getElementById('genSlotRows');
+    if (!tbody) return;
+
+    // Seed targets from the current roster on first open — the whole point is
+    // comparing the design against what today's roster actually provides.
+    ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
+    document.getElementById('genSpareWeekday').value = genSpare.weekday;
+    document.getElementById('genSpareSat').value     = genSpare.sat;
+    document.getElementById('genSpareSun').value     = genSpare.sun;
+    renderGenTable();
+
+    // Delegated events on the slot table body.
+    tbody.addEventListener('input', e => {
+        const input = e.target.closest('.gen-slot-count');
+        if (!input) return;
+        const slot = genSlots[+input.dataset.slot];
+        if (!slot) return;
+        slot[input.dataset.class] = Math.max(0, parseInt(input.value, 10) || 0);
+        updateGenTotals();
+    });
+
+    tbody.addEventListener('change', e => {
+        const select = e.target.closest('.gen-slot-time');
+        if (!select) return;
+        const slot = genSlots[+select.dataset.slot];
+        if (!slot) return;
+        if (select.value === '__custom__') {
+            const typed = normaliseCustomShift(
+                prompt('Type the shift as start–end, e.g. 09:30-17:30 (start between 04:00 and 20:59):', slot.time));
+            if (typed) slot.time = typed;
+            renderGenTable(); // restores the select either way
+            return;
+        }
+        slot.time = select.value;
+    });
+
+    tbody.addEventListener('click', e => {
+        const btn = e.target.closest('.gen-remove-btn');
+        if (!btn) return;
+        genSlots.splice(+btn.dataset.slot, 1);
+        renderGenTable();
+    });
+
+    for (const [id, cls] of [['genSpareWeekday', 'weekday'], ['genSpareSat', 'sat'], ['genSpareSun', 'sun']]) {
+        document.getElementById(id)?.addEventListener('input', e => {
+            genSpare[cls] = Math.max(0, parseInt(e.target.value, 10) || 0);
+            updateGenTotals();
+        });
+    }
+
+    document.getElementById('genAddSlotBtn')?.addEventListener('click', () => {
+        genSlots.push({ time: EARLY_SHIFTS[0] || '06:20-14:20', weekday: 1, sat: 0, sun: 0 });
+        renderGenTable();
+    });
+
+    document.getElementById('genSeedBtn')?.addEventListener('click', () => {
+        ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
+        document.getElementById('genSpareWeekday').value = genSpare.weekday;
+        document.getElementById('genSpareSat').value     = genSpare.sat;
+        document.getElementById('genSpareSun').value     = genSpare.sun;
+        renderGenTable();
+        const errEl = document.getElementById('genError');
+        if (errEl) errEl.textContent = '';
+    });
 
     document.getElementById('genApplyBtn')?.addEventListener('click', () => {
         const errEl = document.getElementById('genError');
         if (errEl) errEl.textContent = '';
 
-        let earlyTime = earlySelect.value;
-        let lateTime  = lateSelect.value;
-
-        if (earlyTime === '__custom_early__') {
-            earlyTime = normaliseCustomShift(
-                prompt('Early shift time (e.g. 06:20-14:20, start between 04:00 and 20:59):', '')) ?? '';
-            if (!earlyTime) return;
+        if (genSlots.length === 0) {
+            if (errEl) errEl.textContent = 'Add at least one shift row first.';
+            return;
         }
-        if (lateTime === '__custom_late__') {
-            lateTime = normaliseCustomShift(
-                prompt('Late shift time (e.g. 15:15-23:15, start between 04:00 and 20:59):', '')) ?? '';
-            if (!lateTime) return;
-        }
-
-        const monSat = {
-            early: parseInt(document.getElementById('genMonSatEarly')?.value || '0', 10),
-            late:  parseInt(document.getElementById('genMonSatLate')?.value  || '0', 10),
-            spare: parseInt(document.getElementById('genMonSatSpare')?.value || '0', 10),
-        };
-        const sunday = {
-            early: parseInt(document.getElementById('genSunEarly')?.value || '0', 10),
-            late:  parseInt(document.getElementById('genSunLate')?.value  || '0', 10),
-            spare: parseInt(document.getElementById('genSunSpare')?.value || '0', 10),
-        };
-
-        const generated = generatePatterns({ monSat, sunday, earlyTime, lateTime, lines: 27 });
-        if (!generated) {
+        const tot = updateGenTotals();
+        const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > 27);
+        if (over.length) {
             if (errEl) {
-                const msTotal = monSat.early + monSat.late + monSat.spare;
-                const suTotal = sunday.early + sunday.late + sunday.spare;
-                errEl.textContent = `Can’t generate: the total (early + late + spare) can’t exceed 27 lines. ` +
-                    `Mon–Sat total: ${msTotal}, Sunday total: ${suTotal}.`;
+                const names = { weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' };
+                errEl.textContent = `Can’t generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
+                    `each day's total (shifts + spare) can't exceed 27 lines.`;
             }
+            return;
+        }
+
+        const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: 27 });
+        if (!generated) {
+            if (errEl) errEl.textContent = 'Can’t generate — check every row has a valid time and whole-number targets.';
             return;
         }
 
@@ -927,12 +1080,11 @@ document.addEventListener('click', e => {
         'links-coverage': {
             title: 'Coverage analysis',
             sections: [{ items: [
-                { icon: '📊', html: 'Shows how many of the 28 lines are <strong>working</strong> each day' },
-                { icon: '🔵', html: '<strong>Early</strong> — shifts starting before 11:00' },
-                { icon: '🟠', html: '<strong>Late</strong> — shifts starting at 11:00 or after' },
-                { icon: '🟡', html: '<strong>Spare</strong> — standby positions with no fixed time' },
-                { icon: '⬜', html: 'Grey portion = rest-day or vacant lines' },
-                { icon: '💡', html: 'The dashed line marks 14 — half the link on shift. Updates live as you edit cells.' },
+                { icon: '📊', html: 'Each cell shows how many people are <strong>on duty during that hour</strong> — rows are days, columns are hours of the day' },
+                { icon: '🔵', html: 'Darker blue = more people on at once; blank = nobody on duty' },
+                { icon: '🔴', html: 'A red <strong>0</strong> means a gap — nobody on duty in the middle of that day\'s working hours' },
+                { icon: '🟡', html: '<strong>SP</strong> column = spares on standby that day (no fixed time, so they aren\'t in the hourly cells)' },
+                { icon: '💡', html: 'This shows the real <em>shape</em> of the day — opens, the morning build, the afternoon peak, and the taper to close. Updates live as you edit cells.' },
             ]}],
         },
         'links-checks': {
@@ -949,15 +1101,16 @@ document.addEventListener('click', e => {
             title: 'Auto-generator',
             sections: [
                 { heading: 'What it does', items: [
-                    { icon: '⚡', html: 'Builds a fair 27-line rotating pattern from your staffing targets — how many on early, late, and spare each day.' },
-                    { icon: '🌅', html: 'The pattern always moves <strong>forward</strong> through the day (late shifts before earlies), so everyone\'s body clock shifts in the easy direction: later, not earlier.' },
-                    { icon: '✅', html: 'Your daily targets are met <strong>exactly</strong> by construction — no manual cell editing needed to hit the numbers.' },
+                    { icon: '⚡', html: 'Builds a fair 27-line rotating pattern from a <strong>list of shifts</strong> — one row per start time, each with its own headcount for Mon–Fri, Saturday, and Sunday.' },
+                    { icon: '🌊', html: 'The station is staffed in <strong>waves</strong> — opens, mid-morning, middles, afternoons, closes — so you can add as many shift rows as the day needs, not just one early and one late.' },
+                    { icon: '🌅', html: 'Within each person\'s week, start times only move <strong>later</strong> — never a late finish then an early start — so body clocks shift in the easy direction.' },
+                    { icon: '✅', html: 'Daily targets are met <strong>exactly</strong> by construction.' },
                 ]},
                 { heading: 'How to use it', items: [
-                    { icon: '1️⃣', html: 'Enter how many <strong>early, late, and spare</strong> you need each Mon–Sat, and separately for Sundays.' },
-                    { icon: '2️⃣', html: 'Pick the <strong>shift times</strong> from the dropdowns — or choose Custom… to type a time.' },
-                    { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>. Review the grid and the Design Checks, then save.' },
-                    { icon: '⚠️', html: 'The total (early + late + spare) can\'t exceed 27 lines — the rest become rest days.' },
+                    { icon: '↺', html: 'The table starts <strong>pre-filled from the current roster</strong> — what today\'s 22 active lines actually provide. Edit from there, or use the reset link to get back to it.' },
+                    { icon: '➕', html: '<strong>+ Add another shift</strong> for a new start time; ✕ removes a row. Pick times from the dropdown or choose Custom time….' },
+                    { icon: '⚠️', html: 'Each day\'s total (all shifts + spare) can\'t exceed 27 — watch the Total row.' },
+                    { icon: '3️⃣', html: 'Tap <strong>Generate link</strong>, then review the Coverage heat map and Design Checks before saving.' },
                 ]},
             ],
         },

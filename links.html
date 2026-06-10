@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Links v12.39 -->
+<!-- MYB Roster — Links v12.40 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -136,13 +136,13 @@
             <h2>📊 Coverage analysis
                 <button class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
             </h2>
-            <span class="hint">How many lines are working each day, split by shift type</span>
+            <span class="hint">How many people are on duty through each hour of the day</span>
             <span class="collapse-chevron open" id="coverageChevron">▾</span>
         </div>
         <div class="card-collapsible-body open" id="coverageBody">
             <div class="card-body" id="coverageSummaryWrap">
                 <p class="links-empty-msg" id="coverageEmptyMsg">Load or create a link design to see coverage.</p>
-                <div id="coverageBarChart" style="display:none"></div>
+                <div id="coverageHeatmap" style="display:none"></div>
             </div>
         </div>
     </div>
@@ -174,54 +174,45 @@
         </div>
         <div class="card-collapsible-body" id="generatorBody">
             <div class="card-body">
-                <p class="links-desc">Enter how many people you need on early, late, and spare each day. The generator builds a fair rotating pattern where late shifts always come <em>before</em> earlies in the week — never the other way — so staff body clocks move forward, not backward.</p>
+                <p class="links-desc">List the shifts you need and how many people on each — the station is staffed in waves through the day (opens, mid-morning, middles, afternoons, closes), so add a row for every distinct start time. Weekday, Saturday, and Sunday targets are separate because the roster genuinely differs on those days. The generator builds a fair rotation where start times only move <em>later</em> through each person's week — never a late finish followed by an early start.</p>
                 <div class="generator-form">
-                    <div class="gen-cols">
-                        <div class="gen-col">
-                            <div class="gen-section-label">Monday–Saturday</div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genMonSatEarly">Early shifts</label>
-                                <input type="number" id="genMonSatEarly" class="gen-input" min="0" max="27" value="10">
-                            </div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genMonSatLate">Late shifts</label>
-                                <input type="number" id="genMonSatLate" class="gen-input" min="0" max="27" value="10">
-                            </div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genMonSatSpare">Spare</label>
-                                <input type="number" id="genMonSatSpare" class="gen-input" min="0" max="27" value="2">
-                            </div>
-                        </div>
-                        <div class="gen-col">
-                            <div class="gen-section-label">Sunday</div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genSunEarly">Early shifts</label>
-                                <input type="number" id="genSunEarly" class="gen-input" min="0" max="27" value="5">
-                            </div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genSunLate">Late shifts</label>
-                                <input type="number" id="genSunLate" class="gen-input" min="0" max="27" value="5">
-                            </div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genSunSpare">Spare</label>
-                                <input type="number" id="genSunSpare" class="gen-input" min="0" max="27" value="1">
-                            </div>
-                        </div>
-                        <div class="gen-col gen-col-times">
-                            <div class="gen-section-label">Shift times</div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genEarlyTime">Early time</label>
-                                <select id="genEarlyTime" class="gen-select"></select>
-                            </div>
-                            <div class="gen-row">
-                                <label class="gen-label" for="genLateTime">Late time</label>
-                                <select id="genLateTime" class="gen-select"></select>
-                            </div>
-                        </div>
+                    <div class="gen-slot-table-wrap">
+                        <table class="gen-slot-table">
+                            <thead>
+                                <tr>
+                                    <th class="gen-th-time">Shift time</th>
+                                    <th>Mon–Fri</th>
+                                    <th>Sat</th>
+                                    <th>Sun</th>
+                                    <th class="gen-th-remove"><span class="sr-only">Remove</span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="genSlotRows"></tbody>
+                            <tfoot>
+                                <tr class="gen-spare-row">
+                                    <td class="gen-td-label">Spare (standby)</td>
+                                    <td><input type="number" id="genSpareWeekday" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Mon–Fri"></td>
+                                    <td><input type="number" id="genSpareSat" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Saturday"></td>
+                                    <td><input type="number" id="genSpareSun" class="gen-input" min="0" max="27" value="0" aria-label="Spare target Sunday"></td>
+                                    <td></td>
+                                </tr>
+                                <tr class="gen-total-row">
+                                    <td class="gen-td-label">Total on duty</td>
+                                    <td id="genTotWeekday">0</td>
+                                    <td id="genTotSat">0</td>
+                                    <td id="genTotSun">0</td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    <div class="gen-actions">
+                        <button class="btn-text-link" id="genAddSlotBtn" type="button">+ Add another shift</button>
+                        <button class="btn-text-link" id="genSeedBtn" type="button">↺ Reset targets from current roster</button>
                     </div>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
                     <button class="btn-action btn-primary" id="genApplyBtn">Generate link (lines 1–27)</button>
-                    <p class="gen-note">Line 28 (C. Reen's fixed link) is never changed by the generator.</p>
+                    <p class="gen-note">Each day's total can't exceed 27 — the remaining lines become rest days. Line 28 (C. Reen's fixed link) is never changed by the generator.</p>
                 </div>
             </div>
         </div>
