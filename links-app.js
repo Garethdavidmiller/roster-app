@@ -204,28 +204,38 @@ function renderGrid() {
     const tbody      = document.getElementById('linksGridBodyRows');
     const tfoot      = document.getElementById('linksCoverageFoot');
     const wrapper    = document.getElementById('linksGridWrapper');
-    const emptyState = document.getElementById(‘linksEmptyState’);
-    const saveRow    = document.getElementById(‘linksSaveRow’);
+    const emptyState = document.getElementById('linksEmptyState');
+    const saveRow    = document.getElementById('linksSaveRow');
 
     if (!design) {
-        const emptyMsg = document.getElementById(‘linksEmptyMsg’);
+        const emptyMsg = document.getElementById('linksEmptyMsg');
         if (emptyMsg) emptyMsg.textContent = loadFailed
-            ? ‘Couldn’t load the saved design — check your connection and refresh the page.’
-            : ‘No link design loaded yet — use the Auto-generate card below to create one.’;
-        if (wrapper)    wrapper.style.display    = ‘none’;
-        if (emptyState) emptyState.style.display = ‘’;
-        if (saveRow)    saveRow.style.display    = ‘none’;
-        if (tbody)      tbody.innerHTML          = ‘’;
-        if (tfoot)      tfoot.innerHTML          = ‘’;
+            ? `Couldn't load the saved design — check your connection and refresh the page.`
+            : 'No link design loaded yet — use the Auto-generate card below to create one.';
+        if (wrapper)    wrapper.style.display    = 'none';
+        if (emptyState) emptyState.style.display = '';
+        if (saveRow)    saveRow.style.display    = 'none';
+        if (tbody)      tbody.innerHTML          = '';
+        if (tfoot)      tfoot.innerHTML          = '';
+        // Open the generator card so the user can see it without having to discover
+        // the collapsed header — they've just been told to use it.
+        if (!loadFailed) {
+            const genBody    = document.getElementById('generatorBody');
+            const genChevron = document.getElementById('generatorChevron');
+            if (genBody && !genBody.classList.contains('open')) {
+                genBody.classList.add('open');
+                if (genChevron) genChevron.classList.add('open');
+            }
+        }
         renderBrushBar();
         renderCoverageChart();
         renderDesignChecks();
         return;
     }
 
-    if (emptyState) emptyState.style.display = ‘none’;
-    if (wrapper)    wrapper.style.display    = ‘’;
-    if (saveRow)    saveRow.style.display    = ‘’;
+    if (emptyState) emptyState.style.display = 'none';
+    if (wrapper)    wrapper.style.display    = '';
+    if (saveRow)    saveRow.style.display    = '';
 
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
@@ -473,7 +483,7 @@ function renderDesignChecks() {
         return;
     }
 
-    // Only check the 27 rotating lines — line 28 is fixed and does not rotate.
+    // All 28 lines rotate — every one must carry a real pattern before the link is authorised.
     const checks = runDesignChecks(design.patterns, ROTATING_LINES);
     const { weekendsOff, totalWeeks, unfilledLines, turnarounds, longestStretch, balance } = checks;
     const { early, late, spare, worked } = balance;
@@ -740,7 +750,7 @@ function updateGenTotals() {
         if (over.length) {
             if (errEl) {
                 const names = { weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' };
-                errEl.textContent = `Can’t generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
+                errEl.textContent = `Can't generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
                     `each day's total (shifts + spare) can't exceed 28 lines.`;
             }
             return;
@@ -748,7 +758,7 @@ function updateGenTotals() {
 
         const generated = generatePatterns({ slots: genSlots, spare: genSpare, lines: ROTATING_LINES });
         if (!generated) {
-            if (errEl) errEl.textContent = 'Can’t generate — check every row has a valid time and whole-number targets.';
+            if (errEl) errEl.textContent = 'Can't generate — check every row has a valid time and whole-number targets.';
             return;
         }
 
