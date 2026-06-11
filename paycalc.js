@@ -16,8 +16,9 @@ import {
 } from './paycalc-calc.js';
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { getSession, clearSession } from './session.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, trapFocus } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, trapFocus, initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations } from './paycalc-migrations.js';
@@ -27,13 +28,11 @@ import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrat
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
 // Redirect unsigned-in users to admin.html to sign in, then return here.
 // Uses window.location.replace so the back button skips this page (avoids loops).
+// getSession() (session.js) enforces the 30-day absolute / 7-day idle expiry and
+// refreshes the idle clock — a raw localStorage read would treat an expired
+// session as valid forever.
 (function () {
-  try {
-    const session = JSON.parse(lsGet('myb_admin_session') || 'null');
-    if (!(session && session.name)) {
-      window.location.replace('./admin.html?redirect=paycalc');
-    }
-  } catch {
+  if (!getSession()?.name) {
     window.location.replace('./admin.html?redirect=paycalc');
   }
 })();
@@ -48,7 +47,6 @@ const CONFIG = {
   ANCHOR_DATE:    new Date(2026, 1, 13, 12, 0, 0), // P48 payday: 13 Feb 2026, noon local — MUST be noon to preserve the calcProRateFactor half-day invariant
   PERIOD_DAYS:    28,
   PERIODS_PER_YR: P_YR,
-  CONTRACTED_HRS: 140,                   // default; per-grade value from GRADES object
   FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
   LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
   TAX_YEARS,             // imported from paycalc-calc.js
@@ -74,11 +72,9 @@ function getContr() {
 
 /** Return the teamMembers entry for the logged-in session user, or null. */
 function getLoggedMember() {
-  try {
-    const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-    if (!sess?.name) return null;
-    return teamMembers.find(m => m.name === sess.name) || null;
-  } catch { return null; }
+  const sess = getSession();
+  if (!sess?.name) return null;
+  return teamMembers.find(m => m.name === sess.name) || null;
 }
 
 /**
@@ -224,10 +220,15 @@ function getPeriods() {
 }
 
 function hasBoxingDay(p) {
-  // Check whether 26 Dec falls within the shift window (start → cutoff)
-  for (let y = p.start.getFullYear(); y <= p.cutoff.getFullYear(); y++) {
+  // Check whether 26 Dec falls within the shift window (start → cutoff).
+  // Normalise to midnight so a Boxing Day on the period-start day isn't missed —
+  // p.start/p.cutoff are noon local; Boxing Day below is midnight local.
+  // Same fix as hasBankHoliday().
+  const start  = new Date(p.start.getFullYear(),  p.start.getMonth(),  p.start.getDate());
+  const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
+  for (let y = start.getFullYear(); y <= cutoff.getFullYear(); y++) {
     const bd = new Date(y, 11, 26);
-    if (bd >= p.start && bd <= p.cutoff) return true;
+    if (bd >= start && bd <= cutoff) return true;
   }
   return false;
 }
@@ -489,8 +490,7 @@ function onPeriodChange() {
     if (!_settingsPrompted.has(ty.label)) {
       _settingsPrompted.add(ty.label);
       if (lsGet(SK.setup)) {
-        document.getElementById('settingsToggle').classList.add('open');
-        document.getElementById('settingsBody').classList.add('open');
+        setSettingsCardOpen(true);
         const notice = document.getElementById('settingsNewYearNotice');
         notice.textContent = ty.label === '2026/27'
           ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
@@ -513,8 +513,7 @@ function onPeriodChange() {
   if (_resultRateNotice) _resultRateNotice.classList.toggle('hidden', !_is2627);
 
   // Read session now so we can set the correct initial fetch state
-  let session2;
-  try { session2 = JSON.parse(lsGet('myb_admin_session') || 'null'); } catch { session2 = null; }
+  const session2 = getSession();
 
   // Reset override cache before rendering the hint — clears stale data from the
   // previous period and sets the initial fetch state.
@@ -748,6 +747,9 @@ function clearPeriod() {
   updateAdjSign();
   updateSaveStatus(pNum);
   calculate();
+  // Clearing blanks the fields programmatically — refresh the roster card so
+  // rows don't keep showing ✓ matched against now-empty fields.
+  updateRosterHint();
 }
 
 function clearRosterSuggestedAll() {
@@ -812,8 +814,12 @@ function confirmSettings() {
   lsSet(SK.setup, '1');
   document.getElementById('setupBanner').classList.add('hidden');
   document.getElementById('settingsNewYearNotice').classList.add('hidden');
-  // Update header hint to show confirmed summary
-  const rate = parseFloat(document.getElementById('hourlyRate').value).toFixed(2);
+  // Update header hint to show confirmed summary. Fall back to the grade
+  // default when the rate field is blank — parseFloat('') is NaN and would
+  // display as "£NaN/hr".
+  const _cfGrade = getGrade();
+  const rate = (parseFloat(document.getElementById('hourlyRate').value)
+    || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
   const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
   document.getElementById('settingsHint').textContent =
     `✓ ${curTy.label} — £${rate}/hr · ${code}`;
@@ -822,10 +828,19 @@ function confirmSettings() {
   fb.textContent = '✓ Settings saved';
   setTimeout(() => {
     fb.textContent = '';
-    document.getElementById('settingsToggle').classList.remove('open');
-    document.getElementById('settingsBody').classList.remove('open');
+    setSettingsCardOpen(false);
   }, 2500);
   calculate();
+}
+
+/** Programmatic open/close for the Settings card — keeps aria-expanded in
+ *  sync with the classes that initCardCollapse manages on user toggles. */
+function setSettingsCardOpen(open) {
+  const toggle = document.getElementById('settingsToggle');
+  const body   = document.getElementById('settingsBody');
+  toggle.classList.toggle('open', open);
+  body.classList.toggle('open', open);
+  toggle.setAttribute('aria-expanded', String(open));
 }
 
 // _migrateCeaKeys and runMigrations moved to paycalc-migrations.js
@@ -842,13 +857,7 @@ function loadSettings() {
   let grade = lsGet(SK.grade);
   if (!grade || !GRADES[grade]) {
     // Auto-detect from the logged-in member's role
-    try {
-      const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-      if (sess?.name) {
-        const member = teamMembers.find(m => m.name === sess.name);
-        if (member?.role === 'CES') grade = 'ces';
-      }
-    } catch(e) {}
+    if (getLoggedMember()?.role === 'CES') grade = 'ces';
   }
   if (grade && GRADES[grade]) {
     document.getElementById('gradeSelect').value = grade;
@@ -859,8 +868,7 @@ function loadSettings() {
   // Settings card starts closed in HTML. Open it only for first-time users.
   // (Previously started open and was removed for returning users — caused a visible flash.)
   if (!done) {
-    document.getElementById('settingsToggle').classList.add('open');
-    document.getElementById('settingsBody').classList.add('open');
+    setSettingsCardOpen(true);
   } else {
     // Mark all tax years confirmed if the global setup flag was already set (v1.13+)
     CONFIG.TAX_YEARS.forEach(ty => {
@@ -1016,7 +1024,6 @@ function updateRosterHint() {
   // Day list visibility — show/hide toggle based on whether there is any data.
   // The list itself is only collapsed on period change (handled in onPeriodChange),
   // so a Firestore refresh does not close an open day list mid-review.
-  const dayList    = document.getElementById('rosterDayList');
   const daysToggle = document.getElementById('rosterDaysToggle');
   if (daysToggle) daysToggle.style.display = s.days.length ? '' : 'none';
   renderRosterDayList(s.days);
@@ -1121,6 +1128,9 @@ function fillCategoryFromRoster(cat) {
     elM.classList.add('roster-suggested');
   }
   autosave();
+  // Programmatic value changes don't fire the input listeners — refresh the
+  // roster card so the tapped row flips from "→ Fill" to "✓ matched".
+  updateRosterHint();
 }
 
 /** Applies a suggestion object to all H/M field pairs.
@@ -1160,6 +1170,9 @@ function fillFromRoster() {
   if (!s) return;
   _applyRosterSuggestion(s, true);
   autosave();
+  // Refresh row states (✓ matched) before the confirmation text swap below,
+  // so the restored text after the timeout is the canonical hint.
+  updateRosterHint();
   // Brief confirmation — tap Clear all entries to undo
   const hint = document.getElementById('rosterHintText');
   if (hint) {
@@ -1422,8 +1435,11 @@ function calculate() {
       _bannerEl.firstChild?.nodeType === Node.TEXT_NODE
         ? (_bannerEl.firstChild.nodeValue = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `)
         : (_bannerEl.textContent = `✓ Includes back pay lump sum of ${fmt(_bpThisPeriod)} · `);
-      if (!_bannerEl.querySelector('a')) {
-        const _bpLink = document.createElement('a');
+      if (!_bannerEl.querySelector('button')) {
+        // <button>, not href-less <a> — an anchor without href is mouse-only
+        // (no keyboard focus, no Enter activation).
+        const _bpLink = document.createElement('button');
+        _bpLink.type = 'button';
         _bpLink.textContent = 'view back pay card';
         _bpLink.addEventListener('click', () => {
           document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth' });
@@ -1503,13 +1519,17 @@ function calcHPP() {
 
   periods.forEach(p => {
     try {
+      // Variable back pay was earned in past periods but received in _bpPNum.
+      // Added before the saved-data check so it still counts when the lump-sum
+      // period itself has no hours entered yet.
+      if (_bpVarAmount > 0 && p.num === _bpPNum) totalVar += _bpVarAmount;
+
       // G. Miller: use hardcoded payslip varPay when available
       const _hppActualKey = formatISO(p.payday);
       const _hppActual = getLoggedMember()?.name === 'G. Miller'
         ? MILLER_ACTUALS[_hppActualKey] : null;
       if (_hppActual?.varPay != null) {
         totalVar += _hppActual.varPay;
-        if (_bpVarAmount > 0 && p.num === _bpPNum) totalVar += _bpVarAmount;
         pCount++;
         usingActuals = true;
         return;
@@ -1521,9 +1541,6 @@ function calcHPP() {
       if (isDataEmpty(d)) return;
       pCount++;
       totalVar += _varPayForPeriod(p, d, rate);
-      // Variable back pay was earned in past periods but received in _bpPNum.
-      // Adding it here keeps HPP correct when the new rate hasn't yet been applied to settings.
-      if (_bpVarAmount > 0 && p.num === _bpPNum) totalVar += _bpVarAmount;
     } catch(e) {}
   });
 
@@ -1534,7 +1551,10 @@ function calcHPP() {
 
   // Persist the running estimate so it survives when the user moves to the next tax year.
   // The prior year section reads this key to show the carry-forward amount.
+  // Delete the key when the estimate drops to zero — otherwise a stale figure
+  // would silently be added to the January payslip after entries are cleared.
   if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
+  else         lsDel(hppEstKey(ty));
 
   // Current year always shows the estimate (the confirmed actual lives in the prior year section
   // once the user has moved to the following tax year).
@@ -1661,44 +1681,34 @@ function updatePriorHpp(ty) {
 }
 
 // ── CARD COLLAPSE TOGGLES ─────────────────────────────────────────────────────
-function toggleSettingsCard() {
-  document.getElementById('settingsToggle').classList.toggle('open');
-  document.getElementById('settingsBody').classList.toggle('open');
-}
+// All collapsible card headers are wired through the shared initCardCollapse
+// (overlay.js) in the listener section below — it adds keyboard (Enter/Space)
+// and aria-expanded support that the old per-card toggle functions lacked.
 
-function togglePayslipCard() {
-  document.getElementById('payslipCardToggle').classList.toggle('open');
-  document.getElementById('payslipCardBody').classList.toggle('open');
-}
-
-function toggleHppCard() {
-  document.getElementById('hppCardToggle').classList.toggle('open');
-  document.getElementById('hppCardBody').classList.toggle('open');
-}
-
-function toggleBackPayCard() {
-  const toggle = document.getElementById('backPayCardToggle');
-  const body   = document.getElementById('backPayBody');
-  const opening = !body.classList.contains('open');
-  toggle.classList.toggle('open');
-  body.classList.toggle('open');
-  if (opening) {
-    // Pre-fill London Allowance — old = pre-award rate, new = current rate
-    const pNum = currentPeriodNum();
-    const curP = getPeriods().find(x => x.num === pNum);
-    const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-    const oldLondonEl = document.getElementById('oldLondon');
-    const newLondonEl = document.getElementById('newLondon');
-    if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
-    if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
-    // Auto-select April — Chiltern's pay anniversary is always 1 April
-    const fromSel = document.getElementById('backPayFrom');
-    if (fromSel && !fromSel.value) fromSel.value = 48 + ty.first;
-    calcBackPay();
-  }
+/** Pre-fill the Back Pay card inputs when it opens (initCardCollapse onToggle). */
+function prefillBackPay() {
+  // Pre-fill London Allowance — old = pre-award rate, new = current rate
+  const pNum = currentPeriodNum();
+  const curP = getPeriods().find(x => x.num === pNum);
+  const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  const oldLondonEl = document.getElementById('oldLondon');
+  const newLondonEl = document.getElementById('newLondon');
+  if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
+  if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
+  // Auto-select April — Chiltern's pay anniversary is always 1 April
+  const fromSel = document.getElementById('backPayFrom');
+  if (fromSel && !fromSel.value) fromSel.value = 48 + ty.first;
+  calcBackPay();
 }
 
 // ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
+
+/** Tax year the back-pay award belongs to — derived from the "backdated from"
+ *  period, NOT the period being viewed (which may be a different tax year). */
+function _bpAwardTaxYear(fromPNum) {
+  const p = fromPNum ? getPeriods().find(x => x.num === fromPNum) : null;
+  return getTaxYearForOffset((p ? p.num : currentPeriodNum()) - 48);
+}
 
 function calcBackPay() {
   const oldRate   = parseFloat(document.getElementById('oldRate').value);
@@ -1827,13 +1837,18 @@ function calcBackPay() {
       noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
     }
 
-    // Apply new rate button — shown once rates are confirmed
+    // Apply new rate button — shown once rates are confirmed.
+    // "Already applied" compares against the stored rate for the AWARD's tax
+    // year, not the rate field (which shows the rate of whichever tax year is
+    // being viewed and may legitimately differ).
     if (applyWrap && applyBtn && hasRate) {
-      const currentRate = numVal('hourlyRate');
-      const alreadyApplied = Math.abs(currentRate - newRate) < 0.001;
+      const _awardTy = _bpAwardTaxYear(fromPNum);
+      let _storedRates = {};
+      try { _storedRates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) {}
+      const alreadyApplied = Math.abs((parseFloat(_storedRates[_awardTy.label]) || 0) - newRate) < 0.001;
       applyBtn.textContent = alreadyApplied
-        ? `✓ New rate already applied — £${newRate.toFixed(2)}/hr`
-        : `Apply new rate to settings — £${newRate.toFixed(2)}/hr →`;
+        ? `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${_awardTy.label})`
+        : `Apply new rate to settings — £${newRate.toFixed(2)}/hr (${_awardTy.label}) →`;
       applyBtn.disabled = alreadyApplied;
       applyWrap.style.display = 'block';
     } else if (applyWrap) {
@@ -1875,14 +1890,27 @@ function toggleBpBreakdown() {
 function applyNewRate() {
   const newRate = parseFloat(document.getElementById('newRateInput').value);
   if (!newRate) return;
-  document.getElementById('hourlyRate').value = newRate.toFixed(2);
-  saveSettings();
+  // Write the rate against the AWARD's tax year. Going through the rate field +
+  // saveSettings() would store it on whichever tax year is being viewed —
+  // silently corrupting last year's rate if an old period happens to be open.
+  const fromPNum = +(document.getElementById('backPayFrom')?.value || 0);
+  const awardTy  = _bpAwardTaxYear(fromPNum);
+  let rates = {};
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
+  rates[awardTy.label] = newRate;
+  lsSet(SK.rates, JSON.stringify(rates));
+  lsSet(SK.rate,  newRate.toFixed(2)); // legacy single-rate fallback for years with no stored rate
+  // Refresh the rate field for the tax year being viewed (it may be a different
+  // year, in which case its rate is correctly left unchanged).
+  const curP  = getPeriods().find(x => x.num === currentPeriodNum());
+  const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  updateRateForPeriod(curTy);
   calculate();
   // Update button state to reflect it's been applied
   const btn = document.getElementById('applyRateBtn');
   const fb  = document.getElementById('applyRateFeedback');
-  if (btn) { btn.textContent = `✓ New rate already applied — £${newRate.toFixed(2)}/hr`; btn.disabled = true; }
-  if (fb)  { fb.textContent  = 'Settings updated — all future periods will now calculate at the new rate.'; }
+  if (btn) { btn.textContent = `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${awardTy.label})`; btn.disabled = true; }
+  if (fb)  { fb.textContent  = `Settings updated — periods in ${awardTy.label} will now calculate at the new rate.`; }
 }
 
 // ── HPP FORMULA NOTE TOGGLE ───────────────────────────────────────────────────
@@ -1930,6 +1958,33 @@ function toggleBD() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
+
+// Tax-year quick-jump tabs — generated from TAX_YEARS so the April rollover only
+// touches paycalc-calc.js (no hand-edited tab markup). Must run before
+// buildPeriodSelect(): onPeriodChange → updateTyTabs looks the tabs up by id.
+(function buildTyTabs() {
+  const wrap = document.getElementById('tyTabs');
+  if (!wrap) return;
+  CONFIG.TAX_YEARS.forEach((ty, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ty-tab';
+    b.id = `tyTab${i}`;
+    b.textContent = ty.label;
+    b.addEventListener('click', () => jumpToTaxYear(i));
+    wrap.appendChild(b);
+  });
+})();
+
+// Grade hint — rates interpolated from GRADES so the April pay award is a
+// one-place update (paycalc-calc.js), not a hunt through hardcoded HTML copy.
+(function fillGradeRateHint() {
+  const el = document.getElementById('gradeRateHint');
+  if (!el) return;
+  el.textContent = 'CEA = Customer Experience Ambassador · CES = Customer Experience Supervisor. '
+    + `Your grade sets the default hourly rate below. CEA: £${GRADES.cea.rate.toFixed(2)}/hr · CES: £${GRADES.ces.rate.toFixed(2)}/hr.`;
+})();
+
 loadSettings();
 buildPeriodSelect();
 
@@ -1979,11 +2034,14 @@ document.getElementById('peerPlus').addEventListener('click',  () => stepPeer(1)
   document.getElementById(id).addEventListener('input', calcBackPay);
 });
 
-// Card collapse toggles
-document.getElementById('settingsToggle').addEventListener('click', toggleSettingsCard);
-document.getElementById('payslipCardToggle').addEventListener('click', togglePayslipCard);
-document.getElementById('hppCardToggle').addEventListener('click', toggleHppCard);
-document.getElementById('backPayCardToggle').addEventListener('click', toggleBackPayCard);
+// Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
+// aria-expanded support. Passing the header id as the chevron id toggles .open
+// on the header itself, which drives the .card-toggle-arrow rotation in CSS.
+initCardCollapse('settingsToggle',    'settingsBody',    'settingsToggle');
+initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
+initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
+initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
+  open => { if (open) prefillBackPay(); });
 
 // Back-pay inputs + period selectors + apply rate
 document.getElementById('bpBreakdownBtn').addEventListener('click', toggleBpBreakdown);
@@ -2059,7 +2117,10 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
     resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
   );
   stickyBar.addEventListener('keydown', e => {
-    if (e.key === 'Enter' || e.key === ' ') resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault(); // Space must not also scroll the page
+      resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
   });
 })();
 
@@ -2085,9 +2146,7 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
   });
 });
 
-// Tax year tabs
-document.getElementById('tyTab0').addEventListener('click', () => jumpToTaxYear(0));
-document.getElementById('tyTab1').addEventListener('click', () => jumpToTaxYear(1));
+// Tax year tab listeners are attached when the tabs are generated (see INIT).
 
 // Settings inputs
 document.getElementById('gradeSelect').addEventListener('change', () => {
@@ -2177,7 +2236,9 @@ document.getElementById('hppToggleBtn').addEventListener('click', toggleHppNote)
 document.getElementById('disclaimerToggle').addEventListener('click', toggleDisclaimer);
 document.getElementById('hppBackPayLink').addEventListener('click', () => {
   const body = document.getElementById('backPayBody');
-  if (!body.classList.contains('open')) toggleBackPayCard();
+  // Route through the header click so initCardCollapse keeps aria-expanded in
+  // sync and runs the open-time pre-fill.
+  if (!body.classList.contains('open')) document.getElementById('backPayCardToggle').click();
   document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
@@ -2384,11 +2445,8 @@ registerServiceWorker();
   const result = document.getElementById('decimalHrsResult');
   if (!toggle || !body || !input || !result) return;
 
-  toggle.addEventListener('click', () => {
-    const open = toggle.classList.toggle('open');
-    body.classList.toggle('open', open);
-    if (open) input.focus();
-  });
+  initCardCollapse('decimalConverterToggle', 'decimalConverterBody',
+    'decimalConverterToggle', open => { if (open) input.focus(); });
 
   function convert() {
     const val = parseFloat(input.value);
@@ -2432,7 +2490,7 @@ initNavPanel({
     isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _paycalcMember ? () => {
-        lsDel('myb_admin_session');
+        clearSession(); // clears localStorage AND signs out Firebase Auth
         window.location.href = './index.html';
     } : null,
 });

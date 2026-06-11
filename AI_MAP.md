@@ -125,7 +125,7 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `getSurname(name)` — derives Firebase Auth password from display name
 - `getSession()` / `saveSession(name)` / `clearSession()` — localStorage wrappers for the session object
 - `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`. Returns `Promise<boolean>`.
-- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`
+- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`, `paycalc.js` (v12.49 — getSession/clearSession only, so paycalc enforces session expiry and refreshes the idle clock like every other page)
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
