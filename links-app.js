@@ -69,6 +69,9 @@ const ROTATING_LINES = 28;
 /** Firestore collection holding all named design documents. */
 const DESIGNS_COL = collection(db, 'linkDesigns');
 
+/** localStorage key remembering the last active design across visits. */
+const ACTIVE_KEY = 'myb_links_active_design';
+
 // Shift option lists derived from actual roster data so they always match real shifts.
 const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
     const all = new Set();
@@ -191,15 +194,15 @@ function initDesignPicker() {
     document.getElementById('designChips')?.addEventListener('click', e => {
         const renameBtn = e.target.closest('.design-chip-rename');
         const deleteBtn = e.target.closest('.design-chip-delete');
-        const chip      = e.target.closest('.design-chip');
-        if (renameBtn)       { e.stopPropagation(); renameDesign(renameBtn.dataset.id); }
-        else if (deleteBtn)  { e.stopPropagation(); deleteDesign(deleteBtn.dataset.id); }
-        else if (chip)       selectDesign(chip.dataset.id);
+        const nameBtn   = e.target.closest('.design-chip-name');
+        if (renameBtn)      renameDesign(renameBtn.dataset.id);
+        else if (deleteBtn) deleteDesign(deleteBtn.dataset.id);
+        else if (nameBtn)   selectDesign(nameBtn.dataset.id);
     });
     // Delegated clicks on compare chips
     document.getElementById('compareChips')?.addEventListener('click', e => {
-        const chip = e.target.closest('.design-chip');
-        if (chip) selectCompareDesign(chip.dataset.id);
+        const nameBtn = e.target.closest('.design-chip-name');
+        if (nameBtn) selectCompareDesign(nameBtn.dataset.id);
     });
     document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
     document.getElementById('dupDesignBtn')?.addEventListener('click',     duplicateDesign);
@@ -220,7 +223,9 @@ function renderDesignPicker() {
     // Only show the picker once at least one design exists
     wrap.style.display = designs.length > 0 ? '' : 'none';
 
-    // Render main design chips
+    // Render main design chips. A chip is a <div> wrapping separate <button>s —
+    // buttons must NOT nest (the HTML parser force-closes an open <button> when
+    // another one starts, which silently breaks the markup).
     if (chipsEl) {
         const canDelete = designs.length > 1;
         chipsEl.innerHTML = designs.map(d => {
@@ -232,10 +237,15 @@ function renderDesignPicker() {
                   `title="Delete" aria-label="Delete ${escapeHtml(d.name)}"` +
                   `${canDelete ? '' : ' disabled'}>✕</button>`
                 : '';
-            return `<button class="design-chip${isActive ? ' design-chip--active' : ''}" ` +
-                `data-id="${escapeHtml(d.id)}">${escapeHtml(d.name)}${actions}</button>`;
+            return `<div class="design-chip${isActive ? ' design-chip--active' : ''}">` +
+                `<button class="design-chip-name" data-id="${escapeHtml(d.id)}" type="button"` +
+                `${isActive ? ' aria-current="true"' : ''}>${escapeHtml(d.name)}</button>${actions}</div>`;
         }).join('');
     }
+
+    // Print-only label naming the design being printed
+    const nameLabel = document.getElementById('printDesignName');
+    if (nameLabel) nameLabel.textContent = design?.name ?? '';
 
     // Duplicate button state
     if (dupBtn) dupBtn.disabled = !activeDesignId;
@@ -254,8 +264,9 @@ function renderDesignPicker() {
             .filter(d => d.id !== activeDesignId)
             .map(d => {
                 const isActive = d.id === compareDesignId;
-                return `<button class="design-chip${isActive ? ' design-chip--active' : ''}" ` +
-                    `data-id="${escapeHtml(d.id)}">${escapeHtml(d.name)}</button>`;
+                return `<div class="design-chip${isActive ? ' design-chip--active' : ''}">` +
+                    `<button class="design-chip-name" data-id="${escapeHtml(d.id)}" type="button">` +
+                    `${escapeHtml(d.name)}</button></div>`;
             }).join('');
     }
 }
@@ -280,14 +291,14 @@ async function createDesign() {
     }
 }
 
-/** Duplicate the current design as a new named design. */
+/** Duplicate the current design as a new named design.
+ * Copies the LIVE in-memory patterns, so unsaved edits are included —
+ * "duplicate what I'm looking at", not "duplicate the last save". */
 async function duplicateDesign() {
-    if (!activeDesignId) return;
-    const source = designs.find(x => x.id === activeDesignId);
-    const baseName = (design?.name || source?.name || 'Design') + ' copy';
-    const name = prompt('Name for the duplicate:', baseName)?.trim();
+    if (!activeDesignId || !design) return;
+    const name = prompt('Name for the duplicate:', `${design.name || 'Design'} copy`)?.trim();
     if (!name) return;
-    const patterns = deepCopyPatterns(source?.patterns ?? {});
+    const patterns = deepCopyPatterns(design.patterns);
     try {
         const ref = await addDoc(DESIGNS_COL, {
             name,
@@ -319,12 +330,10 @@ async function renameDesign(id) {
     }
 }
 
-/** Delete a design (with confirmation). */
+/** Delete a design (with confirmation). The last design can't be deleted —
+ * the ✕ button is disabled in that state, so this guard is just a backstop. */
 async function deleteDesign(id) {
-    if (designs.length <= 1) {
-        alert('You need at least one design — create another before deleting this one.');
-        return;
-    }
+    if (designs.length <= 1) return;
     const d = designs.find(x => x.id === id);
     if (!d || !confirm(`Delete "${d.name}"? This can't be undone.`)) return;
     try {
@@ -353,6 +362,7 @@ function selectDesign(id) {
 function _activateDesign(d) {
     if (!d) return;
     activeDesignId  = d.id;
+    lsSet(ACTIVE_KEY, d.id);
     design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
     loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
     dirty           = false;
@@ -534,6 +544,7 @@ function renderGrid() {
         if (saveRow)    saveRow.style.display    = 'none';
         if (tbody)      tbody.innerHTML          = '';
         if (tfoot)      tfoot.innerHTML          = '';
+        document.body.classList.remove('links-compare-on');
         // Auto-expand the generator so the user sees it without having to discover it
         if (!loadFailed) {
             const genBody    = document.getElementById('generatorBody');
@@ -552,14 +563,11 @@ function renderGrid() {
     if (emptyState) emptyState.style.display = 'none';
     if (saveRow)    saveRow.style.display    = '';
 
-    // In compare mode the main grid is replaced by the compare pair
-    if (wrapper) wrapper.style.display = compareMode ? 'none' : '';
-
-    if (compareMode) {
-        if (tbody) tbody.innerHTML = '';
-        if (tfoot) tfoot.innerHTML = '';
-        return;
-    }
+    // In compare mode the main grid is hidden on SCREEN ONLY (body class +
+    // screen-scoped CSS) but stays fully rendered — print must always output
+    // the active design, and an inline display:none would leak into print.
+    if (wrapper) wrapper.style.display = '';
+    document.body.classList.toggle('links-compare-on', compareMode);
 
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
@@ -1108,12 +1116,15 @@ async function saveChanges() {
             });
             activeDesignId = ref.id;
             design.id = ref.id;
+            lsSet(ACTIVE_KEY, ref.id);
             // Read back to capture the server timestamp for concurrency tracking
+            let savedAt = null;
             try {
                 const snap = await getDoc(doc(db, 'linkDesigns', ref.id));
-                loadedUpdatedAt = snap.data()?.updatedAt?.toMillis?.() ?? null;
+                savedAt = snap.data()?.updatedAt ?? null;
+                loadedUpdatedAt = savedAt?.toMillis?.() ?? null;
             } catch { loadedUpdatedAt = null; }
-            const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: null, updatedBy: currentUser };
+            const newEntry = { id: ref.id, name: design.name, patterns: deepCopyPatterns(design.patterns), updatedAt: savedAt, updatedBy: currentUser };
             designs.push(newEntry);
             dirty = false;
             updateSaveBtn();
@@ -1215,11 +1226,16 @@ async function loadDesigns() {
             });
         }
 
+        // Sort by name — getDocs returns documents in (random) auto-ID order,
+        // which would shuffle the picker between machines and visits.
+        named.sort((a, b) => a.name.localeCompare(b.name, 'en', { sensitivity: 'base' }));
         designs = named;
 
         if (designs.length > 0) {
-            const d = designs[0];
+            // Re-open the design that was active last visit, else the first
+            const d = designs.find(x => x.id === lsGet(ACTIVE_KEY)) || designs[0];
             activeDesignId  = d.id;
+            lsSet(ACTIVE_KEY, d.id);
             design          = { id: d.id, name: d.name, patterns: deepCopyPatterns(d.patterns) };
             loadedUpdatedAt = d.updatedAt?.toMillis?.() ?? null;
             updateLastSaved(d.updatedBy, d.updatedAt);
