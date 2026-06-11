@@ -9,24 +9,26 @@ import { buildRangePicker } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
 
+let _sickFeedbackTimer = null;
+
 /**
  * Sets up all Sick Days Recording interactivity.
  *
  * @param {object} deps
  * @param {HTMLSelectElement} deps.sickMember           The sick member dropdown
- * @param {HTMLSelectElement} deps.fieldMember          The week-editor member dropdown (read-only here)
- * @param {HTMLInputElement}  deps.fieldDate            The week-editor date input
  * @param {Function}          deps.syncSickMemberDisplay Updates the sick read-only member label
  * @param {Function}          deps.populateMemberDropdown Fills a <select> with teamMembers
  * @param {string|null}       deps.lastMember           Last-used member name from localStorage
+ * @param {Function}          deps.updateALBanner       Refreshes the AL entitlement banner
+ * @param {Function}          deps.updateALBookedBox    Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox  Refreshes the sick booked-periods box
  * @param {string|null}       deps.currentUser          Logged-in user name (for changedBy field)
  * @param {Function}          deps.showInChangeAShift   Jumps the Change a Shift section to a member + date
  */
 export function initSickSection({
-    sickMember, fieldMember, fieldDate,
+    sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateSickBookedBox, currentUser, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
 }) {
 const sickFrom     = document.getElementById('sickFrom');
 const sickTo       = document.getElementById('sickTo');
@@ -152,15 +154,20 @@ sickSaveBtn.addEventListener('click', async () => {
 
         sickFeedback.className = 'feedback success';
         sickFeedback.textContent = `✓ Recorded ${workingCount} absence day${workingCount > 1 ? 's' : ''} for ${member}`;
-        setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
+        clearTimeout(_sickFeedbackTimer);
+        _sickFeedbackTimer = setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
 
         sickPicker.reset();
         updateSickPreview();
+        // Sick recording can overwrite AL days — refresh AL counts too.
+        updateALBanner();
+        updateALBookedBox();
         updateSickBookedBox();
         // Jump the Change a Shift section to show what was just recorded.
         showInChangeAShift?.(member, dates[0]);
     } catch (err) {
         console.error('[Admin] Sick save failed:', err);
+        clearTimeout(_sickFeedbackTimer);
         sickFeedback.className = 'feedback error';
         sickFeedback.textContent = err.message === 'auth/session-expired'
             ? '⚠ Session expired — please sign out and sign back in.'

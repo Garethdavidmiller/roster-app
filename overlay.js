@@ -97,8 +97,10 @@ export function trapFocus(container, e) {
 
 /**
  * Wire up a collapsible card header: clicking the header toggles .open on
- * the body and (optionally) the chevron. Safe to call before the page is
- * fully loaded — no-op if the header or body element is not found.
+ * the body and (optionally) the chevron. Adds keyboard (Enter/Space) and
+ * ARIA support so screen-reader users can operate the collapse.
+ * Safe to call before the page is fully loaded — no-op if the header or
+ * body element is not found.
  * @param {string} headerId   - id of the clickable header element
  * @param {string} bodyId     - id of the collapsible body element
  * @param {string} [chevronId] - optional id of the ▾ chevron element
@@ -108,8 +110,25 @@ export function initCardCollapse(headerId, bodyId, chevronId) {
     const body    = document.getElementById(bodyId);
     const chevron = chevronId ? document.getElementById(chevronId) : null;
     if (!header || !body) return;
-    header.addEventListener('click', () => {
+
+    // Make non-button/non-anchor headers keyboard-reachable
+    const tag = header.tagName;
+    if (tag !== 'BUTTON' && tag !== 'A') {
+        header.setAttribute('role', 'button');
+        if (!header.hasAttribute('tabindex')) header.setAttribute('tabindex', '0');
+    }
+
+    function toggle() {
         const open = body.classList.toggle('open');
         if (chevron) chevron.classList.toggle('open', open);
+        header.setAttribute('aria-expanded', String(open));
+    }
+
+    // Initialise aria-expanded from the current DOM state
+    header.setAttribute('aria-expanded', String(body.classList.contains('open')));
+
+    header.addEventListener('click', toggle);
+    header.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
     });
 }

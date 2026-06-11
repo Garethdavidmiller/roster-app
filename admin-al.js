@@ -4,7 +4,7 @@
 
 import { teamMembers, getALEntitlement, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
 import { isRestShift } from './app-override-utils.js';
-import { getAllOverrides, recordRangeOverrides, formatDisplay, renderWeekGrid, renderTable } from './admin-overrides.js';
+import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
@@ -14,6 +14,7 @@ const esc = escapeHtml;
 // the user accepts saving over their AL entitlement.
 let _alBookingConfirmed = false;
 let _alSaveBtnRef       = null;
+let _alFeedbackTimer    = null;
 
 /** Called by the AL confirm bar "Save anyway" button in admin-app.js. */
 export function triggerConfirmedALSave() {
@@ -26,28 +27,23 @@ export function triggerConfirmedALSave() {
  *
  * @param {object} deps
  * @param {HTMLSelectElement} deps.alMember            The AL member dropdown
- * @param {HTMLSelectElement} deps.sickMember          The sick member dropdown (kept in sync)
- * @param {HTMLSelectElement} deps.fieldMember         The week-editor member dropdown (kept in sync)
- * @param {HTMLInputElement}  deps.fieldDate           The week-editor date input
  * @param {Function}          deps.syncMemberDisplay   Updates the AL read-only member label
- * @param {Function}          deps.syncSickMemberDisplay Updates the sick read-only member label
  * @param {Function}          deps.populateMemberDropdown Fills a <select> with teamMembers
  * @param {string|null}       deps.lastMember          Last-used member name from localStorage
- * @param {Function}          deps.confirmNavigate     Shows the unsaved-changes banner; returns true if no unsaved changes
  * @param {Function}          deps.updateALBanner      Refreshes the AL entitlement banner
  * @param {Function}          deps.updateALBookedBox   Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox Refreshes the sick booked-periods box
  * @param {string|null}       deps.currentUser         Logged-in user name (for changedBy field)
  * @param {Function}          deps.showALConfirm       Shows the over-entitlement confirmation bar
- * @param {Function}          deps.lsSet               Safe localStorage.setItem wrapper
+ * @param {Function}          deps.hideALConfirm       Hides the over-entitlement confirmation bar
  * @param {Function}          deps.showInChangeAShift  Jumps the Change a Shift section to a member + date
  */
 export function initALSection({
-    alMember, sickMember, fieldMember, fieldDate,
-    syncMemberDisplay, syncSickMemberDisplay,
+    alMember,
+    syncMemberDisplay,
     populateMemberDropdown, lastMember,
-    confirmNavigate, updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, lsSet, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox,
+    currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
 }) {
 const alFrom     = document.getElementById('alFrom');
 const alTo       = document.getElementById('alTo');
@@ -60,30 +56,8 @@ populateMemberDropdown(alMember);
 if (lastMember) alMember.value = lastMember;
 syncMemberDisplay();
 
-// Sync alMember with the main member picker (keep them in step).
-// Mirrors the fieldMember change handler — calls confirmNavigate so unsaved
-// week-grid changes get the same "Discard or keep?" prompt.
-alMember.addEventListener('change', () => {
-    if (!alMember.value) return;
-    const chosen = alMember.value;
-    const go = () => {
-        updateALBanner();
-        updateALBookedBox();
-        updateSickBookedBox();
-        updateAlPreview();
-        fieldMember.value  = chosen;
-        sickMember.value   = chosen;
-        syncMemberDisplay();
-        syncSickMemberDisplay();
-        lsSet('adminLastMember', chosen);
-        lsSet('myb_roster_selected_member', chosen);
-        renderWeekGrid();
-        renderTable();
-    };
-    if (confirmNavigate(go)) { go(); return; }
-    // Revert dropdown while banner waits for user decision
-    alMember.value = fieldMember.value;
-});
+// alMember is kept in sync by the fieldMember change handler in admin-app.js.
+// No separate change handler here — it was never reachable because alMember is hidden.
 
 function getAlDates() {
     if (!alFrom.value || !alTo.value) return [];
@@ -172,41 +146,48 @@ function updateAlPreview() {
     alSaveBtn.disabled = workDays === 0;
 }
 
-alFrom.addEventListener('change', () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
-alTo.addEventListener('change',   () => { updateAlPreview(); updateALBanner(); updateALBookedBox(); });
+alFrom.addEventListener('change', () => { hideALConfirm?.(); updateAlPreview(); updateALBanner(); updateALBookedBox(); });
+alTo.addEventListener('change',   () => { hideALConfirm?.(); updateAlPreview(); updateALBanner(); updateALBookedBox(); });
 const alPicker = buildRangePicker('al');
 updateAlPreview();
 
 alSaveBtn.addEventListener('click', async () => {
+    // Capture and immediately reset the confirmed flag so early returns never
+    // leave it set true, which would silently skip the entitlement check on
+    // the next save attempt.
+    const confirmedOverLimit = _alBookingConfirmed;
+    _alBookingConfirmed = false;
+
     const member = alMember.value;
     const dates  = getAlDates();
     if (!member || !dates || !dates.length) return;
 
-    // Annual leave entitlement check (skip if user already confirmed via the bar)
+    // Annual leave entitlement check — runs for each calendar year spanned by
+    // the booking (a Dec–Jan range touches two years).
     const memberObj = teamMembers.find(m => m.name === member);
-    if (!_alBookingConfirmed) {
-        // Use the year from the booking dates, not the current calendar year
-        const yearStr        = alFrom.value ? alFrom.value.substring(0, 4) : String(new Date().getFullYear());
-        const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
-        // Sundays are uncontracted — exclude from entitlement counts
-        const existingAL     = getAllOverrides().filter(o =>
-            o.memberName === member &&
-            o.type       === 'annual_leave' &&
-            o.date       && o.date.startsWith(yearStr) && !isSunday(o.date)
-        ).length;
-        const newALInYear    = dates.filter(d => d.startsWith(yearStr) && !isSunday(d)).length;
-        const projectedTotal = existingAL + newALInYear;
-        if (projectedTotal > entitlement) {
-            const over = projectedTotal - entitlement;
-            showALConfirm(
-                `${member} will be ${over} day${over !== 1 ? 's' : ''} over their AL entitlement`,
-                `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
-                null // null = AL booking path (not week editor)
-            );
-            return;
+    if (!confirmedOverLimit) {
+        const workingDates = dates.filter(d => !isSunday(d));
+        const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
+        for (const yearStr of years) {
+            const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
+            const existingAL     = getAllOverrides().filter(o =>
+                o.memberName === member &&
+                o.type       === 'annual_leave' &&
+                o.date       && o.date.startsWith(yearStr) && !isSunday(o.date)
+            ).length;
+            const newALInYear    = workingDates.filter(d => d.startsWith(yearStr)).length;
+            const projectedTotal = existingAL + newALInYear;
+            if (projectedTotal > entitlement) {
+                const over = projectedTotal - entitlement;
+                showALConfirm(
+                    `${member} will be ${over} day${over !== 1 ? 's' : ''} over their ${yearStr} AL entitlement`,
+                    `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
+                    null // null = AL booking path (not week editor)
+                );
+                return;
+            }
         }
     }
-    _alBookingConfirmed = false; // reset after use
 
     alFeedback.className = 'feedback';
     alSaveBtn.disabled    = true;
@@ -225,7 +206,8 @@ alSaveBtn.addEventListener('click', async () => {
 
         alFeedback.className = 'feedback success';
         alFeedback.textContent = `✓ Recorded ${workingCount} day${workingCount > 1 ? 's' : ''} of Annual Leave for ${member}`;
-        setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
+        clearTimeout(_alFeedbackTimer);
+        _alFeedbackTimer = setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
 
         alPicker.reset();
         updateAlPreview();
@@ -236,6 +218,7 @@ alSaveBtn.addEventListener('click', async () => {
         showInChangeAShift?.(member, dates[0]);
     } catch (err) {
         console.error('[Admin] AL save failed:', err);
+        clearTimeout(_alFeedbackTimer);
         alFeedback.className = 'feedback error';
         alFeedback.textContent = err.message === 'auth/session-expired'
             ? '⚠ Session expired — please sign out and sign back in.'

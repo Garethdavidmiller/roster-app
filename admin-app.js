@@ -17,7 +17,7 @@
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY, warnIfCulturalCalendarMissingYear } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn } from './admin-overrides.js';
+import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
@@ -105,13 +105,16 @@ function initLoginOverlay() {
 
     let _failCount = 0;
     let _lockedUntil = 0;
+    let _attempting = false;
     // Note: this client-side lockout is a UX measure only — it resets on page reload.
     // Real rate limiting is enforced server-side by Firebase Auth.
 
     async function attempt() {
-        if (Date.now() < _lockedUntil) return;
+        if (_attempting || Date.now() < _lockedUntil) return;
+        _attempting = true;
         const name = nameSelect.value;
-        const pw   = passwordInput.value.trim().toLowerCase();
+        // Strip non-alpha and lowercase to match normaliseSurname() in firebase-client.js
+        const pw   = passwordInput.value.toLowerCase().replace(/[^a-z]/g, '');
         errorEl.classList.remove('visible');
 
         if (!gradeSelect.value) {
@@ -159,10 +162,11 @@ function initLoginOverlay() {
         } else {
             window.location.reload();
         }
+        // _attempting stays true — page is reloading; no need to reset.
     }
 
-    submitBtn.addEventListener('click', attempt);
-    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt(); });
+    submitBtn.addEventListener('click', () => { attempt().finally(() => { _attempting = false; }); });
+    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().finally(() => { _attempting = false; }); });
 }
 
 // ---- Lightbox ----
@@ -970,6 +974,13 @@ saveBtn.addEventListener('click', async () => {
     }
 });
 
+// ── Staged bar — duplicates Save / Discard at the bottom so users don't scroll up ──
+document.getElementById('stagedSaveBtn')?.addEventListener('click', () => saveBtn.click());
+document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
+    userMadeChanges = false;
+    renderWeekGrid();
+});
+
 // ── AL / sick — element handles and display helpers referenced by the member picker below ──
 // Declared here because the fieldMember change handler references them.
 const alMember   = document.getElementById('alMember');
@@ -1002,7 +1013,7 @@ fieldMember.addEventListener('change', () => {
         updateALBanner();
         updateALBookedBox();
         updateSickBookedBox();
-        renderTable();
+        resetTableMemberFilter(); // also calls renderTable internally
         renderWeekGrid();
     };
     if (confirmNavigate(go)) { go(); return; }
@@ -1084,11 +1095,13 @@ function showInChangeAShift(memberName, date) {
 
 
 let _toastTimer = null;
+let _feedbackTimer = null;
 /** Shows a success message in the week editor feedback area.  @param {string} msg */
 function showSuccess(msg) {
+    clearTimeout(_feedbackTimer);
     formFeedback.className = 'feedback success';
     formFeedback.textContent = '✓ ' + msg;
-    setTimeout(hideFeedback, 7000);
+    _feedbackTimer = setTimeout(hideFeedback, 7000);
 
     // Also show a bottom-anchored toast so confirmation is visible regardless of scroll position
     const toast = document.getElementById('saveToast');
@@ -1102,6 +1115,7 @@ function showSuccess(msg) {
 
 /** Shows an error message in the week editor feedback area.  @param {string} msg */
 function showError(msg) {
+    clearTimeout(_feedbackTimer);
     formFeedback.className = 'feedback error';
     formFeedback.textContent = '⚠ ' + msg;
     formFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -1170,20 +1184,20 @@ alConfirmCancelBtn.addEventListener('click', () => {
 // ANNUAL LEAVE BOOKING  (logic in admin-al.js)
 // ============================================
 initALSection({
-    alMember, sickMember, fieldMember, fieldDate,
-    syncMemberDisplay, syncSickMemberDisplay,
+    alMember,
+    syncMemberDisplay,
     populateMemberDropdown, lastMember,
-    confirmNavigate, updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, lsSet, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox,
+    currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
 });
 
 // ============================================
 // SICK DAYS RECORDING  (logic in admin-sick.js)
 // ============================================
 initSickSection({
-    sickMember, fieldMember, fieldDate,
+    sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateSickBookedBox, currentUser, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
 });
 
 
@@ -1200,9 +1214,11 @@ initSickSection({
 async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
     const toDelete = getAllOverrides().filter(o =>
         o.memberName === memberName &&
-        o.type       === type &&
         o.date       >= start &&
-        o.date       <= end
+        o.date       <= end &&
+        // Also delete Sunday RD correction docs that recordRangeOverrides writes
+        // alongside AL/sick overrides — otherwise the Sunday base shift reappears.
+        (o.type === type || (o.type === 'correction' && o.value === 'RD' && isSunday(o.date)))
     );
     if (!toDelete.length) return;
     btn.disabled    = true;
