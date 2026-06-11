@@ -135,9 +135,6 @@
     .pm-sub        { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
     .pm-sub-text   { font-size: var(--type-small); color: var(--text-mid); flex: 1; min-width: 0; }
     .period-badge { font-size: var(--type-micro); font-weight: 800; background: var(--accent-gold); color: var(--primary-blue); padding: 3px 10px; border-radius: 50px; white-space: nowrap; }
-    .grade-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-    .grade-label { font-size: var(--type-small); color: var(--text-light); font-weight: 600; }
-    .grade-badge { font-size: var(--type-micro); font-weight: 800; background: var(--primary-blue); color: white; padding: 3px 10px; border-radius: 50px; letter-spacing: 0.3px; }
 
     /* Save indicator row */
     .save-row {
@@ -225,7 +222,15 @@
       background: var(--success-green-bg); border: 1px solid var(--success-green);
       font-size: var(--type-small); color: var(--success-text); line-height: 1.4;
     }
-    .bp-active-banner a { color: var(--success-text); font-weight: 700; text-decoration: underline; cursor: pointer; }
+    /* Inline "view back pay card" control — a real <button> for keyboard access,
+       styled as a link to match the banner text */
+    .bp-active-banner button {
+      background: none; border: none; padding: 0;
+      font-family: inherit; font-size: inherit;
+      color: var(--success-text); font-weight: 700;
+      text-decoration: underline; text-underline-offset: 2px;
+      cursor: pointer; touch-action: manipulation;
+    }
 
     /* Payslip gross note */
     .payslip-note {
@@ -739,7 +744,7 @@
         page-break-inside: avoid !important;
         flex-wrap: wrap !important;
       }
-      .app-header h1 { color: var(--primary-blue) !important; }
+      .app-header h1 { color: var(--primary-blue) !important; font-size: 16px !important; }
       .btn-burger { color: var(--primary-blue) !important; }
       .app-header::after {
         content: attr(data-print-line);
@@ -747,8 +752,6 @@
         color: var(--text-light); margin-top: 3px;
         flex-basis: 100%;
       }
-      .app-header h1 { font-size: 16px !important; }
-      .app-header .hint { font-size: 10px !important; }
       .result-card {
         box-shadow: none !important;
         border: 1.5px solid var(--primary-blue) !important;
@@ -832,7 +835,7 @@
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
-      #splash, #iconLightbox, #iconLightboxContent,
+      #iconLightbox, #iconLightboxContent,
       #welcomeLightbox, #welcomeLightboxContent,
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
@@ -998,6 +1001,8 @@
   .roster-state-badge.loaded    { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .roster-state-badge.checking  { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .roster-state-badge.base-only { background: var(--boxing-day-bg); color: var(--badge-pending-text); }
+  /* (.conf-high class removed — only the recorded/possible badges are rendered;
+     the --conf-high-* tokens above stay for the .loaded state badge) */
   .roster-rows { display: flex; flex-direction: column; gap: 0; margin-bottom: 8px; }
   .roster-row {
     display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px;
@@ -1021,7 +1026,6 @@
   .roster-row--differs .roster-row-total { color: var(--chip-ot-bg); }
   .roster-cat-arrow--differs { color: var(--chip-ot-bg); }
   .conf-badge { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 3px; font-weight: 600; vertical-align: middle; line-height: 1.6; white-space: nowrap; }
-  .conf-high     { background: var(--conf-high-bg);     color: var(--conf-high-text); }
   .conf-recorded { background: var(--conf-recorded-bg); color: var(--conf-recorded-text); }
   .conf-possible { background: var(--conf-possible-bg); color: var(--conf-possible-text); }
   .roster-card-note {

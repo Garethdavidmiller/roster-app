@@ -123,6 +123,10 @@ export async function fetchOverridesForPeriod(p, memberName) {
     _overridesFetchState = 'loaded';
     return 'loaded';
   } catch (err) {
+    // A stale failure must not touch state either — without this check a slow
+    // failing fetch from a previous period could overwrite the badge state set
+    // by the current period's fetch.
+    if (thisToken !== _overrideFetchToken) return 'cancelled';
     console.warn('[paycalc-roster-suggestions] fetchOverridesForPeriod failed — using base roster only:', err?.message ?? err);
     _overridesFetchState = 'base-only';
     return 'base-only';

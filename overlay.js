@@ -103,9 +103,12 @@ export function trapFocus(container, e) {
  * body element is not found.
  * @param {string} headerId   - id of the clickable header element
  * @param {string} bodyId     - id of the collapsible body element
- * @param {string} [chevronId] - optional id of the ▾ chevron element
+ * @param {string} [chevronId] - optional id of the ▾ chevron element (may be
+ *   the headerId itself when the open state lives on the header)
+ * @param {Function} [onToggle] - optional callback invoked with the new open
+ *   state after every toggle (e.g. pre-fill fields when a card opens)
  */
-export function initCardCollapse(headerId, bodyId, chevronId) {
+export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
     const header  = document.getElementById(headerId);
     const body    = document.getElementById(bodyId);
     const chevron = chevronId ? document.getElementById(chevronId) : null;
@@ -120,8 +123,9 @@ export function initCardCollapse(headerId, bodyId, chevronId) {
 
     function toggle() {
         const open = body.classList.toggle('open');
-        if (chevron) chevron.classList.toggle('open', open);
+        if (chevron && chevron !== body) chevron.classList.toggle('open', open);
         header.setAttribute('aria-expanded', String(open));
+        onToggle?.(open);
     }
 
     // Initialise aria-expanded from the current DOM state

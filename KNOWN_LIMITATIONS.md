@@ -181,6 +181,17 @@ The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Box
 Standard weekday contracted hours are not pre-filled — staff enter those manually.
 The suggestion is advisory; staff should verify it against their actual payslip.
 
+### Tax band model is approximate for 0T and K codes (flagged v12.49 — check later)
+In `computeTax()` (`paycalc-calc.js`), the basic-rate band width is computed as
+`income threshold − personal allowance` (e.g. £50,270 − £12,570 = £37,700 for 1257L).
+HMRC actually applies the bands to **taxable pay**: the first £37,700 of taxable income
+is at 20% regardless of the tax code. The two models agree exactly for ordinary `nL`
+codes, but diverge for **0T** and **K codes** — there the current model makes the 20%
+band the full £50,270 wide, under-taxing anyone on those codes who crosses into the
+40% band. The existing tests in `paycalc.test.mjs` encode the current behaviour, so
+changing this means updating tests too. Rare codes at Marylebone; **verify against a
+real payslip from someone on a 0T/K code before changing** — do not fix speculatively.
+
 ---
 
 ## Calendar / roster

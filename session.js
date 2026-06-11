@@ -1,5 +1,6 @@
 /**
- * session.js — Shared auth/session helpers for admin.html, settings.html, and operations.html.
+ * session.js — Shared auth/session helpers for admin.html, settings.html,
+ * operations.html, and paycalc.html (paycalc uses getSession/clearSession only).
  *
  * Owns: session constants, localStorage session read/write/clear, Firebase Auth
  *   sign-in lifecycle (ensureFirebaseSession), and password derivation (getSurname).
