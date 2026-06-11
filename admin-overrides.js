@@ -41,6 +41,10 @@ let _onAfterSave      = () => {};  // refresh AL/sick banners after any write
 let _markChanged      = () => {};
 let _onEditRow        = () => {};  // handleEdit lives in admin-app.js; passed as callback
 
+// When true, renderTable shows all members instead of only the selected member.
+// Reset to false when the selected member changes.
+let _tableShowAllOverrides = false;
+
 // Re-entry guard for the time-input formatter: assigning to `value` inside an
 // `input` listener triggers another `input` event on iOS Safari (but not on
 // Android Chrome). Without this guard the handler reformats its own output.
@@ -49,6 +53,12 @@ let _formattingTime = false;
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
 export function setAllOverrides(arr) { _allOverrides = arr; }
+
+/** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes. */
+export function resetTableMemberFilter() {
+    _tableShowAllOverrides = false;
+    renderTable();
+}
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 /**
@@ -339,6 +349,21 @@ export function updateSaveBtn() {
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
     saveBtn.disabled = total === 0;
+
+    // Staged bar — mirrors the save state as a fixed bottom affordance so users
+    // can save without scrolling back up to the Save button.
+    const stagedBar   = document.getElementById('stagedBar');
+    const stagedCount = document.getElementById('stagedCount');
+    if (stagedBar) {
+        stagedBar.hidden = total === 0;
+        if (stagedCount) {
+            const parts = [];
+            if (saveCount) parts.push(`${saveCount} day${saveCount > 1 ? 's' : ''}`);
+            if (delCount)  parts.push(`${delCount} to remove`);
+            stagedCount.textContent = parts.join(', ');
+        }
+    }
+
     const hint = document.getElementById('saveBtnHint');
     if (hint) {
         if (total > 0) {
@@ -407,8 +432,15 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                    row.querySelector('.day-start'), row.querySelector('.day-end'));
+                // Prefilled rows (existing override, unedited) are only visually unchecked —
+                // calling _deactivateRow would clear dataset.type and queue them for deletion.
+                if (row.dataset.existingId && row.classList.contains('prefilled-existing')) {
+                    checkbox.checked = false;
+                    row.classList.remove('selected');
+                } else {
+                    _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
+                        row.querySelector('.day-start'), row.querySelector('.day-end'));
+                }
             }
         });
         updateSaveBtn(); _updateBulkSelCount();
@@ -430,8 +462,13 @@ function _initBulkBar() {
                 checkbox.checked = true;
                 if (!row.dataset.type) row.classList.add('selected');
             } else {
-                _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                    row.querySelector('.day-start'), row.querySelector('.day-end'));
+                if (row.dataset.existingId && row.classList.contains('prefilled-existing')) {
+                    checkbox.checked = false;
+                    row.classList.remove('selected');
+                } else {
+                    _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
+                        row.querySelector('.day-start'), row.querySelector('.day-end'));
+                }
             }
         });
         updateSaveBtn(); _updateBulkSelCount();
@@ -453,10 +490,13 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(row => {
             const checkbox = row.querySelector('.day-cb');
             if (!checkbox || !checkbox.checked) return;
+            // AL cannot be recorded on Sundays (uncontracted) — skip silently
+            if (_bulkActiveType === 'annual_leave' && isSunday(row.dataset.date)) return;
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
             const endEl   = row.querySelector('.day-end');
             _activateRow(row, checkbox, pills, startEl, endEl, _bulkActiveType);
+            row.classList.remove('prefilled-existing'); // mark as user-edited, not pre-filled
             if (typeMeta && !typeMeta.fixed) {
                 if (bulkStart?.value) startEl.value = bulkStart.value;
                 if (bulkEnd?.value)   endEl.value   = bulkEnd.value;
@@ -553,7 +593,7 @@ export async function loadOverrides() {
     const listCount = document.getElementById('listCount');
     if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
     try {
-        const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(2000)));
+        const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
         snap.forEach(s => _allOverrides.push({ id: s.id, ...s.data() }));
         renderTable();
@@ -574,6 +614,7 @@ export async function loadOverrides() {
 /**
  * Renders the Saved Changes table from _allOverrides.
  * Filtered by the currently selected member and the month/year dropdown.
+ * When _tableShowAllOverrides is true, shows all members (admin toggle).
  */
 export function renderTable() {
     const fieldMember        = document.getElementById('fieldMember');
@@ -582,10 +623,18 @@ export function renderTable() {
     const overridesMonthFilter = document.getElementById('overridesMonthFilter');
     const selectAllOverrides = document.getElementById('selectAllOverrides');
     const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
-    const memberFilter       = fieldMember?.value;
+    const selectedMember     = fieldMember?.value;
+    const memberFilter       = _tableShowAllOverrides ? '' : (selectedMember || '');
     const memberRows         = memberFilter
         ? _allOverrides.filter(o => o.memberName === memberFilter)
         : _allOverrides;
+
+    // Update "Show all / This member" toggle button
+    const showAllBtn = document.getElementById('showAllOverridesBtn');
+    if (showAllBtn) {
+        showAllBtn.hidden = !selectedMember;
+        showAllBtn.textContent = _tableShowAllOverrides ? 'This member only' : 'All staff';
+    }
 
     if (overridesMonthFilter) {
         const months = [...new Set(memberRows.map(o => (o.date || '').substring(0, 7)))]
@@ -611,7 +660,11 @@ export function renderTable() {
     const rows = monthFilter
         ? memberRows.filter(o => (o.date || '').startsWith(monthFilter))
         : memberRows;
-    if (listCount) listCount.textContent = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
+    if (listCount) {
+        const label   = `${rows.length} saved change${rows.length !== 1 ? 's' : ''}`;
+        const context = _tableShowAllOverrides ? ' (all staff)' : '';
+        listCount.textContent = label + context;
+    }
 
     if (!rows.length) {
         const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
@@ -624,17 +677,21 @@ export function renderTable() {
     if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
 
     rows.forEach(o => {
-        const typeMeta    = TYPES[o.type];
+        const typeMeta     = TYPES[o.type];
         const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
+        const eid   = escapeHtml(o.id   || '');
+        const edate = escapeHtml(o.date || '');
+        const etype = escapeHtml(o.type || '');
+        const ename = escapeHtml(o.memberName || '');
         const tr = document.createElement('tr');
         tr.innerHTML = `
-            <td><input type="checkbox" class="row-select" data-id="${o.id}" aria-label="Select ${escapeHtml(o.memberName)} ${o.date}"></td>
+            <td><input type="checkbox" class="row-select" data-id="${eid}" aria-label="Select ${ename} ${edate}"></td>
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
-            <td>${escapeHtml(o.memberName)}</td>
-            <td><span class="list-type-pill lpill-${o.type}">${typeMeta ? typeMeta.label : escapeHtml(o.type)}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
+            <td>${ename}</td>
+            <td><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
             <td style="font-family:monospace;font-size:12px">${escapeHtml(o.value)}</td>
-            <td><button class="btn-edit" data-member="${escapeHtml(o.memberName)}" data-date="${o.date}" aria-label="Edit ${escapeHtml(o.memberName)} ${o.date}">Edit</button></td>
-            <td><button class="btn-delete" data-id="${o.id}" aria-label="Delete ${escapeHtml(o.memberName)} ${o.date}">Delete</button></td>`;
+            <td><button class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">Edit</button></td>
+            <td><button class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">Delete</button></td>`;
         if (tableBody) tableBody.appendChild(tr);
     });
     // Delegated listeners attached once in _initOverridesTable() — see below.
@@ -779,6 +836,11 @@ function _initOverridesTable() {
     if (overridesMonthFilter) {
         overridesMonthFilter.addEventListener('change', renderTable);
     }
+
+    document.getElementById('showAllOverridesBtn')?.addEventListener('click', () => {
+        _tableShowAllOverrides = !_tableShowAllOverrides;
+        renderTable();
+    });
 }
 
 // ── TIME INPUTS ───────────────────────────────────────────────────────────────
@@ -935,11 +997,12 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     const workingDates = memberObj
         ? dates.filter(dateStr => {
             if (isSunday(dateStr)) return false;
-            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
-            if (isRestShift(base)) return false;
             const ov = ovByDate.get(dateStr);
-            if (ov && isRestShift(ov.value)) return false;
-            return true;
+            // An existing override (e.g. RDW) takes precedence over the base shift:
+            // if it marks the day as worked, include it even when base is RD.
+            if (ov) return !isRestShift(ov.value);
+            const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
+            return !isRestShift(base);
           })
         : [...dates];
 

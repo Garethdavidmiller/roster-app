@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v12.47 -->
+<!-- MYB Roster — Admin v12.48 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -95,7 +95,7 @@
 <div id="saveToast" role="status" aria-live="polite"></div>
 
 <!-- Annual leave over-limit confirmation bar — fixed to bottom of screen -->
-<div class="al-confirm-bar" id="alConfirmBar">
+<div class="al-confirm-bar" id="alConfirmBar" role="alertdialog" aria-label="Annual leave limit warning" aria-live="assertive">
     <span class="al-confirm-icon">⚠️</span>
     <div class="al-confirm-body">
         <div class="al-confirm-msg" id="alConfirmMsg"></div>
@@ -107,7 +107,16 @@
     </div>
 </div>
 
-<div class="container">
+<!-- Staged changes bar — fixed bottom affordance so users can save without scrolling -->
+<div id="stagedBar" class="staged-bar" hidden aria-live="polite">
+    <span class="staged-bar-label">Unsaved: <strong id="stagedCount"></strong></span>
+    <div class="staged-bar-btns">
+        <button class="staged-discard-btn" id="stagedDiscardBtn">Discard</button>
+        <button class="staged-save-btn"    id="stagedSaveBtn">Save changes</button>
+    </div>
+</div>
+
+<main class="container">
 
     <header class="app-header">
         <button class="btn-burger" id="navMenuBtn"
@@ -140,13 +149,13 @@
             <div class="selectors">
                 <div class="field-group">
                     <div class="week-nav">
-                        <button class="week-nav-btn" id="prevWeekBtn" title="Previous week">‹</button>
+                        <button class="week-nav-btn" id="prevWeekBtn" title="Previous week" aria-label="Previous week">‹</button>
                         <div class="week-date-wrap">
                             <span id="weekNavLabel" class="week-nav-label">Pick a date</span>
-                            <input type="date" id="fieldDate" title="Tap to jump to any week">
+                            <input type="date" id="fieldDate" title="Tap to jump to any week" aria-label="Jump to week containing date">
                         </div>
-                        <button class="week-nav-btn" id="nextWeekBtn" title="Next week">›</button>
-                        <button class="week-nav-btn week-nav-today" id="thisWeekBtn" title="Jump to current week">📍</button>
+                        <button class="week-nav-btn" id="nextWeekBtn" title="Next week" aria-label="Next week">›</button>
+                        <button class="week-nav-btn week-nav-today" id="thisWeekBtn" title="Jump to current week" aria-label="Jump to current week">📍</button>
                     </div>
                 </div>
             </div>
@@ -193,7 +202,7 @@
 
             <button class="btn-save" id="saveBtn" disabled>Save changes</button>
             <p class="save-hint" id="saveBtnHint">Select a type on at least one day, then tap Save changes</p>
-            <div class="feedback" id="formFeedback"></div>
+            <div class="feedback" id="formFeedback" role="status" aria-live="polite"></div>
 
         </div>
     </div>
@@ -251,7 +260,7 @@
             </div>
             <div class="al-preview" id="alPreview"></div>
             <button class="btn-save" id="alSaveBtn" disabled>Record annual leave</button>
-            <div class="feedback" id="alFeedback"></div>
+            <div class="feedback" id="alFeedback" role="status" aria-live="polite"></div>
 
             <!-- Collapsible: all booked AL dates for the selected member -->
             <div class="al-booked-box" id="alBookedBox" hidden>
@@ -289,7 +298,7 @@
             <p class="absence-visibility-note">👁️ Absence days are visible to all staff in the calendar.</p>
             <div class="al-preview sick-preview" id="sickPreview"></div>
             <button class="btn-save" id="sickSaveBtn" disabled>Record absence</button>
-            <div class="feedback" id="sickFeedback"></div>
+            <div class="feedback" id="sickFeedback" role="status" aria-live="polite"></div>
 
             <!-- Collapsible: all recorded absence days for the selected member -->
             <div class="al-booked-box" id="sickBookedBox" hidden>
@@ -320,6 +329,7 @@
         <div class="card-collapsible-body" id="overridesBody">
         <div class="list-toolbar">
             <span class="list-count" id="listCount">Loading…</span>
+            <button id="showAllOverridesBtn" class="btn-show-all-overrides" hidden>All staff</button>
             <select id="overridesMonthFilter" class="overrides-month-filter">
                 <option value="">All months</option>
             </select>
@@ -334,7 +344,7 @@
                         <th>Member</th>
                         <th>Type</th>
                         <th>Shift time</th>
-                        <th colspan="2"></th>
+                        <th colspan="2"><span class="sr-only">Actions</span></th>
                     </tr>
                 </thead>
                 <tbody id="overrideTableBody">
@@ -342,11 +352,11 @@
                 </tbody>
             </table>
         </div>
-        <div class="list-feedback" id="listFeedback"></div>
+        <div class="list-feedback" id="listFeedback" role="status" aria-live="polite"></div>
         </div><!-- /.card-collapsible-body -->
     </div>
 
-</div><!-- /container -->
+</main><!-- /container -->
 
 <script type="module" src="./admin-app.js"></script>
 </body>
