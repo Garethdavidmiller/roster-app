@@ -304,6 +304,9 @@ body.auth-ready .container { display: grid; }
     transition: filter var(--dur-fast) var(--ease-standard);
     line-height: 1.35;
     white-space: pre-line; /* allows \n in shiftLabel() to wrap start/end times */
+    /* Paint mode = rapid taps; without this iOS/Android treat them as
+       double-tap-to-zoom and the page lurches mid-paint. */
+    touch-action: manipulation;
 }
 @media (hover: hover) and (pointer: fine) {
     .shift-cell-btn:hover { filter: brightness(0.86); }
@@ -433,6 +436,7 @@ body.auth-ready .container { display: grid; }
     transition: filter var(--dur-fast) var(--ease-standard), outline var(--dur-fast);
     outline: 2px solid transparent;
     outline-offset: 1px;
+    touch-action: manipulation; /* arm/disarm taps must never trigger double-tap zoom */
 }
 .brush-chip.type-rd    { background: var(--surface); color: var(--text-light); border: 1px solid var(--border-light); }
 .brush-chip.type-spare { background: rgba(245,200,0,0.22); color: var(--shift-spare-text); }
@@ -603,21 +607,31 @@ body.auth-ready .container { display: grid; }
     flex: 1;
     min-width: 0;
 }
+/* A chip is a <div> wrapping a name <button> (+ rename/delete when active) —
+   buttons can't nest, so the pill itself is not a button. */
 .design-chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 4px 10px;
     border-radius: 20px;
     border: 1px solid var(--border-light);
     background: var(--surface-sunken);
+    color: var(--text-mid);
+    white-space: nowrap;
+    transition: background var(--dur-fast) var(--ease-standard);
+}
+.design-chip-name {
+    background: none;
+    border: none;
+    border-radius: 20px;
+    padding: 4px 10px;
     font-size: 12px;
     font-weight: 600;
     font-family: inherit;
-    color: var(--text-mid);
+    color: inherit;
     cursor: pointer;
-    white-space: nowrap;
-    transition: background var(--dur-fast) var(--ease-standard);
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 @media (hover: hover) and (pointer: fine) {
     .design-chip:not(.design-chip--active):hover {
@@ -630,6 +644,8 @@ body.auth-ready .container { display: grid; }
     color: white;
     border-color: var(--primary-blue);
 }
+/* Room for the ✎ ✕ action buttons inside the active chip (main picker only) */
+#designChips .design-chip--active { padding-right: 4px; }
 /* Rename / delete buttons inside the active chip */
 .design-chip-rename,
 .design-chip-delete {
@@ -718,6 +734,13 @@ body.auth-ready .container { display: grid; }
 }
 
 /* ---- Compare mode: two read-only grids side by side ---- */
+
+/* The main grid stays RENDERED in compare mode (print needs it) but is hidden
+   on screen via a body class. Screen-scoped so print is unaffected. */
+@media screen {
+    body.links-compare-on #linksGridWrapper { display: none; }
+}
+
 .compare-grids-wrap {
     display: none; /* JS adds .compare-mode-active to reveal */
 }
@@ -748,7 +771,9 @@ body.auth-ready .container { display: grid; }
 .compare-col-head--a { color: var(--primary-blue); border-color: var(--primary-blue); }
 .compare-col-head--b { color: var(--cov-late);      border-color: var(--cov-late); }
 
-/* Scrolls independently within its column */
+/* Scrolls independently within its column. Unlike the single grid, this KEEPS
+   overflow-x:auto on desktop — two 560px-min tables can't both fit a 1100px
+   container, so each column must be its own scroll area. */
 .compare-grid-scroll {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -756,7 +781,7 @@ body.auth-ready .container { display: grid; }
     padding: 0 16px;
 }
 @media (min-width: 1024px) {
-    .compare-grid-scroll { margin: 0; padding: 0; overflow-x: visible; }
+    .compare-grid-scroll { margin: 0; padding: 0; }
 }
 
 /* Read-only compare grid — no interactive feedback */
@@ -774,6 +799,9 @@ body.auth-ready .container { display: grid; }
 @media (pointer: coarse) {
     .links-grid .shift-cell { height: 44px; }
 }
+
+/* Print-only design name — set by JS, names the printed sheet */
+.print-design-name { display: none; }
 
 /* ---- Beta notice lightbox (first-visit only) ----
    Uses the shared .lb-overlay / .lb-content / .lb-close structure and the dark
@@ -845,6 +873,15 @@ body.auth-ready .container { display: grid; }
     }
     /* Print collapsed cards too — paper has no tap-to-expand */
     .card-collapsible-body { display: block !important; }
+
+    /* Name the design on the printed sheet (hidden on screen) */
+    .print-design-name {
+        display: block;
+        font-size: 14px;
+        font-weight: 700;
+        margin: 0 0 6px;
+        color: var(--text-dark);
+    }
 
     .links-grid-wrapper { overflow: visible; margin: 0; padding: 0; }
     .links-grid { min-width: 0; }
