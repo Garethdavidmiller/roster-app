@@ -11,7 +11,7 @@
 
 import { formatISO } from './roster-data.js';
 import { uploadHuddle } from './firebase-client.js';
-import { notifSupported, getNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { notifSupported, getNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
 import { initCardCollapse } from './overlay.js';
 
 /**
@@ -50,9 +50,7 @@ function _initNotificationsCard() {
     // notifSupported() returns false on iOS outside a standalone PWA — show
     // the add-to-home-screen message rather than a misleading "not supported".
     if (!notifSupported()) {
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-        if (statusMsg) statusMsg.textContent = isIOS
+        if (statusMsg) statusMsg.textContent = isIOS()
             ? 'On iPhone/iPad, notifications only work when the app is added to your Home Screen. Tap Share → Add to Home Screen, then open from your Home Screen and return here.'
             : 'Push notifications are not supported on this device or browser.';
         if (enableBtn)  enableBtn.style.display  = 'none';
@@ -161,7 +159,8 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
         feedback.className = 'huddle-feedback';
 
         let htmlContent = null;
-        const isDocx = file.name.toLowerCase().endsWith('.docx');
+        const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                    || file.name.toLowerCase().endsWith('.docx');
         if (isDocx) {
             uploadBtn.textContent = 'Converting…';
             try {

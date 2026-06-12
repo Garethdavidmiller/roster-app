@@ -23,7 +23,7 @@
 // re-run `node generate-sri.mjs --apply` to update the <link rel="modulepreload"> SRI in index.html.
 import DOMPurify from './purify.es.mjs';
 import { subscribeToLatestHuddle } from './firebase-client.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory } from './overlay.js';
+import { lockBodyScroll, _pushOverlayState, dismissOverlay } from './overlay.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
 // applyHuddleButtonState() is exported so app.js can call it during calendar renders.
@@ -89,26 +89,43 @@ export function initHuddleViewer() {
     let _autoOpened = false;
 
     let _viewerFocusReturn = null;
+    let _viewerOpen = false;  // true from the openViewer call; false from closeViewer call
+    let _sanitisedUrl  = null;
+    let _sanitisedHtml = null;
+
     function openViewer() {
-        _viewerFocusReturn = document.activeElement;
+        if (!_viewerOpen) {
+            // Capture focus return only on fresh open — not on a stale-huddle re-open
+            // where the viewer is already showing (focus return could be a doomed
+            // element about to be overwritten by body.innerHTML).
+            _viewerFocusReturn = document.activeElement;
+            lockBodyScroll();
+        }
+        _viewerOpen = true;
         viewer.classList.add('visible');
         requestAnimationFrame(() => viewer.classList.add('open'));
-        lockBodyScroll();
         _pushOverlayState(closeViewer);
         document.addEventListener('keydown', onKey);
     }
     function closeViewer() {
-        _clearOverlayHistory();
-        viewer.classList.remove('open');
-        document.removeEventListener('keydown', onKey);
-        _viewerFocusReturn?.focus();
+        _viewerOpen = false;
+        const focusReturn = _viewerFocusReturn;
         _viewerFocusReturn = null;
-        function finish() { viewer.classList.remove('visible'); unlockBodyScroll(); }
-        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
-        const t = setTimeout(finish, 500);
-        viewer.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
+        dismissOverlay(viewer, { onKey, focusReturn });
     }
     function onKey(e) { if (e.key === 'Escape') closeViewer(); }
+
+    // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl
+    // so DOMPurify doesn't re-parse the same document on every reopen.
+    function showInlineHuddle(huddle) {
+        if (huddle.storageUrl !== _sanitisedUrl) {
+            _sanitisedHtml = sanitiseHtml(huddle.htmlContent);
+            _sanitisedUrl  = huddle.storageUrl;
+        }
+        body.innerHTML = _sanitisedHtml;
+        openViewer();
+        close.focus();
+    }
 
     if (close) {
         close.addEventListener('click', closeViewer);
@@ -122,9 +139,7 @@ export function initHuddleViewer() {
         try {
             if (huddle.htmlContent) {
                 // DOCX converted to HTML server-side — render inline.
-                body.innerHTML = sanitiseHtml(huddle.htmlContent);
-                openViewer();
-                close.focus();
+                showInlineHuddle(huddle);
             } else {
                 // PDF, or DOCX where conversion failed — open from Storage.
                 // This click is a real user gesture so window.open is allowed.
@@ -143,9 +158,7 @@ export function initHuddleViewer() {
         try {
             if (huddle.htmlContent) {
                 // DOCX converted to HTML server-side — render inline.
-                body.innerHTML = sanitiseHtml(huddle.htmlContent);
-                openViewer();
-                close.focus();
+                showInlineHuddle(huddle);
             } else {
                 // PDF, or DOCX where conversion failed — show an explicit button.
                 // A notification tap carries no in-page user activation, so calling
@@ -200,7 +213,7 @@ export function initHuddleViewer() {
                     if (_autoOpen && !_autoOpened) {
                         _triggerAutoOpen(huddle);
                     } else if (_autoOpen && _autoOpened
-                               && viewer.classList.contains('open')
+                               && _viewerOpen
                                && huddle.storageUrl !== prevUrl) {
                         // Viewer is open showing a stale huddle — Firestore delivered a
                         // fresher one (race: notification tap beat the WebSocket reconnect).
