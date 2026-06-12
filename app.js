@@ -11,6 +11,7 @@
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 import { initNavPanel } from './nav-panel.js';
@@ -219,16 +220,14 @@ function getSelectedMemberIndex() {
     // No saved selection (fresh device) — auto-select from the admin session if present
     // so the logged-in staff member sees their own calendar without triggering a
     // member-switch cache clear when they pick themselves from the dropdown.
-    try {
-        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-        if (sess?.name) {
-            const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
-            if (idx !== -1) {
-                saveSelectedMember(idx);
-                return idx;
-            }
+    const sess = getSession();
+    if (sess?.name) {
+        const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
+        if (idx !== -1) {
+            saveSelectedMember(idx);
+            return idx;
         }
-    } catch (_) {}
+    }
     return getDefaultMemberIndex();
 }
 
@@ -335,14 +334,11 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
 function navigateToPaycalc(paydayStr) {
-    try {
-        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-        if (sess && sess.name) {
-            window.location.href = `./paycalc.html?payday=${paydayStr}`;
-        } else {
-            window.location.href = './admin.html?redirect=paycalc';
-        }
-    } catch { window.location.href = './admin.html?redirect=paycalc'; }
+    if (getSession()?.name) {
+        window.location.href = `./paycalc.html?payday=${paydayStr}`;
+    } else {
+        window.location.href = './admin.html?redirect=paycalc';
+    }
 }
 
 // Helper: Create day cell HTML (pure function)
@@ -835,9 +831,12 @@ function updateLegend() {
         'legend-pt-restoration': [PORTUGUESE_RESTORATION_DATES,   'portuguese'],
         'legend-pt-immaculate':  [PORTUGUESE_IMMACULATE_DATES,    'portuguese'],
     };
+    let faithVisible = false;
     for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
         const el = _legendEl(id);
-        if (el) el.style.display = faithInMonth(dateSet, cal) ? '' : 'none';
+        const visible = faithInMonth(dateSet, cal);
+        if (el) el.style.display = visible ? '' : 'none';
+        if (visible) faithVisible = true;
     }
 
     const faithRow = _legendEl('legend-faith-row');
@@ -858,13 +857,10 @@ function updateLegend() {
             }
         }
         cnyEl.style.display = cnyVisible ? '' : 'none';
+        if (cnyVisible) faithVisible = true;
     }
 
-    // Single check after all items (including CNY) are settled.
-    if (faithRow) {
-        faithRow.style.display = [...faithRow.querySelectorAll('.legend-item')]
-            .some(el => el.style.display !== 'none') ? '' : 'none';
-    }
+    if (faithRow) faithRow.style.display = faithVisible ? '' : 'none';
 }
 
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
@@ -1021,15 +1017,10 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 // Pay button — navigates to paycalc.html for any signed-in staff member.
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
 document.getElementById('payBtn').addEventListener('click', () => {
-    try {
-        const session = JSON.parse(lsGet('myb_admin_session') || 'null');
-        if (session && session.name) {
-            const m = String(currentDisplayMonth + 1).padStart(2, '0');
-            window.location.href = `./paycalc.html?month=${currentDisplayYear}-${m}`;
-        } else {
-            window.location.href = './admin.html?redirect=paycalc';
-        }
-    } catch {
+    if (getSession()?.name) {
+        const m = String(currentDisplayMonth + 1).padStart(2, '0');
+        window.location.href = `./paycalc.html?month=${currentDisplayYear}-${m}`;
+    } else {
         window.location.href = './admin.html?redirect=paycalc';
     }
 });
@@ -1041,10 +1032,7 @@ document.getElementById('payBtn').addEventListener('click', () => {
 (function initPayPeriodStrip() {
     const strip = document.getElementById('payPeriodStrip');
     if (!strip) return;
-    let session;
-    try {
-        session = JSON.parse(lsGet('myb_admin_session') || 'null');
-    } catch { session = null; }
+    const session = getSession();
     if (!session?.name) return; // Not logged in — hide the strip entirely
 
     const today = new Date();
@@ -1973,9 +1961,7 @@ function initCalendarKeyboard() {
 initCalendarTooltip();
 initCalendarKeyboard();
 
-const _calendarSession = (() => {
-    try { return JSON.parse(lsGet('myb_admin_session') || 'null'); } catch { return null; }
-})();
+const _calendarSession = getSession();
 initNavPanel({
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
@@ -1983,7 +1969,7 @@ initNavPanel({
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _calendarSession ? () => {
-        lsDel('myb_admin_session');
+        clearSession();
         window.location.reload();
     } : null,
 });
