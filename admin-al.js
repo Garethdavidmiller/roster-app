@@ -4,8 +4,8 @@
 
 import { teamMembers, getALEntitlement, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
 import { isRestShift } from './app-override-utils.js';
-import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
-import { buildRangePicker } from './admin-rangepicker.js';
+import { getAllOverrides, recordRangeOverrides, formatDisplay, buildMemberDateMap } from './admin-overrides.js';
+import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
 
@@ -60,14 +60,8 @@ syncMemberDisplay();
 // No separate change handler here — it was never reachable because alMember is hidden.
 
 function getAlDates() {
-    if (!alFrom.value || !alTo.value) return [];
-    const from = new Date(alFrom.value + 'T12:00:00');
-    const to   = new Date(alTo.value   + 'T12:00:00');
-    if (to < from) return null; // invalid range
-    const dates = [];
-    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        dates.push(formatISO(new Date(d)));
-    }
+    const dates = getDateRange(alFrom.value, alTo.value);
+    if (dates && dates.length > 60) return dates; // let preview show the too-long error
     return dates;
 }
 
@@ -113,13 +107,7 @@ function updateAlPreview() {
     let restCount  = 0;
     let spareCount = 0; // spare days that will be booked as AL (not already overridden to RD)
     if (memberObj) {
-        // Build a Map<date, override> once instead of doing a linear .find() per date.
-        // With N overrides and D dates this turns O(N×D) into O(N+D); for 1000 overrides
-        // × 30 dates that's a 30,000× → 1,030 operations reduction per render.
-        const memberOvByDate = new Map();
-        for (const o of getAllOverrides()) {
-            if (o.memberName === memberObj.name) memberOvByDate.set(o.date, o);
-        }
+        const memberOvByDate = buildMemberDateMap(memberObj.name);
         dates.forEach(dateStr => {
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
@@ -201,6 +189,7 @@ alSaveBtn.addEventListener('click', async () => {
         if (!workingCount) {
             alFeedback.className = 'feedback error';
             alFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+            alFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             return;
         }
 

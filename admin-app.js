@@ -1137,9 +1137,6 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
         }
     } catch (err) {
         console.error('[Admin] Period delete failed:', err);
-        btn.disabled = false;
-        btn.classList.remove('confirming');
-        btn.textContent = 'Delete';
         if (feedbackEl) {
             const msg = err.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
@@ -1147,6 +1144,10 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
             feedbackEl.textContent = msg;
             feedbackEl.className = 'feedback error';
         }
+    } finally {
+        btn.disabled = false;
+        btn.classList.remove('confirming');
+        btn.textContent = 'Delete';
     }
 }
 

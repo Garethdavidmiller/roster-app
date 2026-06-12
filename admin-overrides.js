@@ -60,6 +60,27 @@ export function resetTableMemberFilter() {
     renderTable();
 }
 
+/** Returns a new Date set to the Sunday of the week containing dateStr. */
+function getSundayOfWeek(dateStr) {
+    const d = new Date(dateStr + 'T12:00:00');
+    d.setDate(d.getDate() - d.getDay());
+    return d;
+}
+
+/**
+ * Builds a Map<dateISO, override> for a specific member from the override cache.
+ * O(N+D) alternative to O(N×D) per-date lookups. Call once per render cycle.
+ * @param {string} memberName
+ * @returns {Map<string, object>}
+ */
+export function buildMemberDateMap(memberName) {
+    const map = new Map();
+    for (const o of _allOverrides) {
+        if (o.memberName === memberName) map.set(o.date, o);
+    }
+    return map;
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 /**
  * Wire up all event listeners for the Change a Shift section.
@@ -97,9 +118,7 @@ export function initOverrides({ currentUser, currentIsAdmin, showSuccess, showEr
  */
 export function updateWeekNavLabel(dateStr) {
     if (!dateStr) return;
-    const picked   = new Date(dateStr + 'T12:00:00');
-    const sunday   = new Date(picked);
-    sunday.setDate(picked.getDate() - picked.getDay());
+    const sunday   = getSundayOfWeek(dateStr);
     const saturday = new Date(sunday);
     saturday.setDate(sunday.getDate() + 6);
     const label = document.getElementById('weekNavLabel');
@@ -125,9 +144,7 @@ export function buildWeekGridInto(container, dateStr) {
     const member      = teamMembers.find(m => m.name === memberName);
     if (!member || !memberName || !dateStr) return;
 
-    const picked = new Date(dateStr + 'T12:00:00');
-    const sunday = new Date(picked);
-    sunday.setDate(picked.getDate() - picked.getDay());
+    const sunday = getSundayOfWeek(dateStr);
 
     const header = document.createElement('div');
     header.className = 'week-grid-header';
@@ -393,10 +410,12 @@ export function resetBulkPills() {
     const bulkTimeGroup = document.getElementById('bulkTimeGroup');
     const bulkStart     = document.getElementById('bulkStart');
     const bulkEnd       = document.getElementById('bulkEnd');
+    const bulkApplyBtn  = document.getElementById('bulkApplyBtn');
     if (bulkTypePills) bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
     if (bulkTimeGroup) bulkTimeGroup.style.display = 'none';
     if (bulkStart) bulkStart.value = '';
     if (bulkEnd)   bulkEnd.value   = '';
+    if (bulkApplyBtn) bulkApplyBtn.textContent = '3. Apply to ticked days';
 }
 
 function _initBulkBar() {
@@ -416,6 +435,7 @@ function _initBulkBar() {
                 bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
                 pill.classList.add('active');
                 _bulkActiveType = type;
+                if (bulkApplyBtn) bulkApplyBtn.textContent = `3. Apply "${TYPES[type]?.label ?? type}" to ticked days`;
                 if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
                 if (bulkStart) bulkStart.value = '';
                 if (bulkEnd)   bulkEnd.value   = '';

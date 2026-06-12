@@ -1295,9 +1295,12 @@
                 height: 44px;
             }
 
+            .col-check {
+                min-width: 44px;
+            }
             .col-check input[type="checkbox"] {
-                width: 20px;
-                height: 20px;
+                width: 22px;
+                height: 22px;
             }
 
             /* Time inputs: larger tap target on touch, with padding restored.
