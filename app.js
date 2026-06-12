@@ -47,11 +47,6 @@ const fetchedMonths         = new Set();
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
 const shiftTypesMonthCache  = new Map();
 
-// Tracks the currently-displayed member name (for the print header attribute).
-// rosterOverridesCache is keyed "memberName|date" and stores all members' data,
-// so it does NOT need to be cleared when the selected member changes.
-let _cachedMemberName = null;
-
 // Set when localStorage held a member name that's no longer in the roster.
 // renderCalendar() shows a brief info banner once then clears this flag.
 let _staleMemberName = null;
@@ -878,8 +873,6 @@ function renderCalendar() {
     try {
         const member = getCurrentMember();
 
-        _cachedMemberName = member.name;
-
         // If the previously-selected member was removed from the roster, show a one-time notice.
         if (_staleMemberName) {
             const stale = _staleMemberName;
@@ -1587,10 +1580,13 @@ try {
             if (teamView.isTeamViewMode()) {
                 if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
                 if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
+                if (e.key === 't' || e.key === 'T') teamView.jumpToCurrentWeek();
                 return;
             }
-            if (e.key === 'ArrowLeft')  { changeMonth(-1); renderCalendar(); announceMonthChange(); }
-            if (e.key === 'ArrowRight') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
+            // Guard: when a calendar day cell has focus, arrow keys move between cells
+            // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
+            if (e.key === 'ArrowLeft'  && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(-1); renderCalendar(); announceMonthChange(); }
+            if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(1);  renderCalendar(); announceMonthChange(); }
             if (e.key === 't' || e.key === 'T') { const now = getToday(); currentDisplayMonth = now.getMonth(); currentDisplayYear = now.getFullYear(); renderCalendar(); pulseToday(); announceMonthChange(); }
             if (e.key === 'p' || e.key === 'P') {
                 if (!document.getElementById('huddleViewer')?.classList.contains('open')) window.print();
@@ -1755,8 +1751,7 @@ async function ensureOverridesCached(year, month) {
         syncChip.style.cursor = 'default';
         syncChip.style.pointerEvents = 'none';
 
-        // Re-mark months so ensureOverridesCached won't double-fetch while this is in flight.
-        fetchedMonths.clear();
+        // Re-mark the initial 3 months only — other months fetched during navigation stay cached.
         fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
         fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
         fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));

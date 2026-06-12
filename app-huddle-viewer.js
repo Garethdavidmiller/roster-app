@@ -100,18 +100,13 @@ export function initHuddleViewer() {
     function closeViewer() {
         _clearOverlayHistory();
         viewer.classList.remove('open');
-        const t = setTimeout(() => {
-            viewer.classList.remove('visible');
-            unlockBodyScroll();
-        }, 500);
-        viewer.addEventListener('transitionend', () => {
-            clearTimeout(t);
-            viewer.classList.remove('visible');
-            unlockBodyScroll();
-        }, { once: true });
         document.removeEventListener('keydown', onKey);
         _viewerFocusReturn?.focus();
         _viewerFocusReturn = null;
+        function finish() { viewer.classList.remove('visible'); unlockBodyScroll(); }
+        if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
+        const t = setTimeout(finish, 500);
+        viewer.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
     }
     function onKey(e) { if (e.key === 'Escape') closeViewer(); }
 
