@@ -23,12 +23,11 @@ import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { lockBodyScroll, initCardCollapse } from './overlay.js';
+import { initAboutLightbox } from './about-lightbox.js';
+import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
-
-// ADMIN_VERSION reads from CONFIG which is set from APP_VERSION in roster-data.js — one source of truth.
-const ADMIN_VERSION = CONFIG.APP_VERSION;
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
@@ -171,93 +170,31 @@ function initLoginOverlay() {
 
 // ---- Lightbox ----
 // Exposed to module scope so the nav-panel drawer logo can open it (the header
-// logo is a back button — see headerIcon handler below).
+// logo is a back button — see headerIcon handler below). Lifecycle, SW update
+// status, bug link, and print button are the shared about-lightbox.js.
 let openAboutLightbox = null;
 (function() {
-    const lightbox   = document.getElementById('iconLightbox');
-    const headerIcon = document.getElementById('appIcon');
-    const closeBtn   = document.getElementById('iconLightboxClose');
-    const versionEl  = document.getElementById('lightboxVersion');
-    const statusEl   = document.getElementById('lightboxUpdateStatus');
-    const bugLink    = document.getElementById('adminBugReportLink');
-
-    if (!lightbox || !headerIcon) return;
-
-    if (versionEl) versionEl.textContent = ADMIN_VERSION;
-
-    let _lbFocusReturn = null;
-    function openLightbox() {
-        _lbFocusReturn = document.activeElement;
-        if (statusEl) {
-            statusEl.textContent = '';
-            statusEl.className = 'lightbox-status';
-            (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
-                .then(reg => {
-                    statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
-                    statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
-                })
-                .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
-        }
-        if (bugLink) {
-            const name   = currentUser || 'Unknown';
-            const date   = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            const ua     = navigator.userAgent;
-            const body   = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Admin Version ${ADMIN_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
-            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Admin Version ${ADMIN_VERSION}`)}&body=${encodeURIComponent(body)}`;
-        }
-        lightbox.classList.add('visible');
-        requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });
-        lockBodyScroll();
-        _pushOverlayState(closeLightbox);
-        document.addEventListener('keydown', onKey);
-    }
-
-    function closeLightbox() {
-        dismissOverlay(lightbox, { onKey, focusReturn: _lbFocusReturn });
-        _lbFocusReturn = null;
-    }
-
-    function onKey(e) { if (e.key === 'Escape') closeLightbox(); }
+    const about = initAboutLightbox({
+        appLabel: 'MYB Roster Admin',
+        bugLinkId: 'adminBugReportLink',
+        getUserName: () => currentUser || 'Unknown',
+    });
+    if (about) openAboutLightbox = about.open;
 
     // Header logo is a back-to-calendar button (About moved to the drawer logo).
-    openAboutLightbox = openLightbox;
+    const headerIcon = document.getElementById('appIcon');
+    if (!headerIcon) return;
     headerIcon.title = 'Back to calendar';
     headerIcon.setAttribute('aria-label', 'Back to calendar');
     headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
-
-    // Click on overlay (not the card) closes
-    lightbox.addEventListener('click', e => {
-        if (e.target === lightbox || e.target === closeBtn) closeLightbox();
-    });
-
-    // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
-    if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
-
-    // Print — close lightbox first so it doesn't appear in the output.
-    const printBtn  = document.getElementById('lightboxPrintBtn');
-    if (printBtn) printBtn.addEventListener('click', () => {
-        closeLightbox();
-        let printed = false;
-        const doPrint = () => { if (!printed) { printed = true; window.print(); } };
-        lightbox.addEventListener('transitionend', doPrint, { once: true });
-        setTimeout(() => {
-            lightbox.removeEventListener('transitionend', doPrint);
-            doPrint();
-        }, 550);
-    });
 })();
 
 // ---- Per-card tips lightbox ----
 // Each card has a small ? button. Tapping it opens a focused lightbox
 // with only the tips relevant to that card. Content lives here as data
-// so the HTML stays clean.
+// so the HTML stays clean; lifecycle, renderer (incl. the adminOnly /
+// staffOnly filtering), and button wiring live in tips-lightbox.js.
 (function() {
-    const lb       = document.getElementById('tipsLightbox');
-    const closeBtn = document.getElementById('tipsLightboxClose');
-    const titleEl  = document.getElementById('tipsLbTitle');
-    const bodyEl   = document.getElementById('tipsLbBody');
-    if (!lb) return;
-
     /** Tips content keyed by data-card attribute on each .btn-card-tips button. */
     const CARD_TIPS = {
         'change-shift': {
@@ -389,49 +326,7 @@ let openAboutLightbox = null;
         },
     };
 
-    let _tipsFocusReturn = null;
-    function openTips(key) {
-        const tips = CARD_TIPS[key];
-        if (!tips || !titleEl || !bodyEl) return;
-        _tipsFocusReturn = document.activeElement;
-        lb.setAttribute('aria-label', tips.title);
-        titleEl.textContent = tips.title;
-        let html = '';
-        for (const section of tips.sections) {
-            if (section.adminOnly && !currentIsAdmin) continue;
-            if (section.staffOnly &&  currentIsAdmin) continue;
-            if (section.heading) html += `<div class="tips-lb-section">${escapeHtml(section.heading)}</div>`;
-            for (const { icon, html: content, adminOnly, staffOnly } of section.items) {
-                if (adminOnly && !currentIsAdmin) continue;
-                if (staffOnly &&  currentIsAdmin) continue;
-                html += `<div class="tips-lb-item"><span class="tips-lb-icon">${icon}</span><span>${content}</span></div>`;
-            }
-        }
-        bodyEl.innerHTML = html;
-        lb.classList.add('visible');
-        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
-        lockBodyScroll();
-        _pushOverlayState(closeTips);
-        document.addEventListener('keydown', onKey);
-    }
-
-    function closeTips() {
-        dismissOverlay(lb, { onKey, focusReturn: _tipsFocusReturn });
-        _tipsFocusReturn = null;
-    }
-
-    function onKey(e) { if (e.key === 'Escape') closeTips(); }
-
-    // Wire every card's ? button — stopPropagation prevents collapsing the card
-    document.querySelectorAll('.btn-card-tips').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            openTips(btn.dataset.card);
-        });
-    });
-
-    if (closeBtn) closeBtn.addEventListener('click', closeTips);
-    lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
+    initTipsLightbox(CARD_TIPS, { getIsAdmin: () => currentIsAdmin });
 })();
 
 // ============================================

@@ -8,7 +8,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, escapeHtml } from './roster-data.js';
+import { CONFIG } from './roster-data.js';
 import { auth } from './firebase-client.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
@@ -16,7 +16,9 @@ import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { initCardCollapse } from './overlay.js';
+import { initAboutLightbox } from './about-lightbox.js';
+import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 
 // ============================================
@@ -90,73 +92,30 @@ window._mybSession.then(ok => {
 });
 
 // ============================================
-// ICON LIGHTBOX — tap header icon for version / about
+// ICON LIGHTBOX — About panel (shared about-lightbox.js)
 // ============================================
 (function () {
-    const OPS_VERSION = CONFIG.APP_VERSION;
-    const lightbox  = document.getElementById('iconLightbox');
-    const headerIcon = document.getElementById('appIcon');
-    const closeBtn  = document.getElementById('iconLightboxClose');
-    const versionEl = document.getElementById('lightboxVersion');
-    const statusEl  = document.getElementById('lightboxUpdateStatus');
-    const bugLink   = document.getElementById('opsBugReportLink');
-
-    if (!lightbox || !headerIcon) return;
-    if (versionEl) versionEl.textContent = OPS_VERSION;
-
-    let _focusReturn = null;
-
-    function open() {
-        _focusReturn = document.activeElement;
-        if (statusEl) {
-            statusEl.textContent = '';
-            statusEl.className = 'lightbox-status';
-            (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
-                .then(reg => {
-                    statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
-                    statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
-                })
-                .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
-        }
-        if (bugLink) {
-            const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-            const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Operations Version ${OPS_VERSION}\nUser: ${currentUser}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;
-            bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Operations Version ${OPS_VERSION}`)}&body=${encodeURIComponent(body)}`;
-        }
-        lightbox.classList.add('visible');
-        requestAnimationFrame(() => lightbox.classList.add('open'));
-        lockBodyScroll();
-        _pushOverlayState(close);
-        document.addEventListener('keydown', onKey);
-    }
-
-    function close() {
-        dismissOverlay(lightbox, { onKey, focusReturn: _focusReturn });
-    }
-
-    function onKey(e) { if (e.key === 'Escape') close(); }
+    const about = initAboutLightbox({
+        appLabel: 'MYB Roster Operations',
+        bugLinkId: 'opsBugReportLink',
+        getUserName: () => currentUser,
+    });
+    if (about) openAboutLightbox = about.open;
 
     // Header logo is a back-to-calendar button (About moved to the drawer logo).
-    openAboutLightbox = open;
+    const headerIcon = document.getElementById('appIcon');
+    if (!headerIcon) return;
     headerIcon.title = 'Back to calendar';
     headerIcon.setAttribute('aria-label', 'Back to calendar');
     headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
-    lightbox.addEventListener('click', e => { if (e.target === lightbox || e.target === closeBtn) close(); });
-    if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 })();
 
 // ============================================
 // TIPS LIGHTBOX — ? button on each card
+// Lifecycle, renderer, and button wiring live in tips-lightbox.js — only the
+// content data is owned here.
 // ============================================
 (function () {
-    const lb       = document.getElementById('tipsLightbox');
-    const closeBtn = document.getElementById('tipsLightboxClose');
-    const titleEl  = document.getElementById('tipsLbTitle');
-    const bodyEl   = document.getElementById('tipsLbBody');
-    if (!lb) return;
-
-    let _tipsFocusReturn = null;
-
     const CARD_TIPS = {
         'daily-huddle': {
             title: 'Daily Huddle',
@@ -193,42 +152,7 @@ window._mybSession.then(ok => {
         },
     };
 
-    function openTips(card) {
-        const data = CARD_TIPS[card];
-        if (!data || !titleEl || !bodyEl) return;
-        _tipsFocusReturn = document.activeElement;
-        titleEl.textContent = data.title;
-        bodyEl.innerHTML = data.sections.map(section => {
-            const heading = section.heading
-                ? `<div class="tips-lb-section">${escapeHtml(section.heading)}</div>`
-                : '';
-            const items = section.items.map(item =>
-                `<div class="tips-lb-item"><span class="tips-lb-icon" aria-hidden="true">${item.icon}</span><span>${item.html}</span></div>`
-            ).join('');
-            return heading + items;
-        }).join('');
-        lb.classList.add('visible');
-        requestAnimationFrame(() => lb.classList.add('open'));
-        lockBodyScroll();
-        _pushOverlayState(closeTips);
-        document.addEventListener('keydown', onKey);
-    }
-
-    function closeTips() {
-        dismissOverlay(lb, { onKey, focusReturn: _tipsFocusReturn });
-    }
-
-    function onKey(e) { if (e.key === 'Escape') closeTips(); }
-
-    document.querySelectorAll('.btn-card-tips').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            openTips(btn.dataset.card);
-        });
-    });
-
-    if (closeBtn) closeBtn.addEventListener('click', closeTips);
-    lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
+    initTipsLightbox(CARD_TIPS);
 })();
 
 // ============================================
