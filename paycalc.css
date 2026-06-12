@@ -802,8 +802,12 @@
       border-radius: 24px; padding: 36px 40px 32px;
       width: min(300px, 85vw); text-align: center;
       max-height: 80vh;
+      /* Deeper entrance start than the shared 0.88 — the ID selector outranks
+         .lb-overlay.open .lb-content, so the open state MUST be restated below
+         or the card stays stuck at 85% and never animates in. */
       transform: scale(0.85);
     }
+    #welcomeLightbox.open #welcomeLightboxContent { transform: scale(1); }
     #welcomeLightboxClose { color: rgba(255,255,255,0.45); }
     #welcomeLightboxClose:active { color: white; }
     @media (hover: hover) and (pointer: fine) {

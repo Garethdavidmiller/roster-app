@@ -53,6 +53,26 @@ const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
 // Staff browsers use this to encrypt push payloads so only this server can read them.
 const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
+// Staff-facing URL — change here when the domain changes, push payloads update automatically.
+const STAFF_SITE_URL = 'https://garethdavidmiller.github.io';
+
+/**
+ * Returns {year, month(0-based), day} in London local time, derived directly from
+ * Intl.DateTimeFormat parts so the result is never dependent on the server's TZ setting.
+ * @returns {{ year: number, month: number, day: number }}
+ */
+function nowInLondon() {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/London',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    return {
+        year:  +parts.find(p => p.type === 'year').value,
+        month: +parts.find(p => p.type === 'month').value - 1,
+        day:   +parts.find(p => p.type === 'day').value,
+    };
+}
+
 // Claude model used by parseRosterPDF. Pin here so version bumps are explicit and grep-able.
 const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
@@ -362,15 +382,18 @@ async function fanOutPush(payload, logTag) {
 async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     setupWebPush(vapidPrivate);
 
-    // Build smart day label — compare huddle date to today in London timezone
-    const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-    const dayLabel  = huddleDayLabel(huddleDate, nowLondon);
+    // Build smart day label — compare huddle date to today in London timezone.
+    // nowInLondon() reads parts directly via Intl so the result is independent
+    // of the server's local TZ setting (Cloud Run is UTC but the code shouldn't
+    // rely on that).
+    const { year, month, day } = nowInLondon();
+    const dayLabel = huddleDayLabel(huddleDate, new Date(year, month, day));
 
     await fanOutPush({
         title: 'Marylebone Roster',
         body:  `${dayLabel} Huddle is ready`,
         tag:   'huddle',
-        url:   'https://garethdavidmiller.github.io/roster-app/#huddle',
+        url:   `${STAFF_SITE_URL}/#huddle`,
     }, '[push]');
     console.log(`[push] "${dayLabel} Huddle is ready" sent`);
 }
@@ -397,7 +420,7 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
         title: `💷 Payday is ${paydayDay}!`,
         body:  `Hours cutoff today — open the Pay Calculator to estimate your ${paydayFmt} pay`,
         tag:   'pay-reminder',
-        url:   `https://garethdavidmiller.github.io/roster-app/paycalc.html?payday=${paydayISO}`,
+        url:   `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
     }, '[payReminder]');
     console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
 }
@@ -424,8 +447,8 @@ exports.sendPayReminderNotification = onSchedule(
     },
     async () => {
         try {
-            const nowLondon = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/London' }));
-            const today     = new Date(nowLondon.getFullYear(), nowLondon.getMonth(), nowLondon.getDate());
+            const { year, month, day } = nowInLondon();
+            const today = new Date(year, month, day);
 
             if (!isPayCutoffDay(today)) {
                 console.log('[payReminder] Not a cutoff date — skipping');

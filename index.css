@@ -1578,6 +1578,12 @@
                 display: none !important;
             }
 
+            /* Never print an open lightbox over the calendar (e.g. the AL
+               balance panel left open when printing) */
+            .lb-overlay {
+                display: none !important;
+            }
+
             #calendarDisplay {
                 display: block !important;
                 visibility: visible !important;

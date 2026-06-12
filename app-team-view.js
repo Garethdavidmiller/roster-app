@@ -9,14 +9,11 @@
  * Do not edit here for: personal calendar, override cache management, nav structure.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, isEarlyShift, isNightShift } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
-
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
-                     'July', 'August', 'September', 'October', 'November', 'December'];
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();

@@ -17,7 +17,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `app-override-utils.js` |
-| Body scroll lock, overlay history, focus trap, card collapse (lockBodyScroll, trapFocus, initCardCollapse, etc.) | `overlay.js` |
+| Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
+| About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
+| Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
 | Service worker registration + update lifecycle (all six app pages) | `sw-register.js` |
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
@@ -108,11 +110,22 @@ Coordinator for `settings.html` (all logged-in staff, v11.06).
 Shared overlay helpers — singleton module, imported by every page that shows a modal overlay (v11.40).
 - `lockBodyScroll()` / `unlockBodyScroll()` — freezes body scroll position when an overlay opens; restores on close. Handles iOS Safari bounce-scroll.
 
-**Canonical `.lb-overlay` lightbox lifecycle (standardised v11.50)** — when adding or editing any lightbox, match the existing shape exactly: open = capture `document.activeElement` → `.visible` → rAF `.open` + focus close-button → `lockBodyScroll()` + `_pushOverlayState(close)` + add Escape listener; close = `_clearOverlayHistory()` → remove `.open` → `transitionend` **with a 500ms `setTimeout` fallback** removing `.visible` + `unlockBodyScroll()` → remove Escape listener → restore captured focus. Close controls must be `<button class="lb-close">`. Full rationale in CLAUDE.md → "Canonical lightbox lifecycle".
+**Canonical `.lb-overlay` lightbox lifecycle (standardised v11.50, factored into `createLightbox` v12.50)** — when adding any lightbox, call `createLightbox(...)`; do NOT hand-write the open/close shape in a page module. Exceptions: `#navComingSoonLightbox` (owned by nav-panel.js, shares the drawer's history entry) and `#huddleViewer` (full-bleed panel, not a lightbox). Full rationale in CLAUDE.md → "Canonical lightbox lifecycle".
+- `createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` — returns `{ open, close }`. Implements focus save/restore, `.visible` → rAF `.open` + focus, scroll lock, Android Back, Escape, and the Tab focus trap. Backdrop and closeBtn click-to-close are wired automatically (v12.50).
 - `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support: pushes `{ mybOverlay: true }` history state on overlay open; registers `closeHandler` to fire on `popstate`. Module-level `popstate` listener is registered once (singleton) — multiple overlays on the same page are safe.
-- `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab.
-- `initCardCollapse(headerId, bodyId, chevronId)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
+- `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab. (createLightbox calls this internally.)
+- `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
 - Imported by: `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
+
+### `about-lightbox.js`
+Shared About panel for `#iconLightbox` on all six app pages (v12.50).
+- `initAboutLightbox({ appLabel, bugLinkId, getUserName, onOpen, printFn })` — returns `{ open, close }` or null if the page has no `#iconLightbox`. Owns the version line, the SW "up to date / update available" status, the pre-filled bug-report mailto, and the optional `#lightboxPrintBtn` (close → wait for exit transition → print; `printFn` overrides `window.print()` — the calendar passes a landscape variant for team view).
+- Each page assigns the returned `open` to its module-level `openAboutLightbox` so the nav-drawer logo can open it. Header-logo wiring (back-to-calendar on sub-pages, About on the calendar) stays per-page.
+
+### `tips-lightbox.js`
+Shared per-card Tips panel for `#tipsLightbox` (v12.50).
+- `initTipsLightbox(CARD_TIPS, { getIsAdmin })` — wires every `.btn-card-tips` button, renders sections/items (filtering `adminOnly`/`staffOnly` entries via `getIsAdmin`, read at open time), updates the dialog `aria-label` to the card title, and runs the canonical lifecycle.
+- Pages own only their `CARD_TIPS` content data. Imported by `admin-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`.
 
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All six app pages import this instead of duplicating the register/activate/reload pattern.

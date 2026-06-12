@@ -6,13 +6,15 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, teamMembers, CALENDAR_NAMES, resolveFaithCalendar, APP_VERSION, escapeHtml } from './roster-data.js';
+import { CONFIG, teamMembers, CALENDAR_NAMES, resolveFaithCalendar } from './roster-data.js';
 import { db, doc, getDoc, setDoc } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, initCardCollapse } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, initCardCollapse } from './overlay.js';
+import { initAboutLightbox } from './about-lightbox.js';
+import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
@@ -125,8 +127,8 @@ function initApp() {
     // Cultural calendar card
     initCulturalCalendarCard();
 
-    // Tips lightbox
-    initTipsLightbox();
+    // Tips lightbox — shared lifecycle (tips-lightbox.js); only the content lives here
+    initTipsLightbox(CARD_TIPS);
 
     // Icon lightbox
     initIconLightbox();
@@ -212,15 +214,9 @@ function initCulturalCalendarCard() {
     loadSetting();
 }
 
-// ── Tips lightbox ─────────────────────────────────────────────────────────────
-function initTipsLightbox() {
-    const lb       = document.getElementById('tipsLightbox');
-    const closeBtn = document.getElementById('tipsLightboxClose');
-    const titleEl  = document.getElementById('tipsLbTitle');
-    const bodyEl   = document.getElementById('tipsLbBody');
-    if (!lb || !closeBtn) return;
-
-    const CARD_TIPS = {
+// ── Tips lightbox content ─────────────────────────────────────────────────────
+// Lifecycle, renderer, and ? button wiring live in tips-lightbox.js.
+const CARD_TIPS = {
         'notifications': {
             title: 'Notifications',
             sections: [
@@ -247,123 +243,29 @@ function initTipsLightbox() {
                 ]},
             ],
         },
-    };
-
-    let _tipsFocusReturn = null;
-    function openTips(key) {
-        const tips = CARD_TIPS[key];
-        if (!tips || !titleEl || !bodyEl) return;
-        _tipsFocusReturn = document.activeElement;
-        lb.setAttribute('aria-label', tips.title);
-        titleEl.textContent = tips.title;
-        let html = '';
-        for (const section of tips.sections) {
-            if (section.heading) html += `<div class="tips-lb-section">${escapeHtml(section.heading)}</div>`;
-            for (const { icon, html: content } of section.items) {
-                html += `<div class="tips-lb-item"><span class="tips-lb-icon">${icon}</span><span>${content}</span></div>`;
-            }
-        }
-        bodyEl.innerHTML = html;
-        lb.classList.add('visible');
-        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
-        lockBodyScroll();
-        _pushOverlayState(closeTips);
-        document.addEventListener('keydown', onKey);
-    }
-
-    function closeTips() {
-        dismissOverlay(lb, { onKey, focusReturn: _tipsFocusReturn });
-        _tipsFocusReturn = null;
-    }
-
-    function onKey(e) { if (e.key === 'Escape') closeTips(); }
-
-    closeBtn.addEventListener('click', closeTips);
-    lb.addEventListener('click', e => { if (e.target === lb) closeTips(); });
-    document.querySelectorAll('.btn-card-tips').forEach(btn => {
-        btn.addEventListener('click', e => {
-            e.stopPropagation();
-            openTips(btn.dataset.card);
-        });
-    });
-}
+};
 
 // ── Icon lightbox ─────────────────────────────────────────────────────────────
+// About panel (version, update status, bug link) is the shared about-lightbox.js.
+// NOTE: a leftover fragment of the pre-v12.28 service-worker registration code
+// used to sit below this function OUTSIDE any function — a fatal module
+// SyntaxError that stopped this whole file executing. Removed at v12.50;
+// module-parse.test.mjs now guards every module against a repeat.
 function initIconLightbox() {
-    const lb       = document.getElementById('iconLightbox');
-    const closeBtn = document.getElementById('iconLightboxClose');
-    const iconBtn  = document.getElementById('appIcon');
-    if (!lb || !iconBtn) return;
-
-    const versionEl = document.getElementById('lightboxVersion');
-    if (versionEl) versionEl.textContent = APP_VERSION;
-
-    const statusEl = document.getElementById('lightboxUpdateStatus');
-    const bugLink = document.getElementById('bugReportLink');
-    if (bugLink) {
-        const date = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        const body = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Settings Version ${APP_VERSION}\nDate: ${date}\nBrowser: ${navigator.userAgent}`;
-        bugLink.href = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Settings Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
-    }
-
-    let _lbFocusReturn = null;
-    function openLightbox() {
-        _lbFocusReturn = document.activeElement;
-        if (statusEl) {
-            statusEl.textContent = '';
-            statusEl.className = 'lightbox-status';
-            (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
-                .then(reg => {
-                    statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
-                    statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
-                })
-                .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
-        }
-        lb.classList.add('visible');
-        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
-        lockBodyScroll();
-        _pushOverlayState(closeLightbox);
-        document.addEventListener('keydown', onKey);
-    }
-    function closeLightbox() {
-        dismissOverlay(lb, { onKey, focusReturn: _lbFocusReturn });
-        _lbFocusReturn = null;
-    }
-    function onKey(e) { if (e.key === 'Escape') closeLightbox(); }
+    const about = initAboutLightbox({
+        appLabel: 'MYB Roster Settings',
+        getUserName: () => currentUser,
+    });
+    if (about) openAboutLightbox = about.open;
 
     // Header logo is a back-to-calendar button (About moved to the drawer logo).
-    openAboutLightbox = openLightbox;
-    iconBtn.title = 'Back to calendar';
-    iconBtn.setAttribute('aria-label', 'Back to calendar');
-    iconBtn.addEventListener('click', () => { window.location.href = './index.html'; });
-    closeBtn.addEventListener('click', closeLightbox);
-    lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+    const iconBtn = document.getElementById('appIcon');
+    if (iconBtn) {
+        iconBtn.title = 'Back to calendar';
+        iconBtn.setAttribute('aria-label', 'Back to calendar');
+        iconBtn.addEventListener('click', () => { window.location.href = './index.html'; });
+    }
     // The coming-soon lightbox is owned entirely by nav-panel.js (open/close, Escape,
     // Android Back, focus trap). Do not re-wire it here — a duplicate handler used to
     // live in this function and left the nav-panel state flags out of sync (v11.50).
-}
-
-            if (registration.waiting) activate(registration.waiting);
-            registration.addEventListener('updatefound', () => {
-                const nw = registration.installing;
-                if (!nw) return;
-                nw.addEventListener('statechange', () => {
-                    if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-                });
-            });
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                window.location.reload();
-            }, { once: true });
-            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    clearInterval(updateInterval);
-                } else {
-                    clearInterval(updateInterval);
-                    registration.update();
-                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
-                }
-            });
-        })
-        .catch(e => console.warn('[SW] Registration failed:', e));
 }

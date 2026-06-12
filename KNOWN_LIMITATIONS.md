@@ -360,3 +360,25 @@ reads the `type` field to classify shifts. Legacy types are treated as plain `"s
 overrides — they will not be miscounted, but any overtime/RDW semantics the original
 type implied are lost. Clean up legacy documents in the Firebase Console to replace
 them with the correct current types if the pay suggestion is producing wrong results.
+
+### `window._mybSession` is a cross-module global handshake (deferred refactor)
+`operations-app.js`, `settings-app.js`, `links-app.js`, and `admin-app.js` each store
+the result of `ensureFirebaseSession()` as `window._mybSession` — a Promise that resolves
+once Firebase Auth has a live session. Feature modules that need auth before writing
+(`huddle.js`, `admin-auth.js`, `admin-roster-upload.js`) await this global before their
+first Firestore/Storage write.
+
+**Why it's a global:** the Promise must be set by the page coordinator before feature
+modules are initialised, and ES module import order doesn't guarantee coordinator-first
+execution. A named export from `session.js` would be cleaner but requires a broader
+refactor (the coordinator would have to export the Promise; every feature module would
+import it explicitly).
+
+**Risk:** a new page that imports huddle.js or admin-auth.js but forgets to set
+`window._mybSession` will silently fail on uploads with a Firebase permissions error.
+No type-checker or import graph enforces it.
+
+**If/when to fix:** when a new page needs these feature modules, add
+`window._mybSession` to a checklist in CLAUDE.md, or refactor `session.js` to export
+a `getSessionPromise() / setSessionPromise()` pair so the contract is explicit and
+grep-able.

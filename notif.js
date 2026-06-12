@@ -23,7 +23,7 @@ const VAPID_FINGERPRINT = VAPID_PUBLIC_KEY.slice(0, 12);
 const PROMPT_DISMISSED  = 'myb_notif_prompt_done';
 
 /** True on iOS/iPadOS (incl. iPadOS reporting as MacIntel with touch). */
-function isIOS() {
+export function isIOS() {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 }

@@ -8,7 +8,7 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { APP_VERSION, CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
@@ -18,7 +18,8 @@ import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRos
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, trapFocus, initCardCollapse } from './overlay.js';
+import { initCardCollapse, createLightbox } from './overlay.js';
+import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations } from './paycalc-migrations.js';
@@ -2244,139 +2245,82 @@ document.getElementById('hppBackPayLink').addEventListener('click', () => {
 
 // ── ABOUT LIGHTBOX ────────────────────────────────────────────────────────────
 // Exposed to module scope so the nav-panel drawer logo can open it (the header
-// logo is now a back button — see appIcon handler below).
+// logo is now a back button — see appIcon handler below). Lifecycle, SW status,
+// bug link, and print button are the shared about-lightbox.js.
 let openAboutLightbox = null;
 (function () {
-  const lightbox    = document.getElementById('iconLightbox');
-  const appIcon     = document.getElementById('appIcon');
-  const versionEl   = document.getElementById('lightboxVersion');
-  const statusEl    = document.getElementById('lightboxUpdateStatus');
-  const closeBtn    = document.getElementById('iconLightboxClose');
-  const contentCard = document.getElementById('iconLightboxContent');
-
-  if (!lightbox || !appIcon) return;
-
-  // Bug report link — pre-populated with version and device info
-  const bugLink = document.getElementById('bugReportLink');
-  if (bugLink) {
-    const body = `App: MYB Roster — Pay Calculator
-Version: ${APP_VERSION}
-Device: ${navigator.userAgent}
-
---- Describe the bug ---
-`;
-    bugLink.href = `mailto:${ROSTER_CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Pay Calculator Version ${APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
-  }
-
-  if (versionEl) versionEl.textContent = APP_VERSION;
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then(reg => {
-      function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-
-      if (reg.waiting) activate(reg.waiting);
-
-      reg.addEventListener('updatefound', () => {
-        const nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener('statechange', () => {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-        });
-      });
-
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        window.location.reload();
-      }, { once: true });
-
-      let updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          clearInterval(updateInterval);
-          updateInterval = null;
-        } else {
-          clearInterval(updateInterval);
-          reg.update();
-          updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
-        }
-      });
-    });
-  }
-
-  let _lbFocusReturn = null;
-  function openLightbox() {
-    _lbFocusReturn = document.activeElement;
-    if (statusEl) {
-      statusEl.textContent = '';
-      statusEl.className = 'lightbox-status';
-      (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
-        .then(reg => {
-          statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
-          statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
-        })
-        .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
-    }
-    lockBodyScroll();
-    _pushOverlayState(closeLightbox);
-    lightbox.classList.add('visible');
-    requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });
-    document.addEventListener('keydown', onKeyDown);
-  }
-  function closeLightbox() {
-    dismissOverlay(lightbox, { onKey: onKeyDown, focusReturn: _lbFocusReturn });
-    _lbFocusReturn = null;
-  }
-  function onKeyDown(e) {
-    if (e.key === 'Escape') { closeLightbox(); return; }
-    trapFocus(contentCard, e);
-  }
+  const about = initAboutLightbox({
+    appLabel: 'MYB Pay Calculator',
+    getUserName: () => getLoggedMember()?.name,
+  });
+  if (about) openAboutLightbox = about.open;
 
   // Header logo is a back-to-calendar button (About moved to the drawer logo).
-  openAboutLightbox = openLightbox;
+  const appIcon = document.getElementById('appIcon');
+  if (!appIcon) return;
   appIcon.title = 'Back to calendar';
   appIcon.setAttribute('aria-label', 'Back to calendar');
   appIcon.addEventListener('click', () => { window.location.href = './index.html'; });
-  lightbox.addEventListener('click', closeLightbox);
-  if (contentCard) contentCard.addEventListener('click', e => e.stopPropagation());
-  if (closeBtn)    closeBtn.addEventListener('click', closeLightbox);
 })();
+
+// ── SW UPDATE AUTO-ACTIVATION ─────────────────────────────────────────────────
+// Activates a waiting service worker immediately and reloads on controller
+// change. Lived inside the About lightbox IIFE before v12.50 — unrelated to
+// the lightbox, so it now stands alone.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.ready.then(reg => {
+    function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
+
+    if (reg.waiting) activate(reg.waiting);
+
+    reg.addEventListener('updatefound', () => {
+      const nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', () => {
+        if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
+      });
+    });
+
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      window.location.reload();
+    }, { once: true });
+
+    let updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        clearInterval(updateInterval);
+        updateInterval = null;
+      } else {
+        clearInterval(updateInterval);
+        reg.update();
+        updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
+      }
+    });
+  });
+}
 
 // ── HELP LIGHTBOX ─────────────────────────────────────────────────────────────
 // Generic lightbox driven by HELP_CONTENT — opened by any .help-btn[data-help].
+// Lifecycle (focus, Escape, trap, Android Back) is the shared createLightbox.
 (function () {
   const lb      = document.getElementById('helpLightbox');
-  const content = document.getElementById('helpLightboxContent');
   const titleEl = document.getElementById('helpLightboxTitle');
   const listEl  = document.getElementById('helpLightboxList');
-  const closeBtn = document.getElementById('helpLightboxClose');
   if (!lb) return;
 
-  let _helpFocusReturn = null;
+  const help = createLightbox({
+    overlay:  lb,
+    content:  document.getElementById('helpLightboxContent'),
+    closeBtn: document.getElementById('helpLightboxClose'),
+  });
+
   function openHelp(key) {
     const data = HELP_CONTENT[key];
     if (!data) return;
-    _helpFocusReturn = document.activeElement;
     titleEl.textContent = data.title;
     listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
-    lockBodyScroll();
-    _pushOverlayState(closeHelp);
-    lb.classList.add('visible');
-    requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
-    document.addEventListener('keydown', onKey);
+    help.open();
   }
-
-  function closeHelp() {
-    dismissOverlay(lb, { onKey, focusReturn: _helpFocusReturn });
-    _helpFocusReturn = null;
-  }
-
-  function onKey(e) {
-    if (e.key === 'Escape') { closeHelp(); return; }
-    trapFocus(content, e);
-  }
-
-  lb.addEventListener('click', closeHelp);
-  if (content) content.addEventListener('click', e => e.stopPropagation());
-  if (closeBtn) closeBtn.addEventListener('click', closeHelp);
 
   // Wire all ? buttons. stopPropagation prevents collapsible card toggles firing.
   document.querySelectorAll('.help-btn').forEach(btn => {
@@ -2395,46 +2339,26 @@ registerServiceWorker();
 // Dismissed by the ✕ button or clicking the overlay; guide link also dismisses it.
 (function () {
   const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
-  const lb       = document.getElementById('welcomeLightbox');
-  const content  = document.getElementById('welcomeLightboxContent');
-  const closeBtn = document.getElementById('welcomeLightboxClose');
-  const guideLink = lb && lb.querySelector('.welcome-guide-link');
+  const lb = document.getElementById('welcomeLightbox');
   if (!lb) return;
 
-  let _welcomeFocusReturn = null;
-  function openWelcome() {
-    _welcomeFocusReturn = document.activeElement;
-    const badge = document.getElementById('welcomeGradeBadge');
-    if (badge) {
-      const g = lsGet(SK.grade);
-      badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
-    }
-    // Lock synchronously — calling this inside requestAnimationFrame lets iOS
-    // briefly scroll the page during the open animation.
-    lockBodyScroll();
-    _pushOverlayState(closeWelcome);
-    lb.classList.add('visible');
-    requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
-    document.addEventListener('keydown', onKeyDown);
-  }
+  const welcome = createLightbox({
+    overlay:  lb,
+    content:  document.getElementById('welcomeLightboxContent'),
+    closeBtn: document.getElementById('welcomeLightboxClose'),
+    onOpen() {
+      const badge = document.getElementById('welcomeGradeBadge');
+      if (badge) {
+        const g = lsGet(SK.grade);
+        badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
+      }
+    },
+    onClose: () => lsSet(WELCOME_KEY, '1'),
+  });
 
-  function closeWelcome() {
-    lsSet(WELCOME_KEY, '1');
-    dismissOverlay(lb, { onKey: onKeyDown, focusReturn: _welcomeFocusReturn });
-    _welcomeFocusReturn = null;
-  }
+  lb.querySelector('.welcome-guide-link')?.addEventListener('click', welcome.close);
 
-  function onKeyDown(e) {
-    if (e.key === 'Escape') { closeWelcome(); return; }
-    trapFocus(content, e);
-  }
-
-  lb.addEventListener('click', closeWelcome);
-  if (content)   content.addEventListener('click',  e => e.stopPropagation());
-  if (closeBtn)  closeBtn.addEventListener('click',  closeWelcome);
-  if (guideLink) guideLink.addEventListener('click', closeWelcome);
-
-  if (!lsGet(WELCOME_KEY)) openWelcome();
+  if (!lsGet(WELCOME_KEY)) welcome.open();
 })();
 
 // ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────
@@ -2495,20 +2419,5 @@ initNavPanel({
     } : null,
 });
 
-// ── LIGHTBOX PRINT BUTTON ─────────────────────────────────────────────────────
-(function () {
-  const lightbox = document.getElementById('iconLightbox');
-  const printBtn = document.getElementById('lightboxPrintBtn');
-  if (!lightbox || !printBtn) return;
-  printBtn.addEventListener('click', () => {
-    // Close lightbox before printing so it doesn't appear in the output
-    lightbox.classList.remove('open');
-    let printed = false;
-    const doPrint = () => { if (!printed) { printed = true; window.print(); } };
-    lightbox.addEventListener('transitionend', doPrint, { once: true });
-    setTimeout(() => {
-      lightbox.removeEventListener('transitionend', doPrint);
-      doPrint();
-    }, 550);
-  });
-})();
+// (Lightbox print button is wired by about-lightbox.js — the standalone IIFE
+// that lived here before v12.50 only removed .open, leaving body scroll locked.)

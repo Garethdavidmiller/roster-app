@@ -11,11 +11,13 @@
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
-import { lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay } from './overlay.js';
+import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
+import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { applyHuddleButtonState, initHuddleViewer } from './app-huddle-viewer.js';
 
@@ -45,11 +47,6 @@ const fetchedMonths         = new Set();
 // Cache for getShiftTypesInMonth(). Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
 const shiftTypesMonthCache  = new Map();
-
-// Tracks the currently-displayed member name (for the print header attribute).
-// rosterOverridesCache is keyed "memberName|date" and stores all members' data,
-// so it does NOT need to be cleared when the selected member changes.
-let _cachedMemberName = null;
 
 // Set when localStorage held a member name that's no longer in the roster.
 // renderCalendar() shows a brief info banner once then clears this flag.
@@ -223,16 +220,14 @@ function getSelectedMemberIndex() {
     // No saved selection (fresh device) — auto-select from the admin session if present
     // so the logged-in staff member sees their own calendar without triggering a
     // member-switch cache clear when they pick themselves from the dropdown.
-    try {
-        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-        if (sess?.name) {
-            const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
-            if (idx !== -1) {
-                saveSelectedMember(idx);
-                return idx;
-            }
+    const sess = getSession();
+    if (sess?.name) {
+        const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
+        if (idx !== -1) {
+            saveSelectedMember(idx);
+            return idx;
         }
-    } catch (_) {}
+    }
     return getDefaultMemberIndex();
 }
 
@@ -339,14 +334,11 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
 function navigateToPaycalc(paydayStr) {
-    try {
-        const sess = JSON.parse(lsGet('myb_admin_session') || 'null');
-        if (sess && sess.name) {
-            window.location.href = `./paycalc.html?payday=${paydayStr}`;
-        } else {
-            window.location.href = './admin.html?redirect=paycalc';
-        }
-    } catch { window.location.href = './admin.html?redirect=paycalc'; }
+    if (getSession()?.name) {
+        window.location.href = `./paycalc.html?payday=${paydayStr}`;
+    } else {
+        window.location.href = './admin.html?redirect=paycalc';
+    }
 }
 
 // Helper: Create day cell HTML (pure function)
@@ -605,7 +597,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
 // ============================================
 (function() {
     const lb           = document.getElementById('alLightbox');
-    const closeBtn     = document.getElementById('alLightboxClose');
     const takenEl      = document.getElementById('alLbTaken');
     const bookedEl     = document.getElementById('alLbBooked');
     const remEl        = document.getElementById('alLbRemaining');
@@ -613,32 +604,15 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     const yearEl       = document.getElementById('alLbYear');
     const breakdownEl  = document.getElementById('alLbBreakdown');
 
-    let _alFocusReturn = null;
-    function openALLightbox() {
-        _alFocusReturn = document.activeElement;
-        lb.classList.add('visible');
-        requestAnimationFrame(() => { lb.classList.add('open'); closeBtn?.focus(); });
-        lockBodyScroll();
-        _pushOverlayState(closeALLightbox);
-        document.addEventListener('keydown', onKey);
-        loadALStats();
-    }
-
-    function closeALLightbox() {
-        dismissOverlay(lb, { onKey, focusReturn: _alFocusReturn });
-        _alFocusReturn = null;
-    }
-
-    function onKey(e) {
-        if (e.key === 'Escape') { closeALLightbox(); return; }
-        if (e.key === 'Tab') {
-            const focusable = [...lb.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
-            if (!focusable.length) { e.preventDefault(); return; }
-            const first = focusable[0], last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-        }
-    }
+    // Shared canonical lifecycle (focus save/restore, Escape, Tab trap,
+    // Android Back) — the inline focus-trap copy this replaces predated
+    // trapFocus being extracted to overlay.js at v11.40.
+    const alLb = createLightbox({
+        overlay:  lb,
+        content:  document.getElementById('alLightboxContent'),
+        closeBtn: document.getElementById('alLightboxClose'),
+        onOpen:   () => loadALStats(),
+    });
 
     async function loadALStats() {
         const member  = getCurrentMember();
@@ -707,11 +681,9 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         }
     }
 
-    window.closeALLightbox = closeALLightbox;
+    window.closeALLightbox = alLb.close;
 
-    document.getElementById('alBtn').addEventListener('click', openALLightbox);
-    closeBtn.addEventListener('click', closeALLightbox);
-    lb.addEventListener('click', e => { if (e.target === lb) closeALLightbox(); });
+    document.getElementById('alBtn').addEventListener('click', alLb.open);
 })();
 
 /**
@@ -859,9 +831,12 @@ function updateLegend() {
         'legend-pt-restoration': [PORTUGUESE_RESTORATION_DATES,   'portuguese'],
         'legend-pt-immaculate':  [PORTUGUESE_IMMACULATE_DATES,    'portuguese'],
     };
+    let faithVisible = false;
     for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
         const el = _legendEl(id);
-        if (el) el.style.display = faithInMonth(dateSet, cal) ? '' : 'none';
+        const visible = faithInMonth(dateSet, cal);
+        if (el) el.style.display = visible ? '' : 'none';
+        if (visible) faithVisible = true;
     }
 
     const faithRow = _legendEl('legend-faith-row');
@@ -882,13 +857,10 @@ function updateLegend() {
             }
         }
         cnyEl.style.display = cnyVisible ? '' : 'none';
+        if (cnyVisible) faithVisible = true;
     }
 
-    // Single check after all items (including CNY) are settled.
-    if (faithRow) {
-        faithRow.style.display = [...faithRow.querySelectorAll('.legend-item')]
-            .some(el => el.style.display !== 'none') ? '' : 'none';
-    }
+    if (faithRow) faithRow.style.display = faithVisible ? '' : 'none';
 }
 
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
@@ -896,8 +868,6 @@ function updateLegend() {
 function renderCalendar() {
     try {
         const member = getCurrentMember();
-
-        _cachedMemberName = member.name;
 
         // If the previously-selected member was removed from the roster, show a one-time notice.
         if (_staleMemberName) {
@@ -1047,31 +1017,22 @@ document.getElementById('nextMonth').addEventListener('click', () => {
 // Pay button — navigates to paycalc.html for any signed-in staff member.
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
 document.getElementById('payBtn').addEventListener('click', () => {
-    try {
-        const session = JSON.parse(lsGet('myb_admin_session') || 'null');
-        if (session && session.name) {
-            const m = String(currentDisplayMonth + 1).padStart(2, '0');
-            window.location.href = `./paycalc.html?month=${currentDisplayYear}-${m}`;
-        } else {
-            window.location.href = './admin.html?redirect=paycalc';
-        }
-    } catch {
+    if (getSession()?.name) {
+        const m = String(currentDisplayMonth + 1).padStart(2, '0');
+        window.location.href = `./paycalc.html?month=${currentDisplayYear}-${m}`;
+    } else {
         window.location.href = './admin.html?redirect=paycalc';
     }
 });
 
-// lightboxPrintBtn handler lives inside the about-lightbox IIFE below,
-// where closeLightbox() is in scope — see initAboutLightbox.
+// lightboxPrintBtn is wired by the shared about-lightbox.js (initAboutLightbox below).
 
 // Pay period strip — shows the current pay period dates + link to the pay calculator.
 // Only shown when a session exists (same condition as the pay button navigation).
 (function initPayPeriodStrip() {
     const strip = document.getElementById('payPeriodStrip');
     if (!strip) return;
-    let session;
-    try {
-        session = JSON.parse(lsGet('myb_admin_session') || 'null');
-    } catch { session = null; }
+    const session = getSession();
     if (!session?.name) return; // Not logged in — hide the strip entirely
 
     const today = new Date();
@@ -1108,49 +1069,20 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
 
 (function initTeamLightboxes() {
     const lb = document.getElementById('teamInfoLightbox');
-    const content = document.getElementById('teamInfoContent');
     if (!lb) return;
 
-    let _trigger = null; // element that opened the lightbox — restored on close
-
-    function openTeamInfo() {
-        _trigger = document.activeElement;
-        lb.classList.add('visible');
-        requestAnimationFrame(() => {
-            lb.classList.add('open');
-            document.getElementById('teamInfoClose')?.focus();
-        });
-        lockBodyScroll();
-        _pushOverlayState(closeTeamInfo);
-    }
-    function closeTeamInfo() {
-        dismissOverlay(lb, { afterClose: () => { _trigger?.focus(); _trigger = null; } });
-    }
-
-    document.getElementById('teamInfoClose')?.addEventListener('click', closeTeamInfo);
-    lb.addEventListener('click', e => { if (e.target === lb) closeTeamInfo(); });
-
-    document.addEventListener('keydown', e => {
-        if (!lb.classList.contains('visible')) return;
-        if (e.key === 'Escape') { closeTeamInfo(); return; }
-        // Focus trap — cycle through all focusable elements inside the lightbox
-        if (e.key === 'Tab') {
-            const focusable = [...lb.querySelectorAll(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            )].filter(el => !el.disabled);
-            if (focusable.length === 0) { e.preventDefault(); return; }
-            const first = focusable[0], last = focusable[focusable.length - 1];
-            if (e.shiftKey && document.activeElement === first) {
-                e.preventDefault(); last.focus();
-            } else if (!e.shiftKey && document.activeElement === last) {
-                e.preventDefault(); first.focus();
-            }
-        }
+    // Shared canonical lifecycle — replaces a permanent document keydown
+    // listener and a delayed (afterClose) focus restore that had drifted from
+    // the pattern every other lightbox follows.
+    const teamInfo = createLightbox({
+        overlay:  lb,
+        content:  document.getElementById('teamInfoContent'),
+        closeBtn: document.getElementById('teamInfoClose'),
     });
 
     // Event delegation — #teamHelpBtn is re-created on every renderTeamView() call.
     document.addEventListener('click', e => {
-        if (e.target.closest('#teamHelpBtn')) openTeamInfo();
+        if (e.target.closest('#teamHelpBtn')) teamInfo.open();
     });
 })();
 
@@ -1508,118 +1440,55 @@ try {
 
         // ============================================
         // ICON LIGHTBOX / ABOUT PANEL
+        // Lifecycle, SW status, bug link, and print machinery are the shared
+        // about-lightbox.js. The calendar adds two page-specific behaviours:
+        // content that swaps with the team-view mode (onOpen) and a landscape
+        // @page rule when printing the team week (printFn).
         // ============================================
         (function() {
-            const lightbox     = document.getElementById('iconLightbox');
-            const titleIcon    = document.querySelector('.title-icon');
-            const versionEl    = document.getElementById('lightboxVersion');
-            const statusEl     = document.getElementById('lightboxUpdateStatus');
-            const closeBtn     = document.getElementById('iconLightboxClose');
-            const contentCard  = document.getElementById('iconLightboxContent');
-            const bugLink      = document.getElementById('bugReportLink');
-
-            if (!lightbox || !titleIcon) return;
-
-            if (versionEl) versionEl.textContent = CONFIG.APP_VERSION;
-
-            // ---- Open / close ----
+            const titleIcon = document.querySelector('.title-icon');
+            if (!titleIcon) return;
 
             // Elements that swap depending on whether the calendar or team view is active
-            const calendarTips = document.getElementById('calendarTips');
+            const calendarTips  = document.getElementById('calendarTips');
             const teamViewTips  = document.getElementById('teamViewTips');
             const teamViewBadge = document.getElementById('teamViewBadge');
             const printBtn      = document.getElementById('lightboxPrintBtn');
             const printHint     = document.getElementById('lightboxPrintHint');
 
-            let _lbFocusReturn = null;
-            function openLightbox() {
-                _lbFocusReturn = document.activeElement;
-                if (statusEl) {
-                    statusEl.textContent = '';
-                    statusEl.className = 'lightbox-status';
-                    (navigator.serviceWorker?.getRegistration() ?? Promise.resolve(null))
-                        .then(reg => {
-                            statusEl.textContent = reg?.waiting ? '↻ Update available — close and reopen to refresh' : '✓ Up to date';
-                            statusEl.className   = reg?.waiting ? 'lightbox-status needs-update' : 'lightbox-status up-to-date';
-                        })
-                        .catch(() => { statusEl.textContent = '✓ Up to date'; statusEl.className = 'lightbox-status up-to-date'; });
-                }
-                // Swap content based on current view mode
-                const inTeam = teamView.isTeamViewMode();
-                if (calendarTips)  calendarTips.hidden = inTeam;
-                if (teamViewTips)  teamViewTips.hidden  = !inTeam;
-                if (teamViewBadge) teamViewBadge.hidden = !inTeam;
-                if (printBtn)  printBtn.textContent  = inTeam ? '🖨️ Print this week\'s roster' : '🖨️ Print this calendar';
-                if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month\'s calendar';
-
-                if (bugLink) {
-                    const member   = getCurrentMember();
-                    const name     = member ? member.name : 'Not selected';
-                    const date     = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                    const ua       = navigator.userAgent;
-                    const body     = `Please describe the bug:\n\n\n\n— Auto-filled —\nApp: MYB Roster Version ${CONFIG.APP_VERSION}\nUser: ${name}\nDate: ${date}\nBrowser: ${ua}`;
-                    bugLink.href   = `mailto:${CONFIG.SUPPORT_EMAIL}?subject=${encodeURIComponent(`Bug Report — MYB Roster Version ${CONFIG.APP_VERSION}`)}&body=${encodeURIComponent(body)}`;
-                }
-                lightbox.classList.add('visible');
-                requestAnimationFrame(() => { lightbox.classList.add('open'); closeBtn?.focus(); });
-                lockBodyScroll();
-                _pushOverlayState(closeLightbox);
-                document.addEventListener('keydown', onKeyDown);
-            }
-
-            function closeLightbox() {
-                dismissOverlay(lightbox, { onKey: onKeyDown, focusReturn: _lbFocusReturn });
-                _lbFocusReturn = null;
-            }
-
-            function onKeyDown(e) {
-                if (e.key === 'Escape') closeLightbox();
-            }
+            const about = initAboutLightbox({
+                appLabel: 'MYB Roster',
+                getUserName: () => getCurrentMember()?.name || 'Not selected',
+                onOpen() {
+                    // Swap content based on current view mode
+                    const inTeam = teamView.isTeamViewMode();
+                    if (calendarTips)  calendarTips.hidden  = inTeam;
+                    if (teamViewTips)  teamViewTips.hidden  = !inTeam;
+                    if (teamViewBadge) teamViewBadge.hidden = !inTeam;
+                    if (printBtn)  printBtn.textContent  = inTeam ? '🖨️ Print this week\'s roster' : '🖨️ Print this calendar';
+                    if (printHint) printHint.textContent = inTeam ? 'Prints in A4 landscape — select landscape in your print settings if needed' : 'Prints the current month\'s calendar';
+                },
+                // Team view prints in landscape; calendar uses the stylesheet's portrait @page.
+                printFn() {
+                    if (teamView.isTeamViewMode()) {
+                        const ls = document.createElement('style');
+                        ls.textContent = '@page { size: A4 landscape; margin: 1cm; }';
+                        document.head.appendChild(ls);
+                        window.print();
+                        window.addEventListener('afterprint', () => ls.remove(), { once: true });
+                    } else {
+                        window.print();
+                    }
+                },
+            });
+            if (!about) return;
 
             // Calendar keeps its header logo opening About (no "back" target on
             // home). Also expose it so the nav-panel drawer logo opens the same panel.
-            openAboutLightbox = openLightbox;
+            openAboutLightbox = about.open;
             titleIcon.addEventListener('click', (e) => {
                 e.stopPropagation();
-                openLightbox(); // Content adjusts based on teamViewMode inside openLightbox()
-            });
-
-            // Tap the dark overlay or ✕ to close
-            lightbox.addEventListener('click', closeLightbox);
-
-            // Tapping the content card itself does NOT close (prevents accidental close)
-            if (contentCard) contentCard.addEventListener('click', e => e.stopPropagation());
-            if (closeBtn)    closeBtn.addEventListener('click',    closeLightbox);
-            // Bug link opens mail app — stopPropagation prevents the overlay click handler closing the lightbox
-            if (bugLink)     bugLink.addEventListener('click',     e => e.stopPropagation());
-
-            // Print — close the lightbox first so it doesn't appear in the print output.
-            // Wait for the exit transition before calling window.print(). Both the
-            // transitionend path and the 550ms fallback guard against double invocation.
-            // Team view uses landscape; calendar uses the default portrait @page in the stylesheet.
-            if (printBtn) printBtn.addEventListener('click', () => {
-                const isTeam = teamView.isTeamViewMode();
-                closeLightbox();
-                let printed = false;
-                const doPrint = () => {
-                    if (!printed) {
-                        printed = true;
-                        if (isTeam) {
-                            const ls = document.createElement('style');
-                            ls.textContent = '@page { size: A4 landscape; margin: 1cm; }';
-                            document.head.appendChild(ls);
-                            window.print();
-                            window.addEventListener('afterprint', () => ls.remove(), { once: true });
-                        } else {
-                            window.print();
-                        }
-                    }
-                };
-                lightbox.addEventListener('transitionend', doPrint, { once: true });
-                setTimeout(() => {
-                    lightbox.removeEventListener('transitionend', doPrint);
-                    doPrint();
-                }, 550);
+                about.open(); // Content adjusts based on teamViewMode inside onOpen()
             });
         })();
 
@@ -1648,52 +1517,41 @@ try {
                 selMonth.appendChild(opt);
             });
 
-            function openPicker() {
-                selMonth.value = currentDisplayMonth;
-                selYear.value  = currentDisplayYear;
-                overlay.classList.add('visible');
-                requestAnimationFrame(() => { overlay.classList.add('open'); selMonth.focus(); });
-                lockBodyScroll();
-                _pushOverlayState(closePicker);
-            }
-
-            function closePicker() {
-                dismissOverlay(overlay);
-            }
+            // Shared canonical lifecycle — adds the focus restore this picker
+            // never had (closing used to drop keyboard focus to <body>).
+            // No .lb-close button here: Cancel is the close control.
+            const picker = createLightbox({
+                overlay,
+                content: card,
+                initialFocus: () => selMonth,
+                onOpen() {
+                    selMonth.value = currentDisplayMonth;
+                    selYear.value  = currentDisplayYear;
+                },
+            });
 
             // Delegated click: any .month-year element (rebuilt on each render)
             document.getElementById('calendarDisplay').addEventListener('click', e => {
-                if (e.target.closest('.month-year')) openPicker();
+                if (e.target.closest('.month-year')) picker.open();
             });
             document.getElementById('calendarDisplay').addEventListener('keydown', e => {
                 if (e.target.closest('.month-year') && (e.key === 'Enter' || e.key === ' ')) {
-                    e.preventDefault(); openPicker();
+                    e.preventDefault(); picker.open();
                 }
             });
 
             btnConfirm.addEventListener('click', () => {
                 currentDisplayMonth = parseInt(selMonth.value, 10);
                 currentDisplayYear  = parseInt(selYear.value, 10);
-                closePicker();
+                picker.close();
                 renderCalendar();
                 announceMonthChange();
+                // renderCalendar() rebuilt the heading the focus restore pointed
+                // at — move focus onto the freshly rendered equivalent.
+                document.querySelector('.month-year')?.focus();
             });
 
-            btnCancel.addEventListener('click', closePicker);
-            overlay.addEventListener('click', closePicker);
-            card.addEventListener('click', e => e.stopPropagation());
-
-            document.addEventListener('keydown', e => {
-                if (!overlay.classList.contains('open')) return;
-                if (e.key === 'Escape') { closePicker(); return; }
-                if (e.key === 'Tab') {
-                    const focusable = [...card.querySelectorAll('button, select, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
-                    if (!focusable.length) { e.preventDefault(); return; }
-                    const first = focusable[0], last = focusable[focusable.length - 1];
-                    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-                    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-                }
-            });
+            btnCancel.addEventListener('click', picker.close);
         })();
 
         // ============================================
@@ -1702,18 +1560,24 @@ try {
         document.addEventListener('keydown', (e) => {
             // Don't fire if user is typing in an input
             if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+            // Don't fire behind ANY open lightbox — focus sits on a button there,
+            // so the input check above doesn't help: arrows/t would silently
+            // change the month behind the overlay and p would print it.
+            if (document.querySelector('.lb-overlay.visible')) return;
             if (swipeCooldown) return; // Don't interrupt a swipe animation
             if (teamView.isTeamViewMode()) {
                 if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
                 if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
+                if (e.key === 't' || e.key === 'T') teamView.jumpToCurrentWeek();
                 return;
             }
-            if (e.key === 'ArrowLeft')  { changeMonth(-1); renderCalendar(); announceMonthChange(); }
-            if (e.key === 'ArrowRight') { changeMonth(1);  renderCalendar(); announceMonthChange(); }
+            // Guard: when a calendar day cell has focus, arrow keys move between cells
+            // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
+            if (e.key === 'ArrowLeft'  && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(-1); renderCalendar(); announceMonthChange(); }
+            if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(1);  renderCalendar(); announceMonthChange(); }
             if (e.key === 't' || e.key === 'T') { const now = getToday(); currentDisplayMonth = now.getMonth(); currentDisplayYear = now.getFullYear(); renderCalendar(); pulseToday(); announceMonthChange(); }
             if (e.key === 'p' || e.key === 'P') {
-                if (!document.getElementById('iconLightbox')?.classList.contains('visible') &&
-                    !document.getElementById('huddleViewer')?.classList.contains('open')) window.print();
+                if (!document.getElementById('huddleViewer')?.classList.contains('open')) window.print();
             }
         });
 
@@ -1875,8 +1739,7 @@ async function ensureOverridesCached(year, month) {
         syncChip.style.cursor = 'default';
         syncChip.style.pointerEvents = 'none';
 
-        // Re-mark months so ensureOverridesCached won't double-fetch while this is in flight.
-        fetchedMonths.clear();
+        // Re-mark the initial 3 months only — other months fetched during navigation stay cached.
         fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
         fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
         fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
@@ -2098,9 +1961,7 @@ function initCalendarKeyboard() {
 initCalendarTooltip();
 initCalendarKeyboard();
 
-const _calendarSession = (() => {
-    try { return JSON.parse(lsGet('myb_admin_session') || 'null'); } catch { return null; }
-})();
+const _calendarSession = getSession();
 initNavPanel({
     currentPage: 'calendar',
     memberName:  _calendarSession?.name || null,
@@ -2108,7 +1969,7 @@ initNavPanel({
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(_calendarSession?.name),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _calendarSession ? () => {
-        lsDel('myb_admin_session');
+        clearSession();
         window.location.reload();
     } : null,
 });
