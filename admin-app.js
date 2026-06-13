@@ -23,7 +23,7 @@ import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, initCardCollapse } from './overlay.js';
+import { lockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
@@ -55,6 +55,11 @@ function initLoginOverlay() {
     if (!overlay) return;
     overlay.classList.add('visible');
     lockBodyScroll();
+
+    overlay.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { window.location.href = './index.html'; return; }
+        trapFocus(overlay, e);
+    });
 
     // Grade order — defines display sequence; Management always last
     const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];

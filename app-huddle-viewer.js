@@ -2,10 +2,10 @@
  * app-huddle-viewer.js — Daily Huddle overlay for index.html.
  *
  * Owns: Huddle viewer overlay, auto-open on notification tap, real-time
- *   Firestore subscription, huddle button state management, HTML sanitisation.
+ *   Firestore subscription, HTML sanitisation.
  * Does NOT own: Huddle upload (huddle.js), Firestore huddles collection writes
  *   (firebase-client.js), push notification logic (notif.js).
- * Edit here for: viewer open/close behaviour, auto-open paths, button state.
+ * Edit here for: viewer open/close behaviour, auto-open paths.
  *
  * Two viewer paths — do NOT collapse into one, do NOT revert notification path
  * to window.open/location.href:
@@ -23,36 +23,11 @@
 // re-run `node generate-sri.mjs --apply` to update the <link rel="modulepreload"> SRI in index.html.
 import DOMPurify from './purify.es.mjs';
 import { subscribeToLatestHuddle } from './firebase-client.js';
-import { lockBodyScroll, _pushOverlayState, dismissOverlay } from './overlay.js';
+import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
-// applyHuddleButtonState() is exported so app.js can call it during calendar renders.
 let _huddleData  = null;
 let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
-
-/**
- * Update the #huddleBtn disabled state and accessible label.
- * Called by app.js on every calendar render and by the Firestore subscription callback.
- */
-export function applyHuddleButtonState() {
-    const btn = document.getElementById('huddleBtn');
-    if (!btn) return;
-    if (_huddleState === 'loading') {
-        btn.disabled = true;
-    } else if (_huddleState === 'none') {
-        btn.disabled = true;
-        btn.title = 'No briefing uploaded today';
-        btn.setAttribute('aria-label', 'Huddle — no briefing uploaded yet');
-    } else if (_huddleState === 'error') {
-        btn.disabled = true;
-        btn.title = "Couldn't load the briefing";
-        btn.setAttribute('aria-label', "Huddle — couldn't load, check your connection");
-    } else {
-        btn.disabled = false;
-        btn.title = "Open today's Huddle";
-        btn.setAttribute('aria-label', "Open today's Huddle");
-    }
-}
 
 /**
  * Sanitise HTML from a Huddle document before rendering it in the viewer.
@@ -66,13 +41,6 @@ function sanitiseHtml(html) {
         ALLOWED_ATTR: [],
     });
 }
-
-// ============================================
-// HUDDLE VIEWER
-// #huddleBtn is in the static <header> and persists across renders.
-// Event delegation on document is used for consistency with other overlays.
-// _huddleData / _huddleState are module-level and survive the page lifetime.
-// ============================================
 
 /** Wire up the Huddle viewer overlay and start the Firestore subscription. Call once on page load. */
 export function initHuddleViewer() {
@@ -113,7 +81,10 @@ export function initHuddleViewer() {
         _viewerFocusReturn = null;
         dismissOverlay(viewer, { onKey, focusReturn });
     }
-    function onKey(e) { if (e.key === 'Escape') closeViewer(); }
+    function onKey(e) {
+        if (e.key === 'Escape') { closeViewer(); return; }
+        trapFocus(viewer, e);
+    }
 
     // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl
     // so DOMPurify doesn't re-parse the same document on every reopen.
@@ -130,28 +101,6 @@ export function initHuddleViewer() {
     if (close) {
         close.addEventListener('click', closeViewer);
     }
-
-    // Event delegation — fires on every document click; only acts on #huddleBtn.
-    document.addEventListener('click', e => {
-        if (!e.target.closest('#huddleBtn')) return;
-        if (_huddleState !== 'ready' || !_huddleData) return;
-        const huddle = _huddleData;
-        try {
-            if (huddle.htmlContent) {
-                // DOCX converted to HTML server-side — render inline.
-                showInlineHuddle(huddle);
-            } else {
-                // PDF, or DOCX where conversion failed — open from Storage.
-                // This click is a real user gesture so window.open is allowed.
-                window.open(huddle.storageUrl, '_blank', 'noopener');
-            }
-        } catch (err) {
-            console.error('[Huddle] Viewer error:', err);
-            body.innerHTML = '<p class="huddle-error">Could not display this Huddle — please try again.</p>';
-            openViewer();
-            close.focus();
-        }
-    });
 
     function _triggerAutoOpen(huddle) {
         _autoOpened = true;
@@ -220,12 +169,10 @@ export function initHuddleViewer() {
                         _triggerAutoOpen(huddle);
                     }
                 }
-                applyHuddleButtonState();
             },
             (err) => {
                 _huddleState = 'error';
                 console.warn('[Huddle] Could not fetch latest huddle:', err);
-                applyHuddleButtonState();
             }
         );
     }
@@ -244,7 +191,6 @@ export function initHuddleViewer() {
     setTimeout(() => {
         if (_huddleState === 'loading') {
             _huddleState = 'error';
-            applyHuddleButtonState();
         }
     }, 8000);
 }

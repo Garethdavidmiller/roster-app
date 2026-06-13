@@ -12,7 +12,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, initCardCollapse } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -62,6 +62,11 @@ function initLoginOverlay() {
     if (!overlay) return;
     overlay.classList.add('visible');
     lockBodyScroll();
+
+    overlay.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { window.location.href = './index.html'; return; }
+        trapFocus(overlay, e);
+    });
 
     const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher'];
     const GRADE_KEY   = 'myb_login_grade';

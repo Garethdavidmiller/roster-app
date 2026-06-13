@@ -19,7 +19,7 @@ import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
-import { applyHuddleButtonState, initHuddleViewer } from './app-huddle-viewer.js';
+import { initHuddleViewer } from './app-huddle-viewer.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -149,11 +149,6 @@ let currentDisplayYear = getToday().getFullYear();
 // SWIPE GESTURE STATE
 // ============================================
 let swipeCooldown = false;
-
-// ============================================
-// HUDDLE BUTTON STATE
-// applyHuddleButtonState and _huddleData/_huddleState live in app-huddle-viewer.js.
-// applyHuddleButtonState is imported above and called here during calendar renders.
 
 // ============================================
 // TEAM VIEW
@@ -616,6 +611,8 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         onOpen:   () => loadALStats(),
     });
 
+    const alErrorEl = document.getElementById('alLbError');
+
     async function loadALStats() {
         const member  = getCurrentMember();
         const year    = currentDisplayYear;
@@ -625,6 +622,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         takenEl.textContent = '…';
         bookedEl.textContent = '…';
         remEl.textContent   = '…';
+        if (alErrorEl) alErrorEl.hidden = true;
 
         if (!member) {
             takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
@@ -644,11 +642,14 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             // Date-range query with client-side memberName filter — matches the calendar pattern
             // and avoids depending on a deployed composite (memberName + date) index.
             const memberOverrides = [];
-            const snap = await getDocs(query(
-                collection(db, 'overrides'),
-                where('date', '>=', `${yearStr}-01-01`),
-                where('date', '<=', `${yearStr}-12-31`)
-            ));
+            const snap = await Promise.race([
+                getDocs(query(
+                    collection(db, 'overrides'),
+                    where('date', '>=', `${yearStr}-01-01`),
+                    where('date', '<=', `${yearStr}-12-31`)
+                )),
+                new Promise((_, reject) => setTimeout(() => reject(new Error('AL load timeout')), 15_000)),
+            ]);
             snap.forEach(d => {
                 const data = d.data();
                 if (data.memberName !== member.name) return;
@@ -680,6 +681,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             console.error('[AL lightbox] Failed:', e);
             takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
             if (breakdownEl) breakdownEl.hidden = true;
+            if (alErrorEl) alErrorEl.hidden = false;
         }
     }
 
@@ -914,8 +916,6 @@ function renderCalendar() {
         if (!_initialFetchInProgress) {
             ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
         }
-
-        applyHuddleButtonState();
 
     } catch (error) {
         console.error('Error rendering calendar:', error);
