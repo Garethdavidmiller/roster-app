@@ -220,7 +220,7 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 - **Region:** `europe-west2` (London)
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. `ROSTER_SECRET` is no longer used anywhere — both `parseRosterPDF` and `setupRosterAuth` use Firebase ID token auth with an admin custom claim.
 - **CORS:** `cors: true` — all origins allowed (v9.69). Previously restricted to `[firebaseapp.com, web.app]` (v9.53–v9.68), but firebase-functions v6 with `cors: [array]` does not consistently set `Access-Control-Allow-Headers` on OPTIONS preflight responses, causing browsers to block the POST. Because auth is handled entirely by the Firebase ID token + admin claim, open CORS adds no attack surface. `setupRosterAuth` uses the same `cors: true` setting for the same reason.
-- **AI model:** `claude-haiku-4-5-20251001`, `max_tokens: 8192`
+- **AI model:** the `CLAUDE_MODEL` constant in `functions/index.js` — currently `claude-sonnet-4-6`, `max_tokens: 8192`. Note this is an unversioned alias (it tracks the latest Sonnet 4.6 snapshot), not a dated pin; switch to a dated snapshot if reproducibility matters.
 - **Why direct PDF input:** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
 **Request format:**
