@@ -1,0 +1,43 @@
+name: Smoke tests
+
+# Runs on every branch so issues are caught before merging to main,
+# not only at deploy time.
+on:
+  push:
+    branches-ignore:
+      - main        # deploy-hosting.yml already runs these on main
+    paths-ignore:
+      - '**/*.md'
+      - '.github/**'
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        run: npx playwright test
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

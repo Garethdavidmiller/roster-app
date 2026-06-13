@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.54';
+export const APP_VERSION = '12.56';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -244,7 +244,7 @@ export const SWIPE_VELOCITY  = 0.4;  // px/ms — fast flick commits even below 
  * @param {number} year
  * @returns {Date}
  */
-function computeEaster(year) {
+export function computeEaster(year) {
     const a = year % 19;
     const b = Math.floor(year / 100);
     const c = year % 100;
@@ -1153,6 +1153,23 @@ export function isNightShift(timeStr) {
     if (!SHIFT_TIME_REGEX.test(timeStr)) return false;
     const hour = parseInt(timeStr.split(':')[0], 10);
     return hour >= CONFIG.NIGHT_START_THRESHOLD || hour < CONFIG.EARLY_START_THRESHOLD;
+}
+
+/**
+ * Classify a worked shift as 'early' | 'late' | 'night' for display.
+ * A member's permanentShift always wins over the time-based classification.
+ * Shared by the calendar day cells and the Team Week View so both render
+ * the same kind for the same shift.
+ * @param {string} timeStr  Shift value (e.g. "06:00-14:00")
+ * @param {object} [member] Team member — permanentShift is honoured if set
+ * @returns {'early'|'late'|'night'}
+ */
+export function getShiftKind(timeStr, member) {
+    if (member?.permanentShift === 'early' || member?.permanentShift === 'late') {
+        return member.permanentShift;
+    }
+    if (isNightShift(timeStr)) return 'night';
+    return isEarlyShift(timeStr) ? 'early' : 'late';
 }
 
 /**

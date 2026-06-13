@@ -21,6 +21,7 @@ import {
     isChristmasRD,
     isEarlyShift,
     isNightShift,
+    getShiftKind,
     getShiftClass,
     getShiftBadge,
     getWeekNumberForDate,
@@ -240,6 +241,46 @@ test('getShiftClass: night shift returns "night-shift"', () => {
 
 test('getShiftClass: late shift returns "late-shift"', () => {
     assert.equal(getShiftClass('14:00-22:00'), 'late-shift');
+});
+
+// ---------------------------------------------------------------------------
+// getShiftKind
+// ---------------------------------------------------------------------------
+
+test('getShiftKind: 04:00 start is early (lower boundary)', () => {
+    assert.equal(getShiftKind('04:00-12:00'), 'early');
+});
+
+test('getShiftKind: 10:59 start is early (upper boundary)', () => {
+    assert.equal(getShiftKind('10:59-18:59'), 'early');
+});
+
+test('getShiftKind: 11:00 start is late (boundary)', () => {
+    assert.equal(getShiftKind('11:00-19:00'), 'late');
+});
+
+test('getShiftKind: 20:59 start is late (upper boundary)', () => {
+    assert.equal(getShiftKind('20:59-04:59'), 'late');
+});
+
+test('getShiftKind: 21:00 start is night (boundary)', () => {
+    assert.equal(getShiftKind('21:00-05:00'), 'night');
+});
+
+test('getShiftKind: 03:59 start is night (wraps past midnight)', () => {
+    assert.equal(getShiftKind('03:59-11:59'), 'night');
+});
+
+test('getShiftKind: permanentShift early wins over a late time', () => {
+    assert.equal(getShiftKind('14:30-22:30', { permanentShift: 'early' }), 'early');
+});
+
+test('getShiftKind: permanentShift late wins over an early time', () => {
+    assert.equal(getShiftKind('06:00-14:00', { permanentShift: 'late' }), 'late');
+});
+
+test('getShiftKind: member without permanentShift falls back to time-based', () => {
+    assert.equal(getShiftKind('06:00-14:00', { name: 'X' }), 'early');
 });
 
 // ---------------------------------------------------------------------------

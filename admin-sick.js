@@ -2,10 +2,10 @@
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles
 // and shared functions via initSickSection(deps) to avoid circular imports.
 
-import { teamMembers, getBaseShift, formatISO, isSunday, escapeHtml } from './roster-data.js';
-import { getAllOverrides, recordRangeOverrides, formatDisplay } from './admin-overrides.js';
+import { teamMembers, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
+import { recordRangeOverrides, formatDisplay, buildMemberDateMap } from './admin-overrides.js';
 import { isRestShift } from './app-override-utils.js';
-import { buildRangePicker } from './admin-rangepicker.js';
+import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
 
@@ -47,15 +47,7 @@ syncSickMemberDisplay();
  * @returns {string[]|null}
  */
 function getSickDates() {
-    if (!sickFrom.value || !sickTo.value) return [];
-    const from = new Date(sickFrom.value + 'T12:00:00');
-    const to   = new Date(sickTo.value   + 'T12:00:00');
-    if (to < from) return null;
-    const dates = [];
-    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-        dates.push(formatISO(new Date(d)));
-    }
-    return dates;
+    return getDateRange(sickFrom.value, sickTo.value);
 }
 
 /** Refreshes the preview message and enables/disables the save button. */
@@ -103,12 +95,7 @@ function updateSickPreview() {
     const memberObj = teamMembers.find(m => m.name === member);
     let restCount = 0;
     if (memberObj) {
-        // Build a Map<date, override> once instead of doing a linear .find() per date.
-        // O(N×D) → O(N+D) — same algorithmic fix as in admin-al.js.
-        const memberOvByDate = new Map();
-        for (const o of getAllOverrides()) {
-            if (o.memberName === memberObj.name) memberOvByDate.set(o.date, o);
-        }
+        const memberOvByDate = buildMemberDateMap(memberObj.name);
         dates.forEach(dateStr => {
             if (isSunday(dateStr)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
@@ -149,6 +136,7 @@ sickSaveBtn.addEventListener('click', async () => {
         if (!workingCount) {
             sickFeedback.className = 'feedback error';
             sickFeedback.textContent = '⚠ No working days in that range — nothing to record.';
+            sickFeedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             return;
         }
 

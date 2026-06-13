@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v12.54 -->
+<!-- MYB Roster — Admin v12.56 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -213,7 +213,7 @@
     <div class="card" id="book-annual-leave">
         <div class="card-header card-collapsible-header" id="alToggleHeader">
             <h2>🏖️ Record Annual Leave <button class="btn-card-tips" data-card="annual-leave" aria-label="Tips for recording annual leave" title="Tips for recording annual leave">?</button></h2>
-            <span class="al-header-balance" id="alHeaderBalance" hidden>Remaining: <strong id="alHeaderRemaining">—</strong></span>
+            <span class="al-header-balance" id="alHeaderBalance" hidden>AL left: <strong id="alHeaderRemaining">—</strong></span>
             <span class="hint">Select a staff member and date range — rest days and Sundays are skipped automatically</span>
             <span class="collapse-chevron" id="alChevron">▾</span>
         </div>
@@ -279,7 +279,7 @@
     <div class="card" id="record-sick-days">
         <div class="card-header card-collapsible-header" id="sickToggleHeader">
             <h2>🪑 Record Absence <button class="btn-card-tips" data-card="sick-days" aria-label="Tips for recording absence" title="Tips for recording absence">?</button></h2>
-            <span class="hint">Mark days when a team member isn't in — for any reason</span>
+            <span class="hint">Mark days when a team member isn't in — visible to all staff in the calendar</span>
             <span class="collapse-chevron" id="sickChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="sickBody">
@@ -295,7 +295,6 @@
                 <input type="date" id="sickFrom" hidden>
                 <input type="date" id="sickTo" hidden>
             </div>
-            <p class="absence-visibility-note">👁️ Absence days are visible to all staff in the calendar.</p>
             <div class="al-preview sick-preview" id="sickPreview"></div>
             <button class="btn-save" id="sickSaveBtn" disabled>Record absence</button>
             <div class="feedback" id="sickFeedback" role="status" aria-live="polite"></div>

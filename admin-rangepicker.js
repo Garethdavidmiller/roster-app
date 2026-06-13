@@ -9,6 +9,26 @@
 import { DAY_NAMES, MONTH_ABB, MONTH_NAMES, formatISO, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 
 /**
+ * Returns an array of ISO date strings from fromVal to toVal inclusive,
+ * or null if the range is invalid (to < from), or [] if either input is empty.
+ * Max-day validation is the caller's responsibility.
+ * @param {string} fromVal  YYYY-MM-DD
+ * @param {string} toVal    YYYY-MM-DD
+ * @returns {string[]|null}
+ */
+export function getDateRange(fromVal, toVal) {
+    if (!fromVal || !toVal) return [];
+    const from = new Date(fromVal + 'T12:00:00');
+    const to   = new Date(toVal   + 'T12:00:00');
+    if (to < from) return null;
+    const dates = [];
+    for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+        dates.push(formatISO(new Date(d)));
+    }
+    return dates;
+}
+
+/**
  * Builds an inline date-range calendar inside #{prefix}RangePicker and wires
  * it to the hidden <input type="date"> elements #{prefix}From / #{prefix}To.
  * Returns { reset() } for post-save clearing.
@@ -51,8 +71,14 @@ export function buildRangePicker(prefix) {
     const clip      = document.getElementById(prefix + 'RpClip');
     const grid      = document.getElementById(prefix + 'RpGrid');
 
-    document.getElementById(prefix + 'RpPrev').addEventListener('click', () => { if (--mo < 0) { mo = 11; yr--; } render(); });
-    document.getElementById(prefix + 'RpNext').addEventListener('click', () => { if (++mo > 11) { mo = 0; yr++; } render(); });
+    function moveMonth(delta) {
+        mo += delta;
+        if (mo > 11) { mo = 0; yr++; }
+        if (mo < 0)  { mo = 11; yr--; }
+    }
+
+    document.getElementById(prefix + 'RpPrev').addEventListener('click', () => { moveMonth(-1); render(); });
+    document.getElementById(prefix + 'RpNext').addEventListener('click', () => { moveMonth(+1); render(); });
     clearBtn.addEventListener('click', () => {
         fromISO = toISO = hoverISO = '';
         fromInput.value = toInput.value = '';
@@ -130,9 +156,7 @@ export function buildRangePicker(prefix) {
     // Temporarily shifts yr/mo by delta, renders into a new div, then restores state.
     function buildAdjPanel(delta) {
         const savedMo = mo, savedYr = yr;
-        mo += delta;
-        if (mo > 11) { mo = 0; yr++; }
-        if (mo < 0)  { mo = 11; yr--; }
+        moveMonth(delta);
         const panel = document.createElement('div');
         panel.className = 'rp-grid rp-adj-panel';
         renderGrid(panel);
@@ -214,8 +238,7 @@ export function buildRangePicker(prefix) {
             if (!swHaptic) navigator.vibrate?.(6);
             const incoming = goLeft ? swPanelNext : swPanelPrev;
             const discard  = goLeft ? swPanelPrev : swPanelNext;
-            if (goLeft) { if (++mo > 11) { mo = 0; yr++; } }
-            else        { if (--mo < 0)  { mo = 11; yr--; } }
+            moveMonth(goLeft ? +1 : -1);
             label.textContent = `${MONTH_NAMES[mo]} ${yr}`;
             // Slide both panels to their committed positions
             grid.style.transition     = TRANSITION;
