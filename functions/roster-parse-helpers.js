@@ -38,7 +38,14 @@ function normaliseShift(raw) {
     const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
     if (rdwMatch) return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
 
-    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK', 'RDW'].includes(s)) return s;
+    if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
+    if (s === 'RDW') {
+        // Bare 'RDW' means the AI omitted the required shift time. Return as-is so
+        // the review table displays it for manual correction — the admin can see the
+        // unusual value and fix it before approving the upload.
+        console.warn(`[parseRosterPDF] AI returned bare "RDW" with no time for "${raw}" — review table will flag it`);
+        return s;
+    }
 
     // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130",
     // "6:30-12:30" (single-digit hour). Pad single-digit hours to 2 digits.
@@ -276,12 +283,15 @@ function huddleDayLabel(huddleDate, nowLondon) {
  * @returns {boolean}
  */
 function isPayCutoffDay(date) {
-    const FIRST_PAYDAY_MS = new Date(2026, 1, 13, 12, 0, 0).getTime(); // 13 Feb 2026
+    // Anchor in UTC so the arithmetic is correct on any server timezone.
+    // Date.UTC and setUTCHours give the same result as their local counterparts on
+    // UTC Cloud Run — but are explicit and correct if TZ ever differs.
+    const FIRST_PAYDAY_MS = Date.UTC(2026, 1, 13, 12, 0, 0); // 13 Feb 2026, noon UTC
     const INTERVAL_DAYS   = 28;
     const MS_PER_DAY      = 86_400_000;
     // Cutoff is 6 days before payday (Saturday before a Friday)
     const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
-    candidate.setHours(12, 0, 0, 0);
+    candidate.setUTCHours(12, 0, 0, 0);
     const diff = candidate.getTime() - FIRST_PAYDAY_MS;
     if (diff < 0) return false;
     return Math.round(diff / MS_PER_DAY) % INTERVAL_DAYS === 0;
@@ -311,6 +321,9 @@ function nameToEmail(fullName) {
  */
 function nameToPassword(fullName) {
     const surname = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    // padEnd with an empty fill string cannot extend — guard so the caller gets a
+    // clear error rather than '' being sent to Firebase as an invalid password.
+    if (!surname) throw new Error(`no usable surname in "${fullName}"`);
     return surname.length >= 6 ? surname : surname.padEnd(6, surname);
 }
 

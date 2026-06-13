@@ -112,8 +112,13 @@ exports.ingestHuddle = onRequest(
         // ---- Authentication ----
         const authHeader = req.headers['authorization'] || '';
         const expected   = `Bearer ${HUDDLE_SECRET.value()}`;
-        const match = authHeader.length === expected.length &&
-            crypto.timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+        // Compare byte-length buffers, not string character lengths — a multi-byte
+        // UTF-8 char can match character count but differ in byte count, causing
+        // timingSafeEqual to throw ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH.
+        const authBuf   = Buffer.from(authHeader);
+        const expectBuf = Buffer.from(expected);
+        const match = authBuf.length === expectBuf.length &&
+            crypto.timingSafeEqual(authBuf, expectBuf);
         if (!match) {
             res.status(401).json({ error: 'Unauthorised' });
             return;
@@ -408,10 +413,9 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
 async function sendPayPushNotifications(payday, vapidPrivate) {
     setupWebPush(vapidPrivate);
 
-    const y  = payday.getFullYear();
-    const m  = String(payday.getMonth() + 1).padStart(2, '0');
-    const d  = String(payday.getDate()).padStart(2, '0');
-    const paydayISO = `${y}-${m}-${d}`;
+    // Use toISOString() (UTC) rather than local-time getters — payday is constructed
+    // as midnight UTC so the UTC date is always the correct London date on Cloud Run.
+    const paydayISO = payday.toISOString().slice(0, 10);
 
     const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
     const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
@@ -945,8 +949,20 @@ exports.setupRosterAuth = onRequest(
 
         // Create accounts for all current members, then (re)apply custom claims.
         for (const name of members) {
-            const email    = nameToEmail(name);
-            const password = nameToPassword(name);
+            if (typeof name !== 'string' || !name.trim()) {
+                failed.push(String(name));
+                console.error(`[setupRosterAuth] Skipping invalid member entry: ${JSON.stringify(name)}`);
+                continue;
+            }
+            let email, password;
+            try {
+                email    = nameToEmail(name);
+                password = nameToPassword(name);
+            } catch (err) {
+                failed.push(`${name} (invalid: ${err.message})`);
+                console.error(`[setupRosterAuth] Name derivation failed for "${name}": ${err.message}`);
+                continue;
+            }
             let uid;
             try {
                 const user = await admin.auth().createUser({ email, password, displayName: name });

@@ -505,6 +505,9 @@ details and the re-introduction checklist.
 - [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
 - [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
 
+**Step 2b — `functions/index.js` (CEA / CES / Dispatcher only — not Management)**
+- [ ] Add the new member's name to the correct `STAFF_NAMES` array (`cea`, `ces`, or `dispatcher`) inside `parseRosterPDF` — the weekly roster PDF upload ignores any name not in this list, so a missing entry means that staff member's shifts are silently excluded from every roster import until this is updated. The list is hardcoded (can't import the browser ES module `roster-data.js` from a Cloud Function) and must be kept in sync manually.
+
 **Step 3 — Pay calculator verification (mid-year joiners only)**
 - [ ] Log in as the new member, open pay calculator, check the joining period shows the info banner and correct pro-rated contracted hours
 - [ ] Joining period = the pay period whose cutoff is on or after the start date
