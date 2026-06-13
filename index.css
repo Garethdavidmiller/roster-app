@@ -113,11 +113,13 @@
             inherits: false;
         }
 
-        /* Today cell pulse — scale + animated gold glow */
+        /* Today cell pulse — animated gold glow only. No transform: scale —
+           the enlarged cell visually overlapped its grid neighbours mid-animation,
+           which read as jitter on mobile. The glow alone conveys "this is today". */
         @keyframes todayPulse {
-            0%   { transform: scale(1);    --today-glow-alpha: 0; }
-            40%  { transform: scale(1.06); --today-glow-alpha: 0.5; }
-            100% { transform: scale(1);    --today-glow-alpha: 0.25; }
+            0%   { --today-glow-alpha: 0; }
+            40%  { --today-glow-alpha: 0.5; }
+            100% { --today-glow-alpha: 0.25; }
         }
 
         .calendar-day.today.today-pulse {
@@ -542,6 +544,12 @@
             right: 3px;
             font-size: 10px;
             z-index: 10;
+        }
+
+        /* Payday and cutoff cells navigate to the pay calculator on click */
+        .calendar-day.payday,
+        .calendar-day.cutoff {
+            cursor: pointer;
         }
 
         /* Payday anchors top-left, bank holiday anchors top-right — no collision.

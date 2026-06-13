@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
-         SHIFT_TIME_REGEX, isEarlyShift, isNightShift } from './roster-data.js';
+         SHIFT_TIME_REGEX, getShiftKind } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
@@ -98,11 +98,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             return { text: `💼 ${escapeHtml(shift.slice(4)) || 'RDW'}`, cls: 'tv-rdw' };
         }
         if (SHIFT_TIME_REGEX.test(shift)) {
-            const shiftKind = member.permanentShift === 'early' ? 'early'
-                            : member.permanentShift === 'late'  ? 'late'
-                            : isNightShift(shift)               ? 'night'
-                            : isEarlyShift(shift)               ? 'early'
-                            :                                     'late';
+            const shiftKind = getShiftKind(shift, member);
             const EMOJI = { early: '☀️', late: '🌙', night: '🦉' };
             return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}` };
         }

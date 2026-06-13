@@ -8,7 +8,7 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, isEarlyShift, isNightShift, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
@@ -64,10 +64,13 @@ let openAboutLightbox = null;
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
 // ============================================
-// isSameDay, getBankHolidays, isBankHoliday, isChristmasDay, isEasterSunday,
+// isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday,
 // getPaydaysAndCutoffs, isPayday, isCutoffDate — all imported from roster-data.js.
 
 const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// Accessible-label text for each shift kind returned by getShiftKind().
+const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Night shift' };
 
 // ============================================
 // DATA VALIDATION
@@ -181,13 +184,16 @@ function changeMonth(delta) {
 
 // Show a one-time swipe hint on the calendar for first-time visitors.
 // Only shown on touch devices — desktop users navigate with Prev/Next buttons.
-// Dismissed permanently on the first month navigation (swipe or button).
+// Dismissed permanently on the first month navigation (swipe or button), or
+// auto-dismissed after 6s — without the timer, a user who saw the hint but
+// didn't navigate would be shown it again on every reload.
 (function initSwipeHint() {
     if (lsGet('myb_swipe_hint_seen')) return;
     if (!window.matchMedia('(pointer: coarse)').matches) return;
     const hint = document.getElementById('swipeHint');
     if (!hint) return;
     hint.style.display = '';
+    setTimeout(dismissSwipeHint, 6000);
 })();
 
 function dismissSwipeHint() {
@@ -286,7 +292,7 @@ function populateTeamMemberDropdown() {
     }
 }
 
-// getWeekNumberForDate, isEarlyShift, isNightShift, getShiftClass, getShiftBadge — imported from roster-data.js
+// getWeekNumberForDate, getShiftKind, getShiftClass, getShiftBadge — imported from roster-data.js
 
 // Helper: Get current selected member
 function getCurrentMember() {
@@ -520,10 +526,8 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             : shift === 'AL'    ? 'Annual leave'
             : shift === 'SICK'  ? 'Absence'
             : shift === 'RDW'   ? 'Rest day worked'
-            : member.permanentShift === 'late'  ? 'Late shift'
-            : member.permanentShift === 'early' ? 'Early shift'
-            : isEarlyShift(shift) ? `Early shift ${shift}`
-            : `Late shift ${shift}`;
+            : SHIFT_KIND_LABELS[getShiftKind(shift, member)]
+                + (member.permanentShift ? '' : ` ${shift}`);
         const faithMarker = getFaithBadge(dateStr, faithCalendar);
 
         const isToday  = isSameDay(currentDate, today);
@@ -558,12 +562,10 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (isEaster) dayCell.classList.add('easter-day');
         if (isPay) {
             dayCell.classList.add('payday');
-            dayCell.style.cursor = 'pointer';
             dayCell.dataset.paydayIso = dateStr;
         }
         if (isCutoff) {
             dayCell.classList.add('cutoff');
-            dayCell.style.cursor = 'pointer';
             dayCell.dataset.cutoffIso = dateStr;
         }
 
@@ -735,14 +737,8 @@ function getShiftTypesInMonth(member, year, month) {
 //   🐣 Easter    — only in the month Easter Sunday falls in
 //   Faith events — only for opted-in calendar, only the months that event falls in
 // Called inside renderCalendar() on every navigation.
-// Legend elements are static in the HTML; cache references on first call to skip
-// ~40 getElementById lookups per navigation. Stored in a module-level Map populated
-// lazily so it survives across renders.
-const _legendElCache = new Map();
 function _legendEl(id) {
-    let el = _legendElCache.get(id);
-    if (el === undefined) { el = document.getElementById(id); _legendElCache.set(id, el); }
-    return el;
+    return document.getElementById(id);
 }
 
 function updateLegend() {
@@ -771,14 +767,7 @@ function updateLegend() {
     // Easter Sunday can fall in March or April — check which month it's in this year
     const easterItem = _legendEl('legend-easter');
     if (easterItem) {
-        const holidays = getBankHolidays(currentDisplayYear);
-        const easterMonday = holidays.find(h => h.getDay() === 1 && h.getMonth() >= 2 && h.getMonth() <= 3);
-        let easterSunMonth = -1;
-        if (easterMonday) {
-            const easterSun = new Date(easterMonday);
-            easterSun.setDate(easterMonday.getDate() - 1);
-            easterSunMonth = easterSun.getMonth();
-        }
+        const easterSunMonth = computeEaster(currentDisplayYear).getMonth();
         easterItem.style.display = currentDisplayMonth === easterSunMonth ? '' : 'none';
     }
 
