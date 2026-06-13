@@ -192,11 +192,11 @@ roster-app/
 ├── package.json            ← dev dependencies only: @playwright/test + http-server (not deployed; see firebase.json ignore list)
 ├── playwright.config.mjs   ← Playwright config: Chromium desktop + Pixel 5, http-server webServer, CI retry policy
 └── e2e/
-    └── smoke.spec.js       ← 5 smoke tests: every page loads JS, calendar renders, nav drawer opens, login overlays populated, pay periods populated
+    └── smoke.spec.js       ← 8 smoke tests: calendar renders + member dropdown + nav drawer (3), admin login overlay, paycalc period selector, settings login overlay, operations redirect, links redirect
 ├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
 ├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
-├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date, memberName + createdAt, etc.)
-├── generate-sri.mjs        ← dev utility: fetches CDN resources and prints SRI (Subresource Integrity) hashes for use in HTML
+├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date)
+├── generate-sri.mjs        ← dev utility: fetches Mammoth CDN SRI hash and patches huddle.js in-place (DOMPurify is self-hosted — no longer managed here)
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
