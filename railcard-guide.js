@@ -15,7 +15,10 @@ document.querySelector('.chip-bar').addEventListener('click', function (e) {
 // Adjust sticky chip-bar top offset to sit directly below the sticky page header,
 // then set scroll-margin-top on every card and section so they aren't hidden
 // under the combined sticky header + chip-bar height when scrolled into view.
-requestAnimationFrame(function () {
+// Runs after fonts are loaded so the header height measurement is accurate —
+// measuring at rAF can give the wrong height if Inter hasn't applied yet and
+// the subtitle wraps at a different line height under the fallback font.
+function adjustScrollOffsets() {
     var hdr = document.querySelector('.page-header');
     var bar = document.querySelector('.chip-bar');
     var hdrH = hdr.offsetHeight;
@@ -24,4 +27,9 @@ requestAnimationFrame(function () {
     document.querySelectorAll('.rc, .section').forEach(function (el) {
         el.style.scrollMarginTop = stickyH + 'px';
     });
-});
+}
+if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(adjustScrollOffsets);
+} else {
+    requestAnimationFrame(adjustScrollOffsets);
+}

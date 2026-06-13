@@ -21,7 +21,7 @@
     <a href="./paycalc.html" class="btn-back" aria-label="Back to Pay Calculator">←</a>
     <div>
         <h1>💷 Pay Calculator Guide</h1>
-        <div class="sub">Chiltern Railways · MYB Station · v11.x</div>
+        <div class="sub">Chiltern Railways · MYB Station · v12.x</div>
     </div>
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
 </header>
@@ -38,7 +38,7 @@
                 <div class="sub">Chiltern Railways · MYB Station · CEA and CES pay estimate tool</div>
             </div>
         </div>
-        <span class="version-pill">v11.x</span>
+        <span class="version-pill">v12.x</span>
     </div>
 
     <div class="cols">
@@ -71,6 +71,7 @@
                 <li><strong>Overtime and other rest day working</strong> — 1.25× rate (RDW field)</li>
                 <li><strong>Sundays</strong> — 1.5× rate</li>
                 <li><strong>Bank holidays (rostered)</strong> — 1.25× rate (row appears automatically)</li>
+                <li><strong>Bank holiday overtime (RDW on a BH)</strong> — 1.25× rate (row appears automatically on BH periods)</li>
                 <li><strong>Boxing Day (26 Dec)</strong> — 3× rate (row appears automatically)</li>
             </ul>
             <div class="info"><strong>Fill from my roster</strong> — If your name appears in the roster, a gold hint card shows how many Saturdays, Sundays, bank holidays, and RDW shifts fall in this period. Tap <strong>Fill from my roster</strong> to pre-fill all suggested categories in one tap. Once you've already typed values in those fields, the button changes to <strong>Replace with roster hours</strong> as a reminder that it will overwrite them. To fill just one category without touching others, tap the <strong>→</strong> arrow on that row instead. Filled fields turn gold; the highlight clears as soon as you edit them. When online, any shift changes recorded in the app are applied automatically — the count reflects your actual roster, not just the base.</div>
@@ -80,11 +81,12 @@
                 <thead><tr><th>Line</th><th>What it means</th></tr></thead>
                 <tbody>
                     <tr><td><strong>Basic pay</strong></td><td>Your contracted hours at your base hourly rate</td></tr>
+                    <tr><td><strong>London Allowance</strong></td><td>Fixed allowance paid each period — shown as a named line on your payslip</td></tr>
                     <tr><td><strong>Overtime / extras</strong></td><td>Saturday hours, Boxing Day, bank holiday premium</td></tr>
                     <tr><td><strong>Gross pay</strong></td><td>Total before any deductions. In the January payslip this includes the HPP lump sum (see below)</td></tr>
                     <tr><td><strong>Tax</strong></td><td>Estimated PAYE using your tax code and YTD figures</td></tr>
                     <tr><td><strong>NI</strong></td><td>Employee National Insurance contribution</td></tr>
-                    <tr><td><strong>Pension</strong></td><td>Your "Smart RPS CR Scheme" contribution — deducted before tax and NI (salary sacrifice)</td></tr>
+                    <tr><td><strong>Pension</strong></td><td>Your "Smart RPS CR Scheme" contribution — deducted <em>before</em> tax and NI are calculated (salary sacrifice means it reduces your taxable pay, not just your take-home)</td></tr>
                     <tr><td><strong>Net pay</strong></td><td>Estimated take-home amount</td></tr>
                 </tbody>
             </table>
@@ -111,6 +113,10 @@
                     <div><span class="pay-name">Bank holiday</span><span class="pay-desc">Working on a bank holiday — 1.25× rate applies</span></div>
                 </div>
                 <div class="pay-item">
+                    <span class="pay-emoji">⭐💼</span>
+                    <div><span class="pay-name">BH overtime</span><span class="pay-desc">Working extra hours on a bank holiday (RDW on a BH) — also 1.25× rate. Row appears automatically on periods containing a bank holiday</span></div>
+                </div>
+                <div class="pay-item">
                     <span class="pay-emoji">🎁</span>
                     <div><span class="pay-name">Boxing Day</span><span class="pay-desc">Dec 26 worked — special 3× rate applies</span></div>
                 </div>
@@ -135,6 +141,7 @@
 
             <h2>Pay Rise Back Pay</h2>
             <p>When a pay award is backdated to April, expand the <strong>Pay Rise Back Pay</strong> card. Enter your old and new hourly rates (and London Allowance if it changed) and the calculator works out the lump sum owed across all periods since the award start date.</p>
+            <div class="info"><strong>Finding your old rate:</strong> Your previous hourly rate is on any payslip from before the award date. If you've lost your payslips, ask your manager — it's also shown in your contract or any previous pay award letter.</div>
 
             <h2>Data and privacy</h2>
             <p>Settings and Year to Date figures are saved on your phone or browser — they stay there between visits but are not uploaded anywhere. If you clear your browser data or switch to a different phone, you'll need to re-enter them.</p>
@@ -143,7 +150,7 @@
     </div>
 
     <div class="guide-footer">
-        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v11.x · This guide is an estimate tool — your payslip is the authoritative figure
+        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v12.x · This guide is an estimate tool — your payslip is the authoritative figure
     </div>
 </div>
 
