@@ -71,27 +71,41 @@ test('APP_VERSION matches in all 9 bump locations', () => {
     );
 });
 
-test('AI_MAP.md is current to the latest 0.10 documentation milestone', () => {
+// Every .md doc that carries a version stamp must be current to the latest 0.10
+// milestone. CLAUDE.md uses a "Current app version `X.YZ`" line; the others use a
+// "Last updated: … vX.YZ" header. The policy (CLAUDE.md) is that ALL the docs are
+// swept every 0.10 version — this test enforces that for all of them, not just one.
+const DOC_STAMPS = [
+    { file: 'CLAUDE.md',               re: /Current app version[^`]*`(\d+\.\d+)`/, label: '"Current app version" line' },
+    { file: 'AI_MAP.md',               re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'OPERATIONS_REFERENCE.md', re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'KNOWN_LIMITATIONS.md',    re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+    { file: 'ROADMAP.md',              re: /Last updated:[^\n]*?v(\d+\.\d+)/,       label: '"Last updated" header' },
+];
+
+test('every versioned .md doc is current to the latest 0.10 milestone', () => {
     const rosterData = readFileSync(join(ROOT, 'roster-data.js'), 'utf8');
     const appMatch = rosterData.match(/export const APP_VERSION = '([\d.]+)'/);
     assert.ok(appMatch, 'APP_VERSION declaration not found in roster-data.js');
-    const appHundredths = toHundredths(appMatch[1]);
 
-    const aiMap = readFileSync(join(ROOT, 'AI_MAP.md'), 'utf8');
-    const docMatch = aiMap.match(/Last updated:[^\n]*?v(\d+\.\d+)/);
-    assert.ok(docMatch, 'AI_MAP.md "Last updated: … vX.YZ" header not found');
-    const docHundredths = toHundredths(docMatch[1]);
+    // Docs are refreshed at every 0.10 boundary, so each stamp must be at least
+    // the most recent 0.10 milestone at or below APP_VERSION (the app version
+    // floored to the nearest 0.10). Fails the moment a bump crosses a 0.10 line
+    // without the doc sweep — turning the prose policy into an executable tripwire.
+    const milestone = Math.floor(toHundredths(appMatch[1]) / 10) * 10;
+    const milestoneStr = `v${(milestone / 100).toFixed(2)}`;
 
-    // CLAUDE.md policy: docs are refreshed at every 0.10 boundary. So AI_MAP
-    // must be at least the most recent 0.10 milestone at or below APP_VERSION
-    // (i.e. the app version floored to the nearest 0.10). This test fails the
-    // moment a version bump crosses a 0.10 line without the doc sweep — turning
-    // the prose policy into an executable tripwire.
-    const milestone = Math.floor(appHundredths / 10) * 10;
-    assert.ok(
-        docHundredths >= milestone,
-        `AI_MAP.md is stale: its "Last updated" header says v${docMatch[1]}, but `
-        + `APP_VERSION is v${appMatch[1]} (0.10 checkpoint = v${(milestone / 100).toFixed(2)}). `
-        + `Do the documentation sweep across the .md files and bump the AI_MAP "Last updated" line.`
+    const stale = [];
+    for (const { file, re, label } of DOC_STAMPS) {
+        const src = readFileSync(join(ROOT, file), 'utf8');
+        const m = src.match(re);
+        assert.ok(m, `${file}: ${label} (version stamp) not found`);
+        if (toHundredths(m[1]) < milestone) stale.push(`${file} (v${m[1]})`);
+    }
+
+    assert.deepEqual(
+        stale, [],
+        `These docs are behind the ${milestoneStr} 0.10 checkpoint (APP_VERSION v${appMatch[1]}). `
+        + `Review each, apply any needed updates, then bump its version stamp:\n  ${stale.join('\n  ')}`
     );
 });

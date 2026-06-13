@@ -190,59 +190,44 @@ NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi
 fi
 
-# Extract current app version once — shared by both reminder checks below
-APP_VER=$(grep "^export const APP_VERSION" roster-data.js 2>/dev/null | grep -oP "'[0-9.]+'" | tr -d "'")
-[[ -z "$APP_VER" ]] && exit 0
-CUR_INT=$(echo "$APP_VER" | awk -F. '{printf "%d", $1*100+$2}')
+# Documentation 0.10-checkpoint — BLOCKING for every versioned .md doc.
+# Each doc's version stamp must be at least the latest 0.10 milestone at or below
+# APP_VERSION. Mirrors sw-asset-check.test.mjs exactly, so a missed doc sweep fails
+# at commit time locally, not only in CI. Covers ALL the docs, not just AI_MAP.
+if command -v node >/dev/null 2>&1; then
+  node - << 'NODEEOF'
+const fs = require('fs');
+const toHundredths = v => { const [a, b = '0'] = v.split('.'); return parseInt(a, 10) * 100 + parseInt(b.padEnd(2, '0').slice(0, 2), 10); };
 
-# CLAUDE.md — remind when it falls 0.10+ behind APP_VERSION
-DOC_VER=$(grep -m1 "Current app version" CLAUDE.md 2>/dev/null | grep -oP '\`[0-9.]+\`' | tr -d '`')
-if [[ -n "$DOC_VER" ]]; then
-  DOC_INT=$(echo "$DOC_VER" | awk -F. '{printf "%d", $1*100+$2}')
-  DIFF=$((CUR_INT - DOC_INT))
-  if [ "$DIFF" -ge 10 ]; then
-    echo ""
-    echo "  Reminder: CLAUDE.md documents v${DOC_VER} — app is now v${APP_VER} (+${DIFF} patches)"
-    echo "  Update CLAUDE.md + AI_MAP.md if any architecture, module, or pay-grade changes occurred."
-    echo "  (Reminder only — commit proceeds.)"
-    echo ""
-  fi
+const app = (fs.readFileSync('roster-data.js', 'utf8').match(/export const APP_VERSION = '([\d.]+)'/) || [])[1];
+if (!app) process.exit(0);
+const milestone = Math.floor(toHundredths(app) / 10) * 10;
+const milestoneStr = `v${(milestone / 100).toFixed(2)}`;
+
+const DOCS = [
+    { file: 'CLAUDE.md',               re: /Current app version[^`]*`(\d+\.\d+)`/ },
+    { file: 'AI_MAP.md',               re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: 'OPERATIONS_REFERENCE.md', re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: 'KNOWN_LIMITATIONS.md',    re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+    { file: 'ROADMAP.md',              re: /Last updated:[^\n]*?v(\d+\.\d+)/ },
+];
+
+const stale = [];
+for (const { file, re } of DOCS) {
+    if (!fs.existsSync(file)) continue;
+    const m = fs.readFileSync(file, 'utf8').match(re);
+    if (!m) { stale.push(`${file} (no version stamp found)`); continue; }
+    if (toHundredths(m[1]) < milestone) stale.push(`${file} (v${m[1]})`);
+}
+
+if (stale.length) {
+    process.stderr.write(`\n  doc-checkpoint: the app has reached the ${milestoneStr} 0.10 milestone (APP_VERSION v${app}),\n`);
+    process.stderr.write('  but these docs are behind it (CLAUDE.md policy: all .md docs are swept every 0.10 version):\n');
+    for (const s of stale) process.stderr.write(`    - ${s}\n`);
+    process.stderr.write(`\n  Review each, apply any needed updates, then bump its stamp to ${milestoneStr} (or later) and re-commit.\n`);
+    process.exit(1);
+}
+NODEEOF
+  if [ $? -ne 0 ]; then exit 1; fi
 fi
-
-# AI_MAP.md — BLOCKING: must be current to the latest 0.10 milestone.
-# Mirrors sw-asset-check.test.mjs so a missed 0.10 doc sweep fails at commit
-# time locally, not only in CI. Milestone = APP_VERSION floored to nearest 0.10.
-if [[ -f "AI_MAP.md" ]]; then
-  AIMAP_VER=$(grep -m1 "Last updated" AI_MAP.md 2>/dev/null | grep -oP 'v[0-9]+\.[0-9]+' | tr -d 'v')
-  if [[ -n "$AIMAP_VER" ]]; then
-    AIMAP_INT=$(echo "$AIMAP_VER" | awk -F. '{printf "%d", $1*100+$2}')
-    MILESTONE=$(( (CUR_INT / 10) * 10 ))
-    if [ "$AIMAP_INT" -lt "$MILESTONE" ]; then
-      MILE_VER=$(printf "%d.%02d" $((MILESTONE / 100)) $((MILESTONE % 100)))
-      echo ""
-      echo "  doc-checkpoint: AI_MAP.md 'Last updated' is v${AIMAP_VER}, but the app has reached the"
-      echo "  v${MILE_VER} 0.10 milestone (APP_VERSION v${APP_VER}). Per CLAUDE.md the .md files are"
-      echo "  swept every 0.10 version. Review the docs, bump AI_MAP.md's 'Last updated' line to"
-      echo "  v${MILE_VER} (or later), then re-commit."
-      echo ""
-      exit 1
-    fi
-  fi
-fi
-
-# KNOWN_LIMITATIONS.md, ROADMAP.md, OPERATIONS_REFERENCE.md — soft reminder when 0.20+ behind
-for doc in KNOWN_LIMITATIONS.md ROADMAP.md OPERATIONS_REFERENCE.md; do
-  [[ -f "$doc" ]] || continue
-  DOC_VER=$(grep -m1 "Last updated" "$doc" 2>/dev/null | grep -oP 'v[0-9]+\.[0-9]+' | tr -d 'v')
-  [[ -z "$DOC_VER" ]] && continue
-  DOC_INT=$(echo "$DOC_VER" | awk -F. '{printf "%d", $1*100+$2}')
-  DIFF=$((CUR_INT - DOC_INT))
-  if [ "$DIFF" -ge 20 ]; then
-    echo ""
-    echo "  Reminder: ${doc} documents v${DOC_VER} — app is now v${APP_VER} (+${DIFF} patches)"
-    echo "  Review ${doc} for any updates needed, then bump its 'Last updated' stamp."
-    echo "  (Reminder only — commit proceeds.)"
-    echo ""
-  fi
-done
 
