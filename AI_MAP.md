@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v12.43 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -79,14 +79,13 @@ Everything that touches `index.html` at runtime.
 - Notification/push subscription wiring
 - Sync chip state machine
 - `navigateToPaycalc(paydayStr)` — shared helper for payday/cutoff cell clicks; checks session then navigates
-- Calls `initHuddleViewer()` and uses `applyHuddleButtonState()` from `app-huddle-viewer.js`
+- Calls `initHuddleViewer()` from `app-huddle-viewer.js`
 
 ### `app-huddle-viewer.js`
-Huddle viewer overlay — extracted from `app.js` at v11.40.
-- `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler for notification taps
-- `applyHuddleButtonState()` — updates the Huddle button (badge, disabled state) in the calendar header; called on every calendar render by `app.js`
+Huddle viewer overlay — extracted from `app.js` at v11.40. Only export is `initHuddleViewer()` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).
+- `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler (used by both the nav-panel "Daily Huddle" link and notification taps)
 - `sanitiseHtml(html)` — internal; DOMPurify sanitisation for DOCX huddles
-- `_triggerAutoOpen(huddle)` — **Two paths, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`). The manual `#huddleBtn` click path calls `window.open` directly (real user gesture). Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
+- `_triggerAutoOpen(huddle)` — **two content types, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a `#huddle`-hash open carries no user activation — a direct `window.open`/`location.href` would be pop-up-blocked or knock the PWA out of standalone. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.
@@ -287,7 +286,7 @@ Override priority, member-start, and shift-classification helpers — shared by 
 Interactive behaviours for `railcard-guide.html` (extracted v10.84 — CSP compliance).
 - Print / Save as PDF button (`#savePdfBtn`)
 - Chip-bar click navigation (smooth scroll to target section)
-- `requestAnimationFrame` offset calculation — sets `.chip-bar` `top` to match the sticky `.page-header` height, then sets `scrollMarginTop` on every `.rc` and `.section` so sticky bars don't overlap anchored content
+- Offset calculation runs after `document.fonts.ready` (v12.58; falls back to `requestAnimationFrame`) so the sticky `.page-header` height is measured with Inter applied — sets `.chip-bar` `top` to match it, then `scrollMarginTop` on every `.rc` and `.section` so sticky bars don't overlap anchored content
 
 ### `guide-print.js`
 Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted v10.84 — CSP compliance).

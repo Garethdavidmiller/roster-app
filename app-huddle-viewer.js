@@ -117,8 +117,8 @@ export function initHuddleViewer() {
                 // back wrapped in browser chrome). Instead, open the viewer with an
                 // explicit button: tapping it IS a real gesture, so the file opens as
                 // a separate Custom Tab over the intact standalone app, and Back
-                // returns to the clean app. (The manual #huddleBtn handler can call
-                // window.open directly — that click is already a real gesture.)
+                // returns to the clean app. (The button click here is itself a real
+                // gesture, so window.open is allowed.)
                 body.innerHTML = '<div class="huddle-open-prompt">'
                     + '<p>Today’s Huddle is ready.</p>'
                     + '<button type="button" id="huddleOpenFileBtn" class="huddle-open-btn">📄 Open Huddle</button>'

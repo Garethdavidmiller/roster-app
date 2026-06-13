@@ -263,6 +263,7 @@ Body:
 - Duty/diagram codes on a second line (e.g. `"CEA 16"`) — **ignore entirely**, only the first line is the shift value
 - `"N/A"`, `"NA"`, `"NS"` all mean RD on any day
 - `"AL"`, `"A/L"`, `"A.L."` all mean annual leave — return `"AL"`
+- **AL or Absent on a Sunday is invalid** — Sundays are non-contracted for all grades. The review pipeline (`computeCellStates`) normalises a Sunday `"AL"`/`"SICK"` to `"RD"`, so it classifies as MATCH and is never written as a Sunday annual-leave/absence override. A worked Sunday time stays RDW. Mirrors the in-app rule — see CLAUDE.md "Sundays are non-contracted".
 
 ### Review pipeline
 
@@ -282,7 +283,8 @@ renderReviewTable() — per-person card list
     — falls back to baseShift==='RD' detection for plain times
         ↓
 Apply approved changes:
-  shiftValueToOverrideType(value, baseShift) → Firestore type field
+  shiftValueToOverrideType(value, baseShift, date) → Firestore type field
+    — date detects Sunday: worked times → 'rdw'; AL/SICK → 'correction' (RD) backstop
   Strip "RDW|" prefix → save plain time as value
   source: 'roster_import' on all saved docs
 ```

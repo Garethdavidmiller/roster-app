@@ -246,7 +246,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     const type = shiftValueToOverrideType(value, baseShift, date);
                     // Strip the internal "RDW|" encoding before saving — Firestore stores
                     // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
-                    const savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
+                    let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
+                    // Backstop for the edited-cell path: a Sunday AL/SICK is reclassified to
+                    // an RD correction (Sundays are non-contracted); keep value consistent.
+                    if (type === 'correction' && (value === 'AL' || value === 'SICK')) savedValue = 'RD';
                     const ref  = doc(collection(db, 'overrides'));
                     batch.set(ref, {
                         memberName,
@@ -376,10 +379,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // "RDW|14:30-22:00" compares correctly against a stored value "14:30-22:00"
                 const parsedValue = isRdwEncoded(parsedShift) ? stripRdw(parsedShift) : parsedShift;
 
+                // Sundays are non-contracted for all grades — a PDF marking a Sunday as
+                // AL or Absent (SICK) is invalid. Treat it as RD so it matches the rest-day
+                // base, classifies as MATCH, and is never written as a Sunday AL/absence
+                // override. (Worked Sunday times remain RDW — handled below.)
+                const isSun      = new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+                const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK'))
+                    ? 'RD' : parsedValue;
+
                 // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
                 // Treat them as identical for all comparison purposes.
                 const normRest = s => (s === 'OFF' ? 'RD' : s);
-                const normParsed = normRest(parsedValue);
+                const normParsed = normRest(sundaySafe);
                 const normBase   = normRest(baseShift);
 
                 let state;
@@ -651,6 +662,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      * @returns {string}  override type
      */
     function shiftValueToOverrideType(value, baseShift, date = null) {
+        // Sundays are non-contracted — AL and Absent cannot apply; treat as RD correction
+        const isSun = date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+        if (isSun && (value === 'AL' || value === 'SICK')) return 'correction';
         if (value === 'AL')    return 'annual_leave';
         if (value === 'SICK')  return 'sick';
         if (value === 'SPARE') return 'spare_shift';
