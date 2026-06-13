@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `12.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). AI_MAP's "Last updated" line is enforced against this by `sw-asset-check.test.mjs` and `githooks/pre-commit`. |
+| Current app version | `12.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -443,7 +443,7 @@ Full flow diagram, request format, gotchas, and Security Rules: **see `OPERATION
 
 ## Weekly Roster Upload
 
-Admin uploads PDF → `parseRosterPDF` (claude-haiku-4-5-20251001) → JSON → review UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters.
+Admin uploads PDF → `parseRosterPDF` (model in `functions/index.js` `CLAUDE_MODEL` — currently `claude-sonnet-4-6`) → JSON → review UI → Firestore. Works for CEA/Bilingual, CES, and Dispatcher rosters.
 
 **Critical:** `RDW|HH:MM-HH:MM` pipe encoding — AI returns `"RDW HH:MM-HH:MM"`, normalised to pipe in review, stripped to plain time on save. Do not strip `RDW` from the AI return value.
 

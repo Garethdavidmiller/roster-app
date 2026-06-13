@@ -3,12 +3,39 @@
 // conflict detection, and Firestore batch write.
 // Called by operations-app.js via initRosterUpload().
 
-import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO } from './roster-data.js';
+import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
 const stripRdw     = v => v.slice(RDW_PREFIX.length);
+
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+/**
+ * Badge HTML (+ raw time for worked shifts) for one shift value in the review table.
+ * Pure and stateless, so it lives at module scope and is reused across renders
+ * rather than being re-created inside renderReviewTable on every parse.
+ * A worked shift on a Sunday renders as RDW — Sundays are uncontracted, so any
+ * Sunday shift is by definition overtime.
+ *
+ * @param {string} shiftStr
+ * @param {string|null} baseShift  reserved for call-site symmetry (unused)
+ * @param {string|null} date       ISO date — detects a Sunday worked shift
+ * @returns {string} HTML
+ */
+function shiftDisplay(shiftStr, baseShift = null, date = null) {
+    if (isRdwEncoded(shiftStr)) {
+        const time = stripRdw(shiftStr);
+        return `${getShiftBadge('RDW')}<span class="review-shift-time">${escapeHtml(time)}</span>`;
+    }
+    const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
+    const sundayWorked = isTime && date !== null && isSunday(date);
+    const badge = getShiftBadge(sundayWorked ? 'RDW' : shiftStr);
+    return isTime
+        ? `${badge}<span class="review-shift-time">${escapeHtml(shiftStr)}</span>`
+        : badge;
+}
 
 /**
  * Initialise the weekly roster upload pipeline.
@@ -119,12 +146,17 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         if (!file || !weekEnding) return;
 
-        // Reset UI
+        // Reset UI + lock the form so a mid-parse change to the roster type, week,
+        // or file can't silently mismatch the in-flight request (which captured the
+        // originals above).
         parseFeedback.textContent = '';
         parseFeedback.className   = 'huddle-feedback';
         reviewSection.style.display = 'none';
         parseBtn.disabled           = true;
         parseBtn.textContent        = 'Reading…';
+        rosterTypeEl.disabled       = true;
+        weekEndingEl.disabled       = true;
+        fileInput.disabled          = true;
 
         try {
             // Convert file to base64 — same technique as ingestHuddle
@@ -186,8 +218,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             parseFeedback.textContent = `Could not read the roster: ${userMsg}`;
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
         } finally {
-            parseBtn.disabled    = false;
-            parseBtn.textContent = 'Read Roster';
+            parseBtn.disabled     = false;
+            parseBtn.textContent  = 'Read roster';
+            rosterTypeEl.disabled = false;
+            weekEndingEl.disabled = false;
+            fileInput.disabled    = false;
         }
     });
 
@@ -216,11 +251,14 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const [memberName, date] = key.split('|');
 
             if (state.state === 'DIFF' && state.chosen !== false) {
-                // Use the edited value if the admin changed it, otherwise the parsed value
-                toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift, baseShift: state.baseShift });
+                // Use the edited value if the admin changed it, otherwise the parsed value.
+                // manualId = any existing override doc for this date, to be replaced.
+                toWrite.push({ memberName, date, value: state.editedValue ?? state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
             }
             if (state.state === 'CONFLICT' && state.chosen === 'pdf') {
-                toWrite.push({ memberName, date, value: state.parsedShift, baseShift: state.baseShift });
+                // Admin chose PDF over the existing manual entry — replace it, don't
+                // leave both docs for the same date.
+                toWrite.push({ memberName, date, value: state.parsedShift, baseShift: state.baseShift, replaceId: state.manualId });
             }
         }
 
@@ -235,12 +273,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         applyFeedback.textContent = '';
 
         try {
-            // Firestore batches are capped at 500 ops. Chunk at 400 to stay safe.
-            const CHUNK = 400;
+            // Firestore batches are capped at 500 ops. Each item can be a delete +
+            // a set (2 ops), so chunk at 200 to stay well under the limit.
+            const CHUNK = 200;
             for (let i = 0; i < toWrite.length; i += CHUNK) {
                 const chunk = toWrite.slice(i, i + CHUNK);
                 const batch = writeBatch(db);
-                for (const { memberName, date, value, baseShift } of chunk) {
+                for (const { memberName, date, value, baseShift, replaceId } of chunk) {
                     // Map shift value to override type — pass date so Sunday shifts are
                     // correctly saved as 'rdw' and explicit RDW| prefix is honoured
                     const type = shiftValueToOverrideType(value, baseShift, date);
@@ -250,6 +289,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // Backstop for the edited-cell path: a Sunday AL/SICK is reclassified to
                     // an RD correction (Sundays are non-contracted); keep value consistent.
                     if (type === 'correction' && (value === 'AL' || value === 'SICK')) savedValue = 'RD';
+                    // Replace any existing override for this member/date in the same batch,
+                    // so "Use PDF" / a re-import doesn't leave a stale doc beside the new one.
+                    if (replaceId) batch.delete(doc(db, 'overrides', replaceId));
                     const ref  = doc(collection(db, 'overrides'));
                     batch.set(ref, {
                         memberName,
@@ -408,9 +450,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // A manual override exists — check if it already matches the PDF
                     if (normRest(existing.value) === normParsed) {
                         state = 'COVERED';   // manual is already correct — nothing to do
-                    } else if (existing.value === 'SICK' && normBase === 'RD') {
-                        // Absence override on a rest day — not a real conflict.
-                        // The calendar already suppresses absence display on base-RD days.
+                    } else if (existing.value === 'SICK' && normBase === 'RD' && normParsed === 'RD') {
+                        // Absence on a rest day AND the PDF also shows rest — not a real
+                        // conflict (the calendar suppresses absence on base-RD days anyway).
+                        // If the PDF instead shows a worked shift (an RDW on the rest day),
+                        // fall through to CONFLICT so the genuine shift isn't dropped.
                         state = 'COVERED';
                     } else {
                         state = 'CONFLICT';  // manual differs from PDF — flag it
@@ -444,29 +488,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      */
     function renderReviewTable(parsedResult, cellStates) {
         const { dates, parsed, weekEnding } = parsedResult;
-        const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-        // Returns badge HTML + the raw time for worked shifts so the user sees
-        // both the shift type (Early/Late/Night/RDW etc.) and the actual times.
-        //
-        // The AI now returns "RDW|HH:MM-HH:MM" (pipe-encoded) for cells explicitly
-        // marked RDW in the PDF — this works on any base shift including SPARE weeks.
-        // RDW is only inferred (without the prefix) for Sunday shifts, which are always
-        // uncontracted — any Sunday shift is by definition an RDW.
-        function shiftDisplay(shiftStr, baseShift = null, date = null) {
-            // Pipe-encoded RDW: "RDW|14:30-22:00" — explicit flag from AI
-            if (isRdwEncoded(shiftStr)) {
-                const time  = stripRdw(shiftStr);
-                const badge = getShiftBadge('RDW');
-                return `${badge}<span class="review-shift-time">${esc(time)}</span>`;
+        // Enable/disable the Save button based on whether anything will actually be
+        // written: a DIFF still approved, or a CONFLICT resolved to "PDF". If nothing
+        // will be written, Save is disabled (rather than tapping it for a faint
+        // "nothing to save" message).
+        function updateApplyState() {
+            let willWrite = 0;
+            for (const st of cellStates.values()) {
+                if (st.state === 'DIFF' && st.chosen !== false) willWrite++;
+                else if (st.state === 'CONFLICT' && st.chosen === 'pdf') willWrite++;
             }
-            const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shiftStr);
-            // Sunday is always uncontracted — any shift worked on a Sunday is an RDW
-            const isSunday = isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0;
-            const badge  = getShiftBadge(isSunday ? 'RDW' : shiftStr);
-            return isTime
-                ? `${badge}<span class="review-shift-time">${esc(shiftStr)}</span>`
-                : badge;
+            applyBtn.disabled = willWrite === 0;
         }
 
         // ---- Count totals for banner + label ----
@@ -518,7 +551,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 <div class="roster-person-header">
                     <span class="roster-person-name">${esc(entry.memberName)}</span>
                     <span class="roster-change-badge">${changedDates.length}</span>
-                    <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}">Skip all</button>
+                    <button class="roster-skip-all-btn" data-member="${esc(entry.memberName)}" aria-pressed="false">Skip all</button>
                 </div>`;
 
             // One row per changed day
@@ -545,7 +578,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                             <span class="roster-arrow">→</span>
                             <span class="roster-to-val">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
                         </div>
-                        <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}">
+                        <button class="roster-approve-btn ${approved ? 'is-approved' : 'is-skipped'}" data-key="${esc(key)}" aria-pressed="${approved}">
                             ${approved ? 'Save' : 'Skip'}
                         </button>`;
                 } else {
@@ -558,13 +591,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         </div>
                         <div class="roster-chg-vals">
                             <span class="roster-conflict-icon-sm">⚠</span>
-                            <span class="roster-manual-val ${usesPDF ? 'val-dim' : 'val-active'}">${shiftDisplay(s.manualValue)}</span>
+                            <span class="roster-manual-val roster-cv-manual ${usesPDF ? 'val-dim' : 'val-active'}">${shiftDisplay(s.manualValue)}</span>
                             <span class="roster-vs-sep">vs</span>
-                            <span class="roster-manual-val ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
+                            <span class="roster-manual-val roster-cv-pdf ${usesPDF ? 'val-active' : 'val-dim'}">${shiftDisplay(s.parsedShift, s.baseShift, date)}</span>
                         </div>
-                        <div class="roster-conflict-choice">
-                            <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual">Manual</button>
-                            <button class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf">PDF</button>
+                        <div class="roster-conflict-choice" role="group" aria-label="Resolve conflict">
+                            <button class="roster-choice-btn ${!usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="manual" aria-pressed="${!usesPDF}">Manual</button>
+                            <button class="roster-choice-btn ${usesPDF ? 'is-chosen' : ''}" data-key="${esc(key)}" data-pick="pdf" aria-pressed="${usesPDF}">PDF</button>
                         </div>`;
                 }
                 section.appendChild(row);
@@ -586,14 +619,17 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const s = cellStates.get(approveBtn.dataset.key);
                 if (!s) return;
                 s.chosen = !s.chosen;
-                approveBtn.classList.toggle('is-approved', s.chosen !== false);
-                approveBtn.classList.toggle('is-skipped',  s.chosen === false);
-                approveBtn.textContent = (s.chosen !== false) ? 'Save' : 'Skip';
-                approveBtn.closest('.roster-change-row').classList.toggle('is-skipped', s.chosen === false);
+                const approved = s.chosen !== false;
+                approveBtn.classList.toggle('is-approved', approved);
+                approveBtn.classList.toggle('is-skipped',  !approved);
+                approveBtn.setAttribute('aria-pressed', String(approved));
+                approveBtn.textContent = approved ? 'Save' : 'Skip';
+                approveBtn.closest('.roster-change-row').classList.toggle('is-skipped', !approved);
+                updateApplyState();
                 return;
             }
 
-            // Skip all / Restore for a person
+            // Skip all / Restore for a person — applies to DIFF and CONFLICT rows alike
             const skipAllBtn = e.target.closest('.roster-skip-all-btn');
             if (skipAllBtn) {
                 const memberName = skipAllBtn.dataset.member;
@@ -602,14 +638,38 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const nowSkipped = !sec.classList.contains('section-skipped');
                 sec.classList.toggle('section-skipped', nowSkipped);
                 skipAllBtn.textContent = nowSkipped ? 'Restore' : 'Skip all';
-                sec.querySelectorAll('.roster-approve-btn').forEach(btn => {
-                    const s = cellStates.get(btn.dataset.key);
+                skipAllBtn.setAttribute('aria-pressed', String(nowSkipped));
+                sec.querySelectorAll('.roster-change-row').forEach(rowEl => {
+                    const s = cellStates.get(rowEl.dataset.key);
                     if (!s) return;
-                    s.chosen = !nowSkipped;
-                    btn.classList.toggle('is-approved', !nowSkipped);
-                    btn.classList.toggle('is-skipped',  nowSkipped);
-                    btn.textContent = nowSkipped ? 'Skip' : 'Save';
+                    // inert removes the row's controls from the tab order while skipped,
+                    // so they aren't keyboard-focusable behind the dimmed overlay.
+                    rowEl.inert = nowSkipped;
+                    if (s.state === 'DIFF') {
+                        s.chosen = !nowSkipped;
+                        const btn = rowEl.querySelector('.roster-approve-btn');
+                        if (btn) {
+                            btn.classList.toggle('is-approved', !nowSkipped);
+                            btn.classList.toggle('is-skipped',  nowSkipped);
+                            btn.setAttribute('aria-pressed', String(!nowSkipped));
+                            btn.textContent = nowSkipped ? 'Skip' : 'Save';
+                        }
+                        rowEl.classList.toggle('is-skipped', nowSkipped);
+                    } else if (s.state === 'CONFLICT') {
+                        // Skipping cancels any "use PDF" choice (keep manual = nothing written).
+                        s.chosen = 'manual';
+                        rowEl.querySelectorAll('.roster-choice-btn').forEach(b => {
+                            const on = b.dataset.pick === 'manual';
+                            b.classList.toggle('is-chosen', on);
+                            b.setAttribute('aria-pressed', String(on));
+                        });
+                        const mPill = rowEl.querySelector('.roster-cv-manual');
+                        const pPill = rowEl.querySelector('.roster-cv-pdf');
+                        if (mPill) { mPill.classList.add('val-active'); mPill.classList.remove('val-dim'); }
+                        if (pPill) { pPill.classList.add('val-dim'); pPill.classList.remove('val-active'); }
+                    }
                 });
+                updateApplyState();
                 return;
             }
 
@@ -619,37 +679,47 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 const s = cellStates.get(choiceBtn.dataset.key);
                 if (!s) return;
                 s.chosen = choiceBtn.dataset.pick;
+                const usesPDF = s.chosen === 'pdf';
                 choiceBtn.closest('.roster-conflict-choice').querySelectorAll('.roster-choice-btn').forEach(b => {
-                    b.classList.toggle('is-chosen', b.dataset.pick === s.chosen);
+                    const on = b.dataset.pick === s.chosen;
+                    b.classList.toggle('is-chosen', on);
+                    b.setAttribute('aria-pressed', String(on));
                 });
                 // Update the value pills to show which is active
-                const row = choiceBtn.closest('.roster-change-row');
-                const manualPill = row.querySelector('.roster-manual-val');
-                const pdfVal     = row.querySelector('.roster-to-val');
-                if (manualPill) manualPill.classList.toggle('val-active', s.chosen === 'manual');
-                if (manualPill) manualPill.classList.toggle('val-dim',    s.chosen === 'pdf');
-                if (pdfVal)     pdfVal.classList.toggle('val-active', s.chosen === 'pdf');
-                if (pdfVal)     pdfVal.classList.toggle('val-dim',    s.chosen === 'manual');
+                const row    = choiceBtn.closest('.roster-change-row');
+                const mPill  = row.querySelector('.roster-cv-manual');
+                const pPill  = row.querySelector('.roster-cv-pdf');
+                if (mPill) { mPill.classList.toggle('val-active', !usesPDF); mPill.classList.toggle('val-dim', usesPDF); }
+                if (pPill) { pPill.classList.toggle('val-active', usesPDF);  pPill.classList.toggle('val-dim', !usesPDF); }
+                updateApplyState();
             }
         });
 
         // ---- Empty state ----
         if (sectionsShown === 0) {
             changeList.innerHTML = `<div class="roster-no-changes">✓ The roster matches what's already saved — no changes needed.</div>`;
-            applyBtn.disabled = true;
-        } else {
-            applyBtn.disabled    = false;
-            applyBtn.textContent = 'Save changes';
         }
+        applyBtn.textContent = 'Save changes';
+        updateApplyState();   // enables Save only if something will actually be written
 
         // ---- Summary label ----
+        // "to review" = DIFFs (default-approved); "to resolve" = conflicts that
+        // need an explicit Manual/PDF choice. Kept distinct so the count doesn't
+        // imply conflicts are auto-applied.
         const weekEndDate = new Date(weekEnding + 'T12:00:00');
         const formatted   = weekEndDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-        reviewLabel.textContent = `Week ending ${formatted} — ${diffCount} change${diffCount !== 1 ? 's' : ''}, ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''}`;
+        const changeStr   = `${diffCount} change${diffCount !== 1 ? 's' : ''} to review`;
+        const conflictStr = conflictCount > 0 ? ` · ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} to resolve` : '';
+        reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}`;
 
         reviewSection.style.display = '';
         applyFeedback.textContent   = '';
         applyFeedback.className     = 'huddle-feedback';
+
+        // Move focus to the summary so screen-reader users are told the review is
+        // ready after the ~15s parse, and the section scrolls into view.
+        reviewLabel.tabIndex = -1;
+        reviewLabel.focus();
     }
 
     /**

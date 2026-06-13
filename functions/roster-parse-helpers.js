@@ -32,16 +32,19 @@ function normaliseShift(raw) {
 
     if (s === 'SP') return 'SPARE';
 
-    // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00"
-    const rdwMatch = s.match(/^RDW\s+(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
-    if (rdwMatch) return `RDW|${rdwMatch[1]}:${rdwMatch[2]}-${rdwMatch[3]}:${rdwMatch[4]}`;
+    // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00".
+    // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
+    // pad to 2 so a single-digit hour isn't silently lost as a rest day.
+    const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
+    if (rdwMatch) return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
 
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK', 'RDW'].includes(s)) return s;
 
-    // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130"
-    const match = s.match(/^(\d{2})[:\.]?(\d{2})[\s\-–]+(\d{2})[:\.]?(\d{2})$/);
+    // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130",
+    // "6:30-12:30" (single-digit hour). Pad single-digit hours to 2 digits.
+    const match = s.match(/^(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
     if (match) {
-        return `${match[1]}:${match[2]}-${match[3]}:${match[4]}`;
+        return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
 
     console.warn(`[parseRosterPDF] Unrecognised shift value: "${raw}" — defaulting to RD`);
@@ -79,11 +82,30 @@ function buildWeekDates(weekEnding) {
  */
 function extractAIJson(text) {
     const start = text.indexOf('{');
-    const end   = text.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) {
+    if (start === -1) {
         throw new SyntaxError('No JSON object found in AI response');
     }
-    return JSON.parse(text.slice(start, end + 1));
+    // Walk from the first '{', tracking brace depth while respecting string
+    // literals (and escapes), and stop at the matching close. This is robust to
+    // prose containing braces before/after the object, or a stray '}' in trailing
+    // text — the old first-'{'-to-last-'}' slice broke on both.
+    let depth = 0, inStr = false, escaped = false;
+    for (let i = start; i < text.length; i++) {
+        const ch = text[i];
+        if (inStr) {
+            if (escaped)            escaped = false;
+            else if (ch === '\\')   escaped = true;
+            else if (ch === '"')    inStr = false;
+        } else if (ch === '"') {
+            inStr = true;
+        } else if (ch === '{') {
+            depth++;
+        } else if (ch === '}') {
+            depth--;
+            if (depth === 0) return JSON.parse(text.slice(start, i + 1));
+        }
+    }
+    throw new SyntaxError('No complete JSON object found in AI response');
 }
 
 // ── Column header → day index mapping ───────────────────────────────────────

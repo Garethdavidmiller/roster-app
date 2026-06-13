@@ -558,20 +558,41 @@ exports.parseRosterPDF = onRequest(
         }
 
         // ---- Read raw body ----
+        // 20 MB decoded ≈ 27 MB of base64; cap the raw body a little above that so
+        // an oversized upload is rejected *during* streaming rather than after the
+        // whole thing is buffered + decoded (which could OOM the 512MiB instance).
+        const MAX_BODY_BYTES = 28 * 1024 * 1024;
         let base64Content;
         try {
             if (req.rawBody) {
+                if (req.rawBody.length > MAX_BODY_BYTES) {
+                    res.status(413).json({ error: 'File exceeds the size limit' });
+                    return;
+                }
                 base64Content = req.rawBody.toString('utf8').trim();
             } else {
                 const chunks = [];
+                let total = 0;
                 await new Promise((resolve, reject) => {
-                    req.on('data', chunk => chunks.push(chunk));
+                    req.on('data', chunk => {
+                        total += chunk.length;
+                        if (total > MAX_BODY_BYTES) {
+                            req.destroy();
+                            reject(new Error('BODY_TOO_LARGE'));
+                            return;
+                        }
+                        chunks.push(chunk);
+                    });
                     req.on('end', resolve);
                     req.on('error', reject);
                 });
                 base64Content = Buffer.concat(chunks).toString('utf8').trim();
             }
         } catch (err) {
+            if (err.message === 'BODY_TOO_LARGE') {
+                res.status(413).json({ error: 'File exceeds the size limit' });
+                return;
+            }
             console.error('[parseRosterPDF] Failed to read body:', err.message);
             res.status(400).json({ error: 'Could not read request body' });
             return;
@@ -583,14 +604,16 @@ exports.parseRosterPDF = onRequest(
         }
 
         // ---- Validate the PDF ----
-        // Decode just enough to check the size — we pass the original base64 to the AI.
-        let pdfBuffer;
-        try {
-            pdfBuffer = Buffer.from(base64Content, 'base64');
-        } catch {
+        // Strip whitespace, then verify the body is genuinely base64 BEFORE decoding.
+        // Buffer.from(..., 'base64') silently ignores invalid characters rather than
+        // throwing, so a try/catch around it is dead code — an explicit charset check
+        // is the only real guard against garbage being sent to the AI.
+        const cleanBase64 = base64Content.replace(/\s/g, '');
+        if (cleanBase64.length === 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(cleanBase64)) {
             res.status(400).json({ error: 'Body must be valid base64' });
             return;
         }
+        const pdfBuffer = Buffer.from(cleanBase64, 'base64');
 
         if (pdfBuffer.length === 0) {
             res.status(400).json({ error: 'Decoded PDF is empty' });
@@ -600,9 +623,6 @@ exports.parseRosterPDF = onRequest(
             res.status(413).json({ error: 'File exceeds 20 MB limit' });
             return;
         }
-
-        // Strip any whitespace from base64 before sending to the API
-        const cleanBase64 = base64Content.replace(/\s/g, '');
 
         console.log(`[parseRosterPDF] PDF size: ${pdfBuffer.length} bytes`);
 
@@ -783,7 +803,10 @@ Every column header must appear as a key in every member object.`;
                 }],
             });
 
-            const responseText = message.content[0]?.text || '';
+            // Scan for the first text block rather than assuming content[0] is text —
+            // a leading non-text block (e.g. a thinking block) would otherwise yield
+            // '' and a spurious "unreadable response" 502.
+            const responseText = (message.content.find(b => b.type === 'text') || {}).text || '';
             console.log(`[parseRosterPDF] Claude response length: ${responseText.length}`);
 
             // Extract the JSON object robustly — strips any preamble, fences, or trailing text.
