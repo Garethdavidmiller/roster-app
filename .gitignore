@@ -13,6 +13,10 @@
 node_modules/
 functions/node_modules/
 
+# Playwright test output (reports and traces — local inspection only, not committed)
+playwright-report/
+test-results/
+
 # Local env / secrets
 .env
 .env.*

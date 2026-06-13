@@ -23,7 +23,13 @@
       "example-payslips/**",
       "**/*.pdf",
       "**/*.jpg",
-      "**/*.jpeg"
+      "**/*.jpeg",
+      "package.json",
+      "package-lock.json",
+      "playwright.config.mjs",
+      "e2e/**",
+      "playwright-report/**",
+      "test-results/**"
     ],
     "headers": [
       {
