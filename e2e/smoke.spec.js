@@ -28,7 +28,8 @@ function collectFatalErrors(page) {
             msg.includes('FirebaseError') ||
             msg.includes('auth/') ||
             msg.toLowerCase().includes('network request failed') ||
-            msg.toLowerCase().includes('failed to fetch')
+            msg.toLowerCase().includes('failed to fetch') ||
+            msg.includes('Not authorised — redirecting')  // intentional throw to halt module after location.replace
         ) return;
         errors.push(msg);
     });
