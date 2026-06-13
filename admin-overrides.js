@@ -207,12 +207,17 @@ export function buildWeekGridInto(container, dateStr) {
 
         container.appendChild(row);
 
-        // Sundays are uncontracted — disable the AL pill
+        // Sundays are uncontracted — disable AL and Absent pills
         if (isSunday(dateISO)) {
             const alPill = row.querySelector('.pill-annual_leave');
             if (alPill) {
                 alPill.disabled = true;
                 alPill.title    = 'Annual leave cannot be recorded on a Sunday — Sundays are not contracted days';
+            }
+            const sickPill = row.querySelector('.pill-sick');
+            if (sickPill) {
+                sickPill.disabled = true;
+                sickPill.title    = 'Absence cannot be recorded on a Sunday — Sundays are not contracted days';
             }
         }
 
@@ -510,8 +515,8 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(row => {
             const checkbox = row.querySelector('.day-cb');
             if (!checkbox || !checkbox.checked) return;
-            // AL cannot be recorded on Sundays (uncontracted) — skip silently
-            if (_bulkActiveType === 'annual_leave' && isSunday(row.dataset.date)) return;
+            // AL and Absent cannot be recorded on Sundays (uncontracted) — skip silently
+            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick') && isSunday(row.dataset.date)) return;
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
             const endEl   = row.querySelector('.day-end');

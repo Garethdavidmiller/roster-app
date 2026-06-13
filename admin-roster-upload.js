@@ -651,6 +651,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      * @returns {string}  override type
      */
     function shiftValueToOverrideType(value, baseShift, date = null) {
+        // Sundays are non-contracted — AL and Absent cannot apply; treat as RD correction
+        const isSun = date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+        if (isSun && (value === 'AL' || value === 'SICK')) return 'correction';
         if (value === 'AL')    return 'annual_leave';
         if (value === 'SICK')  return 'sick';
         if (value === 'SPARE') return 'spare_shift';
