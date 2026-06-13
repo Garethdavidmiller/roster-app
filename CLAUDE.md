@@ -189,14 +189,14 @@ roster-app/
 ├── links-design.test.mjs   ← tests for links-design.js (generator targets/turnarounds, hourly coverage, design checks, custom-shift validation)
 ├── admin-rangepicker.test.mjs ← tests for getDateRange() in admin-rangepicker.js (inclusive endpoints, reversed range, month/year/leap/DST boundaries)
 ├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations
+├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
 ├── package.json            ← dev dependencies only: @playwright/test + http-server (not deployed; see firebase.json ignore list)
 ├── playwright.config.mjs   ← Playwright config: Chromium desktop + Pixel 5, http-server webServer, CI retry policy
-└── e2e/
-    └── smoke.spec.js       ← 8 smoke tests: calendar renders + member dropdown + nav drawer (3), admin login overlay, paycalc period selector, settings login overlay, operations redirect, links redirect
-├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
 ├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
 ├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date)
 ├── generate-sri.mjs        ← dev utility: fetches Mammoth CDN SRI hash and patches huddle.js in-place (DOMPurify is self-hosted — no longer managed here)
+├── e2e/
+│   └── smoke.spec.js       ← 8 smoke tests: calendar renders + member dropdown + nav drawer (3), admin login overlay, paycalc period selector, settings login overlay, operations redirect, links redirect
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
@@ -252,7 +252,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Network-first SW for app files | Ensures staff always receive roster updates on next open. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and bulk bar pills in `admin.html` (~line 164) must stay in sync. Current order: AL · Spare · Shift · RDW · Absent · Rest Day |
+| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and the bulk-bar pills in `admin.html` (`#bulkBar`) must stay in sync. Current order: AL · Spare · Shift · RDW · Absent · Rest Day |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
@@ -350,8 +350,9 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
   name: 'G. Miller',       // MUST match Firestore memberName exactly
   currentWeek: 3,
   rosterType: 'main',      // 'main' | 'bilingual' | 'fixed' | 'ces' | 'dispatcher'
-  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher'
+  role: 'CEA',             // 'CEA' | 'CES' | 'Dispatcher' | 'Management'
   hidden: false,           // Optional — hides from dropdown
+  managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
   proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
@@ -405,6 +406,8 @@ Override cache key: `"memberName|YYYY-MM-DD"`
 ### Authentication
 
 Staff log in with name (dropdown) + surname as password (lowercase, no spaces/special chars). Sessions expire after 30 days (absolute) or 7 days of inactivity, whichever comes first — every successful page load refreshes the idle clock. `CONFIG.ADMIN_NAMES = ['G. Miller']` — elevated access. `CONFIG.LINKS_DESIGNERS = ['G. Miller', 'S. Silva']` — access to the Links design workspace.
+
+The login dropdown groups members by grade (CEA · CES · Dispatcher · Management, in that order). `managerOnly: true` members (managers/clerks) appear **only** in the Management group and are hidden from the calendar's member selector — they have login access but no roster of their own. Their grade dropdown filtering lives in `admin-app.js` (`GRADE_ORDER`).
 
 **Password security note:** Passwords are surname-derived and not secrets — protection relies on Firebase Auth rate-limiting (v9.53) and Firestore rules (`request.auth != null`).
 

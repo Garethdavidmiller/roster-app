@@ -17,7 +17,7 @@ Individual staff log in and enter their own overrides. Admin (G. Miller) has ele
 **What was built:**
 - admin.html — self-service portal for all staff plus admin tools
 - Individual login per staff member (name + surname password)
-- AL booking with entitlement tracking (32 days CEA, 34 days CES/Dispatcher/Fixed)
+- AL booking with entitlement tracking (32 days CEA, 34 days CES & Fixed, 22 + 1 lieu per worked BH for Dispatcher)
 - Bulk override operations and override history
 - Cultural calendar marker preference per member (Islamic, Hindu, Chinese, Jamaican, Congolese, Portuguese)
 - Dispatcher and fixed roster types
@@ -57,7 +57,7 @@ Staff enter their hours; the calculator computes estimated tax, NI, pension, and
 
 **Key design decisions:**
 - One service worker rather than per-page SWs — two SWs sharing the same scope competed and wiped each other's caches
-- `pay-manifest.json` kept separate from `manifest.json` — allows independent home-screen installation with a distinct app name ("MYB Pay")
+- A separate `pay-manifest.json` was used initially so the calculator could install with its own name ("MYB Pay"); since consolidated into the single `manifest.json` (the file no longer exists — PWA long-press shortcuts now cover Calendar/Pay/Admin)
 - Roster-aware fill bar (v7.07) — pre-fills Saturday/Sunday/BH counts from the base roster in one tap; works offline
 
 The calculator is **not** a payslip replacement — estimates only. Actual payslips may differ.
@@ -229,7 +229,7 @@ A 28-line rotating link design tool for Marylebone station. Accessible only to `
 - **v12.33** — Beta marker (gold-outline chip + `#betaLightbox` first-visit notice following canonical lightbox lifecycle); S. Silva added to `LINKS_DESIGNERS`; `deploy-pages.yml` workflow added for GitHub Pages.
 - **v12.37** — Print layout (A4 landscape grid + coverage); sticky day headers at ≥1024px using `overflow: clip` (not `hidden`) on the card to avoid creating a scroll container; concurrency guard: `saveChanges()` re-reads `updatedAt` and names the other designer before overwriting; `loadFailed` flag to distinguish a Firestore error from "no design yet".
 - **v12.39** — Full redesign: staff names removed (the design is patterns-only, "Line 1"–"Line 28" — who goes on which line is a separate decision made after patterns are agreed); paint-mode brush bar (arm a shift chip, then single-click cells to fill — no dropdown required; Escape or re-tap to disarm); Design Checks card (weekends off, short turnarounds <12h across the circular rotation, longest consecutive-days stretch, early/late/spare balance); auto-generator rebuilt as slot-based targets (see v12.40 entry); `links-design.js` extracted as pure-maths module.
-- **v12.40** — Slot-based generator: one row per distinct shift time, each with separate **Mon–Fri / Sat / Sun** headcount targets (the real roster genuinely differs on all three day classes); generator seeded from the current roster via `buildRosterTargets()` so designers start from what today's roster provides; rotating-window algorithm guarantees forward body-clock rotation (a person's week only moves later — never a late finish followed by an early start). Hourly coverage heat map: hour-by-hour on-duty headcount replacing the early/late bar chart; intensity buckets `heat-b0`–`heat-b5`; red `0` flags a coverage gap inside a staffed span; SP column for spares. `links-design.test.mjs` added — 21 tests covering all pure-maths functions.
+- **v12.40** — Slot-based generator: one row per distinct shift time, each with separate **Mon–Fri / Sat / Sun** headcount targets (the real roster genuinely differs on all three day classes); generator seeded from the current roster via `buildRosterTargets()` so designers start from what today's roster provides; rotating-window algorithm guarantees forward body-clock rotation (a person's week only moves later — never a late finish followed by an early start). Hourly coverage heat map: hour-by-hour on-duty headcount replacing the early/late bar chart; intensity buckets `heat-b0`–`heat-b5`; red `0` flags a coverage gap inside a staffed span; SP column for spares. `links-design.test.mjs` added — covering all pure-maths functions.
 - **v12.41** — Vacant-lines model removed: "lines 23–27 are vacant placeholders" (`VACANT_FROM`) dropped. All 28 lines are now editable rotating rows.
 - **v12.42** — Fixed-line model removed: "line 28 is C. Reen's fixed link" (`FIXED_POS`, the separator row, non-editable cells) dropped. In a rotating link everyone passes through every line — an all-rest line is an unfinished pattern, not a vacancy. C. Reen's adjusted shifts are handled as overrides on the base roster (the normal mechanism), not inside this designer. `ROTATING_LINES = 28`. Design checks and amber `.row-unfilled` marker flag any line that is entirely rest days.
 - **v12.43** — Generator-only model: "Initialise from current rosters" and "↺ Reset patterns from current rosters" buttons removed (`buildDefaultDesign`, `normalisePattern`, `initFromRosters`, `resetFromRosters` all deleted). The auto-generator is now the only entry point for creating a new design — it reads Mon–Fri/Sat/Sun headcount targets and produces a complete 28-line rotation. When no design exists, the generator card auto-expands so designers don't have to discover it collapsed.

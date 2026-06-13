@@ -314,10 +314,10 @@ Firebase Storage security rules.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
 - All other paths: denied.
 
-### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css`
-Page-specific CSS for each page — extracted from inline `<style>` blocks (index/admin/paycalc at v11.41; operations/settings at v12.01).
+### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `links.css`
+Page-specific CSS for each page — extracted from inline `<style>` blocks (index/admin/paycalc at v11.41; operations/settings at v12.01; links arrived with the page at v12.07).
 - Edit here for any visual change that is specific to one page
-- All five are network-first in the service worker (same freshness guarantee as their HTML)
+- All are network-first in the service worker (same freshness guarantee as their HTML)
 
 ### `guide-shell.css`
 Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `railcard-guide.html`, `fip.html`) — added v11.48.
@@ -338,7 +338,7 @@ Self-hosted DOMPurify ES module (v3.4.8) — extracted from CDN at v12.04.
 - Precached by the service worker (network-first)
 
 ### `shared.css`
-All CSS shared across all five app pages (index, admin, paycalc, operations, settings).
+All CSS shared across all six app pages (index, admin, paycalc, operations, settings, links).
 - CSS custom properties (`--primary-blue`, `--accent-gold`, etc.) — **never hardcode hex**
 - Typography scale, badge/pill variants, button types
 - `touch-only` class — hidden by default, revealed on `@media (pointer: coarse)` (touch devices)
