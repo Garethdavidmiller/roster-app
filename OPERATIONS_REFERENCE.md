@@ -38,7 +38,7 @@ uploadedAt   timestamp  Firestore server timestamp
 uploadedBy   string     "power-automate" | Firebase Auth UID (manual admin upload)
 htmlContent  string     (optional) DOCX converted to HTML by mammoth.js at upload time.
                         Present for DOCX files only. Missing for PDFs and large DOCX
-                        conversions (> 800 KB). Viewer falls back to storageUrl if absent.
+                        conversions (> 200 KB / 200,000 chars). Viewer falls back to storageUrl if absent.
 ```
 
 ### Cloud Function — `ingestHuddle` request format
@@ -303,7 +303,7 @@ Apply approved changes:
 
 `nameToEmail(name)` in `firebase-client.js` and `functions/index.js` must stay in sync with `getSurname()` in `session.js`. As of v12.04, `getSurname()` delegates to `normaliseSurname()` which is exported from `firebase-client.js`. The same derivation is also duplicated in `functions/roster-parse-helpers.js` — this is intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update all three locations.
 
-**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is. The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load.
+**Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load.
 
 The `@myb-roster.local` domain is synthetic — not real email addresses. Firebase Auth accepts them as valid email format.
 

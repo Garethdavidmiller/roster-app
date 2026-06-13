@@ -28,7 +28,8 @@ function collectFatalErrors(page) {
             msg.includes('FirebaseError') ||
             msg.includes('auth/') ||
             msg.toLowerCase().includes('network request failed') ||
-            msg.toLowerCase().includes('failed to fetch')
+            msg.toLowerCase().includes('failed to fetch') ||
+            msg.includes('Not authorised — redirecting')  // intentional throw to halt module after location.replace
         ) return;
         errors.push(msg);
     });
@@ -117,4 +118,26 @@ test('settings: login overlay renders with JS-populated grade options', async ({
     expect(gradeCount, '#loginGrade should have JS-added grade options').toBeGreaterThan(1);
 
     expect(errors, 'Uncaught JS exceptions on settings.html').toHaveLength(0);
+});
+
+// ── OPERATIONS (operations.html) ──────────────────────────────────────────
+
+test('operations: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/operations.html');
+    // operations-app.js redirects immediately when no admin session exists —
+    // landing on admin.html proves the module loaded and executed without crashing.
+    await expect(page).toHaveURL(/admin\.html/);
+    expect(errors, 'Uncaught JS exceptions triggering operations redirect').toHaveLength(0);
+});
+
+// ── LINKS (links.html) ────────────────────────────────────────────────────
+
+test('links: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/links.html');
+    // links-app.js redirects immediately when the user is not a links designer —
+    // landing on admin.html proves the module loaded and executed without crashing.
+    await expect(page).toHaveURL(/admin\.html/);
+    expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
