@@ -11,7 +11,7 @@
  * No hardcoded secret — the request uses a short-lived signed JWT from Firebase Auth.
  */
 
-import { teamMembers, CONFIG, escapeHtml } from './roster-data.js';
+import { CONFIG, escapeHtml, getMembersForGrade } from './roster-data.js';
 import { auth, onAuthStateChanged } from './firebase-client.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
@@ -32,26 +32,20 @@ export function initAuthSetup({ currentIsAdmin }) {
 
     card.style.display = '';
 
-    // Collapse toggle
-    const header  = document.getElementById('authSetupToggleHeader');
-    const body    = document.getElementById('authSetupBody');
-    const chevron = document.getElementById('authSetupChevron');
-    if (header && body && chevron) {
-        header.addEventListener('click', () => {
-            const isOpen = body.classList.toggle('open');
-            chevron.classList.toggle('open', isOpen);
-        });
-    }
+    // Collapse is wired centrally in operations-app.js via initCardCollapse.
 
-    // Active members: non-hidden staff + management/clerk accounts (so they get Firebase Auth)
-    const ACTIVE_MEMBERS = teamMembers
-        .filter(m => (!m.hidden && ['CEA', 'CES', 'Dispatcher'].includes(m.role)) || m.managerOnly)
-        .map(m => m.name);
+    // Active members: all non-hidden staff plus management/clerk accounts (so everyone who can log in gets an account)
+    const ACTIVE_MEMBERS = [
+        ...getMembersForGrade('CEA'),
+        ...getMembersForGrade('CES'),
+        ...getMembersForGrade('Dispatcher'),
+        ...getMembersForGrade('Management'),
+    ].map(m => m.name);
 
     btn.addEventListener('click', async () => {
         btn.disabled    = true;
         btn.textContent = 'Working…';
-        resultEl.style.display = 'none';
+        resultEl.classList.remove('visible');
 
         try {
             // operations-app.js re-establishes the Firebase Auth session on page load for
@@ -75,8 +69,8 @@ export function initAuthSetup({ currentIsAdmin }) {
             // Bootstrap mode: admin claim not yet set (rules were tightened before first run).
             // Server accepts g.miller@myb-roster.local without the claim for this first call.
             if (!tokenResult.claims.admin) {
-                resultEl.innerHTML = '<p style="color:var(--primary-blue)">ℹ️ Admin claim not set yet — running bootstrap. Sign out and back in after this completes.</p>';
-                resultEl.style.display = 'block';
+                resultEl.innerHTML = '<p class="auth-result-info">ℹ️ Admin claim not set yet — running bootstrap. Sign out and back in after this completes.</p>';
+                resultEl.classList.add('visible');
             }
 
             const resp = await fetch(SETUP_AUTH_URL, {
@@ -106,11 +100,11 @@ export function initAuthSetup({ currentIsAdmin }) {
             if (failed.length)   lines.push(`❌ Failed (${failed.length}): ${failed.join(', ')}`);
             if (!lines.length)   lines.push('Nothing to do — all accounts already up to date.');
 
-            resultEl.innerHTML = lines.map(l => `<p style="margin:0 0 6px">${escapeHtml(l)}</p>`).join('');
-            resultEl.style.display = 'block';
+            resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');
+            resultEl.classList.add('visible');
         } catch (err) {
-            resultEl.innerHTML = `<p style="color:var(--error-red)">❌ ${escapeHtml(err.message)}</p>`;
-            resultEl.style.display = 'block';
+            resultEl.innerHTML = `<p class="auth-result-error">❌ ${escapeHtml(err.message)}</p>`;
+            resultEl.classList.add('visible');
             console.error('[authSetup]', err);
         } finally {
             btn.disabled    = false;

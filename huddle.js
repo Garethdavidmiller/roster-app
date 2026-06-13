@@ -124,7 +124,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
     dateInput.value = formatISO(new Date());
 
     function _rejectFile(reason) {
-        fileLabel.style.display = 'none';
+        fileLabel.classList.remove('visible');
         uploadBtn.disabled = true;
         feedback.textContent = reason;
         feedback.className = 'huddle-feedback huddle-feedback--err';
@@ -137,7 +137,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         if (!file) {
-            fileLabel.style.display = 'none';
+            fileLabel.classList.remove('visible');
             uploadBtn.disabled = true;
             return;
         }
@@ -153,7 +153,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             return;
         }
         fileLabel.textContent = file.name;
-        fileLabel.style.display = '';
+        fileLabel.classList.add('visible');
         uploadBtn.disabled = false;
     });
 
@@ -220,7 +220,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             feedback.className = 'huddle-feedback huddle-feedback--ok';
             fileInput.value = '';
             fileLabel.textContent = '';
-            fileLabel.style.display = 'none';
+            fileLabel.classList.remove('visible');
         } catch (err) {
             console.error('[Huddle] Upload failed:', err);
             feedback.textContent = 'Upload failed — please try again';

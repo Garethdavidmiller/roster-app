@@ -80,17 +80,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     let _parsedResult = null;      // response from parseRosterPDF Cloud Function
     let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
 
-    // ---- Week ending defaults to next Saturday ----
-    // All roster PDFs end on a Saturday. If today is already Saturday, default
-    // to next Saturday (the upcoming week, not today).
-    (function setDefaultWeekEnding() {
+    // Default week ending to the next Saturday (roster PDFs always end on a Saturday).
+    // If today is already Saturday, jump to the one after so we default to the upcoming week.
+    {
         const today = new Date();
         const day   = today.getDay(); // 0=Sun … 6=Sat
         const daysUntilNextSaturday = day === 6 ? 7 : 6 - day;
         const nextSaturday = new Date(today);
         nextSaturday.setDate(today.getDate() + daysUntilNextSaturday);
         weekEndingEl.value = formatISO(nextSaturday);
-    })();
+    }
 
     // ---- Snap any non-Saturday selection to the nearest Saturday ----
     // HTML date inputs have no built-in day-of-week restriction, so we enforce
@@ -113,29 +112,29 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         parseFeedback.textContent = '';
         parseFeedback.className   = 'huddle-feedback';
         if (!file) {
-            fileNameEl.style.display = 'none';
-            parseBtn.disabled        = true;
+            fileNameEl.classList.remove('visible');
+            parseBtn.disabled = true;
             return;
         }
         if (!file.name.toLowerCase().endsWith('.pdf')) {
-            fileNameEl.style.display = 'none';
-            parseBtn.disabled        = true;
+            fileNameEl.classList.remove('visible');
+            parseBtn.disabled         = true;
             parseFeedback.textContent = 'Please choose a PDF file';
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             fileInput.value           = '';
             return;
         }
         if (file.size > 10 * 1024 * 1024) {
-            fileNameEl.style.display = 'none';
-            parseBtn.disabled        = true;
+            fileNameEl.classList.remove('visible');
+            parseBtn.disabled         = true;
             parseFeedback.textContent = 'File too large — maximum 10 MB';
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
             fileInput.value           = '';
             return;
         }
-        fileNameEl.textContent   = file.name;
-        fileNameEl.style.display = '';
-        parseBtn.disabled        = false;
+        fileNameEl.textContent = file.name;
+        fileNameEl.classList.add('visible');
+        parseBtn.disabled      = false;
     });
 
     // ---- "Read Roster" button ----
@@ -151,8 +150,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // originals above).
         parseFeedback.textContent = '';
         parseFeedback.className   = 'huddle-feedback';
-        reviewSection.style.display = 'none';
-        parseBtn.disabled           = true;
+        reviewSection.classList.remove('visible');
+        parseBtn.disabled         = true;
         parseBtn.textContent        = 'Reading…';
         rosterTypeEl.disabled       = true;
         weekEndingEl.disabled       = true;
@@ -228,19 +227,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
     // ---- "Start over" button ----
     cancelBtn.addEventListener('click', () => {
-        reviewSection.style.display = 'none';
+        reviewSection.classList.remove('visible');
         _parsedResult = null;
         _cellStates   = null;
         fileInput.value           = '';
-        fileNameEl.style.display  = 'none';
+        fileNameEl.classList.remove('visible');
         parseBtn.disabled         = true;
         applyFeedback.textContent = '';
         applyFeedback.className   = 'huddle-feedback';
     });
 
-    // ---- "Apply approved changes" button ----
+    // ---- "Save changes" button ----
     applyBtn.addEventListener('click', async () => {
-        if (applyBtn.disabled) return;
         if (!_parsedResult || !_cellStates) return;
 
         // Collect all DIFF cells that are ticked (approved) + any CONFLICT cells
@@ -316,12 +314,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             applyFeedback.className   = 'huddle-feedback huddle-feedback--ok';
 
             // Clear the review table so it can't be applied twice
-            reviewSection.style.display = 'none';
+            reviewSection.classList.remove('visible');
             _parsedResult = null;
             _cellStates   = null;
-            fileInput.value          = '';
-            fileNameEl.style.display = 'none';
-            parseBtn.disabled        = true;
+            fileInput.value = '';
+            fileNameEl.classList.remove('visible');
+            parseBtn.disabled = true;
 
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
@@ -425,7 +423,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 // AL or Absent (SICK) is invalid. Treat it as RD so it matches the rest-day
                 // base, classifies as MATCH, and is never written as a Sunday AL/absence
                 // override. (Worked Sunday times remain RDW — handled below.)
-                const isSun      = new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+                const isSun      = isSunday(date);
                 const sundaySafe = (isSun && (parsedValue === 'AL' || parsedValue === 'SICK'))
                     ? 'RD' : parsedValue;
 
@@ -521,11 +519,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         // ---- Conflict banner ----
         if (conflictCount > 0) {
-            conflictTitle.textContent    = `${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} — manually saved entries are protected`;
-            conflictDetail.innerHTML     = conflictLines.join('<br>');
-            conflictBanner.style.display = '';
+            conflictTitle.textContent = `${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} — manually saved entries are protected`;
+            conflictDetail.innerHTML  = conflictLines.join('<br>');
+            conflictBanner.classList.add('visible');
         } else {
-            conflictBanner.style.display = 'none';
+            conflictBanner.classList.remove('visible');
         }
 
         // ---- Build per-person sections ----
@@ -712,9 +710,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         const conflictStr = conflictCount > 0 ? ` · ${conflictCount} conflict${conflictCount !== 1 ? 's' : ''} to resolve` : '';
         reviewLabel.textContent = `Week ending ${formatted} — ${changeStr}${conflictStr}`;
 
-        reviewSection.style.display = '';
-        applyFeedback.textContent   = '';
-        applyFeedback.className     = 'huddle-feedback';
+        reviewSection.classList.add('visible');
+        applyFeedback.textContent = '';
+        applyFeedback.className   = 'huddle-feedback';
 
         // Move focus to the summary so screen-reader users are told the review is
         // ready after the ~15s parse, and the section scrolls into view.
@@ -733,7 +731,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      */
     function shiftValueToOverrideType(value, baseShift, date = null) {
         // Sundays are non-contracted — AL and Absent cannot apply; treat as RD correction
-        const isSun = date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0;
+        const isSun = date !== null && isSunday(date);
         if (isSun && (value === 'AL' || value === 'SICK')) return 'correction';
         if (value === 'AL')    return 'annual_leave';
         if (value === 'SICK')  return 'sick';
@@ -745,20 +743,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         // For all other days, only classify as RDW when the AI explicitly flagged it above.
         // Staff may swap rest/working days with permission without it being an RDW.
         const isTime = /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(value);
-        if (isTime && date !== null && new Date(date + 'T12:00:00Z').getUTCDay() === 0) return 'rdw';
+        if (isTime && isSun) return 'rdw';
         // Spare week receiving its actual allocation — semantically distinct from overtime
         return 'shift';
     }
 
-    // ---- Collapse / expand ----
-    (function initCollapse() {
-        const header  = document.getElementById('rosterUploadToggleHeader');
-        const body    = document.getElementById('rosterUploadBody');
-        const chevron = document.getElementById('rosterUploadChevron');
-        if (!header || !body || !chevron) return;
-        header.addEventListener('click', () => {
-            const isOpen = body.classList.toggle('open');
-            chevron.classList.toggle('open', isOpen);
-        });
-    })();
+    // Card collapse is wired centrally in operations-app.js via initCardCollapse.
 }
