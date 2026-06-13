@@ -87,6 +87,65 @@ NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi
 fi
 
+# Export-drift same-commit check — if a staged JS module removes or renames an
+# exported symbol (its documented API shrank vs HEAD), AI_MAP.md must be updated
+# in the SAME commit. Generalises the module add/remove rule at the top of this
+# hook to cover changed exports (the gap that let applyHuddleButtonState linger
+# in the docs after v12.57).
+if command -v node >/dev/null 2>&1; then
+  node - << 'NODEEOF'
+const { execSync } = require('child_process');
+const sh = c => { try { return execSync(c, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }); } catch { return null; } };
+
+const staged = (sh('git diff --cached --name-only --diff-filter=ACMR') || '').split('\n').filter(Boolean);
+const aiMapStaged = staged.includes('AI_MAP.md');
+// Root JS modules only — skip tests, the SW, and functions/ (CommonJS, not in AI_MAP).
+const jsFiles = staged.filter(f => /^[^/]+\.js$/.test(f) && !f.includes('.test.') && f !== 'service-worker.js');
+
+function exportsOf(src) {
+    const names = new Set();
+    // export [async] function|const|let|var|class NAME
+    const declRe = /export\s+(?:async\s+)?(?:function\*?|const|let|var|class)\s+([A-Za-z0-9_$]+)/g;
+    let m;
+    while ((m = declRe.exec(src))) names.add(m[1]);
+    // export { a, b as c } and re-exports export { x as y } from '...'.
+    // Re-exported names are part of the module's documented surface too
+    // (e.g. firebase-client.js re-exports the Firestore helpers listed in
+    // AI_MAP), so removing one should also trip this gate.
+    const blockRe = /export\s*\{([^}]*)\}/g;
+    while ((m = blockRe.exec(src))) {
+        for (const part of m[1].split(',')) {
+            const seg = part.trim();
+            if (!seg) continue;
+            const as = seg.match(/\bas\s+([A-Za-z0-9_$]+)/);
+            const name = as ? as[1] : seg.split(/\s+/)[0];
+            if (name && name !== 'default') names.add(name);
+        }
+    }
+    return names;
+}
+
+const offenders = [];
+for (const f of jsFiles) {
+    const head = sh(`git show HEAD:"${f}"`);
+    if (head == null) continue;                  // new file — covered by the module-listing check
+    const now = sh(`git show :"${f}"`);
+    if (now == null) continue;
+    const removed = [...exportsOf(head)].filter(n => !exportsOf(now).has(n));
+    if (removed.length) offenders.push(`${f}: ${removed.join(', ')}`);
+}
+
+if (offenders.length && !aiMapStaged) {
+    for (const o of offenders) process.stderr.write(`  export-drift: removed/renamed export(s) in ${o}\n`);
+    process.stderr.write('\n  A removed or renamed export changes the module documented API.\n');
+    process.stderr.write('  Update AI_MAP.md (and CLAUDE.md if its file-structure line names the export)\n');
+    process.stderr.write('  in the SAME commit, then re-commit. (Staging AI_MAP.md satisfies this check.)\n');
+    process.exit(1);
+}
+NODEEOF
+  if [ $? -ne 0 ]; then exit 1; fi
+fi
+
 # ESLint — run on staged .js files only (fast; non-blocking warning if eslint not found)
 if command -v eslint >/dev/null 2>&1; then
   STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | tr '\n' ' ')
@@ -150,8 +209,29 @@ if [[ -n "$DOC_VER" ]]; then
   fi
 fi
 
-# AI_MAP.md, KNOWN_LIMITATIONS.md, ROADMAP.md, OPERATIONS_REFERENCE.md — remind when 0.20+ behind
-for doc in AI_MAP.md KNOWN_LIMITATIONS.md ROADMAP.md OPERATIONS_REFERENCE.md; do
+# AI_MAP.md — BLOCKING: must be current to the latest 0.10 milestone.
+# Mirrors sw-asset-check.test.mjs so a missed 0.10 doc sweep fails at commit
+# time locally, not only in CI. Milestone = APP_VERSION floored to nearest 0.10.
+if [[ -f "AI_MAP.md" ]]; then
+  AIMAP_VER=$(grep -m1 "Last updated" AI_MAP.md 2>/dev/null | grep -oP 'v[0-9]+\.[0-9]+' | tr -d 'v')
+  if [[ -n "$AIMAP_VER" ]]; then
+    AIMAP_INT=$(echo "$AIMAP_VER" | awk -F. '{printf "%d", $1*100+$2}')
+    MILESTONE=$(( (CUR_INT / 10) * 10 ))
+    if [ "$AIMAP_INT" -lt "$MILESTONE" ]; then
+      MILE_VER=$(printf "%d.%02d" $((MILESTONE / 100)) $((MILESTONE % 100)))
+      echo ""
+      echo "  doc-checkpoint: AI_MAP.md 'Last updated' is v${AIMAP_VER}, but the app has reached the"
+      echo "  v${MILE_VER} 0.10 milestone (APP_VERSION v${APP_VER}). Per CLAUDE.md the .md files are"
+      echo "  swept every 0.10 version. Review the docs, bump AI_MAP.md's 'Last updated' line to"
+      echo "  v${MILE_VER} (or later), then re-commit."
+      echo ""
+      exit 1
+    fi
+  fi
+fi
+
+# KNOWN_LIMITATIONS.md, ROADMAP.md, OPERATIONS_REFERENCE.md — soft reminder when 0.20+ behind
+for doc in KNOWN_LIMITATIONS.md ROADMAP.md OPERATIONS_REFERENCE.md; do
   [[ -f "$doc" ]] || continue
   DOC_VER=$(grep -m1 "Last updated" "$doc" 2>/dev/null | grep -oP 'v[0-9]+\.[0-9]+' | tr -d 'v')
   [[ -z "$DOC_VER" ]] && continue
