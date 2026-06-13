@@ -355,6 +355,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
   managerOnly: false,      // Optional — login-only manager/clerk account (Management group); hidden from the calendar member selector, has no roster of its own
   permanentShift: 'early', // Optional — forces early/late badge on all worked days
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
+  noProRate: true,                  // Optional — set for secondment returns: startDate suppresses pre-return shifts but pay and AL are full-year (no pro-rating in paycalc; joiner banner hidden)
   proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
   flags: ['🇬🇧', '🇳🇬'], // Optional — up to 2 nationality flag emojis; shown in nav panel footer (v10.64); hidden on Windows (v10.65)
   rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] // Optional — scheduled roster moves
