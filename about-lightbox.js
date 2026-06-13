@@ -82,18 +82,13 @@ export function initAboutLightbox({ appLabel = 'MYB Roster', bugLinkId = 'bugRep
     if (bugLink) bugLink.addEventListener('click', e => e.stopPropagation());
 
     // Optional print button — close first so the lightbox doesn't appear in the
-    // output, then print after the exit transition (550 ms fallback for iOS,
-    // which suppresses transitionend on backgrounded tabs).
+    // output, then print after the exit transition. The 500 ms delay matches the
+    // dismissOverlay fallback that fires when transitionend doesn't (iOS backgrounded tab,
+    // prefers-reduced-motion) — no need to wire a second transitionend listener here.
     const printBtn = document.getElementById('lightboxPrintBtn');
     if (printBtn) printBtn.addEventListener('click', () => {
         lb.close();
-        let printed = false;
-        const doPrint = () => { if (!printed) { printed = true; (printFn ?? (() => window.print()))(); } };
-        lightbox.addEventListener('transitionend', doPrint, { once: true });
-        setTimeout(() => {
-            lightbox.removeEventListener('transitionend', doPrint);
-            doPrint();
-        }, 550);
+        setTimeout(() => (printFn ?? (() => window.print()))(), 500);
     });
 
     return lb;

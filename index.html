@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v12.56 -->
+<!-- MYB Roster — Calendar v12.57 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -113,6 +113,7 @@
                 </div>
             </div>
             <a href="admin.html#book-annual-leave" class="al-lb-link">→ Record leave in Admin</a>
+            <p id="alLbError" class="al-lb-error" hidden>Couldn't load — check your connection</p>
         </div>
     </div>
 
@@ -162,7 +163,7 @@
     <div id="huddleViewer" role="dialog" aria-label="Daily Huddle" aria-modal="true">
         <div id="huddleViewerHeader">
             <span id="huddleViewerTitle">📋 Daily Huddle</span>
-            <button id="huddleViewerClose" type="button" aria-label="Close">✕</button>
+            <button id="huddleViewerClose" type="button" class="lb-close" aria-label="Close">✕</button>
         </div>
         <div id="huddleViewerBody">
             <p id="huddleViewerLoading">Loading…</p>

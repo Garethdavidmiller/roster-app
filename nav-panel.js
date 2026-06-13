@@ -45,7 +45,7 @@ const NAV_INFORMATION = [
         heading: 'Workplace',
         links: [
             { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
-            { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true           },
+            { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true, body: 'The Weekly Retail Circular will be linked here once it goes live. Check back soon.' },
         ],
     },
 ];
@@ -256,6 +256,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     const csClose    = document.getElementById('navComingSoonClose');
     const csTitle    = document.getElementById('navComingSoonTitle');
     const csIcon     = document.getElementById('navComingSoonIcon');
+    const csBody     = document.getElementById('navComingSoonBody');
 
     /**
      * Open the placeholder lightbox for a "coming soon" link.
@@ -267,8 +268,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!csLightbox) return;
         const title = triggerEl?.dataset.csTitle || 'Coming soon';
         const icon  = triggerEl?.dataset.csIcon  || '🔔';
+        const body  = triggerEl?.dataset.csBody  || '';
         if (csTitle) csTitle.textContent = title;
         if (csIcon)  csIcon.textContent  = icon;
+        if (csBody)  csBody.textContent  = body;
         csLightbox.setAttribute('aria-label', title);
 
         lockBodyScroll();
@@ -390,7 +393,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
         <p class="nav-panel-group-heading">${group.heading}</p>
         <ul class="nav-panel-links">
             ${group.links.map(link => link.comingSoon
-                ? `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}">${link.icon} ${link.label}</button></li>`
+                ? `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`
                 : `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`
             ).join('')}
         </ul>`).join('');
@@ -478,7 +481,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 <button id="navComingSoonClose" class="lb-close" aria-label="Close">✕</button>
                 <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>
                 <div class="nav-cs-title" id="navComingSoonTitle">Coming soon</div>
-                <div class="nav-cs-body">Coming soon</div>
+                <div class="nav-cs-body" id="navComingSoonBody"></div>
             </div>
         </div>`;
 
