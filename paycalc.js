@@ -87,6 +87,7 @@ function getLoggedMember() {
 function getEffectiveContr(p) {
   const base   = getContr();
   if (!p) return base;
+  if (getLoggedMember()?.noProRate) return base;
   const factor = calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
   return factor === 1 ? base : Math.round(base * factor);
 }
@@ -96,6 +97,7 @@ function getEffectiveContr(p) {
  *  the formula invariant and why startDate must be midnight local time. */
 function getProRateFactor(p) {
   if (!p) return 1;
+  if (getLoggedMember()?.noProRate) return 1;
   return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
 }
 
@@ -1044,7 +1046,7 @@ function updateJoinerNotice(p) {
   const el = document.getElementById('joinerNotice');
   if (!el || !p) return;
   const member = getLoggedMember();
-  if (!member?.startDate || member.startDate <= p.start) { el.style.display = 'none'; return; }
+  if (!member?.startDate || member.startDate <= p.start || member?.noProRate) { el.style.display = 'none'; return; }
   if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
   const msPerDay     = 86400000;
   const daysEmployed = Math.round((p.cutoff - member.startDate) / msPerDay) + 1;

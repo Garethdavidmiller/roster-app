@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.62';
+export const APP_VERSION = '12.63';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -112,7 +112,9 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), proRatedAL: { 2026: 20 },
+    { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true,
+      // Returned from secondment — not a new starter. startDate suppresses shifts before
+      // June 9 but pay and AL are full-year (noProRate: true; full 34-day CES entitlement).
       // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link on the
       // former Vacant week-4 slot from 1 Jul 2026 (rotates automatically thereafter).
       rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] },
