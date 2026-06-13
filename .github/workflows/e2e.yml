@@ -29,6 +29,15 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
+      # Fast unit / deployment-hygiene tests run here too (not only at deploy)
+      # so the doc-checkpoint tripwire and version-consistency checks gate every
+      # branch and PR — catching a missed 0.10 doc sweep before merge, not after.
+      - name: Run unit and hygiene tests
+        run: |
+          node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
+          node --experimental-vm-modules --test module-parse.test.mjs
+          node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs app.test.mjs
+
       - name: Run smoke tests
         run: npx playwright test
         env:
