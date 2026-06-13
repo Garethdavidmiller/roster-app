@@ -14,7 +14,7 @@
  *   notifications, cultural calendar preferences, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY, warnIfCulturalCalendarMissingYear } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY, warnIfCulturalCalendarMissingYear, getMembersForGrade } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
@@ -77,10 +77,7 @@ function initLoginOverlay() {
             return;
         }
         nameSelect.appendChild(new Option('— Select your name —', ''));
-        const members = grade === 'Management'
-            ? teamMembers.filter(m => m.managerOnly)
-            : teamMembers.filter(m => m.role === grade && !m.hidden && !m.managerOnly);
-        members.forEach(m => nameSelect.appendChild(new Option(m.name, m.name)));
+        getMembersForGrade(grade).forEach(m => nameSelect.appendChild(new Option(m.name, m.name)));
         nameSelect.disabled = false;
     }
 

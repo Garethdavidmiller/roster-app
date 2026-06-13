@@ -6,7 +6,7 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, teamMembers, CALENDAR_NAMES, resolveFaithCalendar } from './roster-data.js';
+import { CONFIG, CALENDAR_NAMES, resolveFaithCalendar, getMembersForGrade } from './roster-data.js';
 import { db, doc, getDoc, setDoc } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
@@ -77,9 +77,7 @@ function initLoginOverlay() {
     if (savedGrade) { gradeSelect.value = savedGrade; populateNames(savedGrade); }
 
     function populateNames(grade) {
-        const gradeMap = { CEA: ['main', 'bilingual', 'fixed'], CES: ['ces'], Dispatcher: ['dispatcher'] };
-        const types    = gradeMap[grade] || [];
-        const members  = teamMembers.filter(m => !m.hidden && types.includes(m.rosterType));
+        const members = getMembersForGrade(grade);
         nameSelect.innerHTML = '<option value="">— Select name —</option>';
         members.forEach(m => nameSelect.appendChild(new Option(m.name, m.name)));
         nameSelect.disabled = members.length === 0;
@@ -123,8 +121,9 @@ function initLoginOverlay() {
 
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
-    // Card collapse — notif card is wired by initHuddleNotifications() below; wire the rest here
-    initCardCollapse('religiousToggleHeader', 'religiousBody', 'religiousChevron');
+    // notif card collapse is wired by initHuddleNotifications() below.
+    // Religious card collapse is wired inside initCulturalCalendarCard() so it can
+    // reference updateActiveTag, which needs the collapse state for its logic.
 
     // Notifications card
     initHuddleNotifications();
@@ -147,19 +146,11 @@ function initCulturalCalendarCard() {
     const radios     = document.querySelectorAll('input[name="faithCalendar"]');
     if (!saved || !radios.length) return;
 
-    const DISCLAIMERS = {
-        islamic:    'Islamic dates follow the Umm al-Qura calendar (±1 day — actual dates depend on moon-sighting). Mawlid al-Nabi is observed by most UK Muslim communities but not all denominations.',
-        hindu:      'Hindu dates follow the Hindu lunar calendar (±1 day — may vary by region).',
-        chinese:    'Chinese lunisolar dates follow the Chinese lunisolar calendar (±1 day). Qingming follows the solar calendar and always falls on 4–5 April.',
-        jamaican:   'Jamaican public holidays. Ash Wednesday and National Heroes Day are moveable; all other dates are fixed each year.',
-        congolese:  'Congolese national public holidays (DRC). All four dates are fixed each year.',
-        portuguese: 'Portuguese national public holidays not already covered by the UK calendar. Labour Day is fixed on 1 May. Carnival Tuesday is widely observed but discretionary.',
-    };
-
     function updateActiveTag(value) {
         if (!activeTag) return;
-        if (value && value !== 'none') {
-            activeTag.textContent  = (CALENDAR_NAMES[value] || value) + ' active';
+        const bodyOpen = document.getElementById('religiousBody')?.classList.contains('open') ?? false;
+        if (!bodyOpen && value && value !== 'none') {
+            activeTag.textContent   = (CALENDAR_NAMES[value] || value) + ' active';
             activeTag.style.display = '';
         } else {
             activeTag.style.display = 'none';
@@ -167,19 +158,33 @@ function initCulturalCalendarCard() {
     }
 
     function updateDisclaimer(value) {
-        const text = DISCLAIMERS[value] || '';
-        disclaimer.textContent  = text;
-        disclaimer.style.display = text ? '' : 'none';
+        const radio = document.querySelector(`input[name="faithCalendar"][value="${value}"]`);
+        const text  = radio?.dataset.disclaimer || '';
+        disclaimer.textContent = text;
+        disclaimer.classList.toggle('visible', !!text);
     }
+
+    // Wire card collapse here (not in initApp) so onToggle can reference updateActiveTag.
+    initCardCollapse('religiousToggleHeader', 'religiousBody', 'religiousChevron', () => {
+        const checked = document.querySelector('input[name="faithCalendar"]:checked');
+        updateActiveTag(checked?.value || 'none');
+    });
 
     async function loadSetting() {
         const local = lsGet(`faithCalendar_${currentUser}`) || 'none';
         radios.forEach(r => { r.checked = (r.value === local); });
         updateDisclaimer(local);
         updateActiveTag(local);
+
+        // Guard against a user changing a radio while Firestore is loading —
+        // once the user interacts, their choice takes priority over the snapshot.
+        let userInteracted = false;
+        const markInteracted = () => { userInteracted = true; };
+        radios.forEach(r => r.addEventListener('change', markInteracted, { once: true }));
+
         try {
             const snap = await getDoc(doc(db, 'memberSettings', currentUser));
-            if (snap.exists()) {
+            if (!userInteracted && snap.exists()) {
                 const value = resolveFaithCalendar(snap.data());
                 lsSet(`faithCalendar_${currentUser}`, value);
                 radios.forEach(r => { r.checked = (r.value === value); });
@@ -188,6 +193,8 @@ function initCulturalCalendarCard() {
             }
         } catch (e) {
             console.warn('[Firestore] memberSettings load failed:', e);
+        } finally {
+            radios.forEach(r => r.removeEventListener('change', markInteracted));
         }
     }
 
@@ -210,8 +217,9 @@ function initCulturalCalendarCard() {
             } catch (e) {
                 console.warn('[Firestore] memberSettings sync failed:', e);
                 clearTimeout(saveTimer);
-                saved.textContent = '✓ Saved — other devices will update when you\'re back online';
-                saveTimer = setTimeout(() => saved.classList.remove('visible'), 4000);
+                saved.textContent = 'Saved locally — sync to other devices failed';
+                saved.classList.add('error');
+                saveTimer = setTimeout(() => saved.classList.remove('visible', 'error'), 4000);
             }
         });
     });
@@ -252,10 +260,6 @@ const CARD_TIPS = {
 
 // ── Icon lightbox ─────────────────────────────────────────────────────────────
 // About panel (version, update status, bug link) is the shared about-lightbox.js.
-// NOTE: a leftover fragment of the pre-v12.28 service-worker registration code
-// used to sit below this function OUTSIDE any function — a fatal module
-// SyntaxError that stopped this whole file executing. Removed at v12.50;
-// module-parse.test.mjs now guards every module against a repeat.
 function initIconLightbox() {
     const about = initAboutLightbox({
         appLabel: 'MYB Roster Settings',

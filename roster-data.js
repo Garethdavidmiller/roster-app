@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.63';
+export const APP_VERSION = '12.64';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -1431,4 +1431,16 @@ export const MILLER_ACTUALS = {
     '2026-02-13': { gross: 5188.84, tax: 1108.40, ni: 258.44, sl:   0,    net: 3822.00, varPay: 2440.02 },
     '2026-03-13': { gross: 4572.71, tax:  862.00, ni: 246.11, sl:   0,    net: 3464.60, varPay: 1823.89 },
 };
+/**
+ * Returns non-hidden teamMembers for a login grade dropdown.
+ * Centralises the member-filtering logic shared by all login overlays.
+ * @param {string} grade - 'CEA' | 'CES' | 'Dispatcher' | 'Management'
+ * @returns {Array<Object>}
+ */
+export function getMembersForGrade(grade) {
+    if (!grade) return [];
+    if (grade === 'Management') return teamMembers.filter(m => m.managerOnly);
+    return teamMembers.filter(m => m.role === grade && !m.hidden && !m.managerOnly);
+}
+
 warnIfCulturalCalendarMissingYear();

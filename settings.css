@@ -73,10 +73,31 @@ body {
 
 /* ---- Notifications card ---- */
 #notifStatusMsg { font-size: 13px; color: var(--text-mid); margin-bottom: 14px; }
+#notifDeniedMsg {
+    display: none;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-top: 10px;
+}
 
 /* ---- Cultural calendar card ---- */
 /* Override shared.css card-collapsible-body padding (12px) — needs extra breathing room */
 #religiousBody { padding: 16px; }
+
+.religious-disclaimer {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-top: 12px;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.25s ease, opacity 0.2s ease;
+}
+.religious-disclaimer.visible {
+    max-height: 200px;
+    opacity: 1;
+}
+.religious-saved.error { color: var(--error-red); }
 
 @media print {
     /* Settings is an interactive-only page (notification + cultural-calendar
