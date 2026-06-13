@@ -54,7 +54,10 @@ test('calendar: renders the current month from roster data', async ({ page }) =>
 test('calendar: member dropdown is populated by JS from teamMembers', async ({ page }) => {
     await page.goto('/');
     const select = page.locator('#teamMemberSelect');
-    await expect(select).toBeVisible();
+    // Wait for JS to populate options — the select is in static HTML so toBeVisible()
+    // would pass immediately before any JS runs. toBeAttached() retries until an
+    // <option> element is present in the DOM (option elements have no bounding box).
+    await expect(select.locator('option').first()).toBeAttached();
     const count = await select.locator('option').count();
     // Should have more than 5 options (the full team, excluding hidden members)
     expect(count, 'teamMemberSelect should have options from teamMembers').toBeGreaterThan(5);
@@ -91,8 +94,11 @@ test('paycalc: pay period selector is populated', async ({ page }) => {
     await page.goto('/paycalc.html');
 
     // #periodSelect is in the static HTML but its <option>s are added by JS
-    // from getPaydaysAndCutoffs() — at least 10 pay periods should be available.
-    await expect(page.locator('#periodSelect')).toBeVisible();
+    // from getPaydaysAndCutoffs(). toBeAttached() retries until an <option> is
+    // present in the DOM — option elements have no bounding box so toBeVisible()
+    // is unreliable. Once the first option is attached all options are there
+    // (the function is synchronous).
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();
     const count = await page.locator('#periodSelect option').count();
     expect(count, '#periodSelect should have pay period options').toBeGreaterThan(10);
 
