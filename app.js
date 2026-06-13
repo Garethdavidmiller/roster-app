@@ -498,9 +498,12 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
                     rdwTime = override.value;
                     shift   = 'RDW';
                     overrideNote = override.note;
-                } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF')) {
-                    // Sick override on a base rest day — suppress it. Absence only applies
-                    // to days the member was scheduled to work.
+                } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr))) {
+                    // Sick override on a base rest day, or ANY Sunday — suppress it.
+                    // Absence only applies to contracted working days; Sundays are
+                    // non-contracted for all grades, so absence never shows on a Sunday
+                    // even when the rotating roster brings a worked Sunday into the
+                    // absence range (belt-and-braces for any legacy Sunday SICK data).
                 } else {
                     shift = override.value;
                     overrideNote = override.note;
@@ -718,7 +721,7 @@ function getShiftTypesInMonth(member, year, month) {
 
         const dateStr = formatISO(date);
         const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
-        if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF'))) {
+        if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr)))) {
             shift = ov.type === 'rdw' ? 'RDW' : ov.value;
         }
 
