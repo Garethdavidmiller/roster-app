@@ -626,7 +626,7 @@ exports.parseRosterPDF = onRequest(
                 'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
                 'L. Atrakimaviciene', 'J. Haque', 'N. Tuck', 'R. Forrester-Blackstock',
                 'S. Langley', 'S. Silva', 'J. Sumaili', 'T. Bibi', 'T. Nsuala',
-                'D. Irvine', 'T. Gherbi', 'C. Reen', 'M. Okeke',
+                'D. Irvine', 'T. Gherbi', 'C. Reen', 'M. Okeke', 'J. Davies', 'B. Khalil',
             ],
             ces: [
                 'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru',
