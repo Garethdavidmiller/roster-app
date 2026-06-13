@@ -8,8 +8,13 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
     testDir: './e2e',
 
-    // Generous timeout: Firebase SDK loads from CDN on first run
-    timeout: 30_000,
+    // Generous timeout: Firebase SDK loads from CDN on first run.
+    // Each test gets 45s — Firebase SDK can take 5–15s to load from gstatic.com in CI.
+    timeout: 45_000,
+
+    // Assertion retry timeout: how long toBeVisible/toBeAttached etc. retry before failing.
+    // Default is 5s which is too short when JS runs after CDN module loading.
+    expect: { timeout: 15_000 },
 
     // Two retries in CI to absorb transient network hiccups loading the Firebase SDK.
     // Zero retries locally so failures surface immediately.
