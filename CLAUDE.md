@@ -7,7 +7,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `12.60` (check `roster-data.js` — `APP_VERSION` is the authoritative source) |
+| Current app version | latest `0.10` milestone `12.60` — exact value in `roster-data.js` (`APP_VERSION` is authoritative). The AI_MAP "Last updated" line is enforced against this by `sw-asset-check.test.mjs`. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
