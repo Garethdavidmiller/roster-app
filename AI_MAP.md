@@ -171,6 +171,7 @@ The Change a Shift module. Owns the week grid and override list entirely.
 ### `admin-rangepicker.js`
 Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 - `buildRangePicker(prefix)` — builds a month grid with from/to selection, chip labels, and swipe navigation between months; returns `{ reset() }`
+- `getDateRange(fromVal, toVal)` — pure: inclusive ISO date list for a range; `null` if reversed, `[]` if either input empty (v12.55). Covered by `admin-rangepicker.test.mjs`
 - Imports `DAY_NAMES`, `MONTH_ABB`, `MONTH_NAMES`, `formatISO`, `SWIPE_THRESHOLD`, `SWIPE_VELOCITY` from `roster-data.js`
 - Imported directly by `admin-al.js` and `admin-sick.js` (no longer goes through `admin-app.js`)
 

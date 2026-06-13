@@ -187,7 +187,8 @@ roster-app/
 ├── paycalc-roster-suggestions.test.mjs ← tests for paycalc-roster-suggestions.js (requires --experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs ← tests for functions/roster-parse-helpers.js
 ├── links-design.test.mjs   ← tests for links-design.js (generator targets/turnarounds, hourly coverage, design checks, custom-shift validation)
-├── sw-asset-check.test.mjs ← verifies every root JS module is listed in service-worker.js asset lists
+├── admin-rangepicker.test.mjs ← tests for getDateRange() in admin-rangepicker.js (inclusive endpoints, reversed range, month/year/leap/DST boundaries)
+├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations
 ├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
 ├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
 ├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date, memberName + createdAt, etc.)
@@ -200,7 +201,7 @@ roster-app/
 
 **Run all tests:**
 ```
-node --test sw-asset-check.test.mjs links-design.test.mjs
+node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
 node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
 ```
