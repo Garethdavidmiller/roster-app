@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v12.66 -->
+<!-- MYB Roster — Settings v12.69 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -86,6 +86,27 @@
 </header>
 
 <main class="app">
+
+    <!-- Work Email -->
+    <div class="card" id="contactCard">
+        <div class="card-header card-collapsible-header" id="contactToggleHeader">
+            <h2>📧 Work Email <button class="btn-card-tips" data-card="work-email" aria-label="Tips for work email" title="Tips for work email">?</button></h2>
+            <span class="hint">Add your work email now — it's how you'll reset your password if you ever forget it</span>
+            <span class="collapse-chevron" id="contactChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="contactBody">
+            <div class="card-body">
+                <label class="contact-label" for="workEmailInput">Work email address</label>
+                <input type="email" id="workEmailInput" class="contact-email-input"
+                       autocomplete="email" autocapitalize="off" autocorrect="off"
+                       spellcheck="false" placeholder="your.name@chilternrailways.co.uk"
+                       enterkeyhint="done">
+                <button class="btn-action btn-primary" id="workEmailSaveBtn">Save email</button>
+                <button type="button" class="btn-contact-remove" id="workEmailRemoveBtn" style="display:none">Remove saved email</button>
+                <div class="contact-feedback" id="contactFeedback" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- Push notifications -->
     <div class="card" id="notificationsCard">

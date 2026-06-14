@@ -10,7 +10,7 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v12.06 — linkDesigns collection added (read/write requires auth).
+// Last updated: v12.68 — staffContact collection added (owner-only read/write via name claim).
 // v12.04 — overrides read required auth (reverted); pushSubscriptions delete requires auth;
 //   legacy override types removed from create/update allowlist.
 // v11.92 — pushSubscriptions shape validation added.
@@ -89,6 +89,26 @@ service cloud.firestore {
       // Client-side: links-app.js redirects anyone not in CONFIG.LINKS_DESIGNERS
       // before any Firestore call is made, so per-designer isolation is not needed here.
       allow read, write: if request.auth != null;
+    }
+
+    match /staffContact/{memberName} {
+      // Each member can read and write only their own record.
+      // Admin can read all records (needed for future password recovery flows).
+      // Write requires the `name` JWT claim — set by setupRosterAuth. Anonymous
+      // fallback sessions lack this claim and cannot register contact details.
+      allow read: if request.auth != null &&
+        (request.auth.token.name == memberName || request.auth.token.admin == true);
+      allow create, update: if
+        request.auth != null &&
+        request.auth.token.name == memberName &&
+        request.resource.data.keys().hasAll(['memberName', 'workEmail', 'updatedAt']) &&
+        request.resource.data.memberName == memberName &&
+        request.resource.data.workEmail is string &&
+        request.resource.data.workEmail.size() >= 5 &&
+        request.resource.data.workEmail.size() <= 200 &&
+        request.resource.data.workEmail.matches('[^@]+@[^@]+');
+      allow delete: if request.auth != null &&
+        (request.auth.token.name == memberName || request.auth.token.admin == true);
     }
 
     match /pushSubscriptions/{docId} {

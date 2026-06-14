@@ -63,13 +63,62 @@ body {
     /* Header aligns with the grid */
     .app-header { max-width: 1100px; margin-left: auto; margin-right: auto; }
 
-    /* Cards sit directly in the grid — no wrappers needed. */
-    #notificationsCard { grid-column: 1; grid-row: 1; margin-bottom: 0; }
-    #religiousCard     { grid-column: 2; grid-row: 1; margin-bottom: 0; }
+    /* Cards sit directly in the grid — no wrappers needed.
+       Row 1: email card (left) + notifications (right).
+       Row 2: cultural calendar spans both columns — it has many radio options. */
+    #contactCard       { grid-column: 1; grid-row: 1; margin-bottom: 0; }
+    #notificationsCard { grid-column: 2; grid-row: 1; margin-bottom: 0; }
+    #religiousCard     { grid-column: 1 / -1; grid-row: 2; margin-bottom: 0; }
 
     /* Buttons: no reason to span a full column on desktop */
     .btn-action { max-width: 280px; }
 }
+
+/* ---- Work Email card ---- */
+.contact-label {
+    display: block;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-bottom: 6px;
+}
+.contact-email-input {
+    width: 100%;
+    box-sizing: border-box;
+    display: block;
+    padding: 10px 12px;
+    border: 1.5px solid var(--border-light);
+    border-radius: 8px;
+    background-color: var(--field-bg);
+    font-size: var(--type-medium); /* 16px — prevents iOS zoom on focus */
+    font-family: var(--font-sans);
+    color: var(--text-dark);
+    margin-bottom: 14px;
+}
+.contact-email-input:focus-visible {
+    outline: none;
+    border-color: var(--primary-blue);
+    background-color: white;
+}
+.btn-contact-remove {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 6px;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    color: var(--error-red);
+    text-decoration: underline;
+    cursor: pointer;
+    line-height: 1.4;
+}
+.btn-contact-remove:hover { opacity: 0.75; }
+.contact-feedback {
+    min-height: 18px;
+    font-size: var(--type-small);
+}
+.contact-feedback.ok  { color: var(--success-green); }
+.contact-feedback.err { color: var(--error-red); }
 
 /* ---- Notifications card ---- */
 #notifStatusMsg { font-size: 13px; color: var(--text-mid); margin-bottom: 14px; }

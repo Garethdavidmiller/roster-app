@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: June 2026 — v12.60 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.68 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -499,6 +499,47 @@ already the right shape — no data model changes needed.
 
 Do not build speculatively. The PWA works well for the current use case.
 
+### Password security improvements — staged plan (Stage 1 shipped v12.68)
+
+The current surname-based password provides minimal security — surnames are semi-public, the pattern is known, and there is no recovery path if a staff member's account is compromised. A five-stage plan to progressively harden this without disrupting the name-dropdown login UX. Each stage is independently shippable; later stages depend on earlier ones.
+
+**Stage 1 — Work email registration ✓ (v12.68)**
+Settings page → Work Email card. Staff enter their Chiltern work email. Saved to the new `staffContact` Firestore collection (owner-only write via `name` JWT claim; admin read-all). This is the data foundation all later stages build on. Work email only — no personal email (the company already holds the work address; no separate GDPR policy required for something Chiltern already processes).
+
+**Stage 2 — Email verification**
+Send a 6-digit time-limited code to the registered work email when the member taps "Verify" in the Work Email card. A Cloud Function (extend `setupRosterAuth` or add a new `verifyContactEmail` function) sends the email via Power Automate relay (already used for Huddle ingest) or Firebase Trigger Email, and marks `staffContact.verified = true` on correct code entry. **The client cannot set `verified` itself** — the flag must be server-set via Cloud Function to prevent self-verification without genuine email access.
+
+*Decisions needed before building:* code expiry window (10 minutes is standard); retry/rate-limit policy; whether to allow email correction before verification (or require admin contact if the wrong address was saved).
+
+**Stage 3 — Self-service password change (while logged in)**
+A "Change password" section in the Work Email card in Settings, shown only to members with a verified email (Stage 2 complete). Member enters their current password + new password twice → `reauthenticateWithCredential` + `updatePassword` via Firebase Auth.
+
+*Critical prerequisite — `ensureFirebaseSession` rework:* The current implementation assumes `password = normaliseSurname(name)` and silently falls back to an anonymous session on failure. A member who has set a custom password will have `ensureFirebaseSession` try the surname, fail, and land on an anonymous session — they will appear not logged in to Firestore writes even though their localStorage session is valid. **Before Stage 3 ships**, `ensureFirebaseSession` must be updated to detect this case: catch `auth/wrong-password` / `auth/invalid-credential` specifically and surface a "Please sign in again" prompt rather than silently falling back to anonymous.
+
+*Ordering:* Stage 4 (reset path) should ship before or alongside Stage 3 so a member who forgets their custom password has a self-service recovery route and does not have to contact admin.
+
+**Stage 4 — Forgotten-password reset (self-service)**
+Recovery flow without admin involvement: a "Forgot password?" link on the login screen → member selects their name → Cloud Function looks up `staffContact.workEmail` where `verified == true` → sends a one-time 6-digit code → member enters the code + chooses a new password → Cloud Function calls `admin.auth().updateUser(uid, { password })` via Firebase Admin SDK.
+
+Code expires after 10 minutes; 3 failed attempts invalidate it (member must request a new code). The reset endpoint must be a Cloud Function — client-side `sendPasswordResetEmail` sends to the synthetic Firebase Auth email (`name@myb-roster.firebaseapp.com`), not the member's real work address.
+
+**Admin break-glass:** Operations page → Staff Login Accounts → reset any member's password to the surname default. Always available regardless of verification status. Use when a member cannot access their work email or is locked out during rollout.
+
+**Stage 5 — Retire the surname password**
+Once Stages 2–4 are live and staff have had adequate time to migrate:
+1. Show a persistent Settings banner to any member still on the surname-derived password, prompting a change.
+2. Remove the surname-password seed from `setupRosterAuth` new-starter setup — new starters receive a temporary code via work email instead.
+3. Remove the surname fallback from `ensureFirebaseSession`.
+
+*This stage is irreversible* — once the surname fallback is removed, staff without a custom password can only recover via Stage 4. Do not ship Stage 5 until ≥90% of active accounts have set a custom password (monitor via `staffContact.verified` count vs active `teamMembers` in Firestore Console).
+
+---
+
+**Shared architecture notes (Stage 2 onward):**
+- `staffContact` writes require the `name` JWT claim set by `setupRosterAuth`. Anonymous fallback sessions lack this claim — the Settings UI already shows a `permission-denied` error prompting sign-out and back in. This is intentional.
+- All sensitive operations (send code, verify code, update password) must go through Cloud Functions with the Firebase Admin SDK. Never trust the client to set security-relevant fields (`verified`, `password`).
+- Stages 3–5 require end-to-end testing on Android Chrome (primary platform) and iOS Safari standalone before shipping.
+
 ---
 
 ## Build tooling — Vite (not yet, but likely eventually)
@@ -524,7 +565,7 @@ Do not build speculatively. The PWA works well for the current use case.
 
 ## Open decisions
 
-**Auth hardening:** The surname password is practical for a roster app. If approval workflows or formal AL management are added, consider whether a colleague logging in as another person is an acceptable risk. Assess at the time. See KNOWN_LIMITATIONS.md for the current suspended task (#2) and the re-introduction checklist.
+**Auth hardening:** A five-stage plan to replace the surname-based password with a custom password backed by verified work email is documented under "Password security improvements" above (Stage 1 shipped v12.68). The staged approach preserves the name-dropdown login UX while progressively adding security. Key risk during rollout: `ensureFirebaseSession` must be reworked before Stage 3 ships — see that entry. See also KNOWN_LIMITATIONS.md → the four v11 security tasks (task #2, Firestore member write isolation, suspended) for related context.
 
 **Multi-admin:** ✓ Resolved — `CONFIG.ADMIN_NAMES` is now an array in `roster-data.js`. Adding another admin is a one-line change (name must match `teamMembers[n].name` exactly).
 

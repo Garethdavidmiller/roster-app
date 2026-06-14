@@ -7,7 +7,7 @@
  */
 
 import { CONFIG, CALENDAR_NAMES, resolveFaithCalendar, getMembersForGrade } from './roster-data.js';
-import { db, doc, getDoc, setDoc } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -125,6 +125,9 @@ function initApp() {
     // Religious card collapse is wired inside initCulturalCalendarCard() so it can
     // reference updateActiveTag, which needs the collapse state for its logic.
 
+    // Work Email card
+    initContactCard();
+
     // Notifications card
     initHuddleNotifications();
 
@@ -136,6 +139,129 @@ function initApp() {
 
     // Icon lightbox
     initIconLightbox();
+}
+
+// ── Work Email card ───────────────────────────────────────────────────────────
+function initContactCard() {
+    const emailInput = document.getElementById('workEmailInput');
+    const saveBtn    = document.getElementById('workEmailSaveBtn');
+    const removeBtn  = document.getElementById('workEmailRemoveBtn');
+    const feedback   = document.getElementById('contactFeedback');
+    if (!emailInput || !saveBtn) return;
+
+    initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
+
+    // Guard against a slow Firestore load overwriting text the user has already typed.
+    let userHasTyped = false;
+    emailInput.addEventListener('input', () => { userHasTyped = true; }, { once: true });
+
+    function isValidEmail(v) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+    }
+
+    function setFeedback(msg, state) {
+        feedback.textContent = msg;
+        feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
+    }
+
+    function formatDate(ts) {
+        try {
+            const d = ts?.toDate?.();
+            if (!d || isNaN(d.getTime())) return null;
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        } catch { return null; }
+    }
+
+    function showSavedState(dateStr) {
+        setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
+        if (removeBtn) removeBtn.style.display = '';
+    }
+
+    function clearSavedState() {
+        setFeedback('', '');
+        if (removeBtn) removeBtn.style.display = 'none';
+    }
+
+    // Load existing email; show a loading message while waiting.
+    setFeedback('Checking for a saved email…', '');
+    getStaffContact(currentUser).then(data => {
+        if (data?.workEmail && !userHasTyped) {
+            emailInput.value = data.workEmail;
+            showSavedState(formatDate(data.updatedAt));
+        } else if (data?.workEmail && userHasTyped) {
+            // User started typing before the load finished — keep their input,
+            // just clear the loading message.
+            setFeedback('', '');
+        } else {
+            clearSavedState();
+        }
+    }).catch(err => {
+        console.warn('[staffContact] Load failed:', err);
+        setFeedback('Couldn\'t check your saved email — check your connection.', 'err');
+    });
+
+    emailInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+        setFeedback('', '');
+
+        if (!email) {
+            setFeedback('Please enter your work email address.', 'err');
+            emailInput.focus();
+            return;
+        }
+        if (!isValidEmail(email)) {
+            setFeedback('That doesn\'t look like a valid email address.', 'err');
+            emailInput.focus();
+            return;
+        }
+
+        saveBtn.disabled    = true;
+        saveBtn.textContent = 'Saving…';
+        try {
+            if (window._mybSession) await window._mybSession;
+            await saveStaffContact(currentUser, email);
+            const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            showSavedState(today);
+        } catch (err) {
+            console.warn('[staffContact] Save failed:', err);
+            setFeedback(
+                err?.code === 'permission-denied'
+                    ? 'Couldn\'t save — please sign out and sign back in.'
+                    : 'Couldn\'t save — check your connection and try again.',
+                'err'
+            );
+        } finally {
+            saveBtn.disabled    = false;
+            saveBtn.textContent = 'Save email';
+        }
+    });
+
+    if (removeBtn) {
+        removeBtn.addEventListener('click', async () => {
+            if (!confirm('Remove your saved work email address?')) return;
+            removeBtn.disabled = true;
+            try {
+                if (window._mybSession) await window._mybSession;
+                await deleteStaffContact(currentUser);
+                emailInput.value = '';
+                clearSavedState();
+            } catch (err) {
+                console.warn('[staffContact] Remove failed:', err);
+                setFeedback(
+                    err?.code === 'permission-denied'
+                        ? 'Couldn\'t remove — please sign out and sign back in.'
+                        : 'Couldn\'t remove — check your connection and try again.',
+                    'err'
+                );
+            } finally {
+                removeBtn.disabled = false;
+            }
+        });
+    }
 }
 
 // ── Cultural calendar card ────────────────────────────────────────────────────
@@ -230,6 +356,16 @@ function initCulturalCalendarCard() {
 // ── Tips lightbox content ─────────────────────────────────────────────────────
 // Lifecycle, renderer, and ? button wiring live in tips-lightbox.js.
 const CARD_TIPS = {
+        'work-email': {
+            title: 'Work Email',
+            sections: [
+                { items: [
+                    { icon: '🔑', html: 'If you ever forget your password, we\'ll send a reset code to this email — <strong>it\'s the only way to get back in without contacting the admin</strong>' },
+                    { icon: '🔒', html: 'Only you and the admin can see this email' },
+                    { icon: '✉️', html: 'Use your Chiltern work email — the one the company already sends things to' },
+                ]},
+            ],
+        },
         'notifications': {
             title: 'Notifications',
             sections: [

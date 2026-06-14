@@ -256,3 +256,42 @@ export async function deletePushSubscription(endpoint) {
     const id = await endpointId(endpoint);
     await deleteDoc(doc(db, 'pushSubscriptions', id));
 }
+
+// ---- Staff Contact ----
+
+/**
+ * Load a staff member's contact record from Firestore.
+ * Returns the data object or null if no record exists yet.
+ * @param {string} memberName
+ * @returns {Promise<{memberName: string, workEmail: string}|null>}
+ */
+export async function getStaffContact(memberName) {
+    const snap = await getDoc(doc(db, 'staffContact', memberName));
+    return snap.exists() ? snap.data() : null;
+}
+
+/**
+ * Save or overwrite a staff member's work email in Firestore.
+ * Requires the caller's Firebase Auth session to carry a `name` claim
+ * matching memberName — set by setupRosterAuth in operations.html.
+ * @param {string} memberName
+ * @param {string} workEmail
+ * @returns {Promise<void>}
+ */
+export async function saveStaffContact(memberName, workEmail) {
+    await setDoc(doc(db, 'staffContact', memberName), {
+        memberName,
+        workEmail,
+        updatedAt: serverTimestamp(),
+    });
+}
+
+/**
+ * Delete a staff member's contact record from Firestore.
+ * Allowed by Firestore rules for the owning member or an admin.
+ * @param {string} memberName
+ * @returns {Promise<void>}
+ */
+export async function deleteStaffContact(memberName) {
+    await deleteDoc(doc(db, 'staffContact', memberName));
+}
