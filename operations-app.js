@@ -85,8 +85,8 @@ window._mybSession.then(ok => {
         const main   = document.querySelector('.container');
         if (!main) return;
         const banner = document.createElement('p');
-        banner.style.cssText = 'margin:12px 16px 0;padding:12px 14px;background:var(--error-bg);border-left:4px solid var(--error-banner);border-radius:6px;font-size:14px;color:var(--text-dark);';
-        banner.textContent   = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
+        banner.className   = 'ops-auth-warning';
+        banner.textContent = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
         main.prepend(banner);
     }
 });

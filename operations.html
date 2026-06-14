@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v12.63 -->
+<!-- MYB Roster — Operations v12.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -27,7 +27,7 @@
 <!-- Lightbox — tap the header icon to open -->
 <div id="iconLightbox" class="lb-overlay" role="dialog" aria-label="About MYB Roster" aria-modal="true">
     <div id="iconLightboxContent" class="lb-content">
-    <button id="iconLightboxClose" class="lb-close" aria-label="Close">✕</button>
+    <button id="iconLightboxClose" class="lb-close" type="button" aria-label="Close">✕</button>
         <img src="icon-192.png" id="lightboxAppIcon" alt="Chiltern Railways app icon">
         <div class="lightbox-app-name">Marylebone Roster</div>
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
@@ -47,7 +47,7 @@
     </div>
 </div>
 
-<div class="container">
+<main class="container">
 
     <header class="app-header">
         <button class="btn-burger" id="navMenuBtn"
@@ -73,7 +73,7 @@
                     <label for="huddleFileInput" class="huddle-file-label">Choose file</label>
                     <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose huddle PDF or Word document">
                 </div>
-                <p id="huddleFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                <p id="huddleFileName" class="huddle-filename" aria-live="polite"></p>
                 <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
                 <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
@@ -102,15 +102,15 @@
                         <label for="rosterFileInput" class="huddle-file-label">Choose PDF</label>
                         <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose roster PDF">
                     </div>
-                    <p id="rosterFileName" class="huddle-filename" style="display:none" aria-live="polite"></p>
+                    <p id="rosterFileName" class="huddle-filename" aria-live="polite"></p>
                     <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
                     <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
                 <!-- Step 2: Review (hidden until parsing completes) -->
-                <div id="rosterReviewSection" style="display:none">
+                <div id="rosterReviewSection">
 
-                    <div id="rosterConflictBanner" class="roster-conflict-banner" style="display:none" role="alert" aria-live="polite">
+                    <div id="rosterConflictBanner" class="roster-conflict-banner" role="alert" aria-live="polite">
                         <span class="roster-conflict-icon">⚠</span>
                         <div class="roster-conflict-text">
                             <strong id="rosterConflictTitle"></strong>
@@ -123,7 +123,7 @@
                     <div id="rosterChangeList"></div>
 
                     <button id="rosterApplyBtn" class="btn-save">Save changes</button>
-                    <p class="save-hint">Each row is set to Save — tap it to Skip. Resolve any conflicts by choosing Manual or PDF, then tap Save changes.</p>
+                    <p class="save-hint">All changes default to Save. Tap a row's button to skip it. Resolve any conflicts by choosing Manual or PDF, then tap Save changes.</p>
                     <button id="rosterCancelBtn" class="roster-cancel-btn">Upload different file</button>
                 </div>
 
@@ -150,12 +150,12 @@
                     Disable accounts for anyone no longer on the roster (leavers)
                 </label>
                 <button class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
-                <div id="authSetupResult" style="display:none"></div>
+                <div id="authSetupResult"></div>
             </div>
         </div>
     </div>
 
-</div><!-- /container -->
+</main>
 
 <script type="module" src="./operations-app.js"></script>
 </body>

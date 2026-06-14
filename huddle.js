@@ -11,7 +11,7 @@
 
 import { formatISO } from './roster-data.js';
 import { uploadHuddle } from './firebase-client.js';
-import { notifSupported, getNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
+import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
 import { initCardCollapse } from './overlay.js';
 
 /**
@@ -25,20 +25,9 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
 
 /**
  * Initialises the Notifications card only.
- * Used by admin.html where notifications are available to all staff.
+ * Used by settings.html where notifications are available to all staff.
  */
 export function initHuddleNotifications() {
-    _initNotificationsCard();
-}
-
-// ============================================
-// NOTIFICATIONS CARD — all staff
-// ============================================
-// Lets staff enable or disable Huddle and pay-reminder push notifications.
-// Shows current permission state and provides appropriate action buttons.
-// Subscribe/unsubscribe logic lives in notif.js — edit there for VAPID changes.
-
-function _initNotificationsCard() {
     const statusMsg  = document.getElementById('notifStatusMsg');
     const enableBtn  = document.getElementById('notifEnableBtn');
     const disableBtn = document.getElementById('notifDisableBtn');
@@ -58,11 +47,17 @@ function _initNotificationsCard() {
         return;
     }
 
+    // peekNotifState reads state without triggering the VAPID-rotation side effect —
+    // app.js runs the full getNotifState() on load; this page only needs to read.
     async function refreshUI() {
-        const state = await getNotifState();
+        const state = await peekNotifState();
         enableBtn.style.display  = 'none';
         disableBtn.style.display = 'none';
         deniedMsg.style.display  = 'none';
+        enableBtn.disabled  = false;
+        disableBtn.disabled = false;
+        enableBtn.textContent  = 'Enable notifications';
+        disableBtn.textContent = 'Disable notifications';
         if (state === 'on') {
             statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when the Huddle is ready and when payday is approaching.';
             disableBtn.style.display = 'block';
@@ -70,7 +65,14 @@ function _initNotificationsCard() {
             statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
             enableBtn.style.display = 'block';
         } else if (state === 'denied') {
-            statusMsg.textContent   = 'Notifications are blocked. To re-enable, change your browser settings.';
+            statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';
+            if (isIOS()) {
+                deniedMsg.textContent = 'On iPhone/iPad: Settings → Chrome or Safari → Notifications → Allow.';
+            } else if (/Android/i.test(navigator.userAgent)) {
+                deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
+            } else {
+                deniedMsg.textContent = 'In Chrome: click the padlock in the address bar → Site settings → Notifications → Allow.';
+            }
             deniedMsg.style.display = 'block';
         } else {
             statusMsg.textContent   = 'Tap Enable to get an alert when the daily Huddle is ready or when payday is approaching.';
@@ -78,17 +80,23 @@ function _initNotificationsCard() {
         }
     }
 
+    const safeRefresh = () => refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
+
     enableBtn.addEventListener('click', async () => {
+        enableBtn.disabled = true;
+        enableBtn.textContent = 'Enabling…';
         await enableNotifications().catch(err => console.warn('[Notifications] Enable failed:', err));
-        await refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
+        await safeRefresh();
     });
 
     disableBtn.addEventListener('click', async () => {
+        disableBtn.disabled = true;
+        disableBtn.textContent = 'Disabling…';
         await disableNotifications().catch(err => console.warn('[Notifications] Disable failed:', err));
-        await refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
+        await safeRefresh();
     });
 
-    refreshUI().catch(err => console.warn('[Notifications] Init error:', err));
+    safeRefresh();
 }
 
 // ============================================
@@ -116,7 +124,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
     dateInput.value = formatISO(new Date());
 
     function _rejectFile(reason) {
-        fileLabel.style.display = 'none';
+        fileLabel.classList.remove('visible');
         uploadBtn.disabled = true;
         feedback.textContent = reason;
         feedback.className = 'huddle-feedback huddle-feedback--err';
@@ -129,7 +137,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         if (!file) {
-            fileLabel.style.display = 'none';
+            fileLabel.classList.remove('visible');
             uploadBtn.disabled = true;
             return;
         }
@@ -145,7 +153,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             return;
         }
         fileLabel.textContent = file.name;
-        fileLabel.style.display = '';
+        fileLabel.classList.add('visible');
         uploadBtn.disabled = false;
     });
 
@@ -212,7 +220,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             feedback.className = 'huddle-feedback huddle-feedback--ok';
             fileInput.value = '';
             fileLabel.textContent = '';
-            fileLabel.style.display = 'none';
+            fileLabel.classList.remove('visible');
         } catch (err) {
             console.error('[Huddle] Upload failed:', err);
             feedback.textContent = 'Upload failed — please try again';

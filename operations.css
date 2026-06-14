@@ -107,11 +107,13 @@ body.auth-ready .container { display: grid; }
     outline-offset: 2px;
 }
 .huddle-filename {
+    display: none;
     font-size: 13px;
     color: var(--text-mid);
     margin-bottom: 10px;
     word-break: break-all;
 }
+.huddle-filename.visible { display: block; }
 .huddle-upload-btn {
     display: block;
     width: 100%;
@@ -332,7 +334,11 @@ select:focus-visible, input:focus-visible {
 }
 
 #opsBadge { background: var(--orange); color: var(--primary-blue); }
-#iconLightbox .lightbox-badge { background: rgba(234,137,0,0.15); border-color: rgba(234,137,0,0.35); color: var(--orange); }
+#iconLightbox .lightbox-badge {
+    background: color-mix(in oklch, var(--orange) 15%, white);
+    border-color: color-mix(in oklch, var(--orange) 35%, white);
+    color: var(--orange);
+}
 
 /* ---- Auth setup card ---- */
 .auth-desc { font-size: 13px; color: var(--text-mid); margin-bottom: 12px; }
@@ -345,10 +351,30 @@ select:focus-visible, input:focus-visible {
     cursor: pointer;
 }
 #authSetupOrphans { width: 16px; height: 16px; accent-color: var(--primary-blue); }
-#authSetupResult  { margin-top: 14px; font-size: 13px; }
+#authSetupResult          { display: none; margin-top: 14px; font-size: 13px; }
+#authSetupResult.visible  { display: block; }
+.auth-result-line  { margin: 0 0 6px; }
+.auth-result-info  { color: var(--primary-blue); }
+.auth-result-error { color: var(--error-red); }
+
+/* Warning shown when the admin sign-in couldn't be confirmed */
+.ops-auth-warning {
+    margin: 12px 16px 0;
+    padding: 12px 14px;
+    background: var(--error-bg);
+    border-left: 4px solid var(--error-banner);
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text-dark);
+}
 
 /* ---- Roster review ---- */
 .save-hint { font-size: var(--type-small); color: var(--text-light); margin: 6px 0 0; }
+/* Review section and conflict banner start hidden; JS adds .visible to show them */
+#rosterReviewSection           { display: none; }
+#rosterReviewSection.visible   { display: block; }
+#rosterConflictBanner          { display: none; }
+#rosterConflictBanner.visible  { display: flex; }
 
 @media print {
     /* Operations is an interactive-only page (Huddle upload, Roster upload,
