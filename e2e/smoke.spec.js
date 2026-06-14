@@ -129,6 +129,47 @@ test('settings: login overlay renders with JS-populated grade options', async ({
     expect(errors, 'Uncaught JS exceptions on settings.html').toHaveLength(0);
 });
 
+test('settings (signed in): card "?" button opens the Tips lightbox, not the card', async ({ page }) => {
+    // Regression guard for the v12.68/69 initApp() restructure. The logged-out
+    // tests above never run initApp(), so a real break in the signed-in path
+    // (e.g. a throw before initTipsLightbox wires the "?" buttons) would ship
+    // unnoticed — clicking "?" would then fall through to the header and toggle
+    // the card collapse instead of opening the tips. This test exercises that path.
+    const errors = collectFatalErrors(page);
+
+    // Seed a valid session so the page runs initApp() instead of the login overlay.
+    // Shape must match session.js: { name, ver: SESSION_VER (2), expiry, lastActivity }.
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_admin_session', JSON.stringify({
+            name: 'G. Miller',
+            ver: 2,
+            expiry: Date.now() + 30 * 24 * 60 * 60 * 1000,
+            lastActivity: Date.now(),
+        }));
+    });
+    await page.goto('/settings.html');
+
+    // Proof that initApp() ran to completion: initCulturalCalendarCard() checks the
+    // "none" faith radio synchronously, and initTipsLightbox() runs in the same
+    // synchronous tick immediately after — so once this is checked, the "?" buttons
+    // are wired and the click below cannot race the wiring.
+    await expect(page.locator('input[name="faithCalendar"][value="none"]')).toBeChecked();
+
+    // The Work Email card starts collapsed and the tips overlay starts hidden.
+    await expect(page.locator('#tipsLightbox')).toBeHidden();
+    await expect(page.locator('#contactBody')).not.toHaveClass(/\bopen\b/);
+
+    await page.locator('.btn-card-tips[data-card="work-email"]').click();
+
+    // The Tips lightbox must open with the right content …
+    await expect(page.locator('#tipsLightbox')).toBeVisible();
+    await expect(page.locator('#tipsLbTitle')).toHaveText('Work Email');
+    // … and the card MUST NOT have toggled open (the reported bug symptom).
+    await expect(page.locator('#contactBody')).not.toHaveClass(/\bopen\b/);
+
+    expect(errors, 'Uncaught JS exceptions on signed-in settings.html').toHaveLength(0);
+});
+
 // ── OPERATIONS (operations.html) ──────────────────────────────────────────
 
 test('operations: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
