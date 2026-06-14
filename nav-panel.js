@@ -422,8 +422,8 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // the unsupported case for users who need it.
     const bellHtml = notifSupported() ? `
             <button class="nav-panel-bell" id="navNotifBell" type="button"
-                    aria-pressed="false" aria-label="Notifications"
-                    data-notif-state="loading">🔕</button>` : '';
+                    aria-pressed="false" aria-label="Checking notification status…"
+                    data-notif-state="loading">🔔</button>` : '';
     const footerHtml = onSignOut ? `
         <div class="nav-panel-footer">
             <div class="nav-panel-footer-row">
@@ -449,7 +449,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                     <img src="./icon-192.png" alt="" class="nav-panel-icon" loading="eager">
                     <span class="nav-panel-brand-text">
                         <span class="nav-panel-title">Marylebone Roster</span>
-                        <span class="nav-panel-version">Version ${APP_VERSION}</span>
+                        <span class="nav-panel-version">Version ${APP_VERSION} · About</span>
                     </span>
                 </button>
                 <button class="nav-panel-close" id="navPanelClose"
