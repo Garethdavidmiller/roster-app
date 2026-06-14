@@ -402,6 +402,17 @@ memberName     Must match teamMembers[n].name exactly
 faithCalendar  'islamic' | 'hindu' | 'chinese' | 'jamaican' | 'congolese' | 'portuguese' | 'none'
 ```
 
+**staffContact** (v12.68)
+```
+memberName  Must match teamMembers[n].name exactly — used as the document ID
+workEmail   Work email address (5–200 chars, must contain @)
+updatedAt   Firestore server timestamp
+```
+Read/write restricted: owner can read/write their own doc; admin can read all.
+Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallback sessions cannot write.
+Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
+Read/written by: `getStaffContact` / `saveStaffContact` in `firebase-client.js`, called from `settings-app.js`.
+
 Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication

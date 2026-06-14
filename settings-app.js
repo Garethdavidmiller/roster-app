@@ -7,7 +7,7 @@
  */
 
 import { CONFIG, CALENDAR_NAMES, resolveFaithCalendar, getMembersForGrade } from './roster-data.js';
-import { db, doc, getDoc, setDoc } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, getStaffContact, saveStaffContact } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -125,6 +125,9 @@ function initApp() {
     // Religious card collapse is wired inside initCulturalCalendarCard() so it can
     // reference updateActiveTag, which needs the collapse state for its logic.
 
+    // Work Email card
+    initContactCard();
+
     // Notifications card
     initHuddleNotifications();
 
@@ -136,6 +139,70 @@ function initApp() {
 
     // Icon lightbox
     initIconLightbox();
+}
+
+// ── Work Email card ───────────────────────────────────────────────────────────
+function initContactCard() {
+    const emailInput = document.getElementById('workEmailInput');
+    const saveBtn    = document.getElementById('workEmailSaveBtn');
+    const feedback   = document.getElementById('contactFeedback');
+    if (!emailInput || !saveBtn) return;
+
+    initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
+
+    // Load existing email from Firestore on open
+    getStaffContact(currentUser).then(data => {
+        if (data?.workEmail) emailInput.value = data.workEmail;
+    }).catch(err => console.warn('[staffContact] Load failed:', err));
+
+    function isValidEmail(v) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+    }
+
+    function setFeedback(msg, state) {
+        feedback.textContent = msg;
+        feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
+    }
+
+    emailInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        const email = emailInput.value.trim();
+        setFeedback('', '');
+
+        if (!email) {
+            setFeedback('Please enter your work email address.', 'err');
+            emailInput.focus();
+            return;
+        }
+        if (!isValidEmail(email)) {
+            setFeedback('That doesn\'t look like a valid email address.', 'err');
+            emailInput.focus();
+            return;
+        }
+
+        saveBtn.disabled    = true;
+        saveBtn.textContent = 'Saving…';
+        try {
+            if (window._mybSession) await window._mybSession;
+            await saveStaffContact(currentUser, email);
+            setFeedback('✓ Email saved', 'ok');
+            setTimeout(() => setFeedback('', ''), 3000);
+        } catch (err) {
+            console.warn('[staffContact] Save failed:', err);
+            setFeedback(
+                err?.code === 'permission-denied'
+                    ? 'Could not save — your session may have expired. Try signing out and back in.'
+                    : 'Could not save — check your connection and try again.',
+                'err'
+            );
+        } finally {
+            saveBtn.disabled    = false;
+            saveBtn.textContent = 'Save email';
+        }
+    });
 }
 
 // ── Cultural calendar card ────────────────────────────────────────────────────
@@ -230,6 +297,16 @@ function initCulturalCalendarCard() {
 // ── Tips lightbox content ─────────────────────────────────────────────────────
 // Lifecycle, renderer, and ? button wiring live in tips-lightbox.js.
 const CARD_TIPS = {
+        'work-email': {
+            title: 'Work Email',
+            sections: [
+                { items: [
+                    { icon: '📧', html: 'Your work email will be used for <strong>account recovery</strong> in a future update — for example, if you forget your password' },
+                    { icon: '🔒', html: 'Only you and the admin can see the email you register here' },
+                    { icon: '✉️', html: 'Use the email address the company already uses to contact you' },
+                ]},
+            ],
+        },
         'notifications': {
             title: 'Notifications',
             sections: [
