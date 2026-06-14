@@ -30,15 +30,16 @@ body {
 /* ── CARD ── */
 .card {
     background: var(--surface);
-    border-radius: var(--radius-lg);
+    border-radius: var(--radius-md);
     box-shadow: var(--shadow-1);
     overflow: hidden;
     margin-bottom: 12px;
 }
 /* .card-header/.card-body, .card-collapsible-*, .collapse-chevron,
-   .btn-action/.btn-primary/.btn-secondary — consolidated into shared.css */
-/* Settings-specific: primary buttons use gold text instead of white */
-.btn-primary { color: var(--accent-gold); }
+   .btn-action/.btn-primary/.btn-secondary — consolidated into shared.css.
+   Primary buttons inherit the shared white-on-navy treatment — settings
+   intentionally has NO colour override, so its action buttons match every
+   other page (the old gold-text override broke page-to-page consistency). */
 
 /* Settings badge — indigo */
 #settingsBadge { background: var(--indigo); color: white; }
@@ -95,8 +96,11 @@ body {
     margin-bottom: 14px;
 }
 .contact-email-input:focus-visible {
-    outline: none;
     border-color: var(--primary-blue);
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+    /* Brighten to white when active — matches the field focus ring on admin/operations */
     background-color: white;
 }
 .btn-contact-remove {
@@ -121,7 +125,7 @@ body {
 .contact-feedback.err { color: var(--error-red); }
 
 /* ---- Notifications card ---- */
-#notifStatusMsg { font-size: 13px; color: var(--text-mid); margin-bottom: 14px; }
+#notifStatusMsg { font-size: var(--type-label); color: var(--text-mid); margin-bottom: 14px; }
 #notifDeniedMsg {
     display: none;
     font-size: var(--type-small);

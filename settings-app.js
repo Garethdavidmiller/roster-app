@@ -64,7 +64,9 @@ function initLoginOverlay() {
     lockBodyScroll();
 
     overlay.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { window.location.href = './index.html'; return; }
+        // Ignore Escape while a sign-in is in progress — navigating mid-submit
+        // would leave the user neither signed in nor on the calendar.
+        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './index.html'; return; }
         trapFocus(overlay, e);
     });
 
@@ -101,7 +103,8 @@ function initLoginOverlay() {
         submitBtn.textContent = 'Signing in…';
         errorEl.classList.remove('visible');
 
-        await ensureFirebaseSession(name);
+        const authOk = await ensureFirebaseSession(name);
+        if (!authOk) console.warn('[Auth] Firebase session not established — Firestore writes may fail');
         saveSession(name);
         overlay.classList.remove('visible');
         unlockBodyScroll();
@@ -152,8 +155,12 @@ function initContactCard() {
     initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
 
     // Guard against a slow Firestore load overwriting text the user has already typed.
+    // Listen to both 'input' and 'change' — some browsers (Chrome on Android) fire
+    // 'change' but not 'input' when autofilling a field.
     let userHasTyped = false;
-    emailInput.addEventListener('input', () => { userHasTyped = true; }, { once: true });
+    const markUserTyped = () => { userHasTyped = true; };
+    emailInput.addEventListener('input',  markUserTyped);
+    emailInput.addEventListener('change', markUserTyped);
 
     function isValidEmail(v) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
