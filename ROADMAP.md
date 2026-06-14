@@ -542,6 +542,22 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 
 ---
 
+## Dependency maintenance — firebase-admin v14
+
+`firebase-admin@14` is the current major release and resolves 9 moderate vulnerabilities
+in the transitive `uuid` dependency. Upgrade is blocked until `firebase-functions` adds
+v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only) and
+until the functions runtime is moved from Node 20 to Node 22 (required by firebase-admin v14).
+
+**Practical risk is low** — the uuid buffer-bounds bug is not reachable via Firebase's
+internal usage patterns. See KNOWN_LIMITATIONS.md for the full detail and the step-by-step
+upgrade checklist.
+
+**Watch:** `npm outdated` in `functions/` — when `firebase-functions` bumps its peer range
+to include v14, the upgrade can proceed.
+
+---
+
 ## Build tooling — Vite (not yet, but likely eventually)
 
 **Current state:** No bundler or build step. Source files are served directly to the browser — what you write is what loads. GitHub Actions deploys the source tree as-is.
