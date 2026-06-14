@@ -283,7 +283,7 @@ export async function saveStaffContact(memberName, workEmail) {
         memberName,
         workEmail,
         updatedAt: serverTimestamp(),
-    });
+    }, { merge: true });
 }
 
 /**

@@ -46,6 +46,20 @@ export function notifSupported() {
     return true;
 }
 
+/**
+ * swReady() can pend forever when SW registration fails
+ * (e.g. private browsing on some Android builds). Race it against a timeout
+ * so the Notifications card buttons never get stuck at "Enabling…" indefinitely.
+ */
+function swReady() {
+    return Promise.race([
+        swReady(),
+        new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('SW not ready')), 8000)
+        ),
+    ]);
+}
+
 /** Convert the URL-safe base64 VAPID key to the Uint8Array the Push API expects. */
 function vapidKey() {
     const base64 = VAPID_PUBLIC_KEY.replace(/-/g, '+').replace(/_/g, '/');
@@ -55,7 +69,7 @@ function vapidKey() {
 
 /** Subscribe via the service worker, persist to Firestore, record the VAPID fingerprint. */
 async function subscribe() {
-    const reg  = await navigator.serviceWorker.ready;
+    const reg  = await swReady();
     const sub  = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() });
     await savePushSubscription(sub);
     lsSet(VAPID_VER_KEY, VAPID_FINGERPRINT);
@@ -77,7 +91,7 @@ export async function getNotifState() {
     if (perm !== 'granted') return 'off-default';
 
     try {
-        const reg = await navigator.serviceWorker.ready;
+        const reg = await swReady();
         let sub   = await reg.pushManager.getSubscription();
         if (!sub) return 'off-lapsed';
 
@@ -111,7 +125,7 @@ export async function peekNotifState() {
     if (perm !== 'granted') return 'off-default';
 
     try {
-        const reg = await navigator.serviceWorker.ready;
+        const reg = await swReady();
         const sub = await reg.pushManager.getSubscription();
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {
@@ -150,7 +164,7 @@ export async function enableNotifications() {
 export async function disableNotifications() {
     if (!notifSupported()) return 'unsupported';
     try {
-        const reg = await navigator.serviceWorker.ready;
+        const reg = await swReady();
         const sub = await reg.pushManager.getSubscription();
         if (sub) {
             const { endpoint } = sub;
