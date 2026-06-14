@@ -285,3 +285,13 @@ export async function saveStaffContact(memberName, workEmail) {
         updatedAt: serverTimestamp(),
     });
 }
+
+/**
+ * Delete a staff member's contact record from Firestore.
+ * Allowed by Firestore rules for the owning member or an admin.
+ * @param {string} memberName
+ * @returns {Promise<void>}
+ */
+export async function deleteStaffContact(memberName) {
+    await deleteDoc(doc(db, 'staffContact', memberName));
+}

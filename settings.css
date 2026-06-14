@@ -99,6 +99,20 @@ body {
     border-color: var(--primary-blue);
     background-color: white;
 }
+.btn-contact-remove {
+    display: block;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 6px;
+    font-family: var(--font-sans);
+    font-size: var(--type-small);
+    color: var(--error-red);
+    text-decoration: underline;
+    cursor: pointer;
+    line-height: 1.4;
+}
+.btn-contact-remove:hover { opacity: 0.75; }
 .contact-feedback {
     min-height: 18px;
     font-size: var(--type-small);
