@@ -8,14 +8,17 @@
  * A 404, a CSP violation, a SyntaxError, or a module import failure all
  * produce a blank page with none of those elements — the test fails.
  *
- * Firebase connection errors are intentionally ignored: the app is offline-
- * first and Firebase is unavailable in the local test environment (the API key
- * is restricted to specific referrer domains). We verify the UI, not Firestore.
+ * Firebase is stubbed at the network layer (see ./fixtures.js): the gstatic
+ * Firebase SDK modules are intercepted and served as local no-op stubs, so the
+ * suite never depends on a live CDN and verifies our own UI, not Firestore.
+ * (Before this, every page's static import of the Firebase SDK meant a slow or
+ * blocked CDN on the CI runner aborted the whole module graph — no JS ran and
+ * every test timed out. The stub removes that single point of failure.)
  *
  * Run: npx playwright test
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -66,6 +69,12 @@ test('calendar: member dropdown is populated by JS from teamMembers', async ({ p
 
 test('calendar: nav drawer opens on burger click', async ({ page }) => {
     await page.goto('/');
+    // Wait for app.js to finish initialising before clicking. The burger is in
+    // static HTML so it is clickable immediately, but initNavPanel() (which wires
+    // the click handler) runs during the same init that populates the member
+    // dropdown. Clicking before the handler is attached silently loses the click,
+    // and the aria-expanded assertion never re-clicks — so it would time out.
+    await expect(page.locator('#teamMemberSelect option').first()).toBeAttached();
     await page.locator('#navMenuBtn').click();
     // nav-panel.js sets aria-expanded="true" when the drawer is open
     await expect(page.locator('#navMenuBtn')).toHaveAttribute('aria-expanded', 'true');

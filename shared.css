@@ -824,7 +824,7 @@ body.lb-open #stickyTotal { display: none !important; }
     z-index: 300;
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.25s ease, visibility 0.25s ease;
+    transition: opacity 0.25s var(--ease-standard), visibility 0.25s;
 }
 .nav-panel-overlay.open {
     opacity: 1;
@@ -865,7 +865,7 @@ body.lb-open #stickyTotal { display: none !important; }
        so it stays visible through the slide-out, then hides — same pattern as
        .nav-panel-overlay. */
     visibility: hidden;
-    transition: transform 0.25s ease, visibility 0.25s ease;
+    transition: transform 0.25s var(--ease-standard), visibility 0.25s;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -893,6 +893,7 @@ body.lb-open #stickyTotal { display: none !important; }
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
+    border-bottom: 1px solid var(--nav-border);
 }
 
 /* Brand button — logo + title + version. Tapping opens the page's About
@@ -961,6 +962,11 @@ body.lb-open #stickyTotal { display: none !important; }
     border-radius: 4px;
     flex-shrink: 0;
     font-family: inherit;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 .nav-panel-close:active { opacity: 0.4; }
 @media (hover: hover) and (pointer: fine) {
@@ -1162,6 +1168,9 @@ button.nav-panel-link--coming-soon {
 @media print {
     .nav-panel, .nav-panel-overlay, .btn-burger { display: none !important; }
 }
+@media (prefers-reduced-motion: reduce) {
+    .nav-panel, .nav-panel-overlay { transition: none; }
+}
 
 /* Nav panel footer — member name + bell + sign-out; only rendered when a session exists */
 .nav-panel-footer {
@@ -1171,6 +1180,7 @@ button.nav-panel-link--coming-soon {
     display: flex;
     flex-direction: column;
     gap: 4px;
+    border-top: 1px solid var(--nav-border);
 }
 
 .nav-panel-footer-row {

@@ -1,6 +1,6 @@
 # MYB Roster — Product Roadmap
 
-*Last updated: June 2026 — v12.68 · Updated every 0.10 version*
+*Last updated: June 2026 — v12.70 · Updated every 0.10 version*
 
 This file covers what's been built, what could come next, and design experiments that were tried and reverted. For implementation specs (Firestore schema, Cloud Function APIs, Firebase Auth, etc.), see CLAUDE.md.
 
@@ -539,6 +539,22 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 - `staffContact` writes require the `name` JWT claim set by `setupRosterAuth`. Anonymous fallback sessions lack this claim — the Settings UI already shows a `permission-denied` error prompting sign-out and back in. This is intentional.
 - All sensitive operations (send code, verify code, update password) must go through Cloud Functions with the Firebase Admin SDK. Never trust the client to set security-relevant fields (`verified`, `password`).
 - Stages 3–5 require end-to-end testing on Android Chrome (primary platform) and iOS Safari standalone before shipping.
+
+---
+
+## Dependency maintenance — firebase-admin v14
+
+`firebase-admin@14` is the current major release and resolves 9 moderate vulnerabilities
+in the transitive `uuid` dependency. Upgrade is blocked until `firebase-functions` adds
+v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only) and
+until the functions runtime is moved from Node 20 to Node 22 (required by firebase-admin v14).
+
+**Practical risk is low** — the uuid buffer-bounds bug is not reachable via Firebase's
+internal usage patterns. See KNOWN_LIMITATIONS.md for the full detail and the step-by-step
+upgrade checklist.
+
+**Watch:** `npm outdated` in `functions/` — when `firebase-functions` bumps its peer range
+to include v14, the upgrade can proceed.
 
 ---
 
