@@ -5,6 +5,7 @@
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js';
+import { shouldReplaceOverride } from './app-override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
 const isRdwEncoded = v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
@@ -393,10 +394,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     function computeCellStates(parsedResult, existingOverrides) {
         const states = new Map();
 
-        // Build a quick lookup: "memberName|date" → override doc
+        // Build a quick lookup: "memberName|date" → best override doc.
+        // Use shouldReplaceOverride so manual entries always beat roster imports,
+        // and newer docs beat older ones within the same source class.
         const overrideMap = new Map();
         for (const o of existingOverrides) {
-            overrideMap.set(`${o.memberName}|${o.date}`, o);
+            const key = `${o.memberName}|${o.date}`;
+            if (shouldReplaceOverride(overrideMap.get(key), o)) {
+                overrideMap.set(key, o);
+            }
         }
 
         for (const entry of parsedResult.parsed) {
