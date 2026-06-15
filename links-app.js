@@ -310,7 +310,7 @@ async function duplicateDesign() {
         });
         const d = { id: ref.id, name, patterns, updatedAt: null, updatedBy: currentUser };
         designs.push(d);
-        renderDesignPicker();
+        _activateDesign(d);
     } catch (err) {
         console.error('[Links] Duplicate design failed:', err);
     }

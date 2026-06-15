@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
-         SHIFT_TIME_REGEX, getShiftKind } from './roster-data.js';
+         SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
@@ -82,7 +82,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
         const override = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(cacheKey) : null;
         if (override) {
             if      (override.type === 'annual_leave') shift = 'AL';
-            else if (override.type === 'sick' && shift !== 'RD' && shift !== 'OFF') shift = 'SICK';
+            else if (override.type === 'sick' && shift !== 'RD' && shift !== 'OFF' && !isSunday(dateStr)) shift = 'SICK';
             else if (override.type === 'correction')   shift = 'RD';
             else if (override.type === 'rdw')          shift = 'RDW|' + (override.value || '');
             else if (override.type === 'spare_shift')  shift = 'SPARE';

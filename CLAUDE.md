@@ -190,13 +190,10 @@ roster-app/
 ├── admin-rangepicker.test.mjs ← tests for getDateRange() in admin-rangepicker.js (inclusive endpoints, reversed range, month/year/leap/DST boundaries)
 ├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations
 ├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
-├── package.json            ← dev dependencies only: @playwright/test + http-server (not deployed; see firebase.json ignore list)
-├── playwright.config.mjs   ← Playwright config: Chromium desktop + Pixel 5, http-server webServer, CI retry policy
+├── package.json            ← dev dependencies only: http-server (not deployed; see firebase.json ignore list)
 ├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
 ├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date)
 ├── generate-sri.mjs        ← dev utility: fetches Mammoth CDN SRI hash and patches huddle.js in-place (DOMPurify is self-hosted — no longer managed here)
-├── e2e/
-│   └── smoke.spec.js       ← 8 smoke tests: calendar renders + member dropdown + nav drawer (3), admin login overlay, paycalc period selector, settings login overlay, operations redirect, links redirect
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
@@ -209,9 +206,6 @@ roster-app/
 node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
 node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs
-
-# Smoke tests — real Chromium browser (install once: npx playwright install --with-deps chromium)
-npx playwright test
 ```
 
 **Service worker caching:**

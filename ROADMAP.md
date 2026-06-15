@@ -246,6 +246,55 @@ A 28-line rotating link design tool for Marylebone station. Accessible only to `
 
 ---
 
+### E2E smoke tests ✗ (added v12.65 → removed v12.75) — to be brought back better
+
+**Why they were needed in the first place:** Every app page statically imports
+`./firebase-client.js`, which in turn statically imports the Firebase SDK from
+`https://www.gstatic.com/firebasejs/…`. In ES modules a static import that fails to
+resolve aborts the *entire* module graph — if that CDN is slow, throttled, or blocked on
+a CI runner, none of the app's JavaScript ever runs. The calendar never renders, dropdowns
+stay empty, auth redirects never fire, and every assertion times out. No timeout increase
+or retry count can fix a hard dependency failure — which is why earlier timeout/retry
+tweaks in the CI config never stuck.
+
+The solution was a Playwright fixture (`e2e/fixtures.js`) that intercepted
+`https://www.gstatic.com/firebasejs/**` at the network layer and served tiny local no-op
+stubs for every symbol `firebase-client.js` imports. With the CDN dependency removed,
+the app's JS executed locally and the tests verified our own code rather than Firebase's
+availability. Eight smoke tests verified: calendar renders + member dropdown + nav drawer
+(3 tests), admin login overlay, paycalc period selector, settings login overlay (including
+a regression guard for the `initTipsLightbox` wiring), operations auth redirect, and links
+auth redirect.
+
+**Why they were removed (v12.75):** The Playwright Chromium binary cannot be downloaded
+in the current development environment (CDN blocked). Tests could be listed but not run,
+which meant fixes to the test suite couldn't be verified locally before pushing to CI.
+When the tests needed updating (e.g. after the settings-page tips fix in v12.73 added a
+new test), maintaining them became a push-and-pray workflow with no local iteration loop.
+
+**When bringing them back — ask Gareth to discuss the options first.** The key decision is
+whether Playwright + Chromium is the right tool, or whether a different approach covers the
+same defects more cheaply:
+- **jsdom-based DOM tests (e.g. Happy-DOM + Vitest or Node test runner)** — no browser
+  binary needed; can test nav-panel injection, overlay lifecycle, session wiring, and
+  module imports without a CDN dependency at all. Faster and locally runnable.
+- **Puppeteer** — uses a system Chromium or Chromium embedded in the package; different
+  binary story to Playwright.
+- **Playwright with a pre-installed system Chromium** (e.g. `apt-get install chromium`)
+  rather than its own `--with-deps` install, which is what fails.
+- **Cypress** — bundled Electron browser; different install model.
+
+Whatever tool is chosen: keep the Firebase CDN stub approach. The `e2e/fixtures.js`
+pattern was sound — intercepting the CDN at the network layer before any page load is the
+right way to decouple page-load correctness from Firebase availability, and any E2E tool
+that supports request interception can implement the same thing.
+
+The full test code is preserved in the git history on branch
+`claude/review-claude-md-mKJbK` at commit just before v12.75. The stub design is
+documented in KNOWN_LIMITATIONS.md → "E2E smoke tests removed".
+
+---
+
 ### Profile photo / avatar ✗ (v12.12–v12.21 → removed v12.22) — full spec preserved for future restoration
 
 **Removed at v12.22.** Feature was present from v12.12 (photo upload, display) through v12.21 (interactive reposition editor v12.19). Removed because it was non-vital and the interactive canvas editor was disproportionate complexity for a 26px badge. The nav-panel footer now shows initials on a stable per-name colour instead (`avatarInitials`/`avatarHue` from `roster-data.js`, painted directly in `nav-panel.js`). Firebase data cleanup required: delete `memberAvatars` collection docs and `avatars/` Storage objects via Firebase Console (no Admin SDK in client-side code).

@@ -792,10 +792,15 @@ saveBtn.addEventListener('click', async () => {
         const date    = row.dataset.date;
         const type    = row.dataset.type;
 
-        // Sundays are uncontracted — AL cannot be saved on a Sunday regardless of how it was set
+        // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
         if (type === 'annual_leave' && isSunday(date)) {
             row.classList.add('row-error');
             errors.push(`${formatDisplay(date)}: annual leave cannot be recorded on a Sunday`);
+            return;
+        }
+        if (type === 'sick' && isSunday(date)) {
+            row.classList.add('row-error');
+            errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
             return;
         }
         const typeMeta    = TYPES[type];
