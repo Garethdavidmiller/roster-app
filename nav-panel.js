@@ -449,7 +449,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                     <img src="./icon-192.png" alt="" class="nav-panel-icon" loading="eager">
                     <span class="nav-panel-brand-text">
                         <span class="nav-panel-title">Marylebone Roster</span>
-                        <span class="nav-panel-version">Version ${APP_VERSION} · About</span>
+                        <span class="nav-panel-version">Version ${APP_VERSION}</span>
                     </span>
                 </button>
                 <button class="nav-panel-close" id="navPanelClose"
