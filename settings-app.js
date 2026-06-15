@@ -137,9 +137,6 @@ function initApp() {
     // Cultural calendar card
     initCulturalCalendarCard();
 
-    // Tips lightbox — shared lifecycle (tips-lightbox.js); only the content lives here
-    initTipsLightbox(CARD_TIPS);
-
     // Icon lightbox
     initIconLightbox();
 }
@@ -360,8 +357,12 @@ function initCulturalCalendarCard() {
     loadSetting();
 }
 
-// ── Tips lightbox content ─────────────────────────────────────────────────────
-// Lifecycle, renderer, and ? button wiring live in tips-lightbox.js.
+// ── Tips lightbox ─────────────────────────────────────────────────────────────
+// Wired unconditionally at module scope (same pattern as admin-app.js and
+// operations-app.js) so the ? buttons always get stopPropagation regardless of
+// auth state. Previously lived inside initApp() — if initApp() wasn't called
+// (stale session, auth race) the ? buttons had no handler and the click bubbled
+// up to the card header, toggling the card instead of opening the lightbox.
 const CARD_TIPS = {
         'work-email': {
             title: 'Work Email',
@@ -400,6 +401,7 @@ const CARD_TIPS = {
             ],
         },
 };
+initTipsLightbox(CARD_TIPS);
 
 // ── Icon lightbox ─────────────────────────────────────────────────────────────
 // About panel (version, update status, bug link) is the shared about-lightbox.js.
