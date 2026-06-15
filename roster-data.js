@@ -117,7 +117,7 @@ export const teamMembers = [
       // June 9 but pay and AL are full-year (noProRate: true; full 34-day CES entitlement).
       // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link on the
       // former Vacant week-4 slot from 1 Jul 2026 (rotates automatically thereafter).
-      rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] },
+      rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 5 }] },
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },
