@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '12.75';
+export const APP_VERSION = '12.77';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -117,6 +117,8 @@ export const teamMembers = [
       // June 9 but pay and AL are full-year (noProRate: true; full 34-day CES entitlement).
       // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link on the
       // former Vacant week-4 slot from 1 Jul 2026 (rotates automatically thereafter).
+      // currentWeek:5 is correct: the formula measures from the Feb 15 CES reference date
+      // (19 weeks before 1 Jul), so 5+19=24 → week 4 in the 10-week cycle.
       rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 5 }] },
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },

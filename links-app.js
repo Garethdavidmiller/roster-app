@@ -34,6 +34,7 @@ import {
 const currentSession  = getSession();
 const currentUser     = currentSession?.name ?? null;
 const isLinksDesigner = CONFIG.LINKS_DESIGNERS.includes(currentUser);
+const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
 
 if (!currentUser || !isLinksDesigner) {
     window.location.replace('./admin.html');
@@ -52,6 +53,7 @@ let openAboutLightbox = null;
 initNavPanel({
     currentPage:     'links',
     memberName:      currentUser,
+    isAdmin,
     isLinksDesigner: true,
     onLogoClick:     () => openAboutLightbox?.(),
     onSignOut: () => {

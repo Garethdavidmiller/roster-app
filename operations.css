@@ -66,7 +66,7 @@ body.auth-ready .container { display: grid; }
     border: 1.5px solid var(--border-light);
     border-radius: var(--radius-sm);
     font-size: 16px;
-    background: var(--bg-light);
+    background-color: var(--bg-light);
     color: var(--text-dark);
     box-sizing: border-box;
 }
@@ -141,7 +141,7 @@ body.auth-ready .container { display: grid; }
     border-radius: var(--radius-sm);
     font-size: 16px;
     font-weight: 600;
-    background: var(--field-bg);
+    background-color: var(--field-bg);
     color: var(--text-dark);
     cursor: pointer;
     box-sizing: border-box;

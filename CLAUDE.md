@@ -191,6 +191,7 @@ roster-app/
 ├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations
 ├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
 ├── package.json            ← dev dependencies only: http-server (not deployed; see firebase.json ignore list)
+├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirect rules, deploy ignore list
 ├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
 ├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date)
 ├── generate-sri.mjs        ← dev utility: fetches Mammoth CDN SRI hash and patches huddle.js in-place (DOMPurify is self-hosted — no longer managed here)
@@ -387,8 +388,21 @@ type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
 value        "HH:MM-HH:MM" for spare_shift/shift/rdw; "AL" for annual_leave; "RD" for correction; "SICK" for sick
 note         Free text — "" if none. Field must always be present.
+source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 createdAt    Firestore server timestamp
 ```
+
+**huddles**
+```
+date         "YYYY-MM-DD"
+storageUrl   Permanent tokenised download URL (manual upload) or 1-year signed URL (Cloud Function ingest)
+fileType     MIME type string
+uploadedAt   Firestore server timestamp
+uploadedBy   Member name string (manual upload only)
+htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested; absent for PDFs
+```
+Reads: open (no auth required — app.js has no session; see Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).
+Writes: require auth + admin claim. Cloud Function writes via Admin SDK (bypasses rules).
 
 **memberSettings**
 ```
@@ -405,7 +419,17 @@ updatedAt   Firestore server timestamp
 Read/write restricted: owner can read/write their own doc; admin can read all.
 Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallback sessions cannot write.
 Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
-Read/written by: `getStaffContact` / `saveStaffContact` in `firebase-client.js`, called from `settings-app.js`.
+Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js`.
+
+**pushSubscriptions**
+```
+endpoint   Browser push endpoint URL — also used (hashed) as the document ID
+keys.p256dh  base64url-encoded p256dh public key
+keys.auth    base64url-encoded auth secret
+```
+Written by `savePushSubscription`, deleted by `deletePushSubscription` in `firebase-client.js`.
+Each document ID is a SHA-256 hash of the endpoint URL (first 16 hex chars). One doc per subscribed browser/device.
+Read by the `ingestHuddle` Cloud Function (Admin SDK) when fanning out push notifications.
 
 Override cache key: `"memberName|YYYY-MM-DD"`
 

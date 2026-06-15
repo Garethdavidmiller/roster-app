@@ -178,7 +178,6 @@ Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
 Huddle upload, push notification subscribe/unsubscribe, and Huddle card toggle.
 - `initHuddleUpload(opts)` — called by `operations-app.js`; wires Huddle upload card + Huddle collapse toggle (admin-only)
 - `initHuddleNotifications()` — called by `settings-app.js`; wires the Notifications card (all staff, settings page)
-- `initHuddleCards(opts)` — **deprecated** combined entry point; prefer the above two
 - Notifications card: VAPID key handling, fingerprint-based re-subscription on key rotation
 - Huddle upload: file validation, DOCX conversion via mammoth.js, upload to Firebase Storage via `uploadHuddle`
 - Huddle card: collapse/expand toggle
@@ -216,7 +215,8 @@ Pure data module — help/tooltip text for the pay calculator (v11.40).
 ### `paycalc-migrations.js`
 localStorage key constants and data migration logic for the pay calculator (v11.40).
 - `SK` — object of top-level localStorage key strings
-- `periodKey(pNum)`, `hppEstKey(pNum)`, `hppActualKey(pNum)`, `ytdPayKey(year)`, `ytdTaxKey(year)` — key builder functions
+- `periodKey(pNum)` — key builder for period data (takes period number)
+- `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`)
 - `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations; receives deps as params to avoid circular imports with `paycalc.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
 
@@ -241,7 +241,7 @@ Owns the override cache and the suggestion engine. No DOM access.
 Single Firestore initialisation point — import `db` and Firestore helpers from here, never from the Firebase CDN directly.
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
-- `uploadHuddle(date, file, uploadedBy)` — writes to Firebase Storage + Firestore `huddles` collection
+- `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — writes to Firebase Storage + Firestore `huddles` collection; `htmlContent` is the converted HTML string for DOCX uploads (null for PDFs)
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth

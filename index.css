@@ -194,7 +194,7 @@
             border-radius: 10px;
             font-size: 14px;
             cursor: pointer;
-            background: white;
+            background-color: white;
             font-family: inherit;
             font-weight: 600;
             transition: background-color var(--dur-base) var(--ease-standard), border-color var(--dur-base) var(--ease-standard), box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
@@ -2205,7 +2205,7 @@
             font-weight: 600;
             font-family: inherit;
             color: var(--primary-blue);
-            background: var(--bg-faint);
+            background-color: var(--bg-faint);
             cursor: pointer;
             -webkit-appearance: none;
             appearance: none;
