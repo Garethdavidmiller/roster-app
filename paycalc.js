@@ -1304,7 +1304,9 @@ function calculate() {
   const sacGross   = Math.max(0, grossWithBp - pension);
 
   // Income tax — cumulative PAYE when YTD figures provided (W1/M1/X excluded)
-  const ytdP = numVal('ytdPay');
+  // Pass null (not 0) when the field is empty so computeTax distinguishes "not provided" from "£0 entered"
+  const ytdPayEl = document.getElementById('ytdPay');
+  const ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numVal('ytdPay') : null;
   const ytdT = numVal('ytdTax');
   const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
   const { tax, usingCumulative } = computeTax(
