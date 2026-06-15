@@ -289,7 +289,8 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = 0, ytdTax = 0, perio
   }
 
   // Cumulative PAYE: recalculate total tax owed on all YTD income, subtract what's been collected
-  if (ytdPay > 0 && !isNonCum && periodN !== null) {
+  // ytdPay === 0 is a valid value (no prior earnings in the tax year), so test for undefined not falsiness
+  if (ytdPay != null && !isNonCum && periodN !== null) {
     const N = periodN;
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxOnAmount(cumGross, N);

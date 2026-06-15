@@ -1232,6 +1232,7 @@ function calculate() {
   // Resolve thresholds for the selected period's tax year
   const _pNum   = currentPeriodNum();
   const _curP   = getPeriods().find(x => x.num === _pNum);
+  if (!_curP) return;
   const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
   const thresholds = getThresholds(_ty.label);
   const _proRateFactor = getProRateFactor(_curP);

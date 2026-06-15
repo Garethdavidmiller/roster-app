@@ -53,7 +53,7 @@ export function notifSupported() {
  */
 function swReady() {
     return Promise.race([
-        swReady(),
+        navigator.serviceWorker.ready,
         new Promise((_, reject) =>
             setTimeout(() => reject(new Error('SW not ready')), 8000)
         ),

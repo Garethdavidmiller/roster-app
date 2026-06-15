@@ -411,7 +411,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (!member) continue;
 
             for (const date of parsedResult.dates) {
-                const parsedShift  = entry.shifts[date] || 'RD';
+                const parsedShift  = entry.shifts?.[date] || 'RD';
                 const baseShift    = getBaseShift(member, new Date(date + 'T12:00:00'));
                 const key          = `${entry.memberName}|${date}`;
                 const existing     = overrideMap.get(key);

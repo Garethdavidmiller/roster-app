@@ -650,11 +650,11 @@ exports.parseRosterPDF = onRequest(
                 'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
                 'L. Atrakimaviciene', 'J. Haque', 'N. Tuck', 'R. Forrester-Blackstock',
                 'S. Langley', 'S. Silva', 'J. Sumaili', 'T. Bibi', 'T. Nsuala',
-                'D. Irvine', 'T. Gherbi', 'C. Reen', 'M. Okeke', 'J. Davies', 'B. Khalil',
+                'D. Irvine', 'T. Gherbi', 'C. Reen', 'M. Okeke', 'J. Davies',
             ],
             ces: [
                 'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru',
-                'L. Webster', 'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman',
+                'L. Webster', 'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman', 'B. Khalil',
             ],
             dispatcher: [
                 'D. Minto', 'A. Targanov', 'S. Warman', 'S. Faure', 'L. Szpejer',
