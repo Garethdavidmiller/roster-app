@@ -1085,7 +1085,7 @@
   }
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
   .hhmm-field input.roster-suggested {
-    background: var(--roster-suggested-bg); border-color: var(--accent-gold);
+    background-color: var(--roster-suggested-bg); border-color: var(--accent-gold);
   }
 
   /* ── LAYOUT UTILITIES ── (replaces inline styles in paycalc.html) */

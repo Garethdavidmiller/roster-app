@@ -467,7 +467,7 @@ body.auth-ready .container { display: grid; }
 .check-neutral  { background: var(--surface-sunken); }
 .check-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
 .check-tick      { color: var(--success-green, #22a05a); }
-.check-warn      { color: #c07800; }
+.check-warn      { color: var(--warning-amber, #c07800); }
 .check-cross     { color: var(--error-red, #c82828); }
 .check-info-icon { color: var(--text-mid); }
 .check-body { flex: 1; min-width: 0; }

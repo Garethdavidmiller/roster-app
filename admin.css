@@ -73,7 +73,7 @@
         }
         .member-context-bar select {
             flex: 1;
-            background: rgba(255,255,255,0.10);
+            background-color: rgba(255,255,255,0.10);
             border: 1.5px solid rgba(255,255,255,0.25);
             color: white;
             border-radius: 6px;
@@ -636,7 +636,7 @@
         /* Time input inline validation */
         .time-input.input-error {
             border-color: var(--error-red) !important;
-            background: var(--error-bg) !important;
+            background-color: var(--error-bg) !important;
         }
         .time-error-msg {
             display: none;
