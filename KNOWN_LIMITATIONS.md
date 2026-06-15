@@ -376,6 +376,38 @@ unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration
 Before adding new untested behaviour in these modules, consider whether a unit or
 integration test can be added first.
 
+### E2E smoke tests removed (v12.75) — to be brought back with a better approach
+
+Playwright smoke tests were added to verify that each app page loads, the JS module graph
+executes without error, and key UI elements render (member dropdown, calendar grid, login
+overlays, auth redirects for operations and links). They were the only tests that caught
+page-level wiring failures — a SyntaxError, a missing import, or a CSP violation that
+breaks the module graph shows up as a blank page and passes all unit tests.
+
+**Why they were removed:** The Playwright Chromium binary cannot be downloaded in the
+current development environment (CDN blocked), so the suite cannot be run locally to
+verify a fix before pushing. In CI, they were originally solving a real problem: the
+Firebase SDK is loaded as a static ES module import from the `gstatic.com` CDN; if that
+CDN is slow or blocked on the CI runner, the entire module graph fails to load and every
+page test times out — no amount of retry or timeout increase helps a hard import failure.
+The `e2e/fixtures.js` stub solved this elegantly (intercepting `https://www.gstatic.com/
+firebasejs/**` at the network layer and serving no-op local stubs), but the inability to
+run them locally made maintenance impractical. When the suite broke or needed updating,
+there was no way to iterate on it without pushing to CI.
+
+**To bring back:** When resuming this work, **ask Gareth to walk through the better
+options before committing to Playwright again.** The key questions are:
+- Can the Chromium binary be made available in the dev environment, or is Playwright
+  the wrong tool for a no-bundler CDN-only codebase?
+- Should E2E tests run in a real browser at all, or would jsdom-based unit tests for the
+  DOM wiring layer (nav-panel, overlay, session) cover the same defects more cheaply?
+- Puppeteer, Cypress, or a different Playwright setup (pre-installed system Chromium)
+  might remove the binary-download friction.
+- The Firebase CDN stub approach was sound — whatever tool is chosen should reuse that
+  pattern or find an equivalent way to eliminate the CDN single point of failure.
+
+See ROADMAP.md → "E2E smoke tests" for the full history and the original test design.
+
 ### Legacy override types still in Firestore
 Types `"allocated"`, `"overtime"`, `"swap"` are no longer creatable via the UI but
 exist in older Firestore documents. They are displayed with their original labels in
