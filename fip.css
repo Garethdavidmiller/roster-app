@@ -16,6 +16,7 @@
     --yellow-bdr: #d4a800;
     --blue-bg:    #e3f2fd;
     --blue-text:  #1565c0;
+    --warn-text:  #7a5500;
 }
 
 /* Shell chrome (* reset, .page-header, .btn-back, .btn-pdf, print)
@@ -182,7 +183,7 @@ details[open] > summary { border-bottom: 1px solid var(--border); }
 }
 .tag-yes  { background: var(--green-bg);  color: var(--green-text); }
 .tag-no   { background: var(--red-bg);   color: var(--red-text); }
-.tag-warn { background: var(--yellow-bg); color: #7a5500; }
+.tag-warn { background: var(--yellow-bg); color: var(--warn-text); }
 .tag-note { background: var(--blue-bg);  color: var(--blue-text); }
 
 /* ── Rules list ──────────────────────────── */
@@ -315,7 +316,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     font-size: 11px;
     font-weight: 700;
     background: var(--yellow-bg);
-    color: #7a5500;
+    color: var(--warn-text);
     border: 1px solid var(--yellow-bdr);
     border-radius: 8px;
     padding: 2px 7px;

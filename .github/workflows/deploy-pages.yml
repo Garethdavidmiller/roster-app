@@ -60,7 +60,11 @@ jobs:
       - name: Syntax check and tests
         run: |
           for f in *.js; do echo "check $f"; node --check "$f" || exit 1; done
-          node --experimental-test-module-mocks --test *.test.mjs
+          # Grouped exactly like the other workflows — a flat `--test *.test.mjs` runs
+          # module-parse.test.mjs without --experimental-vm-modules, silently skipping it.
+          node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
+          node --experimental-vm-modules --test module-parse.test.mjs
+          node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs app.test.mjs
 
       # Assemble the publish folder: everything the app needs at runtime, minus
       # server-only files, docs, tests and dev tooling. Mirrors firebase.json's

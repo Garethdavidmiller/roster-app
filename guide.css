@@ -183,7 +183,7 @@ h2:first-of-type { margin-top: 0; }
 
 /* ── Info box ────────────────────────────────────────── */
 .info {
-    background: #eef4ff;
+    background: var(--info-bg);
     border-left: 3px solid var(--navy);
     padding: 6px 9px;
     border-radius: 0 5px 5px 0;

@@ -25,6 +25,7 @@
     --navy-dark: #00152a;   /* = --primary-blue-dark */
     --navy-mid:  #0a2d52;   /* mid-navy tint, used by guide + paycalc-guide */
     --gold:      #f5c800;   /* = --accent-gold       */
+    --info-bg:   #eef4ff;   /* blue tint used for .info boxes in guide + paycalc-guide */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }

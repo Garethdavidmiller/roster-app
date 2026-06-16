@@ -398,7 +398,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
             ).join('')}
         </ul>`).join('');
 
-    // Guides — collapsed by default; the toggle reveals the list.
+    // Guides — expanded by default; the toggle can collapse the list.
     const guideLinks = NAV_GUIDES
         .map(g => `<li><a href="${g.url}" class="nav-panel-link">${g.icon} ${g.label}</a></li>`)
         .join('');
@@ -462,12 +462,12 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                     ${infoGroups}
                 </div>
                 <div class="nav-panel-section">
-                    <button type="button" class="nav-panel-guides-toggle" id="navGuidesToggle"
-                            aria-expanded="false" aria-controls="navGuidesList">
+                    <button type="button" class="nav-panel-guides-toggle open" id="navGuidesToggle"
+                            aria-expanded="true" aria-controls="navGuidesList">
                         <span class="nav-panel-guides-heading">📖 Guides</span>
                         <span class="nav-panel-guides-arrow" aria-hidden="true">▾</span>
                     </button>
-                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList" hidden>
+                    <ul class="nav-panel-links nav-panel-guides-list" id="navGuidesList">
                         ${guideLinks}
                     </ul>
                 </div>

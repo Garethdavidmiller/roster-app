@@ -368,7 +368,7 @@ const CARD_TIPS = {
             title: 'Work Email',
             sections: [
                 { items: [
-                    { icon: '🔑', html: 'If you ever forget your password, we\'ll send a reset code to this email — <strong>it\'s the only way to get back in without contacting the admin</strong>' },
+                    { icon: '🔑', html: 'Groundwork for self-service password reset — for now it just saves the email we\'ll use for that later. <strong>To reset a password today, contact the admin.</strong>' },
                     { icon: '🔒', html: 'Only you and the admin can see this email' },
                     { icon: '✉️', html: 'Use your Chiltern work email — the one the company already sends things to' },
                 ]},

@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v12.78
+// MYB Roster — Service Worker v12.81
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '12.78';
+const APP_VERSION = '12.81';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -204,6 +204,33 @@ self.addEventListener("fetch", event => {
             cache:   'no-cache',
             ...(controller ? { signal: controller.signal } : {}),
         });
+        // Shared fallback: serve cached app on network failure OR a broken-site response (4xx/5xx).
+        // Only applies to document (navigation) requests — JS/CSS get Response.error() on failure.
+        const serveFallback = (logMsg) => {
+            console.log(`[SW ${APP_VERSION}] ${logMsg}`, path);
+            const isDoc = event.request.destination === 'document';
+            const PAGE_FALLBACKS = [
+                ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
+                ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
+                ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
+                ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
+                ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
+            ];
+            const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.includes(seg));
+            const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
+            const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
+            // iOS can evict the entire Cache Storage under storage pressure —
+            // synthesise a minimal offline page so the request still resolves.
+            return caches.match(event.request)
+                .then(r => r || (fallback ? caches.match(fallback) : null))
+                .then(r => r || (isDoc
+                    ? new Response(
+                        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — MYB Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
+                        { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
+                      )
+                    : Response.error()
+                ));
+        };
         event.respondWith(
             fetch(freshReq)
                 .then(response => {
@@ -213,36 +240,18 @@ self.addEventListener("fetch", event => {
                         caches.open(CACHE_NAME)
                             .then(cache => cache.put(event.request, clone))
                             .catch(err => console.warn(`[SW ${APP_VERSION}] cache.put failed (quota?):`, err));
+                        return response;
+                    }
+                    // Navigation request returned 4xx/5xx (e.g. staff site is down) — serve cached
+                    // app so a notification tap still loads the app rather than GitHub's 404 page.
+                    if (event.request.destination === 'document' && response && !response.ok) {
+                        return serveFallback(`Navigation got ${response.status} — falling back to cache:`);
                     }
                     return response;
                 })
                 .catch(() => {
                     clearTimeout(timeoutId);
-                    console.log(`[SW ${APP_VERSION}] Offline/timeout — serving from cache:`, path);
-                    // Only use an HTML page as a fallback for document (navigation) requests.
-                    // Serving HTML for a JS/CSS request causes a MIME type error in the browser.
-                    const isDoc = event.request.destination === 'document';
-                    const PAGE_FALLBACKS = [
-                        ['paycalc',    './paycalc.html',    'Pay Calculator is not available offline. Please reconnect and reload.'],
-                        ['operations', './operations.html', 'Operations is not available offline. Please reconnect and reload.'],
-                        ['settings',   './settings.html',   'Settings is not available offline. Please reconnect and reload.'],
-                        ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
-                        ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
-                    ];
-                    const match       = isDoc && PAGE_FALLBACKS.find(([seg]) => path.includes(seg));
-                    const fallback    = match ? match[1] : (isDoc ? './index.html' : null);
-                    const offlineMsg  = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
-                    // iOS can evict the entire Cache Storage under storage pressure —
-                    // synthesise a minimal offline page so the request still resolves.
-                    return caches.match(event.request)
-                        .then(r => r || (fallback ? caches.match(fallback) : null))
-                        .then(r => r || (isDoc
-                            ? new Response(
-                                `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — MYB Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
-                                { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
-                              )
-                            : Response.error()
-                        ));
+                    return serveFallback('Offline/timeout — serving from cache:');
                 })
         );
     } else {

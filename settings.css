@@ -166,7 +166,7 @@ body {
     .nav-panel,
     .nav-panel-overlay { display: none !important; }
     body::before {
-        content: "⚙ Settings\A\A This is an interactive page — notification and cultural-calendar preferences. There is nothing here to print.";
+        content: "⚙ Settings\A\A This is an interactive page — work email, notification and cultural-calendar preferences. There is nothing here to print.";
         white-space: pre-line;
         display: block;
         max-width: 16cm;
