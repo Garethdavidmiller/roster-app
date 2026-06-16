@@ -877,6 +877,15 @@
             .swipe-hint   { display: none !important; }
         }
 
+        /* Large touch tablets (iPad in landscape, ≥1024px) report a coarse pointer
+           and still auto-zoom on focus of any <16px field. The ≥1024px "desktop"
+           block above drops the select to 14px — correct for a mouse, but it would
+           zoom on an iPad. Restore 16px for coarse pointers only; a real desktop
+           (fine pointer) keeps the denser 14px. */
+        @media (min-width: 1024px) and (pointer: coarse) {
+            .controls select { font-size: 16px; }
+        }
+
         /* ── Short desktop viewports (≥1024px wide but ≤760px tall) ──────────
            The desktop layout above locks body height to the viewport and sets
            overflow:hidden, which is ideal on a normal monitor but clips content
