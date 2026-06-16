@@ -10,7 +10,9 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v12.68 — staffContact collection added (owner-only read/write via name claim).
+// Last updated: v12.79 — staffContact create/update hardened: hasOnly (not hasAll) so
+//   clients can't add extra fields (e.g. a future server-only `verified`); updatedAt must be a timestamp.
+// v12.68 — staffContact collection added (owner-only read/write via name claim).
 // v12.04 — overrides read required auth (reverted); pushSubscriptions delete requires auth;
 //   legacy override types removed from create/update allowlist.
 // v11.92 — pushSubscriptions shape validation added.
@@ -101,12 +103,15 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.name == memberName &&
-        request.resource.data.keys().hasAll(['memberName', 'workEmail', 'updatedAt']) &&
+        // hasOnly (not hasAll) — a client must not be able to write extra fields
+        // (e.g. a future server-only `verified: true`). See ROADMAP.md password stages.
+        request.resource.data.keys().hasOnly(['memberName', 'workEmail', 'updatedAt']) &&
         request.resource.data.memberName == memberName &&
         request.resource.data.workEmail is string &&
         request.resource.data.workEmail.size() >= 5 &&
         request.resource.data.workEmail.size() <= 200 &&
-        request.resource.data.workEmail.matches('[^@]+@[^@]+');
+        request.resource.data.workEmail.matches('[^@]+@[^@]+') &&
+        request.resource.data.updatedAt is timestamp;
       allow delete: if request.auth != null &&
         (request.auth.token.name == memberName || request.auth.token.admin == true);
     }

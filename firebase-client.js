@@ -195,7 +195,7 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
  * @returns {function} Unsubscribe function (call to clean up the listener)
  */
 export function subscribeToLatestHuddle(onData, onError) {
-    // Requires Firestore composite index: huddles/date desc — see Firebase Console → Indexes.
+    // Single-field orderBy — Firestore auto-indexes this; no composite index needed.
     const q = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
     return onSnapshot(q, (snap) => {
         if (snap.empty) { onData(null); return; }

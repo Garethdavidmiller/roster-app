@@ -66,10 +66,13 @@ export function initAuthSetup({ currentIsAdmin }) {
             // forceRefresh:true fetches a fresh token from Firebase so any recent
             // claim changes are included. The token is short-lived and signed by Firebase.
             const tokenResult = await currentUser.getIdTokenResult(/* forceRefresh */ true);
-            // Bootstrap mode: admin claim not yet set (rules were tightened before first run).
-            // Server accepts g.miller@myb-roster.local without the claim for this first call.
+            // The server (setupRosterAuth) requires the admin custom claim on the caller's
+            // token — there is NO unauthenticated bootstrap path. If the claim is missing
+            // (e.g. accounts were rebuilt) this call WILL be rejected (403); the claim must
+            // be restored in the Firebase console first. Surface that honestly rather than
+            // implying a bootstrap is in progress.
             if (!tokenResult.claims.admin) {
-                resultEl.innerHTML = '<p class="auth-result-info">ℹ️ Admin claim not set yet — running bootstrap. Sign out and back in after this completes.</p>';
+                resultEl.innerHTML = '<p class="auth-result-info">⚠️ Your account is missing the admin claim, which this setup requires — the server will reject this call. Set the admin claim in the Firebase console, then sign out and back in.</p>';
                 resultEl.classList.add('visible');
             }
 
