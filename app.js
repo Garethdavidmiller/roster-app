@@ -1847,6 +1847,13 @@ initHuddleViewer();
 //   - If permission already granted: silently renew/migrate subscription (VAPID key rotation check)
 //   - If permission not yet asked: show one-off prompt strip on the calendar
 (function initNotifications() {
+    // notifSupported() folds in the iOS-standalone rule (no push in a plain Safari
+    // tab) AND confirms the Notification global exists. It MUST run before any
+    // Notification.permission read: in an iOS Safari browser tab before 16.4 the
+    // Notification global is undefined, so an unguarded access throws a
+    // ReferenceError here and aborts the rest of app.js startup.
+    if (!notifSupported()) return;
+
     // Already granted — getNotifState() handles VAPID rotation and keeps the
     // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
@@ -1854,8 +1861,6 @@ initHuddleViewer();
         return;
     }
 
-    // notifSupported() folds in the iOS-standalone rule — no prompt in a plain browser tab.
-    if (!notifSupported()) return;
     if (Notification.permission === 'denied') return;
     if (lsGet('myb_notif_prompt_done')) return;
 

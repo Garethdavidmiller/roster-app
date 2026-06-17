@@ -31,14 +31,23 @@ let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
 
 /**
  * Sanitise HTML from a Huddle document before rendering it in the viewer.
- * Uses DOMPurify with a strict allowlist — no attributes, no SVG, no script vectors.
+ * Uses DOMPurify with a strict tag allowlist and a minimal attribute allowlist:
+ *   - colspan/rowspan: preserve merged-cell structure in duty-board tables
+ *     (Mammoth emits these for merged Word cells; without them a merged board
+ *     collapses into the wrong columns).
+ *   - style: carries the colour / emphasis / alignment Word documents use.
+ * DOMPurify sanitises the CSS inside style (strips url()/expression()/script
+ * vectors), and the Huddle source is a trusted company document written via the
+ * ingestHuddle Cloud Function (Admin SDK write path) — so this is a safe,
+ * defence-in-depth allowlist, not user-generated content. No SVG, no script,
+ * no event-handler attributes.
  * @param {string} html
  * @returns {string}
  */
 function sanitiseHtml(html) {
     return DOMPurify.sanitize(html, {
         ALLOWED_TAGS: ['p','h1','h2','h3','h4','h5','h6','ul','ol','li','strong','em','b','i','br','table','thead','tbody','tr','th','td'],
-        ALLOWED_ATTR: [],
+        ALLOWED_ATTR: ['colspan','rowspan','style'],
     });
 }
 

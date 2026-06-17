@@ -589,6 +589,53 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 - All sensitive operations (send code, verify code, update password) must go through Cloud Functions with the Firebase Admin SDK. Never trust the client to set security-relevant fields (`verified`, `password`).
 - Stages 3–5 require end-to-end testing on Android Chrome (primary platform) and iOS Safari standalone before shipping.
 
+### Login gate on the calendar page (index.html)
+
+**Idea:** Require login before showing the calendar — the same `getSession()` / `initLoginOverlay()` pattern the four sub-pages already use. Currently `index.html` lets anyone pick any staff member's calendar without identifying themselves.
+
+**⚠️ Before building this, review the alternatives section below — the gate is straightforward to add but does not solve what it might appear to solve.**
+
+#### What the gate would and wouldn't do
+
+| | |
+|---|---|
+| ✅ Consistent UX | All pages behave the same way — you identify yourself before using the app |
+| ✅ Auto-selects the right person | Logged-in member sees their own calendar without touching the dropdown on first visit |
+| ✅ Paves the way for per-member features | The calendar would always know who is using it |
+| ❌ Does NOT protect the data | `overrides` and `huddles` Firestore reads are **intentionally open** in the security rules — gating the UI is cosmetic. Anyone with the URL can query Firestore directly, gate or no gate |
+| ❌ Does NOT prevent colleagues viewing each other's calendars | The member dropdown stays meaningful after login (Team Week View, checking a colleague's shift) |
+
+If the goal is **data privacy**, the right lever is tightening Firestore read rules for `overrides`, which is documented as an open decision in KNOWN_LIMITATIONS.md. That is a harder change (it breaks the anonymous calendar view and the Huddle auto-open) and should be planned separately. The UI gate alone is a consistency/identity improvement, not a security one.
+
+#### Obstructions to consider before building
+
+**1. Huddle notification (most significant)**
+Push notifications navigate to `https://garethdavidmiller.github.io/#huddle`. The `#huddle` hash triggers the viewer auto-open in `app.js`. If the calendar shows a login wall first, a notification tap lands the staff member on the login form instead of the Huddle. This is the opposite of what a notification is for.
+
+*Mandatory design rule if this is built:* when `window.location.hash === '#huddle'` at page load, bypass the login gate and open the viewer directly. This is consistent with `firestore.rules` — `huddles` reads are intentionally open because `app.js` has no auth session.
+
+**2. Staff who have never logged in**
+Today many staff may simply open the calendar and pick their name from the dropdown — they may never have visited admin.html or settings.html to create a session. Adding the gate means every such person hits the login form on their next visit. This is a one-time friction (30-day session) but it is a **team-wide behaviour change** that needs a heads-up or a comms note. Password is surname (lowercase, no spaces/special chars) — worth a brief message so staff aren't confused.
+
+**3. "Don't log existing sessions out" — this is free**
+Anyone already signed in on admin.html, settings.html, paycalc.html, or operations.html already has the shared `myb_admin_session` localStorage key. The calendar gate would just call `getSession()` — they pass straight through with no visible change. No `clearSession()` involved, no logout.
+
+#### Implementation shape (if pursued)
+
+- Extract the login overlay logic from `settings-app.js` into a shared helper (it is currently copy-pasted across four pages). The calendar would be the fifth caller. Worth the factoring before adding another copy.
+- In `app.js` boot: `getSession()` → if valid, call `initApp()`; else if `location.hash === '#huddle'`, open the viewer (no auth needed, Firestore open); else show the login overlay.
+- Add `#loginOverlay` markup to `index.html` (same block the four sub-pages have).
+- On login success, `saveSession(name)` + `saveSelectedMember(idx)` + `unlockBodyScroll()` + re-render calendar — no page reload needed (unlike the sub-pages which reload because their init code gates on `isAuthenticated` at module scope).
+- `getDefaultMemberIndex()` / `_staleMemberName` fallback becomes mostly redundant once the calendar always has a session name — small cleanup opportunity.
+- Standard version bump + `sw-asset-check.test.mjs` passes, then test on Android and iOS.
+
+#### Alternatives to consider before starting (reminder for Gareth)
+
+- **Do nothing.** The current UX is deliberate: staff open the app and pick their name. Login is required only on pages that write data. This is simpler and the data is not sensitive enough to need gating.
+- **Auto-select from session (already partly done).** `getSelectedMemberIndex()` already tries `getSession()?.name` on a fresh device. The overlap may be enough — a returning logged-in user always sees their own calendar without re-picking.
+- **Tighten Firestore rules instead.** If the real concern is that a non-staff person could read shift data, the right fix is a Firestore read rule change, not a UI gate. That requires revisiting the Huddle viewer and anonymous-session architecture (see KNOWN_LIMITATIONS.md).
+- **Soft prompt, not a hard gate.** Show a "Sign in to save your preferences and enable AL booking" banner on the calendar, but don't block access to the roster itself. Lowest friction; keeps the app useful without an account.
+
 ---
 
 ## Dependency maintenance — firebase-admin v14

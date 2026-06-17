@@ -56,6 +56,10 @@ const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FR
 // Staff-facing URL — change here when the domain changes, push payloads update automatically.
 const STAFF_SITE_URL = 'https://garethdavidmiller.github.io';
 
+// Set to true to silence all Huddle push notifications (e.g. while the staff
+// site is down). See RESTART_NOTIFICATIONS.md for the re-enable checklist.
+const HUDDLE_PUSH_PAUSED = true;
+
 /**
  * Returns {year, month(0-based), day} in London local time, derived directly from
  * Intl.DateTimeFormat parts so the result is never dependent on the server's TZ setting.
@@ -385,6 +389,10 @@ async function fanOutPush(payload, logTag) {
  * @param {SecretParam}  vapidPrivate  Firebase secret param for VAPID private key
  */
 async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
+    if (HUDDLE_PUSH_PAUSED) {
+        console.log(`[push] HUDDLE_PUSH_PAUSED=true — skipping notifications for ${huddleDate}. See RESTART_NOTIFICATIONS.md`);
+        return;
+    }
     setupWebPush(vapidPrivate);
 
     // Build smart day label — compare huddle date to today in London timezone.
