@@ -110,13 +110,12 @@ function updateAlPreview() {
         const memberOvByDate = buildMemberDateMap(memberObj.name);
         dates.forEach(dateStr => {
             const d    = new Date(dateStr + 'T12:00:00');
-            const base = getBaseShift(memberObj, d);
-            if (isRestShift(base)) { restCount++; return; }
-            // Also treat existing RD/OFF overrides as rest days (same logic as the booking filter)
+            // Check order matches recordRangeOverrides: Sunday → override → base
+            if (isSunday(dateStr)) { restCount++; return; }
             const ov = memberOvByDate.get(dateStr);
             if (ov && isRestShift(ov.value)) { restCount++; return; }
-            // Sundays are uncontracted for all staff — skip, don't book AL
-            if (isSunday(dateStr)) { restCount++; return; }
+            const base = getBaseShift(memberObj, d);
+            if (isRestShift(base)) { restCount++; return; }
             if (base === 'SPARE') spareCount++;
         });
     }
@@ -154,7 +153,15 @@ alSaveBtn.addEventListener('click', async () => {
     // the booking (a Dec–Jan range touches two years).
     const memberObj = teamMembers.find(m => m.name === member);
     if (!confirmedOverLimit) {
-        const workingDates = dates.filter(d => !isSunday(d));
+        const memberOvByDate = buildMemberDateMap(member);
+        // Mirror recordRangeOverrides: exclude Sundays, existing RD overrides, and base rest days
+        const workingDates = dates.filter(d => {
+            if (isSunday(d)) return false;
+            const ov = memberOvByDate.get(d);
+            if (ov && isRestShift(ov.value)) return false;
+            const base = getBaseShift(memberObj, new Date(d + 'T12:00:00'));
+            return !isRestShift(base);
+        });
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());

@@ -551,6 +551,11 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
+    // Wait for the returning-user session re-establishment before checking currentUser.
+    // Without this, a page load that skips the login overlay has a short window where
+    // auth.currentUser is still null even though the session is valid.
+    if (window._mybSession) await window._mybSession;
+
     if (!auth.currentUser) {
         _showError('Your session has expired — please sign out and sign back in.');
         return;
@@ -969,6 +974,9 @@ export function validateShiftRules(toSave, memberName) {
             if (!adjShift || !adjShift.includes('-')) return;
             const [adjStart, adjEnd] = adjShift.split('-');
             if (delta === -1) {
+                // Skip backward check when the adjacent day is also in this batch —
+                // the forward check on that day already reported this gap.
+                if (toSave.some(e => e.date === adjISO && e.value && e.value.includes('-'))) return;
                 const prevEnd = _effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
                 if (gap < 12 * 60) {
@@ -1029,7 +1037,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
             return !isRestShift(base);
           })
-        : [...dates];
+        : [];
 
     // Sundays within the range that have a worked base shift need an explicit RD correction
     // so the base roster shift doesn't still show on the calendar during the absence period.

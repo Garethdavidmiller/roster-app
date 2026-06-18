@@ -100,7 +100,7 @@
 
         /* Read-only member display shown inside AL form once member is chosen */
         .member-readonly-display {
-            font-size: 13px;
+            font-size: var(--type-label);
             font-weight: 600;
             color: var(--text-mid);
             padding: 7px 0;
@@ -276,7 +276,7 @@
         .week-nav-label {
             display: block;
             text-align: center;
-            font-size: 14px;
+            font-size: var(--type-body);
             font-weight: 600;
             color: var(--text-dark);
             padding: 7px 8px;
