@@ -46,6 +46,7 @@ const NAV_INFORMATION = [
         links: [
             { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true, body: 'The Weekly Retail Circular will be linked here once it goes live. Check back soon.' },
+            { icon: '🗞️', label: 'Marylebone Newsletter',  comingSoon: true, body: 'The Marylebone Newsletter will be linked here once it goes live. Check back soon.' },
         ],
     },
 ];
