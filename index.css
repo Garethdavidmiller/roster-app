@@ -2122,12 +2122,10 @@
         #huddleViewerBody h3 { font-size: 0.95rem; }
         #huddleViewerBody p  { margin: 0.4em 0; }
         #huddleViewerBody table {
-            /* !important overrides Word's inline style="width:..." so the table fills
-               the viewer rather than rendering at A4 pixel widths. table-layout:auto
-               lets the browser distribute column widths by content rather than
-               honouring Word's fixed column proportions (which cause narrow columns
-               to wrap letter-by-letter on mobile). */
-            width: 100% !important;
+            /* The Huddle HTML no longer carries Word's inline pixel widths (style is
+               stripped in app-huddle-viewer.js), so plain width:100% is enough — no
+               !important needed. table-layout:auto sizes columns by content. */
+            width: 100%;
             max-width: 100%;
             border-collapse: collapse;
             table-layout: auto;
@@ -2138,9 +2136,7 @@
             border: 1px solid var(--border-mid);
             padding: 5px 7px;
             vertical-align: top;
-            /* !important overrides Word's inline cell widths (e.g. style="width:55pt")
-               so columns size by content. overflow-wrap prevents single-cell overflow. */
-            width: auto !important;
+            /* Break long unbroken strings so a single cell can't force horizontal overflow. */
             overflow-wrap: anywhere;
         }
         #huddleViewerBody th { background: var(--primary-blue); color: white; }
