@@ -2079,6 +2079,7 @@
         }
         #huddleViewerTitle { font-weight: 600; font-size: 1rem; flex: 1; }
         #huddleViewerClose {
+            position: static; /* override lb-close's position:absolute — button lives in the flex row */
             background: none;
             border: none;
             color: rgba(255,255,255,0.7);
