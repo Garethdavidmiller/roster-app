@@ -1498,13 +1498,12 @@ button.nav-panel-link--coming-soon {
     background: var(--bg-light);
     border-bottom: 1px solid var(--border-light);
     padding: 11px 16px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 3px;
+    display: grid;
+    grid-template-columns: 1fr;
+    row-gap: 3px;
 }
 .card-header h2 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
-.card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; align-self: stretch; }
+.card-header .hint { font-size: var(--type-small); color: var(--text-light); }
 .card-body { padding: 12px 16px; }
 
 /* ── Collapsible card ───────────────────────────────────────────── */
