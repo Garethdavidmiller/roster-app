@@ -46,7 +46,7 @@ let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
  */
 function sanitiseHtml(html) {
     return DOMPurify.sanitize(html, {
-        ALLOWED_TAGS: ['p','h1','h2','h3','h4','h5','h6','ul','ol','li','strong','em','b','i','br','table','thead','tbody','tr','th','td'],
+        ALLOWED_TAGS: ['p','h1','h2','h3','h4','h5','h6','ul','ol','li','strong','em','b','i','br','span','table','thead','tbody','tr','th','td'],
         ALLOWED_ATTR: ['colspan','rowspan','style'],
     });
 }
