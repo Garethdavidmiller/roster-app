@@ -842,7 +842,7 @@
             font-size: 16px; /* 16px minimum — iOS Safari zooms viewport on focus below this */
             font-family: inherit;
             color: var(--text-dark);
-            background: white;
+            background-color: white; /* longhand: shorthand would wipe the SVG chevron from the select rule */
             cursor: pointer;
         }
 
@@ -1563,6 +1563,7 @@
             .overrides-month-filter,
             .list-feedback,
             .al-confirm-bar,
+            #culturalCalReminder,
             #saveToast { display: none !important; }
 
             /* Reset backgrounds for print */

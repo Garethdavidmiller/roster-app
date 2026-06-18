@@ -1623,6 +1623,7 @@ button.nav-panel-link--coming-soon {
     max-width: 360px;
     width: 100%;
     max-height: 85vh;
+    max-height: 85dvh; /* dvh avoids mobile browser chrome layout jump on scroll */
     box-shadow: var(--shadow-3);
 }
 .tips-lb-title {
