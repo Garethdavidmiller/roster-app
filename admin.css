@@ -73,6 +73,7 @@
         }
         .member-context-bar select {
             flex: 1;
+            min-width: 0; /* allow shrink so a long name (e.g. "C. Francisco-Charles") can't push the bar past the canvas edge */
             /* appearance:none is load-bearing here, not cosmetic: a NATIVE <select> on
                Android paints its CLOSED state using the selected option's background,
                and the options below are white — so after picking a colleague the control
@@ -108,11 +109,20 @@
         /* ---- Selectors row (week nav only) ---- */
         .selectors {
             display: grid;
-            grid-template-columns: 1fr;
+            /* minmax(0, 1fr) — NOT plain 1fr. A 1fr track has an implicit min
+               of min-content, so the grid item (the week-nav field-group) refuses
+               to shrink below its content width; the date label then can't
+               ellipsise and the 📍 pin button overruns the card, getting clipped
+               by .card { overflow: hidden }. minmax(0, …) lets the track shrink. */
+            grid-template-columns: minmax(0, 1fr);
             gap: 10px;
             align-items: end;
             margin-bottom: 12px;
         }
+        /* Grid item must also be allowed to shrink below its content for the
+           track's min:0 to actually take effect (pairs with the date-wrap's
+           own min-width:0 and the label's overflow:hidden + ellipsis). */
+        .selectors .field-group { min-width: 0; }
 
         /* ---- Annual Leave balance banner ---- */
         .al-banner {
@@ -227,6 +237,7 @@
             display: flex;
             align-items: center;
             gap: 0;
+            min-width: 0; /* allow the flex row to shrink so the date-wrap can ellipsise rather than push the 📍 pin off the card edge */
         }
 
         .week-nav-btn {
