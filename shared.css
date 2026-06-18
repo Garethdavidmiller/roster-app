@@ -1504,7 +1504,7 @@ button.nav-panel-link--coming-soon {
     gap: 3px;
 }
 .card-header h2 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
-.card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
+.card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; width: 100%; }
 .card-body { padding: 12px 16px; }
 
 /* ── Collapsible card ───────────────────────────────────────────── */
