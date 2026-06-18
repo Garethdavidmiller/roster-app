@@ -74,22 +74,22 @@
         .member-context-bar select {
             flex: 1;
             min-width: 0; /* allow shrink so a long name (e.g. "C. Francisco-Charles") can't push the bar past the canvas edge */
-            /* appearance:none is load-bearing here, not cosmetic: a NATIVE <select> on
-               Android paints its CLOSED state using the selected option's background,
-               and the options below are white — so after picking a colleague the control
-               flipped to a white box clashing with the navy bar. Removing the native
-               appearance makes the closed display honour this background-color instead,
-               so it stays navy regardless of which option is selected. Custom chevron
-               (white, for the navy field) replaces the native one we just removed. */
+            /* White field (dark text) on the navy bar — matches the desktop col-side variant
+               and every other <select> in the app. The previous navy-translucent field with
+               white text hit an Android bug: with appearance:none the CLOSED control derives
+               its text colour from the selected <option> (dark, for the white dropdown list),
+               so after changing the name it rendered invisible dark-on-navy ("whitespace").
+               A white field keeps closed + open states dark-on-white, always legible. (v12.95)
+               Custom dark chevron (the white one would be invisible on a white field). */
             -webkit-appearance: none;
             appearance: none;
-            background-color: rgba(255,255,255,0.10);
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-color: white;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
             background-repeat: no-repeat;
             background-position: right 8px center;
             background-size: 1em;
-            border: 1.5px solid rgba(255,255,255,0.25);
-            color: white;
+            border: 1.5px solid var(--border-light);
+            color: var(--text-dark);
             border-radius: 6px;
             padding: 4px 26px 4px 8px;
             font-size: var(--type-medium);
