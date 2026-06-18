@@ -73,11 +73,24 @@
         }
         .member-context-bar select {
             flex: 1;
+            /* appearance:none is load-bearing here, not cosmetic: a NATIVE <select> on
+               Android paints its CLOSED state using the selected option's background,
+               and the options below are white — so after picking a colleague the control
+               flipped to a white box clashing with the navy bar. Removing the native
+               appearance makes the closed display honour this background-color instead,
+               so it stays navy regardless of which option is selected. Custom chevron
+               (white, for the navy field) replaces the native one we just removed. */
+            -webkit-appearance: none;
+            appearance: none;
             background-color: rgba(255,255,255,0.10);
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            background-size: 1em;
             border: 1.5px solid rgba(255,255,255,0.25);
             color: white;
             border-radius: 6px;
-            padding: 4px 8px;
+            padding: 4px 26px 4px 8px;
             font-size: var(--type-medium);
             font-weight: 600;
         }
@@ -1459,7 +1472,11 @@
             }
             .col-side .member-context-bar label { color: var(--text-light); }
             .col-side .member-context-bar select {
-                background: white;
+                /* background-color (longhand) not `background` — the shorthand would wipe
+                   the inherited chevron background-image. Dark chevron because this desktop
+                   variant is a white field (the base white arrow would be invisible). */
+                background-color: white;
+                background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23001e3c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
                 border-color: var(--border-light);
                 color: var(--text-dark);
             }
