@@ -1023,7 +1023,7 @@ function updateRosterHint() {
       const m = document.getElementById(cat + 'M')?.value.trim() ?? '';
       return h !== '' || m !== '';
     });
-    fillBtn.textContent = hasEntries ? 'Replace with roster hours' : 'Fill from my roster';
+    fillBtn.textContent = hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
   }
 
   // Day list visibility — show/hide toggle based on whether there is any data.
@@ -1140,7 +1140,7 @@ function fillCategoryFromRoster(cat) {
 
 /** Applies a suggestion object to all H/M field pairs.
  *  force=false (default): skips fields already manually entered.
- *  force=true: overwrites all fields — used by the "Replace with roster hours" button. */
+ *  force=true: overwrites all fields — used by the "Replace with calendar values" button. */
 function _applyRosterSuggestion(s, force = false) {
   const pairs = [
     ['satH',  'satM',  s.satH,  s.satM ],

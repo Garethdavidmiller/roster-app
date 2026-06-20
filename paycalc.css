@@ -1099,6 +1099,7 @@
   /* Card header that lays out left content + right actions in a row.
      Overrides shared.css .card-header flex-direction:column. */
   .card-header--row {
+    display: flex; /* override shared.css display:grid so flex-direction takes effect */
     flex-direction: row;
     justify-content: space-between;
     align-items: flex-start;
