@@ -218,7 +218,7 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.className = 'feedback error';
         alFeedback.textContent = err.message === 'auth/session-expired'
             ? '⚠ Session expired — please sign out and sign back in.'
-            : '⚠ Could not save — check your connection and try again.';
+            : "⚠ Couldn't save — check your connection and try again.";
     } finally {
         alSaveBtn.disabled    = false;
         alSaveBtn.textContent = 'Record annual leave';

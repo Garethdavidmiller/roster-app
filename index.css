@@ -81,7 +81,7 @@
             color: white;
             font-size: 20px;
             margin: 0;
-            font-weight: 700;
+            font-weight: 800; /* match the .app-header h1 weight on every other page */
             letter-spacing: -0.5px;
             display: flex;
             align-items: center;
@@ -89,8 +89,8 @@
         }
 
         .title-icon {
-            height: 32px;
-            width: 32px;
+            height: 36px; /* match the .app-icon size on every other page */
+            width: 36px;
             border-radius: 7px;
             object-fit: cover;
             cursor: pointer;

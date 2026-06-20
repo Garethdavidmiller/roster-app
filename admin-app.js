@@ -57,7 +57,9 @@ function initLoginOverlay() {
     lockBodyScroll();
 
     overlay.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { window.location.href = './index.html'; return; }
+        // Ignore Escape while a sign-in is in progress — navigating mid-submit
+        // would leave the user neither signed in nor on the calendar.
+        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './index.html'; return; }
         trapFocus(overlay, e);
     });
 

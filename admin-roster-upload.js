@@ -211,11 +211,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             if (err.name === 'AbortError' || (err.name === 'TypeError' && err.message.includes('Load failed'))) {
                 userMsg = 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
             } else if (err instanceof TypeError && err.message === 'Failed to fetch') {
-                userMsg = 'Could not reach the server — check your internet connection or try again later.';
+                userMsg = "Couldn't reach the server — check your internet connection or try again later.";
             } else {
                 userMsg = 'Unexpected error — please try again or contact support.';
             }
-            parseFeedback.textContent = `Could not read the roster: ${userMsg}`;
+            parseFeedback.textContent = `Couldn't read the roster: ${userMsg}`;
             parseFeedback.className   = 'huddle-feedback huddle-feedback--err';
         } finally {
             parseBtn.disabled     = false;
@@ -325,9 +325,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
             const detail = err?.code === 'permission-denied'
-                ? "Couldn't save — your session may have expired. Try signing in again on the Admin page."
+                ? 'your session may have expired. Try signing out and back in.'
                 : (err?.message || 'Unknown error — check the browser console.');
-            applyFeedback.textContent = `Could not save: ${detail}`;
+            applyFeedback.textContent = `Couldn't save — ${detail}`;
             applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
             applyBtn.disabled    = false;
             applyBtn.textContent = 'Save changes';

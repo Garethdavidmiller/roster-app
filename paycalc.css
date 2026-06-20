@@ -98,7 +98,7 @@
       cursor: pointer; touch-action: manipulation;
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
-    #periodSelect:focus-visible { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25); background-color: white; }
+    #periodSelect:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20); background-color: white; }
     .period-nav { display: flex; gap: 8px; width: 100%; }
     .nav-pill {
       flex: 1;
@@ -394,7 +394,7 @@
     }
     .hhmm-field input::-webkit-inner-spin-button,
     .hhmm-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .hhmm-field input:focus-visible { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25); background-color: white; }
+    .hhmm-field input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20); background-color: white; }
     .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-faint); font-weight: 600; letter-spacing: 0.3px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
@@ -470,7 +470,7 @@
     }
     /* Brighten to white when active — the field 'fills in' on focus */
     .field input:focus-visible, .field select:focus-visible {
-      border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25);
+      border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20);
       background-color: white;
     }
     .field select {
@@ -867,7 +867,7 @@
     background-color: var(--field-bg); color: var(--text-dark);
     transition: border-color 0.15s, background-color 0.15s;
   }
-  .decimal-hrs-input:focus-visible { border-color: var(--accent-gold); box-shadow: 0 0 0 3px rgba(245,200,0,0.25); background-color: white; }
+  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20); background-color: white; }
   .decimal-conv-equals {
     font-size: 1.3rem; font-weight: 700; color: var(--text-light);
     flex-shrink: 0; padding-top: 20px;
