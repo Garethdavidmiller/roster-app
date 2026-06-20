@@ -639,6 +639,7 @@ function loadPeriodData(pNum) {
     if (raw) d = JSON.parse(raw);
   } catch(e) { /* use empty */ }
   writeFormData(d);
+  _restoreRosterSuggested(pNum);
   // If no pension has been manually saved for this period, apply the period-specific
   // default. This handles both: (a) pension rate cut-overs (old periods show the old
   // rate, new periods show the new rate) and (b) joining-period pro-ration.
@@ -738,6 +739,7 @@ function clearPeriod() {
   btn.classList.remove('confirming');
   const pNum = currentPeriodNum();
   lsDel(periodKey(pNum));
+  lsDel(snapKey(pNum));
   writeFormData(emptyPeriodData());
   // Apply the period-specific pension default (pro-rated for joining periods, rate-cut-over
   // aware) — writeFormData no longer does this when d.pension is null.
@@ -1161,6 +1163,55 @@ function _applyRosterSuggestion(s, force = false) {
       elM.classList.add('roster-suggested');
     } else {
       _suggestIfBlank(hId, mId, hVal, mVal);
+    }
+  }
+  _saveRosterSnap(currentPeriodNum(), s);
+}
+
+// Per-period localStorage key for the last roster snapshot used for auto-fill.
+const snapKey = pNum => `myb_pc_snap_${pNum}`;
+
+/** Saves the suggestion values that were just applied so that loadPeriodData can restore
+ *  the roster-suggested class on those fields after a page reload. Without this, a previously
+ *  auto-filled non-zero value (e.g. rdwH=8) loses its gold class on reload and is mistaken
+ *  for a manually-entered value, preventing the next Firestore fetch from updating it. */
+function _saveRosterSnap(pNum, s) {
+  try {
+    lsSet(snapKey(pNum), JSON.stringify({
+      satH: s.satH, satM: s.satM, sunH: s.sunH, sunM: s.sunM,
+      bhH: s.bhH, bhM: s.bhM, bhOtH: s.bhOtH, bhOtM: s.bhOtM,
+      otH: s.otH, otM: s.otM, rdwH: s.rdwH, rdwM: s.rdwM,
+      boxH: s.boxH, boxM: s.boxM,
+    }));
+  } catch(e) {}
+}
+
+/** Re-adds roster-suggested to any field whose current value still matches the last roster
+ *  snapshot, called immediately after writeFormData in loadPeriodData. This means _suggestIfBlank
+ *  will update those fields if the Firestore fetch returns different values (e.g. admin added an
+ *  RDW since the last time this period was open). Fields the user manually edited won't match
+ *  the snapshot and keep their values untouched. */
+function _restoreRosterSuggested(pNum) {
+  let snap;
+  try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch(e) {}
+  if (!snap) return;
+  const pairs = [
+    ['satH',  'satM',  snap.satH,  snap.satM ],
+    ['sunH',  'sunM',  snap.sunH,  snap.sunM ],
+    ['bhH',   'bhM',   snap.bhH,   snap.bhM  ],
+    ['bhOtH', 'bhOtM', snap.bhOtH, snap.bhOtM],
+    ['otH',   'otM',   snap.otH,   snap.otM  ],
+    ['rdwH',  'rdwM',  snap.rdwH,  snap.rdwM ],
+    ['boxH',  'boxM',  snap.boxH,  snap.boxM ],
+  ];
+  for (const [hId, mId, hVal, mVal] of pairs) {
+    const elH = document.getElementById(hId);
+    const elM = document.getElementById(mId);
+    if (!elH || !elM) continue;
+    // writeFormData writes 0 as '' (via `d.val || ''`); apply the same conversion for comparison
+    if (elH.value === String(hVal || '') && elM.value === String(mVal || '')) {
+      elH.classList.add('roster-suggested');
+      elM.classList.add('roster-suggested');
     }
   }
 }
