@@ -1133,7 +1133,7 @@ async function saveChanges() {
             dirty = false;
             updateSaveBtn();
             renderDesignPicker();
-            if (status) { status.textContent = 'Saved ✓'; status.className = 'links-save-status ok'; }
+            if (status) { status.textContent = '✓ Saved'; status.className = 'links-save-status ok'; }
             updateLastSaved(currentUser, { toDate: () => new Date() });
             return;
         }
@@ -1176,7 +1176,7 @@ async function saveChanges() {
 
         dirty = false;
         updateSaveBtn();
-        if (status) { status.textContent = 'Saved ✓'; status.className = 'links-save-status ok'; }
+        if (status) { status.textContent = '✓ Saved'; status.className = 'links-save-status ok'; }
         updateLastSaved(currentUser, { toDate: () => new Date() });
     } catch (err) {
         console.error('[Links] Save failed:', err);

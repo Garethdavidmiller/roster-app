@@ -75,7 +75,7 @@ export function initHuddleNotifications() {
             }
             deniedMsg.style.display = 'block';
         } else {
-            statusMsg.textContent   = 'Tap Enable to get an alert when the daily Huddle is ready or when payday is approaching.';
+            statusMsg.textContent   = 'Tap Enable to get an alert when the Daily Huddle is ready or when payday is approaching.';
             enableBtn.style.display = 'block';
         }
     }
@@ -194,8 +194,8 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             } catch (convErr) {
                 console.error('[Huddle] DOCX conversion failed:', convErr);
                 feedback.textContent = convErr.message === 'load'
-                    ? 'Could not load Word converter — check your connection and try again'
-                    : 'Could not read the Word file — make sure it is a valid .docx';
+                    ? "Couldn't load Word converter — check your connection and try again"
+                    : "Couldn't read the Word file — make sure it is a valid .docx";
                 feedback.className = 'huddle-feedback huddle-feedback--err';
                 uploadBtn.disabled = false;
                 uploadBtn.textContent = 'Upload Huddle';

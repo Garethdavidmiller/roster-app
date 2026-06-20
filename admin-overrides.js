@@ -606,7 +606,7 @@ export async function executeSave(toSave, toDelete = []) {
         console.error('[Admin] Save failed:', err);
         _showError(err?.code === 'permission-denied'
             ? "Couldn't save — your session may have expired. Try signing out and back in."
-            : 'Could not save — check your connection and try again.');
+            : "Couldn't save — check your connection and try again.");
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
         updateSaveBtn();
@@ -786,7 +786,7 @@ async function _handleDelete(e) {
         if (listFeedback) {
             listFeedback.textContent = err?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
-                : '⚠ Could not delete — check your connection and try again.';
+                : "⚠ Couldn't delete — check your connection and try again.";
             listFeedback.className = 'list-feedback error';
         }
     }

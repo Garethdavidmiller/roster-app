@@ -92,12 +92,37 @@ function initLoginOverlay() {
         errorEl.classList.remove('visible');
     });
 
+    // Client-side lockout after repeated wrong passwords — a UX speed bump only
+    // (resets on reload); real rate limiting is enforced server-side by Firebase
+    // Auth. Mirrors the Admin login so both sign-in screens behave the same.
+    let _failCount = 0;
+    let _lockedUntil = 0;
+
     async function attemptLogin() {
+        if (Date.now() < _lockedUntil) return;
         const name = nameSelect.value;
         const pw   = passwordInput.value.trim().toLowerCase().replace(/[^a-z]/g, '');
         if (!name) { showError('Please select your name.'); return; }
         if (!pw)   { showError('Please enter your password.'); return; }
-        if (pw !== getSurname(name)) { showError('Incorrect password. Your password is your surname (lowercase).'); return; }
+        if (pw !== getSurname(name)) {
+            _failCount++;
+            if (_failCount >= 3) {
+                _lockedUntil = Date.now() + 30_000;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Try again in 30s';
+                setTimeout(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sign in →';
+                    _failCount = 0;
+                    _lockedUntil = 0;
+                }, 30_000);
+                errorEl.textContent = 'Too many attempts. Try again in 30 seconds.';
+                errorEl.classList.add('visible');
+                return;
+            }
+            showError('Incorrect password. Your password is your surname (lowercase).');
+            return;
+        }
 
         submitBtn.disabled  = true;
         submitBtn.textContent = 'Signing in…';

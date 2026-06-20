@@ -2269,40 +2269,10 @@ let openAboutLightbox = null;
 })();
 
 // ── SW UPDATE AUTO-ACTIVATION ─────────────────────────────────────────────────
-// Activates a waiting service worker immediately and reloads on controller
-// change. Lived inside the About lightbox IIFE before v12.50 — unrelated to
-// the lightbox, so it now stands alone.
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.ready.then(reg => {
-    function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-
-    if (reg.waiting) activate(reg.waiting);
-
-    reg.addEventListener('updatefound', () => {
-      const nw = reg.installing;
-      if (!nw) return;
-      nw.addEventListener('statechange', () => {
-        if (nw.state === 'installed' && navigator.serviceWorker.controller) activate(nw);
-      });
-    });
-
-    navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.location.reload();
-    }, { once: true });
-
-    let updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') {
-        clearInterval(updateInterval);
-        updateInterval = null;
-      } else {
-        clearInterval(updateInterval);
-        reg.update();
-        updateInterval = setInterval(() => reg.update(), 60 * 60 * 1000);
-      }
-    });
-  });
-}
+// Handled by the shared registerServiceWorker() call below (see "SERVICE WORKER").
+// A hand-rolled duplicate of that lifecycle used to live here; it was removed at
+// v12.96 because running both registered two controllerchange listeners and two
+// hourly update() timers, which could fire the post-update reload twice.
 
 // ── HELP LIGHTBOX ─────────────────────────────────────────────────────────────
 // Generic lightbox driven by HELP_CONTENT — opened by any .help-btn[data-help].

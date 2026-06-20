@@ -43,8 +43,8 @@
         /* ---- Cards ---- */
         .card {
             background: var(--surface);
-            border-radius: var(--radius-md);
-            box-shadow: var(--shadow-1);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-2);
             overflow: hidden;
         }
 
@@ -175,7 +175,7 @@
         select, input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
             width: 100%;
             padding: 8px 10px;
-            border: 1.5px solid var(--border-light);
+            border: 2px solid var(--border-mid);
             border-radius: 8px;
             /* 16px prevents iOS Safari from zooming the page on focus */
             font-size: 16px;
@@ -848,7 +848,7 @@
 
         .overrides-month-filter {
             padding: 6px 8px;
-            border: 1.5px solid var(--border-light);
+            border: 2px solid var(--border-mid);
             border-radius: 8px;
             font-size: 16px; /* 16px minimum — iOS Safari zooms viewport on focus below this */
             font-family: inherit;
@@ -1033,7 +1033,7 @@
         .rp-chip {
             flex: 1;
             padding: 8px 10px;
-            border: 1.5px solid var(--border-light);
+            border: 2px solid var(--border-mid);
             border-radius: 8px;
             font-size: 13px;
             color: var(--text-light);
