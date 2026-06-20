@@ -101,7 +101,7 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
     // Migration: legacy global YTD values (myb_pc_ytd_pay / ytd_tax) to per-year keys
     const legacyYtdPay = lsGet(SK.ytdPay);
     const legacyYtdTax = lsGet(SK.ytdTax);
-    if (legacyYtdPay || legacyYtdTax) {
+    if (legacyYtdPay != null || legacyYtdTax != null) {
         const firstTy = TAX_YEARS[0];
         if (!lsGet(ytdPayKey(firstTy))) lsSet(ytdPayKey(firstTy), legacyYtdPay || '');
         if (!lsGet(ytdTaxKey(firstTy))) lsSet(ytdTaxKey(firstTy), legacyYtdTax || '');
@@ -159,7 +159,7 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
                     }
                 }
                 if (changed) lsSet(periodKey(p.num), JSON.stringify(d));
-            } catch(e) {}
+            } catch(e) { console.warn('paycalc-migrations: pension patch failed for period', p.num, e); }
         });
         lsSet('myb_pc_pension_v882_migrated', '1');
     }

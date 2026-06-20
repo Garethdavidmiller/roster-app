@@ -18,7 +18,7 @@ export const TAX_YEARS = [
   { label: '2025/26', first: -11, last:  1, hppPaidJan: 2027,
     londonAllow: 276.16, londonAllowPre: 267.08, londonAllowFrom: new Date(2025, 9, 24) },
   { label: '2026/27', first:   2, last: 14, hppPaidJan: 2028,
-    londonAllow: 276.16 }, // ⚠️ Update londonAllowPre + londonAllow when 2026/27 pay award confirmed
+    londonAllow: 276.16, rateUnconfirmed: true }, // ⚠️ Remove rateUnconfirmed + set londonAllowPre + londonAllow when pay award confirmed
 ];
 
 // ── Tax & NI thresholds by tax year ───────────────────────────────────────
@@ -241,19 +241,20 @@ export function computeGross(i) {
 /**
  * Compute income tax for a pay period.
  * Supports: nL, BR, D0, D1, NT, 0T, Kn, W1/M1/X suffix, S prefix (Scottish).
- * When ytdPay/ytdTax are provided and the code is cumulative, switches to
- * HMRC cumulative PAYE method: total tax owed YTD minus already collected.
+ * When both ytdPay and ytdTax are provided (non-null) and the code is cumulative,
+ * switches to HMRC cumulative PAYE method: total tax owed YTD minus already collected.
+ * Pass null for either to fall back to per-period estimation.
  *
  * @param {number} sacGross - Post-pension-sacrifice gross
  * @param {string} taxCode  - Raw PAYE code, e.g. '1257L', 'S1257L', 'BR', 'K500', '1257LW1'
  * @param {{ tax: object, scottishTax: object }} t - getThresholds() result
  * @param {object} [opts]
- * @param {number} [opts.ytdPay=0]       - YTD pay from last payslip
- * @param {number} [opts.ytdTax=0]       - YTD tax from last payslip
+ * @param {number|null} [opts.ytdPay]    - YTD pay from last payslip; null = not provided
+ * @param {number|null} [opts.ytdTax]    - YTD tax from last payslip; null = not provided
  * @param {number|null} [opts.periodN]   - HMRC 4-weekly period number 1–13 (required for cumulative)
  * @returns {{ tax: number, usingCumulative: boolean }}
  */
-export function computeTax(sacGross, taxCode, t, { ytdPay = 0, ytdTax = 0, periodN = null } = {}) {
+export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null, periodN = null } = {}) {
   const rawCode    = (taxCode || '1257L').toUpperCase().replace(/\s+/g, '');
   const isNonCum   = /[WM]1$|X$/.test(rawCode);
   const baseCode   = rawCode.replace(/[WM]1$|X$/, '');
@@ -288,9 +289,11 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = 0, ytdTax = 0, perio
     else                                      return basicBand * TAX.r20 + highBand * TAX.r40 + (taxable - basicBand - highBand) * TAX.r45;
   }
 
-  // Cumulative PAYE: recalculate total tax owed on all YTD income, subtract what's been collected
-  // ytdPay === 0 is a valid value (no prior earnings in the tax year), so test for undefined not falsiness
-  if (ytdPay != null && !isNonCum && periodN !== null) {
+  // Cumulative PAYE: recalculate total tax owed on all YTD income, subtract what's been collected.
+  // Both ytdPay and ytdTax must be non-null — 0 is valid (first period); null means "not provided".
+  // Requiring both prevents ytdTax defaulting to 0 when only ytdPay is filled, which would
+  // make Math.max(0, cumTaxDue - 0) massively overstate tax for the period.
+  if (ytdPay != null && ytdTax != null && !isNonCum && periodN !== null) {
     const N = periodN;
     const cumGross = ytdPay + sacGross;
     const cumTaxDue = taxOnAmount(cumGross, N);
