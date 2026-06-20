@@ -22,7 +22,7 @@ import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { HELP_CONTENT } from './paycalc-help.js';
-import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations, NOTICE_YTD_KEY } from './paycalc-migrations.js';
 'use strict';
 
 
@@ -2369,11 +2369,15 @@ let openAboutLightbox = null;
 // ── SERVICE WORKER ────────────────────────────────────────────────────────────
 registerServiceWorker();
 
+// Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
+// only shows after welcome has been dismissed). Defined at module level so both
+// IIFEs read the same string without risk of divergence.
+const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
+
 // ── WELCOME LIGHTBOX ──────────────────────────────────────────────────────────
 // Shown once, on the very first visit to the pay calculator. Never shown again.
 // Dismissed by the ✕ button or clicking the overlay; guide link also dismisses it.
 (function () {
-  const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
   const lb = document.getElementById('welcomeLightbox');
   if (!lb) return;
 
@@ -2401,8 +2405,6 @@ registerServiceWorker();
 // enter their year-to-date figures from previous payslips so the current-period
 // tax estimate reflects what has already been deducted this tax year.
 (function () {
-  const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
-  const WELCOME_KEY    = 'myb_pc_pay_welcome_shown';
   const lb = document.getElementById('noticeYtdLightbox');
   if (!lb) return;
 
@@ -2411,7 +2413,7 @@ registerServiceWorker();
     content:  document.getElementById('noticeYtdContent'),
     closeBtn: document.getElementById('noticeYtdClose'),
     onClose: () => {
-      lsSet(NOTICE_YTD_KEY, '1');
+      // Archive first so the notice is recorded before the seen-flag suppresses it.
       archiveNotice({
         id:      'ytd_2627',
         title:   'Enter your previous payslip figures',
@@ -2419,6 +2421,7 @@ registerServiceWorker();
         date:    new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
         body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
       });
+      lsSet(NOTICE_YTD_KEY, '1');
     },
   });
 

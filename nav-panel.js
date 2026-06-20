@@ -48,7 +48,7 @@ const NAV_INFORMATION = [
             { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true, body: 'The Weekly Retail Circular will be linked here once it goes live. Check back soon.' },
             { icon: '🗞️', label: 'Marylebone Newsletter',  comingSoon: true, body: 'The Marylebone Newsletter will be linked here once it goes live. Check back soon.' },
-            { icon: '🔔', label: 'App Notices', notices: true },
+            { icon: '📣', label: 'App Notices', notices: true },
         ],
     },
 ];
@@ -85,7 +85,7 @@ export function archiveNotice({ id, title, section, date, body }) {
         const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]');
         if (existing.some(n => n.id === id)) return; // already archived
         existing.unshift({ id, title, section, date, body });
-        lsSet(NOTICES_KEY, JSON.stringify(existing));
+        lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, 50))); // cap at 50 entries
     } catch (e) {
         console.warn('[Nav] archiveNotice failed:', e);
     }
@@ -316,20 +316,31 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         setTimeout(() => csClose?.focus(), 60);
     }
 
-    // Shared teardown: hide after the slide-out transition, with a fallback
-    // timer in case transitionend never fires (prefers-reduced-motion, iOS
-    // quirks). Returns focus to the burger that owns the menu.
-    function _finishComingSoonClose() {
-        const t = setTimeout(done, 400);
+    /**
+     * Shared teardown: hide `el` after its slide-out transition completes, then
+     * unlock scroll and return focus to the burger. A 500ms fallback fires in case
+     * transitionend is suppressed (iOS backgrounded tab, prefers-reduced-motion).
+     * @param {HTMLElement} el - The .lb-overlay element to finish closing.
+     */
+    function _finishNavLightboxClose(el) {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            el.classList.remove('visible');
+            unlockBodyScroll();
+            burger.focus();
+            return;
+        }
+        const t = setTimeout(done, 500);
         function done() {
             clearTimeout(t);
-            csLightbox.removeEventListener('transitionend', done);
-            csLightbox.classList.remove('visible');
+            el.removeEventListener('transitionend', done);
+            el.classList.remove('visible');
             unlockBodyScroll();
             burger.focus();
         }
-        csLightbox.addEventListener('transitionend', done, { once: true });
+        el.addEventListener('transitionend', done, { once: true });
     }
+
+    function _finishComingSoonClose() { _finishNavLightboxClose(csLightbox); }
 
     // Called by user action (Escape, ✕, backdrop) — pop the shared entry.
     function _closeComingSoon() {
@@ -372,12 +383,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // lightbox (reuses the panel's single history entry; no createLightbox).
     const noticesLightbox = document.getElementById('navNoticesLightbox');
     const noticesClose    = document.getElementById('navNoticesClose');
+    const noticesList     = document.getElementById('navNoticesList');
+    const noticesEmpty    = document.getElementById('navNoticesEmpty');
 
     function _openNotices() {
         if (!noticesLightbox) return;
         // Render archived notices from localStorage
-        const list  = document.getElementById('navNoticesList');
-        const empty = document.getElementById('navNoticesEmpty');
+        const list  = noticesList;
+        const empty = noticesEmpty;
         let notices = [];
         try { notices = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch (_) {}
         if (list) {
@@ -422,17 +435,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         setTimeout(() => noticesClose?.focus(), 60);
     }
 
-    function _finishNoticesClose() {
-        const t = setTimeout(done, 400);
-        function done() {
-            clearTimeout(t);
-            noticesLightbox.removeEventListener('transitionend', done);
-            noticesLightbox.classList.remove('visible');
-            unlockBodyScroll();
-            burger.focus();
-        }
-        noticesLightbox.addEventListener('transitionend', done, { once: true });
-    }
+    function _finishNoticesClose() { _finishNavLightboxClose(noticesLightbox); }
 
     function _closeNotices() {
         if (!noticesLightbox) return;
@@ -615,7 +618,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
              aria-label="App Notices" aria-modal="true">
             <div class="lb-content" id="navNoticesContent">
                 <button id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
-                <div class="nav-cs-title">🔔 App Notices</div>
+                <div class="nav-cs-title">📣 App Notices</div>
                 <div id="navNoticesList" class="nav-notices-list"></div>
                 <div id="navNoticesEmpty" class="nav-notices-empty" hidden>No notices yet — check back soon.</div>
             </div>

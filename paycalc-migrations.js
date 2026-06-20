@@ -38,6 +38,9 @@ export function ytdPayKey(ty)     { return `myb_pc_ytd_pay_${ty.label.replace('/
 /** @param {{ label:string }} ty @returns {string} */
 export function ytdTaxKey(ty)     { return `myb_pc_ytd_tax_${ty.label.replace('/', '_')}`; }
 
+/** localStorage key: YTD notice seen-flag (set when the YTD notice is dismissed). */
+export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
+
 // ── KEY MIGRATION ─────────────────────────────────────────────────────────────
 // Renames all cea_ prefixed localStorage keys to myb_pc_ in one pass.
 // Idempotent: guarded by myb_pc_cea_migrated flag so it runs once per device.
