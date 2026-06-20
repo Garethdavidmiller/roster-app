@@ -331,6 +331,47 @@ A member's optional profile photo — a circular badge in the nav-drawer footer 
 
 ---
 
+### Bug fix, consistency, and pay-calculator polish milestone ✓ (v12.90–v13.00)
+
+A focused milestone with no new pages or features — pure quality improvements across bug fixes, visual consistency, and one meaningful pay-calculator behaviour change.
+
+**Code review fixes (v12.93):** Nine defects surfaced by a systematic code review pass:
+- `admin-app.js`: Escape keydown guard on the login overlay now checks `e.key === 'Escape'` rather than a less-specific comparison; prevents accidental dismissal on other keys.
+- `admin-al.js`: Preview loop now re-reads booked dates inside the iteration rather than using a stale closure — prevents phantom "already booked" warnings on the last day of a range.
+- `admin-overrides.js`: Null fallback added for the override list when no overrides exist; batch overlap check corrected; session guard ensures Firestore writes only fire after `window._mybSession` resolves.
+- `admin.html`: Inline style attributes removed from the week grid (moved to CSS classes — CSP `style-src 'self'` compliance).
+- `admin.css`: Type-scale tokens applied to form labels and hint text that had been using raw pixel values.
+
+**iOS notch fix for the Huddle viewer (v12.94):** The Huddle viewer close button (`×`) was being clipped or repositioned by the iPhone notch / Dynamic Island safe-area because it used `position: fixed` from a parent context. Switching `#huddleViewerClose` to `position: static` in `index.css` resolves this — the button stays in document flow within the viewer chrome and is always reachable on notched iPhones.
+
+**Admin member dropdown fix on Android (v12.95):** The member select in `admin.html`'s header bar uses a navy background. Android Chrome's native select styling was applying dark text on the dark field, making the selected member unreadable. Added explicit `color: white` on the select and `color: var(--text-dark)` on `<option>` elements in `admin.css` — the standard cross-browser fix for select colour on dark fields.
+
+**Consistency pass (v12.96):** A line-by-line pass across all pages and shared modules:
+- Error messages standardised to the "Couldn't…" pattern throughout (removing inconsistent "Failed to…" and "Error:" prefixes that leaked technical language to staff).
+- "Daily Huddle" and "Marylebone Roster" labelling made consistent across all surfaces (nav panel, buttons, upload cards).
+- Rest Day legend in the calendar month view corrected to match the shift badge text exactly.
+- Settings page: 3-strike lockout counter now resets correctly after a successful login.
+- Pay calculator: duplicate service-worker registration call removed (`sw-register.js` now handles it; the inline call in `paycalc.js` was a redundant leftover from before the shared module was extracted).
+- Admin login: Escape guard added (consistent with the v12.93 fix to the login overlay pattern).
+- `shared.css` `.help-btn`: size standardised to match the nav-panel icon size across all pages.
+- Links workspace: "✓ Saved" success confirmation message now appears after the auto-save completes rather than before — correct event ordering.
+
+**Visual style unification (v12.97):** All sub-pages (admin, operations, settings, links) brought visually in line with the pay calculator — the reference page for card/form/button styling:
+- Cards: `border-radius` raised from `var(--radius-md)` (16px) to `var(--radius-lg)` (18px) and `box-shadow` deepened from `var(--shadow-1)` to `var(--shadow-2)` — the same values paycalc had used since v11.
+- Form fields and selects: `border` widened from `1.5px solid var(--border-light)` to `2px solid var(--border-mid)` — stronger, more touch-friendly field boundary.
+- Primary action buttons (`.btn-action`, `.btn-save`): `border-radius` changed from `var(--radius-button)` (10px) to `var(--radius-sm)` (8px) — a subtle tightening that matches the pay calculator's `.btn-primary`.
+- The calendar page and guide pages were not changed — this pass was sub-pages only.
+
+**Pay calculator — calendar pre-fill auto-update (v12.98):** Previously, if an admin added a shift override (e.g. an RDW day) after a staff member had already opened a pay period, that member's pay calculator would still show the old pre-fill values on every subsequent open. Root cause: `writeFormData` writes integer `0` as `''` (blank field, due to the falsy-zero pattern); on reload the field is populated from localStorage, which removes the `roster-suggested` CSS class; `_suggestIfBlank` then sees a non-empty non-gold field and treats it as user-entered, refusing to update it.
+
+Fix: `_saveRosterSnap(pNum, s)` persists the suggested values to `myb_pc_snap_${pNum}` in localStorage when the pre-fill is applied. `_restoreRosterSuggested(pNum)` runs immediately after `writeFormData` on each page load — it compares each field's current value against the snapshot and re-adds `roster-suggested` (gold class) to any field that still matches. Fields the user manually edited will differ from the snapshot and are never touched. `clearPeriod()` deletes the snap key alongside the period data.
+
+**Pay calculator — "Fill from calendar" rename (v12.99):** The pre-fill button was relabelled from "Fill from my roster" / "Replace with roster hours" to "Fill from calendar" / "Replace with calendar values". The figures come from the calendar page (base roster + Firestore overrides), not from a separate "roster" concept — the new wording is clearer for staff who may not distinguish between "roster" and "calendar" as technical terms.
+
+**Pay calculator card header layout fix (v13.00):** The `?` help button on pay calculator cards was appearing below the card title rather than beside it. Root cause: `shared.css` sets `.card-header { display: grid; grid-template-columns: 1fr }`. The `.card-header--row` modifier in `paycalc.css` only had `flex-direction: row`, which is silently ignored on a grid container. Fix: added `display: flex` to `.card-header--row` to override the inherited grid, making `flex-direction: row` take effect. This is now documented in `CLAUDE.md` → Architecture decisions as a pattern to follow for any future `.card-header` modifier that needs horizontal layout.
+
+---
+
 ## UX experiments — explored but held back
 
 Ideas that were prototyped and reverted. Implementation notes preserved here so they can be restored quickly if the case for them changes.
