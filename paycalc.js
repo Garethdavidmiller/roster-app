@@ -17,7 +17,7 @@ import {
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -175,7 +175,7 @@ function autoDecimalHours(hId, mId) {
   if (isNaN(val) || val < 0) return;
   const h = Math.floor(val);
   const m = Math.round((val - h) * 60);
-  document.getElementById(hId).value = h || '';
+  document.getElementById(hId).value = String(h);
   document.getElementById(mId).value = m || '';
   autosave();
 }
@@ -495,7 +495,7 @@ function onPeriodChange() {
       if (lsGet(SK.setup)) {
         setSettingsCardOpen(true);
         const notice = document.getElementById('settingsNewYearNotice');
-        notice.textContent = ty.label === '2026/27'
+        notice.textContent = ty.rateUnconfirmed
           ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
           : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
         notice.classList.remove('hidden');
@@ -509,11 +509,11 @@ function onPeriodChange() {
   // Show rate-unconfirmed notices when in a period where the pay award isn't finalised.
   // Two locations: one inside ⚙️ Settings (existing), one on the result card (new in v9.93)
   // so the warning is visible even when the Settings card is collapsed.
-  const _is2627 = ty.label === '2026/27';
+  const _rateUnconfirmed = !!ty.rateUnconfirmed;
   const _rateNoticeEl = document.getElementById('rateUnconfirmedNotice');
-  if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_is2627);
+  if (_rateNoticeEl) _rateNoticeEl.classList.toggle('hidden', !_rateUnconfirmed);
   const _resultRateNotice = document.getElementById('resultRateNotice');
-  if (_resultRateNotice) _resultRateNotice.classList.toggle('hidden', !_is2627);
+  if (_resultRateNotice) _resultRateNotice.classList.toggle('hidden', !_rateUnconfirmed);
 
   // Read session now so we can set the correct initial fetch state
   const session2 = getSession();
@@ -1093,16 +1093,20 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = document.getElementById(hId);
   const elM = document.getElementById(mId);
   if (!elH || !elM) return;
-  // Skip only if the field has a manually-entered value (gold class already removed).
-  // Fields that are blank, or still gold from a previous fill, are safe to overwrite.
+  if (hVal == null && mVal == null) return;
+  // Treat H and M independently — a manually-edited field is skipped individually
+  // rather than blocking its paired field. Prevents a user-typed minutes value from
+  // preventing the hours field (blank) from receiving the roster value.
   const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
   const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
-  if (hEdited || mEdited) return;
-  if (hVal == null && mVal == null) return;
-  elH.value = hVal ?? '';
-  elM.value = mVal ?? '';
-  elH.classList.add('roster-suggested');
-  elM.classList.add('roster-suggested');
+  if (!hEdited && hVal != null) {
+    elH.value = hVal ?? '';
+    elH.classList.add('roster-suggested');
+  }
+  if (!mEdited && mVal != null) {
+    elM.value = mVal ?? '';
+    elM.classList.add('roster-suggested');
+  }
 }
 
 /** Fills only the named category's hours from the current roster suggestion. Force-fills
@@ -1208,11 +1212,12 @@ function _restoreRosterSuggested(pNum) {
     const elH = document.getElementById(hId);
     const elM = document.getElementById(mId);
     if (!elH || !elM) continue;
-    // writeFormData writes 0 as '' (via `d.val || ''`); apply the same conversion for comparison
-    if (elH.value === String(hVal || '') && elM.value === String(mVal || '')) {
-      elH.classList.add('roster-suggested');
-      elM.classList.add('roster-suggested');
-    }
+    // writeFormData writes 0 as '' (via `d.val || ''`); apply the same conversion for comparison.
+    // Restore gold class independently per field so a partially-cleared pair still restores
+    // the field that still matches — preventing its paired blank field from being skipped
+    // by _suggestIfBlank when Firestore returns updated data.
+    if (elH.value === String(hVal || '')) elH.classList.add('roster-suggested');
+    if (elM.value === String(mVal || '')) elM.classList.add('roster-suggested');
   }
 }
 
@@ -1357,8 +1362,11 @@ function calculate() {
   // Income tax — cumulative PAYE when YTD figures provided (W1/M1/X excluded)
   // Pass null (not 0) when the field is empty so computeTax distinguishes "not provided" from "£0 entered"
   const ytdPayEl = document.getElementById('ytdPay');
+  const ytdTaxEl = document.getElementById('ytdTax');
   const ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numVal('ytdPay') : null;
-  const ytdT = numVal('ytdTax');
+  // Mirror the ytdPay guard — pass null (not 0) when blank so computeTax treats
+  // "ytdPay filled, ytdTax left blank" as incomplete rather than "£0 tax collected".
+  const ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numVal('ytdTax') : null;
   const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
   const { tax, usingCumulative } = computeTax(
     sacGross, document.getElementById('taxCode').value, thresholds,
@@ -1392,7 +1400,7 @@ function calculate() {
       : `<div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(gross)}</span></div>`}
     ${pension > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Pension contribution</span><span class="val">−${fmt(pension)}</span></div>` : ''}
     ${pension > 0 ? `<div class="sum-row sum-gross"><span class="lbl">Pay after pension deduction</span><span class="val">${fmt(sacGross)}</span></div>` : ''}
-    <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:10px;font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
+    <div class="sum-row sum-ded"><span class="lbl">Income Tax${usingCumulative ? ' <span style="font-size:var(--type-micro);font-weight:400;color:var(--text-faint);margin-left:4px">adjusted from payslip</span>' : ''}</span><span class="val">−${fmt(tax)}</span></div>
     <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(ni)}</span></div>
     ${sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(sl)}</span></div>` : ''}
     <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ' (inc. back pay & HPP)' : _bpThisPeriod > 0 ? ' (inc. back pay)' : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
@@ -1544,9 +1552,9 @@ function _varPayForPeriod(p, d, rate) {
   const bhCapped  = Math.min(bhHrs, normHrs);
   const pTy       = getTaxYearForOffset(p.num - 48);
   const pLondon   = getLondonAllowanceForPeriod(p, pTy) * getProRateFactor(p);
-  return satCapped * (rate * 0.25) +
-         bhCapped  * (rate * 0.25) +
-         bhOtHrs   * r125          +
+  return satCapped * (rate * (RATE_125 - 1)) +
+         bhCapped  * (rate * (RATE_125 - 1)) +
+         bhOtHrs   * r125                    +
          otHrs     * r125          +
          rdwHrs    * r125          +
          sunHrs    * r150          +
@@ -1828,30 +1836,31 @@ function calcBackPay() {
       const bhCapped  = Math.min(bhHrs, normHrsBP);
 
       const ratePay =
-        _bpEffContr    * rateDiff        +
-        satCapped * rateDiff * 0.25 +
-        bhCapped  * rateDiff * 0.25 +
-        bhOtHrs   * rateDiff * 1.25 +
-        otHrs    * rateDiff * 1.25 +
-        rdwHrs   * rateDiff * 1.25 +
-        sunHrs   * rateDiff * 1.50 +
-        boxHrs   * rateDiff * 3.00 +
+        _bpEffContr    * rateDiff                    +
+        satCapped * rateDiff * (RATE_125 - 1) +
+        bhCapped  * rateDiff * (RATE_125 - 1) +
+        bhOtHrs   * rateDiff * RATE_125       +
+        otHrs     * rateDiff * RATE_125       +
+        rdwHrs    * rateDiff * RATE_125       +
+        sunHrs    * rateDiff * RATE_150       +
+        boxHrs    * rateDiff * RATE_300       +
         (d.peer || 0) * 2 * rateDiff;
 
-      // Pro-rate londonDiff for joining periods the same way contracted hours are.
-      const _bpScale = getContr() ? _bpEffContr / getContr() : 1;
+      // Pro-rate londonDiff using the exact factor — avoids rounding error from
+      // dividing the integer-rounded _bpEffContr back by getContr().
+      const _bpScale = getProRateFactor(p);
       const backPay = ratePay + londonDiff * _bpScale;
 
       // Variable portion — mirrors _varPayForPeriod(): excludes basic contracted pay
       // (effContr × rateDiff) and peer pay. London Allowance diff is variable (HPP accrues on it).
       const varPay = (hasRate ? (
-        satCapped * rateDiff * 0.25 +
-        bhCapped  * rateDiff * 0.25 +
-        bhOtHrs   * rateDiff * 1.25 +
-        otHrs     * rateDiff * 1.25 +
-        rdwHrs    * rateDiff * 1.25 +
-        sunHrs    * rateDiff * 1.50 +
-        boxHrs    * rateDiff * 3.00
+        satCapped * rateDiff * (RATE_125 - 1) +
+        bhCapped  * rateDiff * (RATE_125 - 1) +
+        bhOtHrs   * rateDiff * RATE_125       +
+        otHrs     * rateDiff * RATE_125       +
+        rdwHrs    * rateDiff * RATE_125       +
+        sunHrs    * rateDiff * RATE_150       +
+        boxHrs    * rateDiff * RATE_300
       ) : 0) + (hasLondon ? londonDiff * _bpScale : 0);
 
       if (backPay > 0) {
@@ -2385,6 +2394,36 @@ registerServiceWorker();
   lb.querySelector('.welcome-guide-link')?.addEventListener('click', welcome.close);
 
   if (!lsGet(WELCOME_KEY)) welcome.open();
+})();
+
+// ── YTD NOTICE ────────────────────────────────────────────────────────────────
+// Shown once after the welcome lightbox has been dismissed. Reminds staff to
+// enter their year-to-date figures from previous payslips so the current-period
+// tax estimate reflects what has already been deducted this tax year.
+(function () {
+  const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
+  const WELCOME_KEY    = 'myb_pc_pay_welcome_shown';
+  const lb = document.getElementById('noticeYtdLightbox');
+  if (!lb) return;
+
+  const notice = createLightbox({
+    overlay:  lb,
+    content:  document.getElementById('noticeYtdContent'),
+    closeBtn: document.getElementById('noticeYtdClose'),
+    onClose: () => {
+      lsSet(NOTICE_YTD_KEY, '1');
+      archiveNotice({
+        id:      'ytd_2627',
+        title:   'Enter your previous payslip figures',
+        section: '💷 Pay',
+        date:    new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+        body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
+      });
+    },
+  });
+
+  // Show only after the welcome lightbox has been seen, and only once.
+  if (lsGet(WELCOME_KEY) && !lsGet(NOTICE_YTD_KEY)) notice.open();
 })();
 
 // ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────

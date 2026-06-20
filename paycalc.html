@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.00 -->
+<!-- MYB Roster — Pay Calculator v13.02 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -654,6 +654,18 @@
 </div>
 
 
+
+<!-- YTD notice lightbox — shown once after welcome; reminds staff to enter YTD figures from previous payslips -->
+<div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Pay Notice" aria-modal="true">
+  <div id="noticeYtdContent" class="lb-content">
+    <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
+    <div class="lightbox-app-name">Marylebone Roster</div>
+    <div class="lightbox-badge notice-ytd-badge">💷 Pay</div>
+    <p class="notice-ytd-title">📋 Enter your previous payslip figures</p>
+    <p class="notice-ytd-body">To get accurate tax estimates for this tax year, open <strong>⚙️ Your Settings</strong> and enter your <strong>YTD Gross Pay</strong> and <strong>YTD Tax Paid</strong> from your most recent payslip. This tells the calculator exactly how much tax you have already paid this year.</p>
+    <div class="lightbox-privacy">🔒 Your pay data is saved on this device only — never sent to any server or visible to anyone else.</div>
+  </div>
+</div>
 
 <!-- Welcome lightbox — shown on first-ever visit to the pay calculator; never shown again after close -->
 <div id="welcomeLightbox" class="lb-overlay" role="dialog" aria-label="Welcome to Pay Calculator" aria-modal="true">

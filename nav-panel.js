@@ -18,6 +18,7 @@
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
+import { lsGet, lsSet } from './ls.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -47,6 +48,7 @@ const NAV_INFORMATION = [
             { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', comingSoon: true, body: 'The Weekly Retail Circular will be linked here once it goes live. Check back soon.' },
             { icon: '🗞️', label: 'Marylebone Newsletter',  comingSoon: true, body: 'The Marylebone Newsletter will be linked here once it goes live. Check back soon.' },
+            { icon: '🔔', label: 'App Notices', notices: true },
         ],
     },
 ];
@@ -64,10 +66,30 @@ const NAV_GUIDES = [
 ];
 
 let _panelOpen      = false;
-// A single shallow history entry, shared by the panel and the coming-soon
-// lightbox that opens from inside it — so Android Back pops exactly one entry.
+// A single shallow history entry, shared by the panel and any lightbox that
+// opens from inside it — so Android Back pops exactly one entry.
 let _historyPushed  = false;
 let _comingSoonOpen = false;
+let _noticesOpen    = false;
+
+/** localStorage key for the archived notices list. */
+const NOTICES_KEY = 'myb_app_notices';
+
+/**
+ * Archive a notice so it appears in the App Notices panel.
+ * Call this when the user dismisses a notice lightbox.
+ * @param {{ id: string, title: string, section: string, date: string, body: string }} notice
+ */
+export function archiveNotice({ id, title, section, date, body }) {
+    try {
+        const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]');
+        if (existing.some(n => n.id === id)) return; // already archived
+        existing.unshift({ id, title, section, date, body });
+        lsSet(NOTICES_KEY, JSON.stringify(existing));
+    } catch (e) {
+        console.warn('[Nav] archiveNotice failed:', e);
+    }
+}
 
 /**
  * Initialise the navigation panel for the current page.
@@ -163,13 +185,18 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     overlay.addEventListener('click', closePanel);
 
     // Close panel before navigating so the panel doesn't flash behind the new page.
-    // A "coming soon" link is a button, not a navigation link — close the panel
-    // and open the placeholder lightbox instead.
+    // "Coming soon" and "App Notices" links are buttons — close the panel and open
+    // their lightboxes instead of navigating.
     panel.addEventListener('click', e => {
         const comingSoon = e.target.closest('.nav-panel-link--coming-soon');
         if (comingSoon) {
             _closePanelVisualOnly();    // keep the history entry for the lightbox
             _openComingSoon(comingSoon);
+            return;
+        }
+        if (e.target.closest('.nav-panel-link--notices')) {
+            _closePanelVisualOnly();
+            _openNotices();
             return;
         }
         if (e.target.closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
@@ -341,6 +368,103 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (e.target === csLightbox) _closeComingSoon();
     });
 
+    // App Notices archive lightbox — same bespoke pattern as the coming-soon
+    // lightbox (reuses the panel's single history entry; no createLightbox).
+    const noticesLightbox = document.getElementById('navNoticesLightbox');
+    const noticesClose    = document.getElementById('navNoticesClose');
+
+    function _openNotices() {
+        if (!noticesLightbox) return;
+        // Render archived notices from localStorage
+        const list  = document.getElementById('navNoticesList');
+        const empty = document.getElementById('navNoticesEmpty');
+        let notices = [];
+        try { notices = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch (_) {}
+        if (list) {
+            list.innerHTML = '';
+            notices.forEach(n => {
+                const item    = document.createElement('div');
+                item.className = 'notices-item';
+                const header  = document.createElement('div');
+                header.className = 'notices-item-header';
+                const sectionEl = document.createElement('span');
+                sectionEl.className = 'notices-item-section';
+                sectionEl.textContent = n.section || '';
+                const dateEl  = document.createElement('span');
+                dateEl.className = 'notices-item-date';
+                dateEl.textContent = n.date || '';
+                header.appendChild(sectionEl);
+                header.appendChild(dateEl);
+                const titleEl = document.createElement('div');
+                titleEl.className = 'notices-item-title';
+                titleEl.textContent = n.title || '';
+                const bodyEl  = document.createElement('div');
+                bodyEl.className = 'notices-item-body';
+                bodyEl.textContent = n.body || '';
+                item.appendChild(header);
+                item.appendChild(titleEl);
+                item.appendChild(bodyEl);
+                list.appendChild(item);
+            });
+        }
+        if (list)  list.hidden  = notices.length === 0;
+        if (empty) empty.hidden = notices.length > 0;
+        // Open the lightbox
+        lockBodyScroll();
+        noticesLightbox.classList.add('visible');
+        requestAnimationFrame(() => noticesLightbox.classList.add('open'));
+        document.addEventListener('keydown', _onNoticesKey);
+        if (!_historyPushed) {
+            history.pushState({ mybNavOverlay: true }, '');
+            _historyPushed = true;
+        }
+        _noticesOpen = true;
+        setTimeout(() => noticesClose?.focus(), 60);
+    }
+
+    function _finishNoticesClose() {
+        const t = setTimeout(done, 400);
+        function done() {
+            clearTimeout(t);
+            noticesLightbox.removeEventListener('transitionend', done);
+            noticesLightbox.classList.remove('visible');
+            unlockBodyScroll();
+            burger.focus();
+        }
+        noticesLightbox.addEventListener('transitionend', done, { once: true });
+    }
+
+    function _closeNotices() {
+        if (!noticesLightbox) return;
+        _noticesOpen = false;
+        document.removeEventListener('keydown', _onNoticesKey);
+        noticesLightbox.classList.remove('open');
+        if (_historyPushed) {
+            _historyPushed = false;
+            history.back();
+        }
+        _finishNoticesClose();
+    }
+
+    function _closeNoticesFromBack() {
+        if (!noticesLightbox) return;
+        _noticesOpen    = false;
+        _historyPushed  = false;
+        document.removeEventListener('keydown', _onNoticesKey);
+        noticesLightbox.classList.remove('open');
+        _finishNoticesClose();
+    }
+
+    function _onNoticesKey(e) {
+        if (e.key === 'Escape') { _closeNotices(); return; }
+        if (e.key === 'Tab')    { e.preventDefault(); noticesClose?.focus(); }
+    }
+
+    noticesClose?.addEventListener('click', _closeNotices);
+    noticesLightbox?.addEventListener('click', e => {
+        if (e.target === noticesLightbox) _closeNotices();
+    });
+
     // Close panel on Escape; trap Tab focus within the panel while it is open.
     // The !panel.contains(active) guard catches focus that escaped the panel
     // (e.g. via a programmatic focus() call elsewhere) and pulls it back in.
@@ -370,10 +494,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     });
 
     // Android Back button closes whichever overlay is currently open. The
-    // coming-soon lightbox shares the panel's single history entry, so check
-    // it first (it sits on top of the visually-closed panel).
+    // coming-soon and notices lightboxes share the panel's single history entry,
+    // so check them first (they sit on top of the visually-closed panel).
     window.addEventListener('popstate', () => {
         if (_comingSoonOpen) { _closeComingSoonFromBack(); return; }
+        if (_noticesOpen)   { _closeNoticesFromBack(); return; }
         if (!_historyPushed) return;
         closePanelFromBack();
     });
@@ -393,10 +518,11 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     const infoGroups = NAV_INFORMATION.map(group => `
         <p class="nav-panel-group-heading">${group.heading}</p>
         <ul class="nav-panel-links">
-            ${group.links.map(link => link.comingSoon
-                ? `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`
-                : `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`
-            ).join('')}
+            ${group.links.map(link => {
+                if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
+                if (link.notices)   return `<li><button type="button" class="nav-panel-link nav-panel-link--notices">${link.icon} ${link.label}</button></li>`;
+                return `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`;
+            }).join('')}
         </ul>`).join('');
 
     // Guides — expanded by default; the toggle can collapse the list.
@@ -483,6 +609,15 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
                 <div class="nav-cs-icon" id="navComingSoonIcon" aria-hidden="true">📰</div>
                 <div class="nav-cs-title" id="navComingSoonTitle">Coming soon</div>
                 <div class="nav-cs-body" id="navComingSoonBody"></div>
+            </div>
+        </div>
+        <div id="navNoticesLightbox" class="lb-overlay" role="dialog"
+             aria-label="App Notices" aria-modal="true">
+            <div class="lb-content" id="navNoticesContent">
+                <button id="navNoticesClose" class="lb-close" aria-label="Close">✕</button>
+                <div class="nav-cs-title">🔔 App Notices</div>
+                <div id="navNoticesList" class="nav-notices-list"></div>
+                <div id="navNoticesEmpty" class="nav-notices-empty" hidden>No notices yet — check back soon.</div>
             </div>
         </div>`;
 
