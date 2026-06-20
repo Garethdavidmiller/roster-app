@@ -838,10 +838,10 @@
     }
 
     /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
-    /* Uses .lb-overlay / .lb-content / .lb-close — same pattern as welcome */
+    /* Mirrors the welcome lightbox pattern: emoji → app name → badge → desc */
     #noticeYtdLightbox { z-index: 9000; }
     #noticeYtdContent {
-      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      display: flex; flex-direction: column; align-items: center; gap: 8px;
       background: rgba(255, 255, 255, 0.08);
       border: 1px solid rgba(255, 255, 255, 0.15);
       border-radius: 24px; padding: 36px 40px 32px;
@@ -855,20 +855,13 @@
     @media (hover: hover) and (pointer: fine) {
       #noticeYtdClose:hover { color: white; }
     }
+    .notice-ytd-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
     .notice-ytd-badge {
       background: var(--green) !important;
       color: white !important;
       border-color: var(--green) !important;
     }
-    .notice-ytd-title {
-      font-size: var(--type-medium); font-weight: 700;
-      color: white; margin: 4px 0 0;
-    }
-    .notice-ytd-body {
-      font-size: 13px; color: rgba(255,255,255,0.68); line-height: 1.6;
-      margin: 0;
-    }
-    .notice-ytd-body strong { color: rgba(255,255,255,0.9); }
+    #noticeYtdContent strong { color: rgba(255,255,255,0.9); }
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
