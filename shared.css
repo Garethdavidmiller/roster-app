@@ -1538,7 +1538,7 @@ button.nav-panel-link--coming-soon {
     width: 100%;
     min-height: 44px;
     padding: 11px 16px;
-    border-radius: var(--radius-button);
+    border-radius: var(--radius-sm);
     font-size: var(--type-button);
     font-weight: 700;
     border: 1.5px solid transparent;
@@ -1569,7 +1569,7 @@ button.nav-panel-link--coming-soon {
     background: var(--primary-blue);
     color: white;
     border: none;
-    border-radius: var(--radius-button);
+    border-radius: var(--radius-sm);
     font-size: var(--type-button);
     font-weight: 800;
     cursor: pointer;

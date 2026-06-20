@@ -30,8 +30,8 @@ body {
 /* ── CARD ── */
 .card {
     background: var(--surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-1);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
     overflow: hidden;
     margin-bottom: 12px;
 }
@@ -87,7 +87,7 @@ body {
     box-sizing: border-box;
     display: block;
     padding: 10px 12px;
-    border: 1.5px solid var(--border-light);
+    border: 2px solid var(--border-mid);
     border-radius: 8px;
     background-color: var(--field-bg);
     font-size: var(--type-medium); /* 16px — prevents iOS zoom on focus */

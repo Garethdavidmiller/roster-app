@@ -42,8 +42,8 @@ body.auth-ready .container { display: grid; }
    .btn-action/.btn-primary/.btn-secondary — consolidated into shared.css */
 .card {
     background: var(--surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-1);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
     overflow: hidden;
     container-type: inline-size;
 }
@@ -63,7 +63,7 @@ body.auth-ready .container { display: grid; }
     min-width: 0;
     padding: 8px 10px;
     min-height: 44px;
-    border: 1.5px solid var(--border-light);
+    border: 2px solid var(--border-mid);
     border-radius: var(--radius-sm);
     font-size: 16px;
     background-color: var(--bg-light);
@@ -137,7 +137,7 @@ body.auth-ready .container { display: grid; }
 .roster-type-select {
     flex: 0 0 auto;
     padding: 8px 10px;
-    border: 1.5px solid var(--border-light);
+    border: 2px solid var(--border-mid);
     border-radius: var(--radius-sm);
     font-size: 16px;
     font-weight: 600;
@@ -276,7 +276,7 @@ body.auth-ready .container { display: grid; }
 select, input[type="text"], input[type="date"] {
     width: 100%;
     padding: 8px 10px;
-    border: 1.5px solid var(--border-light);
+    border: 2px solid var(--border-mid);
     border-radius: 8px;
     font-size: 16px;
     color: var(--text-dark);

@@ -98,8 +98,8 @@ body.auth-ready .container { display: grid; }
 /* ---- Card ---- */
 .card {
     background: var(--surface);
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-1);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-2);
     /* clip keeps the rounded-corner clipping but, unlike hidden, is NOT a
        scroll container — so the grid's sticky day-header row can stick to the
        viewport on desktop. hidden first as a fallback for older browsers. */
