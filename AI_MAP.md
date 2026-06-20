@@ -199,12 +199,16 @@ The Weekly Roster Upload pipeline.
 UI layer for `paycalc.html`. No pure pay maths here.
 - Period select, form read/write, autosave
 - `onPeriodChange()` — orchestrates all period-level updates
-- `_suggestIfBlank()` / `_applyRosterSuggestion()` — pre-fill helpers
+- `_suggestIfBlank()` / `_applyRosterSuggestion()` — calendar pre-fill helpers. `_applyRosterSuggestion` calls `_saveRosterSnap` after filling fields. `_suggestIfBlank` fills a field only when its value is empty OR its element still has `roster-suggested` class (meaning it was last set by the pre-fill, not the user).
+- `snapKey(pNum)` → `myb_pc_snap_${pNum}` — localStorage key for the roster snapshot of a given period
+- `_saveRosterSnap(pNum, s)` — saves the suggested values that were just applied so that `_restoreRosterSuggested` can identify them after a page reload
+- `_restoreRosterSuggested(pNum)` — called immediately after `writeFormData` in `loadPeriodData`; re-adds `roster-suggested` to any field whose current value still matches the last roster snapshot. Fields the user manually edited differ from the snapshot and keep their values. `clearPeriod()` deletes the snap key alongside the period data.
 - Settings card, HPP card, sticky take-home bar
 - `getLoggedMember()`, `getEffectiveContr(p)` — session/period helpers
 - `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
 - `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
 - Imports `HELP_CONTENT` from `paycalc-help.js`; imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `ytdPayKey`, `ytdTaxKey`, `runMigrations` from `paycalc-migrations.js`
+- Note: `snapKey` is defined and used locally in `paycalc.js` — it is **not** in `paycalc-migrations.js`. The snap keys are period-level runtime state, not versioned migration keys, so they live alongside the code that uses them.
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).

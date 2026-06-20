@@ -177,9 +177,9 @@ Resolved — `calcBackPay()` computes the variable-pay portion (`_bpVarAmount`) 
 payslip confirmation detail.
 
 ### Pre-fill reads base roster + Firestore overrides only
-The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
-Standard weekday contracted hours are not pre-filled — staff enter those manually.
-The suggestion is advisory; staff should verify it against their actual payslip.
+The "Fill from calendar" button (renamed from "Fill from roster" at v12.99) counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day). Standard weekday contracted hours are not pre-filled — staff enter those manually. The suggestion is advisory; staff should verify it against their actual payslip.
+
+**Auto-update when admin changes a shift (v12.98):** If an admin records a new override after a member has already opened that pay period, the updated values appear on the member's next open. The roster snapshot system (`_saveRosterSnap` / `_restoreRosterSuggested` in `paycalc.js`, localStorage key `myb_pc_snap_${pNum}`) tracks which fields were last filled by the calendar suggestion. On reload, these fields regain their gold `roster-suggested` class and `_suggestIfBlank` will update them again from Firestore. Fields the user has manually edited differ from the snapshot and are left untouched.
 
 ### Tax band model is approximate for 0T and K codes (flagged v12.49 — check later)
 In `computeTax()` (`paycalc-calc.js`), the basic-rate band width is computed as
