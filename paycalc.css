@@ -837,10 +837,44 @@
       .welcome-guide-link:hover { color: white; }
     }
 
+    /* ── YTD NOTICE LIGHTBOX ─────────────────────────────────────────── */
+    /* Uses .lb-overlay / .lb-content / .lb-close — same pattern as welcome */
+    #noticeYtdLightbox { z-index: 9000; }
+    #noticeYtdContent {
+      display: flex; flex-direction: column; align-items: center; gap: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 24px; padding: 36px 40px 32px;
+      width: min(300px, 85vw); text-align: center;
+      max-height: 80vh;
+      transform: scale(0.85);
+    }
+    #noticeYtdLightbox.open #noticeYtdContent { transform: scale(1); }
+    #noticeYtdClose { color: rgba(255,255,255,0.45); }
+    #noticeYtdClose:active { color: white; }
+    @media (hover: hover) and (pointer: fine) {
+      #noticeYtdClose:hover { color: white; }
+    }
+    .notice-ytd-badge {
+      background: var(--green) !important;
+      color: white !important;
+      border-color: var(--green) !important;
+    }
+    .notice-ytd-title {
+      font-size: var(--type-medium); font-weight: 700;
+      color: white; margin: 4px 0 0;
+    }
+    .notice-ytd-body {
+      font-size: 13px; color: rgba(255,255,255,0.68); line-height: 1.6;
+      margin: 0;
+    }
+    .notice-ytd-body strong { color: rgba(255,255,255,0.9); }
+
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */
     @media (prefers-reduced-motion: reduce) {
       #iconLightbox, #iconLightboxContent,
       #welcomeLightbox, #welcomeLightboxContent,
+      #noticeYtdLightbox, #noticeYtdContent,
       #helpLightbox, #helpLightboxContent,
       .bd-body, .bd-arrow, .boxing-banner, .collapsible-body,
       .show-more-arrow, .hpp-toggle-arrow, .card-toggle-arrow,

@@ -17,7 +17,7 @@ import {
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -2394,6 +2394,36 @@ registerServiceWorker();
   lb.querySelector('.welcome-guide-link')?.addEventListener('click', welcome.close);
 
   if (!lsGet(WELCOME_KEY)) welcome.open();
+})();
+
+// ── YTD NOTICE ────────────────────────────────────────────────────────────────
+// Shown once after the welcome lightbox has been dismissed. Reminds staff to
+// enter their year-to-date figures from previous payslips so the current-period
+// tax estimate reflects what has already been deducted this tax year.
+(function () {
+  const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
+  const WELCOME_KEY    = 'myb_pc_pay_welcome_shown';
+  const lb = document.getElementById('noticeYtdLightbox');
+  if (!lb) return;
+
+  const notice = createLightbox({
+    overlay:  lb,
+    content:  document.getElementById('noticeYtdContent'),
+    closeBtn: document.getElementById('noticeYtdClose'),
+    onClose: () => {
+      lsSet(NOTICE_YTD_KEY, '1');
+      archiveNotice({
+        id:      'ytd_2627',
+        title:   'Enter your previous payslip figures',
+        section: '💷 Pay',
+        date:    new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+        body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
+      });
+    },
+  });
+
+  // Show only after the welcome lightbox has been seen, and only once.
+  if (lsGet(WELCOME_KEY) && !lsGet(NOTICE_YTD_KEY)) notice.open();
 })();
 
 // ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────
