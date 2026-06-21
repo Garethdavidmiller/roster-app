@@ -3,7 +3,7 @@
  *
  * Owns: allOverrides cache, week grid render, bulk bar, save/delete to Firestore,
  *   Saved Changes table, shift rule validation, time input auto-format.
- * Does NOT own: login, AL booking, sick days, cultural calendar, notifications.
+ * Does NOT own: login, AL booking, sick days, notifications.
  * Edit here for: grid rendering, override CRUD, bulk bar, validation rules.
  * Do not edit here for: AL/sick booking flows, auth, roster upload.
  *
@@ -156,7 +156,6 @@ export function buildWeekGridInto(container, dateStr) {
         <div class="hdr-time">Shift time</div>`;
     container.appendChild(header);
 
-    const faithCalendar = document.querySelector('input[name="faithCalendar"]:checked')?.value || 'none';
     // Compute once for the whole 7-row loop instead of allocating a Date per row.
     const todayISO = formatISO(new Date());
 
@@ -166,7 +165,7 @@ export function buildWeekGridInto(container, dateStr) {
         const dateISO = formatISO(date);
         const baseShift = getBaseShift(member, date);
 
-        const badges    = getSpecialDayBadges(date, dateISO, faithCalendar);
+        const badges    = getSpecialDayBadges(date, dateISO);
         const badgeHTML = badges.map(b => `<span class="day-badge" title="${b.title}">${b.icon}</span>`).join('');
 
         const existing = _allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
@@ -551,11 +550,6 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
-    // Wait for the returning-user session re-establishment before checking currentUser.
-    // Without this, a page load that skips the login overlay has a short window where
-    // auth.currentUser is still null even though the session is valid.
-    if (window._mybSession) await window._mybSession;
-
     if (!auth.currentUser) {
         _showError('Your session has expired — please sign out and sign back in.');
         return;
@@ -606,7 +600,7 @@ export async function executeSave(toSave, toDelete = []) {
         console.error('[Admin] Save failed:', err);
         _showError(err?.code === 'permission-denied'
             ? "Couldn't save — your session may have expired. Try signing out and back in."
-            : "Couldn't save — check your connection and try again.");
+            : 'Could not save — check your connection and try again.');
     } finally {
         if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save changes'; }
         updateSaveBtn();
@@ -697,13 +691,8 @@ export function renderTable() {
     }
 
     if (!rows.length) {
-        const who      = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
-        // A month filter narrowing to zero is different from never having recorded
-        // anything — don't tell the user to go book leave when they've just filtered.
-        const guidance = monthFilter
-            ? 'Try “All months”, or record a change above.'
-            : 'Book annual leave or record absence in the cards above and it will appear here.';
-        if (tableBody) tableBody.innerHTML = `<tr class="state-row"><td colspan="7">No changes recorded yet${who}. ${guidance}</td></tr>`;
+        const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
+        if (tableBody) tableBody.innerHTML = `<tr class="state-row"><td colspan="7">No recorded changes yet${who}. Any shifts you record will appear here.</td></tr>`;
         return;
     }
 
@@ -791,7 +780,7 @@ async function _handleDelete(e) {
         if (listFeedback) {
             listFeedback.textContent = err?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
-                : "⚠ Couldn't delete — check your connection and try again.";
+                : '⚠ Could not delete — check your connection and try again.';
             listFeedback.className = 'list-feedback error';
         }
     }
@@ -979,9 +968,6 @@ export function validateShiftRules(toSave, memberName) {
             if (!adjShift || !adjShift.includes('-')) return;
             const [adjStart, adjEnd] = adjShift.split('-');
             if (delta === -1) {
-                // Skip backward check when the adjacent day is also in this batch —
-                // the forward check on that day already reported this gap.
-                if (toSave.some(e => e.date === adjISO && e.value && e.value.includes('-'))) return;
                 const prevEnd = _effectiveEndMins(adjStart, adjEnd);
                 const gap = startMins + 24 * 60 - prevEnd;
                 if (gap < 12 * 60) {
@@ -1042,7 +1028,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
             return !isRestShift(base);
           })
-        : [];
+        : [...dates];
 
     // Sundays within the range that have a worked base shift need an explicit RD correction
     // so the base roster shift doesn't still show on the calendar during the absence period.

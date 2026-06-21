@@ -3,18 +3,19 @@
  *
  * Owns: login/session, AL booking, absence recording, Team Week View,
  *   page coordinator wiring (initialises modules on load),
- *   admin-only annual cultural-calendar maintenance reminder (Nov/Dec only).
+ *   page coordinator wiring (initialises modules on load).
  * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
  *   roster PDF upload/review (admin-roster-upload.js), huddle upload/notifications
  *   (huddle.js), staff Firebase Auth setup (admin-auth.js),
- *   Notifications card or Cultural Calendar card (settings-app.js),
+ *   Notifications card (settings-app.js),
  *   pay maths (paycalc-calc.js), calendar display (app.js), roster data (roster-data.js).
  * Edit here for: login, AL/absence forms, Team Week View.
  * Do not edit here for: shift override grid or forms, roster PDF pipeline,
- *   notifications, cultural calendar preferences, pay calculator, roster data structure, shared CSS.
+ * Do not edit here for: shift override grid or forms, roster PDF pipeline,
+ *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, resolveFaithCalendar, CALENDAR_NAMES, SWIPE_THRESHOLD, SWIPE_VELOCITY, warnIfCulturalCalendarMissingYear, getMembersForGrade } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
@@ -22,8 +23,8 @@ import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { initNavPanel, archiveNotice } from './nav-panel.js';
-import { lockBodyScroll, initCardCollapse, trapFocus, createLightbox } from './overlay.js';
+import { initNavPanel } from './nav-panel.js';
+import { lockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
@@ -57,9 +58,7 @@ function initLoginOverlay() {
     lockBodyScroll();
 
     overlay.addEventListener('keydown', e => {
-        // Ignore Escape while a sign-in is in progress — navigating mid-submit
-        // would leave the user neither signed in nor on the calendar.
-        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './index.html'; return; }
+        if (e.key === 'Escape') { window.location.href = './index.html'; return; }
         trapFocus(overlay, e);
     });
 
@@ -247,16 +246,6 @@ let openAboutLightbox = null;
                 ]},
             ],
         },
-        'cultural-calendar': {
-            title: 'Cultural calendar',
-            sections: [
-                { items: [
-                    { icon: '🌍', html: 'Shows key dates for the chosen tradition in the corner of matching days' },
-                    { icon: '👁️', html: 'Visible to anyone who views that person\'s roster' },
-                    { icon: 'ℹ️', html: 'Only one calendar can be active per person at a time' },
-                ]},
-            ],
-        },
         'daily-huddle': {
             title: 'Daily Huddle',
             sections: [
@@ -337,12 +326,6 @@ let openAboutLightbox = null;
 // ROSTER LOGIC
 // ============================================
 
-// iOS Safari ignores `select.value = x` when options are inside <optgroup>.
-// Set option.selected directly so the displayed value updates on all platforms.
-function _setSelectValue(sel, val) {
-    for (const o of sel.options) if (o.value === val) { o.selected = true; return; }
-}
-
 // ============================================
 // DOM
 // ============================================
@@ -414,7 +397,7 @@ const _savedMember = lsGet('myb_roster_selected_member') || lsGet('adminLastMemb
 const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
     ? _savedMember : null;
 if (lastMember) {
-    _setSelectValue(fieldMember, lastMember);
+    fieldMember.value = lastMember;
     // Keep both keys in sync so the reverse journey (admin → index) always works
     lsSet('adminLastMember', lastMember);
     lsSet('myb_roster_selected_member', lastMember);
@@ -854,20 +837,13 @@ saveBtn.addEventListener('click', async () => {
         const yearStr     = alInBatch[0].date.substring(0, 4);
         const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
         // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
-        // and days being deleted (they'll be removed before the new ones are written).
         const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
-        const deletedALDates = new Set(
-            getAllOverrides()
-                .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
-                .map(o => o.date)
-        );
         // Sundays are uncontracted — exclude from entitlement counts
         const existingAL = getAllOverrides().filter(o =>
             o.memberName === memberName &&
             o.type       === 'annual_leave' &&
             o.date       && o.date.startsWith(yearStr) &&
             !overwriteDates.has(o.date) &&
-            !deletedALDates.has(o.date) &&
             !isSunday(o.date)
         ).length;
         const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
@@ -902,7 +878,6 @@ document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
 // Declared here because the fieldMember change handler references them.
 const alMember   = document.getElementById('alMember');
 const sickMember = document.getElementById('sickMember');
-const alFrom     = document.getElementById('alFrom');
 function syncMemberDisplay() {
     const memberDisplay = document.getElementById('alMemberDisplay');
     if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
@@ -920,12 +895,12 @@ fieldMember.addEventListener('change', () => {
         // Re-assert the value: on the unsaved-changes path the select was reverted to
         // `previous` (line below) and the banner's Discard runs this later, so without
         // this the field would stay on the old member while the grid switched. (v12.32)
-        _setSelectValue(fieldMember, chosen);
+        fieldMember.value = chosen;
         lastFieldMember  = chosen;
         lsSet('adminLastMember', chosen);
         lsSet('myb_roster_selected_member', chosen);
-        _setSelectValue(alMember,    chosen);
-        _setSelectValue(sickMember,  chosen);
+        alMember.value   = chosen;
+        sickMember.value = chosen;
         syncMemberDisplay();
         syncSickMemberDisplay();
         updateALBanner();
@@ -936,7 +911,7 @@ fieldMember.addEventListener('change', () => {
     };
     if (confirmNavigate(go)) { go(); return; }
     // Revert the dropdown to the previously confirmed member while the banner waits
-    _setSelectValue(fieldMember, previous);
+    fieldMember.value = previous;
 });
 let lastFieldDate = fieldDate.value;
 fieldDate.addEventListener('change', () => {
@@ -969,7 +944,7 @@ function handleEdit(e) {
     const memberName = btn.dataset.member;
     const date       = btn.dataset.date;
     const go = () => {
-        _setSelectValue(fieldMember, memberName);
+        fieldMember.value = memberName;
         fieldDate.value   = date;
         lastFieldDate     = date;
         lsSet('adminLastMember', memberName);
@@ -989,12 +964,12 @@ function handleEdit(e) {
  * @param {string} date        YYYY-MM-DD — any date within the week to show
  */
 function showInChangeAShift(memberName, date) {
-    _setSelectValue(fieldMember, memberName);
+    fieldMember.value = memberName;
     fieldDate.value   = date;
     lastFieldMember   = memberName;
     lastFieldDate     = date;
-    _setSelectValue(alMember,   memberName);
-    _setSelectValue(sickMember, memberName);
+    alMember.value    = memberName;
+    sickMember.value  = memberName;
     syncMemberDisplay();
     syncSickMemberDisplay();
     // Align the saved-changes month filter so the new days aren't filtered out.
@@ -1106,7 +1081,7 @@ initALSection({
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
+    currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
 });
 
 // ============================================
@@ -1115,7 +1090,7 @@ initALSection({
 initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift, showSuccess,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
 });
 
 
@@ -1326,12 +1301,12 @@ function applyPermissions() {
     if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
 
     // Non-admin: lock all member selectors to their own name
-    _setSelectValue(fieldMember,  currentUser);
+    fieldMember.value     = currentUser;
     fieldMember.disabled  = true;
     syncMemberDisplay();
-    _setSelectValue(alMember,     currentUser);
+    alMember.value        = currentUser;
     alMember.disabled     = true;
-    _setSelectValue(sickMember,   currentUser);
+    sickMember.value      = currentUser;
     sickMember.disabled   = true;
     lsSet('adminLastMember', currentUser);
     lsSet('myb_roster_selected_member', currentUser);
@@ -1375,7 +1350,6 @@ initCardCollapse('alToggleHeader',          'alBody',            'alChevron');
 initCardCollapse('sickToggleHeader',        'sickBody',          'sickChevron');
 initCardCollapse('overridesToggleHeader',   'overridesBody',     'overridesChevron');
 
-// Cultural calendar moved to settings.html / settings-app.js (v11.06)
 
 // ============================================
 // PRINT HEADER — member name, week, timestamp
@@ -1509,78 +1483,3 @@ document.querySelector('.nav-panel-pill--calendar')?.addEventListener('click', (
     // Let the <a> navigate normally
 });
 
-// ── Cultural calendar annual update reminder ──────────────────────────────────
-// In November and December, remind the admin to update the 15 lunar/lunisolar
-// datasets before the new year begins. Only shown to the admin user.
-// Data sources and dataset list: CLAUDE.md → "Annual maintenance reminder".
-// warnIfCulturalCalendarMissingYear() logs missing calendars and returns their names —
-// used both for the yearly reminder (Nov/Dec) and a year-round "currently missing" warning.
-if (currentIsAdmin) {
-    const missingNow = warnIfCulturalCalendarMissingYear();
-    const isRemindMonth = new Date().getMonth() >= 10;
-
-    if (isRemindMonth || missingNow.length > 0) {
-        const nextYear = new Date().getFullYear() + 1;
-        const banner   = document.createElement('div');
-        banner.id      = 'culturalCalReminder';
-        const icon = document.createElement('span');
-        icon.className = 'reminder-icon';
-        icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = missingNow.length > 0 ? '⚠️' : '📅';
-        const text = document.createElement('span');
-        text.className = 'reminder-text';
-        if (missingNow.length > 0) {
-            text.innerHTML = `<strong>Cultural calendar data missing for ${new Date().getFullYear()}</strong> — the following datasets have no entries this year and their markers will not appear on staff calendars: ${missingNow.join(', ')}. Update <code>roster-data.js</code> and see CLAUDE.md → "Annual maintenance reminder".`;
-        } else {
-            text.innerHTML = `<strong>Cultural calendar reminder</strong> — update lunar/lunisolar dates for ${nextYear} before the year begins. See CLAUDE.md → "Annual maintenance reminder" for the 15 datasets and their sources.`;
-        }
-        const dismissBtn = document.createElement('button');
-        dismissBtn.className = 'reminder-dismiss';
-        dismissBtn.setAttribute('aria-label', 'Dismiss reminder');
-        dismissBtn.textContent = '×';
-        dismissBtn.addEventListener('click', function () { banner.remove(); });
-        banner.appendChild(icon);
-        banner.appendChild(text);
-        banner.appendChild(dismissBtn);
-        const anchor = document.querySelector('.card') || document.querySelector('main') || document.body;
-        anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
-    }
-}
-
-// ============================================
-// WORK EMAIL NOTICE — shown once per device to all logged-in staff
-// ============================================
-if (currentUser) (function () {
-    const NOTICE_KEY = 'myb_work_email_notice_seen';
-    if (lsGet(NOTICE_KEY)) return;
-
-    const lb = document.getElementById('workEmailNoticeLightbox');
-    if (!lb) return;
-
-    const NOTICE = {
-        id:      'work-email-2026-06',
-        title:   'Add your work email',
-        section: 'Settings',
-        date:    'June 2026',
-        body:    'A Work Email field has been added to the Settings page. Your work email helps protect your account and will enable password recovery in a future update.',
-    };
-
-    function archiveAndMark() {
-        lsSet(NOTICE_KEY, '1');
-        archiveNotice(NOTICE);
-    }
-
-    const noticeLb = createLightbox({
-        overlay:  lb,
-        content:  document.getElementById('workEmailNoticeContent'),
-        closeBtn: document.getElementById('workEmailNoticeClose'),
-        onClose:  archiveAndMark,
-    });
-
-    // If the user clicks "Go to Settings" without closing first, archive synchronously
-    // before the browser navigates away so the notice is not shown again on return.
-    document.getElementById('workEmailNoticeSettingsLink')
-        ?.addEventListener('click', archiveAndMark, { once: true });
-
-    noticeLb.open();
-})();

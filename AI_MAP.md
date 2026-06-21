@@ -23,7 +23,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Service worker registration + update lifecycle (all six app pages) | `sw-register.js` |
 | Auth/session helpers (AUTH_KEY, getSession, saveSession, clearSession, ensureFirebaseSession) | `session.js` |
 | Admin portal UI, login, AL, sick, overrides, module wiring | `admin-app.js` + `admin.html` |
-| Settings page — Notifications, Cultural Calendar | `settings-app.js` + `settings.html` |
+| Settings page — Notifications, Work Email | `settings-app.js` + `settings.html` |
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Links design workspace — 28-line design grid, paint mode, hourly coverage heat map, design checks, auto-generator UI | `links-app.js` + `links.html` + `links.css` |
@@ -69,8 +69,6 @@ The single source of truth for all roster data.
 - `getBaseShift(member, date)` — **always use this, never read roster.data directly**
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
-- Cultural calendar datasets (Islamic, Hindu, Chinese — need annual update)
-
 ### `app.js`
 Everything that touches `index.html` at runtime.
 - Calendar render, month carousel, swipe gestures
@@ -95,15 +93,14 @@ Login, session management, shared DOM handles, and the glue that wires all admin
 - AL over-entitlement confirm bar (`alConfirmBar`) — calls `triggerConfirmedALSave()` from `admin-al.js` for the AL booking path
 - Booked-period helpers (`_renderBookedPeriods`, `deletePeriodOverrides`, `updateALBookedBox`, `updateSickBookedBox`)
 - Calls `initALSection()`, `initSickSection()`, `initOverrides()` to initialise all sections
-- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, auth setup, Notifications card, or Cultural Calendar — those are in sub-modules. Huddle upload, roster upload, and staff auth setup moved to `operations-app.js` at v10.99. Notifications and Cultural Calendar moved to `settings-app.js` at v11.06.
+- Does **not** contain AL save logic, sick save logic, week grid, override list, bulk bar, roster review pipeline, Huddle upload, auth setup, Notifications card, or Cultural Calendar — those are in sub-modules. Huddle upload, roster upload, and staff auth setup moved to `operations-app.js` at v10.99. Notifications moved to `settings-app.js` at v11.06.
 
 ### `settings-app.js`
 Coordinator for `settings.html` (all logged-in staff, v11.06).
 - Shared session: uses `AUTH_KEY = 'myb_admin_session'` (same key as `admin-app.js`) — a user signed in on admin.html arrives at settings.html without re-authenticating
 - Session check at module top: if authenticated → `ensureFirebaseSession(name)` in background + `initApp()`; else → `initLoginOverlay()`
 - `initLoginOverlay()` — same grade/name/password flow as admin; on success calls `saveSession()` + `location.reload()`
-- `initApp()` — calls `initNavPanel`, collapsible card wiring, `initHuddleNotifications()`, `initCulturalCalendarCard()`, tips/icon lightboxes, SW registration
-- `initCulturalCalendarCard()` — simplified vs admin-app.js: no `fieldMember` dropdown, always saves for `currentUser`; no `renderWeekGrid()` call; reads/writes Firestore `memberSettings/${currentUser}`
+- `initApp()` — calls `initNavPanel`, collapsible card wiring, `initHuddleNotifications()`, work email card init, tips/icon lightboxes, SW registration
 
 ### `overlay.js`
 Shared overlay helpers — singleton module, imported by every page that shows a modal overlay (v11.40).
@@ -199,16 +196,12 @@ The Weekly Roster Upload pipeline.
 UI layer for `paycalc.html`. No pure pay maths here.
 - Period select, form read/write, autosave
 - `onPeriodChange()` — orchestrates all period-level updates
-- `_suggestIfBlank()` / `_applyRosterSuggestion()` — calendar pre-fill helpers. `_applyRosterSuggestion` calls `_saveRosterSnap` after filling fields. `_suggestIfBlank` fills a field only when its value is empty OR its element still has `roster-suggested` class (meaning it was last set by the pre-fill, not the user).
-- `snapKey(pNum)` → `myb_pc_snap_${pNum}` — localStorage key for the roster snapshot of a given period
-- `_saveRosterSnap(pNum, s)` — saves the suggested values that were just applied so that `_restoreRosterSuggested` can identify them after a page reload
-- `_restoreRosterSuggested(pNum)` — called immediately after `writeFormData` in `loadPeriodData`; re-adds `roster-suggested` to any field whose current value still matches the last roster snapshot. Fields the user manually edited differ from the snapshot and keep their values. `clearPeriod()` deletes the snap key alongside the period data.
+- `_suggestIfBlank()` / `_applyRosterSuggestion()` — pre-fill helpers
 - Settings card, HPP card, sticky take-home bar
 - `getLoggedMember()`, `getEffectiveContr(p)` — session/period helpers
 - `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
 - `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
 - Imports `HELP_CONTENT` from `paycalc-help.js`; imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `ytdPayKey`, `ytdTaxKey`, `runMigrations` from `paycalc-migrations.js`
-- Note: `snapKey` is defined and used locally in `paycalc.js` — it is **not** in `paycalc-migrations.js`. The snap keys are period-level runtime state, not versioned migration keys, so they live alongside the code that uses them.
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).
@@ -256,11 +249,10 @@ Shared slide-out navigation panel — imported by all six app pages.
   - **Double-init guard:** checks `burger.dataset.navPanelInit` at the top — returns early if already initialised. Safe to call on every page render.
   - `isAdmin: true` enables the Operations pill (hidden from non-admins). `isLinksDesigner: true` enables the Links pill.
   - `onLogoClick` — called when the drawer brand button is tapped; each page passes `() => openAboutLightbox?.()` to open the About lightbox.
-- `archiveNotice({ id, title, section, date, body })` — stores a dismissed notice to `myb_app_notices` in localStorage (newest-first JSON array). Call from any page module when a notice lightbox is closed. Safe to call before `initNavPanel`. Deduplicates by `id` — calling twice with the same id is a no-op.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay / Operations / Links); admin-only and links-designer-only pills filtered by flags. Current page omitted from the pill row.
-- `NAV_INFORMATION` — flat always-open Information section: Workplace (Daily Huddle, Weekly Retail Circular, App Notices) + Guides (Staff Guide, Pay Guide, Railcard Guide, FIP Guide via `NAV_GUIDES` collapsed submenu, v11.21). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder. An entry with `notices: true` renders as a `<button>` that opens the `#navNoticesLightbox` archive.
+- `NAV_INFORMATION` — flat always-open Information section: Workplace (Daily Huddle, Weekly Retail Circular) + Guides (Staff Guide, Pay Guide, Railcard Guide, FIP Guide via `NAV_GUIDES` collapsed submenu, v11.21). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
-- Notification bell (v10.61, simplified v13.19): simple 🔔/🔕 icon button rendered inside `nav-panel-footer-actions` alongside Sign out — shown only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows 🔕 only — the inline "change in browser settings" hint was removed at v13.19. This file owns only the bell UI — all push logic is in `notif.js`.
+- Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
 - Initials badge (v12.22): 26px circle (`#navPanelAvatar`) before the member name in the footer. Painted with `avatarInitials(memberName)` and `avatarHue(memberName)` from `roster-data.js` — no fetch, no cache, no event listeners. Profile photo feature removed at v12.22; spec in ROADMAP.md.
 - Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`. Windows detection (v10.65) uses `navigator.userAgentData?.platform ?? navigator.platform` (modern API with legacy fallback) — flags are skipped on Windows where flag emoji render as two-letter codes.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
@@ -306,9 +298,8 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
-- `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72). Per-member isolation (`memberName == request.auth.token.name`) was added at v10.72 but **suspended at v10.94** after a production outage — see KNOWN_LIMITATIONS.md task #2 for the re-introduction checklist.
-- `overrides` delete: any authenticated user (`request.auth != null`). Per-member isolation suspended at v10.94 alongside create/update.
-- `memberSettings` create/update/delete: owner-only write — `request.auth.token.name == memberName` (added v13.16 alongside `staffContact` isolation). Any authenticated member may read all memberSettings (required by the cultural-calendar display on the calendar page).
+- `overrides` create/update: `memberName == request.auth.token.name || admin == true`; required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72)
+- `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.

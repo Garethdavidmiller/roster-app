@@ -732,9 +732,9 @@ body.lb-open #stickyTotal { display: none !important; }
 
 /* ---- Help button (? circle on card headers) — used across all pages ---- */
 .help-btn {
-    width: 20px; height: 20px; border-radius: 50%; /* match .btn-card-tips size on the other pages */
+    width: 24px; height: 24px; border-radius: 50%;
     background: var(--bg-faint); border: 1.5px solid var(--border-mid);
-    color: var(--text-light); font-size: 11px; font-weight: 700;
+    color: var(--text-light); font-size: 12px; font-weight: 700;
     display: inline-flex; align-items: center; justify-content: center;
     cursor: pointer; flex-shrink: 0; touch-action: manipulation;
     font-family: inherit; line-height: 1;
@@ -1016,21 +1016,6 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill:hover { background: var(--nav-raised-strong); }
 }
 
-/* "You are here" — the current page's pill is inert and ringed so it reads as
-   the active location rather than a tappable destination. pointer-events:none
-   neutralises the variant hover/active states without re-stating each colour. */
-.nav-panel-pill--current {
-    cursor: default;
-    pointer-events: none;
-    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
-}
-.nav-panel-pill--current::before {
-    content: "●";
-    font-size: 9px;
-    margin-right: 6px;
-    opacity: 0.85;
-}
-
 /* Pill colour variants — match the equivalent quick-action buttons on the calendar page */
 .nav-panel-pill--calendar {
     background: var(--accent-gold);
@@ -1149,10 +1134,9 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-link:hover { background: var(--nav-raised); }
 }
 
-/* Coming-soon and App-Notices entries are <button>s, not <a>s — reset native
-   button chrome so they sit identically alongside the anchor links. */
-button.nav-panel-link--coming-soon,
-button.nav-panel-link--notices {
+/* Coming-soon entries are <button>s, not <a>s — reset native button chrome
+   so they sit identically alongside the anchor links. */
+button.nav-panel-link--coming-soon {
     width: 100%;
     background: none;
     border: none;
@@ -1174,6 +1158,7 @@ button.nav-panel-link--notices {
     padding: 40px 40px 32px;
     width: min(300px, 85vw);
     text-align: center;
+    transform: scale(0.85);
 }
 .nav-cs-icon  { font-size: 52px; line-height: 1; }
 .nav-cs-title { color: white; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
@@ -1181,87 +1166,6 @@ button.nav-panel-link--notices {
 #navComingSoonClose { color: rgba(255, 255, 255, 0.5); }
 @media (hover: hover) and (pointer: fine) {
     #navComingSoonClose:hover { color: white; }
-}
-
-/* App Notices archive lightbox — theme only; structure from .lb-content/.lb-close */
-#navNoticesContent {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 24px;
-    padding: 40px 40px 32px;
-    width: min(300px, 85vw);
-    max-height: 80vh;
-    max-height: 80dvh;
-    /* The inner list scrolls (not the whole card) so the ✕ and heading stay
-       fixed even with a long archive. Overrides .lb-content's overflow-y:auto. */
-    overflow: hidden;
-}
-/* Centre the heading; list items below it are left-aligned */
-#navNoticesContent > .nav-cs-title { text-align: center; }
-#navNoticesClose { color: rgba(255, 255, 255, 0.5); }
-@media (hover: hover) and (pointer: fine) {
-    #navNoticesClose:hover { color: white; }
-}
-.nav-notices-empty {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 13px;
-    text-align: center;
-    padding: 8px 0 4px;
-}
-/* Scrollable flex child: takes the card's remaining height and scrolls the
-   list internally (min-height:0 lets it shrink below content size). */
-.nav-notices-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-}
-.notices-item {
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.notices-item-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    margin-bottom: 2px;
-}
-.notices-item-section {
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.55);
-}
-.notices-item-date {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
-    white-space: nowrap;
-}
-.notices-item-title {
-    font-size: 13px;
-    font-weight: 600;
-    color: white;
-    line-height: 1.3;
-}
-.notices-item-body {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.6);
-    line-height: 1.5;
 }
 
 @media print {
@@ -1289,7 +1193,7 @@ button.nav-panel-link--notices {
     gap: 8px;
 }
 
-/* Sign-out sits on the right; member name takes the left */
+/* Bell + sign-out grouped on the right; member name takes the left */
 .nav-panel-footer-actions {
     display: flex;
     align-items: center;
@@ -1297,24 +1201,36 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 
-/* Notification bell — simple icon button in the footer row, next to Sign out */
+/* Notification bell toggle — discrete icon button, 44px tap target */
 .nav-panel-bell {
     background: none;
     border: none;
     cursor: pointer;
     font-size: 18px;
     line-height: 1;
-    padding: 4px 6px;
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
     touch-action: manipulation;
     font-family: inherit;
-    flex-shrink: 0;
 }
-.nav-panel-bell[data-notif-state="loading"] { opacity: 0.5; }
-.nav-panel-bell:disabled { cursor: default; opacity: 0.5; }
+.nav-panel-bell[data-notif-state="loading"] { opacity: 0.4; }
+.nav-panel-bell:disabled { cursor: default; }
 @media (hover: hover) and (pointer: fine) {
-    .nav-panel-bell:hover { opacity: 0.75; }
+    .nav-panel-bell:hover { opacity: 0.7; }
 }
 .nav-panel-bell:active { opacity: 0.5; }
+
+/* Browser-blocked hint, revealed when a denied bell is tapped.
+   Lifted toward white so the red clears AA on the navy footer. */
+.nav-panel-bell-hint {
+    font-size: 11px;
+    color: color-mix(in oklch, var(--error-red) 65%, white);
+    text-align: right;
+}
 
 /* Name + nationality flags grouped on the left; name truncates, flags stay */
 .nav-panel-member-wrap {
@@ -1496,80 +1412,6 @@ button.nav-panel-link--notices {
 }
 @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
 
-/* ═══════════════════════════════════════════════════════════════
-   CULTURAL CALENDAR CARD — shared by admin.html and settings.html
-   ═══════════════════════════════════════════════════════════════ */
-.calendar-active-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    font-weight: 700;
-    color: var(--accent-gold);
-    background: var(--primary-blue);
-    border: 1.5px solid var(--accent-gold);
-    border-radius: 20px;
-    padding: 2px 8px;
-    margin-left: 8px;
-    vertical-align: middle;
-}
-.religious-intro {
-    font-size: 13px;
-    color: var(--text-mid);
-    margin-bottom: 14px;
-    line-height: 1.5;
-}
-.faith-radio-group {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.faith-radio-label {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-size: 14px;
-    color: var(--text-dark);
-    cursor: pointer;
-    line-height: 1.4;
-}
-.faith-radio-label input[type="radio"] {
-    width: 18px; height: 18px;
-    accent-color: var(--primary-blue);
-    cursor: pointer;
-    flex-shrink: 0;
-    margin-top: 1px;
-}
-.faith-radio-label input[type="radio"]:focus-visible {
-    outline: 2px solid var(--primary-blue);
-    outline-offset: 2px;
-}
-.faith-radio-label strong { font-weight: 600; }
-.faith-radio-sublabel {
-    font-size: 12px;
-    color: var(--text-light);
-    display: block;
-    margin-top: 1px;
-}
-.religious-disclaimer {
-    margin-top: 12px;
-    font-size: 11px;
-    color: var(--text-light);
-    line-height: 1.5;
-    padding: 8px 10px;
-    background: var(--bg-faint);
-    border-radius: 6px;
-    border: 1px solid var(--border-light);
-}
-.religious-saved {
-    display: none;
-    margin-top: 10px;
-    font-size: 12px;
-    color: var(--green);
-    font-weight: 600;
-}
-.religious-saved.visible { display: block; }
-.religious-saved.error   { color: var(--error-red); }
 
 /* ══════════════════════════════════════════════════════════════════
    SHARED CARD COMPONENTS
@@ -1582,12 +1424,13 @@ button.nav-panel-link--notices {
     background: var(--bg-light);
     border-bottom: 1px solid var(--border-light);
     padding: 11px 16px;
-    display: grid;
-    grid-template-columns: 1fr;
-    row-gap: 3px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
 }
 .card-header h2 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
-.card-header .hint { font-size: var(--type-small); color: var(--text-light); }
+.card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
 .card-body { padding: 12px 16px; }
 
 /* ── Collapsible card ───────────────────────────────────────────── */
@@ -1622,7 +1465,7 @@ button.nav-panel-link--notices {
     width: 100%;
     min-height: 44px;
     padding: 11px 16px;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-button);
     font-size: var(--type-button);
     font-weight: 700;
     border: 1.5px solid transparent;
@@ -1653,7 +1496,7 @@ button.nav-panel-link--notices {
     background: var(--primary-blue);
     color: white;
     border: none;
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-button);
     font-size: var(--type-button);
     font-weight: 800;
     cursor: pointer;
@@ -1707,7 +1550,6 @@ button.nav-panel-link--notices {
     max-width: 360px;
     width: 100%;
     max-height: 85vh;
-    max-height: 85dvh; /* dvh avoids mobile browser chrome layout jump on scroll */
     box-shadow: var(--shadow-3);
 }
 .tips-lb-title {

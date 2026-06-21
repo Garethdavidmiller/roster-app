@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v13.22 -->
+<!-- MYB Roster — Admin v13.23 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -40,7 +40,7 @@
 <div id="loginOverlay" role="dialog" aria-label="Sign in to Admin" aria-modal="true">
     <div id="loginCard">
         <img src="icon-192.png" alt="MYB Roster">
-        <div class="login-app-name">Marylebone Roster</div>
+        <div class="login-app-name">MYB Roster</div>
         <div class="login-subtitle">Admin · Sign in</div>
         <div class="login-field">
             <label for="loginGrade">Grade</label>
@@ -81,26 +81,13 @@
         <div class="lightbox-version">Version <span id="lightboxVersion"></span></div>
         <div id="lightboxUpdateStatus" class="lightbox-status"></div>
         <div class="lightbox-badge">Admin panel</div>
-<a href="./guide.html" target="_blank" rel="noopener" class="lightbox-bug-link">📖 View quick guide</a>
+<a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:14px">📖 View quick guide</a>
         <a href="./index.html" class="lightbox-bug-link">📅 View staff roster</a>
         <a id="adminBugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
         <div class="lightbox-print-wrap">
             <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
             <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current week view</span>
         </div>
-    </div>
-</div>
-
-<!-- Work email notice lightbox — shown once per device to prompt staff to add their work email -->
-<div id="workEmailNoticeLightbox" class="lb-overlay" role="dialog" aria-label="Add your work email" aria-modal="true">
-    <div id="workEmailNoticeContent" class="lb-content">
-        <button id="workEmailNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
-        <div class="notice-lb-emoji" aria-hidden="true">📧</div>
-        <div class="lightbox-app-name">Work Email</div>
-        <div class="lightbox-badge">Settings</div>
-        <p class="notice-lb-desc">We've added a <strong>Work Email</strong> field to your Settings page.</p>
-        <p class="notice-lb-desc">Adding your work email helps protect your account and will enable password recovery in a future update — it won't be used for anything else.</p>
-        <a id="workEmailNoticeSettingsLink" href="./settings.html" class="lightbox-bug-link">⚙️ Go to Settings</a>
     </div>
 </div>
 
@@ -145,7 +132,7 @@
     <div class="member-context-bar">
         <label for="fieldMember">Staff member</label>
         <select id="fieldMember">
-            <option value="" disabled>— Select member —</option>
+            <option value="" disabled hidden>— Select member —</option>
         </select>
     </div>
 

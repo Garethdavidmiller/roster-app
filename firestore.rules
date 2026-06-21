@@ -55,25 +55,6 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
-    match /memberSettings/{memberName} {
-      // Faith calendar preferences are personal data — read requires auth.
-      // app.js degrades gracefully if this returns 403 (uses cached preferences).
-      allow read: if request.auth != null;
-      // Write restricted to the owning member via the `name` JWT claim set by
-      // setupRosterAuth. Mirrors the staffContact isolation pattern. Anonymous
-      // fallback sessions lack this claim and cannot write another member's preference.
-      allow create, update: if
-        request.auth != null &&
-        request.auth.token.name == memberName &&
-        request.resource.data.keys().hasAll(['memberName', 'faithCalendar']) &&
-        request.resource.data.memberName == memberName &&
-        request.resource.data.faithCalendar in [
-          'islamic', 'hindu', 'chinese', 'jamaican',
-          'congolese', 'portuguese', 'none'
-        ];
-      allow delete: if request.auth != null && request.auth.token.name == memberName;
-    }
-
     match /huddles/{date} {
       // Open read: index.html reads huddles without a Firebase Auth session —
       // required for Huddle button and notification auto-open on fresh visits.

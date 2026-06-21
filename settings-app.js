@@ -1,13 +1,13 @@
 /**
  * settings-app.js — Coordinator for settings.html.
  *
- * Owns: login/session check, push notifications card, cultural calendar card.
+ * Owns: login/session check, push notifications card.
  * Session is shared with admin-app.js via the same AUTH_KEY in localStorage —
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, CALENDAR_NAMES, resolveFaithCalendar, getMembersForGrade } from './roster-data.js';
-import { db, doc, getDoc, setDoc, getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
+import { CONFIG, getMembersForGrade } from './roster-data.js';
+import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -40,9 +40,9 @@ initNavPanel({
 
 if (isAuthenticated) {
     // Re-establish Firebase Auth in the background. Stored as a Promise (matching
-    // operations-app.js) so the cultural-calendar Firestore write can await it —
-    // a returning user skips the login handler, so auth.currentUser may still be
-    // null for a moment and an immediate setDoc would fail the request.auth rule.
+    // Re-establish Firebase Auth in the background. A returning user skips the
+    // login handler, so auth.currentUser may still be null for a moment and
+    // an immediate Firestore write would fail the request.auth rule.
     window._mybSession = ensureFirebaseSession(currentUser);
     initApp();
 } else {
@@ -92,37 +92,12 @@ function initLoginOverlay() {
         errorEl.classList.remove('visible');
     });
 
-    // Client-side lockout after repeated wrong passwords — a UX speed bump only
-    // (resets on reload); real rate limiting is enforced server-side by Firebase
-    // Auth. Mirrors the Admin login so both sign-in screens behave the same.
-    let _failCount = 0;
-    let _lockedUntil = 0;
-
     async function attemptLogin() {
-        if (Date.now() < _lockedUntil) return;
         const name = nameSelect.value;
         const pw   = passwordInput.value.trim().toLowerCase().replace(/[^a-z]/g, '');
         if (!name) { showError('Please select your name.'); return; }
         if (!pw)   { showError('Please enter your password.'); return; }
-        if (pw !== getSurname(name)) {
-            _failCount++;
-            if (_failCount >= 3) {
-                _lockedUntil = Date.now() + 30_000;
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Try again in 30s';
-                setTimeout(() => {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Sign in →';
-                    _failCount = 0;
-                    _lockedUntil = 0;
-                }, 30_000);
-                errorEl.textContent = 'Too many attempts. Try again in 30 seconds.';
-                errorEl.classList.add('visible');
-                return;
-            }
-            showError('Incorrect password. Your password is your surname (lowercase).');
-            return;
-        }
+        if (pw !== getSurname(name)) { showError('Incorrect password. Your password is your surname (lowercase).'); return; }
 
         submitBtn.disabled  = true;
         submitBtn.textContent = 'Signing in…';
@@ -150,17 +125,12 @@ function initLoginOverlay() {
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
     // notif card collapse is wired by initHuddleNotifications() below.
-    // Religious card collapse is wired inside initCulturalCalendarCard() so it can
-    // reference updateActiveTag, which needs the collapse state for its logic.
 
     // Work Email card
     initContactCard();
 
     // Notifications card
     initHuddleNotifications();
-
-    // Cultural calendar card
-    initCulturalCalendarCard();
 
     // Icon lightbox
     initIconLightbox();
@@ -183,11 +153,6 @@ function initContactCard() {
     const markUserTyped = () => { userHasTyped = true; };
     emailInput.addEventListener('input',  markUserTyped);
     emailInput.addEventListener('change', markUserTyped);
-
-    // Transient "✓ Saved" button confirmation — the persistent "last updated"
-    // line can look identical before and after a save, so the tap needs its own
-    // perceptible acknowledgement. Mirrors the cultural-calendar ✓ chip.
-    let _savedBtnTimer = null;
 
     function isValidEmail(v) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
@@ -217,12 +182,8 @@ function initContactCard() {
     }
 
     // Load existing email; show a loading message while waiting.
-    // Await Firebase Auth restoration first — on a cold open, auth.currentUser
-    // may still be null when this runs, and staffContact reads require auth.
     setFeedback('Checking for a saved email…', '');
-    Promise.resolve(window._mybSession)
-      .then(() => getStaffContact(currentUser))
-      .then(data => {
+    getStaffContact(currentUser).then(data => {
         if (data?.workEmail && !userHasTyped) {
             emailInput.value = data.workEmail;
             showSavedState(formatDate(data.updatedAt));
@@ -259,13 +220,11 @@ function initContactCard() {
 
         saveBtn.disabled    = true;
         saveBtn.textContent = 'Saving…';
-        let saved = false;
         try {
             if (window._mybSession) await window._mybSession;
             await saveStaffContact(currentUser, email);
             const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
             showSavedState(today);
-            saved = true;
         } catch (err) {
             console.warn('[staffContact] Save failed:', err);
             setFeedback(
@@ -275,15 +234,8 @@ function initContactCard() {
                 'err'
             );
         } finally {
-            saveBtn.disabled = false;
-            clearTimeout(_savedBtnTimer);
-            if (saved) {
-                // Brief, action-caused acknowledgement before resting label returns.
-                saveBtn.textContent = '✓ Saved';
-                _savedBtnTimer = setTimeout(() => { saveBtn.textContent = 'Save email'; }, 2000);
-            } else {
-                saveBtn.textContent = 'Save email';
-            }
+            saveBtn.disabled    = false;
+            saveBtn.textContent = 'Save email';
         }
     });
 
@@ -309,97 +261,6 @@ function initContactCard() {
             }
         });
     }
-}
-
-// ── Cultural calendar card ────────────────────────────────────────────────────
-function initCulturalCalendarCard() {
-    const saved      = document.getElementById('religiousSaved');
-    const disclaimer = document.getElementById('calendarDisclaimer');
-    const activeTag  = document.getElementById('calendarActiveTag');
-    const radios     = document.querySelectorAll('input[name="faithCalendar"]');
-    if (!saved || !radios.length) return;
-
-    function updateActiveTag(value) {
-        if (!activeTag) return;
-        const bodyOpen = document.getElementById('religiousBody')?.classList.contains('open') ?? false;
-        if (!bodyOpen && value && value !== 'none') {
-            activeTag.textContent   = (CALENDAR_NAMES[value] || value) + ' active';
-            activeTag.style.display = '';
-        } else {
-            activeTag.style.display = 'none';
-        }
-    }
-
-    function updateDisclaimer(value) {
-        const radio = document.querySelector(`input[name="faithCalendar"][value="${value}"]`);
-        const text  = radio?.dataset.disclaimer || '';
-        disclaimer.textContent = text;
-        disclaimer.classList.toggle('visible', !!text);
-    }
-
-    // Wire card collapse here (not in initApp) so onToggle can reference updateActiveTag.
-    initCardCollapse('religiousToggleHeader', 'religiousBody', 'religiousChevron', () => {
-        const checked = document.querySelector('input[name="faithCalendar"]:checked');
-        updateActiveTag(checked?.value || 'none');
-    });
-
-    async function loadSetting() {
-        const local = lsGet(`faithCalendar_${currentUser}`) || 'none';
-        radios.forEach(r => { r.checked = (r.value === local); });
-        updateDisclaimer(local);
-        updateActiveTag(local);
-
-        // Guard against a user changing a radio while Firestore is loading —
-        // once the user interacts, their choice takes priority over the snapshot.
-        let userInteracted = false;
-        const markInteracted = () => { userInteracted = true; };
-        radios.forEach(r => r.addEventListener('change', markInteracted, { once: true }));
-
-        try {
-            // Await Firebase Auth restoration before the read — same pattern as the write.
-            if (window._mybSession) await window._mybSession;
-            const snap = await getDoc(doc(db, 'memberSettings', currentUser));
-            if (!userInteracted && snap.exists()) {
-                const value = resolveFaithCalendar(snap.data());
-                lsSet(`faithCalendar_${currentUser}`, value);
-                radios.forEach(r => { r.checked = (r.value === value); });
-                updateDisclaimer(value);
-                updateActiveTag(value);
-            }
-        } catch (e) {
-            console.warn('[Firestore] memberSettings load failed:', e);
-        } finally {
-            radios.forEach(r => r.removeEventListener('change', markInteracted));
-        }
-    }
-
-    let saveTimer;
-    radios.forEach(radio => {
-        radio.addEventListener('change', async () => {
-            updateDisclaimer(radio.value);
-            updateActiveTag(radio.value);
-            clearTimeout(saveTimer);
-            saved.classList.remove('visible', 'error');
-            lsSet(`faithCalendar_${currentUser}`, radio.value);
-            saved.textContent = '✓ Saved';
-            saved.classList.add('visible');
-            saveTimer = setTimeout(() => saved.classList.remove('visible'), 2500);
-            try {
-                // Wait for Firebase Auth restoration before the write — otherwise an
-                // immediate change after a cold open can fail the request.auth rule.
-                if (window._mybSession) await window._mybSession;
-                await setDoc(doc(db, 'memberSettings', currentUser), { memberName: currentUser, faithCalendar: radio.value }, { merge: true });
-            } catch (e) {
-                console.warn('[Firestore] memberSettings sync failed:', e);
-                clearTimeout(saveTimer);
-                saved.textContent = 'Saved locally — sync to other devices failed';
-                saved.classList.add('error');
-                saveTimer = setTimeout(() => saved.classList.remove('visible', 'error'), 4000);
-            }
-        });
-    });
-
-    loadSetting();
 }
 
 // ── Tips lightbox ─────────────────────────────────────────────────────────────
@@ -432,16 +293,6 @@ const CARD_TIPS = {
                 ]},
                 { heading: 'iPhone users', items: [
                     { icon: '🍎', html: 'Notifications only work on iPhone if the app has been <strong>added to your Home Screen</strong> (tap Share → Add to Home Screen in Safari)' },
-                ]},
-            ],
-        },
-        'cultural-calendar': {
-            title: 'Cultural calendar',
-            sections: [
-                { items: [
-                    { icon: '🌍', html: 'Shows key dates for the chosen tradition in the corner of matching days' },
-                    { icon: '👁️', html: 'Visible to anyone who views your roster' },
-                    { icon: 'ℹ️', html: 'Only one calendar can be active per person at a time' },
                 ]},
             ],
         },

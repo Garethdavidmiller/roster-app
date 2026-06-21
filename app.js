@@ -8,7 +8,7 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, RAMADAN_STARTS, EID_FITR_DATES, EID_ADHA_DATES, ISLAMIC_NEW_YEAR_DATES, MAWLID_DATES, HOLI_DATES, NAVRATRI_DATES, DUSSEHRA_DATES, DIWALI_DATES, RAKSHA_BANDHAN_DATES, CHINESE_NEW_YEAR_DATES, LANTERN_FESTIVAL_DATES, QINGMING_DATES, DRAGON_BOAT_DATES, MID_AUTUMN_DATES, JAMAICAN_ASH_WEDNESDAY_DATES, JAMAICAN_LABOUR_DAY_DATES, JAMAICAN_EMANCIPATION_DATES, JAMAICAN_INDEPENDENCE_DATES, JAMAICAN_HEROES_DAY_DATES, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, CONGOLESE_MARTYRS_DATES, CONGOLESE_LIBERATION_DATES, CONGOLESE_HEROES_DATES, CONGOLESE_INDEPENDENCE_DATES, PORTUGUESE_CARNIVAL_DATES, PORTUGUESE_FREEDOM_DATES, PORTUGUESE_LABOUR_DATES, PORTUGUESE_PORTUGAL_DAY_DATES, PORTUGUESE_CORPUS_CHRISTI_DATES, PORTUGUESE_ASSUMPTION_DATES, PORTUGUESE_REPUBLIC_DATES, PORTUGUESE_RESTORATION_DATES, PORTUGUESE_IMMACULATE_DATES, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, getFaithBadge, resolveFaithCalendar, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
 import { db, collection, query, where, getDocs } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
@@ -40,9 +40,8 @@ import { initHuddleViewer } from './app-huddle-viewer.js';
 // the first synchronous render before Firestore responds.
 // ============================================
 
-// Caches keyed "memberName|YYYY-MM-DD" and memberName respectively.
+// Cache keyed "memberName|YYYY-MM-DD".
 const rosterOverridesCache  = new Map();
-const memberSettingsCache   = new Map();
 const fetchedMonths         = new Set();
 // Cache for getShiftTypesInMonth(). Key: "memberName|year|month".
 // Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
@@ -60,11 +59,6 @@ let _initialFetchInProgress = false;
 // Assigned by the About-lightbox IIFE; lets the nav-panel drawer logo open the
 // same About panel that the header logo opens on the calendar page.
 let openAboutLightbox = null;
-
-// Assigned by the day-detail lightbox IIFE; lets a day-cell tap (touch devices)
-// surface the same shift label / extras / override note that desktop users get
-// from the hover tooltip. Touch had no way to read data-tooltip before this.
-let openDayDetail = null;
 
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
@@ -351,12 +345,7 @@ function navigateToPaycalc(paydayStr) {
 // isWorkedDay — pre-calculated by caller (shift !== RD/SPARE/OFF) to avoid duplication.
 // permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
 // rdwTime — actual shift time for RDW overrides (e.g. '08:00-16:30'), since shift='RDW' sentinel.
-// ============================================
-// FAITH CALENDAR HELPERS
-// ============================================
-
-
-function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '', faithMarker = null) {
+function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '') {
     let badge;
     // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
     if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
@@ -374,7 +363,6 @@ function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '', f
         <div class="day-number">${date.getDate()}</div>
         ${badge}
         ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
-        ${faithMarker ? `<span class="day-faith" aria-label="${escapeHtml(faithMarker.label)}" title="${escapeHtml(faithMarker.label)}">${faithMarker.icon}</span>` : ''}
     `;
 }
 
@@ -441,7 +429,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     // closures that were GC'd on next render).
     grid.addEventListener('click', (e) => {
         const cell = e.target.closest('.calendar-day');
-        if (!cell || cell.classList.contains('other-month')) return;
+        if (!cell) return;
         const paydayIso = cell.dataset.paydayIso;
         if (paydayIso) { navigateToPaycalc(paydayIso); return; }
         const cutoffIso = cell.dataset.cutoffIso;
@@ -455,11 +443,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
             const idx = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
             if (idx !== -1) navigateToPaycalc(formatISO(paydays[idx]));
-            return;
         }
-        // Any other in-month cell: on touch devices (no hover tooltip) open the
-        // day-detail lightbox so staff can read the shift time and override note.
-        if (window.matchMedia('(pointer: coarse)').matches) openDayDetail?.(cell);
     });
 
     DAY_NAMES.forEach(day => {
@@ -481,7 +465,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     }
 
     const daysInMonth = lastDay.getDate();
-    const faithCalendar = resolveFaithCalendar(memberSettingsCache.get(member.name));
     for (let day = 1; day <= daysInMonth; day++) {
         const currentDate = new Date(year, month, day);
 
@@ -535,7 +518,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             : shift === 'RDW'   ? 'Rest day worked'
             : SHIFT_KIND_LABELS[getShiftKind(shift, member)]
                 + (member.permanentShift ? '' : ` ${shift}`);
-        const faithMarker = getFaithBadge(dateStr, faithCalendar);
 
         const isToday  = isSameDay(currentDate, today);
         const isBH     = isBankHoliday(currentDate);
@@ -551,7 +533,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             isEaster ? 'Easter Sunday' : '',
             isPay    ? 'Payday' : '',
             isCutoff ? 'Cut-off date' : '',
-            faithMarker ? faithMarker.label : '',
         ].filter(Boolean).join(', ');
         dayCell.setAttribute('aria-label',
             `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
@@ -562,11 +543,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (extras) ttParts.push(extras);
         if (overrideNote) ttParts.push(`"${overrideNote}"`);
         dayCell.dataset.tooltip = ttParts.join(' · ');
-        // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
-        dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
-        dayCell.dataset.detailShift = ttShift;
-        if (extras)       dayCell.dataset.detailExtras = extras;
-        if (overrideNote) dayCell.dataset.detailNote   = overrideNote;
 
         if (isToday)  dayCell.classList.add('today');
         if (isBH)     dayCell.classList.add('bank-holiday');
@@ -581,8 +557,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             dayCell.dataset.cutoffIso = dateStr;
         }
 
-        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime, faithMarker);
-        if (faithMarker) dayCell.classList.add('has-faith');
+        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime);
         grid.appendChild(dayCell);
     }
 
@@ -707,40 +682,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     document.getElementById('alBtn').addEventListener('click', alLb.open);
 })();
 
-// ============================================
-// DAY DETAIL LIGHTBOX (touch tap on a calendar cell)
-// ============================================
-// Surfaces the shift time, day markers, and any override note when a staff
-// member taps a day on a touch device — the same content desktop users read
-// from the hover tooltip (which is unreachable on touch).
-(function() {
-    const lb       = document.getElementById('dayDetailLightbox');
-    const dateEl   = document.getElementById('dayDetailDate');
-    const shiftEl  = document.getElementById('dayDetailShift');
-    const extrasEl = document.getElementById('dayDetailExtras');
-    const noteEl   = document.getElementById('dayDetailNote');
-    if (!lb) return;
-
-    const detailLb = createLightbox({
-        overlay:  lb,
-        content:  document.getElementById('dayDetailContent'),
-        closeBtn: document.getElementById('dayDetailClose'),
-    });
-
-    // Assigned to the module-level handle so the delegated grid click handler
-    // (rebuilt per render) can open this single, persistent lightbox.
-    openDayDetail = (cell) => {
-        const d = cell.dataset;
-        dateEl.textContent  = d.detailDay   || '';
-        shiftEl.textContent = d.detailShift || '';
-        if (d.detailExtras) { extrasEl.textContent = d.detailExtras; extrasEl.hidden = false; }
-        else                  extrasEl.hidden = true;
-        if (d.detailNote)   { noteEl.textContent = `“${d.detailNote}”`; noteEl.hidden = false; }
-        else                  noteEl.hidden = true;
-        detailLb.open();
-    };
-})();
-
 /**
  * Returns a Set of shift-type strings that actually appear in the given month
  * for the given member, after applying roster pattern + Firestore overrides.
@@ -823,86 +764,6 @@ function updateLegend() {
         const easterSunMonth = computeEaster(currentDisplayYear).getMonth();
         easterItem.style.display = currentDisplayMonth === easterSunMonth ? '' : 'none';
     }
-
-    // Faith calendar legend — show each item only in the month that date falls in,
-    // and only when the current member has opted in to that calendar.
-    const faithCalendar = member ? resolveFaithCalendar(memberSettingsCache?.get(member.name)) : 'none';
-    const y = currentDisplayYear;
-    const m = currentDisplayMonth;
-
-    function faithInMonth(dateSet, requiredCalendar) {
-        if (faithCalendar !== requiredCalendar) return false;
-        for (const d of dateSet) {
-            const [faithYear, faithMonth] = d.split('-').map(Number);
-            if (faithYear === y && (faithMonth - 1) === m) return true;
-        }
-        return false;
-    }
-
-    const legendIds = {
-        'legend-ramadan':        [RAMADAN_STARTS,                 'islamic'],
-        'legend-eid-fitr':       [EID_FITR_DATES,                 'islamic'],
-        'legend-eid-adha':       [EID_ADHA_DATES,                 'islamic'],
-        'legend-islamic-ny':     [ISLAMIC_NEW_YEAR_DATES,         'islamic'],
-        'legend-mawlid':         [MAWLID_DATES,                   'islamic'],
-        'legend-holi':           [HOLI_DATES,                     'hindu'],
-        'legend-navratri':       [NAVRATRI_DATES,                 'hindu'],
-        'legend-dussehra':       [DUSSEHRA_DATES,                 'hindu'],
-        'legend-diwali':         [DIWALI_DATES,                   'hindu'],
-        'legend-raksha':         [RAKSHA_BANDHAN_DATES,           'hindu'],
-        'legend-lantern':        [LANTERN_FESTIVAL_DATES,         'chinese'],
-        'legend-qingming':       [QINGMING_DATES,                 'chinese'],
-        'legend-dragon-boat':    [DRAGON_BOAT_DATES,              'chinese'],
-        'legend-mid-autumn':     [MID_AUTUMN_DATES,               'chinese'],
-        'legend-ash-wednesday':  [JAMAICAN_ASH_WEDNESDAY_DATES,   'jamaican'],
-        'legend-labour-day':     [JAMAICAN_LABOUR_DAY_DATES,      'jamaican'],
-        'legend-emancipation':   [JAMAICAN_EMANCIPATION_DATES,    'jamaican'],
-        'legend-independence':   [JAMAICAN_INDEPENDENCE_DATES,    'jamaican'],
-        'legend-heroes-day':     [JAMAICAN_HEROES_DAY_DATES,      'jamaican'],
-        'legend-drc-martyrs':    [CONGOLESE_MARTYRS_DATES,        'congolese'],
-        'legend-drc-liberation': [CONGOLESE_LIBERATION_DATES,     'congolese'],
-        'legend-drc-heroes':     [CONGOLESE_HEROES_DATES,         'congolese'],
-        'legend-drc-independence':[CONGOLESE_INDEPENDENCE_DATES,  'congolese'],
-        'legend-pt-carnival':    [PORTUGUESE_CARNIVAL_DATES,      'portuguese'],
-        'legend-pt-freedom':     [PORTUGUESE_FREEDOM_DATES,       'portuguese'],
-        'legend-pt-labour':      [PORTUGUESE_LABOUR_DATES,        'portuguese'],
-        'legend-pt-portugal-day':[PORTUGUESE_PORTUGAL_DAY_DATES,  'portuguese'],
-        'legend-pt-corpus':      [PORTUGUESE_CORPUS_CHRISTI_DATES,'portuguese'],
-        'legend-pt-assumption':  [PORTUGUESE_ASSUMPTION_DATES,    'portuguese'],
-        'legend-pt-republic':    [PORTUGUESE_REPUBLIC_DATES,      'portuguese'],
-        'legend-pt-restoration': [PORTUGUESE_RESTORATION_DATES,   'portuguese'],
-        'legend-pt-immaculate':  [PORTUGUESE_IMMACULATE_DATES,    'portuguese'],
-    };
-    let faithVisible = false;
-    for (const [id, [dateSet, cal]] of Object.entries(legendIds)) {
-        const el = _legendEl(id);
-        const visible = faithInMonth(dateSet, cal);
-        if (el) el.style.display = visible ? '' : 'none';
-        if (visible) faithVisible = true;
-    }
-
-    const faithRow = _legendEl('legend-faith-row');
-
-    // Chinese New Year legend — use the zodiac icon for the matching year.
-    const cnyEl   = document.getElementById('legend-cny');
-    const cnyText = document.getElementById('legend-cny-text');
-    if (cnyEl && cnyText) {
-        let cnyVisible = false;
-        if (faithCalendar === 'chinese') {
-            for (const [dateStr, { icon, label }] of CHINESE_NEW_YEAR_DATES) {
-                const [faithYear, faithMonth] = dateStr.split('-').map(Number);
-                if (faithYear === y && (faithMonth - 1) === m) {
-                    cnyText.textContent = `${icon} ${label}`;
-                    cnyVisible = true;
-                    break;
-                }
-            }
-        }
-        cnyEl.style.display = cnyVisible ? '' : 'none';
-        if (cnyVisible) faithVisible = true;
-    }
-
-    if (faithRow) faithRow.style.display = faithVisible ? '' : 'none';
 }
 
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
@@ -974,11 +835,7 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            // A one-tap Reload goes through the network-first service worker, so it
-            // can actually recover from a bad cached state — unlike "close and reopen",
-            // which an installed PWA may relaunch straight back into.
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t display your roster</h2><p>Tap Reload to try again. If it keeps happening, check your connection or contact the admin team.</p><button type="button" class="calendar-error-reload">↻ Reload</button>';
-            errDiv.querySelector('.calendar-error-reload')?.addEventListener('click', () => window.location.reload());
+            errDiv.innerHTML = '<h2>⚠️ Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -1812,31 +1669,7 @@ async function ensureOverridesCached(year, month) {
         const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
         const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
 
-        // Fetch overrides and member settings in parallel
-        const [, settingsSnap] = await Promise.all([
-            fetchOverridesForRange(startStr, endStr),
-            getDocs(collection(db, 'memberSettings')).catch(e => {
-                console.warn('[Firestore] memberSettings fetch failed:', e); return null;
-            }),
-        ]);
-
-        if (settingsSnap) {
-            settingsSnap.forEach(doc => {
-                memberSettingsCache.set(doc.id, doc.data());
-            });
-        }
-
-        // Overlay localStorage values set by admin.html on this device.
-        // localStorage is same-origin so always readable here, and is
-        // the authoritative store until Firestore rules allow memberSettings writes.
-        teamMembers.forEach(m => {
-            const local = lsGet(`faithCalendar_${m.name}`);
-            if (local) {
-                const existing = memberSettingsCache.get(m.name) || {};
-                memberSettingsCache.set(m.name, { ...existing, faithCalendar: local });
-            }
-        });
-
+        await fetchOverridesForRange(startStr, endStr);
         syncResolved = true;
         if (!teamView.isTeamViewMode()) renderCalendar();
 
@@ -1899,13 +1732,6 @@ initHuddleViewer();
 //   - If permission already granted: silently renew/migrate subscription (VAPID key rotation check)
 //   - If permission not yet asked: show one-off prompt strip on the calendar
 (function initNotifications() {
-    // notifSupported() folds in the iOS-standalone rule (no push in a plain Safari
-    // tab) AND confirms the Notification global exists. It MUST run before any
-    // Notification.permission read: in an iOS Safari browser tab before 16.4 the
-    // Notification global is undefined, so an unguarded access throws a
-    // ReferenceError here and aborts the rest of app.js startup.
-    if (!notifSupported()) return;
-
     // Already granted — getNotifState() handles VAPID rotation and keeps the
     // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
@@ -1913,6 +1739,8 @@ initHuddleViewer();
         return;
     }
 
+    // notifSupported() folds in the iOS-standalone rule — no prompt in a plain browser tab.
+    if (!notifSupported()) return;
     if (Notification.permission === 'denied') return;
     if (lsGet('myb_notif_prompt_done')) return;
 

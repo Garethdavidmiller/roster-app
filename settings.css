@@ -30,8 +30,8 @@ body {
 /* ── CARD ── */
 .card {
     background: var(--surface);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-2);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-1);
     overflow: hidden;
     margin-bottom: 12px;
 }
@@ -64,12 +64,9 @@ body {
     /* Header aligns with the grid */
     .app-header { max-width: 1100px; margin-left: auto; margin-right: auto; }
 
-    /* Cards sit directly in the grid — no wrappers needed.
-       Row 1: email card (left) + notifications (right).
-       Row 2: cultural calendar spans both columns — it has many radio options. */
+    /* Cards sit directly in the grid — no wrappers needed. */
     #contactCard       { grid-column: 1; grid-row: 1; margin-bottom: 0; }
     #notificationsCard { grid-column: 2; grid-row: 1; margin-bottom: 0; }
-    #religiousCard     { grid-column: 1 / -1; grid-row: 2; margin-bottom: 0; }
 
     /* Buttons: no reason to span a full column on desktop */
     .btn-action { max-width: 280px; }
@@ -87,7 +84,7 @@ body {
     box-sizing: border-box;
     display: block;
     padding: 10px 12px;
-    border: 2px solid var(--border-mid);
+    border: 1.5px solid var(--border-light);
     border-radius: 8px;
     background-color: var(--field-bg);
     font-size: var(--type-medium); /* 16px — prevents iOS zoom on focus */
@@ -133,28 +130,9 @@ body {
     margin-top: 10px;
 }
 
-/* ---- Cultural calendar card ---- */
-/* Override shared.css card-collapsible-body padding (12px) — needs extra breathing room */
-#religiousBody { padding: 16px; }
-
-.religious-disclaimer {
-    font-size: var(--type-small);
-    color: var(--text-mid);
-    margin-top: 12px;
-    max-height: 0;
-    overflow: hidden;
-    opacity: 0;
-    transition: max-height 0.25s ease, opacity 0.2s ease;
-}
-.religious-disclaimer.visible {
-    max-height: 200px;
-    opacity: 1;
-}
-.religious-saved.error { color: var(--error-red); }
-
 @media print {
-    /* Settings is an interactive-only page (notification + cultural-calendar
-       preferences) — nothing here is meaningful on paper. Reset the navy body
+    /* Settings is an interactive-only page (notifications, work email)
+       — nothing here is meaningful on paper. Reset the navy body
        to white (so the message stays legible even with "Background graphics"
        enabled), hide every interactive surface, and show one clear branded
        notice in its place. */
@@ -166,7 +144,7 @@ body {
     .nav-panel,
     .nav-panel-overlay { display: none !important; }
     body::before {
-        content: "⚙ Settings\A\A This is an interactive page — work email, notification and cultural-calendar preferences. There is nothing here to print.";
+        content: "⚙ Settings\A\A This is an interactive page — work email and notification preferences. There is nothing here to print.";
         white-space: pre-line;
         display: block;
         max-width: 16cm;

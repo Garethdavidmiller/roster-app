@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.22 -->
+<!-- MYB Roster — Pay Calculator v13.23 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -41,7 +41,7 @@
   <!-- SETUP BANNER: shown when current tax year's settings haven't been confirmed yet -->
   <div class="setup-banner hidden" id="setupBanner">
     <h2 id="setupBannerTitle">👋 Set up your pay calculator</h2>
-    <p id="setupBannerBody">Enter your <strong>hourly rate</strong>, <strong>tax code</strong> and <strong>pension</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong> — takes less than a minute.</p>
+    <p id="setupBannerBody">Enter your <strong>hourly rate</strong>, <strong>tax code</strong> and <strong>pension</strong> in ⚙️ Settings below, then tap <strong>Save settings</strong> — takes less than a minute.</p>
   </div>
 
   <!-- PRIVACY NOTE: always visible -->
@@ -64,7 +64,7 @@
       <div class="settings-notice hidden" id="settingsNewYearNotice"></div>
 
       <div class="field">
-        <label for="gradeSelect">Grade</label>
+        <label>Grade</label>
         <select id="gradeSelect">
           <option value="cea">CEA</option>
           <option value="ces">CES</option>
@@ -74,7 +74,7 @@
       </div>
 
       <div class="field">
-        <label for="hourlyRate">Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
+        <label>Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="hourlyRate" value="20.74" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -85,13 +85,13 @@
       </div>
 
       <div class="field">
-        <label for="taxCode">Tax Code</label>
+        <label>Tax Code</label>
         <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
         <div class="field-hint">Most people are 1257L. Check your payslip or P60.</div>
       </div>
 
       <div class="field">
-        <label for="pensionAmt">Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
+        <label>Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -101,7 +101,7 @@
       </div>
 
       <div class="field">
-        <label for="studentLoan">Student Loan <span class="note">only if deducted via payroll</span></label>
+        <label>Student Loan <span class="note">only if deducted via payroll</span></label>
         <select id="studentLoan">
           <option value="none">None (or paid by direct debit)</option>
           <option value="plan1">Plan 1</option>
@@ -163,7 +163,7 @@
       ⚠️ Less accurate in periods with absence, back pay, or payroll corrections — those may not reconcile line-for-line with your payslip.
     </div>
     <div id="resultRateNotice" class="payslip-note" style="display:none">
-      ⚠️ <strong>2026/27 pay rates not yet confirmed by Chiltern.</strong> This estimate uses a placeholder rate — update your hourly rate in ⚙️ Your Settings once your payslip confirms the new figure.
+      ⚠️ <strong>2026/27 pay rates not yet confirmed by Chiltern.</strong> This estimate uses a placeholder rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
     </div>
     <button class="bd-btn" id="bdBtn">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
@@ -197,7 +197,6 @@
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from my roster</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
         </div>
-        <p class="roster-gold-key"><span class="roster-gold-swatch" aria-hidden="true"></span>Gold fields were filled from your roster — edit any to make it your own.</p>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
 
@@ -477,7 +476,7 @@
           <div class="hpp-basis" id="priorHppBasis"></div>
         </div>
         <div class="field" style="margin-bottom:12px">
-          <label for="priorHppActualInput">Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
+          <label>Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -517,7 +516,7 @@
       <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum. Select the first period covered by the new rate, enter the old and new values, then choose which payslip the lump sum lands on.</p>
 
       <div class="field">
-        <label for="backPayFrom">Pay rise backdated from</label>
+        <label>Pay rise backdated from</label>
         <select id="backPayFrom">
           <option value="">— all periods with saved data —</option>
         </select>
@@ -529,12 +528,12 @@
         <div class="field-pair">
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="oldRate" aria-label="Old hourly rate" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="oldRate" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div class="rate-sep">→</div>
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="newRateInput" aria-label="New hourly rate" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="newRateInput" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
         </div>
       </div>
@@ -544,12 +543,12 @@
         <div class="field-pair">
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="oldLondon" aria-label="Old London Allowance" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="oldLondon" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div class="rate-sep">→</div>
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="newLondon" aria-label="New London Allowance" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="newLondon" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
         </div>
       </div>
@@ -561,7 +560,7 @@
       </div>
       <!-- Period selector — appears once total is calculated -->
       <div class="field" id="backPayPeriodWrap" style="display:none;margin:0 0 12px">
-        <label for="backPayPeriod">Which payslip carries this lump sum?</label>
+        <label>Which payslip carries this lump sum?</label>
         <select id="backPayPeriod">
           <option value="">— select when the lump sum will land —</option>
         </select>
@@ -621,8 +620,8 @@
 </div>
 
 <!-- Sticky take-home bar — mobile only, shown when result card scrolls off-screen -->
-<div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to take-home pay">
-  <div class="sticky-label" id="stickyLabel">💷 Estimated take-home</div>
+<div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to estimated take-home pay">
+  <div class="sticky-label">💷 Estimated take-home</div>
   <div class="sticky-amount" id="stickyAmount">£–</div>
 </div>
 
@@ -645,7 +644,7 @@
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
     <div class="lightbox-badge">Pay Calculator</div>
     <div class="lightbox-privacy">Pay data stays on this device only — never shared.</div>
-    <a href="./paycalc-guide.html" target="_blank" rel="noopener" class="lightbox-bug-link">📖 View pay guide</a>
+    <a href="./paycalc-guide.html" target="_blank" class="lightbox-bug-link">📖 View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     <div class="lightbox-print-wrap">
       <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
@@ -655,18 +654,6 @@
 </div>
 
 
-
-<!-- YTD notice lightbox — shown once after welcome; reminds staff to enter YTD figures from previous payslips -->
-<div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Pay Notice" aria-modal="true">
-  <div id="noticeYtdContent" class="lb-content">
-    <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
-    <div class="notice-ytd-emoji">📋</div>
-    <div class="lightbox-app-name">Pay Calculator</div>
-    <div class="lightbox-badge notice-ytd-badge">💷 Pay</div>
-    <p class="welcome-desc">For accurate tax estimates this year, enter your <strong>YTD Gross Pay</strong> and <strong>YTD Tax Paid</strong> from your latest payslip in <strong>⚙️ Your Settings</strong> below.</p>
-    <div class="lightbox-privacy">🔒 Your pay data is saved on this device only — never sent to any server or visible to anyone else.</div>
-  </div>
-</div>
 
 <!-- Welcome lightbox — shown on first-ever visit to the pay calculator; never shown again after close -->
 <div id="welcomeLightbox" class="lb-overlay" role="dialog" aria-label="Welcome to Pay Calculator" aria-modal="true">

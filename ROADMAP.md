@@ -295,6 +295,33 @@ documented in KNOWN_LIMITATIONS.md → "E2E smoke tests removed".
 
 ---
 
+### Cultural calendar overlay ✗ (v11.06–v13.22 → removed v13.23)
+
+**Removed at v13.23.** A per-staff optional setting that overlaid cultural or religious date markers as small emoji icons on matching days in the calendar. Staff selected one calendar from: Islamic, Hindu, Chinese lunisolar, Jamaican, Congolese, or Portuguese. Chosen calendar stored in `memberSettings` Firestore collection as a `faithCalendar` field. The Settings page had a radio-group card; selected icons appeared in the bottom-right corner of matching calendar day cells (`.day-faith`); the legend gained a full cultural row.
+
+**Why removed:**
+- **Annual maintenance burden** — 15 lunar/lunisolar datasets (Islamic, Hindu, Chinese) needed manually updating each November/December from external sources. Jamaican, Congolese, and Portuguese were rule-based but the Islamic/Hindu/Chinese sets were hardcoded year-by-year arrays.
+- **GDPR exposure** — `faithCalendar` is a religious preference, which is special-category personal data under UK GDPR Article 9. No right-to-erasure flow was ever implemented. Low practical risk on a closed team app, but a real compliance liability.
+- **Low observed usage** — no staff had asked for it or were known to use it. Staff have dedicated calendar apps that do this better.
+
+**What it looked like:**
+- `roster-data.js`: ~300 lines of date datasets + `resolveFaithCalendar()` / `getFaithBadge()` lookup functions
+- `app.js`: read `memberSettings` from Firestore on calendar render; injected `.day-faith` spans into day cells; rendered a full legend row
+- `settings-app.js` + `settings.html`: radio-group card with disclaimer text
+- `shared.css`: ~75 lines of `.faith-radio-*` / `.religious-*` / `.calendar-active-tag` styles
+- `firestore.rules`: `memberSettings` collection with per-member write isolation
+
+**To bring back:**
+1. Restore the dataset `const`s and lookup functions in `roster-data.js` (Islamic, Hindu, Chinese needed for current year; Jamaican/Congolese/Portuguese are rule-based)
+2. Re-add the `memberSettings` Firestore collection rules (`faithCalendar` field, owner-only write)
+3. Re-add the `initCulturalCalendarCard()` function to `settings-app.js` and the radio-group HTML to `settings.html`
+4. Re-add `.day-faith` rendering in `app.js` calendar render loop and legend
+5. Re-add shared CSS in `shared.css`
+6. Implement a proper right-to-erasure path for the stored `faithCalendar` before re-deploying (e.g. a "Remove cultural calendar data" button in Settings)
+7. Consider whether annual update maintenance can be automated (e.g. a Cloud Function that fetches dates from a public Islamic calendar API rather than hardcoded arrays)
+
+---
+
 ### Profile photo / avatar ✗ (v12.12–v12.21 → removed v12.22) — full spec preserved for future restoration
 
 **Removed at v12.22.** Feature was present from v12.12 (photo upload, display) through v12.21 (interactive reposition editor v12.19). Removed because it was non-vital and the interactive canvas editor was disproportionate complexity for a 26px badge. The nav-panel footer now shows initials on a stable per-name colour instead (`avatarInitials`/`avatarHue` from `roster-data.js`, painted directly in `nav-panel.js`). Firebase data cleanup required: delete `memberAvatars` collection docs and `avatars/` Storage objects via Firebase Console (no Admin SDK in client-side code).
@@ -328,47 +355,6 @@ A member's optional profile photo — a circular badge in the nav-drawer footer 
 - **Leftover data (not code):** existing `avatars/*.jpg` Storage objects and `memberAvatars/*` docs become orphaned (harmless; purge manually if desired).
 
 **Footprint:** ~865 lines total (~700 JS), spread as: `settings-avatar.js` 504 · `firebase-client.js` ~86 · `avatar.js` 51 · `settings.css` ~108 · `nav-panel.js` ~60 · `shared.css` ~52 · `settings.html` ~42 · `roster-data.js` ~20 · rules ~38 · misc (6 HTML lines, SW, settings-app) ~14.
-
----
-
-### Bug fix, consistency, and pay-calculator polish milestone ✓ (v12.90–v13.00)
-
-A focused milestone with no new pages or features — pure quality improvements across bug fixes, visual consistency, and one meaningful pay-calculator behaviour change.
-
-**Code review fixes (v12.93):** Nine defects surfaced by a systematic code review pass:
-- `admin-app.js`: Escape keydown guard on the login overlay now checks `e.key === 'Escape'` rather than a less-specific comparison; prevents accidental dismissal on other keys.
-- `admin-al.js`: Preview loop now re-reads booked dates inside the iteration rather than using a stale closure — prevents phantom "already booked" warnings on the last day of a range.
-- `admin-overrides.js`: Null fallback added for the override list when no overrides exist; batch overlap check corrected; session guard ensures Firestore writes only fire after `window._mybSession` resolves.
-- `admin.html`: Inline style attributes removed from the week grid (moved to CSS classes — CSP `style-src 'self'` compliance).
-- `admin.css`: Type-scale tokens applied to form labels and hint text that had been using raw pixel values.
-
-**iOS notch fix for the Huddle viewer (v12.94):** The Huddle viewer close button (`×`) was being clipped or repositioned by the iPhone notch / Dynamic Island safe-area because it used `position: fixed` from a parent context. Switching `#huddleViewerClose` to `position: static` in `index.css` resolves this — the button stays in document flow within the viewer chrome and is always reachable on notched iPhones.
-
-**Admin member dropdown fix on Android (v12.95):** The member select in `admin.html`'s header bar uses a navy background. Android Chrome's native select styling was applying dark text on the dark field, making the selected member unreadable. Added explicit `color: white` on the select and `color: var(--text-dark)` on `<option>` elements in `admin.css` — the standard cross-browser fix for select colour on dark fields.
-
-**Consistency pass (v12.96):** A line-by-line pass across all pages and shared modules:
-- Error messages standardised to the "Couldn't…" pattern throughout (removing inconsistent "Failed to…" and "Error:" prefixes that leaked technical language to staff).
-- "Daily Huddle" and "Marylebone Roster" labelling made consistent across all surfaces (nav panel, buttons, upload cards).
-- Rest Day legend in the calendar month view corrected to match the shift badge text exactly.
-- Settings page: 3-strike lockout counter now resets correctly after a successful login.
-- Pay calculator: duplicate service-worker registration call removed (`sw-register.js` now handles it; the inline call in `paycalc.js` was a redundant leftover from before the shared module was extracted).
-- Admin login: Escape guard added (consistent with the v12.93 fix to the login overlay pattern).
-- `shared.css` `.help-btn`: size standardised to match the nav-panel icon size across all pages.
-- Links workspace: "✓ Saved" success confirmation message now appears after the auto-save completes rather than before — correct event ordering.
-
-**Visual style unification (v12.97):** All sub-pages (admin, operations, settings, links) brought visually in line with the pay calculator — the reference page for card/form/button styling:
-- Cards: `border-radius` raised from `var(--radius-md)` (16px) to `var(--radius-lg)` (18px) and `box-shadow` deepened from `var(--shadow-1)` to `var(--shadow-2)` — the same values paycalc had used since v11.
-- Form fields and selects: `border` widened from `1.5px solid var(--border-light)` to `2px solid var(--border-mid)` — stronger, more touch-friendly field boundary.
-- Primary action buttons (`.btn-action`, `.btn-save`): `border-radius` changed from `var(--radius-button)` (10px) to `var(--radius-sm)` (8px) — a subtle tightening that matches the pay calculator's `.btn-primary`.
-- The calendar page and guide pages were not changed — this pass was sub-pages only.
-
-**Pay calculator — calendar pre-fill auto-update (v12.98):** Previously, if an admin added a shift override (e.g. an RDW day) after a staff member had already opened a pay period, that member's pay calculator would still show the old pre-fill values on every subsequent open. Root cause: `writeFormData` writes integer `0` as `''` (blank field, due to the falsy-zero pattern); on reload the field is populated from localStorage, which removes the `roster-suggested` CSS class; `_suggestIfBlank` then sees a non-empty non-gold field and treats it as user-entered, refusing to update it.
-
-Fix: `_saveRosterSnap(pNum, s)` persists the suggested values to `myb_pc_snap_${pNum}` in localStorage when the pre-fill is applied. `_restoreRosterSuggested(pNum)` runs immediately after `writeFormData` on each page load — it compares each field's current value against the snapshot and re-adds `roster-suggested` (gold class) to any field that still matches. Fields the user manually edited will differ from the snapshot and are never touched. `clearPeriod()` deletes the snap key alongside the period data.
-
-**Pay calculator — "Fill from calendar" rename (v12.99):** The pre-fill button was relabelled from "Fill from my roster" / "Replace with roster hours" to "Fill from calendar" / "Replace with calendar values". The figures come from the calendar page (base roster + Firestore overrides), not from a separate "roster" concept — the new wording is clearer for staff who may not distinguish between "roster" and "calendar" as technical terms.
-
-**Pay calculator card header layout fix (v13.00):** The `?` help button on pay calculator cards was appearing below the card title rather than beside it. Root cause: `shared.css` sets `.card-header { display: grid; grid-template-columns: 1fr }`. The `.card-header--row` modifier in `paycalc.css` only had `flex-direction: row`, which is silently ignored on a grid container. Fix: added `display: flex` to `.card-header--row` to override the inherited grid, making `flex-direction: row` take effect. This is now documented in `CLAUDE.md` → Architecture decisions as a pattern to follow for any future `.card-header` modifier that needs horizontal layout.
 
 ---
 
@@ -630,61 +616,14 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 - All sensitive operations (send code, verify code, update password) must go through Cloud Functions with the Firebase Admin SDK. Never trust the client to set security-relevant fields (`verified`, `password`).
 - Stages 3–5 require end-to-end testing on Android Chrome (primary platform) and iOS Safari standalone before shipping.
 
-### Login gate on the calendar page (index.html)
-
-**Idea:** Require login before showing the calendar — the same `getSession()` / `initLoginOverlay()` pattern the four sub-pages already use. Currently `index.html` lets anyone pick any staff member's calendar without identifying themselves.
-
-**⚠️ Before building this, review the alternatives section below — the gate is straightforward to add but does not solve what it might appear to solve.**
-
-#### What the gate would and wouldn't do
-
-| | |
-|---|---|
-| ✅ Consistent UX | All pages behave the same way — you identify yourself before using the app |
-| ✅ Auto-selects the right person | Logged-in member sees their own calendar without touching the dropdown on first visit |
-| ✅ Paves the way for per-member features | The calendar would always know who is using it |
-| ❌ Does NOT protect the data | `overrides` and `huddles` Firestore reads are **intentionally open** in the security rules — gating the UI is cosmetic. Anyone with the URL can query Firestore directly, gate or no gate |
-| ❌ Does NOT prevent colleagues viewing each other's calendars | The member dropdown stays meaningful after login (Team Week View, checking a colleague's shift) |
-
-If the goal is **data privacy**, the right lever is tightening Firestore read rules for `overrides`, which is documented as an open decision in KNOWN_LIMITATIONS.md. That is a harder change (it breaks the anonymous calendar view and the Huddle auto-open) and should be planned separately. The UI gate alone is a consistency/identity improvement, not a security one.
-
-#### Obstructions to consider before building
-
-**1. Huddle notification (most significant)**
-Push notifications navigate to `https://garethdavidmiller.github.io/#huddle`. The `#huddle` hash triggers the viewer auto-open in `app.js`. If the calendar shows a login wall first, a notification tap lands the staff member on the login form instead of the Huddle. This is the opposite of what a notification is for.
-
-*Mandatory design rule if this is built:* when `window.location.hash === '#huddle'` at page load, bypass the login gate and open the viewer directly. This is consistent with `firestore.rules` — `huddles` reads are intentionally open because `app.js` has no auth session.
-
-**2. Staff who have never logged in**
-Today many staff may simply open the calendar and pick their name from the dropdown — they may never have visited admin.html or settings.html to create a session. Adding the gate means every such person hits the login form on their next visit. This is a one-time friction (30-day session) but it is a **team-wide behaviour change** that needs a heads-up or a comms note. Password is surname (lowercase, no spaces/special chars) — worth a brief message so staff aren't confused.
-
-**3. "Don't log existing sessions out" — this is free**
-Anyone already signed in on admin.html, settings.html, paycalc.html, or operations.html already has the shared `myb_admin_session` localStorage key. The calendar gate would just call `getSession()` — they pass straight through with no visible change. No `clearSession()` involved, no logout.
-
-#### Implementation shape (if pursued)
-
-- Extract the login overlay logic from `settings-app.js` into a shared helper (it is currently copy-pasted across four pages). The calendar would be the fifth caller. Worth the factoring before adding another copy.
-- In `app.js` boot: `getSession()` → if valid, call `initApp()`; else if `location.hash === '#huddle'`, open the viewer (no auth needed, Firestore open); else show the login overlay.
-- Add `#loginOverlay` markup to `index.html` (same block the four sub-pages have).
-- On login success, `saveSession(name)` + `saveSelectedMember(idx)` + `unlockBodyScroll()` + re-render calendar — no page reload needed (unlike the sub-pages which reload because their init code gates on `isAuthenticated` at module scope).
-- `getDefaultMemberIndex()` / `_staleMemberName` fallback becomes mostly redundant once the calendar always has a session name — small cleanup opportunity.
-- Standard version bump + `sw-asset-check.test.mjs` passes, then test on Android and iOS.
-
-#### Alternatives to consider before starting (reminder for Gareth)
-
-- **Do nothing.** The current UX is deliberate: staff open the app and pick their name. Login is required only on pages that write data. This is simpler and the data is not sensitive enough to need gating.
-- **Auto-select from session (already partly done).** `getSelectedMemberIndex()` already tries `getSession()?.name` on a fresh device. The overlap may be enough — a returning logged-in user always sees their own calendar without re-picking.
-- **Tighten Firestore rules instead.** If the real concern is that a non-staff person could read shift data, the right fix is a Firestore read rule change, not a UI gate. That requires revisiting the Huddle viewer and anonymous-session architecture (see KNOWN_LIMITATIONS.md).
-- **Soft prompt, not a hard gate.** Show a "Sign in to save your preferences and enable AL booking" banner on the calendar, but don't block access to the roster itself. Lowest friction; keeps the app useful without an account.
-
 ---
 
 ## Dependency maintenance — firebase-admin v14
 
-`firebase-admin@14` is the current major release and resolves 8 moderate vulnerabilities
-in the transitive `uuid` dependency. Node 22 is now deployed. Upgrade is blocked only until
-`firebase-functions` adds v14 to its peer dependency range (all v7.x releases declare
-`^11 || ^12 || ^13` only).
+`firebase-admin@14` is the current major release and resolves 9 moderate vulnerabilities
+in the transitive `uuid` dependency. Upgrade is blocked until `firebase-functions` adds
+v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only) and
+until the functions runtime is moved from Node 20 to Node 22 (required by firebase-admin v14).
 
 **Practical risk is low** — the uuid buffer-bounds bug is not reachable via Firebase's
 internal usage patterns. See KNOWN_LIMITATIONS.md for the full detail and the step-by-step

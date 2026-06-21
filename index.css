@@ -31,22 +31,6 @@
             margin-top: 10px;
         }
 
-        .calendar-error-reload {
-            margin-top: 16px;
-            min-height: 44px;
-            padding: 10px 22px;
-            border: none;
-            border-radius: 10px;
-            background: var(--primary-blue);
-            color: white;
-            font-family: inherit;
-            font-size: 15px;
-            font-weight: 700;
-            cursor: pointer;
-            touch-action: manipulation;
-        }
-        .calendar-error-reload:active { transform: scale(var(--press-scale)); }
-
         body {
             font-family: var(--font-sans);
             -webkit-font-smoothing: antialiased;
@@ -97,7 +81,7 @@
             color: white;
             font-size: 20px;
             margin: 0;
-            font-weight: 800; /* match the .app-header h1 weight on every other page */
+            font-weight: 700;
             letter-spacing: -0.5px;
             display: flex;
             align-items: center;
@@ -105,8 +89,8 @@
         }
 
         .title-icon {
-            height: 36px; /* match the .app-icon size on every other page */
-            width: 36px;
+            height: 32px;
+            width: 32px;
             border-radius: 7px;
             object-fit: cover;
             cursor: pointer;
@@ -209,7 +193,6 @@
             border: 2px solid var(--border-light);
             border-radius: 10px;
             font-size: 14px;
-            min-height: 44px; /* WCAG / touch — reliable one-handed taps mid-shift */
             cursor: pointer;
             background-color: white;
             font-family: inherit;
@@ -603,19 +586,6 @@
             z-index: 10;
         }
 
-        /* Cultural / faith calendar markers (Islamic, Hindu, or Chinese) — bottom-right corner.
-           Rendered as inline <span class="day-faith"> elements (not pseudo-elements) to avoid
-           any future conflict with the ::after used by Christmas Day (bottom-centre).
-           Only shown for members who have opted in to a cultural calendar. */
-        .day-faith {
-            position: absolute;
-            bottom: 3px;
-            right: 3px;
-            font-size: 11px;
-            line-height: 1;
-            z-index: 10;
-        }
-
         /* Christmas Day (Dec 25) — 🎄 tree centred at the bottom of the cell.
            Positions below the shift content without touching the corner markers.
            Only applied to Dec 25 — Boxing Day (Dec 26) is left plain so staff
@@ -728,20 +698,6 @@
             color: var(--text-mid);
             font-weight: 600;
             white-space: nowrap;
-        }
-
-        /* Cultural calendar row — overrides display:contents from .legend-row so the
-           element keeps its box and shows the top-border separator. Items inside still
-           wrap and centre naturally within this full-width sub-container. */
-        .legend-faith-row {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            align-items: center;
-            gap: 6px 14px;
-            border-top: 1px solid var(--border-light);
-            padding-top: 4px;
-            width: 100%;
         }
 
         /* Desktop: lock entire layout to one screen — no scrolling needed */
@@ -869,11 +825,6 @@
                 top: 5px !important;
                 right: 5px !important;
             }
-            .day-faith {
-                font-size: 16px !important;
-                bottom: 6px !important;
-                right: 5px !important;
-            }
             .calendar-day.payday::before,
             .calendar-day.cutoff::before {
                 font-size: 16px !important;
@@ -892,15 +843,6 @@
             /* Mobile-only UI: hide on desktop */
             .notif-prompt { display: none !important; }
             .swipe-hint   { display: none !important; }
-        }
-
-        /* Large touch tablets (iPad in landscape, ≥1024px) report a coarse pointer
-           and still auto-zoom on focus of any <16px field. The ≥1024px "desktop"
-           block above drops the select to 14px — correct for a mouse, but it would
-           zoom on an iPad. Restore 16px for coarse pointers only; a real desktop
-           (fine pointer) keeps the denser 14px. */
-        @media (min-width: 1024px) and (pointer: coarse) {
-            .controls select { font-size: 16px; }
         }
 
         /* ── Short desktop viewports (≥1024px wide but ≤760px tall) ──────────
@@ -951,10 +893,6 @@
             .calendar-day {
                 min-height: 80px;
                 padding: 6px;
-            }
-
-            .calendar-day.has-faith {
-                padding-bottom: 20px;
             }
 
             .day-header {
@@ -1233,11 +1171,15 @@
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
         .tv-current-badge {
-            display: block;
+            display: inline-block;
             font-size: 10px;
-            font-weight: 500;
-            color: var(--text-faint);
+            font-weight: 700;
+            background: var(--accent-gold);
+            color: var(--primary-blue);
+            padding: 2px 7px;
+            border-radius: 10px;
             white-space: nowrap;
+            vertical-align: middle;
         }
         /* Today column — gold header matches calendar's today convention */
         .team-table thead .tv-today-col {
@@ -1320,15 +1262,15 @@
         .team-week-row {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 8px 4px;
+            padding: 2px 4px 4px;
         }
         .team-week-center {
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 2px;
+            gap: 6px;
             flex: 1;
+            justify-content: center;
+            flex-wrap: wrap;
         }
         .team-week-text {
             font-size: 16px;
@@ -1865,13 +1807,6 @@
                 font-size: 10px !important;
             }
 
-            .day-faith {
-                position: absolute !important;
-                bottom: 2px !important;
-                right: 2px !important;
-                font-size: 9px !important;
-            }
-
             .calendar-day.payday::before {
                 content: '💷' !important;
                 position: absolute !important;
@@ -1928,6 +1863,9 @@
             .team-table tbody .tv-today-col {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
+            .tv-current-badge {
+                -webkit-print-color-adjust: exact; print-color-adjust: exact;
+            }
             .tv-cell { white-space: normal; }
             .team-table th.tv-name-col,
             .team-table td.tv-name-col { position: static; }
@@ -1970,43 +1908,6 @@
             font-weight: 800;
             color: white;
             letter-spacing: -0.5px;
-        }
-
-        /* ---- Day detail lightbox (touch tap on a calendar cell) ---- */
-        #dayDetailContent {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 24px;
-            padding: 30px 24px 26px;
-            width: min(320px, 90vw);
-            text-align: center;
-            transform: scale(0.85);
-        }
-        .day-detail-date  { color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 600; padding: 0 18px; }
-        .day-detail-shift { color: white; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; }
-        .day-detail-extras {
-            color: var(--accent-gold);
-            font-size: 13px;
-            font-weight: 600;
-            line-height: 1.4;
-        }
-        .day-detail-note {
-            color: rgba(255,255,255,0.85);
-            font-size: 14px;
-            font-style: italic;
-            line-height: 1.45;
-            margin-top: 2px;
-            padding-top: 10px;
-            border-top: 1px solid rgba(255,255,255,0.12);
-            width: 100%;
-        }
-        #dayDetailClose { color: rgba(255,255,255,0.5); }
-        @media (hover: hover) and (pointer: fine) {
-            #dayDetailClose:hover { color: white; }
         }
 
         /* ---- Annual Leave lightbox ---- */
@@ -2126,7 +2027,6 @@
         }
         #huddleViewerTitle { font-weight: 600; font-size: 1rem; flex: 1; }
         #huddleViewerClose {
-            position: static; /* override lb-close's position:absolute — button lives in the flex row */
             background: none;
             border: none;
             color: rgba(255,255,255,0.7);
@@ -2170,13 +2070,8 @@
         #huddleViewerBody h3 { font-size: 0.95rem; }
         #huddleViewerBody p  { margin: 0.4em 0; }
         #huddleViewerBody table {
-            /* The Huddle HTML no longer carries Word's inline pixel widths (style is
-               stripped in app-huddle-viewer.js), so plain width:100% is enough — no
-               !important needed. table-layout:auto sizes columns by content. */
             width: 100%;
-            max-width: 100%;
             border-collapse: collapse;
-            table-layout: auto;
             font-size: 0.85rem;
             margin: 0.75em 0;
         }
@@ -2184,8 +2079,6 @@
             border: 1px solid var(--border-mid);
             padding: 5px 7px;
             vertical-align: top;
-            /* Break long unbroken strings so a single cell can't force horizontal overflow. */
-            overflow-wrap: anywhere;
         }
         #huddleViewerBody th { background: var(--primary-blue); color: white; }
         #huddleViewerBody ul, #huddleViewerBody ol {

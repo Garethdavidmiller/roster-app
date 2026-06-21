@@ -36,16 +36,6 @@ Storage rules prevented them from uploading files. The two rules now match: both
 and Firestore require admin claim for huddle writes. Cloud Function writes via Admin SDK
 bypass rules and are unaffected.
 
-### faithCalendar field stores a personal religious preference (GDPR note)
-The `faithCalendar` field in `memberSettings/{memberName}` stores the staff member's
-chosen cultural calendar (e.g. `'islamic'`, `'hindu'`). This is a personal religious/
-cultural preference and constitutes special-category personal data under UK GDPR Article 9.
-Current mitigations: Firestore rules require `request.auth != null` for all reads;
-writes and deletes are now restricted to the owning member via `request.auth.token.name == memberName`
-(added alongside `staffContact` isolation at v13.16). No additional retention
-policy or right-to-erasure flow has been implemented — delete requires auth + name claim. If this data is ever exported or shared beyond
-the app, a DPIA should be completed.
-
 ### CSP connect-src includes firebasestorage.googleapis.com (v11.07)
 Firebase Storage browser uploads (manual Huddle upload in Operations) use
 `firebasestorage.googleapis.com`. This was implicitly covered by `https://*.googleapis.com`
@@ -177,9 +167,9 @@ Resolved — `calcBackPay()` computes the variable-pay portion (`_bpVarAmount`) 
 payslip confirmation detail.
 
 ### Pre-fill reads base roster + Firestore overrides only
-The "Fill from calendar" button (renamed from "Fill from roster" at v12.99) counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day). Standard weekday contracted hours are not pre-filled — staff enter those manually. The suggestion is advisory; staff should verify it against their actual payslip.
-
-**Auto-update when admin changes a shift (v12.98):** If an admin records a new override after a member has already opened that pay period, the updated values appear on the member's next open. The roster snapshot system (`_saveRosterSnap` / `_restoreRosterSuggested` in `paycalc.js`, localStorage key `myb_pc_snap_${pNum}`) tracks which fields were last filled by the calendar suggestion. On reload, these fields regain their gold `roster-suggested` class and `_suggestIfBlank` will update them again from Firestore. Fields the user has manually edited differ from the snapshot and are left untouched.
+The "Fill from roster" suggestion counts special-rate shifts (Sat/Sun/BH/RDW/Boxing Day).
+Standard weekday contracted hours are not pre-filled — staff enter those manually.
+The suggestion is advisory; staff should verify it against their actual payslip.
 
 ### Tax band model is approximate for 0T and K codes (flagged v12.49 — check later)
 In `computeTax()` (`paycalc-calc.js`), the basic-rate band width is computed as
@@ -284,10 +274,6 @@ extension, not from `Content-Type`.
 
 ## Roster data
 
-### Cultural calendar data needs annual update
-15 lunar/lunisolar datasets need updating each November/December. Full list and
-sources in `CLAUDE.md` → "Annual maintenance — cultural calendar data".
-
 ### Cloud Function payday constant duplicated from `roster-data.js`
 `functions/index.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS` constants
 for the pay-reminder scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY`
@@ -306,11 +292,11 @@ in the same commit.
 
 ### firebase-admin upgrade to v14 blocked on firebase-functions compatibility (June 2026)
 
-`firebase-admin@14.0.0` is available and would fix 8 moderate-severity vulnerabilities
+`firebase-admin@14.0.0` is available and would fix 9 moderate-severity vulnerabilities
 in the dependency chain (`uuid < 11.1.1` via `@google-cloud/firestore → google-gax → uuid`).
-The upgrade is now blocked by one remaining thing:
+The upgrade is blocked by two things:
 
-- Node 22 is already deployed ✓
+- `firebase-admin@14` requires **Node >=22**, but the functions runtime is set to Node 20.
 - `firebase-functions@7.x` (all released versions as of June 2026) declares
   `firebase-admin@"^11 || ^12 || ^13"` — it does not yet list v14 as a supported peer.
 
@@ -320,11 +306,12 @@ is present in the dependency tree but not reachable in normal operation. Severit
 
 **When to upgrade:** once `firebase-functions` releases a version adding `firebase-admin@^14`
 to its peer dependency range. Check with `npm outdated` in `functions/`. When unblocked:
-1. Bump `firebase-admin` to `^14.0.0`
-2. Audit `admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js` —
+1. Bump `"node": "20"` → `"node": "22"` in `functions/package.json` engines field
+2. Bump `firebase-admin` to `^14.0.0`
+3. Audit `admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js` —
    v14 dropped the legacy `admin.firestore` namespace; `FieldValue` must be imported from
    `firebase-admin/firestore` directly
-3. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
+4. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
    deploying to production
 
 ---
