@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v13.10 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.20 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -260,7 +260,7 @@ Shared slide-out navigation panel — imported by all six app pages.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay / Operations / Links); admin-only and links-designer-only pills filtered by flags. Current page omitted from the pill row.
 - `NAV_INFORMATION` — flat always-open Information section: Workplace (Daily Huddle, Weekly Retail Circular, App Notices) + Guides (Staff Guide, Pay Guide, Railcard Guide, FIP Guide via `NAV_GUIDES` collapsed submenu, v11.21). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder. An entry with `notices: true` renders as a `<button>` that opens the `#navNoticesLightbox` archive.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
-- Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
+- Notification bell (v10.61, simplified v13.19): simple 🔔/🔕 icon button rendered inside `nav-panel-footer-actions` alongside Sign out — shown only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows 🔕 only — the inline "change in browser settings" hint was removed at v13.19. This file owns only the bell UI — all push logic is in `notif.js`.
 - Initials badge (v12.22): 26px circle (`#navPanelAvatar`) before the member name in the footer. Painted with `avatarInitials(memberName)` and `avatarHue(memberName)` from `roster-data.js` — no fetch, no cache, no event listeners. Profile photo feature removed at v12.22; spec in ROADMAP.md.
 - Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`. Windows detection (v10.65) uses `navigator.userAgentData?.platform ?? navigator.platform` (modern API with legacy fallback) — flags are skipped on Windows where flag emoji render as two-letter codes.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
@@ -308,7 +308,7 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
 - `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72). Per-member isolation (`memberName == request.auth.token.name`) was added at v10.72 but **suspended at v10.94** after a production outage — see KNOWN_LIMITATIONS.md task #2 for the re-introduction checklist.
 - `overrides` delete: any authenticated user (`request.auth != null`). Per-member isolation suspended at v10.94 alongside create/update.
-- `memberSettings` create/update/delete: any authenticated user (`request.auth != null`). No per-member isolation is currently enforced — any signed-in user can write any member's faith calendar setting.
+- `memberSettings` create/update/delete: owner-only write — `request.auth.token.name == memberName` (added v13.16 alongside `staffContact` isolation). Any authenticated member may read all memberSettings (required by the cultural-calendar display on the calendar page).
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.
