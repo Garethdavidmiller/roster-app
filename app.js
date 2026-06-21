@@ -850,7 +850,6 @@ function renderCalendar() {
 document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
     if (swipeCooldown) return; // Don't interrupt a swipe animation
     saveSelectedMember(parseInt(e.target.value, 10));
-    updateLegend();
     renderCalendar();
     // Close AL lightbox if open — data would be stale for the new member
     window.closeALLightbox?.();
