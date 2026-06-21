@@ -1159,7 +1159,6 @@ button.nav-panel-link--notices {
     padding: 40px 40px 32px;
     width: min(300px, 85vw);
     text-align: center;
-    transform: scale(0.85);
 }
 .nav-cs-icon  { font-size: 52px; line-height: 1; }
 .nav-cs-title { color: white; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
@@ -1182,7 +1181,9 @@ button.nav-panel-link--notices {
     width: min(300px, 85vw);
     max-height: 80vh;
     max-height: 80dvh;
-    transform: scale(0.85);
+    /* The inner list scrolls (not the whole card) so the ✕ and heading stay
+       fixed even with a long archive. Overrides .lb-content's overflow-y:auto. */
+    overflow: hidden;
 }
 /* Centre the heading; list items below it are left-aligned */
 #navNoticesContent > .nav-cs-title { text-align: center; }
@@ -1196,6 +1197,18 @@ button.nav-panel-link--notices {
     text-align: center;
     padding: 8px 0 4px;
 }
+/* Scrollable flex child: takes the card's remaining height and scrolls the
+   list internally (min-height:0 lets it shrink below content size). */
+.nav-notices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+}
 .notices-item {
     background: rgba(255, 255, 255, 0.07);
     border: 1px solid rgba(255, 255, 255, 0.1);
@@ -1205,7 +1218,6 @@ button.nav-panel-link--notices {
     flex-direction: column;
     gap: 4px;
 }
-.notices-item + .notices-item { margin-top: 6px; }
 .notices-item-header {
     display: flex;
     align-items: center;
