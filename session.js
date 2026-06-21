@@ -65,7 +65,14 @@ export async function ensureFirebaseSession(name) {
     const existing = await new Promise(resolve => {
         const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
     });
-    if (existing) return true;
+    // Only reuse a persisted session when it belongs to the expected user.
+    // An anonymous fallback session, or a session for a different member (e.g.
+    // Person A was active on a shared browser and Person B now selects their name),
+    // must not be reused — sign out and re-authenticate under the correct identity.
+    if (existing) {
+        if (!existing.isAnonymous && existing.email === nameToEmail(name)) return true;
+        await firebaseSignOut(auth);
+    }
 
     const pw         = getSurname(name);
     // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.

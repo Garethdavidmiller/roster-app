@@ -582,9 +582,18 @@ exports.parseRosterPDF = onRequest(
             res.status(400).json({ error: 'Missing or invalid X-Week-Ending header (expected YYYY-MM-DD)' });
             return;
         }
-        // Roster weeks always end on Saturday — validate so the day-date mapping is correct
-        if (new Date(weekEnding + 'T12:00:00Z').getUTCDay() !== 6) {
+        // Roster weeks always end on Saturday — validate so the day-date mapping is correct.
+        // Also apply a strict round-trip calendar check: JS normalises impossible dates
+        // (e.g. 2025-02-29 → 2025-03-01) instead of returning NaN, so the format check
+        // above is not sufficient on its own to reject an impossible date.
+        const weekEndingDate = new Date(weekEnding + 'T12:00:00Z');
+        if (weekEndingDate.getUTCDay() !== 6) {
             res.status(400).json({ error: 'X-Week-Ending must be a Saturday' });
+            return;
+        }
+        const [weYear, weMonth, weDay] = weekEnding.split('-').map(Number);
+        if (weekEndingDate.getUTCFullYear() !== weYear || weekEndingDate.getUTCMonth() + 1 !== weMonth || weekEndingDate.getUTCDate() !== weDay) {
+            res.status(400).json({ error: 'X-Week-Ending is not a valid calendar date' });
             return;
         }
         if (!['cea', 'ces', 'dispatcher'].includes(rosterType)) {
@@ -1031,6 +1040,7 @@ exports.setupRosterAuth = onRequest(
                     if (isAdmin) console.log(`[setupRosterAuth] Set admin+name claim: ${email}`);
                     else         console.log(`[setupRosterAuth] Set name claim: ${email}`);
                 } catch (claimErr) {
+                    failed.push(`${name} (claim-failed: ${claimErr.message})`);
                     console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);
                 }
             }
