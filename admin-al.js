@@ -53,7 +53,8 @@ const alFeedback = document.getElementById('alFeedback');
 _alSaveBtnRef = alSaveBtn;
 
 populateMemberDropdown(alMember);
-if (lastMember) alMember.value = lastMember;
+// iOS Safari ignores select.value on optgroup-nested options — set option.selected directly.
+if (lastMember) { for (const o of alMember.options) if (o.value === lastMember) { o.selected = true; break; } }
 syncMemberDisplay();
 
 // alMember is kept in sync by the fieldMember change handler in admin-app.js.

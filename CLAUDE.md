@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+*Last updated: June 2026 — v13.10 · Updated every 0.10 version*
+
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 # Claude Code Instructions — MYB Roster App
@@ -11,7 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `13.00` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `13.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -266,6 +268,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | **Do not gate layout on `(hover: hover) and (pointer: fine)` alone** | Some Android devices misreport `hover: hover`. For layout breakpoints, always use `min-width`. Hover/pointer queries are only safe for cosmetic `:hover` transitions. |
 | `paycalc.html` desktop grid on `<main>`, not `.app` | CSS grid applies to direct children only — declare on `main { display: grid }`. `.app` only holds max-width. |
 | `lsGet` / `lsSet` / `lsDel` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `app.js`, `admin-app.js`, or `paycalc.js` — always use these wrappers. |
+| **`select.value = x` silently fails on iOS Safari when options are inside `<optgroup>`** | Setting `sel.value = x` programmatically does nothing — the displayed value stays blank — when the select's options are wrapped in `<optgroup>` elements. The native picker still works (user tap), but page-load restores, programmatic syncs, and post-action resets all break. **Fix: iterate `sel.options` and set `option.selected = true` directly.** Pattern in use: `_setSelectPeriod` in `paycalc.js`; `_setSelectValue` in `admin-app.js`; inline loop in `admin-al.js` and `admin-sick.js`. Every new `<select>` that uses optgroups and is set programmatically must follow this pattern. |
 | VAPID fingerprint migration | Both pages store first 12 chars of VAPID key in `localStorage('myb_vapid_ver')`. On mismatch, silently unsubscribes → re-subscribes. Cloud Function treats 401 same as 410/404. |
 | One-off notification prompt (`#notifPrompt`) | Appears once per device between `</nav>` and pay-period strip. Both Enable and × set `myb_notif_prompt_done`. Do not move below the calendar. |
 | PWA shortcuts in `manifest.json` | Three long-press shortcuts. Changes require reinstall to take effect on existing installs. |

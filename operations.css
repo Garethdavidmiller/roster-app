@@ -326,11 +326,47 @@ select:focus-visible, input:focus-visible {
     /* Left column: action cards */
     #huddleUploadCard { grid-column: 1; grid-row: 2; }
     #authSetupCard    { grid-column: 1; grid-row: 3; }
+    #workEmailCard    { grid-column: 1; grid-row: 4; }
     /* Right column: roster spans the full column height */
-    #rosterUploadCard { grid-column: 2; grid-row: 2 / 4; }
+    #rosterUploadCard { grid-column: 2; grid-row: 2 / 5; }
 
     /* Full-width upload button looks wrong inside a 420px column */
     .huddle-upload-btn { max-width: 280px; }
+}
+
+/* ---- Work Email Progress card ---- */
+.email-count-summary {
+    font-size: var(--type-body);
+    color: var(--text-dark);
+    margin-bottom: 10px;
+}
+.email-count-num {
+    font-size: 22px;
+    color: var(--primary-blue);
+}
+.email-count-done {
+    font-size: var(--type-small);
+    color: var(--success-green);
+    font-weight: 600;
+}
+.email-count-missing-label {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-bottom: 8px;
+}
+.email-count-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.email-count-chip {
+    font-size: var(--type-small);
+    background: var(--bg-faint);
+    border: 1px solid var(--border-light);
+    border-radius: 20px;
+    padding: 3px 10px;
+    color: var(--text-mid);
+    white-space: nowrap;
 }
 
 #opsBadge { background: var(--orange); color: var(--primary-blue); }

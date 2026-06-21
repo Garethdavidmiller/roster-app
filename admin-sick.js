@@ -37,7 +37,8 @@ const sickSaveBtn  = document.getElementById('sickSaveBtn');
 const sickFeedback = document.getElementById('sickFeedback');
 
 populateMemberDropdown(sickMember);
-if (lastMember) sickMember.value = lastMember;
+// iOS Safari ignores select.value on optgroup-nested options — set option.selected directly.
+if (lastMember) { for (const o of sickMember.options) if (o.value === lastMember) { o.selected = true; break; } }
 syncSickMemberDisplay();
 
 /**
