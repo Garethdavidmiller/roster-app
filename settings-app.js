@@ -212,8 +212,12 @@ function initContactCard() {
     }
 
     // Load existing email; show a loading message while waiting.
+    // Await Firebase Auth restoration first — on a cold open, auth.currentUser
+    // may still be null when this runs, and staffContact reads require auth.
     setFeedback('Checking for a saved email…', '');
-    getStaffContact(currentUser).then(data => {
+    Promise.resolve(window._mybSession)
+      .then(() => getStaffContact(currentUser))
+      .then(data => {
         if (data?.workEmail && !userHasTyped) {
             emailInput.value = data.workEmail;
             showSavedState(formatDate(data.updatedAt));
@@ -338,6 +342,8 @@ function initCulturalCalendarCard() {
         radios.forEach(r => r.addEventListener('change', markInteracted, { once: true }));
 
         try {
+            // Await Firebase Auth restoration before the read — same pattern as the write.
+            if (window._mybSession) await window._mybSession;
             const snap = await getDoc(doc(db, 'memberSettings', currentUser));
             if (!userInteracted && snap.exists()) {
                 const value = resolveFaithCalendar(snap.data());

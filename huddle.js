@@ -59,7 +59,7 @@ export function initHuddleNotifications() {
         enableBtn.textContent  = 'Enable notifications';
         disableBtn.textContent = 'Disable notifications';
         if (state === 'on') {
-            statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when the Huddle is ready and when payday is approaching.';
+            statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when payday is approaching. (Daily Huddle alerts temporarily paused)';
             disableBtn.style.display = 'block';
         } else if (state === 'off-lapsed') {
             statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
@@ -75,7 +75,7 @@ export function initHuddleNotifications() {
             }
             deniedMsg.style.display = 'block';
         } else {
-            statusMsg.textContent   = 'Tap Enable to get an alert when the Daily Huddle is ready or when payday is approaching.';
+            statusMsg.textContent   = 'Tap Enable to get an alert when payday is approaching. (Daily Huddle alerts temporarily paused)';
             enableBtn.style.display = 'block';
         }
     }

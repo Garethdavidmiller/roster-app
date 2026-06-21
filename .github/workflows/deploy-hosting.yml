@@ -25,38 +25,7 @@ jobs:
 
       - name: Syntax check and unit tests
         run: |
-          node --check app.js
-          node --check app-team-view.js
-          node --check app-override-utils.js
-          node --check app-huddle-viewer.js
-          node --check admin-app.js
-          node --check admin-auth.js
-          node --check admin-overrides.js
-          node --check admin-roster-upload.js
-          node --check admin-al.js
-          node --check admin-sick.js
-          node --check admin-rangepicker.js
-          node --check operations-app.js
-          node --check settings-app.js
-          node --check huddle.js
-          node --check overlay.js
-          node --check session.js
-          node --check sw-register.js
-          node --check links-app.js
-          node --check paycalc.js
-          node --check paycalc-calc.js
-          node --check paycalc-roster-suggestions.js
-          node --check paycalc-help.js
-          node --check paycalc-migrations.js
-          node --check firebase-client.js
-          node --check roster-data.js
-          node --check roster-cycle-data.js
-          node --check service-worker.js
-          node --check nav-panel.js
-          node --check notif.js
-          node --check ls.js
-          node --check railcard-guide.js
-          node --check guide-print.js
+          for f in *.js; do node --check "$f" || exit 1; done
           node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
           node --experimental-vm-modules --test module-parse.test.mjs
           node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs app.test.mjs

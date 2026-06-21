@@ -1502,7 +1502,7 @@
         }
         /* At 1024–1399px the left column is too narrow for the 5-col template.
            Stacked layout: checkbox/day/base in row 1, pills in row 2, time in row 3.
-           Pills and time are always visible here (unlike narrow mobile where they're hidden). */
+           Pills and time are visible on selected/active rows (hidden on inactive rows). */
         @media (min-width: 1024px) and (max-width: 1399px) {
             .week-grid-header {
                 grid-template-columns: 32px 1fr auto;
