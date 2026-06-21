@@ -22,8 +22,8 @@ import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
+import { initNavPanel, archiveNotice } from './nav-panel.js';
+import { lockBodyScroll, initCardCollapse, trapFocus, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
@@ -1546,3 +1546,41 @@ if (currentIsAdmin) {
         anchor.parentNode ? anchor.parentNode.insertBefore(banner, anchor) : anchor.prepend(banner);
     }
 }
+
+// ============================================
+// WORK EMAIL NOTICE — shown once per device to all logged-in staff
+// ============================================
+if (currentUser) (function () {
+    const NOTICE_KEY = 'myb_work_email_notice_seen';
+    if (lsGet(NOTICE_KEY)) return;
+
+    const lb = document.getElementById('workEmailNoticeLightbox');
+    if (!lb) return;
+
+    const NOTICE = {
+        id:      'work-email-2026-06',
+        title:   'Add your work email',
+        section: 'Settings',
+        date:    'June 2026',
+        body:    'A Work Email field has been added to the Settings page. Your work email helps protect your account and will enable password recovery in a future update.',
+    };
+
+    function archiveAndMark() {
+        lsSet(NOTICE_KEY, '1');
+        archiveNotice(NOTICE);
+    }
+
+    const noticeLb = createLightbox({
+        overlay:  lb,
+        content:  document.getElementById('workEmailNoticeContent'),
+        closeBtn: document.getElementById('workEmailNoticeClose'),
+        onClose:  archiveAndMark,
+    });
+
+    // If the user clicks "Go to Settings" without closing first, archive synchronously
+    // before the browser navigates away so the notice is not shown again on return.
+    document.getElementById('workEmailNoticeSettingsLink')
+        ?.addEventListener('click', archiveAndMark, { once: true });
+
+    noticeLb.open();
+})();

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v13.16 -->
+<!-- MYB Roster — Admin v13.17 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -88,6 +88,19 @@
             <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
             <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current week view</span>
         </div>
+    </div>
+</div>
+
+<!-- Work email notice lightbox — shown once per device to prompt staff to add their work email -->
+<div id="workEmailNoticeLightbox" class="lb-overlay" role="dialog" aria-label="Add your work email" aria-modal="true">
+    <div id="workEmailNoticeContent" class="lb-content">
+        <button id="workEmailNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="notice-lb-emoji" aria-hidden="true">📧</div>
+        <div class="lightbox-app-name">Work Email</div>
+        <div class="lightbox-badge">Settings</div>
+        <p class="notice-lb-desc">We've added a <strong>Work Email</strong> field to your Settings page.</p>
+        <p class="notice-lb-desc">Adding your work email helps protect your account and will enable password recovery in a future update — it won't be used for anything else.</p>
+        <a id="workEmailNoticeSettingsLink" href="./settings.html" class="lightbox-bug-link">⚙️ Go to Settings</a>
     </div>
 </div>
 
