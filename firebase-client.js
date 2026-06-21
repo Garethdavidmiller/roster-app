@@ -295,3 +295,12 @@ export async function saveStaffContact(memberName, workEmail) {
 export async function deleteStaffContact(memberName) {
     await deleteDoc(doc(db, 'staffContact', memberName));
 }
+
+/**
+ * Fetch every staff contact record (admin-only — Firestore rules enforce this).
+ * @returns {Promise<Array<{memberName: string, workEmail: string}>>}
+ */
+export async function getAllStaffContacts() {
+    const snap = await getDocs(collection(db, 'staffContact'));
+    return snap.docs.map(d => d.data());
+}

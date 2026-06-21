@@ -8,8 +8,8 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG } from './roster-data.js';
-import { auth } from './firebase-client.js';
+import { CONFIG, teamMembers } from './roster-data.js';
+import { auth, getAllStaffContacts } from './firebase-client.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
@@ -75,6 +75,61 @@ initAuthSetup({ currentIsAdmin: true });
 initCardCollapse('huddleToggleHeader',      'huddleBody',      'huddleChevron');
 initCardCollapse('rosterUploadToggleHeader','rosterUploadBody','rosterUploadChevron');
 initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
+initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
+
+// ============================================
+// WORK EMAIL PROGRESS
+// ============================================
+(async function initWorkEmailStatus() {
+    // Active front-line staff only — excludes leavers (hidden: true).
+    // Management (hidden+managerOnly) are excluded because the password
+    // project targets the staff who use the Settings page to add emails.
+    const eligible = teamMembers.filter(m => !m.hidden);
+    const total    = eligible.length;
+    const content  = document.getElementById('emailStatusContent');
+    if (!content) return;
+
+    try {
+        // Wait for the Firebase Auth session so Firestore rules pass.
+        await window._mybSession;
+        const contacts    = await getAllStaffContacts();
+        const savedNames  = new Set(contacts.filter(c => c.workEmail).map(c => c.memberName));
+        const count       = eligible.filter(m => savedNames.has(m.name)).length;
+        const notAdded    = eligible.filter(m => !savedNames.has(m.name));
+
+        content.innerHTML = '';
+
+        const summary = document.createElement('p');
+        summary.className = 'email-count-summary';
+        summary.innerHTML = `<strong class="email-count-num">${count}</strong> of <strong>${total}</strong> staff have added their work email`;
+        content.appendChild(summary);
+
+        if (notAdded.length === 0) {
+            const done = document.createElement('p');
+            done.className = 'email-count-done';
+            done.textContent = '✓ All staff have added their work email — ready for the next step.';
+            content.appendChild(done);
+        } else {
+            const label = document.createElement('p');
+            label.className = 'email-count-missing-label';
+            label.textContent = `${notAdded.length} still to add:`;
+            content.appendChild(label);
+
+            const list = document.createElement('div');
+            list.className = 'email-count-list';
+            notAdded.forEach(m => {
+                const chip = document.createElement('span');
+                chip.className = 'email-count-chip';
+                chip.textContent = m.name;
+                list.appendChild(chip);
+            });
+            content.appendChild(list);
+        }
+    } catch (err) {
+        content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
+        console.error('[WorkEmailStatus]', err);
+    }
+})();
 
 // Show a banner if Firebase Auth couldn't establish a real admin session.
 // Anonymous fallback still resolves the Promise so the page renders, but
