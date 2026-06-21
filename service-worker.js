@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v13.24
+// MYB Roster — Service Worker v13.25
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '13.24';
+const APP_VERSION = '13.25';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -24,7 +24,7 @@ const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html',
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
-    'app.js', 'app-team-view.js', 'app-override-utils.js', 'app-huddle-viewer.js',
+    'calendar-app.js', 'app-team-view.js', 'app-override-utils.js', 'app-huddle-viewer.js',
     'admin-app.js', 'huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js',
@@ -33,7 +33,7 @@ const NETWORK_FIRST_FILES = [
     'about-lightbox.js', 'tips-lightbox.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js',
     'shared.css',
-    'paycalc.html', 'paycalc.js', 'paycalc-calc.js',
+    'paycalc.html', 'paycalc-app.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
     'paycalc-roster-suggestions.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
@@ -59,7 +59,7 @@ const CORE_ASSETS = [
     "./links-app.js",
     "./links-design.js",
     "./settings-app.js",
-    "./app.js",
+    "./calendar-app.js",
     "./app-team-view.js",
     "./app-override-utils.js",
     "./app-huddle-viewer.js",
@@ -86,7 +86,7 @@ const CORE_ASSETS = [
     "./shared.css",
     "./manifest.json",
     "./paycalc.html",
-    "./paycalc.js",
+    "./paycalc-app.js",
     "./paycalc-calc.js",
     "./paycalc-help.js",
     "./paycalc-migrations.js",
