@@ -274,6 +274,15 @@ function updateBhRows(p) {
 // are imported from paycalc-calc.js above.
 
 // ── PERIOD SELECT ─────────────────────────────────────────────────────────────
+// iOS Safari ignores `select.value = x` when options are inside <optgroup> —
+// the select stays blank and the change event never fires. Explicitly setting
+// the matching option's .selected property works on all platforms.
+function _setSelectPeriod(sel, pNum) {
+  for (const o of sel.options) {
+    if (+o.value === pNum) { o.selected = true; return; }
+  }
+}
+
 function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = {}) {
   if (!el) return;
   el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';
@@ -331,7 +340,7 @@ function buildPeriodSelect() {
   const _currentPNum = upcoming ? upcoming.num : periods[periods.length - 1].num;
   _populatePeriodSelect(sel, periods, { currentPNum: _currentPNum });
 
-  sel.value = defPNum;
+  _setSelectPeriod(sel, defPNum);
   // Always point the ● button at the current earning period regardless of URL params
   _defaultPeriodNum = _currentPNum;
   onPeriodChange();
@@ -390,7 +399,7 @@ function jumpToTaxYear(tyIndex) {
   // Find first period of that tax year
   const first   = periods.find(p => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
   if (!first) return;
-  document.getElementById('periodSelect').value = first.num;
+  _setSelectPeriod(document.getElementById('periodSelect'), first.num);
   onPeriodChange();
 }
 
@@ -398,14 +407,14 @@ function prevPeriod() {
   const sel     = document.getElementById('periodSelect');
   const periods = getPeriods();
   const idx     = periods.findIndex(x => x.num === +sel.value);
-  if (idx > 0) { sel.value = periods[idx - 1].num; onPeriodChange(); }
+  if (idx > 0) { _setSelectPeriod(sel, periods[idx - 1].num); onPeriodChange(); }
 }
 
 function nextPeriod() {
   const sel     = document.getElementById('periodSelect');
   const periods = getPeriods();
   const idx     = periods.findIndex(x => x.num === +sel.value);
-  if (idx < periods.length - 1) { sel.value = periods[idx + 1].num; onPeriodChange(); }
+  if (idx < periods.length - 1) { _setSelectPeriod(sel, periods[idx + 1].num); onPeriodChange(); }
 }
 
 function onPeriodChange() {
@@ -2062,7 +2071,7 @@ document.getElementById('prevBtn').addEventListener('click', prevPeriod);
 document.getElementById('nextBtn').addEventListener('click', nextPeriod);
 document.getElementById('todayPeriodBtn').addEventListener('click', () => {
   const sel = document.getElementById('periodSelect');
-  sel.value = _defaultPeriodNum;
+  _setSelectPeriod(sel, _defaultPeriodNum);
   onPeriodChange();
 });
 document.getElementById('clearBtn').addEventListener('click', clearPeriod);
