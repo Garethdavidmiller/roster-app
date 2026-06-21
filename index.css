@@ -1233,15 +1233,11 @@
             box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
         }
         .tv-current-badge {
-            display: inline-block;
+            display: block;
             font-size: 10px;
-            font-weight: 700;
-            background: var(--accent-gold);
-            color: var(--primary-blue);
-            padding: 2px 7px;
-            border-radius: 10px;
+            font-weight: 500;
+            color: var(--text-faint);
             white-space: nowrap;
-            vertical-align: middle;
         }
         /* Today column — gold header matches calendar's today convention */
         .team-table thead .tv-today-col {
@@ -1329,11 +1325,10 @@
         }
         .team-week-center {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 6px;
+            gap: 2px;
             flex: 1;
-            justify-content: center;
-            flex-wrap: wrap;
         }
         .team-week-text {
             font-size: 16px;
@@ -1931,9 +1926,6 @@
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
             .team-table tbody .tv-today-col {
-                -webkit-print-color-adjust: exact; print-color-adjust: exact;
-            }
-            .tv-current-badge {
                 -webkit-print-color-adjust: exact; print-color-adjust: exact;
             }
             .tv-cell { white-space: normal; }
