@@ -1002,10 +1002,15 @@ exports.setupRosterAuth = onRequest(
                 console.log(`[setupRosterAuth] Created: ${email}`);
             } catch (err) {
                 if (err.code === 'auth/email-already-exists') {
-                    // Fetch UID so we can still (re)apply claims on existing accounts
+                    // Fetch UID so we can still (re)apply claims, and re-enable
+                    // if the account was previously disabled (returning staff member).
                     try {
                         const existing = await admin.auth().getUserByEmail(email);
                         uid = existing.uid;
+                        if (existing.disabled) {
+                            await admin.auth().updateUser(uid, { disabled: false });
+                            console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
+                        }
                     } catch { /* ignore — claim update will be skipped */ }
                     skipped.push(name);
                 } else {
