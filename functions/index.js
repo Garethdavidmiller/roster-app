@@ -146,6 +146,13 @@ exports.ingestHuddle = onRequest(
             res.status(400).json({ error: 'Invalid date value — month or day out of range' });
             return;
         }
+        // Strict calendar check — JS normalises impossible dates (e.g. 2026-02-30 → 2026-03-02)
+        // instead of returning NaN, so the isNaN check above is not sufficient on its own.
+        const [dYear, dMonth, dDay] = date.split('-').map(Number);
+        if (parsedDate.getUTCFullYear() !== dYear || parsedDate.getUTCMonth() + 1 !== dMonth || parsedDate.getUTCDate() !== dDay) {
+            res.status(400).json({ error: 'Invalid date value — month or day out of range' });
+            return;
+        }
 
         // ---- Read raw body ----
         // The file arrives as a base64 plain-text body, bypassing JSON body-size limits.
@@ -171,8 +178,18 @@ exports.ingestHuddle = onRequest(
 
         console.log(`[ingestHuddle] base64 length received: ${base64Content.length}`);
 
+        // Strip internal whitespace — Power Automate may wrap base64 at 76 chars.
+        base64Content = base64Content.replace(/\s+/g, '');
+
         if (!base64Content) {
             res.status(400).json({ error: 'Request body is empty' });
+            return;
+        }
+
+        // Validate base64 before decode — Node's Buffer.from silently ignores invalid
+        // characters rather than throwing, so the try/catch below is not sufficient alone.
+        if (!/^[A-Za-z0-9+/]+={0,2}$/.test(base64Content)) {
+            res.status(400).json({ error: 'Body must be valid base64' });
             return;
         }
 
@@ -196,7 +213,13 @@ exports.ingestHuddle = onRequest(
         }
 
         // ---- Determine file type ----
-        const isDocx   = filename.toLowerCase().endsWith('.docx');
+        const lcFilename = filename.toLowerCase();
+        const isDocx     = lcFilename.endsWith('.docx');
+        const isPdf      = lcFilename.endsWith('.pdf');
+        if (!isDocx && !isPdf) {
+            res.status(400).json({ error: 'Only .pdf and .docx files are accepted' });
+            return;
+        }
         const fileType = isDocx ? 'docx' : 'pdf';
         const mimeType = isDocx
             ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -994,7 +1017,7 @@ exports.setupRosterAuth = onRequest(
 
             // Set or clear the admin custom claim — applies to both new and existing accounts.
             // Also sets the name claim for all members — required by Firestore rules
-            // (overrides: memberName == token.name for non-admins).
+            // for staffContact owner-isolation (staffContact/{name}: token.name == name).
             if (uid) {
                 const isAdmin = adminMembers.has(name);
                 const claims  = isAdmin ? { admin: true, name } : { name };

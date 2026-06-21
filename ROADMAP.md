@@ -681,10 +681,10 @@ Anyone already signed in on admin.html, settings.html, paycalc.html, or operatio
 
 ## Dependency maintenance — firebase-admin v14
 
-`firebase-admin@14` is the current major release and resolves 9 moderate vulnerabilities
-in the transitive `uuid` dependency. Upgrade is blocked until `firebase-functions` adds
-v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only) and
-until the functions runtime is moved from Node 20 to Node 22 (required by firebase-admin v14).
+`firebase-admin@14` is the current major release and resolves 8 moderate vulnerabilities
+in the transitive `uuid` dependency. Node 22 is now deployed. Upgrade is blocked only until
+`firebase-functions` adds v14 to its peer dependency range (all v7.x releases declare
+`^11 || ^12 || ^13` only).
 
 **Practical risk is low** — the uuid buffer-bounds bug is not reachable via Firebase's
 internal usage patterns. See KNOWN_LIMITATIONS.md for the full detail and the step-by-step

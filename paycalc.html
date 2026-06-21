@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.12 -->
+<!-- MYB Roster — Pay Calculator v13.13 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -64,7 +64,7 @@
       <div class="settings-notice hidden" id="settingsNewYearNotice"></div>
 
       <div class="field">
-        <label>Grade</label>
+        <label for="gradeSelect">Grade</label>
         <select id="gradeSelect">
           <option value="cea">CEA</option>
           <option value="ces">CES</option>
@@ -74,7 +74,7 @@
       </div>
 
       <div class="field">
-        <label>Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
+        <label for="hourlyRate">Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="hourlyRate" value="20.74" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -85,13 +85,13 @@
       </div>
 
       <div class="field">
-        <label>Tax Code</label>
+        <label for="taxCode">Tax Code</label>
         <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
         <div class="field-hint">Most people are 1257L. Check your payslip or P60.</div>
       </div>
 
       <div class="field">
-        <label>Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
+        <label for="pensionAmt">Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -101,7 +101,7 @@
       </div>
 
       <div class="field">
-        <label>Student Loan <span class="note">only if deducted via payroll</span></label>
+        <label for="studentLoan">Student Loan <span class="note">only if deducted via payroll</span></label>
         <select id="studentLoan">
           <option value="none">None (or paid by direct debit)</option>
           <option value="plan1">Plan 1</option>
@@ -476,7 +476,7 @@
           <div class="hpp-basis" id="priorHppBasis"></div>
         </div>
         <div class="field" style="margin-bottom:12px">
-          <label>Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
+          <label for="priorHppActualInput">Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -516,7 +516,7 @@
       <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum. Select the first period covered by the new rate, enter the old and new values, then choose which payslip the lump sum lands on.</p>
 
       <div class="field">
-        <label>Pay rise backdated from</label>
+        <label for="backPayFrom">Pay rise backdated from</label>
         <select id="backPayFrom">
           <option value="">— all periods with saved data —</option>
         </select>
@@ -528,12 +528,12 @@
         <div class="field-pair">
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="oldRate" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="oldRate" aria-label="Old hourly rate" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div class="rate-sep">→</div>
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="newRateInput" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="newRateInput" aria-label="New hourly rate" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
         </div>
       </div>
@@ -543,12 +543,12 @@
         <div class="field-pair">
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="oldLondon" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="oldLondon" aria-label="Old London Allowance" placeholder="Old" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
           <div class="rate-sep">→</div>
           <div class="pfx field-col">
             <span class="pfx-sym">£</span>
-            <input type="text" id="newLondon" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
+            <input type="text" id="newLondon" aria-label="New London Allowance" placeholder="New" inputmode="decimal" autocomplete="off" enterkeyhint="done">
           </div>
         </div>
       </div>
@@ -560,7 +560,7 @@
       </div>
       <!-- Period selector — appears once total is calculated -->
       <div class="field" id="backPayPeriodWrap" style="display:none;margin:0 0 12px">
-        <label>Which payslip carries this lump sum?</label>
+        <label for="backPayPeriod">Which payslip carries this lump sum?</label>
         <select id="backPayPeriod">
           <option value="">— select when the lump sum will land —</option>
         </select>
@@ -644,7 +644,7 @@
     <div id="lightboxUpdateStatus" class="lightbox-status"></div>
     <div class="lightbox-badge">Pay Calculator</div>
     <div class="lightbox-privacy">Pay data stays on this device only — never shared.</div>
-    <a href="./paycalc-guide.html" target="_blank" class="lightbox-bug-link">📖 View pay guide</a>
+    <a href="./paycalc-guide.html" target="_blank" rel="noopener" class="lightbox-bug-link">📖 View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     <div class="lightbox-print-wrap">
       <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
