@@ -99,11 +99,11 @@ function updateSickPreview() {
         const memberOvByDate = buildMemberDateMap(memberObj.name);
         dates.forEach(dateStr => {
             if (isSunday(dateStr)) { restCount++; return; }
+            const ov = memberOvByDate.get(dateStr);
+            if (ov && isRestShift(ov.value)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (isRestShift(base)) { restCount++; return; }
-            const ov = memberOvByDate.get(dateStr);
-            if (ov && isRestShift(ov.value)) { restCount++; return; }
         });
     }
     const workDays = dates.length - restCount;

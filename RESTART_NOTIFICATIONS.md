@@ -31,7 +31,7 @@ If GitHub Pages is still broken, fix the deployment before re-enabling — see t
 
 2. Commit and push to `main` — the `deploy-functions.yml` GitHub Actions workflow deploys the Cloud Function automatically on push to main.
 
-3. Verify by uploading a test Huddle via Operations → Roster Upload (or check Firebase Console → Functions logs to confirm the next Power Automate ingest logs `"Fan-out complete"` rather than `"HUDDLE_PUSH_PAUSED=true — skipping"`).
+3. Verify by uploading a test Huddle via Operations → Huddle Upload (or check Firebase Console → Functions logs to confirm the next Power Automate ingest logs `"Fan-out complete"` rather than `"HUDDLE_PUSH_PAUSED=true — skipping"`).
 
 4. Delete this file.
 

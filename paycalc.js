@@ -1144,6 +1144,16 @@ function fillCategoryFromRoster(cat) {
     elM.value = mVal ?? '';
     elH.classList.add('roster-suggested');
     elM.classList.add('roster-suggested');
+    // Merge this category into the existing snapshot so reload can restore the
+    // roster-suggested class for just these fields (without clobbering manually
+    // entered values in other categories that were not filled from the roster).
+    const pNum = currentPeriodNum();
+    try {
+      const existing = JSON.parse(lsGet(snapKey(pNum)) || '{}');
+      existing[hId] = hVal ?? '';
+      existing[mId] = mVal ?? '';
+      lsSet(snapKey(pNum), JSON.stringify(existing));
+    } catch(e) {}
   }
   autosave();
   // Programmatic value changes don't fire the input listeners — refresh the

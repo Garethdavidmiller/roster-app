@@ -306,9 +306,9 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
-- `overrides` create/update: `memberName == request.auth.token.name || admin == true`; required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72)
-- `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
-- `memberSettings` create/update/delete: document ID (= member name) `== request.auth.token.name || admin == true`. Document ID is the member name, not a field — isolation is via the path wildcard `{memberName}`.
+- `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72). Per-member isolation (`memberName == request.auth.token.name`) was added at v10.72 but **suspended at v10.94** after a production outage — see KNOWN_LIMITATIONS.md task #2 for the re-introduction checklist.
+- `overrides` delete: any authenticated user (`request.auth != null`). Per-member isolation suspended at v10.94 alongside create/update.
+- `memberSettings` create/update/delete: any authenticated user (`request.auth != null`). No per-member isolation is currently enforced — any signed-in user can write any member's faith calendar setting.
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.

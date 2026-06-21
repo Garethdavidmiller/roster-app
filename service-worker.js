@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v13.11
+// MYB Roster — Service Worker v13.12
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '13.11';
+const APP_VERSION = '13.12';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -43,7 +43,7 @@ const NETWORK_FIRST_FILES = [
     'purify.es.mjs',
 ];
 
-// Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
+// Critical app files — cached with allSettled() (per-file, failure-tolerant).
 const CORE_ASSETS = [
     "./index.html",
     "./admin.html",
