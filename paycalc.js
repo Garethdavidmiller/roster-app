@@ -166,8 +166,41 @@ function clampMins(mId) {
   if (!isNaN(v)) { if (v > 59) el.value = 59; if (v < 0) el.value = 0; }
 }
 
+// Find (or lazily create) the live decimal-conversion hint that sits beneath an
+// hours field's hrs:mins pair. Returns null if the field/markup is missing.
+function _decHintEl(hId, make) {
+  const wrap = document.getElementById(hId)?.closest('.hhmm-wrap');
+  if (!wrap) return null;
+  const col = wrap.parentElement;
+  let hint = col.querySelector('.hhmm-dec-hint');
+  if (!hint && make) {
+    hint = document.createElement('div');
+    hint.className = 'hhmm-dec-hint';
+    hint.setAttribute('aria-hidden', 'true');
+    col.appendChild(hint);
+  }
+  return hint;
+}
+
+// Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
+// split is a visible transformation rather than a silent one (trust on a pay form).
+function decPreview(hId) {
+  const raw = document.getElementById(hId).value;
+  const val = parseFloat(raw);
+  if (raw.includes('.') && !isNaN(val) && val >= 0) {
+    const h = Math.floor(val);
+    const m = Math.round((val - h) * 60);
+    const hint = _decHintEl(hId, true);
+    if (hint) { hint.textContent = `= ${h}h ${String(m).padStart(2, '0')}m`; hint.hidden = false; }
+  } else {
+    const hint = _decHintEl(hId, false);
+    if (hint) hint.hidden = true;
+  }
+}
+
 // If someone types "7.5" into an hours field, split it into 7 hrs 30 mins
-// automatically on blur rather than silently truncating to 7.
+// automatically on blur rather than silently truncating to 7. The live preview
+// (decPreview) has already shown the result, so the split is no surprise.
 function autoDecimalHours(hId, mId) {
   const raw = document.getElementById(hId).value;
   if (!raw.includes('.')) return;
@@ -177,6 +210,8 @@ function autoDecimalHours(hId, mId) {
   const m = Math.round((val - h) * 60);
   document.getElementById(hId).value = String(h);
   document.getElementById(mId).value = m || '';
+  const hint = _decHintEl(hId, false);
+  if (hint) hint.hidden = true; // the split now shows in the hrs/mins fields
   autosave();
 }
 
@@ -1493,6 +1528,9 @@ function calculate() {
     if (_peekBtn) _peekBtn.textContent = `↑ Actual take-home: ${fmt(_actual.net)}`;
     const _stickyAmt = document.getElementById('stickyAmount');
     if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
+    // Keep the sticky label honest — this figure is the confirmed actual, not an estimate.
+    const _stickyLbl = document.getElementById('stickyLabel');
+    if (_stickyLbl) _stickyLbl.textContent = '✅ Actual take-home';
   } else {
     const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
         : _bpThisPeriod > 0  ? 'inc. back pay'
@@ -1507,6 +1545,10 @@ function calculate() {
         : `↑ Estimated take-home: ${fmt(net)}`;
     const _stickyAmt = document.getElementById('stickyAmount');
     if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+    const _stickyLbl = document.getElementById('stickyLabel');
+    if (_stickyLbl) _stickyLbl.textContent = _suffix
+        ? `💷 Estimated take-home (${_suffix})`
+        : '💷 Estimated take-home';
     document.getElementById('bdBtn').innerHTML =
       `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
   }
@@ -2105,8 +2147,10 @@ document.getElementById('satM').addEventListener('input', () => { clampMins('sat
 });
 
 // Decimal auto-correction — if someone types "7.5" into an hours field, split it
-// into 7h 30m on blur instead of silently truncating to 7.
+// into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"
+// preview shows while typing so the on-blur split is never a silent surprise.
 [['satH','satM'],['bhH','bhM'],['bhOtH','bhOtM'],['otH','otM'],['rdwH','rdwM'],['sunH','sunM'],['boxH','boxM']].forEach(([h,m]) => {
+  document.getElementById(h).addEventListener('input', () => decPreview(h));
   document.getElementById(h).addEventListener('blur', () => autoDecimalHours(h, m));
 });
 
@@ -2235,12 +2279,28 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
 
 // Settings inputs
 document.getElementById('gradeSelect').addEventListener('change', () => {
-  const g = document.getElementById('gradeSelect').value;
-  if (g && GRADES[g]) document.getElementById('hourlyRate').value = GRADES[g].rate.toFixed(2);
-  saveSettings(); // calls invalidateGrade() so getGrade() returns the new grade below
+  // Preserve hand-entered values: only replace the rate / pension if they still
+  // hold the PREVIOUS grade's default (i.e. the user hasn't customised them).
+  // The app explicitly asks staff to enter their exact payslip rate, so tapping
+  // the grade (e.g. just to check it) must not silently wipe that figure.
+  // lsGet(SK.grade) still holds the previous grade until saveSettings() runs.
+  const _oldGrade = lsGet(SK.grade);
+  const g   = document.getElementById('gradeSelect').value;
   const _gP = getPeriods().find(x => x.num === currentPeriodNum());
+
+  const rateEl = document.getElementById('hourlyRate');
+  const _oldRateDefault = (_oldGrade && GRADES[_oldGrade]) ? GRADES[_oldGrade].rate.toFixed(2) : '';
+  const rateUntouched   = rateEl.value.trim() === '' || rateEl.value === _oldRateDefault;
+  if (g && GRADES[g] && rateUntouched) rateEl.value = GRADES[g].rate.toFixed(2);
+
   const _pa = document.getElementById('pensionAmt');
-  if (_pa) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
+  const _oldPenDefault = (_oldGrade && GRADES[_oldGrade] && _gP)
+    ? (getPensionForPeriod(_oldGrade, _gP.payday) * getProRateFactor(_gP)).toFixed(2)
+    : '';
+  const penUntouched = !_pa || _pa.value.trim() === '' || _pa.value === _oldPenDefault;
+
+  saveSettings(); // calls invalidateGrade() so getGrade() returns the new grade below
+  if (_pa && penUntouched) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
   calculate();
 });
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });

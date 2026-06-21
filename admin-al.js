@@ -37,13 +37,14 @@ export function triggerConfirmedALSave() {
  * @param {Function}          deps.showALConfirm       Shows the over-entitlement confirmation bar
  * @param {Function}          deps.hideALConfirm       Hides the over-entitlement confirmation bar
  * @param {Function}          deps.showInChangeAShift  Jumps the Change a Shift section to a member + date
+ * @param {Function}          deps.showSuccess         Shows the scroll-independent bottom success toast
  */
 export function initALSection({
     alMember,
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
+    currentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 }) {
 const alFrom     = document.getElementById('alFrom');
 const alTo       = document.getElementById('alTo');
@@ -205,6 +206,9 @@ alSaveBtn.addEventListener('click', async () => {
         alFeedback.textContent = `✓ Recorded ${workingCount} day${workingCount > 1 ? 's' : ''} of Annual Leave for ${member}`;
         clearTimeout(_alFeedbackTimer);
         _alFeedbackTimer = setTimeout(() => { alFeedback.className = 'feedback'; }, 7000);
+        // The form resets and Change-a-Shift scrolls into view below, so also fire
+        // the bottom toast — confirmation must be visible regardless of scroll.
+        showSuccess?.(`Recorded ${workingCount} day${workingCount > 1 ? 's' : ''} of Annual Leave for ${member}`);
 
         alPicker.reset();
         updateAlPreview();

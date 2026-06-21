@@ -184,6 +184,11 @@ function initContactCard() {
     emailInput.addEventListener('input',  markUserTyped);
     emailInput.addEventListener('change', markUserTyped);
 
+    // Transient "✓ Saved" button confirmation — the persistent "last updated"
+    // line can look identical before and after a save, so the tap needs its own
+    // perceptible acknowledgement. Mirrors the cultural-calendar ✓ chip.
+    let _savedBtnTimer = null;
+
     function isValidEmail(v) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
     }
@@ -254,11 +259,13 @@ function initContactCard() {
 
         saveBtn.disabled    = true;
         saveBtn.textContent = 'Saving…';
+        let saved = false;
         try {
             if (window._mybSession) await window._mybSession;
             await saveStaffContact(currentUser, email);
             const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
             showSavedState(today);
+            saved = true;
         } catch (err) {
             console.warn('[staffContact] Save failed:', err);
             setFeedback(
@@ -268,8 +275,15 @@ function initContactCard() {
                 'err'
             );
         } finally {
-            saveBtn.disabled    = false;
-            saveBtn.textContent = 'Save email';
+            saveBtn.disabled = false;
+            clearTimeout(_savedBtnTimer);
+            if (saved) {
+                // Brief, action-caused acknowledgement before resting label returns.
+                saveBtn.textContent = '✓ Saved';
+                _savedBtnTimer = setTimeout(() => { saveBtn.textContent = 'Save email'; }, 2000);
+            } else {
+                saveBtn.textContent = 'Save email';
+            }
         }
     });
 

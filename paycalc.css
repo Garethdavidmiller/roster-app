@@ -398,6 +398,14 @@
     .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-faint); font-weight: 600; letter-spacing: 0.3px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
+    /* Live decimal-conversion preview, e.g. "= 7h 30m", shown beneath an hours
+       field while a decimal is typed so the on-blur split is never silent. */
+    .hhmm-dec-hint {
+      font-size: var(--type-micro); font-weight: 700; color: var(--primary-blue);
+      font-variant-numeric: tabular-nums; text-align: right; margin-top: 4px;
+    }
+    .hhmm-dec-hint[hidden] { display: none; }
+
     /* Validation warning */
     .val-warn {
       font-size: var(--type-micro); color: var(--error-red); font-weight: 600;
@@ -1113,6 +1121,18 @@
   @media (hover: hover) and (pointer: fine) { .roster-view-link:hover { text-decoration: underline; } }
   .hhmm-field input.roster-suggested {
     background-color: var(--roster-suggested-bg); border-color: var(--accent-gold);
+  }
+
+  /* Key explaining the gold "filled from roster" cue — the gold tint is otherwise
+     an unexplained colour that also drives whether Firestore updates overwrite a field. */
+  .roster-gold-key {
+    display: flex; align-items: center; gap: 7px;
+    font-size: var(--type-micro); color: var(--text-light);
+    line-height: 1.4; margin: 8px 0 0;
+  }
+  .roster-gold-swatch {
+    width: 14px; height: 14px; flex-shrink: 0; border-radius: 3px;
+    background-color: var(--roster-suggested-bg); border: 1.5px solid var(--accent-gold);
   }
 
   /* ── LAYOUT UTILITIES ── (replaces inline styles in paycalc.html) */

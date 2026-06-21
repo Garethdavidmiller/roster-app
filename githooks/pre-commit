@@ -42,11 +42,12 @@ for (const line of rosterSrc.split('\n')) {
     if (!line.includes("name:") || !line.includes("rosterType:")) continue;
     if (line.includes('hidden: true')) continue;
     const name = (line.match(/name:\s*'([^']+)'/) || [])[1];
-    const type = (line.match(/rosterType:\s*'([^']+)'/) || [])[1];
-    if (!name || !type) continue;
-    if (['main', 'bilingual', 'fixed'].includes(type)) byGrade.cea.add(name);
-    else if (type === 'ces')        byGrade.ces.add(name);
-    else if (type === 'dispatcher') byGrade.dispatcher.add(name);
+    const role = (line.match(/role:\s*'([^']+)'/) || [])[1];
+    if (!name || !role) continue;
+    if (role === 'CES')             byGrade.ces.add(name);
+    else if (role === 'Dispatcher') byGrade.dispatcher.add(name);
+    else if (role === 'CEA')        byGrade.cea.add(name);
+    // Management members (role === 'Management') are not in STAFF_NAMES — skip them
 }
 
 // Extract STAFF_NAMES from functions/index.js

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.13 -->
+<!-- MYB Roster — Pay Calculator v13.15 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -197,6 +197,7 @@
           <button class="fill-roster-btn" id="fillFromRosterBtn" type="button">Fill from my roster</button>
           <button class="roster-days-toggle" id="rosterDaysToggle" type="button" style="display:none">Show days ▼</button>
         </div>
+        <p class="roster-gold-key"><span class="roster-gold-swatch" aria-hidden="true"></span>Gold fields were filled from your roster — edit any to make it your own.</p>
         <div class="roster-day-list" id="rosterDayList" style="display:none"></div>
       </div>
 
@@ -620,8 +621,8 @@
 </div>
 
 <!-- Sticky take-home bar — mobile only, shown when result card scrolls off-screen -->
-<div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to estimated take-home pay">
-  <div class="sticky-label">💷 Estimated take-home</div>
+<div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to take-home pay">
+  <div class="sticky-label" id="stickyLabel">💷 Estimated take-home</div>
   <div class="sticky-amount" id="stickyAmount">£–</div>
 </div>
 

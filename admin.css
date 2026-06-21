@@ -405,8 +405,17 @@
             font-family: inherit;
         }
 
-        @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover { opacity: 0.75; } }
+        @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover:not(:disabled) { opacity: 0.75; } }
         .type-pill-btn.active { color: white; }
+
+        /* Disabled pill (e.g. AL / Absent on a Sunday — uncontracted day). Visibly
+           inert so the rule is taught before the tap, not punished after Save.
+           Touch can't see the title tooltip, so the styling has to carry it. */
+        .type-pill-btn:disabled {
+            opacity: 0.35;
+            cursor: not-allowed;
+            text-decoration: line-through;
+        }
 
         .pill-spare_shift  { color: var(--purple);   } .pill-spare_shift.active  { background: var(--purple);   border-color: var(--purple);   }
         .pill-shift        { color: var(--ot);       } .pill-shift.active        { background: var(--ot);       border-color: var(--ot);       }
