@@ -1106,7 +1106,7 @@ initALSection({
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
+    currentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 });
 
 // ============================================
@@ -1115,7 +1115,7 @@ initALSection({
 initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift, showSuccess,
 });
 
 

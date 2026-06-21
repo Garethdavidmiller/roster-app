@@ -228,16 +228,19 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (guidesList) guidesList.hidden = isOpen;
     });
 
-    // Notification bell toggle — an in-panel action, so the panel stays open.
-    const bell     = document.getElementById('navNotifBell');
-    const bellHint = document.getElementById('navNotifHint');
-    let _bellBusy  = false;
+    // Notification toggle — an in-panel action, so the panel stays open.
+    const bell      = document.getElementById('navNotifBell');
+    const bellIcon  = document.getElementById('navNotifIcon');
+    const bellState = document.getElementById('navNotifStateText');
+    const bellHint  = document.getElementById('navNotifHint');
+    let _bellBusy   = false;
 
-    /** Apply a state string to the bell glyph, label, and data attribute. */
+    /** Apply a state string to the toggle glyph, visible state word, and data attribute. */
     function _paintBell(state) {
         if (!bell) return;
         const on = state === 'on';
-        bell.textContent = on ? '🔔' : '🔕';
+        if (bellIcon)  bellIcon.textContent  = on ? '🔔' : '🔕';
+        if (bellState) bellState.textContent = state === 'denied' ? 'Blocked' : on ? 'On' : 'Off';
         bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
         bell.setAttribute('aria-label',
@@ -511,11 +514,15 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
 /** Build and inject the overlay + drawer HTML into document.body. */
 function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
+    // Render every permitted destination. The current page is shown too — as an
+    // inert "you are here" pill (aria-current) rather than being filtered out —
+    // so the drawer doubles as a map, not just a list of exits.
     const pills = NAV_PAGES
-        .filter(p => p.id !== currentPage)
         .filter(p => !p.adminOnly || isAdmin)
         .filter(p => !p.linksDesignerOnly || isLinksDesigner)
-        .map(p => `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
+        .map(p => p.id === currentPage
+            ? `<span class="nav-panel-pill ${p.colorClass} nav-panel-pill--current" aria-current="page">${p.label}</span>`
+            : `<a href="${p.url}" class="nav-panel-pill ${p.colorClass}">${p.label}</a>`)
         .join('');
 
     const infoGroups = NAV_INFORMATION.map(group => `
@@ -550,23 +557,29 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // The bell is only included when the device supports Web Push (notif.js folds
     // in the iOS-must-be-standalone rule); the admin Notifications card explains
     // the unsupported case for users who need it.
+    // A labelled full-width row (not a bare glyph) so the app's core feature —
+    // push alerts — is discoverable, and separated from the destructive Sign out.
     const bellHtml = notifSupported() ? `
-            <button class="nav-panel-bell" id="navNotifBell" type="button"
+            <button class="nav-panel-notif" id="navNotifBell" type="button"
                     aria-pressed="false" aria-label="Checking notification status…"
-                    data-notif-state="loading">🔔</button>` : '';
+                    data-notif-state="loading">
+                <span class="nav-panel-notif-icon" id="navNotifIcon" aria-hidden="true">🔔</span>
+                <span class="nav-panel-notif-label">Notifications</span>
+                <span class="nav-panel-notif-state" id="navNotifStateText">…</span>
+            </button>
+            <span class="nav-panel-bell-hint" id="navNotifHint" hidden>Blocked — change in browser settings</span>` : '';
     const footerHtml = onSignOut ? `
         <div class="nav-panel-footer">
+            ${bellHtml}
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
                     <span class="nav-panel-member" id="navPanelMember"></span>
                 </div>
                 <div class="nav-panel-footer-actions">
-                    ${bellHtml}
                     <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
                 </div>
             </div>
-            <span class="nav-panel-bell-hint" id="navNotifHint" hidden>Blocked — change in browser settings</span>
         </div>` : '';
 
     const html = `

@@ -1016,6 +1016,21 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill:hover { background: var(--nav-raised-strong); }
 }
 
+/* "You are here" — the current page's pill is inert and ringed so it reads as
+   the active location rather than a tappable destination. pointer-events:none
+   neutralises the variant hover/active states without re-stating each colour. */
+.nav-panel-pill--current {
+    cursor: default;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+.nav-panel-pill--current::before {
+    content: "●";
+    font-size: 9px;
+    margin-right: 6px;
+    opacity: 0.85;
+}
+
 /* Pill colour variants — match the equivalent quick-action buttons on the calendar page */
 .nav-panel-pill--calendar {
     background: var(--accent-gold);
@@ -1274,7 +1289,7 @@ button.nav-panel-link--notices {
     gap: 8px;
 }
 
-/* Bell + sign-out grouped on the right; member name takes the left */
+/* Sign-out sits on the right; member name takes the left */
 .nav-panel-footer-actions {
     display: flex;
     align-items: center;
@@ -1282,35 +1297,49 @@ button.nav-panel-link--notices {
     flex-shrink: 0;
 }
 
-/* Notification bell toggle — discrete icon button, 44px tap target */
-.nav-panel-bell {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 18px;
-    line-height: 1;
-    min-width: 44px;
-    min-height: 44px;
-    display: inline-flex;
+/* Notification toggle — a labelled full-width row above the member/sign-out
+   row, so the app's core feature (push alerts) is discoverable and clearly
+   separated from the destructive Sign out. Reads as a raised chip on navy. */
+.nav-panel-notif {
+    display: flex;
     align-items: center;
-    justify-content: center;
-    padding: 0;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 14px;
+    margin-bottom: 4px;
+    background: var(--nav-raised);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
     touch-action: manipulation;
     font-family: inherit;
 }
-.nav-panel-bell[data-notif-state="loading"] { opacity: 0.4; }
-.nav-panel-bell:disabled { cursor: default; }
-@media (hover: hover) and (pointer: fine) {
-    .nav-panel-bell:hover { opacity: 0.7; }
+.nav-panel-notif-icon  { font-size: 18px; line-height: 1; flex-shrink: 0; }
+.nav-panel-notif-label { font-size: 14px; font-weight: 600; color: var(--nav-text); }
+/* State word pushed to the right edge — the at-a-glance on/off/blocked answer */
+.nav-panel-notif-state {
+    margin-left: auto;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--nav-text-muted);
 }
-.nav-panel-bell:active { opacity: 0.5; }
+.nav-panel-notif[data-notif-state="on"]     .nav-panel-notif-state { color: var(--accent-gold); }
+.nav-panel-notif[data-notif-state="denied"] .nav-panel-notif-state { color: color-mix(in oklch, var(--error-red) 65%, white); }
+.nav-panel-notif[data-notif-state="loading"] { opacity: 0.5; }
+.nav-panel-notif:disabled { cursor: default; }
+@media (hover: hover) and (pointer: fine) {
+    .nav-panel-notif:hover { background: var(--nav-raised-strong); }
+}
+.nav-panel-notif:active { opacity: 0.75; }
 
-/* Browser-blocked hint, revealed when a denied bell is tapped.
+/* Browser-blocked hint, revealed when a denied toggle is tapped.
    Lifted toward white so the red clears AA on the navy footer. */
 .nav-panel-bell-hint {
+    display: block;
     font-size: 11px;
     color: color-mix(in oklch, var(--error-red) 65%, white);
-    text-align: right;
+    margin: -2px 0 6px 2px;
 }
 
 /* Name + nationality flags grouped on the left; name truncates, flags stay */
@@ -1382,7 +1411,7 @@ button.nav-panel-link--notices {
 .nav-panel-link:focus-visible,
 .nav-panel-brand:focus-visible,
 .nav-panel-close:focus-visible,
-.nav-panel-bell:focus-visible,
+.nav-panel-notif:focus-visible,
 .nav-panel-signout:focus-visible,
 .nav-panel-guides-toggle:focus-visible {
     outline: 2px solid var(--accent-gold);

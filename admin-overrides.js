@@ -697,8 +697,13 @@ export function renderTable() {
     }
 
     if (!rows.length) {
-        const who = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
-        if (tableBody) tableBody.innerHTML = `<tr class="state-row"><td colspan="7">No recorded changes yet${who}. Any shifts you record will appear here.</td></tr>`;
+        const who      = memberFilter ? ` for ${escapeHtml(memberFilter)}` : '';
+        // A month filter narrowing to zero is different from never having recorded
+        // anything — don't tell the user to go book leave when they've just filtered.
+        const guidance = monthFilter
+            ? 'Try “All months”, or record a change above.'
+            : 'Book annual leave or record absence in the cards above and it will appear here.';
+        if (tableBody) tableBody.innerHTML = `<tr class="state-row"><td colspan="7">No changes recorded yet${who}. ${guidance}</td></tr>`;
         return;
     }
 

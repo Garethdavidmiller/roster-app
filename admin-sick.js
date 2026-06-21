@@ -24,11 +24,12 @@ let _sickFeedbackTimer = null;
  * @param {Function}          deps.updateSickBookedBox  Refreshes the sick booked-periods box
  * @param {string|null}       deps.currentUser          Logged-in user name (for changedBy field)
  * @param {Function}          deps.showInChangeAShift   Jumps the Change a Shift section to a member + date
+ * @param {Function}          deps.showSuccess          Shows the scroll-independent bottom success toast
  */
 export function initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift, showSuccess,
 }) {
 const sickFrom     = document.getElementById('sickFrom');
 const sickTo       = document.getElementById('sickTo');
@@ -145,6 +146,9 @@ sickSaveBtn.addEventListener('click', async () => {
         sickFeedback.textContent = `✓ Recorded ${workingCount} absence day${workingCount > 1 ? 's' : ''} for ${member}`;
         clearTimeout(_sickFeedbackTimer);
         _sickFeedbackTimer = setTimeout(() => { sickFeedback.className = 'feedback'; }, 7000);
+        // The form resets and Change-a-Shift scrolls into view below, so also fire
+        // the bottom toast — confirmation must be visible regardless of scroll.
+        showSuccess?.(`Recorded ${workingCount} absence day${workingCount > 1 ? 's' : ''} for ${member}`);
 
         sickPicker.reset();
         updateSickPreview();

@@ -61,6 +61,11 @@ let _initialFetchInProgress = false;
 // same About panel that the header logo opens on the calendar page.
 let openAboutLightbox = null;
 
+// Assigned by the day-detail lightbox IIFE; lets a day-cell tap (touch devices)
+// surface the same shift label / extras / override note that desktop users get
+// from the hover tooltip. Touch had no way to read data-tooltip before this.
+let openDayDetail = null;
+
 // ============================================
 // BANK HOLIDAYS / PAYDAY / DATE UTILITIES
 // ============================================
@@ -436,7 +441,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     // closures that were GC'd on next render).
     grid.addEventListener('click', (e) => {
         const cell = e.target.closest('.calendar-day');
-        if (!cell) return;
+        if (!cell || cell.classList.contains('other-month')) return;
         const paydayIso = cell.dataset.paydayIso;
         if (paydayIso) { navigateToPaycalc(paydayIso); return; }
         const cutoffIso = cell.dataset.cutoffIso;
@@ -450,7 +455,11 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
             const idx = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
             if (idx !== -1) navigateToPaycalc(formatISO(paydays[idx]));
+            return;
         }
+        // Any other in-month cell: on touch devices (no hover tooltip) open the
+        // day-detail lightbox so staff can read the shift time and override note.
+        if (window.matchMedia('(pointer: coarse)').matches) openDayDetail?.(cell);
     });
 
     DAY_NAMES.forEach(day => {
@@ -553,6 +562,11 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
         if (extras) ttParts.push(extras);
         if (overrideNote) ttParts.push(`"${overrideNote}"`);
         dayCell.dataset.tooltip = ttParts.join(' · ');
+        // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
+        dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
+        dayCell.dataset.detailShift = ttShift;
+        if (extras)       dayCell.dataset.detailExtras = extras;
+        if (overrideNote) dayCell.dataset.detailNote   = overrideNote;
 
         if (isToday)  dayCell.classList.add('today');
         if (isBH)     dayCell.classList.add('bank-holiday');
@@ -691,6 +705,40 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     window.closeALLightbox = alLb.close;
 
     document.getElementById('alBtn').addEventListener('click', alLb.open);
+})();
+
+// ============================================
+// DAY DETAIL LIGHTBOX (touch tap on a calendar cell)
+// ============================================
+// Surfaces the shift time, day markers, and any override note when a staff
+// member taps a day on a touch device — the same content desktop users read
+// from the hover tooltip (which is unreachable on touch).
+(function() {
+    const lb       = document.getElementById('dayDetailLightbox');
+    const dateEl   = document.getElementById('dayDetailDate');
+    const shiftEl  = document.getElementById('dayDetailShift');
+    const extrasEl = document.getElementById('dayDetailExtras');
+    const noteEl   = document.getElementById('dayDetailNote');
+    if (!lb) return;
+
+    const detailLb = createLightbox({
+        overlay:  lb,
+        content:  document.getElementById('dayDetailContent'),
+        closeBtn: document.getElementById('dayDetailClose'),
+    });
+
+    // Assigned to the module-level handle so the delegated grid click handler
+    // (rebuilt per render) can open this single, persistent lightbox.
+    openDayDetail = (cell) => {
+        const d = cell.dataset;
+        dateEl.textContent  = d.detailDay   || '';
+        shiftEl.textContent = d.detailShift || '';
+        if (d.detailExtras) { extrasEl.textContent = d.detailExtras; extrasEl.hidden = false; }
+        else                  extrasEl.hidden = true;
+        if (d.detailNote)   { noteEl.textContent = `“${d.detailNote}”`; noteEl.hidden = false; }
+        else                  noteEl.hidden = true;
+        detailLb.open();
+    };
 })();
 
 /**
@@ -926,7 +974,11 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
+            // A one-tap Reload goes through the network-first service worker, so it
+            // can actually recover from a bad cached state — unlike "close and reopen",
+            // which an installed PWA may relaunch straight back into.
+            errDiv.innerHTML = '<h2>⚠️ Couldn\'t display your roster</h2><p>Tap Reload to try again. If it keeps happening, check your connection or contact the admin team.</p><button type="button" class="calendar-error-reload">↻ Reload</button>';
+            errDiv.querySelector('.calendar-error-reload')?.addEventListener('click', () => window.location.reload());
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
