@@ -2496,7 +2496,7 @@ const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
       archiveNotice({
         id:      'ytd_2627',
         title:   'Enter your previous payslip figures',
-        section: '💷 Pay',
+        section: 'Pay',
         date:    new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
         body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
       });
