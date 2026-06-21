@@ -560,23 +560,20 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // A labelled full-width row (not a bare glyph) so the app's core feature —
     // push alerts — is discoverable, and separated from the destructive Sign out.
     const bellHtml = notifSupported() ? `
-            <button class="nav-panel-notif" id="navNotifBell" type="button"
-                    aria-pressed="false" aria-label="Checking notification status…"
-                    data-notif-state="loading">
-                <span class="nav-panel-notif-icon" id="navNotifIcon" aria-hidden="true">🔔</span>
-                <span class="nav-panel-notif-label">Notifications</span>
-                <span class="nav-panel-notif-state" id="navNotifStateText">…</span>
-            </button>
-            <span class="nav-panel-bell-hint" id="navNotifHint" hidden>Blocked — change in browser settings</span>` : '';
+                <button class="nav-panel-bell" id="navNotifBell" type="button"
+                        aria-pressed="false" aria-label="Checking notification status…"
+                        data-notif-state="loading">
+                    <span id="navNotifIcon" aria-hidden="true">🔔</span>
+                </button>` : '';
     const footerHtml = onSignOut ? `
         <div class="nav-panel-footer">
-            ${bellHtml}
             <div class="nav-panel-footer-row">
                 <div class="nav-panel-member-wrap">
                     <span class="nav-panel-avatar" id="navPanelAvatar" aria-hidden="true"></span>
                     <span class="nav-panel-member" id="navPanelMember"></span>
                 </div>
                 <div class="nav-panel-footer-actions">
+                    ${bellHtml}
                     <button class="nav-panel-signout" id="navSignOutBtn">Sign out</button>
                 </div>
             </div>

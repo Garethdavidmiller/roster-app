@@ -1324,7 +1324,8 @@
         .team-week-row {
             display: flex;
             align-items: center;
-            padding: 2px 4px 4px;
+            gap: 8px;
+            padding: 8px 4px;
         }
         .team-week-center {
             display: flex;
