@@ -40,10 +40,10 @@ bypass rules and are unaffected.
 The `faithCalendar` field in `memberSettings/{memberName}` stores the staff member's
 chosen cultural calendar (e.g. `'islamic'`, `'hindu'`). This is a personal religious/
 cultural preference and constitutes special-category personal data under UK GDPR Article 9.
-Current mitigations: Firestore rules require `request.auth != null` for all reads and
-writes; only the member themselves can write their own setting. No additional retention
-policy or right-to-erasure flow has been implemented — `allow delete: if request.auth != null`
-in `firestore.rules` covers self-deletion. If this data is ever exported or shared beyond
+Current mitigations: Firestore rules require `request.auth != null` for all reads;
+writes and deletes are now restricted to the owning member via `request.auth.token.name == memberName`
+(added alongside `staffContact` isolation at v13.16). No additional retention
+policy or right-to-erasure flow has been implemented — delete requires auth + name claim. If this data is ever exported or shared beyond
 the app, a DPIA should be completed.
 
 ### CSP connect-src includes firebasestorage.googleapis.com (v11.07)
