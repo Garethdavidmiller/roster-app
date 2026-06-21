@@ -19,7 +19,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Syntax check (functions)
         run: |
@@ -31,6 +31,10 @@ jobs:
 
       - name: Install function dependencies
         run: npm ci
+        working-directory: functions
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
         working-directory: functions
 
       - name: Install Firebase CLI
