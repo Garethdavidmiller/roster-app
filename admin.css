@@ -1754,27 +1754,30 @@
         .cb-col { width: 32px; }
 
         /* ---- Work email notice lightbox ---- */
+        #workEmailNoticeLightbox { z-index: 9000; }
         #workEmailNoticeContent {
             display: flex;
             flex-direction: column;
             align-items: center;
             text-align: center;
-            gap: 12px;
+            gap: 8px;
             background: rgba(255, 255, 255, 0.08);
             border: 1px solid rgba(255, 255, 255, 0.15);
             border-radius: 24px;
             padding: 28px 24px 24px;
             width: min(340px, calc(100vw - 48px));
-            max-height: 80dvh;
+            max-height: 80vh;
+            transform: scale(0.85);
         }
-        .notice-lb-emoji { font-size: 52px; line-height: 1; margin-bottom: 2px; }
+        #workEmailNoticeLightbox.open #workEmailNoticeContent { transform: scale(1); }
+        .notice-lb-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
         .notice-lb-desc {
             margin: 0;
             font-size: 13px;
             line-height: 1.6;
-            color: rgba(255, 255, 255, 0.7);
+            color: rgba(255, 255, 255, 0.68);
         }
-        .notice-lb-desc strong { color: var(--accent-gold); font-weight: 700; }
+        #workEmailNoticeContent strong { color: rgba(255, 255, 255, 0.9); }
         #workEmailNoticeClose { color: rgba(255, 255, 255, 0.45); }
         #workEmailNoticeClose:active { color: white; }
         @media (hover: hover) and (pointer: fine) {
