@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v13.06
+// MYB Roster — Service Worker v13.07
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '13.06';
+const APP_VERSION = '13.07';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -38,7 +38,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-roster-suggestions.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
     'railcard-guide.html',
-    'railcard-guide.js', 'guide-print.js', 'guide-shell.css',
+    'railcard-guide.js', 'guide-print.js', 'guide-shell.css', 'guide-doc.css',
     'guide.css', 'paycalc-guide.css', 'railcard-guide.css', 'fip.css',
     'purify.es.mjs',
 ];
@@ -103,6 +103,7 @@ const SUPPLEMENTARY_ASSETS = [
     "./railcard-guide.js",
     "./guide-print.js",
     "./guide-shell.css",
+    "./guide-doc.css",
     "./guide.css",
     "./paycalc-guide.css",
     "./railcard-guide.css",
