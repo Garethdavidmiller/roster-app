@@ -1,5 +1,5 @@
 /**
- * nav-panel.js — Slide-out navigation panel, shared by all three main pages.
+ * nav-panel.js — Slide-out navigation panel, shared by all six app pages.
  *
  * Injects overlay + drawer HTML into document.body, then wires the burger
  * button (#navMenuBtn). Uses the same history.pushState / popstate pattern

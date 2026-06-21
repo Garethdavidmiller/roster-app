@@ -30,7 +30,7 @@ jobs:
         run: node --test roster-parse-helpers.test.mjs
 
       - name: Install function dependencies
-        run: npm install
+        run: npm ci
         working-directory: functions
 
       - name: Install Firebase CLI
