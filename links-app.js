@@ -1389,7 +1389,11 @@ document.addEventListener('click', e => {
 // BETA NOTICE LIGHTBOX — shown once on first visit
 // ============================================
 (function () {
-    const BETA_KEY = 'myb_links_beta_seen';
+    const NOTICE_DATE = '9 Jun 2026';
+    const BETA_KEY    = 'myb_links_beta_seen';
+    if (lsGet(BETA_KEY)) return;
+    if (isNoticeExpired(NOTICE_DATE)) { lsSet(BETA_KEY, '1'); return; }
+
     const lb = document.getElementById('betaLightbox');
     if (!lb) return;
 
@@ -1403,14 +1407,13 @@ document.addEventListener('click', e => {
                 id:      'links-beta-2026',
                 title:   'Links Workspace',
                 section: 'Links',
-                date:    '9 Jun 2026',
+                date:    NOTICE_DATE,
                 body:    'The Links workspace is in early beta — a working sketch for designing the 28-line link. Changes here only affect the link-design document, never the live roster.',
             });
         },
     });
 
-    if (!lsGet(BETA_KEY) && isNoticeExpired('9 Jun 2026')) { lsSet(BETA_KEY, '1'); return; }
-    if (!lsGet(BETA_KEY)) beta.open();
+    beta.open();
 })();
 
 // ============================================

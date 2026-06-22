@@ -1946,5 +1946,5 @@ initNavPanel({
     // "Not now" — explicit defer; delegates to lb.close() which fires onClose → snooze 7 days.
     laterBtn?.addEventListener('click', () => lb.close());
 
-    setTimeout(() => lb.open(), 1500);
+    setTimeout(() => { if (!document.body.classList.contains('lb-open')) lb.open(); }, 1500);
 }());

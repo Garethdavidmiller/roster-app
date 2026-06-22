@@ -541,6 +541,7 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 13px 20px;
     border-radius: 10px;
     margin-top: 4px;
+    touch-action: manipulation;
     transition: background-color var(--dur-fast) var(--ease-standard),
                 transform      var(--dur-fast) var(--ease-standard);
 }
@@ -559,6 +560,7 @@ body.lb-open #stickyTotal { display: none !important; }
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
+    touch-action: manipulation;
     transition: color var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {

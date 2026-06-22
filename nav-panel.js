@@ -110,7 +110,7 @@ export function archiveNotice({ id, title, section, date, body }) {
         const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]')
             .filter(n => n.archivedAt && (now - new Date(n.archivedAt).getTime()) < expiryMs);
         if (existing.some(n => n.id === id)) return;
-        existing.unshift({ id, title, section, date, body, archivedAt: new Date().toISOString() });
+        existing.unshift({ id, title, section, date, body, archivedAt: new Date(now).toISOString() });
         lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, 50)));
     } catch (e) {
         console.warn('[Nav] archiveNotice failed:', e);
