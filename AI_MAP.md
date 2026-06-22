@@ -141,8 +141,9 @@ Shared auth/session module — canonical source for session logic (v11.40).
 Coordinator for `operations.html` (admin-only, v10.99).
 - Session guard: reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; redirects to `admin.html` if not authenticated or not in `CONFIG.ADMIN_NAMES`
 - Calls `ensureFirebaseSession(name)` from `session.js` to re-establish Firebase Auth on page load
-- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`
-- Owns icon lightbox, tips lightbox, and collapsible card wiring for the three operations cards
+- Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`; runs `initErrorLog()` IIFE (Error Log card, v13.31)
+- Work Email Progress card (v13.30) shows per-grade breakdown (All / CEA / CES / Dispatcher filter) of who has and hasn't added a work email — "Added (N)" green chips + "Still to add (N)" grey chips
+- Owns icon lightbox, tips lightbox, and collapsible card wiring for the operations cards
 
 ### `admin-al.js`
 Annual Leave Booking section (extracted v9.93).
@@ -243,6 +244,8 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
+- `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
+- `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`
 
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by all six app pages.
