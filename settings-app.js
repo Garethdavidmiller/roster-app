@@ -249,7 +249,7 @@ function initContactCard() {
         try {
             if (window._mybSession) await window._mybSession;
             await saveStaffContact(currentUser, email);
-            lsSet('myb_work_email_notice_done', '1');  // dismiss the calendar notice permanently
+            lsSet(`myb_work_email_notice_done:${currentUser}`, '1');  // dismiss the calendar notice for this member
             const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
             showSavedState(today);
         } catch (err) {
@@ -273,6 +273,9 @@ function initContactCard() {
             try {
                 if (window._mybSession) await window._mybSession;
                 await deleteStaffContact(currentUser);
+                // Re-arm the calendar prompt for this member — they no longer have an email saved.
+                lsDel(`myb_work_email_notice_done:${currentUser}`);
+                lsDel(`myb_work_email_notice_snooze:${currentUser}`);
                 emailInput.value = '';
                 clearSavedState();
             } catch (err) {

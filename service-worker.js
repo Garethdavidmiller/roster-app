@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v13.43
+// MYB Roster — Service Worker v13.45
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '13.43';
+const APP_VERSION = '13.45';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -163,7 +163,10 @@ self.addEventListener("activate", event => {
         const cacheNames = await caches.keys();
         await Promise.all(
             cacheNames
-                .filter(name => name !== CACHE_NAME)
+                // Only prune THIS app's old version caches (myb-roster-v*). Scoping the
+                // delete by prefix means we never clobber a cache owned by something else
+                // sharing the origin, instead of deleting every non-current cache.
+                .filter(name => name.startsWith('myb-roster-v') && name !== CACHE_NAME)
                 .map(name => {
                     console.log(`[SW ${APP_VERSION}] Deleting old cache:`, name);
                     return caches.delete(name);

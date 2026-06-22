@@ -986,6 +986,11 @@ exports.setupRosterAuth = onRequest(
         const skipped  = [];
         const disabled = [];
         const failed   = [];
+        // Emails of members whose name+email derivation succeeded — the authoritative
+        // "active" set for orphan removal. Built here (not re-derived from the raw,
+        // unvalidated `members` array later) so a single bad entry can't throw during
+        // orphan removal and abort it.
+        const activeEmails = new Set();
 
         // Create accounts for all current members, then (re)apply custom claims.
         for (const name of members) {
@@ -1003,6 +1008,8 @@ exports.setupRosterAuth = onRequest(
                 console.error(`[setupRosterAuth] Name derivation failed for "${name}": ${err.message}`);
                 continue;
             }
+            // Derivation succeeded — this is an active member; never orphan-disable it.
+            activeEmails.add(email);
             let uid;
             try {
                 const user = await admin.auth().createUser({ email, password, displayName: name });
@@ -1020,8 +1027,14 @@ exports.setupRosterAuth = onRequest(
                             await admin.auth().updateUser(uid, { disabled: false });
                             console.log(`[setupRosterAuth] Re-enabled returning member: ${email}`);
                         }
-                    } catch { /* ignore — claim update will be skipped */ }
-                    skipped.push(name);
+                        skipped.push(name);
+                    } catch (lookupErr) {
+                        // Lookup/re-enable failed: the account exists but we couldn't act on
+                        // it, so claims won't be applied. Report it as a real failure, not a
+                        // benign skip, so the result reflects what actually happened.
+                        failed.push(`${name} (lookup-failed: ${lookupErr.message})`);
+                        console.error(`[setupRosterAuth] Lookup/re-enable failed for ${name}: ${lookupErr.message}`);
+                    }
                 } else {
                     const reason = err.code || err.message || 'unknown';
                     failed.push(`${name} (${reason})`);
@@ -1046,9 +1059,9 @@ exports.setupRosterAuth = onRequest(
             }
         }
 
-        // Disable accounts for leavers — anyone with @myb-roster.local not in members list
+        // Disable accounts for leavers — anyone with @myb-roster.local not in the
+        // validated active set (built during the main loop above).
         if (removeOrphans) {
-            const activeEmails = new Set(members.map(nameToEmail));
             let pageToken;
             do {
                 const page = await admin.auth().listUsers(1000, pageToken);

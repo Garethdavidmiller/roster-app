@@ -16,7 +16,7 @@ import {
 } from './paycalc-calc.js';
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { getSession, clearSession } from './session.js';
+import { getSession, clearSession, ensureFirebaseSession } from './session.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -2448,7 +2448,18 @@ let openAboutLightbox = null;
 
 // ── SERVICE WORKER ────────────────────────────────────────────────────────────
 registerServiceWorker();
-initErrorReporter();
+
+// Establish the Firebase Auth session BEFORE starting error reporting. A valid
+// 30-day localStorage session can outlive the Firebase Auth session (cleared or
+// lost), in which case clientErrors writes fail the `request.auth != null` rule
+// and are silently dropped — exactly when we most want the report. Mirrors the
+// admin/settings/operations pages. Error reporter starts regardless of the
+// outcome so synchronous init errors are still captured locally.
+(function _initErrorReporting() {
+  const name = getSession()?.name;
+  if (name) ensureFirebaseSession(name).catch(() => {/* reporter still starts below */}).finally(initErrorReporter);
+  else initErrorReporter();
+}());
 
 // Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
 // only shows after welcome has been dismissed). Defined at module level so both

@@ -257,23 +257,19 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Notification toggle — an in-panel action, so the panel stays open.
     const bell      = document.getElementById('navNotifBell');
     const bellIcon  = document.getElementById('navNotifIcon');
-    const bellState = document.getElementById('navNotifStateText');
-    const bellHint  = document.getElementById('navNotifHint');
     let _bellBusy   = false;
 
-    /** Apply a state string to the toggle glyph, visible state word, and data attribute. */
+    /** Apply a state string to the toggle glyph and accessible name. */
     function _paintBell(state) {
         if (!bell) return;
         const on = state === 'on';
         if (bellIcon)  bellIcon.textContent  = on ? '🔔' : '🔕';
-        if (bellState) bellState.textContent = state === 'denied' ? 'Blocked' : on ? 'On' : 'Off';
         bell.setAttribute('aria-pressed', on ? 'true' : 'false');
         bell.dataset.notifState = state;
         bell.setAttribute('aria-label',
             on        ? 'Notifications on — tap to turn off'
           : state === 'denied' ? 'Notifications blocked in browser settings'
           : 'Notifications off — tap to turn on');
-        if (bellHint) bellHint.hidden = true;
     }
 
     /**
@@ -289,11 +285,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     bell?.addEventListener('click', async () => {
         if (_bellBusy) return;
         const state = bell.dataset.notifState;
-        // Browser-blocked: nothing we can do programmatically — just hint.
-        if (state === 'denied') {
-            if (bellHint) bellHint.hidden = false;
-            return;
-        }
+        // Browser-blocked: nothing we can do programmatically. The blocked status is
+        // already conveyed by the bell's aria-label (set in _paintBell), so just no-op.
+        if (state === 'denied') return;
         _bellBusy = true;
         bell.dataset.notifState = 'loading';
         bell.disabled = true;
