@@ -14,7 +14,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
-import { initNavPanel, archiveNotice } from './nav-panel.js';
+import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -1911,6 +1911,7 @@ initNavPanel({
     if (lsGet(DONE_KEY)) return;                                       // email already saved on this device
     const snoozeUntil = lsGet(SNOOZE_KEY);
     if (snoozeUntil && Date.now() < new Date(snoozeUntil).getTime()) return;
+    if (isNoticeExpired('22 Jun 2026')) { lsSet(DONE_KEY, '1'); return; } // stale on a new device
 
     const overlay  = document.getElementById('workEmailNoticeLb');
     const goLink   = document.getElementById('workEmailNoticeGo');

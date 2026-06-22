@@ -17,7 +17,7 @@ import {
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
-import { initNavPanel, archiveNotice } from './nav-panel.js';
+import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -2506,6 +2506,8 @@ const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
     },
   });
 
+  // Silently expire on a new device if the notice is older than 90 days (tax-year range).
+  if (isNoticeExpired('6 Apr 2026', 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
   // Show only after the welcome lightbox has been seen, and only once.
   if (lsGet(WELCOME_KEY) && !lsGet(NOTICE_YTD_KEY)) notice.open();
 })();

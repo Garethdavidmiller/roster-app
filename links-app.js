@@ -10,7 +10,7 @@
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp } from './firebase-client.js';
-import { initNavPanel, archiveNotice } from './nav-panel.js';
+import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -1409,6 +1409,7 @@ document.addEventListener('click', e => {
         },
     });
 
+    if (!lsGet(BETA_KEY) && isNoticeExpired('9 Jun 2026')) { lsSet(BETA_KEY, '1'); return; }
     if (!lsGet(BETA_KEY)) beta.open();
 })();
 
