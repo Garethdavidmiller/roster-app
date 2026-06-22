@@ -248,6 +248,7 @@
       cursor: pointer; touch-action: manipulation; transition: background 0.15s;
     }
     .bd-btn:active { background: var(--border-light); }
+    .bd-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
     .bd-arrow { font-size: 9px; transition: transform 0.25s; display: inline-block; }
     .bd-btn.open .bd-arrow { transform: rotate(180deg); }
     .bd-body { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
@@ -340,6 +341,7 @@
     @media (hover: hover) and (pointer: fine) {
       .show-more-btn:hover { border-color: var(--primary-blue); color: var(--primary-blue); }
     }
+    .show-more-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
     .show-more-arrow { font-size: 9px; transition: transform 0.25s; }
     .show-more-btn.open .show-more-arrow { transform: rotate(180deg); }
     .hours-extra { display: none; }
@@ -544,6 +546,7 @@
       touch-action: manipulation; margin-top: 2px;
     }
     .hpp-toggle-btn:active { color: var(--text-mid); }
+    .hpp-toggle-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: -2px; }
     .hpp-toggle-arrow { font-size: 9px; transition: transform 0.25s; display: inline-block; }
     .hpp-toggle-btn.open .hpp-toggle-arrow { transform: rotate(180deg); }
     .hpp-note-body { max-height: 0; overflow: hidden; transition: max-height 0.35s ease; }

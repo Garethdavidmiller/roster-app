@@ -81,7 +81,7 @@ body {
 }
 .guide-header-left { display: flex; align-items: center; gap: 12px; }
 .guide-header-icon { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
-.guide-header h1 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; }
+.guide-header h2 { font-size: 16px; font-weight: 800; letter-spacing: -0.2px; line-height: 1.2; color: white; text-transform: none; border-bottom: none; padding-bottom: 0; margin: 0; }
 .guide-header .sub { font-size: 10.5px; color: rgba(255,255,255,0.6); margin-top: 2px; }
 .version-pill {
     background: var(--gold);
@@ -116,7 +116,7 @@ h2:first-of-type { margin-top: 0; }
     .page { padding: 8px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left)); }
     .cols { grid-template-columns: 1fr; gap: 0; }
     .guide-header { padding: 10px 12px; margin-bottom: 14px; }
-    .guide-header h1 { font-size: 14px; }
+    .guide-header h2 { font-size: 14px; }
     .guide-header-icon { width: 32px; height: 32px; border-radius: 8px; }
     h2 { margin-top: 14px; }
 }

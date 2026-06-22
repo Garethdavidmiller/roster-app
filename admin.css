@@ -246,8 +246,8 @@
             border: none;
             font-size: 16px;
             font-weight: 700;
-            width: 36px;
-            height: 36px;
+            min-width: 44px;
+            min-height: 44px;
             border-radius: 8px;
             cursor: pointer;
             display: flex;
@@ -258,6 +258,10 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .week-nav-btn:hover { background: var(--primary-blue-dark); } }
+        .week-nav-btn:focus-visible {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: 2px;
+        }
 
         .week-nav-today {
             background: var(--accent-gold);
@@ -388,6 +392,10 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-bulk-select:hover { border-color: var(--primary-blue); color: var(--primary-blue); } }
+        .btn-bulk-select:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+        }
 
         .bulk-type-group { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
 
@@ -398,6 +406,7 @@
             font-size: 11px;
             font-weight: 700;
             padding: 5px 10px;
+            min-height: 44px;
             border-radius: 20px;
             cursor: pointer;
             white-space: nowrap;
@@ -406,6 +415,10 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .type-pill-btn:hover:not(:disabled) { opacity: 0.75; } }
+        .type-pill-btn:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: 2px;
+        }
         .type-pill-btn.active { color: white; }
 
         /* Disabled pill (e.g. AL / Absent on a Sunday — uncontracted day). Visibly
@@ -460,6 +473,10 @@
         }
 
         @media (hover: hover) and (pointer: fine) { .btn-bulk-apply:hover { background: var(--primary-blue-dark); } }
+        .btn-bulk-apply:focus-visible {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: 2px;
+        }
 
         /* ---- Week grid ---- */
         .week-grid {
@@ -1181,6 +1198,10 @@
             user-select: none;
             -webkit-user-select: none;
             gap: 8px;
+        }
+        .al-booked-header:focus-visible {
+            outline: 2px solid var(--primary-blue);
+            outline-offset: -2px;
         }
         .al-booked-title {
             font-weight: 600;

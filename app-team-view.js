@@ -158,7 +158,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
         const todayIndex = weekDates.findIndex(d => d.getTime() === todayMidnight.getTime());
 
         const dayHeaders = weekDates.map((d, i) =>
-            `<th class="tv-day-header${i === todayIndex ? ' tv-today-col' : ''}">${DAY_NAMES[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
+            `<th scope="col" class="tv-day-header${i === todayIndex ? ' tv-today-col' : ''}">${DAY_NAMES[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
         ).join('');
 
         // Identify the logged-in member so their row can be visually distinguished.
@@ -173,11 +173,11 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
                     return `<td class="tv-cell ${cls}${i === todayIndex ? ' tv-today-col' : ''}">${text}</td>`;
                 }).join('');
                 const myRow = member.name === myName ? ' class="tv-my-row"' : '';
-                return `<tr${myRow}><td class="tv-name-col">${escapeHtml(member.name)}</td>${cells}</tr>`;
+                return `<tr${myRow}><th scope="row" class="tv-name-col">${escapeHtml(member.name)}</th>${cells}</tr>`;
             }).join('');
 
         const gradeBtns = TEAM_GRADES.map(g =>
-            `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" aria-selected="${g === grade}" tabindex="${g === grade ? '0' : '-1'}" aria-controls="gradeTabPanel" data-grade="${g}">${g}</button>`
+            `<button class="grade-tab${g === grade ? ' active' : ''}" role="tab" id="gradeTab-${g}" aria-selected="${g === grade}" tabindex="${g === grade ? '0' : '-1'}" aria-controls="gradeTabPanel" data-grade="${g}">${g}</button>`
         ).join('');
 
         calendarDisplay.innerHTML = `
@@ -197,10 +197,10 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
                     </div>
                     <button class="tv-week-nav" id="tvNextWeek" aria-label="Next week">Next →</button>
                 </div>
-                <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" aria-label="${grade} grade roster — week of ${weekLabel}">
+                <div class="team-table-wrap" id="gradeTabPanel" role="tabpanel" aria-labelledby="gradeTab-${grade}" aria-label="${grade} grade roster — week of ${weekLabel}">
                     <table class="team-table">
                         <thead><tr>
-                            <th class="tv-name-col">Name</th>${dayHeaders}
+                            <th scope="col" class="tv-name-col">Name</th>${dayHeaders}
                         </tr></thead>
                         <tbody>${tableBody}</tbody>
                     </table>
@@ -254,6 +254,10 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             currentTeamWeekStart = getSunday(new Date());
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
+            // The "↩ This week" button is replaced by a non-interactive "This week"
+            // badge on the current week, so focus can't return to it. Move focus to a
+            // stable control (Next week) instead of letting it drop to <body>.
+            calendarDisplay.querySelector('#tvNextWeek')?.focus();
         });
 
         // Scroll hint — show once per device; lsSet marks it seen after first scroll.
