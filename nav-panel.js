@@ -74,18 +74,42 @@ let _noticesOpen    = false;
 
 /** localStorage key for the archived notices list. */
 const NOTICES_KEY = 'myb_app_notices';
+/** Notices older than this many days are pruned from the archive and not shown on new devices. */
+const NOTICE_EXPIRY_DAYS = 28;
+
+const _MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+function _parseNoticeDate(str) {
+    const [d, mon, y] = str.trim().split(/\s+/);
+    const m = _MONTHS[mon];
+    return (m === undefined) ? NaN : new Date(+y, m, +d).getTime();
+}
+
+/**
+ * Returns true if a notice's posting date is older than NOTICE_EXPIRY_DAYS.
+ * Use to silently skip stale notices on a new device:
+ *   if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }
+ * @param {string} dateStr — "D Mon YYYY", e.g. "22 Jun 2026"
+ */
+export function isNoticeExpired(dateStr) {
+    const posted = _parseNoticeDate(dateStr);
+    return !isNaN(posted) && (Date.now() - posted) > NOTICE_EXPIRY_DAYS * 86_400_000;
+}
 
 /**
  * Archive a notice so it appears in the App Notices panel.
  * Call this when the user dismisses a notice lightbox.
+ * Entries older than NOTICE_EXPIRY_DAYS are pruned automatically.
  * @param {{ id: string, title: string, section: string, date: string, body: string }} notice
  */
 export function archiveNotice({ id, title, section, date, body }) {
     try {
-        const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]');
-        if (existing.some(n => n.id === id)) return; // already archived
-        existing.unshift({ id, title, section, date, body });
-        lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, 50))); // cap at 50 entries
+        const expiryMs = NOTICE_EXPIRY_DAYS * 86_400_000;
+        const now = Date.now();
+        const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]')
+            .filter(n => n.archivedAt && (now - new Date(n.archivedAt).getTime()) < expiryMs);
+        if (existing.some(n => n.id === id)) return;
+        existing.unshift({ id, title, section, date, body, archivedAt: new Date().toISOString() });
+        lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, 50)));
     } catch (e) {
         console.warn('[Nav] archiveNotice failed:', e);
     }

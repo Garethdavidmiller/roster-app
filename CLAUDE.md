@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v13.30 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.40 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `13.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `13.40` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -444,6 +444,8 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 | Snooze key | `myb_notice_[id]_snooze` — ISO date string |
 | Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `work-email-2026`, `ytd_2627` |
 | Posting date format | `D Mon YYYY` — e.g. `22 Jun 2026` — hardcoded in both the HTML `.notice-date` and the `archiveNotice()` call; never use `new Date()` |
+| Expiry on new device | 28 days from posting date — add `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` after the done/snooze checks. Prevents stale notices accumulating on a fresh install. Import `isNoticeExpired` from `nav-panel.js`. |
+| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than 28 days on every write — the archive never grows stale. |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
 
 ### Current notices
