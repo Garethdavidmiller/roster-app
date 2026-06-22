@@ -47,7 +47,7 @@ function _report(err, src = '') {
         _seen.add(dedupKey);
 
         const stack      = (err instanceof Error ? (err.stack ?? '') : '').slice(0, 800);
-        const memberName = lsGet(AUTH_KEY)?.name ?? 'unknown';
+        const memberName = JSON.parse(lsGet(AUTH_KEY) ?? 'null')?.name ?? 'unknown';
         const page       = location.pathname.replace(/^.*\//, '') || 'index.html';
 
         // Fire-and-forget — no await; logClientError swallows its own write errors.
