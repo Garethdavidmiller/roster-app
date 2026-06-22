@@ -125,7 +125,7 @@ roster-app/
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
 ├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports initHuddleViewer (applyHuddleButtonState removed v12.57 — #huddleBtn no longer exists). Imported by calendar-app.js (v11.40)
-├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. Imported by calendar-app.js, admin-app.js, paycalc-app.js, operations-app.js, settings-app.js
+├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. App Notices archive: archiveNotice({ id, title, section, date, body }) — idempotent, writes to localStorage `myb_app_notices`; "📣 App Notices" nav link opens the archive panel. Imported by calendar-app.js, admin-app.js, paycalc-app.js, operations-app.js, settings-app.js
 ├── notif.js                ← shared Web Push module: notifSupported, getNotifState, peekNotifState (read-only), enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, trapFocus, createLightbox (canonical lightbox lifecycle factory, v12.50), initCardCollapse. Singleton popstate listener. Imported by all six app pages and nav-panel.js (v11.40)
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox({ appLabel, bugLinkId, getUserName, onOpen, printFn }) — version line, SW update status, bug-report mailto, optional print button. Built on createLightbox. Imported by all six app pages (v12.50)
@@ -258,6 +258,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
 | Sync chip state machine in `calendar-app.js` | hidden → (800ms) → "↻ Updating…" → silent remove on success, or "⚠ Couldn't update" (stays, 10s timeout). "✓ Up to date" removed (v10.19) — noise. Never show raw errors to staff. |
+| App Notices system (v13.36) | `nav-panel.js` owns the archive: `archiveNotice({ id, title, section, date, body })` writes to localStorage `myb_app_notices` (capped at 50 entries, deduped by `id`). "📣 App Notices" in `NAV_INFORMATION` opens the archive panel. Notice lightboxes live on individual pages; see **"One-time notice pattern"** section below for the full creation guide. Current notices: `work-email-2026` (index.html), `ytd_2627` (paycalc.html), `links-beta-2026` (links.html). |
 | `_clearState` object in `paycalc-app.js` | Groups all state for a two-tap destructive action so it resets atomically. Includes `countdownTimer` for live countdown in button label. |
 | `CONDITIONAL_ROWS` in `paycalc-app.js` | Data-driven array: condition → row IDs → field IDs. `updateBhRows(p)` iterates it. Adding future conditional rows means one array entry, not new show/hide logic. |
 | `touch-only` CSS class in `shared.css` | `display:none` by default; revealed via `@media (pointer: coarse)`. Use for touch-only UI. Do not use inline `display:none`. `(hover: hover)` inverse was dropped (v10.15) — some Android devices misreport it. |
@@ -308,6 +309,150 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `calendar-app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |
+
+---
+
+## One-time notice pattern (v13.36)
+
+Notices are `.lb-overlay` lightboxes shown periodically or once to staff on a specific page. They are built with `createLightbox()` and call `archiveNotice()` so the notice appears in the nav panel "📣 App Notices" record. **Every notice must follow this pattern exactly** — do not invent new CSS classes or deviate from the element order.
+
+### HTML template
+
+Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay` divs:
+
+```html
+<div id="[Name]NoticeLb" class="lb-overlay" role="dialog" aria-label="[Title]" aria-modal="true">
+    <div id="[Name]NoticeContent" class="lb-content">
+        <button id="[Name]NoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+        <div class="lightbox-badge">[Emoji] [Section]</div>
+        <div class="lightbox-app-name">[Title]</div>
+        <div class="notice-date">Posted [D Mon YYYY]</div>
+        <p class="notice-body">[Body text. Use <strong> for emphasis.]</p>
+        <!-- OPTIONAL — only when the notice drives a page visit: -->
+        <a href="[url]" id="[Name]NoticeGo" class="notice-cta">[CTA label] →</a>
+        <button id="[Name]NoticeLater" class="notice-later" type="button">Not now</button>
+    </div>
+</div>
+```
+
+**Element order is mandatory:**
+1. `.lb-close` ✕ button — always first, absolutely positioned, does not affect flex flow
+2. `.lightbox-badge` — section pill; first visible element; gold by default — **do not override the colour**
+3. `.lightbox-app-name` — notice title (white, 22px bold)
+4. `.notice-date` — `Posted D Mon YYYY` — **hardcoded** to the date the notice was published
+5. `.notice-body` — body copy paragraph (soft white, 14px, centred)
+6. `.notice-cta` — gold action `<a>` — only if the notice links to another page
+7. `.notice-later` — muted dismiss `<button>` — only when `.notice-cta` is present
+
+**No per-notice CSS.** All visual needs are met by the shared classes above (defined in `shared.css`).
+
+### Section badge values
+
+| Section | Badge text |
+|---------|-----------|
+| Settings page | `⚙️ Settings` |
+| Pay calculator | `💷 Pay` |
+| General / no specific page | `📣 General` |
+
+### JS pattern — close-only notice (no CTA)
+
+The user reads the notice and closes it. `archiveNotice()` fires in `onClose` because there is only one dismissal path.
+
+```javascript
+(function () {
+    const NOTICE_ID   = '[id]';          // e.g. 'ytd_2627'
+    const NOTICE_DATE = '[D Mon YYYY]';  // matches the HTML .notice-date — hardcoded
+    const NOTICE_KEY  = 'myb_notice_[id]_done';
+
+    const overlay = document.getElementById('[Name]NoticeLb');
+    if (!overlay || lsGet(NOTICE_KEY)) return;
+
+    const lb = createLightbox({
+        overlay,
+        content:  document.getElementById('[Name]NoticeContent'),
+        closeBtn: document.getElementById('[Name]NoticeClose'),
+        onClose() {
+            archiveNotice({
+                id: NOTICE_ID, title: '[Title]', section: '[Section]',
+                date: NOTICE_DATE,
+                body: '[One-sentence summary for the App Notices archive.]',
+            });
+            lsSet(NOTICE_KEY, '1');
+        },
+    });
+
+    lb.open();   // or conditionally, e.g.: if (lsGet(PREV_KEY) && !lsGet(NOTICE_KEY)) lb.open();
+}());
+```
+
+### JS pattern — actionable notice (has CTA + "Not now")
+
+The user may navigate away before closing. `archiveNotice()` fires in `onOpen` to guarantee the record is written regardless of which path the user takes. A snooze mechanism prevents re-showing before the user has had time to act.
+
+```javascript
+(function () {
+    const NOTICE_ID   = '[id]';
+    const NOTICE_DATE = '[D Mon YYYY]';
+    const DONE_KEY    = 'myb_notice_[id]_done';
+    const SNOOZE_KEY  = 'myb_notice_[id]_snooze';
+
+    if (!getSession()) return;          // show only to signed-in users
+    if (lsGet(DONE_KEY)) return;        // permanently dismissed (action completed elsewhere)
+    const snooze = lsGet(SNOOZE_KEY);
+    if (snooze && Date.now() < new Date(snooze).getTime()) return;
+
+    const overlay  = document.getElementById('[Name]NoticeLb');
+    const goLink   = document.getElementById('[Name]NoticeGo');
+    const laterBtn = document.getElementById('[Name]NoticeLater');
+    if (!overlay) return;
+
+    function _snooze(days) {
+        lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
+    }
+
+    const lb = createLightbox({
+        overlay,
+        content:  document.getElementById('[Name]NoticeContent'),
+        closeBtn: document.getElementById('[Name]NoticeClose'),
+        onOpen() {
+            // Archive on open — user may navigate away before close fires.
+            // archiveNotice is idempotent; safe to call on every show.
+            archiveNotice({
+                id: NOTICE_ID, title: '[Title]', section: '[Section]',
+                date: NOTICE_DATE,
+                body: '[One-sentence summary for the App Notices archive.]',
+            });
+        },
+        onClose() { _snooze(7); },
+    });
+
+    goLink?.addEventListener('click', () => _snooze(1));  // acted — shorter snooze
+    laterBtn?.addEventListener('click', () => lb.close());
+
+    setTimeout(() => lb.open(), 1500);  // delay so page renders first
+}());
+```
+
+### Rules
+
+| Rule | Value |
+|------|-------|
+| `archiveNotice()` timing | `onClose` for close-only notices · `onOpen` for notices with a navigation CTA |
+| Snooze on close (×, backdrop, Escape, "Not now") | 7 days |
+| Snooze on CTA navigation | 1 day |
+| Permanent dismiss key | `myb_notice_[id]_done` — set when the user completes the action (e.g. in the target page) |
+| Snooze key | `myb_notice_[id]_snooze` — ISO date string |
+| Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `work-email-2026`, `ytd_2627` |
+| Posting date format | `D Mon YYYY` — e.g. `22 Jun 2026` — hardcoded in both the HTML `.notice-date` and the `archiveNotice()` call; never use `new Date()` |
+| Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
+
+### Current notices
+
+| ID | Page | Title | Badge | Dismiss mechanism |
+|----|------|-------|-------|-------------------|
+| `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | Snoozeable; done flag set by `settings-app.js` after email save |
+| `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | One-time; `myb_links_beta_seen` set on close |
 
 ---
 

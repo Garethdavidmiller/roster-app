@@ -807,7 +807,9 @@ body.auth-ready .container { display: grid; }
    Uses the shared .lb-overlay / .lb-content / .lb-close structure and the dark
    "glass" card treatment from the About / paycalc Welcome lightboxes, so it
    reads as one family with the rest of the app. Only the content card needs
-   theming here; structure, fade, scale and close-button geometry are shared. */
+   theming here; structure, fade, scale and close-button geometry are shared.
+   Body copy uses shared .notice-date / .notice-body / .notice-cta / .notice-later
+   from shared.css — no per-notice overrides needed. */
 #betaLightboxContent {
     display: flex;
     flex-direction: column;
@@ -821,30 +823,6 @@ body.auth-ready .container { display: grid; }
     text-align: center;
     max-height: 80vh;
     max-height: 80dvh;
-    transform: scale(0.85);
-}
-.beta-lb-emoji { font-size: 52px; line-height: 1; margin-bottom: 2px; }
-.beta-lb-desc {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.6;
-    color: rgba(255, 255, 255, 0.7);
-}
-.beta-lb-desc strong { color: var(--accent-gold); font-weight: 700; }
-.beta-lb-desktop-note {
-    margin: 8px 0 0;
-    padding: 7px 10px;
-    border-radius: 8px;
-    background: rgba(245, 200, 0, 0.10);
-    border: 1px solid rgba(245, 200, 0, 0.28);
-    font-size: 12px;
-    line-height: 1.5;
-    color: rgba(255, 255, 255, 0.65);
-}
-#betaLightboxClose { color: rgba(255, 255, 255, 0.45); }
-#betaLightboxClose:active { color: white; }
-@media (hover: hover) and (pointer: fine) {
-    #betaLightboxClose:hover { color: white; }
 }
 
 /* A 28-line link design is a paper artefact — consultations, noticeboards,
