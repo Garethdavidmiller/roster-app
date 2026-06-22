@@ -27,6 +27,5 @@ jobs:
       # branch and PR — catching a missed 0.10 doc sweep before merge, not after.
       - name: Run unit and hygiene tests
         run: |
-          node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
-          node --experimental-vm-modules --test module-parse.test.mjs
-          node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs app.test.mjs
+          # Canonical test command lives in package.json so the workflows can't drift.
+          npm test

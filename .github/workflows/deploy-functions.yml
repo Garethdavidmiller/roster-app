@@ -27,7 +27,7 @@ jobs:
           node --check functions/roster-parse-helpers.js
 
       - name: Run parser helper tests
-        run: node --test roster-parse-helpers.test.mjs
+        run: npm run test:functions
 
       - name: Install function dependencies
         run: npm ci
@@ -51,7 +51,15 @@ jobs:
           code=$?
           cat /tmp/out.txt
           [ $code -eq 0 ] && exit 0
-          grep -q "cleanup policy" /tmp/out.txt && exit 0
+          # Firebase sometimes returns non-zero purely because it could not set an
+          # Artifact Registry cleanup policy, even though the functions deployed fine.
+          # Trust a POSITIVE success marker ("Deploy complete!") rather than the broad
+          # "cleanup policy" substring — which would also swallow a real failure whose
+          # output merely mentions the phrase.
+          if grep -q "Deploy complete!" /tmp/out.txt; then
+            echo "Functions deployed; non-zero exit was a benign post-deploy warning (e.g. cleanup policy)."
+            exit 0
+          fi
           exit $code
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json
