@@ -106,11 +106,30 @@ export function isNoticeExpired(dateStr, days = 28) {
 export function archiveNotice({ id, title, section, date, body }) {
     try {
         const expiryMs = ARCHIVE_EXPIRY_DAYS * 86_400_000;
-        const now = Date.now();
-        const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]')
-            .filter(n => n.archivedAt && (now - new Date(n.archivedAt).getTime()) < expiryMs);
-        if (existing.some(n => n.id === id)) return;
-        existing.unshift({ id, title, section, date, body, archivedAt: new Date(now).toISOString() });
+        const now    = Date.now();
+        const nowIso = new Date(now).toISOString();
+
+        // Parse defensively — malformed or non-array stored data must not stop a new
+        // notice being saved (it just starts a fresh archive).
+        let parsed;
+        try { parsed = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch { parsed = []; }
+        const records = Array.isArray(parsed) ? parsed : [];
+
+        const existing = records
+            // Migrate legacy pre-v13.41 records (no archivedAt) by stamping them with
+            // `now` instead of dropping them — otherwise the first archive write after
+            // an upgrade would silently wipe the user's whole notice history.
+            .map(n => (n && n.archivedAt) ? n : { ...n, archivedAt: nowIso })
+            .filter(n => {
+                const t = new Date(n.archivedAt).getTime();
+                return Number.isFinite(t) && (now - t) < expiryMs;
+            });
+
+        if (!existing.some(n => n.id === id)) {
+            existing.unshift({ id, title, section, date, body, archivedAt: nowIso });
+        }
+        // Always write back so the legacy migration and expiry pruning persist even on
+        // the idempotent path (the same notice id archived again).
         lsSet(NOTICES_KEY, JSON.stringify(existing.slice(0, 50)));
     } catch (e) {
         console.warn('[Nav] archiveNotice failed:', e);

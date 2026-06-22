@@ -193,6 +193,7 @@ roster-app/
 ├── roster-parse-helpers.test.mjs ← tests for functions/roster-parse-helpers.js
 ├── links-design.test.mjs   ← tests for links-design.js (generator targets/turnarounds, hourly coverage, design checks, custom-shift validation)
 ├── admin-overrides.test.mjs ← tests for admin-overrides.js exports: getEffectiveShift (batch/override/base-roster priority), validateShiftRules (12h duration, 12h rest gap), buildMemberDateMap (requires --experimental-test-module-mocks)
+├── nav-panel.test.mjs      ← tests for nav-panel.js exports: isNoticeExpired (28/90-day windows) and archiveNotice (legacy-record migration, 180-day prune, malformed-data resilience, idempotency, 50-entry cap; requires --experimental-test-module-mocks)
 ├── admin-rangepicker.test.mjs ← tests for getDateRange() in admin-rangepicker.js (inclusive endpoints, reversed range, month/year/leap/DST boundaries)
 ├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations
 ├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
@@ -212,7 +213,7 @@ roster-app/
 # Unit / deployment-hygiene tests (no browser, fast)
 node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
-node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs
+node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs
 ```
 
 **Service worker caching:**
@@ -454,7 +455,7 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 | Posting date format | `D Mon YYYY` — e.g. `22 Jun 2026` — hardcoded in both the HTML `.notice-date` and the `archiveNotice()` call; never use `new Date()` |
 | Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. work-email prompt, beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` from `nav-panel.js`. |
 | Expiry on new device — long (90 days) | Use for tax-year or seasonal notices that stay relevant for months: YTD entry reminders, pay rate change notices. `if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }` — same placement as short. |
-| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh across device changes without the user having to clear storage. |
+| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh over time on each device without the user having to clear storage. (It lives in `localStorage`, so it is per-device and does **not** sync across devices; legacy pre-v13.41 entries without `archivedAt` are migrated — stamped with the current time — not dropped, on the first write.) |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
 
 ### Current notices
@@ -608,13 +609,14 @@ message      Error message string — capped at 300 chars
 stack        Stack trace string — capped at 800 chars
 appVersion   APP_VERSION string at time of capture
 userAgent    navigator.userAgent — capped at 150 chars
-timestamp    Firestore server timestamp
+timestamp    Firestore server timestamp (when the error occurred)
 resolved     boolean — false on create; set to true by admin to dismiss
+resolvedAt   Firestore server timestamp — set when an admin resolves; retention is measured from this (90 days), not from `timestamp`
 ```
 Write: any authenticated session (`request.auth != null`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
-Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card.
+Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so a backlog of resolved records can never hide an older unresolved one, and prunes resolved records 90 days past `resolvedAt`.
 
 Override cache key: `"memberName|YYYY-MM-DD"`
 

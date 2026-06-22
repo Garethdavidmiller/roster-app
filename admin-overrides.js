@@ -888,6 +888,7 @@ function _initTimeInputs() {
         if (_formattingTime || !e.target.classList.contains('time-input')) return;
         const timeInput = e.target;
         timeInput.classList.remove('input-error');
+        timeInput.removeAttribute('aria-invalid');
         let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
         if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw;
         _formattingTime = true;
@@ -905,8 +906,13 @@ function _initTimeInputs() {
     document.addEventListener('focusout', e => {
         if (!e.target.classList.contains('time-input')) return;
         const val = e.target.value.trim();
-        if (!val) { e.target.classList.remove('input-error'); return; }
-        e.target.classList.toggle('input-error', !/^([01]\d|2[0-3]):[0-5]\d$/.test(val));
+        if (!val) { e.target.classList.remove('input-error'); e.target.removeAttribute('aria-invalid'); return; }
+        const invalid = !/^([01]\d|2[0-3]):[0-5]\d$/.test(val);
+        e.target.classList.toggle('input-error', invalid);
+        // Expose the failure to assistive tech, not just via the CSS class. The input
+        // already points at its error span through aria-describedby.
+        if (invalid) e.target.setAttribute('aria-invalid', 'true');
+        else e.target.removeAttribute('aria-invalid');
     });
 }
 
