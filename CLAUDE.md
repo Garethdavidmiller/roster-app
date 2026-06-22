@@ -436,7 +436,8 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
     goLink?.addEventListener('click', () => _snooze(1));  // acted — shorter snooze
     laterBtn?.addEventListener('click', () => lb.close());
 
-    setTimeout(() => lb.open(), 1500);  // delay so page renders first
+    // Guard: skip if another overlay (e.g. Huddle viewer) opened in the 1500ms window.
+    setTimeout(() => { if (!document.body.classList.contains('lb-open')) lb.open(); }, 1500);
 }());
 ```
 
@@ -458,11 +459,24 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 
 ### Current notices
 
-| ID | Page | Title | Badge | Expiry | Dismiss mechanism |
-|----|------|-------|-------|--------|-------------------|
-| `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | 28 days | Snoozeable; done flag set by `settings-app.js` after email save |
-| `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | 90 days | One-time; `NOTICE_YTD_KEY` set on close |
-| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | 28 days | One-time; `myb_links_beta_seen` set on close |
+| ID | Page | Title | Badge | Posted | Expiry | Dismiss mechanism |
+|----|------|-------|-------|--------|--------|-------------------|
+| `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | 22 Jun 2026 | 28 days | Snoozeable; done flag set by `settings-app.js` after email save |
+| `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | 6 Apr 2026 | 90 days | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | 9 Jun 2026 | 28 days | One-time; `myb_links_beta_seen` set on close |
+
+### Monthly cleanup — run on the 1st of each month
+
+**At the start of any session on the 1st of each month**, check the table above for notices whose posted date is more than 180 days ago. Those notices are completely inert — the done-flag suppresses them for all active users and the archive entries have been pruned — so the code is safe to remove.
+
+**Remove a notice when `(today − Posted) > 180 days`:**
+
+1. Delete the `<div id="[Name]NoticeLb">` HTML block from the page file
+2. Delete the JS IIFE (the `NOTICE_DATE`/keys block, `createLightbox()` call, and event listeners)
+3. Remove the row from the "Current notices" table above
+4. Bump the version (HTML and JS files are being modified)
+
+**Do not remove** a notice that is still within its archive window — users who haven't visited yet may still see it on their first visit.
 
 ---
 

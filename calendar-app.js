@@ -354,9 +354,9 @@ function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '') {
     let badge;
     // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
     if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
-        badge = '<span class="shift-badge badge-late"><span>🌙</span><span>Late</span></span>';
+        badge = '<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>';
     } else if (shift !== 'RDW' && isWorkedDay && permanentShift === 'early') {
-        badge = '<span class="shift-badge badge-early"><span>☀️</span><span>Early</span></span>';
+        badge = '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
     } else {
         badge = getShiftBadge(shift);
     }
@@ -458,6 +458,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     DAY_NAMES.forEach(day => {
         const dayHeader = document.createElement('div');
         dayHeader.className = 'day-header';
+        dayHeader.setAttribute('role', 'columnheader');
         dayHeader.textContent = day;
         grid.appendChild(dayHeader);
     });
@@ -519,6 +520,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
                          : getShiftClass(shift);
         const dayCell = document.createElement('div');
         dayCell.className = `calendar-day ${shiftClass}`;
+        dayCell.setAttribute('role', 'button');
 
         const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
             : shift === 'SPARE' ? 'Spare day'
@@ -883,7 +885,8 @@ function renderCalendar() {
         if (calendarDisplay) {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
-            errDiv.innerHTML = '<h2>⚠️ Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
+            errDiv.setAttribute('role', 'alert');
+            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -904,8 +907,11 @@ document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
 });
 
 
-document.getElementById('prevMonth').addEventListener('click', () => {
+document.getElementById('prevMonth').addEventListener('click', (e) => {
     if (swipeCooldown) return;
+    // aria-disabled is set at the boundary — honour it as a true no-op so AT users
+    // (and PageUp via .click()) don't trigger a pointless re-render/announce.
+    if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
     changeMonth(-1);
     renderCalendar();
     announceMonthChange();
@@ -955,8 +961,9 @@ document.getElementById('todayBtn').addEventListener('click', () => {
     }
 });
 
-document.getElementById('nextMonth').addEventListener('click', () => {
+document.getElementById('nextMonth').addEventListener('click', (e) => {
     if (swipeCooldown) return;
+    if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
     changeMonth(1);
     renderCalendar();
     announceMonthChange();
@@ -1871,6 +1878,23 @@ function initCalendarKeyboard() {
                 e.preventDefault();
                 document.getElementById('prevMonth')?.click();
                 return;
+            case 'Enter':
+            case ' ':
+                // Activate the focused day cell — payday/cutoff cells navigate to
+                // the pay calculator; any other cell opens the day-detail lightbox
+                // on touch (matching the delegated grid click handler).
+                e.preventDefault();
+                if (focused.dataset.paydayIso) { navigateToPaycalc(focused.dataset.paydayIso); return; }
+                if (focused.dataset.cutoffIso) {
+                    const cutoffIso  = focused.dataset.cutoffIso;
+                    const cutoffYear = Number(cutoffIso.slice(0, 4));
+                    const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
+                    const i = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
+                    if (i !== -1) navigateToPaycalc(formatISO(paydays[i]));
+                    return;
+                }
+                openDayDetail?.(focused);
+                return;
             default: return;
         }
 
@@ -1946,5 +1970,5 @@ initNavPanel({
     // "Not now" — explicit defer; delegates to lb.close() which fires onClose → snooze 7 days.
     laterBtn?.addEventListener('click', () => lb.close());
 
-    setTimeout(() => lb.open(), 1500);
+    setTimeout(() => { if (!document.body.classList.contains('lb-open')) lb.open(); }, 1500);
 }());

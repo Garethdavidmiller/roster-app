@@ -352,6 +352,10 @@ body.auth-ready .container { display: grid; }
     z-index: 3;
     position: relative;
 }
+.shift-cell-select:focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: -2px;
+}
 
 /* Coverage footer label in the pos-num column */
 .cov-foot-label {

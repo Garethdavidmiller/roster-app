@@ -172,6 +172,9 @@ export function buildWeekGridInto(container, dateStr) {
 
         const row = document.createElement('div');
         const isToday = dateISO === todayISO;
+        // Unique id linking each row's time inputs to their inline error message
+        // (aria-describedby / aria-errormessage need a per-row target id).
+        const timeErrId = `timeErr-${dateISO}`;
         row.className   = 'day-row' + (existing ? ' has-override' : '') + (isToday ? ' today' : '');
         row.dataset.date = dateISO;
         row.dataset.baseIsRd = isRestShift(baseShift) ? '1' : '';
@@ -187,20 +190,20 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-base">${getShiftBadge(baseShift)}</div>
             <div class="col-pills">
-                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave">AL</button>
-                <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift">Spare</button>
-                <button class="type-pill-btn pill-shift"        data-type="shift">Shift</button>
-                <button class="type-pill-btn pill-rdw"          data-type="rdw">RDW</button>
-                <button class="type-pill-btn pill-sick"         data-type="sick">Absent</button>
-                <button class="type-pill-btn pill-correction"   data-type="correction">Rest Day</button>
+                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave" aria-pressed="false">AL</button>
+                <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift" aria-pressed="false">Spare</button>
+                <button class="type-pill-btn pill-shift"        data-type="shift" aria-pressed="false">Shift</button>
+                <button class="type-pill-btn pill-rdw"          data-type="rdw" aria-pressed="false">RDW</button>
+                <button class="type-pill-btn pill-sick"         data-type="sick" aria-pressed="false">Absent</button>
+                <button class="type-pill-btn pill-correction"   data-type="correction" aria-pressed="false">Rest Day</button>
             </div>
             <div class="col-time">
-                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20">
+                <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
                 <span class="time-sep">–</span>
-                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour end time, e.g. 14:20">
+                <input type="text" class="time-input day-end" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour end time, e.g. 14:20" aria-label="End time (HH:MM)" aria-describedby="${timeErrId}">
                 <span class="time-note">No time needed</span>
                 <span class="time-hint">24h · max 12 hrs</span>
-                <span class="time-error-msg">Use HH:MM format (e.g. 07:00)</span>
+                <span class="time-error-msg" id="${timeErrId}" role="alert">Use HH:MM format (e.g. 07:00)</span>
             </div>
             <div class="col-rd-hint" hidden>Base roster: Rest Day — use <strong>RDW</strong> if this was overtime</div>`;
 
@@ -246,6 +249,9 @@ export function buildWeekGridInto(container, dateStr) {
                 row.classList.remove('prefilled-existing');
                 if (already) {
                     _deactivateRow(row, checkbox, pills, startEl, endEl);
+                    // Time inputs return to tabindex=-1 on deactivate; keep focus on the
+                    // (still-focusable) pill so keyboard users aren't stranded.
+                    pill.focus();
                 } else {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
                     // Pre-fill times from the base roster shift when choosing Shift or RDW,
@@ -335,7 +341,11 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
     checkbox.checked = true;
     row.classList.add('active');
     row.classList.remove('selected');
-    pills.forEach(p => p.classList.toggle('active', p.dataset.type === type));
+    pills.forEach(p => {
+        const on = p.dataset.type === type;
+        p.classList.toggle('active', on);
+        p.setAttribute('aria-pressed', String(on));
+    });
     if (TYPES[type]?.fixed) {
         row.classList.add('fixed-type');
         startEl.tabIndex = endEl.tabIndex = -1;
@@ -351,10 +361,12 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
 function _deactivateRow(row, checkbox, pills, startEl, endEl) {
     checkbox.checked = false;
     row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
-    pills.forEach(p => p.classList.remove('active'));
+    pills.forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
     startEl.value = endEl.value = '';
     startEl.classList.remove('input-error');
     endEl.classList.remove('input-error');
+    startEl.removeAttribute('aria-invalid');
+    endEl.removeAttribute('aria-invalid');
     startEl.tabIndex = endEl.tabIndex = -1;
     delete row.dataset.type;
     const badge = row.querySelector('.overwrite-badge');
@@ -415,7 +427,7 @@ export function resetBulkPills() {
     const bulkStart     = document.getElementById('bulkStart');
     const bulkEnd       = document.getElementById('bulkEnd');
     const bulkApplyBtn  = document.getElementById('bulkApplyBtn');
-    if (bulkTypePills) bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
+    if (bulkTypePills) bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
     if (bulkTimeGroup) bulkTimeGroup.style.display = 'none';
     if (bulkStart) bulkStart.value = '';
     if (bulkEnd)   bulkEnd.value   = '';
@@ -436,8 +448,9 @@ function _initBulkBar() {
                 const type    = pill.dataset.type;
                 const already = pill.classList.contains('active');
                 if (already) { resetBulkPills(); return; }
-                bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => p.classList.remove('active'));
+                bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
                 pill.classList.add('active');
+                pill.setAttribute('aria-pressed', 'true');
                 _bulkActiveType = type;
                 if (bulkApplyBtn) bulkApplyBtn.textContent = `3. Apply "${TYPES[type]?.label ?? type}" to ticked days`;
                 if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';

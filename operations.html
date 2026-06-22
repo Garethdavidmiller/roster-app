@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v13.41 -->
+<!-- MYB Roster — Operations v13.43 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -49,7 +49,7 @@
 
 <main class="container">
 
-    <header class="app-header">
+    <header class="app-header" role="banner">
         <button class="btn-burger" id="navMenuBtn"
                 aria-label="Open navigation menu" aria-expanded="false">☰</button>
         <div class="app-header-brand">
@@ -62,7 +62,7 @@
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
     <div class="card" id="huddleUploadCard">
         <div class="card-header card-collapsible-header" id="huddleToggleHeader">
-            <h2>📋 Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle" title="Tips for Daily Huddle">?</button></h2>
+            <h2><span aria-hidden="true">📋</span> Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle" title="Tips for Daily Huddle">?</button></h2>
             <span class="hint">Upload today's Huddle (PDF or Word doc) — staff will see a button in the main app</span>
             <span class="collapse-chevron open" id="huddleChevron">▾</span>
         </div>
@@ -83,7 +83,7 @@
     <!-- ==================== ROSTER UPLOAD ==================== -->
     <div class="card" id="rosterUploadCard">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
-            <h2>🗓️ Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload" title="Tips for Weekly Roster upload">?</button></h2>
+            <h2><span aria-hidden="true">🗓️</span> Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload" title="Tips for Weekly Roster upload">?</button></h2>
             <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
             <span class="collapse-chevron open" id="rosterUploadChevron">▾</span>
         </div>
@@ -136,7 +136,7 @@
     <!-- ==================== WORK EMAIL PROGRESS ==================== -->
     <div class="card" id="workEmailCard">
         <div class="card-header card-collapsible-header" id="workEmailToggleHeader">
-            <h2>📧 Work Email Progress</h2>
+            <h2><span aria-hidden="true">📧</span> Work Email Progress</h2>
             <span class="hint">Track who has saved their work email for the password project</span>
             <span class="collapse-chevron" id="workEmailChevron">▾</span>
         </div>
@@ -150,7 +150,7 @@
     <!-- ==================== ERROR LOG ==================== -->
     <div class="card" id="errorLogCard">
         <div class="card-header card-collapsible-header" id="errorLogToggleHeader">
-            <h2>🐛 Error Log</h2>
+            <h2><span aria-hidden="true">🐛</span> Error Log</h2>
             <span class="hint">Uncaught JS errors from authenticated pages — tap ⎘ Copy to paste a report here for diagnosis</span>
             <span class="collapse-chevron" id="errorLogChevron">▾</span>
         </div>
@@ -164,7 +164,7 @@
     <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
     <div class="card" id="authSetupCard">
         <div class="card-header card-collapsible-header" id="authSetupToggleHeader">
-            <h2>🔐 Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button></h2>
+            <h2><span aria-hidden="true">🔐</span> Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button></h2>
             <span class="hint">Create or update staff login accounts</span>
             <span class="collapse-chevron" id="authSetupChevron">▾</span>
         </div>
@@ -178,7 +178,7 @@
                     Disable accounts for anyone no longer on the roster (leavers)
                 </label>
                 <button class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
-                <div id="authSetupResult"></div>
+                <div id="authSetupResult" role="status" aria-live="polite"></div>
             </div>
         </div>
     </div>

@@ -21,7 +21,7 @@
 <header class="page-header no-print">
     <a href="./index.html" class="btn-back" aria-label="Back to roster">←</a>
     <div>
-        <h1>📋 Staff &amp; Admin Guide</h1>
+        <h1><span aria-hidden="true">📋</span> Staff &amp; Admin Guide</h1>
         <div class="sub">Chiltern Railways · MYB Station · v13.x</div>
     </div>
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
@@ -30,12 +30,13 @@
 <!-- ══════════════════════════════════════════════════════════════
      PAGE 1 — STAFF GUIDE
      ══════════════════════════════════════════════════════════════ -->
+<main>
 <div class="page">
     <div class="guide-header">
         <div class="guide-header-left">
             <img class="guide-header-icon" src="./icon-192.png" alt="MYB Roster app icon">
             <div>
-                <h1>Marylebone Roster — Staff Guide</h1>
+                <h2>Marylebone Roster — Staff Guide</h2>
                 <div class="sub">Chiltern Railways · MYB Station · For all staff</div>
             </div>
         </div>
@@ -168,7 +169,7 @@
         <div class="guide-header-left">
             <img class="guide-header-icon" src="./icon-192.png" alt="MYB Roster app icon">
             <div>
-                <h1>Marylebone Roster — Admin Guide</h1>
+                <h2>Marylebone Roster — Admin Guide</h2>
                 <div class="sub">Chiltern Railways · MYB Station · Admin and self-service users</div>
             </div>
         </div>
@@ -209,7 +210,7 @@
             <h2>Shift Types</h2>
             <table>
                 <thead>
-                    <tr><th>Type</th><th>When to use</th><th>Time?</th></tr>
+                    <tr><th scope="col">Type</th><th scope="col">When to use</th><th scope="col">Time?</th></tr>
                 </thead>
                 <tbody>
                     <tr><td>📋 <strong>Spare</strong></td><td>Standby week — actual shift not yet known</td><td>No</td></tr>
@@ -227,6 +228,8 @@
         Marylebone Roster · Chiltern Railways · Admin Guide · v13.x · For access or queries, speak to your team manager
     </div>
 </div>
+
+</main>
 
 <script src="./guide-print.js" defer></script>
 </body>

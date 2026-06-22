@@ -184,8 +184,12 @@
        All neutral (C = 0). */
     --text-dark:  oklch(32.1% 0 0);
     --text-mid:   oklch(45.0% 0 0);
-    --text-light: oklch(68.3% 0 0);
-    --text-faint: oklch(73.8% 0 0);
+    /* --text-light / --text-faint darkened v13.43 to meet WCAG AA 4.5:1 on the
+       card surface (was 68.3% / 73.8% ≈ 2.5:1 / 1.9:1 — both failed). At 50% L
+       both clear 4.5:1; they necessarily converge because anything lighter
+       fails the contrast floor on a near-white background. */
+    --text-light: oklch(50.0% 0 0);
+    --text-faint: oklch(50.0% 0 0);
 
     --border-light: oklch(93.1% 0 0);
     --border-mid:   oklch(84.5% 0 0);
@@ -541,6 +545,7 @@ body.lb-open #stickyTotal { display: none !important; }
     padding: 13px 20px;
     border-radius: 10px;
     margin-top: 4px;
+    touch-action: manipulation;
     transition: background-color var(--dur-fast) var(--ease-standard),
                 transform      var(--dur-fast) var(--ease-standard);
 }
@@ -559,6 +564,7 @@ body.lb-open #stickyTotal { display: none !important; }
     cursor: pointer;
     padding: 4px 8px;
     border-radius: 4px;
+    touch-action: manipulation;
     transition: color var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
@@ -893,6 +899,10 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .btn-burger:active { opacity: 0.5; }
+.btn-burger:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.85);
+    outline-offset: 2px;
+}
 
 /* All headers are now navy canvas — burger is white throughout. */
 

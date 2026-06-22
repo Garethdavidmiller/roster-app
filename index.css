@@ -449,11 +449,11 @@
                 box-shadow: 0 5px 15px rgba(0,0,0,0.1);
                 z-index: 2;
             }
-            .calendar-day:focus-visible {
-                outline: 2px solid var(--accent-gold);
-                outline-offset: -2px;
-                z-index: 3;
-            }
+        }
+        .calendar-day:focus-visible {
+            outline: 2px solid var(--accent-gold);
+            outline-offset: -2px;
+            z-index: 3;
         }
 
         /* Floating tooltip — positioned by initCalendarTooltip() on mousemove */
@@ -1354,7 +1354,7 @@
             text-align: left;
             background: var(--primary-blue);
         }
-        .team-table td.tv-name-col {
+        .team-table tbody th.tv-name-col {
             background: white;
             font-weight: 600;
             font-size: 11px;
@@ -1364,8 +1364,9 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            text-align: left;
         }
-        .team-table tr:nth-child(even) td.tv-name-col {
+        .team-table tbody tr:nth-child(even) th.tv-name-col {
             background: var(--bg-faint);
         }
         .tv-day-num {
@@ -1392,7 +1393,7 @@
         .tv-al    { background: var(--al-light); }
         .tv-sick  { background: var(--absence-light); }
         /* Logged-in member's row — subtle navy left accent and bolder name */
-        .team-table tr.tv-my-row td.tv-name-col {
+        .team-table tr.tv-my-row th.tv-name-col {
             border-left: 3px solid var(--primary-blue);
             color: var(--primary-blue);
             font-weight: 700;

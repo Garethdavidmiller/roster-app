@@ -2486,6 +2486,12 @@ const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
 // enter their year-to-date figures from previous payslips so the current-period
 // tax estimate reflects what has already been deducted this tax year.
 (function () {
+  const NOTICE_DATE = '6 Apr 2026';
+  // Silently expire on a new device if the notice is older than 90 days (tax-year range).
+  if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
+  // Show only after the welcome lightbox has been seen, and only once.
+  if (!lsGet(WELCOME_KEY) || lsGet(NOTICE_YTD_KEY)) return;
+
   const lb = document.getElementById('noticeYtdLightbox');
   if (!lb) return;
 
@@ -2499,17 +2505,14 @@ const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
         id:      'ytd_2627',
         title:   'Enter your YTD figures',
         section: 'Pay',
-        date:    '6 Apr 2026',
+        date:    NOTICE_DATE,
         body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
       });
       lsSet(NOTICE_YTD_KEY, '1');
     },
   });
 
-  // Silently expire on a new device if the notice is older than 90 days (tax-year range).
-  if (isNoticeExpired('6 Apr 2026', 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
-  // Show only after the welcome lightbox has been seen, and only once.
-  if (lsGet(WELCOME_KEY) && !lsGet(NOTICE_YTD_KEY)) notice.open();
+  notice.open();
 })();
 
 // ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────

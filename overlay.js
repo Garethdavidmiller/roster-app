@@ -92,7 +92,7 @@ window.addEventListener('popstate', () => {
  */
 export function trapFocus(container, e) {
     if (e.key !== 'Tab' || !container) return;
-    const els = [...container.querySelectorAll('button,a[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled);
+    const els = [...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.getAttribute('aria-disabled') !== 'true');
     if (!els.length) { e.preventDefault(); return; }
     const first = els[0], last = els[els.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
@@ -179,6 +179,8 @@ export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
         header.setAttribute('role', 'button');
         if (!header.hasAttribute('tabindex')) header.setAttribute('tabindex', '0');
     }
+    // Link header to its controlled body for screen readers
+    if (!header.hasAttribute('aria-controls')) header.setAttribute('aria-controls', bodyId);
 
     function toggle() {
         const open = body.classList.toggle('open');

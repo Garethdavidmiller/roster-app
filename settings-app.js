@@ -249,9 +249,9 @@ function initContactCard() {
         try {
             if (window._mybSession) await window._mybSession;
             await saveStaffContact(currentUser, email);
+            lsSet('myb_work_email_notice_done', '1');  // dismiss the calendar notice permanently
             const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
             showSavedState(today);
-            lsSet('myb_work_email_notice_done', '1');  // dismiss the calendar notice permanently
         } catch (err) {
             console.warn('[staffContact] Save failed:', err);
             setFeedback(
