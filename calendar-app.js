@@ -458,7 +458,10 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     DAY_NAMES.forEach(day => {
         const dayHeader = document.createElement('div');
         dayHeader.className = 'day-header';
-        dayHeader.setAttribute('role', 'columnheader');
+        // No role: a lone columnheader needs an enclosing grid/table/row structure to
+        // be meaningful, which this CSS-grid-of-divs calendar doesn't provide. Each day
+        // cell already carries a full accessible name via aria-label, so the weekday
+        // strip is left as plain text rather than a structurally-orphaned columnheader.
         dayHeader.textContent = day;
         grid.appendChild(dayHeader);
     });

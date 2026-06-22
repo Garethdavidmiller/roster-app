@@ -609,13 +609,14 @@ message      Error message string — capped at 300 chars
 stack        Stack trace string — capped at 800 chars
 appVersion   APP_VERSION string at time of capture
 userAgent    navigator.userAgent — capped at 150 chars
-timestamp    Firestore server timestamp
+timestamp    Firestore server timestamp (when the error occurred)
 resolved     boolean — false on create; set to true by admin to dismiss
+resolvedAt   Firestore server timestamp — set when an admin resolves; retention is measured from this (90 days), not from `timestamp`
 ```
 Write: any authenticated session (`request.auth != null`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
-Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card.
+Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so a backlog of resolved records can never hide an older unresolved one, and prunes resolved records 90 days past `resolvedAt`.
 
 Override cache key: `"memberName|YYYY-MM-DD"`
 

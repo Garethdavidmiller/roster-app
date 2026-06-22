@@ -320,47 +320,58 @@ export function logClientError({ memberName, page, message, stack, appVersion, u
     }).catch(() => {/* swallow — never throw from an error reporter */});
 }
 
-/** Retention window for resolved client-error records (ms). */
+/** Retention window for resolved client-error records (ms) — measured from RESOLUTION. */
 const CLIENT_ERROR_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
-/**
- * Fire-and-forget delete of resolved client-error records older than the retention
- * window, so the collection can't grow without bound. Admin-only delete (rules).
- * @param {Array<{id: string, resolved: boolean, timestamp?: { toMillis?: () => number }}>} records
- */
-function _pruneResolvedClientErrors(records) {
-    const cutoff = Date.now() - CLIENT_ERROR_RETENTION_MS;
-    for (const r of records) {
-        const ms = r.timestamp?.toMillis?.();
-        if (r.resolved && typeof ms === 'number' && ms < cutoff) {
-            deleteDoc(doc(db, 'clientErrors', r.id)).catch(() => {/* best-effort cleanup */});
-        }
-    }
+/** True if a resolved record is past the retention window, measured from when it was resolved. */
+function _resolvedErrorExpired(r, now) {
+    const ms = r.resolvedAt?.toMillis?.();
+    return r.resolved === true && typeof ms === 'number' && (now - ms) > CLIENT_ERROR_RETENTION_MS;
 }
 
 /**
- * Fetch recent client error records (admin-only), surfacing UNRESOLVED records first.
- * Fetches a wide newest-first window then orders unresolved ahead of resolved, so a
- * backlog of resolved records can never hide an older unresolved one (the old flat
- * 30-row newest-first window did exactly that). Returns at most 30 rows for the UI.
- * Resolved records past the 90-day retention window are pruned as a side effect.
- * @returns {Promise<Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean}>>}
+ * Fetch client error records for the admin error log (admin-only).
+ *
+ * Unresolved errors get their OWN equality query so they can NEVER be hidden behind a
+ * backlog of resolved ones — the previous single newest-first window could do exactly
+ * that once 100 resolved records piled up in front of an older unresolved one. Resolved
+ * records are fetched with a bounded query and used both for display context and to
+ * prune anything past the 90-day post-resolution retention window, so the collection
+ * stays bounded at this app's scale (not just the newest rows being cleaned up).
+ *
+ * Both queries are single-field equality filters (auto-indexed) — no composite index.
+ * @returns {Promise<Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>>}
  */
 export async function getClientErrors() {
-    const snap = await getDocs(
-        query(collection(db, 'clientErrors'), orderBy('timestamp', 'desc'), limit(100))
-    );
-    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    _pruneResolvedClientErrors(all);
-    const unresolved = all.filter(e => !e.resolved);
-    const resolved   = all.filter(e => e.resolved);
-    return [...unresolved, ...resolved].slice(0, 30);
+    const now = Date.now();
+    const [unresolvedSnap, resolvedSnap] = await Promise.all([
+        getDocs(query(collection(db, 'clientErrors'), where('resolved', '==', false), limit(100))),
+        getDocs(query(collection(db, 'clientErrors'), where('resolved', '==', true),  limit(200))),
+    ]);
+    const unresolved = unresolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const resolved   = resolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    // Prune resolved records 90 days past RESOLUTION (resolvedAt), not 90 days past the
+    // error itself — an old error resolved today still lingers for the full window.
+    // Records resolved before resolvedAt was recorded have no stamp and are left alone.
+    for (const r of resolved) {
+        if (_resolvedErrorExpired(r, now)) deleteDoc(doc(db, 'clientErrors', r.id)).catch(() => {/* best-effort cleanup */});
+    }
+
+    const ms = e => e.timestamp?.toMillis?.() ?? 0;
+    unresolved.sort((a, b) => ms(b) - ms(a));
+    const recentResolved = resolved
+        .filter(r => !_resolvedErrorExpired(r, now))
+        .sort((a, b) => ms(b) - ms(a))
+        .slice(0, 30);
+    return [...unresolved, ...recentResolved];
 }
 
 /**
- * Mark a client error record as resolved.
+ * Mark a client error record as resolved, stamping the resolution time so retention is
+ * measured from when it was resolved (not when the error occurred).
  * @param {string} id - Firestore document ID
  */
 export async function resolveClientError(id) {
-    await setDoc(doc(db, 'clientErrors', id), { resolved: true }, { merge: true });
+    await setDoc(doc(db, 'clientErrors', id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true });
 }

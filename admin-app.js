@@ -452,6 +452,8 @@ window.addEventListener('beforeunload', e => {
 // Pending navigation callback — set by confirmNavigate() when unsaved changes
 // exist. Executed if the user taps "Discard and continue" in the banner.
 let _pendingNavigate = null;
+// Element focus returns to when the unsaved banner is dismissed without navigating.
+let _bannerReturnFocus = null;
 
 (function initUnsavedBanner() {
     const banner      = document.getElementById('unsavedBanner');
@@ -461,12 +463,18 @@ let _pendingNavigate = null;
 
     discardBtn.addEventListener('click', () => {
         banner.style.display = 'none';
+        // The discard action navigates/re-renders, which moves focus itself; just drop
+        // the saved reference so it can't be restored over the new view.
+        _bannerReturnFocus = null;
         userMadeChanges = false;
         if (_pendingNavigate) { const fn = _pendingNavigate; _pendingNavigate = null; fn(); }
     });
     keepBtn.addEventListener('click', () => {
         banner.style.display = 'none';
         _pendingNavigate = null;
+        // Restore focus to wherever the user was before the banner interrupted them.
+        _bannerReturnFocus?.focus?.();
+        _bannerReturnFocus = null;
     });
 })();
 
@@ -483,7 +491,11 @@ function confirmNavigate(onConfirm) {
     const banner = document.getElementById('unsavedBanner');
     if (banner) {
         _pendingNavigate = onConfirm || null;
+        // Non-modal alertdialog: move focus into it so keyboard/AT users land on the
+        // decision, and remember where they were so "Keep editing" can return them.
+        _bannerReturnFocus = document.activeElement;
         banner.style.display = 'flex';
+        document.getElementById('unsavedKeepBtn')?.focus();
     }
     return false;
 }
