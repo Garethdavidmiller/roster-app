@@ -53,7 +53,7 @@ See CLAUDE.md → "Weekly Roster Upload" for the full API and review pipeline.
 
 ### Payday calculator ✓ (v6.50–v7.07)
 
-Staff enter their hours; the calculator computes estimated tax, NI, pension, and take-home pay per pay period. Lives at `paycalc.html` / `paycalc.js`, fully integrated into the main app.
+Staff enter their hours; the calculator computes estimated tax, NI, pension, and take-home pay per pay period. Lives at `paycalc.html` / `paycalc-app.js` (UI coordinator), fully integrated into the main app.
 
 **Key design decisions:**
 - One service worker rather than per-page SWs — two SWs sharing the same scope competed and wiped each other's caches
@@ -306,7 +306,7 @@ documented in KNOWN_LIMITATIONS.md → "E2E smoke tests removed".
 
 **What it looked like:**
 - `roster-data.js`: ~300 lines of date datasets + `resolveFaithCalendar()` / `getFaithBadge()` lookup functions
-- `app.js`: read `memberSettings` from Firestore on calendar render; injected `.day-faith` spans into day cells; rendered a full legend row
+- `calendar-app.js`: read `memberSettings` from Firestore on calendar render; injected `.day-faith` spans into day cells; rendered a full legend row
 - `settings-app.js` + `settings.html`: radio-group card with disclaimer text
 - `shared.css`: ~75 lines of `.faith-radio-*` / `.religious-*` / `.calendar-active-tag` styles
 - `firestore.rules`: `memberSettings` collection with per-member write isolation
@@ -315,7 +315,7 @@ documented in KNOWN_LIMITATIONS.md → "E2E smoke tests removed".
 1. Restore the dataset `const`s and lookup functions in `roster-data.js` (Islamic, Hindu, Chinese needed for current year; Jamaican/Congolese/Portuguese are rule-based)
 2. Re-add the `memberSettings` Firestore collection rules (`faithCalendar` field, owner-only write)
 3. Re-add the `initCulturalCalendarCard()` function to `settings-app.js` and the radio-group HTML to `settings.html`
-4. Re-add `.day-faith` rendering in `app.js` calendar render loop and legend
+4. Re-add `.day-faith` rendering in `calendar-app.js` calendar render loop and legend
 5. Re-add shared CSS in `shared.css`
 6. Implement a proper right-to-erasure path for the stored `faithCalendar` before re-deploying (e.g. a "Remove cultural calendar data" button in Settings)
 7. Consider whether annual update maintenance can be automated (e.g. a Cloud Function that fetches dates from a public Islamic calendar API rather than hardcoded arrays)
@@ -417,7 +417,7 @@ On a phone the calendar itself is the primary information — the strip adds a l
 **Implementation notes (already written, can be restored):**
 - HTML: four `<div class="sc">` chips in `<div id="summaryStrip">` after `#payPeriodStrip`
 - CSS: `.summary-strip` (flex, overflow-x: auto), `.sc`, `.sc-label`, `.sc-val`
-- JS: `updateSummaryStrip()` in app.js — called from `renderCalendar()`
+- JS: `updateSummaryStrip()` in calendar-app.js — called from `renderCalendar()`
 - The AL query is de-duplicated via `_summaryALFetched` flag, reset in `clearMemberCaches()`
 - All data sources are already imported — no new dependencies needed
 
@@ -512,7 +512,7 @@ Each area is independent unless a dependency is noted.
 
 **Blocked on:** Confirmed Dispatcher pay rates from Chiltern payroll. Do not add placeholder rates — the calculator must be accurate or it misleads staff.
 
-**Action needed:** Once Gareth has confirmed the Dispatcher hourly rate, contracted hours, and pension contribution, add a `dispatcher` entry to `GRADES` in `paycalc-calc.js` and update the grade-selection UI in `paycalc.js` to offer Dispatcher as an option.
+**Action needed:** Once Gareth has confirmed the Dispatcher hourly rate, contracted hours, and pension contribution, add a `dispatcher` entry to `GRADES` in `paycalc-calc.js` and update the grade-selection UI in `paycalc-app.js` to offer Dispatcher as an option.
 
 ---
 
