@@ -863,12 +863,6 @@
     @media (hover: hover) and (pointer: fine) {
       #noticeYtdClose:hover { color: white; }
     }
-    .notice-ytd-emoji { font-size: 56px; line-height: 1; margin-bottom: 4px; }
-    .notice-ytd-badge {
-      background: var(--green) !important;
-      color: white !important;
-      border-color: var(--green) !important;
-    }
     #noticeYtdContent strong { color: rgba(255,255,255,0.9); }
 
     /* ── REDUCED MOTION ──────────────────────────────────────────────── */

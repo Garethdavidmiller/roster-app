@@ -1930,8 +1930,8 @@ initNavPanel({
             archiveNotice({
                 id:      NOTICE_ID,
                 title:   'Add your work email',
-                section: 'Account security',
-                date:    new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+                section: 'Settings',
+                date:    '22 Jun 2026',
                 body:    'Add your Chiltern work email in Settings so we can set up self-service password reset in future.',
             });
         },

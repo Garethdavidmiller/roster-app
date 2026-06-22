@@ -489,6 +489,68 @@ body.lb-open #stickyTotal { display: none !important; }
     text-align: center;
 }
 
+/* ── One-time notice lightboxes (shared) ─────────────────────────────────
+   Badge (.lightbox-badge) and title (.lightbox-app-name) are reused from
+   the existing shared classes above. All per-notice visual needs are met
+   by these classes — do NOT add page-specific .notice-* overrides. ── */
+
+/* "Posted D Mon YYYY" line — sits between the title and the body */
+.notice-date {
+    font-size: var(--type-small);
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.2px;
+    text-align: center;
+}
+
+/* Body copy — centred, soft white */
+.notice-body {
+    color: rgba(255, 255, 255, 0.75);
+    font-size: var(--type-body);
+    line-height: 1.5;
+    text-align: center;
+    margin: 0;
+}
+
+/* Primary CTA link — gold, full-width, tactile press */
+.notice-cta {
+    display: block;
+    background-color: var(--accent-gold);
+    color: var(--primary-blue);
+    font-size: 15px;
+    font-weight: 700;
+    text-decoration: none;
+    text-align: center;
+    padding: 13px 20px;
+    border-radius: 10px;
+    margin-top: 4px;
+    transition: background-color var(--dur-fast) var(--ease-standard),
+                transform      var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+    .notice-cta:hover { background-color: var(--accent-gold-dark); }
+}
+.notice-cta:active { transform: scale(var(--press-scale)); }
+
+/* Secondary dismiss — muted text button */
+.notice-later {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.45);
+    font-size: var(--type-body);
+    line-height: 1;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: color var(--dur-fast) var(--ease-standard);
+}
+@media (hover: hover) and (pointer: fine) {
+    .notice-later:hover { color: rgba(255, 255, 255, 0.75); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .notice-cta,
+    .notice-later { transition: none; }
+}
+
 /* Close button — colour only; structural rules from .lb-close */
 #iconLightboxClose { color: rgba(255,255,255,0.5); }
 
