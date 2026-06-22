@@ -30,6 +30,12 @@ import {
     getBaseShift,
     isSameDay,
     teamMembers,
+    computeEaster,
+    escapeHtml,
+    avatarInitials,
+    avatarHue,
+    getSpecialDayBadges,
+    isSunday,
 } from './roster-data.js';
 
 // ---------------------------------------------------------------------------
@@ -456,4 +462,204 @@ test('getALEntitlement: proRatedAL overrides standard entitlement for the joinin
     assert.ok(member, 'M. Okeke not found in teamMembers');
     assert.equal(getALEntitlement(member, 2026), 23, 'Expected pro-rated AL of 23 for joining year');
     assert.equal(getALEntitlement(member, 2027), 32, 'Expected standard CEA AL of 32 from year after joining');
+});
+
+// ---------------------------------------------------------------------------
+// computeEaster
+// ---------------------------------------------------------------------------
+
+test('computeEaster: 2026 Easter Sunday is 5 April', () => {
+    const e = computeEaster(2026);
+    assert.equal(e.getMonth(), 3);  // April = month index 3
+    assert.equal(e.getDate(), 5);
+});
+
+test('computeEaster: 2025 Easter Sunday is 20 April', () => {
+    const e = computeEaster(2025);
+    assert.equal(e.getMonth(), 3);
+    assert.equal(e.getDate(), 20);
+});
+
+test('computeEaster: 2024 Easter Sunday is 31 March', () => {
+    const e = computeEaster(2024);
+    assert.equal(e.getMonth(), 2);  // March = month index 2
+    assert.equal(e.getDate(), 31);
+});
+
+test('computeEaster: returns a Date object', () => {
+    assert.ok(computeEaster(2026) instanceof Date);
+});
+
+// ---------------------------------------------------------------------------
+// escapeHtml
+// ---------------------------------------------------------------------------
+
+test('escapeHtml: null returns empty string', () => {
+    assert.equal(escapeHtml(null), '');
+});
+
+test('escapeHtml: undefined returns empty string', () => {
+    assert.equal(escapeHtml(undefined), '');
+});
+
+test('escapeHtml: plain string with no special chars is unchanged', () => {
+    assert.equal(escapeHtml('Hello world'), 'Hello world');
+});
+
+test('escapeHtml: escapes < and >', () => {
+    assert.equal(escapeHtml('<b>bold</b>'), '&lt;b&gt;bold&lt;/b&gt;');
+});
+
+test('escapeHtml: escapes &', () => {
+    assert.equal(escapeHtml('fish & chips'), 'fish &amp; chips');
+});
+
+test('escapeHtml: escapes double-quotes', () => {
+    assert.equal(escapeHtml('"quoted"'), '&quot;quoted&quot;');
+});
+
+test('escapeHtml: escapes all four special chars together', () => {
+    assert.equal(escapeHtml('<a href="x">&</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
+});
+
+test('escapeHtml: number is coerced to string', () => {
+    assert.equal(escapeHtml(42), '42');
+});
+
+// ---------------------------------------------------------------------------
+// avatarInitials
+// ---------------------------------------------------------------------------
+
+test('avatarInitials: null returns "?"', () => {
+    assert.equal(avatarInitials(null), '?');
+});
+
+test('avatarInitials: empty string returns "?"', () => {
+    assert.equal(avatarInitials(''), '?');
+});
+
+test('avatarInitials: "G. Miller" → "GM"', () => {
+    assert.equal(avatarInitials('G. Miller'), 'GM');
+});
+
+test('avatarInitials: "C. Reen" → "CR"', () => {
+    assert.equal(avatarInitials('C. Reen'), 'CR');
+});
+
+test('avatarInitials: single word uses first letter only', () => {
+    assert.equal(avatarInitials('Alice'), 'A');
+});
+
+test('avatarInitials: hyphenated surname uses first letter of last token', () => {
+    // 'C. Francisco-Charles' → parts = ['C.','Francisco-Charles'], first='C', last='F'
+    assert.equal(avatarInitials('C. Francisco-Charles'), 'CF');
+});
+
+test('avatarInitials: result is always uppercase', () => {
+    const initials = avatarInitials('g. miller');
+    assert.equal(initials, initials.toUpperCase());
+});
+
+// ---------------------------------------------------------------------------
+// avatarHue
+// ---------------------------------------------------------------------------
+
+test('avatarHue: returns a CSS oklch() string', () => {
+    const colour = avatarHue('G. Miller');
+    assert.match(colour, /^oklch\(52% 0\.12 \d+(\.\d+)?deg\)$/);
+});
+
+test('avatarHue: same name always produces the same colour', () => {
+    assert.equal(avatarHue('G. Miller'), avatarHue('G. Miller'));
+});
+
+test('avatarHue: different names produce different hues (probabilistic)', () => {
+    // Not exhaustive — just a basic sanity check that the hash varies
+    assert.notEqual(avatarHue('G. Miller'), avatarHue('C. Reen'));
+});
+
+test('avatarHue: empty/null name returns a valid oklch string (h=0)', () => {
+    assert.match(avatarHue(''), /^oklch\(52% 0\.12 0deg\)$/);
+    // null: length is 0, h stays 0
+    assert.match(avatarHue(null), /^oklch\(52% 0\.12 0deg\)$/);
+});
+
+// ---------------------------------------------------------------------------
+// getSpecialDayBadges
+// ---------------------------------------------------------------------------
+
+// 2026-02-13 is the first payday (Friday). Cutoff = Sat 7 Feb 2026.
+const PAYDAY_2026   = new Date(2026, 1, 13, 12, 0, 0);  // Feb 13
+const CUTOFF_2026   = new Date(2026, 1,  7, 12, 0, 0);  // Feb 7 (Saturday before Feb 13)
+const EASTER_2026   = new Date(2026, 3,  5, 12, 0, 0);  // Apr 5 — Easter Sunday
+const XMAS_2026     = new Date(2026, 11, 25, 12, 0, 0); // Dec 25
+const PLAIN_WEEKDAY = new Date(2026, 5, 17, 12, 0, 0);  // Jun 17 (Wednesday, no special day)
+
+test('getSpecialDayBadges: plain weekday returns empty array', () => {
+    const badges = getSpecialDayBadges(PLAIN_WEEKDAY, '2026-06-17');
+    assert.deepEqual(badges, []);
+});
+
+test('getSpecialDayBadges: payday includes 💷 badge', () => {
+    const badges = getSpecialDayBadges(PAYDAY_2026, '2026-02-13');
+    assert.ok(badges.some(b => b.icon === '💷'), 'Expected payday badge');
+});
+
+test('getSpecialDayBadges: cutoff date includes ✂️ badge', () => {
+    const badges = getSpecialDayBadges(CUTOFF_2026, '2026-02-07');
+    assert.ok(badges.some(b => b.icon === '✂️'), 'Expected cutoff badge');
+});
+
+test('getSpecialDayBadges: Good Friday is a bank holiday — includes ⭐ badge', () => {
+    const goodFriday = new Date(2026, 3, 3, 12, 0, 0); // Apr 3 2026
+    const badges = getSpecialDayBadges(goodFriday, '2026-04-03');
+    assert.ok(badges.some(b => b.icon === '⭐'), 'Expected bank holiday badge');
+});
+
+test('getSpecialDayBadges: Easter Sunday includes 🐣 badge', () => {
+    const badges = getSpecialDayBadges(EASTER_2026, '2026-04-05');
+    assert.ok(badges.some(b => b.icon === '🐣'), 'Expected Easter Sunday badge');
+});
+
+test('getSpecialDayBadges: Christmas Day includes 🎄 badge', () => {
+    const badges = getSpecialDayBadges(XMAS_2026, '2026-12-25');
+    assert.ok(badges.some(b => b.icon === '🎄'), 'Expected Christmas Day badge');
+});
+
+test('getSpecialDayBadges: Christmas Day is also a bank holiday — includes both 🎄 and ⭐', () => {
+    const badges = getSpecialDayBadges(XMAS_2026, '2026-12-25');
+    assert.ok(badges.some(b => b.icon === '🎄'), '🎄 badge missing');
+    assert.ok(badges.some(b => b.icon === '⭐'), '⭐ badge missing');
+});
+
+test('getSpecialDayBadges: returns objects with icon and title fields', () => {
+    const badges = getSpecialDayBadges(PAYDAY_2026, '2026-02-13');
+    for (const b of badges) {
+        assert.ok(typeof b.icon  === 'string', 'icon should be a string');
+        assert.ok(typeof b.title === 'string', 'title should be a string');
+    }
+});
+
+// ---------------------------------------------------------------------------
+// isSunday
+// ---------------------------------------------------------------------------
+
+test('isSunday: returns true for a known Sunday', () => {
+    assert.equal(isSunday('2026-06-14'), true);  // June 14 2026 is Sunday
+});
+
+test('isSunday: returns true for another Sunday', () => {
+    assert.equal(isSunday('2026-06-21'), true);  // June 21 2026 is Sunday
+});
+
+test('isSunday: returns false for Monday', () => {
+    assert.equal(isSunday('2026-06-15'), false);  // June 15 2026 is Monday
+});
+
+test('isSunday: returns false for Saturday', () => {
+    assert.equal(isSunday('2026-06-20'), false);  // June 20 2026 is Saturday
+});
+
+test('isSunday: returns false for a mid-week day', () => {
+    assert.equal(isSunday('2026-06-17'), false);  // June 17 2026 is Wednesday
 });
