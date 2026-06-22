@@ -843,13 +843,20 @@ saveBtn.addEventListener('click', async () => {
         const yearStr     = alInBatch[0].date.substring(0, 4);
         const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
         // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
-        const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
+        const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
+        // Also exclude days being purely deleted in this same batch (no replacement entry)
+        const deletedALDates  = new Set(
+            getAllOverrides()
+                .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
+                .map(o => o.date)
+        );
         // Sundays are uncontracted — exclude from entitlement counts
         const existingAL = getAllOverrides().filter(o =>
             o.memberName === memberName &&
             o.type       === 'annual_leave' &&
             o.date       && o.date.startsWith(yearStr) &&
             !overwriteDates.has(o.date) &&
+            !deletedALDates.has(o.date) &&
             !isSunday(o.date)
         ).length;
         const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
