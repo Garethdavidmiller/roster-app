@@ -1906,6 +1906,43 @@
             letter-spacing: -0.5px;
         }
 
+        /* ---- Day detail lightbox (touch tap on a calendar cell) ---- */
+        #dayDetailContent {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 24px;
+            padding: 30px 24px 26px;
+            width: min(320px, 90vw);
+            text-align: center;
+            transform: scale(0.85);
+        }
+        .day-detail-date  { color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 600; padding: 0 18px; }
+        .day-detail-shift { color: white; font-size: 19px; font-weight: 700; letter-spacing: -0.3px; line-height: 1.25; }
+        .day-detail-extras {
+            color: var(--accent-gold);
+            font-size: 13px;
+            font-weight: 600;
+            line-height: 1.4;
+        }
+        .day-detail-note {
+            color: rgba(255,255,255,0.85);
+            font-size: 14px;
+            font-style: italic;
+            line-height: 1.45;
+            margin-top: 2px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255,255,255,0.12);
+            width: 100%;
+        }
+        #dayDetailClose { color: rgba(255,255,255,0.5); }
+        @media (hover: hover) and (pointer: fine) {
+            #dayDetailClose:hover { color: white; }
+        }
+
         /* ---- Annual Leave lightbox ---- */
         /* #alLightbox uses .lb-overlay — no unique properties */
         #alLightboxContent {
