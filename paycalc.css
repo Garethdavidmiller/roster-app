@@ -1123,18 +1123,6 @@
     background-color: var(--roster-suggested-bg); border-color: var(--accent-gold);
   }
 
-  /* Key explaining the gold "filled from roster" cue — the gold tint is otherwise
-     an unexplained colour that also drives whether Firestore updates overwrite a field. */
-  .roster-gold-key {
-    display: flex; align-items: center; gap: 7px;
-    font-size: var(--type-micro); color: var(--text-light);
-    line-height: 1.4; margin: 8px 0 0;
-  }
-  .roster-gold-swatch {
-    width: 14px; height: 14px; flex-shrink: 0; border-radius: 3px;
-    background-color: var(--roster-suggested-bg); border: 1.5px solid var(--accent-gold);
-  }
-
   /* ── LAYOUT UTILITIES ── (replaces inline styles in paycalc.html) */
 
   /* Right-side button cluster inside a card header (help btn + toggle arrow) */

@@ -21,6 +21,7 @@ import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
+import { initErrorReporter } from './error-reporter.js';
 import { HELP_CONTENT } from './paycalc-help.js';
 import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations, NOTICE_YTD_KEY } from './paycalc-migrations.js';
 'use strict';
@@ -2447,6 +2448,7 @@ let openAboutLightbox = null;
 
 // ── SERVICE WORKER ────────────────────────────────────────────────────────────
 registerServiceWorker();
+initErrorReporter();
 
 // Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
 // only shows after welcome has been dismissed). Defined at module level so both

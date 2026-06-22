@@ -335,6 +335,23 @@ select:focus-visible, input:focus-visible {
 }
 
 /* ---- Work Email Progress card ---- */
+.email-filter-row {
+    margin-bottom: 12px;
+}
+.email-filter-select {
+    font-size: var(--type-body);
+    padding: 6px 10px;
+    border: 2px solid var(--border-mid);
+    border-radius: 8px;
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    cursor: pointer;
+}
+.email-filter-select:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 1px;
+    background-color: white;
+}
 .email-count-summary {
     font-size: var(--type-body);
     color: var(--text-dark);
@@ -412,11 +429,55 @@ select:focus-visible, input:focus-visible {
 #rosterConflictBanner          { display: none; }
 #rosterConflictBanner.visible  { display: flex; }
 
+/* ---- Error Log card ---- */
+.error-row {
+    border-bottom: 1px solid var(--border-light);
+    padding: 10px 0;
+}
+.error-row:last-child { border-bottom: none; }
+.error-row--resolved { opacity: 0.4; }
+
+.error-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px 10px;
+    align-items: baseline;
+    margin-bottom: 6px;
+}
+.error-when   { font-size: var(--type-small); color: var(--text-faint); white-space: nowrap; }
+.error-member { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
+.error-page   { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
+.error-msg    { font-size: 12px; color: var(--error-red); flex: 1 1 100%; word-break: break-word; margin-top: 2px; }
+
+.error-stack-details { margin-bottom: 6px; }
+.error-stack-details summary {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    cursor: pointer;
+    user-select: none;
+}
+.error-stack {
+    font-size: 11px;
+    font-family: monospace;
+    background-color: var(--surface-sunken);
+    border-radius: 6px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: auto;
+    white-space: pre;
+    color: var(--text-dark);
+    margin: 4px 0 0;
+    max-height: 180px;
+}
+
+.error-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.error-copy-btn,
+.error-resolve-btn { font-size: 12px; padding: 4px 10px; }
+
 @media print {
     /* Operations is an interactive-only page (Huddle upload, Roster upload,
        Staff Logins) — nothing here is meaningful on paper. Reset the navy
-       body to white (so the message stays legible even with "Background
-       graphics" enabled), hide every interactive surface, and show one
+       body to white, hide every interactive surface, and show one
        clear branded notice in its place. */
     html, body { background: white !important; }
     .container,

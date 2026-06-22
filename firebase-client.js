@@ -304,3 +304,37 @@ export async function getAllStaffContacts() {
     const snap = await getDocs(collection(db, 'staffContact'));
     return snap.docs.map(d => d.data());
 }
+
+// ---- Client Error Reporting ----
+
+/**
+ * Write a client-side uncaught error to Firestore.
+ * Called by error-reporter.js — fire-and-forget, never throws.
+ * @param {{ memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string }} data
+ */
+export function logClientError({ memberName, page, message, stack, appVersion, userAgent }) {
+    addDoc(collection(db, 'clientErrors'), {
+        memberName, page, message, stack, appVersion, userAgent,
+        timestamp: serverTimestamp(),
+        resolved:  false,
+    }).catch(() => {/* swallow — never throw from an error reporter */});
+}
+
+/**
+ * Fetch the 30 most recent client error records (admin-only).
+ * @returns {Promise<Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean}>>}
+ */
+export async function getClientErrors() {
+    const snap = await getDocs(
+        query(collection(db, 'clientErrors'), orderBy('timestamp', 'desc'), limit(30))
+    );
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+/**
+ * Mark a client error record as resolved.
+ * @param {string} id - Firestore document ID
+ */
+export async function resolveClientError(id) {
+    await setDoc(doc(db, 'clientErrors', id), { resolved: true }, { merge: true });
+}

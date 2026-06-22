@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v13.20 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.30 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `13.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `13.30` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -132,10 +132,11 @@ roster-app/
 ├── tips-lightbox.js        ← shared per-card Tips (#tipsLightbox) panel: initTipsLightbox(CARD_TIPS, { getIsAdmin }) — lifecycle, renderer (incl. adminOnly/staffOnly filtering), and .btn-card-tips wiring. Pages own only their CARD_TIPS content. Imported by admin-app.js, operations-app.js, settings-app.js, links-app.js (v12.50)
 ├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js, paycalc-app.js (v11.40; paycalc added v12.49)
 ├── sw-register.js          ← shared service worker registration + update lifecycle: registerServiceWorker({ beforeReload, bfcache }). Imported by all six app pages (v12.28)
+├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — registers window.onerror + window.onunhandledrejection, filters noise (cross-origin, ResizeObserver, empty), session-deduplicates, writes to Firestore clientErrors collection. Imported by admin-app.js, operations-app.js, settings-app.js, paycalc-app.js (v13.31)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by calendar-app.js
 ├── app-override-utils.js   ← override priority, member-start, and shift-classification helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift. Shared by calendar-app.js, app-team-view.js, and admin modules
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence booking, Team Week View, module wiring, booked-box helpers
-├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup (v10.99)
+├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup, initErrorLog (v10.99; error log v13.31)
 ├── settings-app.js         ← coordinator for settings.html: session check (shared AUTH_KEY), login overlay, initHuddleNotifications, work email card, initNavPanel (v11.06)
 ├── huddle.js               ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → settings.html), Huddle card toggle. Renamed from admin-huddle.js at v11.40
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)

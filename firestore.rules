@@ -101,6 +101,26 @@ service cloud.firestore {
         (request.auth.token.name == memberName || request.auth.token.admin == true);
     }
 
+    match /clientErrors/{docId} {
+      // Written by error-reporter.js on authenticated pages (request.auth != null).
+      // Read, update (resolve), and delete restricted to admins.
+      // Shape validation caps field sizes to prevent oversized writes.
+      allow create: if
+        request.auth != null &&
+        request.resource.data.keys().hasOnly([
+          'memberName', 'page', 'message', 'stack',
+          'appVersion', 'userAgent', 'timestamp', 'resolved'
+        ]) &&
+        request.resource.data.message is string &&
+        request.resource.data.message.size() <= 300 &&
+        request.resource.data.stack is string &&
+        request.resource.data.stack.size() <= 800 &&
+        request.resource.data.resolved == false &&
+        request.resource.data.timestamp is timestamp;
+      allow read, update, delete: if
+        request.auth != null && request.auth.token.admin == true;
+    }
+
     match /pushSubscriptions/{docId} {
       // Push subscriptions are written from index.html (public, no login required).
       // The stored data is a browser endpoint URL and encryption keys — not PII.

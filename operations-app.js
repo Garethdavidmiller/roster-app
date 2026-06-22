@@ -9,7 +9,8 @@
  */
 
 import { CONFIG, teamMembers } from './roster-data.js';
-import { auth, getAllStaffContacts } from './firebase-client.js';
+import { auth, getAllStaffContacts, getClientErrors, resolveClientError } from './firebase-client.js';
+import { initErrorReporter } from './error-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
@@ -76,6 +77,7 @@ initCardCollapse('huddleToggleHeader',      'huddleBody',      'huddleChevron');
 initCardCollapse('rosterUploadToggleHeader','rosterUploadBody','rosterUploadChevron');
 initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
 initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
+initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
 
 // ============================================
 // WORK EMAIL PROGRESS
@@ -85,46 +87,77 @@ initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron
     // Management (hidden+managerOnly) are excluded because the password
     // project targets the staff who use the Settings page to add emails.
     const eligible = teamMembers.filter(m => !m.hidden);
-    const total    = eligible.length;
     const content  = document.getElementById('emailStatusContent');
     if (!content) return;
 
     try {
         // Wait for the Firebase Auth session so Firestore rules pass.
         await window._mybSession;
-        const contacts    = await getAllStaffContacts();
-        const savedNames  = new Set(contacts.filter(c => c.workEmail).map(c => c.memberName));
-        const count       = eligible.filter(m => savedNames.has(m.name)).length;
-        const notAdded    = eligible.filter(m => !savedNames.has(m.name));
+        const contacts   = await getAllStaffContacts();
+        const savedNames = new Set(contacts.filter(c => c.workEmail).map(c => c.memberName));
 
         content.innerHTML = '';
 
-        const summary = document.createElement('p');
-        summary.className = 'email-count-summary';
-        summary.innerHTML = `<strong class="email-count-num">${count}</strong> of <strong>${total}</strong> staff have added their work email`;
-        content.appendChild(summary);
+        // Grade filter
+        const filterRow = document.createElement('div');
+        filterRow.className = 'email-filter-row';
+        const filterSelect = document.createElement('select');
+        filterSelect.id = 'emailGradeFilter';
+        filterSelect.className = 'email-filter-select';
+        filterSelect.setAttribute('aria-label', 'Filter by grade');
+        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher']].forEach(([val, label]) => {
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = label;
+            filterSelect.appendChild(opt);
+        });
+        filterRow.appendChild(filterSelect);
+        content.appendChild(filterRow);
 
-        if (notAdded.length === 0) {
-            const done = document.createElement('p');
-            done.className = 'email-count-done';
-            done.textContent = '✓ All staff have added their work email — ready for the next step.';
-            content.appendChild(done);
-        } else {
-            const label = document.createElement('p');
-            label.className = 'email-count-missing-label';
-            label.textContent = `${notAdded.length} still to add:`;
-            content.appendChild(label);
+        // Summary and list — re-rendered on grade change
+        const summaryEl = document.createElement('p');
+        summaryEl.className = 'email-count-summary';
+        content.appendChild(summaryEl);
 
-            const list = document.createElement('div');
-            list.className = 'email-count-list';
-            notAdded.forEach(m => {
-                const chip = document.createElement('span');
-                chip.className = 'email-count-chip';
-                chip.textContent = m.name;
-                list.appendChild(chip);
-            });
-            content.appendChild(list);
+        const listContainer = document.createElement('div');
+        content.appendChild(listContainer);
+
+        function renderForGrade(grade) {
+            const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
+            const total    = pool.length;
+            const count    = pool.filter(m => savedNames.has(m.name)).length;
+            const notAdded = pool.filter(m => !savedNames.has(m.name));
+            const label    = grade || 'staff';
+
+            summaryEl.innerHTML = `<strong class="email-count-num">${count}</strong> of <strong>${total}</strong> ${label} have added their work email`;
+
+            listContainer.innerHTML = '';
+            if (notAdded.length === 0) {
+                const done = document.createElement('p');
+                done.className = 'email-count-done';
+                done.textContent = `✓ All ${label} have added their work email${grade ? '' : ' — ready for the next step'}.`;
+                listContainer.appendChild(done);
+            } else {
+                const missingLabel = document.createElement('p');
+                missingLabel.className = 'email-count-missing-label';
+                missingLabel.textContent = `${notAdded.length} still to add:`;
+                listContainer.appendChild(missingLabel);
+
+                const list = document.createElement('div');
+                list.className = 'email-count-list';
+                notAdded.forEach(m => {
+                    const chip = document.createElement('span');
+                    chip.className = 'email-count-chip';
+                    chip.textContent = m.name;
+                    list.appendChild(chip);
+                });
+                listContainer.appendChild(list);
+            }
         }
+
+        renderForGrade('');
+        filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
+
     } catch (err) {
         content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
         console.error('[WorkEmailStatus]', err);
@@ -211,4 +244,129 @@ window._mybSession.then(ok => {
 })();
 
 // ============================================
+// ERROR LOG CARD
+// ============================================
+(async function initErrorLog() {
+    const content = document.getElementById('errorLogContent');
+    if (!content) return;
+
+    try {
+        await window._mybSession;
+        const errors = await getClientErrors();
+
+        content.innerHTML = '';
+
+        if (errors.length === 0) {
+            const none = document.createElement('p');
+            none.className = 'email-count-done';
+            none.textContent = '✓ No errors recorded.';
+            content.appendChild(none);
+            return;
+        }
+
+        errors.forEach(err => {
+            const row = document.createElement('div');
+            row.className = 'error-row' + (err.resolved ? ' error-row--resolved' : '');
+
+            // Summary line: when · member · page · message
+            const summary = document.createElement('div');
+            summary.className = 'error-summary';
+            const addSpan = (cls, text) => {
+                const s = document.createElement('span');
+                s.className = cls;
+                s.textContent = text;
+                summary.appendChild(s);
+            };
+            addSpan('error-when',   err.timestamp?.toDate ? _relativeTime(err.timestamp.toDate()) : '—');
+            addSpan('error-member', err.memberName ?? '—');
+            addSpan('error-page',   err.page ?? '—');
+            addSpan('error-msg',    err.message ?? '—');
+            row.appendChild(summary);
+
+            // Stack trace — collapsed by default
+            if (err.stack) {
+                const details = document.createElement('details');
+                details.className = 'error-stack-details';
+                const sum = document.createElement('summary');
+                sum.textContent = 'Stack trace';
+                const pre = document.createElement('pre');
+                pre.className = 'error-stack';
+                pre.textContent = err.stack;
+                details.appendChild(sum);
+                details.appendChild(pre);
+                row.appendChild(details);
+            }
+
+            // Action buttons
+            const actions = document.createElement('div');
+            actions.className = 'error-actions';
+
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'btn-action btn-secondary error-copy-btn';
+            copyBtn.textContent = '⎘ Copy for Claude';
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(_formatForClaude(err)).then(() => {
+                    copyBtn.textContent = '✓ Copied';
+                    setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
+                });
+            });
+            actions.appendChild(copyBtn);
+
+            if (!err.resolved) {
+                const resolveBtn = document.createElement('button');
+                resolveBtn.className = 'btn-action btn-secondary error-resolve-btn';
+                resolveBtn.textContent = '✓ Resolve';
+                resolveBtn.addEventListener('click', async () => {
+                    resolveBtn.disabled = true;
+                    await resolveClientError(err.id);
+                    row.classList.add('error-row--resolved');
+                    resolveBtn.remove();
+                });
+                actions.appendChild(resolveBtn);
+            }
+
+            row.appendChild(actions);
+            content.appendChild(row);
+        });
+
+    } catch (e) {
+        content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load error log — check your connection and reload.</p>';
+        console.error('[ErrorLog]', e);
+    }
+})();
+
+/** Format a relative time string, e.g. "3h ago" or "2d ago". */
+function _relativeTime(date) {
+    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+    if (secs < 60)    return `${secs}s ago`;
+    if (secs < 3600)  return `${Math.floor(secs / 60)}m ago`;
+    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+/** Build the plain-text block that gets pasted into Claude for diagnosis. */
+function _formatForClaude(err) {
+    const when = err.timestamp?.toDate
+        ? err.timestamp.toDate().toLocaleString('en-GB', {
+            day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit',
+          })
+        : 'unknown';
+    return [
+        '🐛 App error — please diagnose',
+        '',
+        `App version: ${err.appVersion ?? '—'}`,
+        `Page:        ${err.page ?? '—'}`,
+        `Member:      ${err.memberName ?? '—'}`,
+        `Time:        ${when}`,
+        `Device:      ${err.userAgent ?? '—'}`,
+        '',
+        `Error: ${err.message ?? '—'}`,
+        '',
+        err.stack ? `Stack:\n${err.stack}` : '(no stack trace)',
+    ].join('\n');
+}
+
+// ============================================
 registerServiceWorker();
+window._mybSession.then(() => initErrorReporter());

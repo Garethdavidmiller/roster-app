@@ -15,7 +15,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getSpecialDayBadges, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
@@ -29,6 +29,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
+import { initErrorReporter } from './error-reporter.js';
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
@@ -843,13 +844,20 @@ saveBtn.addEventListener('click', async () => {
         const yearStr     = alInBatch[0].date.substring(0, 4);
         const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
         // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
-        const overwriteDates = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
+        const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
+        // Also exclude days being purely deleted in this same batch (no replacement entry)
+        const deletedALDates  = new Set(
+            getAllOverrides()
+                .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
+                .map(o => o.date)
+        );
         // Sundays are uncontracted — exclude from entitlement counts
         const existingAL = getAllOverrides().filter(o =>
             o.memberName === memberName &&
             o.type       === 'annual_leave' &&
             o.date       && o.date.startsWith(yearStr) &&
             !overwriteDates.has(o.date) &&
+            !deletedALDates.has(o.date) &&
             !isSunday(o.date)
         ).length;
         const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
@@ -1468,6 +1476,7 @@ registerServiceWorker({
         }, { once: true });
     },
 });
+window._mybSession?.then(() => initErrorReporter());
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({

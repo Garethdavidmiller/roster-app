@@ -1060,6 +1060,19 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-pill--links:hover { background: color-mix(in oklch, var(--purple) 91%, black); }
 }
 
+/* "You are here" indicator — the current page's pill is inert and shows a dot */
+.nav-panel-pill--current {
+    cursor: default;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+}
+.nav-panel-pill--current::before {
+    content: "●";
+    font-size: 9px;
+    margin-right: 6px;
+    opacity: 0.85;
+}
+
 /* Information section — flat, always open */
 .nav-panel-section-heading {
     font-size: 10px;

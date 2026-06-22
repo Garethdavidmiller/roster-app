@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v13.27 -->
+<!-- MYB Roster — Calendar v13.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -81,7 +81,7 @@
                 <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
                 <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
-            <a href="./guide.html" target="_blank" class="lightbox-bug-link" style="margin-top:4px">📖 View staff guide</a>
+            <a href="./guide.html" target="_blank" rel="noopener" class="lightbox-bug-link" style="margin-top:4px">📖 View staff guide</a>
             <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
         </div>
     </div>
@@ -114,6 +114,19 @@
             </div>
             <a href="admin.html#book-annual-leave" class="al-lb-link">→ Record leave in Admin</a>
             <p id="alLbError" class="al-lb-error" hidden>Couldn't load — check your connection</p>
+        </div>
+    </div>
+
+    <!-- Day detail lightbox — tap a calendar cell on touch devices to see shift/extras/note.
+         Shows the shift time, any markers, and the override note (the same
+         content desktop users see in the hover tooltip). -->
+    <div id="dayDetailLightbox" class="lb-overlay" role="dialog" aria-label="Day details" aria-modal="true">
+        <div id="dayDetailContent" class="lb-content">
+            <button id="dayDetailClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="day-detail-date" id="dayDetailDate"></div>
+            <div class="day-detail-shift" id="dayDetailShift"></div>
+            <div class="day-detail-extras" id="dayDetailExtras" hidden></div>
+            <div class="day-detail-note" id="dayDetailNote" hidden></div>
         </div>
     </div>
 
@@ -234,7 +247,7 @@
             </div>
             <div class="legend-row" id="legend-row-2">
                 <div class="legend-item" id="legend-spare"><div class="legend-color spare"></div><span class="legend-text">Spare</span></div>
-                <div class="legend-item" id="legend-rdw"><div class="legend-color rdw"></div><span class="legend-text">Rest Day Work</span></div>
+                <div class="legend-item" id="legend-rdw"><div class="legend-color rdw"></div><span class="legend-text">Rest Day Worked</span></div>
                 <div class="legend-item" id="legend-al"><div class="legend-color al"></div><span class="legend-text">Annual Leave</span></div>
                 <div class="legend-item" id="legend-sick"><div class="legend-color sick"></div><span class="legend-text">Absent</span></div>
             </div>
