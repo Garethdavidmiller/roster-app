@@ -26,7 +26,7 @@ known; writes still require a named Firebase Auth session (`request.auth != null
 
 **If this becomes a concern:** Gate the calendar on a named session, remove the
 anonymous read from `firestore.rules`, and remove the anonymous auth block from
-`app.js`. See the June 2026 conversation for the full trade-off analysis.
+`calendar-app.js`. See the June 2026 conversation for the full trade-off analysis.
 
 ### Huddle Firestore writes restricted to admin (v11.07)
 `firestore.rules` now requires `request.auth.token.admin == true` for all browser
@@ -193,7 +193,7 @@ planning, not aggregate operational analysis. The dense row grid already gives s
 at-a-glance clarity. Do not re-add without a specific operational use case from Gareth.
 
 ### Override cache is never cleared on member switch
-`rosterOverridesCache` in `app.js` is keyed `"memberName|date"` and accumulates
+`rosterOverridesCache` in `calendar-app.js` is keyed `"memberName|date"` and accumulates
 overrides for all members without a size limit. It is not cleared when the selected
 member changes — switching members triggers a new fetch that adds to the existing map.
 This is intentional (avoids redundant Firestore reads on member switch) but means the
@@ -248,7 +248,7 @@ referrer allowlist, or the hosting setup.
 **Root cause of the June 2026 splash outage (fixed v12.34):** `firebase.json`'s
 hosting `ignore` list contained `**/*.mjs` — intended to skip the `*.test.mjs`
 test files, but it also dropped the **runtime** `purify.es.mjs` from every
-Firebase deploy. The import is static (`index.html → app.js → app-huddle-viewer.js
+Firebase deploy. The import is static (`index.html → calendar-app.js → app-huddle-viewer.js
 → import './purify.es.mjs'`), so the 404 broke the whole module graph and the
 splash never cleared; it also failed the SW precache (`purify.es.mjs` is in
 `CORE_ASSETS`). Fixed by narrowing the ignore to `**/*.test.mjs` + `generate-sri.mjs`.
@@ -355,7 +355,7 @@ roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse
 and link-design pure maths including generator, coverage, and design checks
 (`links-design.test.mjs`, added v12.40).
 
-Not currently tested: DOM rendering in `app.js` / `admin-app.js`, the Firestore read/write
+Not currently tested: DOM rendering in `calendar-app.js` / `admin-app.js`, the Firestore read/write
 layer in all page modules, nav panel injection and overlay lifecycle (`nav-panel.js`,
 `overlay.js`), session management edge cases (`session.js`), push notification subscribe/
 unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration tests).

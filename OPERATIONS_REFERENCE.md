@@ -179,12 +179,12 @@ Note: `'GMT Standard Time'` has spaces — `'GMTStandardTime'` is invalid.
 
 ```
 match /huddles/{docId} {
-  allow read:  if true;                          // app.js reads without an Auth session
+  allow read:  if true;                          // calendar-app.js reads without an Auth session
   allow write: if request.auth.token.admin == true;  // browser writes: admin only (v10.83)
 }
 ```
 
-Read is open because `app.js` (index.html) has no Firebase Auth session — requiring auth
+Read is open because `calendar-app.js` (index.html) has no Firebase Auth session — requiring auth
 broke notification auto-open on fresh first visits (v10.76). Browser writes (the manual admin
 upload path in `huddle.js`) require the admin claim (v10.83); the automated
 `ingestHuddle` Cloud Function uses the Admin SDK, which bypasses rules entirely. The matching
@@ -192,7 +192,7 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 
 ### Huddle notification tap behaviour (v10.71)
 
-When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is `./index.html#huddle`. The app's `hashchange` listener fires `_triggerAutoOpen(huddle)` in `app.js`.
+When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is `./index.html#huddle`. The app's `hashchange` listener fires `_triggerAutoOpen(huddle)` in `calendar-app.js`.
 
 **Two code paths — do not unify:**
 

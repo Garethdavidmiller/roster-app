@@ -297,10 +297,11 @@ window._mybSession.then(ok => {
                 s.textContent = text;
                 summary.appendChild(s);
             };
-            addSpan('error-when',   err.timestamp?.toDate ? _relativeTime(err.timestamp.toDate()) : '—');
-            addSpan('error-member', err.memberName ?? '—');
-            addSpan('error-page',   err.page ?? '—');
-            addSpan('error-msg',    err.message ?? '—');
+            addSpan('error-when',    err.timestamp?.toDate ? _relativeTime(err.timestamp.toDate()) : '—');
+            addSpan('error-member',  err.memberName ?? '—');
+            addSpan('error-page',    err.page ?? '—');
+            addSpan('error-version', `v${err.appVersion ?? '—'}`);
+            addSpan('error-msg',     err.message ?? '—');
             row.appendChild(summary);
 
             // Stack trace — collapsed by default
@@ -355,13 +356,19 @@ window._mybSession.then(ok => {
     }
 })();
 
-/** Format a relative time string, e.g. "3h ago" or "2d ago". */
+/** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23". */
 function _relativeTime(date) {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (secs < 60)    return `${secs}s ago`;
-    if (secs < 3600)  return `${Math.floor(secs / 60)}m ago`;
-    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const exact = date.toLocaleString('en-GB', {
+        day: 'numeric', month: 'short',
+        hour: '2-digit', minute: '2-digit',
+    });
+    let rel;
+    if (secs < 60)    rel = `${secs}s ago`;
+    else if (secs < 3600)  rel = `${Math.floor(secs / 60)}m ago`;
+    else if (secs < 86400) rel = `${Math.floor(secs / 3600)}h ago`;
+    else                   rel = `${Math.floor(secs / 86400)}d ago`;
+    return `${rel} · ${exact}`;
 }
 
 /** Build the plain-text block that gets pasted into Claude for diagnosis. */
