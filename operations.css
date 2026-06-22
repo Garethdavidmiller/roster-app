@@ -457,10 +457,11 @@ select:focus-visible, input:focus-visible {
     align-items: baseline;
     margin-bottom: 6px;
 }
-.error-when   { font-size: var(--type-small); color: var(--text-faint); white-space: nowrap; }
-.error-member { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
-.error-page   { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
-.error-msg    { font-size: 12px; color: var(--error-red); flex: 1 1 100%; word-break: break-word; margin-top: 2px; }
+.error-when    { font-size: var(--type-small); color: var(--text-faint); white-space: nowrap; }
+.error-member  { font-size: var(--type-small); font-weight: 600; color: var(--text-dark); }
+.error-page    { font-size: var(--type-small); color: var(--text-mid); font-family: monospace; }
+.error-version { font-size: 11px; color: var(--text-faint); font-family: monospace; }
+.error-msg     { font-size: 12px; color: var(--error-red); flex: 1 1 100%; word-break: break-word; margin-top: 2px; }
 
 .error-stack-details { margin-bottom: 6px; }
 .error-stack-details summary {
