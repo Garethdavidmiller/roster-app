@@ -339,7 +339,7 @@ select:focus-visible, input:focus-visible {
     margin-bottom: 12px;
 }
 .email-filter-select {
-    font-size: var(--type-body);
+    font-size: var(--type-medium);
     padding: 6px 10px;
     border: 2px solid var(--border-mid);
     border-radius: 8px;

@@ -329,6 +329,9 @@ window._mybSession.then(ok => {
                 navigator.clipboard.writeText(_formatForClaude(err)).then(() => {
                     copyBtn.textContent = '✓ Copied';
                     setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
+                }).catch(() => {
+                    copyBtn.textContent = '✗ Copy failed';
+                    setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
                 });
             });
             actions.appendChild(copyBtn);
@@ -339,9 +342,15 @@ window._mybSession.then(ok => {
                 resolveBtn.textContent = '✓ Resolve';
                 resolveBtn.addEventListener('click', async () => {
                     resolveBtn.disabled = true;
-                    await resolveClientError(err.id);
-                    row.classList.add('error-row--resolved');
-                    resolveBtn.remove();
+                    try {
+                        await resolveClientError(err.id);
+                        row.classList.add('error-row--resolved');
+                        resolveBtn.remove();
+                    } catch {
+                        resolveBtn.disabled = false;
+                        resolveBtn.textContent = '✗ Failed — tap to retry';
+                        setTimeout(() => { resolveBtn.textContent = '✓ Resolve'; }, 3000);
+                    }
                 });
                 actions.appendChild(resolveBtn);
             }
