@@ -419,7 +419,7 @@ updatedAt   Firestore server timestamp
 Read/write restricted: owner can read/write their own doc; admin can read all.
 Write requires the `name` JWT claim (set by setupRosterAuth) — anonymous fallback sessions cannot write.
 Purpose: Stage 1 of password security improvements. Email will enable future account recovery (Stage 4).
-Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js`.
+Read/written/deleted by: `getStaffContact` / `saveStaffContact` / `deleteStaffContact` in `firebase-client.js`, called from `settings-app.js`. `getAllStaffContacts` (reads all docs) called from `operations-app.js` (Work Email Progress card).
 
 **pushSubscriptions**
 ```
@@ -430,6 +430,22 @@ keys.auth    base64url-encoded auth secret
 Written by `savePushSubscription`, deleted by `deletePushSubscription` in `firebase-client.js`.
 Each document ID is a SHA-256 hash of the endpoint URL (first 16 hex chars). One doc per subscribed browser/device.
 Read by the `ingestHuddle` Cloud Function (Admin SDK) when fanning out push notifications.
+
+**clientErrors** (v13.31)
+```
+memberName   Display name of the member whose session caught the error
+page         Filename where the error occurred (e.g. "admin.html")
+message      Error message string — capped at 300 chars
+stack        Stack trace string — capped at 800 chars
+appVersion   APP_VERSION string at time of capture
+userAgent    navigator.userAgent — capped at 150 chars
+timestamp    Firestore server timestamp
+resolved     boolean — false on create; set to true by admin to dismiss
+```
+Write: any authenticated session (`request.auth != null`); shape-validated by Firestore rules.
+Read/update/delete: admin only (`request.auth.token.admin == true`).
+Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
+Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card.
 
 Override cache key: `"memberName|YYYY-MM-DD"`
 
