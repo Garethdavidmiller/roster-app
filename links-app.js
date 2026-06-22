@@ -10,7 +10,7 @@
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp } from './firebase-client.js';
-import { initNavPanel } from './nav-panel.js';
+import { initNavPanel, archiveNotice } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -1397,7 +1397,16 @@ document.addEventListener('click', e => {
         overlay:  lb,
         content:  document.getElementById('betaLightboxContent'),
         closeBtn: document.getElementById('betaLightboxClose'),
-        onClose:  () => lsSet(BETA_KEY, '1'),
+        onClose() {
+            lsSet(BETA_KEY, '1');
+            archiveNotice({
+                id:      'links-beta-2026',
+                title:   'Links Workspace',
+                section: 'Links',
+                date:    '9 Jun 2026',
+                body:    'The Links workspace is in early beta — a working sketch for designing the 28-line link. Changes here only affect the link-design document, never the live roster.',
+            });
+        },
     });
 
     if (!lsGet(BETA_KEY)) beta.open();

@@ -258,7 +258,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
 | Sync chip state machine in `calendar-app.js` | hidden → (800ms) → "↻ Updating…" → silent remove on success, or "⚠ Couldn't update" (stays, 10s timeout). "✓ Up to date" removed (v10.19) — noise. Never show raw errors to staff. |
-| App Notices system (v13.36) | `nav-panel.js` owns the archive: `archiveNotice({ id, title, section, date, body })` writes to localStorage `myb_app_notices` (capped at 50 entries, deduped by `id`). "📣 App Notices" in `NAV_INFORMATION` opens the archive panel. Notice lightboxes live on individual pages; see **"One-time notice pattern"** section below for the full creation guide. Current notices: `work-email-2026` (index.html), `ytd_2627` (paycalc.html). |
+| App Notices system (v13.36) | `nav-panel.js` owns the archive: `archiveNotice({ id, title, section, date, body })` writes to localStorage `myb_app_notices` (capped at 50 entries, deduped by `id`). "📣 App Notices" in `NAV_INFORMATION` opens the archive panel. Notice lightboxes live on individual pages; see **"One-time notice pattern"** section below for the full creation guide. Current notices: `work-email-2026` (index.html), `ytd_2627` (paycalc.html), `links-beta-2026` (links.html). |
 | `_clearState` object in `paycalc-app.js` | Groups all state for a two-tap destructive action so it resets atomically. Includes `countdownTimer` for live countdown in button label. |
 | `CONDITIONAL_ROWS` in `paycalc-app.js` | Data-driven array: condition → row IDs → field IDs. `updateBhRows(p)` iterates it. Adding future conditional rows means one array entry, not new show/hide logic. |
 | `touch-only` CSS class in `shared.css` | `display:none` by default; revealed via `@media (pointer: coarse)`. Use for touch-only UI. Do not use inline `display:none`. `(hover: hover)` inverse was dropped (v10.15) — some Android devices misreport it. |
@@ -452,6 +452,7 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 |----|------|-------|-------|-------------------|
 | `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | Snoozeable; done flag set by `settings-app.js` after email save |
 | `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | One-time; `myb_links_beta_seen` set on close |
 
 ---
 
