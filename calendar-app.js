@@ -1928,11 +1928,16 @@ initNavPanel({
 // notice appears in the nav panel "App Notices" record.
 (function _initWorkEmailNotice() {
     const NOTICE_ID  = 'work-email-2026';
-    const DONE_KEY   = 'myb_work_email_notice_done';
-    const SNOOZE_KEY = 'myb_work_email_notice_snooze';
 
-    if (!getSession()) return;                                         // only for signed-in users
-    if (lsGet(DONE_KEY)) return;                                       // email already saved on this device
+    const sess = getSession();
+    if (!sess?.name) return;                                           // only for signed-in users
+    // Keys are scoped to the member: one person dismissing on a shared device must
+    // not suppress the prompt for the next, and removing the saved email (which
+    // clears the done key in settings-app.js) re-arms the notice for that member.
+    const DONE_KEY   = `myb_work_email_notice_done:${sess.name}`;
+    const SNOOZE_KEY = `myb_work_email_notice_snooze:${sess.name}`;
+
+    if (lsGet(DONE_KEY)) return;                                       // email already saved by this member on this device
     const snoozeUntil = lsGet(SNOOZE_KEY);
     if (snoozeUntil && Date.now() < new Date(snoozeUntil).getTime()) return;
     if (isNoticeExpired('22 Jun 2026')) { lsSet(DONE_KEY, '1'); return; } // stale on a new device

@@ -86,6 +86,21 @@ describe('normaliseShift', () => {
     test('night shift time', () => {
         assert.equal(normaliseShift('22:00-06:00'), '22:00-06:00');
     });
+    test('boundary clock values accepted (00:00 and 23:59)', () => {
+        assert.equal(normaliseShift('00:00-23:59'), '00:00-23:59');
+    });
+    test('out-of-range hours/minutes → RD (not a bogus shift)', () => {
+        assert.equal(normaliseShift('29:75-88:90'), 'RD');
+    });
+    test('out-of-range hour only → RD', () => {
+        assert.equal(normaliseShift('24:00-10:00'), 'RD');
+    });
+    test('out-of-range minute only → RD', () => {
+        assert.equal(normaliseShift('06:60-10:00'), 'RD');
+    });
+    test('RDW with out-of-range time → RD (not a bogus shift)', () => {
+        assert.equal(normaliseShift('RDW 25:00-30:00'), 'RD');
+    });
 });
 
 // ── buildWeekDates ────────────────────────────────────────────────────────────

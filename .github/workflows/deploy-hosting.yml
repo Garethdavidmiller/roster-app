@@ -28,7 +28,7 @@ jobs:
           for f in *.js; do node --check "$f" || exit 1; done
           node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
           node --experimental-vm-modules --test module-parse.test.mjs
-          node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs app.test.mjs
+          node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs app.test.mjs
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools

@@ -320,15 +320,41 @@ export function logClientError({ memberName, page, message, stack, appVersion, u
     }).catch(() => {/* swallow — never throw from an error reporter */});
 }
 
+/** Retention window for resolved client-error records (ms). */
+const CLIENT_ERROR_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
 /**
- * Fetch the 30 most recent client error records (admin-only).
+ * Fire-and-forget delete of resolved client-error records older than the retention
+ * window, so the collection can't grow without bound. Admin-only delete (rules).
+ * @param {Array<{id: string, resolved: boolean, timestamp?: { toMillis?: () => number }}>} records
+ */
+function _pruneResolvedClientErrors(records) {
+    const cutoff = Date.now() - CLIENT_ERROR_RETENTION_MS;
+    for (const r of records) {
+        const ms = r.timestamp?.toMillis?.();
+        if (r.resolved && typeof ms === 'number' && ms < cutoff) {
+            deleteDoc(doc(db, 'clientErrors', r.id)).catch(() => {/* best-effort cleanup */});
+        }
+    }
+}
+
+/**
+ * Fetch recent client error records (admin-only), surfacing UNRESOLVED records first.
+ * Fetches a wide newest-first window then orders unresolved ahead of resolved, so a
+ * backlog of resolved records can never hide an older unresolved one (the old flat
+ * 30-row newest-first window did exactly that). Returns at most 30 rows for the UI.
+ * Resolved records past the 90-day retention window are pruned as a side effect.
  * @returns {Promise<Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean}>>}
  */
 export async function getClientErrors() {
     const snap = await getDocs(
-        query(collection(db, 'clientErrors'), orderBy('timestamp', 'desc'), limit(30))
+        query(collection(db, 'clientErrors'), orderBy('timestamp', 'desc'), limit(100))
     );
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    _pruneResolvedClientErrors(all);
+    const unresolved = all.filter(e => !e.resolved);
+    const resolved   = all.filter(e => e.resolved);
+    return [...unresolved, ...resolved].slice(0, 30);
 }
 
 /**

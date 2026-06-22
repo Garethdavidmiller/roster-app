@@ -32,11 +32,20 @@ function normaliseShift(raw) {
 
     if (s === 'SP') return 'SPARE';
 
+    // Valid 24-hour clock value: hours 00–23, minutes 00–59. The regexes below only
+    // constrain digit COUNT, so without this an OCR slip like "29:75-88:90" would
+    // normalise to a bogus shift time and pass review as a genuine shift. Out-of-range
+    // values fall through to the unrecognised path (warn → 'RD') so they don't silently
+    // become a real working shift.
+    const validHHMM = (h, m) => +h >= 0 && +h <= 23 && +m >= 0 && +m <= 59;
+
     // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00".
     // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
     // pad to 2 so a single-digit hour isn't silently lost as a rest day.
     const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
-    if (rdwMatch) return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
+    if (rdwMatch && validHHMM(rdwMatch[1], rdwMatch[2]) && validHHMM(rdwMatch[3], rdwMatch[4])) {
+        return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
+    }
 
     if (['RD', 'OFF', 'AL', 'SPARE', 'SICK'].includes(s)) return s;
     if (s === 'RDW') {
@@ -50,7 +59,7 @@ function normaliseShift(raw) {
     // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130",
     // "6:30-12:30" (single-digit hour). Pad single-digit hours to 2 digits.
     const match = s.match(/^(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
-    if (match) {
+    if (match && validHHMM(match[1], match[2]) && validHHMM(match[3], match[4])) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
 
