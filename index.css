@@ -2319,3 +2319,62 @@
             .calendar-fetching .calendar-day::after { animation: none; }
         }
 
+        /* ── Work Email notice lightbox ──────────────────────────────────────── */
+        .notice-lb-icon  {
+            font-size: 48px;
+            line-height: 1;
+            text-align: center;
+        }
+        .notice-lb-title {
+            color: white;
+            font-size: var(--type-large);
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            text-align: center;
+            line-height: 1.2;
+        }
+        .notice-lb-body  {
+            color: rgba(255, 255, 255, 0.75);
+            font-size: var(--type-body);
+            line-height: 1.5;
+            text-align: center;
+            margin: 0;
+        }
+        /* Primary CTA — gold, full-width, press scale */
+        .notice-lb-cta   {
+            display: block;
+            background-color: var(--accent-gold);
+            color: var(--primary-blue);
+            font-size: 15px;
+            font-weight: 700;
+            text-decoration: none;
+            text-align: center;
+            padding: 13px 20px;
+            border-radius: 10px;
+            margin-top: 4px;
+            transition: background-color var(--dur-fast) var(--ease-standard),
+                        transform      var(--dur-fast) var(--ease-standard);
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .notice-lb-cta:hover { background-color: var(--accent-gold-dark); }
+        }
+        .notice-lb-cta:active { transform: scale(var(--press-scale)); }
+        /* Secondary dismiss — muted text button */
+        .notice-lb-later {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.45);
+            font-size: var(--type-body);
+            line-height: 1;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+            transition: color var(--dur-fast) var(--ease-standard);
+        }
+        @media (hover: hover) and (pointer: fine) {
+            .notice-lb-later:hover { color: rgba(255, 255, 255, 0.75); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .notice-lb-cta, .notice-lb-later { transition: none; }
+        }
+

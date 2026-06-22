@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v13.35 -->
+<!-- MYB Roster — Calendar v13.36 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -169,6 +169,20 @@
                 <div class="team-info-key-item"><span class="tv-key-dot tv-key-dot--rest"></span>🏠 Rest day</div>
             </div>
             <p class="team-info-note">Shifts shown are your base roster plus any recorded changes. Changes saved on the Admin page appear here when you move to a different week and back.</p>
+        </div>
+    </div>
+
+    <!-- App notice: work email prompt.
+         Shown once (per snooze period) to signed-in users who have not yet saved
+         their work email. Uses the canonical createLightbox lifecycle. -->
+    <div id="workEmailNoticeLb" class="lb-overlay" role="dialog" aria-label="Add your work email" aria-modal="true">
+        <div id="workEmailNoticeContent" class="lb-content">
+            <button id="workEmailNoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
+            <div class="notice-lb-icon" aria-hidden="true">📧</div>
+            <div class="notice-lb-title">Add your work email</div>
+            <p class="notice-lb-body">We're setting up self-service password reset — add your Chiltern work email in Settings so we can send a recovery link if you ever get locked out.</p>
+            <a href="./settings.html" id="workEmailNoticeGo" class="notice-lb-cta">Go to Settings →</a>
+            <button id="workEmailNoticeLater" class="notice-lb-later" type="button">Not now</button>
         </div>
     </div>
 
