@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.26 -->
+<!-- MYB Roster — Pay Calculator v13.27 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -64,7 +64,7 @@
       <div class="settings-notice hidden" id="settingsNewYearNotice"></div>
 
       <div class="field">
-        <label>Grade</label>
+        <label for="gradeSelect">Grade</label>
         <select id="gradeSelect">
           <option value="cea">CEA</option>
           <option value="ces">CES</option>
@@ -74,7 +74,7 @@
       </div>
 
       <div class="field">
-        <label>Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
+        <label for="hourlyRate">Your Hourly Rate <span class="note" id="rateYearLabel"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="hourlyRate" value="20.74" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -85,13 +85,13 @@
       </div>
 
       <div class="field">
-        <label>Tax Code</label>
+        <label for="taxCode">Tax Code</label>
         <input type="text" id="taxCode" value="1257L" placeholder="e.g. 1257L" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false">
         <div class="field-hint">Most people are 1257L. Check your payslip or P60.</div>
       </div>
 
       <div class="field">
-        <label>Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
+        <label for="pensionAmt">Pension contribution <span id="pensionPeriodLabel" class="note"></span></label>
         <div class="pfx">
           <span class="pfx-sym">£</span>
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -101,7 +101,7 @@
       </div>
 
       <div class="field">
-        <label>Student Loan <span class="note">only if deducted via payroll</span></label>
+        <label for="studentLoan">Student Loan <span class="note">only if deducted via payroll</span></label>
         <select id="studentLoan">
           <option value="none">None (or paid by direct debit)</option>
           <option value="plan1">Plan 1</option>
@@ -476,7 +476,7 @@
           <div class="hpp-basis" id="priorHppBasis"></div>
         </div>
         <div class="field" style="margin-bottom:12px">
-          <label>Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
+          <label for="priorHppActualInput">Confirmed amount from your January payslip <span class="note">enter when payslip arrives</span></label>
           <div class="pfx">
             <span class="pfx-sym">£</span>
             <input type="text" id="priorHppActualInput" placeholder="0.00" inputmode="decimal" autocomplete="off" enterkeyhint="done">
@@ -516,7 +516,7 @@
       <p class="card-explainer">When a pay award is backdated, all the extra money owed is paid as a single lump sum. Select the first period covered by the new rate, enter the old and new values, then choose which payslip the lump sum lands on.</p>
 
       <div class="field">
-        <label>Pay rise backdated from</label>
+        <label for="backPayFrom">Pay rise backdated from</label>
         <select id="backPayFrom">
           <option value="">— all periods with saved data —</option>
         </select>
@@ -560,7 +560,7 @@
       </div>
       <!-- Period selector — appears once total is calculated -->
       <div class="field" id="backPayPeriodWrap" style="display:none;margin:0 0 12px">
-        <label>Which payslip carries this lump sum?</label>
+        <label for="backPayPeriod">Which payslip carries this lump sum?</label>
         <select id="backPayPeriod">
           <option value="">— select when the lump sum will land —</option>
         </select>
@@ -621,7 +621,7 @@
 
 <!-- Sticky take-home bar — mobile only, shown when result card scrolls off-screen -->
 <div id="stickyTotal" role="button" tabindex="0" aria-label="Jump to estimated take-home pay">
-  <div class="sticky-label">💷 Estimated take-home</div>
+  <div class="sticky-label" id="stickyLabel">💷 Estimated take-home</div>
   <div class="sticky-amount" id="stickyAmount">£–</div>
 </div>
 
@@ -654,6 +654,16 @@
 </div>
 
 
+
+<!-- YTD notice lightbox — shown once when the user first opens a period mid-year -->
+<div id="noticeYtdLightbox" class="lb-overlay" role="dialog" aria-label="Pay Notice" aria-modal="true">
+  <div id="noticeYtdContent" class="lb-content">
+    <button id="noticeYtdClose" class="lb-close" type="button" aria-label="Close">✕</button>
+    <div class="notice-ytd-emoji">📋</div>
+    <div class="lightbox-badge notice-ytd-badge">💷 Pay</div>
+    <p class="welcome-desc">For accurate tax estimates this year, enter your <strong>YTD Gross Pay</strong> and <strong>YTD Tax Paid</strong> from your latest payslip in <strong>⚙️ Your Settings</strong> below.</p>
+  </div>
+</div>
 
 <!-- Welcome lightbox — shown on first-ever visit to the pay calculator; never shown again after close -->
 <div id="welcomeLightbox" class="lb-overlay" role="dialog" aria-label="Welcome to Pay Calculator" aria-modal="true">

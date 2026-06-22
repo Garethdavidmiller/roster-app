@@ -550,6 +550,7 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
+    if (window._mybSession) await window._mybSession;
     if (!auth.currentUser) {
         _showError('Your session has expired — please sign out and sign back in.');
         return;
@@ -1028,7 +1029,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
             const base = getBaseShift(memberObj, new Date(dateStr + 'T12:00:00'));
             return !isRestShift(base);
           })
-        : [...dates];
+        : [];
 
     // Sundays within the range that have a worked base shift need an explicit RD correction
     // so the base roster shift doesn't still show on the calendar during the absence period.

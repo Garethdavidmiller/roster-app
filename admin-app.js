@@ -386,6 +386,12 @@ function populateMemberDropdown(select) {
 
 populateMemberDropdown(fieldMember);
 
+// iOS Safari silently fails when setting .value on a <select> with <optgroup>s.
+// Iterate options and set .selected directly instead.
+function _setSelectValue(sel, val) {
+    for (const o of sel.options) if (o.value === val) { o.selected = true; return; }
+}
+
 // Restore last used member — prefer the shared cross-page key (written by both index and admin)
 // so navigating between pages keeps the same person selected. Fall back to admin-only key.
 // The member must still be SELECTABLE (exists AND not hidden): populateMemberDropdown omits
@@ -397,7 +403,7 @@ const _savedMember = lsGet('myb_roster_selected_member') || lsGet('adminLastMemb
 const lastMember = (_savedMember && teamMembers.find(m => m.name === _savedMember && !m.hidden))
     ? _savedMember : null;
 if (lastMember) {
-    fieldMember.value = lastMember;
+    _setSelectValue(fieldMember, lastMember);
     // Keep both keys in sync so the reverse journey (admin → index) always works
     lsSet('adminLastMember', lastMember);
     lsSet('myb_roster_selected_member', lastMember);
@@ -895,12 +901,12 @@ fieldMember.addEventListener('change', () => {
         // Re-assert the value: on the unsaved-changes path the select was reverted to
         // `previous` (line below) and the banner's Discard runs this later, so without
         // this the field would stay on the old member while the grid switched. (v12.32)
-        fieldMember.value = chosen;
+        _setSelectValue(fieldMember, chosen);
         lastFieldMember  = chosen;
         lsSet('adminLastMember', chosen);
         lsSet('myb_roster_selected_member', chosen);
-        alMember.value   = chosen;
-        sickMember.value = chosen;
+        _setSelectValue(alMember, chosen);
+        _setSelectValue(sickMember, chosen);
         syncMemberDisplay();
         syncSickMemberDisplay();
         updateALBanner();
@@ -911,7 +917,7 @@ fieldMember.addEventListener('change', () => {
     };
     if (confirmNavigate(go)) { go(); return; }
     // Revert the dropdown to the previously confirmed member while the banner waits
-    fieldMember.value = previous;
+    _setSelectValue(fieldMember, previous);
 });
 let lastFieldDate = fieldDate.value;
 fieldDate.addEventListener('change', () => {
@@ -944,7 +950,7 @@ function handleEdit(e) {
     const memberName = btn.dataset.member;
     const date       = btn.dataset.date;
     const go = () => {
-        fieldMember.value = memberName;
+        _setSelectValue(fieldMember, memberName);
         fieldDate.value   = date;
         lastFieldDate     = date;
         lsSet('adminLastMember', memberName);
@@ -964,12 +970,12 @@ function handleEdit(e) {
  * @param {string} date        YYYY-MM-DD — any date within the week to show
  */
 function showInChangeAShift(memberName, date) {
-    fieldMember.value = memberName;
+    _setSelectValue(fieldMember, memberName);
     fieldDate.value   = date;
     lastFieldMember   = memberName;
     lastFieldDate     = date;
-    alMember.value    = memberName;
-    sickMember.value  = memberName;
+    _setSelectValue(alMember, memberName);
+    _setSelectValue(sickMember, memberName);
     syncMemberDisplay();
     syncSickMemberDisplay();
     // Align the saved-changes month filter so the new days aren't filtered out.
@@ -1082,6 +1088,7 @@ initALSection({
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
     currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
+    showSuccess,
 });
 
 // ============================================
@@ -1091,6 +1098,7 @@ initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
+    showSuccess,
 });
 
 
@@ -1301,12 +1309,12 @@ function applyPermissions() {
     if (currentIsAdmin || currentIsManager) return; // full access — nothing to restrict
 
     // Non-admin: lock all member selectors to their own name
-    fieldMember.value     = currentUser;
+    _setSelectValue(fieldMember, currentUser);
     fieldMember.disabled  = true;
     syncMemberDisplay();
-    alMember.value        = currentUser;
+    _setSelectValue(alMember, currentUser);
     alMember.disabled     = true;
-    sickMember.value      = currentUser;
+    _setSelectValue(sickMember, currentUser);
     sickMember.disabled   = true;
     lsSet('adminLastMember', currentUser);
     lsSet('myb_roster_selected_member', currentUser);
