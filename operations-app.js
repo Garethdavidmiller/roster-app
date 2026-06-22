@@ -125,13 +125,33 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
         function renderForGrade(grade) {
             const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
             const total    = pool.length;
-            const count    = pool.filter(m => savedNames.has(m.name)).length;
+            const added    = pool.filter(m =>  savedNames.has(m.name));
             const notAdded = pool.filter(m => !savedNames.has(m.name));
             const label    = grade || 'staff';
 
-            summaryEl.innerHTML = `<strong class="email-count-num">${count}</strong> of <strong>${total}</strong> ${label} have added their work email`;
+            summaryEl.innerHTML = `<strong class="email-count-num">${added.length}</strong> of <strong>${total}</strong> ${label} have added their work email`;
 
             listContainer.innerHTML = '';
+
+            // Who has added — the "engaged" list
+            if (added.length > 0) {
+                const addedLabel = document.createElement('p');
+                addedLabel.className = 'email-count-added-label';
+                addedLabel.textContent = `Added (${added.length}):`;
+                listContainer.appendChild(addedLabel);
+
+                const addedList = document.createElement('div');
+                addedList.className = 'email-count-list';
+                added.forEach(m => {
+                    const chip = document.createElement('span');
+                    chip.className = 'email-count-chip email-count-chip--added';
+                    chip.textContent = m.name;
+                    addedList.appendChild(chip);
+                });
+                listContainer.appendChild(addedList);
+            }
+
+            // Who hasn't yet
             if (notAdded.length === 0) {
                 const done = document.createElement('p');
                 done.className = 'email-count-done';
@@ -140,7 +160,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
             } else {
                 const missingLabel = document.createElement('p');
                 missingLabel.className = 'email-count-missing-label';
-                missingLabel.textContent = `${notAdded.length} still to add:`;
+                missingLabel.textContent = `Still to add (${notAdded.length}):`;
                 listContainer.appendChild(missingLabel);
 
                 const list = document.createElement('div');

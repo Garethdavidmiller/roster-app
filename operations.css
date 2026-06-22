@@ -366,9 +366,17 @@ select:focus-visible, input:focus-visible {
     color: var(--success-green);
     font-weight: 600;
 }
+.email-count-added-label {
+    font-size: var(--type-small);
+    color: var(--success-green);
+    font-weight: 600;
+    margin-top: 10px;
+    margin-bottom: 8px;
+}
 .email-count-missing-label {
     font-size: var(--type-small);
     color: var(--text-mid);
+    margin-top: 12px;
     margin-bottom: 8px;
 }
 .email-count-list {
@@ -384,6 +392,11 @@ select:focus-visible, input:focus-visible {
     padding: 3px 10px;
     color: var(--text-mid);
     white-space: nowrap;
+}
+.email-count-chip--added {
+    background: var(--success-green-bg);
+    border-color: var(--success-green-border);
+    color: var(--success-green);
 }
 
 #opsBadge { background: var(--orange); color: var(--primary-blue); }
