@@ -322,7 +322,7 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 
 ```html
 <div id="[Name]NoticeLb" class="lb-overlay" role="dialog" aria-label="[Title]" aria-modal="true">
-    <div id="[Name]NoticeContent" class="lb-content">
+    <div id="[Name]NoticeContent" class="lb-content notice-lb-content">
         <button id="[Name]NoticeClose" class="lb-close" type="button" aria-label="Close">✕</button>
         <div class="lightbox-badge">[Emoji] [Section]</div>
         <div class="lightbox-app-name">[Title]</div>
