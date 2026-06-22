@@ -352,6 +352,7 @@ Add the notice lightbox in the page's HTML, grouped with the other `.lb-overlay`
 |---------|-----------|
 | Settings page | `⚙️ Settings` |
 | Pay calculator | `💷 Pay` |
+| Links workspace | `🔗 Links` |
 | General / no specific page | `📣 General` |
 
 ### JS pattern — close-only notice (no CTA)
@@ -366,6 +367,9 @@ The user reads the notice and closes it. `archiveNotice()` fires in `onClose` be
 
     const overlay = document.getElementById('[Name]NoticeLb');
     if (!overlay || lsGet(NOTICE_KEY)) return;
+    // Silently dismiss on a new device if the notice is past its expiry window.
+    // Use isNoticeExpired(NOTICE_DATE) for 28-day (short) or isNoticeExpired(NOTICE_DATE, 90) for 90-day (long).
+    if (isNoticeExpired(NOTICE_DATE)) { lsSet(NOTICE_KEY, '1'); return; }
 
     const lb = createLightbox({
         overlay,
@@ -400,6 +404,9 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
     if (lsGet(DONE_KEY)) return;        // permanently dismissed (action completed elsewhere)
     const snooze = lsGet(SNOOZE_KEY);
     if (snooze && Date.now() < new Date(snooze).getTime()) return;
+    // Silently dismiss on a new device if the notice is past its expiry window.
+    // Use isNoticeExpired(NOTICE_DATE) for 28-day (short) or isNoticeExpired(NOTICE_DATE, 90) for 90-day (long).
+    if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }
 
     const overlay  = document.getElementById('[Name]NoticeLb');
     const goLink   = document.getElementById('[Name]NoticeGo');
@@ -444,17 +451,18 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 | Snooze key | `myb_notice_[id]_snooze` — ISO date string |
 | Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `work-email-2026`, `ytd_2627` |
 | Posting date format | `D Mon YYYY` — e.g. `22 Jun 2026` — hardcoded in both the HTML `.notice-date` and the `archiveNotice()` call; never use `new Date()` |
-| Expiry on new device | 28 days from posting date — add `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` after the done/snooze checks. Prevents stale notices accumulating on a fresh install. Import `isNoticeExpired` from `nav-panel.js`. |
-| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than 28 days on every write — the archive never grows stale. |
+| Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. work-email prompt, beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` from `nav-panel.js`. |
+| Expiry on new device — long (90 days) | Use for tax-year or seasonal notices that stay relevant for months: YTD entry reminders, pay rate change notices. `if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }` — same placement as short. |
+| Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh across device changes without the user having to clear storage. |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
 
 ### Current notices
 
-| ID | Page | Title | Badge | Dismiss mechanism |
-|----|------|-------|-------|-------------------|
-| `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | Snoozeable; done flag set by `settings-app.js` after email save |
-| `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | One-time; `NOTICE_YTD_KEY` set on close |
-| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | One-time; `myb_links_beta_seen` set on close |
+| ID | Page | Title | Badge | Expiry | Dismiss mechanism |
+|----|------|-------|-------|--------|-------------------|
+| `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | 28 days | Snoozeable; done flag set by `settings-app.js` after email save |
+| `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | 90 days | One-time; `NOTICE_YTD_KEY` set on close |
+| `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | 28 days | One-time; `myb_links_beta_seen` set on close |
 
 ---
 

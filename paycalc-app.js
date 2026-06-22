@@ -2506,8 +2506,8 @@ const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
     },
   });
 
-  // Silently expire on a new device if the notice is older than 28 days.
-  if (isNoticeExpired('6 Apr 2026') && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
+  // Silently expire on a new device if the notice is older than 90 days (tax-year range).
+  if (isNoticeExpired('6 Apr 2026', 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
   // Show only after the welcome lightbox has been seen, and only once.
   if (lsGet(WELCOME_KEY) && !lsGet(NOTICE_YTD_KEY)) notice.open();
 })();

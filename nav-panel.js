@@ -74,8 +74,8 @@ let _noticesOpen    = false;
 
 /** localStorage key for the archived notices list. */
 const NOTICES_KEY = 'myb_app_notices';
-/** Notices older than this many days are pruned from the archive and not shown on new devices. */
-const NOTICE_EXPIRY_DAYS = 28;
+/** Archive entries older than this are pruned from localStorage. */
+const ARCHIVE_EXPIRY_DAYS = 180;
 
 const _MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
 function _parseNoticeDate(str) {
@@ -85,25 +85,27 @@ function _parseNoticeDate(str) {
 }
 
 /**
- * Returns true if a notice's posting date is older than NOTICE_EXPIRY_DAYS.
- * Use to silently skip stale notices on a new device:
- *   if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }
+ * Returns true if a notice's posting date is older than the given number of days.
+ * Use to silently dismiss stale notices on a new device:
+ *   if (isNoticeExpired(NOTICE_DATE))     { lsSet(DONE_KEY, '1'); return; }  // 28-day (default)
+ *   if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }  // 90-day (long)
  * @param {string} dateStr — "D Mon YYYY", e.g. "22 Jun 2026"
+ * @param {number} [days=28] — expiry window: 28 for short-range, 90 for long-range
  */
-export function isNoticeExpired(dateStr) {
+export function isNoticeExpired(dateStr, days = 28) {
     const posted = _parseNoticeDate(dateStr);
-    return !isNaN(posted) && (Date.now() - posted) > NOTICE_EXPIRY_DAYS * 86_400_000;
+    return !isNaN(posted) && (Date.now() - posted) > days * 86_400_000;
 }
 
 /**
  * Archive a notice so it appears in the App Notices panel.
  * Call this when the user dismisses a notice lightbox.
- * Entries older than NOTICE_EXPIRY_DAYS are pruned automatically.
+ * Entries older than ARCHIVE_EXPIRY_DAYS (180) are pruned automatically.
  * @param {{ id: string, title: string, section: string, date: string, body: string }} notice
  */
 export function archiveNotice({ id, title, section, date, body }) {
     try {
-        const expiryMs = NOTICE_EXPIRY_DAYS * 86_400_000;
+        const expiryMs = ARCHIVE_EXPIRY_DAYS * 86_400_000;
         const now = Date.now();
         const existing = JSON.parse(lsGet(NOTICES_KEY) || '[]')
             .filter(n => n.archivedAt && (now - new Date(n.archivedAt).getTime()) < expiryMs);
