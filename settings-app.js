@@ -183,7 +183,7 @@ function initContactCard() {
 
     // Load existing email; show a loading message while waiting.
     setFeedback('Checking for a saved email…', '');
-    getStaffContact(currentUser).then(data => {
+    Promise.resolve(window._mybSession).then(() => getStaffContact(currentUser)).then(data => {
         if (data?.workEmail && !userHasTyped) {
             emailInput.value = data.workEmail;
             showSavedState(formatDate(data.updatedAt));

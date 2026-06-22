@@ -13,7 +13,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 |------|----------------|
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
-| Calendar UI, month view, swipe, shift display | `app.js` |
+| Calendar UI, month view, swipe, shift display | `calendar-app.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `app-override-utils.js` |
@@ -37,7 +37,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
-| Pay calculator UI, period select, form, settings, HPP | `paycalc.js` + `paycalc.html` |
+| Pay calculator UI, period select, form, settings, HPP | `paycalc-app.js` + `paycalc.html` |
 | Pay calculator help/tooltip text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -69,7 +69,7 @@ The single source of truth for all roster data.
 - `getBaseShift(member, date)` — **always use this, never read roster.data directly**
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
-### `app.js`
+### `calendar-app.js`
 Everything that touches `index.html` at runtime.
 - Calendar render, month carousel, swipe gestures
 - Override cache for the calendar view (`rosterOverridesCache`)
@@ -80,7 +80,7 @@ Everything that touches `index.html` at runtime.
 - Calls `initHuddleViewer()` from `app-huddle-viewer.js`
 
 ### `app-huddle-viewer.js`
-Huddle viewer overlay — extracted from `app.js` at v11.40. Only export is `initHuddleViewer()` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).
+Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Only export is `initHuddleViewer()` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).
 - `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler (used by both the nav-panel "Daily Huddle" link and notification taps)
 - `sanitiseHtml(html)` — internal; DOMPurify sanitisation for DOCX huddles
 - `_triggerAutoOpen(huddle)` — **two content types, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a `#huddle`-hash open carries no user activation — a direct `window.open`/`location.href` would be pop-up-blocked or knock the PWA out of standalone. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
@@ -111,7 +111,7 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support: pushes `{ mybOverlay: true }` history state on overlay open; registers `closeHandler` to fire on `popstate`. Module-level `popstate` listener is registered once (singleton) — multiple overlays on the same page are safe.
 - `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab. (createLightbox calls this internally.)
 - `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
-- Imported by: `app.js`, `admin-app.js`, `paycalc.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
+- Imported by: `calendar-app.js`, `admin-app.js`, `paycalc-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
 
 ### `about-lightbox.js`
 Shared About panel for `#iconLightbox` on all six app pages (v12.50).
@@ -125,8 +125,8 @@ Shared per-card Tips panel for `#tipsLightbox` (v12.50).
 
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All six app pages import this instead of duplicating the register/activate/reload pattern.
-- `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `app.js` only).
-- Per-page variants: `app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.
+- `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only).
+- Per-page variants: `calendar-app.js` — 500ms reload delay + bfcache; `admin-app.js` — defers reload if `hasUnsavedChanges()`; `links-app.js` — shows `confirm()` if the design is dirty; others — plain reload.
 
 ### `session.js`
 Shared auth/session module — canonical source for session logic (v11.40).
@@ -134,7 +134,7 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `getSurname(name)` — derives Firebase Auth password from display name
 - `getSession()` / `saveSession(name)` / `clearSession()` — localStorage wrappers for the session object
 - `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`. Returns `Promise<boolean>`.
-- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`, `paycalc.js` (v12.49 — getSession/clearSession only, so paycalc enforces session expiry and refreshes the idle clock like every other page)
+- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`, `paycalc-app.js` (v12.49 — getSession/clearSession only, so paycalc enforces session expiry and refreshes the idle clock like every other page)
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
@@ -192,7 +192,7 @@ The Weekly Roster Upload pipeline.
 - `renderReviewTable()` — per-person card list with approve/skip
 - `shiftDisplay()`, `shiftValueToOverrideType()` — display and type helpers
 
-### `paycalc.js`
+### `paycalc-app.js`
 UI layer for `paycalc.html`. No pure pay maths here.
 - Period select, form read/write, autosave
 - `onPeriodChange()` — orchestrates all period-level updates
@@ -214,7 +214,7 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 - `SK` — object of top-level localStorage key strings
 - `periodKey(pNum)` — key builder for period data (takes period number)
 - `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`)
-- `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations; receives deps as params to avoid circular imports with `paycalc.js`
+- `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations; receives deps as params to avoid circular imports with `paycalc-app.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
 
 ### `paycalc-calc.js`
@@ -239,7 +239,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — writes to Firebase Storage + Firestore `huddles` collection; `htmlContent` is the converted HTML string for DOCX uploads (null for PDFs)
-- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
+- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
 
@@ -264,15 +264,15 @@ Shared slide-out navigation panel — imported by all six app pages.
 ### `notif.js`
 Shared Web Push module — single source of truth for the VAPID key and subscription lifecycle. Imported by `nav-panel.js`.
 - `notifSupported()` — feature detection incl. the iOS "must be a Home Screen PWA" rule
-- `getNotifState()` — async → `'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'`; **also** does the silent VAPID-rotation re-subscribe + Firestore save (side effects). Called once on app load from `app.js`.
+- `getNotifState()` — async → `'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'`; **also** does the silent VAPID-rotation re-subscribe + Firestore save (side effects). Called once on app load from `calendar-app.js`.
 - `peekNotifState()` — async, same return values but **read-only** (no Firestore write, no migration). Use for UI that re-reads often — the nav-panel bell uses this so opening the drawer doesn't write to Firestore (v11.49).
 - `enableNotifications()` — async; subscribe + Firestore save → returns `Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>`
 - `disableNotifications()` — async; unsubscribe + Firestore delete
 - Imports `savePushSubscription`/`deletePushSubscription` from `firebase-client.js`, `lsGet`/`lsSet` from `ls.js`
-- `app.js` and `huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
+- `calendar-app.js` and `huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
 
 ### `app-override-utils.js`
-Override priority, member-start, and shift-classification helpers — shared by `app.js`, `app-team-view.js`, and admin modules.
+Override priority, member-start, and shift-classification helpers — shared by `calendar-app.js`, `app-team-view.js`, and admin modules.
 - `tsToMillis(ts)` — converts Firestore Timestamp or `{seconds}` object to milliseconds
 - `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
@@ -294,14 +294,14 @@ Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted
 Safe localStorage wrappers for all app pages (iOS Safari private mode compatibility).
 - `lsGet(k)`, `lsSet(k, v)`, `lsDel(k)` — wrap every `localStorage` call in try/catch
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
-- **Never call `localStorage` directly** in `app.js`, `admin-app.js`, or `paycalc.js` — always use these wrappers
+- **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
 - `overrides` create/update: `memberName == request.auth.token.name || admin == true`; required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72)
 - `overrides` delete: `resource.data.memberName == request.auth.token.name || admin == true`
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
-- `huddles` read: open (`allow read;`) — `app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
+- `huddles` read: open (`allow read;`) — `calendar-app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.
 
 ### `storage.rules`
@@ -379,7 +379,7 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 |-----------|---------|
 | Read `roster.data[week][day]` directly | Bypasses `startDate` suppression and Christmas rules. Always use `getBaseShift()`. |
 | Add DOM access to `paycalc-calc.js` | It must stay importable by the Node test runner. |
-| Add DOM access to `paycalc-roster-suggestions.js` | It must stay free of circular deps with `paycalc.js`. |
+| Add DOM access to `paycalc-roster-suggestions.js` | It must stay free of circular deps with `paycalc-app.js`. |
 | Hardcode hex colours | Use CSS variables — every colour lives in `:root` in `shared.css`. |
 | Import Firebase in `paycalc-calc.js` | Same reason as above — test-runner compatibility. |
 | Use `alert()` | Use `console.error()` for dev errors; never show raw errors to staff. |

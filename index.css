@@ -974,10 +974,6 @@
                 overflow: hidden;
             }
 
-            .calendar-day.has-faith {
-                padding-bottom: 18px;
-            }
-
             .calendar-day.today {
                 border-width: 3px;
             }
