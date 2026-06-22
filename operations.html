@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v13.30 -->
+<!-- MYB Roster — Operations v13.31 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -142,6 +142,20 @@
         </div>
         <div class="card-collapsible-body" id="workEmailBody">
             <div class="card-body" id="emailStatusContent">
+                <p class="auth-desc">Loading…</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ERROR LOG ==================== -->
+    <div class="card" id="errorLogCard">
+        <div class="card-header card-collapsible-header" id="errorLogToggleHeader">
+            <h2>🐛 Error Log</h2>
+            <span class="hint">Uncaught JS errors from authenticated pages — tap ⎘ Copy to paste a report here for diagnosis</span>
+            <span class="collapse-chevron" id="errorLogChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body" id="errorLogBody">
+            <div class="card-body" id="errorLogContent">
                 <p class="auth-desc">Loading…</p>
             </div>
         </div>

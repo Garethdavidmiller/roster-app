@@ -26,6 +26,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Settings page — Notifications, Work Email | `settings-app.js` + `settings.html` |
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
+| Error Log card (ops page) — uncaught error capture, ops card display, Copy for Claude | `error-reporter.js`, `firebase-client.js` (logClientError/getClientErrors/resolveClientError), `operations-app.js`, `operations.css` |
 | Links design workspace — 28-line design grid, paint mode, hourly coverage heat map, design checks, auto-generator UI | `links-app.js` + `links.html` + `links.css` |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |

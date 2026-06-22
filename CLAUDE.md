@@ -132,10 +132,11 @@ roster-app/
 ├── tips-lightbox.js        ← shared per-card Tips (#tipsLightbox) panel: initTipsLightbox(CARD_TIPS, { getIsAdmin }) — lifecycle, renderer (incl. adminOnly/staffOnly filtering), and .btn-card-tips wiring. Pages own only their CARD_TIPS content. Imported by admin-app.js, operations-app.js, settings-app.js, links-app.js (v12.50)
 ├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js, paycalc-app.js (v11.40; paycalc added v12.49)
 ├── sw-register.js          ← shared service worker registration + update lifecycle: registerServiceWorker({ beforeReload, bfcache }). Imported by all six app pages (v12.28)
+├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — registers window.onerror + window.onunhandledrejection, filters noise (cross-origin, ResizeObserver, empty), session-deduplicates, writes to Firestore clientErrors collection. Imported by admin-app.js, operations-app.js, settings-app.js, paycalc-app.js (v13.31)
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by calendar-app.js
 ├── app-override-utils.js   ← override priority, member-start, and shift-classification helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift. Shared by calendar-app.js, app-team-view.js, and admin modules
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence booking, Team Week View, module wiring, booked-box helpers
-├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup (v10.99)
+├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup, initErrorLog (v10.99; error log v13.31)
 ├── settings-app.js         ← coordinator for settings.html: session check (shared AUTH_KEY), login overlay, initHuddleNotifications, work email card, initNavPanel (v11.06)
 ├── huddle.js               ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → settings.html), Huddle card toggle. Renamed from admin-huddle.js at v11.40
 ├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)

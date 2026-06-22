@@ -16,6 +16,7 @@ import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from '.
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
+import { initErrorReporter } from './error-reporter.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();
@@ -49,6 +50,7 @@ if (isAuthenticated) {
     initLoginOverlay();
 }
 registerServiceWorker();
+Promise.resolve(window._mybSession).then(() => initErrorReporter());
 
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {

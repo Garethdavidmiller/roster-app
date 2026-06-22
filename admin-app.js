@@ -29,6 +29,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
+import { initErrorReporter } from './error-reporter.js';
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
@@ -1475,6 +1476,7 @@ registerServiceWorker({
         }, { once: true });
     },
 });
+window._mybSession?.then(() => initErrorReporter());
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({
