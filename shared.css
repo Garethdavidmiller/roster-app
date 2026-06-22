@@ -490,9 +490,27 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
-   Badge (.lightbox-badge) and title (.lightbox-app-name) are reused from
-   the existing shared classes above. All per-notice visual needs are met
-   by these classes — do NOT add page-specific .notice-* overrides. ── */
+   Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
+   Badge (.lightbox-badge) and title (.lightbox-app-name) reused from above.
+   All per-notice visual needs met here — do NOT add page-specific overrides. ── */
+
+/* Dark glass card — use class="lb-content notice-lb-content" on every
+   notice content div. Provides the flex column, background, border,
+   padding and width that .lb-content (structural-only) deliberately omits. */
+.notice-lb-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 36px 36px 30px;
+    width: min(320px, 86vw);
+    text-align: center;
+    max-height: 80vh;
+    max-height: 80dvh;
+}
 
 /* "Posted D Mon YYYY" line — sits between the title and the body */
 .notice-date {
