@@ -335,6 +335,23 @@ select:focus-visible, input:focus-visible {
 }
 
 /* ---- Work Email Progress card ---- */
+.email-filter-row {
+    margin-bottom: 12px;
+}
+.email-filter-select {
+    font-size: var(--type-body);
+    padding: 6px 10px;
+    border: 2px solid var(--border-mid);
+    border-radius: 8px;
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    cursor: pointer;
+}
+.email-filter-select:focus-visible {
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 1px;
+    background-color: white;
+}
 .email-count-summary {
     font-size: var(--type-body);
     color: var(--text-dark);

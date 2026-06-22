@@ -85,46 +85,77 @@ initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron
     // Management (hidden+managerOnly) are excluded because the password
     // project targets the staff who use the Settings page to add emails.
     const eligible = teamMembers.filter(m => !m.hidden);
-    const total    = eligible.length;
     const content  = document.getElementById('emailStatusContent');
     if (!content) return;
 
     try {
         // Wait for the Firebase Auth session so Firestore rules pass.
         await window._mybSession;
-        const contacts    = await getAllStaffContacts();
-        const savedNames  = new Set(contacts.filter(c => c.workEmail).map(c => c.memberName));
-        const count       = eligible.filter(m => savedNames.has(m.name)).length;
-        const notAdded    = eligible.filter(m => !savedNames.has(m.name));
+        const contacts   = await getAllStaffContacts();
+        const savedNames = new Set(contacts.filter(c => c.workEmail).map(c => c.memberName));
 
         content.innerHTML = '';
 
-        const summary = document.createElement('p');
-        summary.className = 'email-count-summary';
-        summary.innerHTML = `<strong class="email-count-num">${count}</strong> of <strong>${total}</strong> staff have added their work email`;
-        content.appendChild(summary);
+        // Grade filter
+        const filterRow = document.createElement('div');
+        filterRow.className = 'email-filter-row';
+        const filterSelect = document.createElement('select');
+        filterSelect.id = 'emailGradeFilter';
+        filterSelect.className = 'email-filter-select';
+        filterSelect.setAttribute('aria-label', 'Filter by grade');
+        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher']].forEach(([val, label]) => {
+            const opt = document.createElement('option');
+            opt.value = val;
+            opt.textContent = label;
+            filterSelect.appendChild(opt);
+        });
+        filterRow.appendChild(filterSelect);
+        content.appendChild(filterRow);
 
-        if (notAdded.length === 0) {
-            const done = document.createElement('p');
-            done.className = 'email-count-done';
-            done.textContent = '✓ All staff have added their work email — ready for the next step.';
-            content.appendChild(done);
-        } else {
-            const label = document.createElement('p');
-            label.className = 'email-count-missing-label';
-            label.textContent = `${notAdded.length} still to add:`;
-            content.appendChild(label);
+        // Summary and list — re-rendered on grade change
+        const summaryEl = document.createElement('p');
+        summaryEl.className = 'email-count-summary';
+        content.appendChild(summaryEl);
 
-            const list = document.createElement('div');
-            list.className = 'email-count-list';
-            notAdded.forEach(m => {
-                const chip = document.createElement('span');
-                chip.className = 'email-count-chip';
-                chip.textContent = m.name;
-                list.appendChild(chip);
-            });
-            content.appendChild(list);
+        const listContainer = document.createElement('div');
+        content.appendChild(listContainer);
+
+        function renderForGrade(grade) {
+            const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
+            const total    = pool.length;
+            const count    = pool.filter(m => savedNames.has(m.name)).length;
+            const notAdded = pool.filter(m => !savedNames.has(m.name));
+            const label    = grade || 'staff';
+
+            summaryEl.innerHTML = `<strong class="email-count-num">${count}</strong> of <strong>${total}</strong> ${label} have added their work email`;
+
+            listContainer.innerHTML = '';
+            if (notAdded.length === 0) {
+                const done = document.createElement('p');
+                done.className = 'email-count-done';
+                done.textContent = `✓ All ${label} have added their work email${grade ? '' : ' — ready for the next step'}.`;
+                listContainer.appendChild(done);
+            } else {
+                const missingLabel = document.createElement('p');
+                missingLabel.className = 'email-count-missing-label';
+                missingLabel.textContent = `${notAdded.length} still to add:`;
+                listContainer.appendChild(missingLabel);
+
+                const list = document.createElement('div');
+                list.className = 'email-count-list';
+                notAdded.forEach(m => {
+                    const chip = document.createElement('span');
+                    chip.className = 'email-count-chip';
+                    chip.textContent = m.name;
+                    list.appendChild(chip);
+                });
+                listContainer.appendChild(list);
+            }
         }
+
+        renderForGrade('');
+        filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
+
     } catch (err) {
         content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
         console.error('[WorkEmailStatus]', err);
