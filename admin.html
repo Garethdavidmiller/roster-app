@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v13.67 -->
+<!-- MYB Roster — Admin v13.68 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -86,10 +86,13 @@
                 <label for="emailCheckInput">Work email address</label>
                 <input type="email" id="emailCheckInput"
                        placeholder="name@chilternrailways.co.uk"
-                       autocomplete="email" inputmode="email">
+                       autocomplete="email" inputmode="email"
+                       autocorrect="off" autocapitalize="none"
+                       spellcheck="false" enterkeyhint="go">
             </div>
             <div id="emailCheckError" class="email-check-error" aria-live="polite"></div>
             <button type="button" id="emailCheckSaveBtn">Save email →</button>
+            <button type="button" id="emailCheckBackBtn" class="email-check-back" hidden>← Back</button>
         </div>
 
     </div>
