@@ -13,8 +13,8 @@ Run through every step in order. Do not skip steps.
 - [ ] If joining mid-year: add `startDate: new Date(year, month-1, day)` — **midnight only, no time component**
 - [ ] If joining mid-year: add `proRatedAL: { year: N }` — formula: `⌈(daysRemainingInYear / 365) × entitlement⌉`
   - Count from start date inclusive to 31 Dec inclusive
-  - CEA entitlement = 32 days; CES = 34 days
-  - Example: May 5 start → 241 days → ⌈241/365 × 32⌉ = 22
+  - CEA entitlement = 32 days; CES = 34 days; Dispatcher = **do not use this formula** — Dispatcher AL is dynamic (22 + bank-holidays-worked, calculated by `getALEntitlement`); set `proRatedAL` for a mid-year Dispatcher only after computing the correct value for their joining year
+  - Example: May 5 start (CEA) → 241 days → ⌈241/365 × 32⌉ = 22
 
 ## Step 2 — Firebase Auth (always required)
 

@@ -179,6 +179,10 @@ function initContactCard() {
     const markUserTyped = () => { userHasTyped = true; };
     emailInput.addEventListener('input',  markUserTyped);
     emailInput.addEventListener('change', markUserTyped);
+    emailInput.addEventListener('blur', () => {
+        const v = emailInput.value.trim();
+        if (v && !v.includes('@')) emailInput.value = v + '@chilternrailways.co.uk';
+    });
 
     function isValidEmail(v) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
@@ -230,6 +234,8 @@ function initContactCard() {
     });
 
     saveBtn.addEventListener('click', async () => {
+        const raw = emailInput.value.trim();
+        if (raw && !raw.includes('@')) emailInput.value = raw + '@chilternrailways.co.uk';
         const email = emailInput.value.trim();
         setFeedback('', '');
 

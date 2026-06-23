@@ -1,7 +1,6 @@
 ---
 paths:
   - "paycalc.html"
-  - "paycalc-guide.html"
   - "paycalc-app.js"
   - "paycalc-calc.js"
   - "paycalc-help.js"

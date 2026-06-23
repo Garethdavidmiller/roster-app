@@ -1,7 +1,6 @@
 ---
 paths:
   - "*.css"
-  - "shared.css"
 ---
 
 # CSS token and surface rules
