@@ -519,6 +519,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 conflictLines.push(
                     `${esc(memberName)} — ${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}: ` +
                     `saved <strong>${esc(savedLabel)}</strong>, PDF says <strong>${esc(isRdwEncoded(s.parsedShift) ? 'RDW ' + stripRdw(s.parsedShift) : s.parsedShift)}</strong>`
+
                 );
             }
         }

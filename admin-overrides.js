@@ -12,7 +12,7 @@
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
-import { isRestShift } from './app-override-utils.js';
+import { isRestShift, shouldReplaceOverride } from './app-override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth } from './firebase-client.js';
 
@@ -79,7 +79,9 @@ function getSundayOfWeek(dateStr) {
 export function buildMemberDateMap(memberName) {
     const map = new Map();
     for (const o of _allOverrides) {
-        if (o.memberName === memberName) map.set(o.date, o);
+        if (o.memberName !== memberName) continue;
+        const existing = map.get(o.date);
+        if (!existing || shouldReplaceOverride(existing, o)) map.set(o.date, o);
     }
     return map;
 }
@@ -940,8 +942,12 @@ function _fmtHours(mins) {
 export function getEffectiveShift(memberName, dateISO, batch) {
     const inBatch = batch.find(e => e.date === dateISO);
     if (inBatch) return inBatch.value;
-    const inOverrides = _allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
-    if (inOverrides) return inOverrides.value;
+    let best = null;
+    for (const o of _allOverrides) {
+        if (o.memberName !== memberName || o.date !== dateISO) continue;
+        if (!best || shouldReplaceOverride(best, o)) best = o;
+    }
+    if (best) return best.value;
     const member = teamMembers.find(m => m.name === memberName);
     return member ? getBaseShift(member, new Date(dateISO + 'T12:00:00')) : 'RD';
 }

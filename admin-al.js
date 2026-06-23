@@ -167,12 +167,16 @@ alSaveBtn.addEventListener('click', async () => {
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
             const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
-            const existingAL     = getAllOverrides().filter(o =>
-                o.memberName === member &&
-                o.type       === 'annual_leave' &&
-                o.date       && o.date.startsWith(yearStr) && !isSunday(o.date)
-            ).length;
-            const newALInYear    = workingDates.filter(d => d.startsWith(yearStr)).length;
+            // Collect existing AL dates as a Set to subtract overlap from the new booking
+            // (re-booking dates already marked AL must not double-count toward the cap).
+            const existingALDates = new Set(
+                getAllOverrides()
+                    .filter(o => o.memberName === member && o.type === 'annual_leave' &&
+                                 o.date?.startsWith(yearStr) && !isSunday(o.date))
+                    .map(o => o.date)
+            );
+            const existingAL     = existingALDates.size;
+            const newALInYear    = workingDates.filter(d => d.startsWith(yearStr) && !existingALDates.has(d)).length;
             const projectedTotal = existingAL + newALInYear;
             if (projectedTotal > entitlement) {
                 const over = projectedTotal - entitlement;
