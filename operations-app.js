@@ -223,12 +223,16 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                         const input = document.createElement('input');
                         input.type = 'email';
                         input.className = 'email-set-input';
-                        input.placeholder = 'work.email@chilternrailways.co.uk';
+                        input.placeholder = 'firstname.surname';
                         input.autocomplete = 'off';
                         input.autocapitalize = 'off';
                         input.spellcheck = false;
                         input.setAttribute('aria-label', `Work email address for ${m.name}`);
                         input.enterKeyHint = 'done';
+                        input.addEventListener('blur', () => {
+                            const v = input.value.trim();
+                            if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+                        });
 
                         const saveBtn = document.createElement('button');
                         saveBtn.type = 'button';
@@ -247,6 +251,8 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                         input.focus();
 
                         saveBtn.addEventListener('click', async () => {
+                            const rawVal = input.value.trim();
+                            if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
                             const email = input.value.trim();
                             if (!email || !email.includes('@') || email.length < 5) {
                                 errorEl.textContent = 'Please enter a valid email address';
