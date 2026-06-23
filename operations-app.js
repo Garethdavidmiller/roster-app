@@ -8,8 +8,8 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, formatISO } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter } from './firebase-client.js';
+import { CONFIG, teamMembers, formatISO, isValidEmail } from './roster-data.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter } from './firebase-client.js';
 import { initErrorReporter } from './error-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
@@ -148,8 +148,11 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                 listContainer.appendChild(addedLabel);
 
                 const addedList = document.createElement('div');
-                addedList.className = 'email-count-list';
+                addedList.className = 'email-count-list email-count-list--added';
                 added.forEach(m => {
+                    const rowEl = document.createElement('div');
+                    rowEl.className = 'email-added-row';
+
                     const chip = document.createElement('span');
                     chip.className = 'email-count-chip email-count-chip--added';
                     const nameSpan = document.createElement('span');
@@ -160,7 +163,133 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                     emailSpan.textContent = emailMap.get(m.name) || '';
                     chip.appendChild(nameSpan);
                     chip.appendChild(emailSpan);
-                    addedList.appendChild(chip);
+
+                    const editBtn = document.createElement('button');
+                    editBtn.type = 'button';
+                    editBtn.className = 'email-set-btn';
+                    editBtn.textContent = 'Edit';
+                    editBtn.setAttribute('aria-label', `Edit email for ${m.name}`);
+
+                    const removeBtn = document.createElement('button');
+                    removeBtn.type = 'button';
+                    removeBtn.className = 'email-set-btn email-set-btn--remove';
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
+
+                    rowEl.appendChild(chip);
+                    rowEl.appendChild(editBtn);
+                    rowEl.appendChild(removeBtn);
+                    addedList.appendChild(rowEl);
+
+                    editBtn.addEventListener('click', () => {
+                        // Close any other open edit form in the list
+                        addedList.querySelectorAll('.email-set-form').forEach(f => {
+                            const prevRow = f.previousElementSibling;
+                            f.remove();
+                            prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel'
+                                && (prevRow.querySelector('.email-set-btn').textContent = 'Edit');
+                        });
+
+                        if (editBtn.textContent === 'Cancel') {
+                            editBtn.textContent = 'Edit';
+                            return;
+                        }
+                        editBtn.textContent = 'Cancel';
+
+                        const form = document.createElement('div');
+                        form.className = 'email-set-form';
+                        form.setAttribute('role', 'group');
+                        form.setAttribute('aria-label', `Edit email for ${m.name}`);
+
+                        const input = document.createElement('input');
+                        input.type = 'email';
+                        input.className = 'email-set-input';
+                        input.placeholder = 'firstname.surname';
+                        input.autocomplete = 'off';
+                        input.autocapitalize = 'off';
+                        input.spellcheck = false;
+                        input.value = emailMap.get(m.name) || '';
+                        input.setAttribute('aria-label', `Work email address for ${m.name}`);
+                        input.enterKeyHint = 'done';
+                        input.addEventListener('blur', () => {
+                            const v = input.value.trim();
+                            if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+                        });
+
+                        const saveBtn = document.createElement('button');
+                        saveBtn.type = 'button';
+                        saveBtn.className = 'email-set-save';
+                        saveBtn.textContent = 'Save';
+
+                        const errorEl = document.createElement('span');
+                        errorEl.className = 'email-set-error';
+                        errorEl.setAttribute('role', 'alert');
+                        errorEl.setAttribute('aria-live', 'polite');
+
+                        form.appendChild(input);
+                        form.appendChild(saveBtn);
+                        form.appendChild(errorEl);
+                        rowEl.after(form);
+                        input.select();
+
+                        saveBtn.addEventListener('click', async () => {
+                            const rawVal = input.value.trim();
+                            if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
+                            const email = input.value.trim();
+                            if (!isValidEmail(email)) {
+                                errorEl.textContent = 'Please enter a valid email address';
+                                input.focus();
+                                return;
+                            }
+                            saveBtn.disabled = true;
+                            saveBtn.textContent = 'Saving…';
+                            errorEl.textContent = '';
+                            try {
+                                await saveStaffContact(m.name, email);
+                                emailMap.set(m.name, email);
+                                renderForGrade(filterSelect.value);
+                                filterSelect.focus();
+                            } catch (e) {
+                                console.error('[WorkEmailStatus] edit failed', e);
+                                errorEl.textContent = 'Couldn\'t save — check your connection and try again';
+                                saveBtn.disabled = false;
+                                saveBtn.textContent = 'Save';
+                            }
+                        });
+
+                        input.addEventListener('keydown', e => {
+                            if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+                            if (e.key === 'Escape') { form.remove(); editBtn.textContent = 'Edit'; }
+                        });
+                    });
+
+                    removeBtn.addEventListener('click', async () => {
+                        if (removeBtn.dataset.confirm !== 'pending') {
+                            removeBtn.dataset.confirm = 'pending';
+                            removeBtn.textContent = 'Confirm?';
+                            setTimeout(() => {
+                                if (removeBtn.dataset.confirm === 'pending') {
+                                    removeBtn.dataset.confirm = '';
+                                    removeBtn.textContent = 'Remove';
+                                }
+                            }, 3000);
+                            return;
+                        }
+                        removeBtn.disabled = true;
+                        removeBtn.textContent = 'Removing…';
+                        try {
+                            await deleteStaffContact(m.name);
+                            emailMap.delete(m.name);
+                            savedNames.delete(m.name);
+                            renderForGrade(filterSelect.value);
+                            filterSelect.focus();
+                        } catch (e) {
+                            console.error('[WorkEmailStatus] remove failed', e);
+                            removeBtn.disabled = false;
+                            removeBtn.dataset.confirm = '';
+                            removeBtn.textContent = 'Remove';
+                        }
+                    });
                 });
                 listContainer.appendChild(addedList);
             }
@@ -258,7 +387,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                             const rawVal = input.value.trim();
                             if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
                             const email = input.value.trim();
-                            if (!email || !email.includes('@') || email.length < 5) {
+                            if (!isValidEmail(email)) {
                                 errorEl.textContent = 'Please enter a valid email address';
                                 input.focus();
                                 return;

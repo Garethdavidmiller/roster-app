@@ -29,6 +29,9 @@ jobs:
       - name: Run parser helper tests
         run: npm run test:functions
 
+      - name: Check roster-members.json is in sync with roster-data.js
+        run: node --test --test-name-pattern "roster-members" sw-asset-check.test.mjs
+
       - name: Install function dependencies
         run: npm ci
         working-directory: functions

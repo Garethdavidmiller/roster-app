@@ -9,7 +9,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.59';
+export const APP_VERSION = '13.60';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -792,6 +792,17 @@ export function avatarHue(name) {
     let h = 0;
     for (let i = 0; i < (name?.length ?? 0); i++) h = (h * 31 + name.charCodeAt(i)) % 360;
     return `oklch(52% 0.12 ${h}deg)`;
+}
+
+/**
+ * Validate an email address. Requires a non-whitespace local part, @, a domain
+ * with at least one dot, and a TLD of two or more characters.
+ * Used by settings-app.js and operations-app.js — single authoritative validator.
+ * @param {string} v
+ * @returns {boolean}
+ */
+export function isValidEmail(v) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
 }
 
 /**

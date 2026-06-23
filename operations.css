@@ -414,12 +414,14 @@ select:focus-visible, input:focus-visible {
     white-space: nowrap;
 }
 
-/* Admin "Set email" row — vertical list for "still to add" */
-.email-count-list--missing {
+/* Admin rows — vertical list for both added and still-to-add */
+.email-count-list--missing,
+.email-count-list--added {
     flex-direction: column;
     gap: 3px;
 }
-.email-missing-row {
+.email-missing-row,
+.email-added-row {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -443,6 +445,14 @@ select:focus-visible, input:focus-visible {
 }
 .email-set-btn:active {
     transform: scale(var(--press-scale));
+}
+.email-set-btn--remove {
+    color: var(--error-red);
+    border-color: var(--error-red-border, var(--border-mid));
+}
+.email-set-btn--remove:hover {
+    background: var(--error-red-bg, #fff5f5);
+    border-color: var(--error-red);
 }
 
 /* Inline admin email entry form */

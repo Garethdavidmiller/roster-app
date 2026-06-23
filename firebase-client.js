@@ -339,8 +339,8 @@ export async function getStaffContact(memberName) {
 
 /**
  * Save or overwrite a staff member's work email in Firestore.
- * Requires the caller's Firebase Auth session to carry a `name` claim
- * matching memberName — set by setupRosterAuth in operations.html.
+ * May be called by the member themselves (via settings.html) or by an admin
+ * on their behalf (via operations.html). Firestore rules allow both paths.
  * @param {string} memberName
  * @param {string} workEmail
  * @returns {Promise<void>}

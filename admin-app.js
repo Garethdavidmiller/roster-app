@@ -2,15 +2,13 @@
  * admin-app.js — Coordinator and primary feature file for admin.html.
  *
  * Owns: login/session, AL booking, absence recording, Team Week View,
- *   page coordinator wiring (initialises modules on load),
  *   page coordinator wiring (initialises modules on load).
  * Does NOT own: override entry/week-grid/bulk-bar (admin-overrides.js),
  *   roster PDF upload/review (admin-roster-upload.js), huddle upload/notifications
  *   (huddle.js), staff Firebase Auth setup (admin-auth.js),
  *   Notifications card (settings-app.js),
- *   pay maths (paycalc-calc.js), calendar display (app.js), roster data (roster-data.js).
+ *   pay maths (paycalc-calc.js), calendar display (calendar-app.js), roster data (roster-data.js).
  * Edit here for: login, AL/absence forms, Team Week View.
- * Do not edit here for: shift override grid or forms, roster PDF pipeline,
  * Do not edit here for: shift override grid or forms, roster PDF pipeline,
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
