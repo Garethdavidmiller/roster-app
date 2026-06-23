@@ -32,6 +32,7 @@ import {
     browserLocalPersistence,
     browserSessionPersistence,
 } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
+import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
 
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
@@ -320,15 +321,6 @@ export function logClientError({ memberName, page, message, stack, appVersion, u
     }).catch(() => {/* swallow — never throw from an error reporter */});
 }
 
-/** Retention window for resolved client-error records (ms) — measured from RESOLUTION. */
-const CLIENT_ERROR_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
-
-/** True if a resolved record is past the retention window, measured from when it was resolved. */
-function _resolvedErrorExpired(r, now) {
-    const ms = r.resolvedAt?.toMillis?.();
-    return r.resolved === true && typeof ms === 'number' && (now - ms) > CLIENT_ERROR_RETENTION_MS;
-}
-
 /**
  * Fetch client error records for the admin error log (admin-only).
  *
@@ -336,10 +328,12 @@ function _resolvedErrorExpired(r, now) {
  * backlog of resolved ones — the previous single newest-first window could do exactly
  * that once 100 resolved records piled up in front of an older unresolved one. Resolved
  * records are fetched with a bounded query and used both for display context and to
- * prune anything past the 90-day post-resolution retention window, so the collection
- * stays bounded at this app's scale (not just the newest rows being cleaned up).
+ * prune anything past the post-resolution retention window, so the collection stays
+ * bounded at this app's scale (not just the newest rows being cleaned up).
  *
  * Both queries are single-field equality filters (auto-indexed) — no composite index.
+ * Ordering and retention are pure logic in client-errors.js (unit-tested); this
+ * function is only the Firestore I/O around them.
  * @returns {Promise<Array<{id: string, memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string, timestamp: import('firebase/firestore').Timestamp, resolved: boolean, resolvedAt?: import('firebase/firestore').Timestamp}>>}
  */
 export async function getClientErrors() {
@@ -351,20 +345,11 @@ export async function getClientErrors() {
     const unresolved = unresolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const resolved   = resolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-    // Prune resolved records 90 days past RESOLUTION (resolvedAt), not 90 days past the
-    // error itself — an old error resolved today still lingers for the full window.
-    // Records resolved before resolvedAt was recorded have no stamp and are left alone.
-    for (const r of resolved) {
-        if (_resolvedErrorExpired(r, now)) deleteDoc(doc(db, 'clientErrors', r.id)).catch(() => {/* best-effort cleanup */});
+    // Best-effort prune of resolved records past the retention window (from resolvedAt).
+    for (const id of expiredResolvedIds(resolved, now)) {
+        deleteDoc(doc(db, 'clientErrors', id)).catch(() => {/* best-effort cleanup */});
     }
-
-    const ms = e => e.timestamp?.toMillis?.() ?? 0;
-    unresolved.sort((a, b) => ms(b) - ms(a));
-    const recentResolved = resolved
-        .filter(r => !_resolvedErrorExpired(r, now))
-        .sort((a, b) => ms(b) - ms(a))
-        .slice(0, 30);
-    return [...unresolved, ...recentResolved];
+    return orderClientErrors(unresolved, resolved, now);
 }
 
 /**

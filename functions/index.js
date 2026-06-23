@@ -41,6 +41,7 @@ const {
     nameToEmail,
     nameToPassword,
 } = require('./roster-parse-helpers');
+const rosterMembers = require('./roster-members.json');
 
 admin.initializeApp();
 
@@ -680,27 +681,10 @@ exports.parseRosterPDF = onRequest(
         // We only include names relevant to the roster type being parsed, so the AI
         // doesn't accidentally match a CES name in a CEA document (or vice versa).
         //
-        // We embed the names directly — this function has no access to roster-data.js
-        // (that is a browser ES module). The names are therefore hardcoded here and
-        // must be kept in sync with roster-data.js. The AI is instructed to skip any
-        // name in the PDF that is NOT in this list (vacancies, agency staff, etc.).
-        const STAFF_NAMES = {
-            cea: [
-                'L. Springer', 'A. Hared', 'G. Miller', 'M. Robson', 'I. Cooper',
-                'A. Panchal', 'C. Francisco-Charles', 'O. Mylla', 'S. Boyle',
-                'L. Atrakimaviciene', 'J. Haque', 'N. Tuck', 'R. Forrester-Blackstock',
-                'S. Langley', 'S. Silva', 'J. Sumaili', 'T. Bibi', 'T. Nsuala',
-                'D. Irvine', 'T. Gherbi', 'C. Reen', 'M. Okeke', 'J. Davies',
-            ],
-            ces: [
-                'F. Mohamed', 'P. Lloyd', 'P. Prashanthan', 'G. Rotaru',
-                'L. Webster', 'Z. Lewis', 'M. Bowler', 'W. Cummings', 'S. Horsman', 'B. Khalil',
-            ],
-            dispatcher: [
-                'D. Minto', 'A. Targanov', 'S. Warman', 'S. Faure', 'L. Szpejer',
-                'K. Porter', 'A. Murray', 'S. Clarke', 'A. Atkins', 'K. Yeboah',
-            ],
-        };
+        // Names are loaded from functions/roster-members.json, which is generated from
+        // roster-data.js by scripts/generate-roster-members.mjs. Run that script whenever
+        // a staff member joins or leaves. Verified in sync by sw-asset-check.test.mjs.
+        const STAFF_NAMES = rosterMembers;
 
         const relevantNames = STAFF_NAMES[rosterType];
 

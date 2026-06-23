@@ -6,6 +6,8 @@
 //  3. AI_MAP.md is current to the latest 0.10 milestone — makes the
 //     "update docs every 0.10 version" policy (CLAUDE.md) self-enforcing
 //     instead of relying on someone remembering to do the sweep.
+//  4. functions/roster-members.json matches active staff in roster-data.js —
+//     catches the "added a member but forgot to re-run generate-roster-members.mjs" mistake.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -108,4 +110,24 @@ test('every versioned .md doc is current to the latest 0.10 milestone', () => {
         `These docs are behind the ${milestoneStr} 0.10 checkpoint (APP_VERSION v${appMatch[1]}). `
         + `Review each, apply any needed updates, then bump its version stamp:\n  ${stale.join('\n  ')}`
     );
+});
+
+test('functions/roster-members.json matches active staff in roster-data.js', async () => {
+    // Dynamic import so we get the live teamMembers array without module mocks.
+    const { teamMembers } = await import('./roster-data.js');
+    const json = JSON.parse(readFileSync(join(ROOT, 'functions', 'roster-members.json'), 'utf8'));
+
+    const expected = {
+        cea:        teamMembers.filter(m => m.role === 'CEA'        && !m.hidden && !m.managerOnly).map(m => m.name).sort(),
+        ces:        teamMembers.filter(m => m.role === 'CES'        && !m.hidden && !m.managerOnly).map(m => m.name).sort(),
+        dispatcher: teamMembers.filter(m => m.role === 'Dispatcher' && !m.hidden && !m.managerOnly).map(m => m.name).sort(),
+    };
+
+    for (const grade of ['cea', 'ces', 'dispatcher']) {
+        assert.deepEqual(
+            [...(json[grade] ?? [])].sort(), expected[grade],
+            `functions/roster-members.json ${grade} list is out of sync with roster-data.js.\n`
+            + `Run: npm run generate:roster-members`
+        );
+    }
 });

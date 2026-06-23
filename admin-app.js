@@ -18,7 +18,7 @@
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
-import { TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
+import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
@@ -1444,6 +1444,13 @@ if (!isAuthenticated) {
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();
+    // Render bulk-bar type pills from PILL_TYPES (single source of truth with per-row pills)
+    const _bulkPillsContainer = document.getElementById('bulkTypePills');
+    if (_bulkPillsContainer) {
+        _bulkPillsContainer.innerHTML = PILL_TYPES.map(t =>
+            `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`
+        ).join('');
+    }
     initOverrides({
         currentUser,
         currentIsAdmin,

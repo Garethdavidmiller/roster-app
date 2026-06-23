@@ -87,7 +87,7 @@ service cloud.firestore {
         (request.auth.token.name == memberName || request.auth.token.admin == true);
       allow create, update: if
         request.auth != null &&
-        request.auth.token.name == memberName &&
+        (request.auth.token.name == memberName || request.auth.token.admin == true) &&
         // hasOnly (not hasAll) — a client must not be able to write extra fields
         // (e.g. a future server-only `verified: true`). See ROADMAP.md password stages.
         request.resource.data.keys().hasOnly(['memberName', 'workEmail', 'updatedAt']) &&
