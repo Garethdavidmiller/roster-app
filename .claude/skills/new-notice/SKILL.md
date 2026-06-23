@@ -93,7 +93,7 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
     const DONE_KEY    = 'myb_notice_[id]_done';
     const SNOOZE_KEY  = 'myb_notice_[id]_snooze';
 
-    if (!getSession()) return;          // show only to signed-in users
+    if (!getSession()) return;          // show only to signed-in users — import getSession from './session.js' at the top of the module if not already imported
     if (lsGet(DONE_KEY)) return;        // permanently dismissed (action completed elsewhere)
     const snooze = lsGet(SNOOZE_KEY);
     if (snooze && Date.now() < new Date(snooze).getTime()) return;
@@ -133,6 +133,8 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
     setTimeout(() => { if (!document.body.classList.contains('lb-open')) lb.open(); }, 1500);
 }());
 ```
+
+**Target-page permanent dismiss:** On the page the CTA links to, call `lsSet('myb_notice_[id]_done', '1')` when the user completes the action (e.g. after saving their email, after submitting the form). Without this, the notice re-shows after the 1-day snooze indefinitely — `DONE_KEY` is never set by the notice IIFE itself.
 
 ## Rules
 

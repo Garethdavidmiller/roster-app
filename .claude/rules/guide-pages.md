@@ -6,6 +6,7 @@ paths:
   - "fip.html"
   - "guide-shell.css"
   - "guide.css"
+  - "guide-doc.css"
   - "paycalc-guide.css"
   - "railcard-guide.css"
   - "fip.css"

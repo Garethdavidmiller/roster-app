@@ -229,14 +229,7 @@ node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs p
 
 ## Brand colours — Chiltern Railways
 
-| Variable | Hex | Use |
-|----------|-----|-----|
-| `--primary-blue` | `#001e3c` | Dark navy — headers, buttons, day-header cells |
-| `--primary-blue-dark` | `#00152a` | Deeper navy — hover states |
-| `--accent-gold` | `#f5c800` | Gold — today cell, today button, active highlights |
-| `--accent-gold-dark` | `#e6bb00` | Darker gold — hover on today button |
-
-All colour values must be in CSS variables in `:root` — never hardcode hex.
+Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → Brand colours.
 
 ---
 

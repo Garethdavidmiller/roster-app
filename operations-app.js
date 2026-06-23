@@ -377,9 +377,9 @@ window._mybSession.then(ok => {
                     { icon: '🔒', html: 'Each person can only see their <strong>own email</strong>. As admin you can see all of them.' },
                 ]},
                 { heading: 'How it works', items: [
-                    { icon: '⚙️', html: 'Staff add their own email in ☰ → <strong>Settings → Work Email</strong> — the best way to get everyone to register' },
-                    { icon: '📝', html: 'You can enter an email on behalf of a staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
-                    { icon: '🔑', html: '<strong>Management accounts</strong> have no Settings page — use the <strong>Set email</strong> button to register their email for them' },
+                    { icon: '⚙️', html: 'CEA, CES, and Dispatcher staff can add their own email in ☰ → <strong>Settings → Work Email</strong> — the easiest way to get them to register' },
+                    { icon: '📝', html: 'You can enter an email on behalf of any staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
+                    { icon: '🔑', html: '<strong>Management accounts</strong> aren\'t in the Settings sign-in dropdown, so they can\'t sign in directly through Settings — use the <strong>Set email</strong> button on their behalf, or have them sign in via Admin first' },
                     { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
                 ]},
             ],
