@@ -268,7 +268,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
 | Sync chip state machine in `calendar-app.js` | hidden → (800ms) → "↻ Updating…" → silent remove on success, or "⚠ Couldn't update" (stays, 10s timeout). "✓ Up to date" removed (v10.19) — noise. Never show raw errors to staff. |
-| App Notices system (v13.36) | `nav-panel.js` owns the archive: `archiveNotice({ id, title, section, date, body })` writes to localStorage `myb_app_notices` (capped at 50 entries, deduped by `id`). "📣 App Notices" in `NAV_INFORMATION` opens the archive panel. Notice lightboxes live on individual pages; see **"One-time notice pattern"** section below for the full creation guide. Current notices: `work-email-2026` (index.html), `ytd_2627` (paycalc.html), `links-beta-2026` (links.html). |
+| App Notices system (v13.36) | `nav-panel.js` owns the archive: `archiveNotice({ id, title, section, date, body })` writes to localStorage `myb_app_notices` (capped at 50 entries, deduped by `id`). "📣 App Notices" in `NAV_INFORMATION` opens the archive panel. Notice lightboxes live on individual pages; see **"One-time notice pattern"** section below for the full creation guide. Current notices: `ytd_2627` (paycalc.html), `links-beta-2026` (links.html). |
 | `_clearState` object in `paycalc-app.js` | Groups all state for a two-tap destructive action so it resets atomically. Includes `countdownTimer` for live countdown in button label. |
 | `CONDITIONAL_ROWS` in `paycalc-app.js` | Data-driven array: condition → row IDs → field IDs. `updateBhRows(p)` iterates it. Adding future conditional rows means one array entry, not new show/hide logic. |
 | `touch-only` CSS class in `shared.css` | `display:none` by default; revealed via `@media (pointer: coarse)`. Use for touch-only UI. Do not use inline `display:none`. `(hover: hover)` inverse was dropped (v10.15) — some Android devices misreport it. |
@@ -460,9 +460,9 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 | Snooze on CTA navigation | 1 day |
 | Permanent dismiss key | `myb_notice_[id]_done` — set when the user completes the action (e.g. in the target page) |
 | Snooze key | `myb_notice_[id]_snooze` — ISO date string |
-| Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `work-email-2026`, `ytd_2627` |
+| Notice ID naming | `[section]-[year]` or `[topic]_[tax-year]` — e.g. `links-beta-2026`, `ytd_2627` |
 | Posting date format | `D Mon YYYY` — e.g. `22 Jun 2026` — hardcoded in both the HTML `.notice-date` and the `archiveNotice()` call; never use `new Date()` |
-| Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. work-email prompt, beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` from `nav-panel.js`. |
+| Expiry on new device — short (28 days) | Default. Use for time-bound prompts that lose urgency quickly: feature launches, one-off nudges (e.g. beta notice). `if (isNoticeExpired(NOTICE_DATE)) { lsSet(DONE_KEY, '1'); return; }` — placed after the done/snooze checks. Import `isNoticeExpired` from `nav-panel.js`. |
 | Expiry on new device — long (90 days) | Use for tax-year or seasonal notices that stay relevant for months: YTD entry reminders, pay rate change notices. `if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }` — same placement as short. |
 | Archive expiry | `archiveNotice()` prunes entries whose `archivedAt` timestamp is older than **180 days** on every write — the archive stays fresh over time on each device without the user having to clear storage. (It lives in `localStorage`, so it is per-device and does **not** sync across devices; legacy pre-v13.41 entries without `archivedAt` are migrated — stamped with the current time — not dropped, on the first write.) |
 | Show delay | 1500ms when notice competes with page render; 0 when it is the first thing shown |
@@ -471,7 +471,6 @@ The user may navigate away before closing. `archiveNotice()` fires in `onOpen` t
 
 | ID | Page | Title | Badge | Posted | Expiry | Dismiss mechanism |
 |----|------|-------|-------|--------|--------|-------------------|
-| `work-email-2026` | `index.html` | Add your work email | ⚙️ Settings | 22 Jun 2026 | 28 days | Snoozeable; done flag set by `settings-app.js` after email save |
 | `ytd_2627` | `paycalc.html` | Enter your YTD figures | 💷 Pay | 6 Apr 2026 | 90 days | One-time; `NOTICE_YTD_KEY` set on close |
 | `links-beta-2026` | `links.html` | Links Workspace | 🔗 Links | 9 Jun 2026 | 28 days | One-time; `myb_links_beta_seen` set on close |
 

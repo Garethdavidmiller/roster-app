@@ -14,7 +14,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
-import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -1929,58 +1929,3 @@ initNavPanel({
     } : null,
 });
 
-// App notice — prompts signed-in users who have not yet saved their work email.
-// Shown 1.5s after load; snoozed 7 days on any dismiss, 1 day when the user
-// navigates to Settings (they've taken action). Calls archiveNotice() so the
-// notice appears in the nav panel "App Notices" record.
-(function _initWorkEmailNotice() {
-    const NOTICE_ID  = 'work-email-2026';
-
-    const sess = getSession();
-    if (!sess?.name) return;                                           // only for signed-in users
-    // Keys are scoped to the member: one person dismissing on a shared device must
-    // not suppress the prompt for the next, and removing the saved email (which
-    // clears the done key in settings-app.js) re-arms the notice for that member.
-    const DONE_KEY   = `myb_work_email_notice_done:${sess.name}`;
-    const SNOOZE_KEY = `myb_work_email_notice_snooze:${sess.name}`;
-
-    if (lsGet(DONE_KEY)) return;                                       // email already saved by this member on this device
-    const snoozeUntil = lsGet(SNOOZE_KEY);
-    if (snoozeUntil && Date.now() < new Date(snoozeUntil).getTime()) return;
-    if (isNoticeExpired('22 Jun 2026')) { lsSet(DONE_KEY, '1'); return; } // stale on a new device
-
-    const overlay  = document.getElementById('workEmailNoticeLb');
-    const goLink   = document.getElementById('workEmailNoticeGo');
-    const laterBtn = document.getElementById('workEmailNoticeLater');
-    if (!overlay) return;
-
-    function _snooze(days) {
-        lsSet(SNOOZE_KEY, new Date(Date.now() + days * 86_400_000).toISOString());
-    }
-
-    const lb = createLightbox({
-        overlay,
-        content:  document.getElementById('workEmailNoticeContent'),
-        closeBtn: document.getElementById('workEmailNoticeClose'),
-        onOpen() {
-            // archiveNotice is idempotent — safe to call on every show.
-            archiveNotice({
-                id:      NOTICE_ID,
-                title:   'Add your work email',
-                section: 'Settings',
-                date:    '22 Jun 2026',
-                body:    'Add your Chiltern work email in Settings so we can set up self-service password reset in future.',
-            });
-        },
-        onClose() { _snooze(7); },
-    });
-
-    // "Go to Settings" navigates away — snooze 1 day (user is acting on the notice).
-    // onClose does not fire on navigation (page unloads), so this snooze stands alone.
-    goLink?.addEventListener('click', () => _snooze(1));
-
-    // "Not now" — explicit defer; delegates to lb.close() which fires onClose → snooze 7 days.
-    laterBtn?.addEventListener('click', () => lb.close());
-
-    setTimeout(() => { if (!document.body.classList.contains('lb-open')) lb.open(); }, 1500);
-}());
