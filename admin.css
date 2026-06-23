@@ -1776,33 +1776,70 @@
             #workEmailNoticeClose:hover { color: white; }
         }
 
-/* ---- One-time email check lightbox ---- */
-.email-check-icon  { font-size: 40px; text-align: center; margin-bottom: 8px; }
-.email-check-title {
-    font-size: var(--type-large); font-weight: 700; text-align: center;
-    color: var(--text-strong); margin-bottom: 8px;
+/* ---- One-time email check (login-card design) ---- */
+#emailCheckOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--primary-blue);
+    z-index: 9000;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
-.email-check-body {
-    font-size: var(--type-body); color: var(--text-mid);
-    text-align: center; margin: 0 0 16px;
+#emailCheckOverlay.visible { display: flex; }
+#emailCheckContent {
+    background: white;
+    border-radius: var(--radius-lg);
+    padding: 36px 32px 28px;
+    max-width: 340px;
+    width: 100%;
+    margin: auto;
+    text-align: center;
+    box-shadow: var(--shadow-3);
 }
+#emailCheckContent img {
+    width: 72px; height: 72px;
+    border-radius: 16px; margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(0,30,60,0.25);
+}
+#emailCheckYesBtn, #emailCheckSaveBtn {
+    width: 100%;
+    padding: 13px;
+    background: var(--primary-blue);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    touch-action: manipulation;
+    font-family: inherit;
+    transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
+    margin-bottom: 8px;
+}
+@media (hover: hover) and (pointer: fine) {
+    #emailCheckYesBtn:hover, #emailCheckSaveBtn:hover { background: var(--primary-blue-dark); }
+}
+#emailCheckYesBtn:active, #emailCheckSaveBtn:active { transform: scale(var(--press-scale)); }
 .email-check-current {
     font-size: var(--type-medium); font-weight: 600; text-align: center;
     color: var(--primary-blue); background: var(--surface-sunken);
     border-radius: 8px; padding: 10px 14px; margin: 0 0 16px;
     word-break: break-all;
 }
-.email-check-btn-full { width: 100%; justify-content: center; }
 .email-check-change {
-    display: block; width: 100%; margin-top: 10px; padding: 8px;
+    display: block; width: 100%; margin-top: 4px; padding: 8px;
     background: none; border: none; font-size: var(--type-body);
     color: var(--text-mid); text-decoration: underline;
-    cursor: pointer; touch-action: manipulation;
+    cursor: pointer; touch-action: manipulation; font-family: inherit;
 }
 @media (hover: hover) and (pointer: fine) {
     .email-check-change:hover { color: var(--primary-blue); }
 }
 .email-check-error {
     font-size: var(--type-small); color: var(--error-red);
-    min-height: 18px; margin-bottom: 8px;
+    min-height: 18px; margin-bottom: 8px; text-align: left;
 }
