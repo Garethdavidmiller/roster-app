@@ -495,8 +495,32 @@ body.lb-open #stickyTotal { display: none !important; }
 
 /* ── One-time notice lightboxes (shared) ─────────────────────────────────
    Card layout: .notice-lb-content (below) — use class="lb-content notice-lb-content".
-   Badge (.lightbox-badge) and title (.lightbox-app-name) reused from above.
+   Badge uses .notice-badge + page modifier (not .lightbox-badge — which is the About lightbox badge).
+   Title uses .lightbox-app-name (scoped to 17px inside .notice-lb-content context).
    All per-notice visual needs met here — do NOT add page-specific overrides. ── */
+
+/* Page-identity badge — coloured to match the page's nav pill.
+   Use class="notice-badge notice-badge--[page]" on every notice lightbox.
+   Modifier classes: --pay (green) · --links (purple) · --settings (indigo)
+                     --ops (orange) · --calendar (gold) · no modifier = neutral */
+.notice-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+    text-transform: uppercase;
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.9);
+}
+.notice-badge--pay      { background: var(--green);       color: white; }
+.notice-badge--links    { background: var(--purple);      color: white; }
+.notice-badge--settings { background: var(--indigo);      color: white; }
+.notice-badge--ops      { background: var(--orange);      color: var(--primary-blue); }
+.notice-badge--calendar { background: var(--accent-gold); color: var(--primary-blue); }
 
 /* Dark glass card — use class="lb-content notice-lb-content" on every
    notice content div. Provides the flex column, background, border,
@@ -505,15 +529,22 @@ body.lb-open #stickyTotal { display: none !important; }
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     background: rgba(255, 255, 255, 0.08);
     border: 1px solid rgba(255, 255, 255, 0.15);
     border-radius: 24px;
-    padding: 36px 36px 30px;
+    padding: 28px 28px 22px;
     width: min(320px, 86vw);
     text-align: center;
     max-height: 80vh;
     max-height: 80dvh;
+}
+
+/* Notice titles are informational, not a hero app-name — use a tighter card scale.
+   Context rule keeps the About lightbox .lightbox-app-name at its full 22px. */
+.notice-lb-content .lightbox-app-name {
+    font-size: 17px;
+    letter-spacing: -0.2px;
 }
 
 /* "Posted D Mon YYYY" line — sits between the title and the body */
@@ -527,7 +558,7 @@ body.lb-open #stickyTotal { display: none !important; }
 /* Body copy — centred, soft white */
 .notice-body {
     color: rgba(255, 255, 255, 0.75);
-    font-size: var(--type-body);
+    font-size: 13px;
     line-height: 1.5;
     text-align: center;
     margin: 0;
@@ -1336,6 +1367,11 @@ button.nav-panel-link--notices {
     text-transform: uppercase;
     color: rgba(255, 255, 255, 0.55);
 }
+.notices-item-section--pay      { color: oklch(72% 0.13 144.2deg); }
+.notices-item-section--links    { color: oklch(72% 0.14 313.0deg); }
+.notices-item-section--settings { color: oklch(72% 0.14 272.0deg); }
+.notices-item-section--ops      { color: var(--orange); }
+.notices-item-section--calendar { color: var(--accent-gold); }
 .notices-item-date {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */

@@ -438,6 +438,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const empty = noticesEmpty;
         let notices = [];
         try { notices = JSON.parse(lsGet(NOTICES_KEY) || '[]'); } catch (_) {}
+        const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar' };
         if (list) {
             list.innerHTML = '';
             notices.forEach(n => {
@@ -446,7 +447,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 const header  = document.createElement('div');
                 header.className = 'notices-item-header';
                 const sectionEl = document.createElement('span');
-                sectionEl.className = 'notices-item-section';
+                const sectionMod = SECTION_MODS[n.section];
+                sectionEl.className = `notices-item-section${sectionMod ? ' notices-item-section--' + sectionMod : ''}`;
                 sectionEl.textContent = n.section || '';
                 const dateEl  = document.createElement('span');
                 dateEl.className = 'notices-item-date';
