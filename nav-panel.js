@@ -257,7 +257,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 }
             }).catch(() => {
                 _closePanelVisualOnly();
-                _openComingSoon(circular);
+                _openComingSoon(circular, 'Couldn\'t connect — check your signal and try again.');
             });
             return;
         }
@@ -273,7 +273,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
                 }
             }).catch(() => {
                 _closePanelVisualOnly();
-                _openComingSoon(newsletter);
+                _openComingSoon(newsletter, 'Couldn\'t connect — check your signal and try again.');
             });
             return;
         }
@@ -372,11 +372,11 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
      *   data-cs-title / data-cs-icon drive the heading, so the one generic
      *   lightbox shows the right title for whichever item opened it.
      */
-    function _openComingSoon(triggerEl) {
+    function _openComingSoon(triggerEl, overrideBody) {
         if (!csLightbox) return;
         const title = triggerEl?.dataset.csTitle || 'Coming soon';
         const icon  = triggerEl?.dataset.csIcon  || '🔔';
-        const body  = triggerEl?.dataset.csBody  || '';
+        const body  = overrideBody ?? triggerEl?.dataset.csBody ?? '';
         if (csTitle) csTitle.textContent = title;
         if (csIcon)  csIcon.textContent  = icon;
         if (csBody)  csBody.textContent  = body;

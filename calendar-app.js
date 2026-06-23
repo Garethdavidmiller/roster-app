@@ -1,5 +1,5 @@
 /**
- * app.js — Calendar UI for index.html.
+ * calendar-app.js — Calendar UI for index.html.
  *
  * Owns: month carousel, swipe gestures, shift cell render, override cache for
  *   the calendar view, Team Week View, notification wiring, sync chip.
@@ -1671,7 +1671,7 @@ async function ensureOverridesCached(year, month) {
             syncChip.className = 'sync-chip';
             syncChip.setAttribute('aria-live', 'polite');
             syncChip.textContent = '↻ Updating your shifts…';
-            syncChip.style.pointerEvents = 'none';
+            syncChip.disabled = true;
             header.appendChild(syncChip);
         }
         if (calGrid) calGrid.classList.add('calendar-fetching');
@@ -1683,8 +1683,7 @@ async function ensureOverridesCached(year, month) {
         if (syncChip) {
             syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
             syncChip.className = 'sync-chip sync-chip-error';
-            syncChip.style.cursor = 'pointer';
-            syncChip.style.pointerEvents = '';
+            syncChip.disabled = false;
             syncChip.addEventListener('click', doRetry, { once: true });
         }
         if (calGrid) calGrid.classList.remove('calendar-fetching');
@@ -1697,8 +1696,7 @@ async function ensureOverridesCached(year, month) {
         if (!syncChip) return;
         syncChip.textContent = '↻ Retrying…';
         syncChip.className = 'sync-chip';
-        syncChip.style.cursor = '';
-        syncChip.style.pointerEvents = 'none';
+        syncChip.disabled = true;
 
         // Re-mark the initial 3 months only — other months fetched during navigation stay cached.
         fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
@@ -1718,8 +1716,7 @@ async function ensureOverridesCached(year, month) {
             if (syncChip) {
                 syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
                 syncChip.className = 'sync-chip sync-chip-error';
-                syncChip.style.cursor = 'pointer';
-                syncChip.style.pointerEvents = '';
+                syncChip.disabled = false;
                 syncChip.addEventListener('click', doRetry, { once: true });
                 syncChip.focus();
             }

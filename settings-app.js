@@ -6,7 +6,7 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, getMembersForGrade } from './roster-data.js';
+import { CONFIG, getMembersForGrade, isValidEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
@@ -183,10 +183,6 @@ function initContactCard() {
         const v = emailInput.value.trim();
         if (v && !v.includes('@')) emailInput.value = v + '@chilternrailways.co.uk';
     });
-
-    function isValidEmail(v) {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
-    }
 
     function setFeedback(msg, state) {
         feedback.textContent = msg;

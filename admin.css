@@ -206,7 +206,7 @@
             border-color: var(--primary-blue);
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
-            box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+            box-shadow: 0 0 0 4px var(--focus-ring-color);
             /* Brighten to white when active — the field 'fills in' on focus */
             background-color: white;
         }
@@ -1027,7 +1027,7 @@
         .spinner {
             display: inline-block;
             width: 14px; height: 14px;
-            border: 2px solid rgba(0,30,60,0.15);
+            border: 2px solid color-mix(in oklch, var(--primary-blue) 15%, transparent);
             border-top-color: var(--primary-blue);
             border-radius: 50%;
             animation: spin 0.7s linear infinite;
@@ -1176,8 +1176,8 @@
             background: var(--accent-gold);
         }
         .rp-in-range { background: var(--blue-light); color: var(--text-dark); }
-        .rp-preview  { background: rgba(0,30,60,0.06); }
-        .rp-preview-end { background: rgba(0,30,60,0.12); border-radius: 50%; }
+        .rp-preview  { background: color-mix(in oklch, var(--primary-blue) 6%, transparent); }
+        .rp-preview-end { background: color-mix(in oklch, var(--primary-blue) 12%, transparent); border-radius: 50%; }
         .rp-from, .rp-to {
             background: var(--primary-blue);
             color: white;

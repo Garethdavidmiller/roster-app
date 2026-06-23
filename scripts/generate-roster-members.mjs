@@ -2,8 +2,8 @@
 /**
  * generate-roster-members.mjs — derive functions/roster-members.json from roster-data.js.
  *
- * The Cloud Function (functions/index.js) uses a hardcoded STAFF_NAMES list to tell
- * the AI which names to look for in a PDF roster. This script generates that list from
+ * The Cloud Function (functions/index.js) reads functions/roster-members.json to tell
+ * the AI which names to look for in a PDF roster. This script generates that file from
  * the authoritative teamMembers array in roster-data.js so they stay in sync.
  *
  * Run after adding or removing a staff member:
