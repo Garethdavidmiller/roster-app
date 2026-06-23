@@ -424,7 +424,11 @@ function updateTyTabs() {
   const offset = pNum - 48;
   CONFIG.TAX_YEARS.forEach((ty, i) => {
     const tab = document.getElementById(`tyTab${i}`);
-    if (tab) tab.classList.toggle('active', offset >= ty.first && offset <= ty.last);
+    if (!tab) return;
+    const active = offset >= ty.first && offset <= ty.last;
+    tab.classList.toggle('active', active);
+    if (active) tab.setAttribute('aria-current', 'true');
+    else tab.removeAttribute('aria-current');
   });
 }
 
@@ -2011,8 +2015,10 @@ function calcBackPay() {
 }
 
 function toggleBpBreakdown() {
-  document.getElementById('bpBreakdownBtn').classList.toggle('open');
-  document.getElementById('backPayRows').classList.toggle('open');
+  const btn  = document.getElementById('bpBreakdownBtn');
+  const open = btn.classList.toggle('open');
+  document.getElementById('backPayRows').classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
 }
 
 function applyNewRate() {
@@ -2048,6 +2054,7 @@ function toggleHoursExtra() {
   const body = document.getElementById('hoursExtra');
   const open = body.classList.toggle('open');
   btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
   btn.querySelector('.show-more-arrow').textContent = open ? '▲' : '▼';
   document.getElementById('hoursShowMoreLabel').textContent = open
     ? 'Hide adjustments'
@@ -2059,6 +2066,7 @@ function toggleHppNote() {
   const body = document.getElementById('hppNoteBody');
   const open = body.classList.toggle('open');
   btn.classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
   btn.querySelector('.hpp-toggle-arrow').textContent = open ? '▲' : '▼';
   document.getElementById('hppToggleBtnLabel').textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
 }
@@ -2069,6 +2077,7 @@ function toggleDisclaimer() {
   const toggle = document.getElementById('disclaimerToggle');
   const open   = extra.classList.toggle('open');
   toggle.textContent = open ? 'Less ▲' : 'More ▼';
+  toggle.setAttribute('aria-expanded', String(open));
 }
 
 // ── PEER STEPPER ──────────────────────────────────────────────────────────────
@@ -2080,8 +2089,10 @@ function stepPeer(delta) {
 
 // ── BREAKDOWN TOGGLE ──────────────────────────────────────────────────────────
 function toggleBD() {
-  document.getElementById('bdBtn').classList.toggle('open');
-  document.getElementById('bdBody').classList.toggle('open');
+  const btn  = document.getElementById('bdBtn');
+  const open = btn.classList.toggle('open');
+  document.getElementById('bdBody').classList.toggle('open', open);
+  btn.setAttribute('aria-expanded', String(open));
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

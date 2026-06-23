@@ -1666,10 +1666,12 @@ async function ensureOverridesCached(year, month) {
     const loadingTimer = setTimeout(() => {
         const header = document.querySelector('.calendar-header');
         if (header && !syncResolved) {
-            syncChip = document.createElement('span');
+            syncChip = document.createElement('button');
+            syncChip.type = 'button';
             syncChip.className = 'sync-chip';
             syncChip.setAttribute('aria-live', 'polite');
             syncChip.textContent = '↻ Updating your shifts…';
+            syncChip.style.pointerEvents = 'none';
             header.appendChild(syncChip);
         }
         if (calGrid) calGrid.classList.add('calendar-fetching');
@@ -1682,6 +1684,7 @@ async function ensureOverridesCached(year, month) {
             syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
             syncChip.className = 'sync-chip sync-chip-error';
             syncChip.style.cursor = 'pointer';
+            syncChip.style.pointerEvents = '';
             syncChip.addEventListener('click', doRetry, { once: true });
         }
         if (calGrid) calGrid.classList.remove('calendar-fetching');
@@ -1694,7 +1697,7 @@ async function ensureOverridesCached(year, month) {
         if (!syncChip) return;
         syncChip.textContent = '↻ Retrying…';
         syncChip.className = 'sync-chip';
-        syncChip.style.cursor = 'default';
+        syncChip.style.cursor = '';
         syncChip.style.pointerEvents = 'none';
 
         // Re-mark the initial 3 months only — other months fetched during navigation stay cached.
@@ -1718,6 +1721,7 @@ async function ensureOverridesCached(year, month) {
                 syncChip.style.cursor = 'pointer';
                 syncChip.style.pointerEvents = '';
                 syncChip.addEventListener('click', doRetry, { once: true });
+                syncChip.focus();
             }
         }
     }

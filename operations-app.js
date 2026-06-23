@@ -189,6 +189,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                     setBtn.className = 'email-set-btn';
                     setBtn.textContent = 'Set email';
                     setBtn.setAttribute('aria-label', `Set work email for ${m.name}`);
+                    setBtn.dataset.member = m.name;
 
                     rowEl.appendChild(nameSpan);
                     rowEl.appendChild(setBtn);
@@ -260,6 +261,9 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                                 emailMap.set(m.name, email);
                                 savedNames.add(m.name);
                                 renderForGrade(filterSelect.value);
+                                // The saved member moved to "Added" chips — no set-email button
+                                // remains. Return focus to the grade filter so the user can continue.
+                                filterSelect.focus();
                             } catch (e) {
                                 console.error('[WorkEmailStatus] save failed', e);
                                 errorEl.textContent = 'Couldn\'t save — check your connection and try again';

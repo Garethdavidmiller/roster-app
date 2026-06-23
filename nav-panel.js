@@ -148,6 +148,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
     burger.dataset.navPanelInit = '1';
+    burger.setAttribute('aria-haspopup', 'dialog');
+    burger.setAttribute('aria-controls', 'navPanel');
+    burger.setAttribute('aria-expanded', 'false');
 
     _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner);
 
