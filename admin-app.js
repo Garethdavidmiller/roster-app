@@ -13,8 +13,8 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade } from './roster-data.js';
-import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch } from './firebase-client.js';
+import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade, isValidEmail } from './roster-data.js';
+import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, getStaffContact, saveStaffContact } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -22,7 +22,7 @@ import { initSickSection } from './admin-sick.js';
 import { buildRangePicker } from './admin-rangepicker.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
@@ -1430,6 +1430,100 @@ async function purgeSundayAL() {
     }
 }
 
+// ---- One-time work email check (shown once per device after login) ----
+/**
+ * Shows a mandatory lightbox the first time each staff member loads the admin page,
+ * asking them to confirm or add a work email for password recovery.
+ * Dismissed permanently on this device once they confirm or save.
+ * Firestore errors skip the check silently so the app is never blocked.
+ */
+async function initEmailCheck(member) {
+    if (lsGet(`myb_email_check_done_${member}`)) return;
+
+    let existing = null;
+    try { existing = await getStaffContact(member); } catch { return; }
+
+    const overlay     = document.getElementById('emailCheckOverlay');
+    const confirmView = document.getElementById('emailCheckConfirmView');
+    const editView    = document.getElementById('emailCheckEditView');
+    const storedEl    = document.getElementById('emailCheckStoredEmail');
+    const yesBtn      = document.getElementById('emailCheckYesBtn');
+    const changeBtn   = document.getElementById('emailCheckChangeBtn');
+    const input       = document.getElementById('emailCheckInput');
+    const errorEl     = document.getElementById('emailCheckError');
+    const saveBtn     = document.getElementById('emailCheckSaveBtn');
+    if (!overlay) return;
+
+    function _dismiss() {
+        lsSet(`myb_email_check_done_${member}`, '1');
+        overlay.classList.remove('open');
+        const done = () => { overlay.classList.remove('visible'); unlockBodyScroll(); };
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { done(); return; }
+        const t = setTimeout(done, 500);
+        overlay.addEventListener('transitionend', () => { clearTimeout(t); done(); }, { once: true });
+    }
+
+    if (existing?.workEmail) {
+        storedEl.textContent = existing.workEmail;
+        confirmView.hidden = false;
+    } else {
+        editView.hidden = false;
+    }
+
+    lockBodyScroll();
+    overlay.classList.add('visible');
+    requestAnimationFrame(() => overlay.classList.add('open'));
+    setTimeout(() => (existing?.workEmail ? yesBtn : input).focus(), 60);
+
+    overlay.addEventListener('keydown', e => {
+        if (e.key !== 'Tab') return;
+        const focusable = Array.from(overlay.querySelectorAll(
+            'button:not([disabled]), input'
+        )).filter(el => !el.closest('[hidden]') && el.offsetParent !== null);
+        if (!focusable.length) return;
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        if (!e.shiftKey && document.activeElement === last)  { e.preventDefault(); first.focus(); }
+    });
+
+    yesBtn.addEventListener('click', _dismiss, { once: true });
+
+    changeBtn.addEventListener('click', () => {
+        confirmView.hidden = true;
+        editView.hidden = false;
+        input.value = existing?.workEmail ?? '';
+        input.focus();
+    });
+
+    input.addEventListener('blur', () => {
+        const v = input.value.trim();
+        if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        const email = input.value.trim();
+        errorEl.textContent = '';
+        if (!email) {
+            errorEl.textContent = 'Please enter your work email address.';
+            input.focus(); return;
+        }
+        if (!isValidEmail(email)) {
+            errorEl.textContent = 'That doesn\'t look like a valid email address.';
+            input.focus(); return;
+        }
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Saving…';
+        try {
+            await saveStaffContact(member, email);
+            _dismiss();
+        } catch {
+            errorEl.textContent = 'Couldn\'t save — check your connection and try again.';
+            saveBtn.disabled = false;
+            saveBtn.textContent = 'Save email →';
+        }
+    });
+}
+
 if (!isAuthenticated) {
     // Show login overlay; do not load any Firestore data
     initLoginOverlay();
@@ -1481,6 +1575,8 @@ if (!isAuthenticated) {
             ));
         }
     }
+    // One-time email check — fire-and-forget; async Firestore fetch inside.
+    initEmailCheck(currentUser);
 }
 
 // ============================================
