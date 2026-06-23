@@ -9,7 +9,7 @@
  */
 
 import { CONFIG, teamMembers } from './roster-data.js';
-import { auth, getAllStaffContacts, getClientErrors, resolveClientError } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, getClientErrors, resolveClientError } from './firebase-client.js';
 import { initErrorReporter } from './error-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
@@ -93,8 +93,11 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     try {
         // Wait for the Firebase Auth session so Firestore rules pass.
         await window._mybSession;
-        const contacts   = await getAllStaffContacts();
-        const savedNames = new Set(contacts.filter(c => c.workEmail).map(c => c.memberName));
+        const contacts = await getAllStaffContacts();
+
+        // Mutable maps — updated in-place after an admin saves an email.
+        const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
+        const savedNames = new Set(emailMap.keys());
 
         content.innerHTML = '';
 
@@ -105,10 +108,10 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
         filterSelect.id = 'emailGradeFilter';
         filterSelect.className = 'email-filter-select';
         filterSelect.setAttribute('aria-label', 'Filter by grade');
-        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher']].forEach(([val, label]) => {
+        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher']].forEach(([val, lbl]) => {
             const opt = document.createElement('option');
             opt.value = val;
-            opt.textContent = label;
+            opt.textContent = lbl;
             filterSelect.appendChild(opt);
         });
         filterRow.appendChild(filterSelect);
@@ -127,13 +130,13 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
             const total    = pool.length;
             const added    = pool.filter(m =>  savedNames.has(m.name));
             const notAdded = pool.filter(m => !savedNames.has(m.name));
-            const label    = grade || 'staff';
+            const gradeLabel = grade || 'staff';
 
-            summaryEl.innerHTML = `<strong class="email-count-num">${added.length}</strong> of <strong>${total}</strong> ${label} have added their work email`;
+            summaryEl.innerHTML = `<strong class="email-count-num">${added.length}</strong> of <strong>${total}</strong> ${gradeLabel} have added their work email`;
 
             listContainer.innerHTML = '';
 
-            // Who has added — the "engaged" list
+            // Who has added — show name + email for easy verification
             if (added.length > 0) {
                 const addedLabel = document.createElement('p');
                 addedLabel.className = 'email-count-added-label';
@@ -145,17 +148,24 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                 added.forEach(m => {
                     const chip = document.createElement('span');
                     chip.className = 'email-count-chip email-count-chip--added';
-                    chip.textContent = m.name;
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'email-chip-name';
+                    nameSpan.textContent = m.name;
+                    const emailSpan = document.createElement('span');
+                    emailSpan.className = 'email-chip-email';
+                    emailSpan.textContent = emailMap.get(m.name) || '';
+                    chip.appendChild(nameSpan);
+                    chip.appendChild(emailSpan);
                     addedList.appendChild(chip);
                 });
                 listContainer.appendChild(addedList);
             }
 
-            // Who hasn't yet
+            // Who hasn't yet — each row has a "Set email" button for admin entry
             if (notAdded.length === 0) {
                 const done = document.createElement('p');
                 done.className = 'email-count-done';
-                done.textContent = `✓ All ${label} have added their work email${grade ? '' : ' — ready for the next step'}.`;
+                done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for the next step'}.`;
                 listContainer.appendChild(done);
             } else {
                 const missingLabel = document.createElement('p');
@@ -164,13 +174,110 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                 listContainer.appendChild(missingLabel);
 
                 const list = document.createElement('div');
-                list.className = 'email-count-list';
+                list.className = 'email-count-list email-count-list--missing';
+
                 notAdded.forEach(m => {
-                    const chip = document.createElement('span');
-                    chip.className = 'email-count-chip';
-                    chip.textContent = m.name;
-                    list.appendChild(chip);
+                    const rowEl = document.createElement('div');
+                    rowEl.className = 'email-missing-row';
+
+                    const nameSpan = document.createElement('span');
+                    nameSpan.className = 'email-count-chip';
+                    nameSpan.textContent = m.name;
+
+                    const setBtn = document.createElement('button');
+                    setBtn.type = 'button';
+                    setBtn.className = 'email-set-btn';
+                    setBtn.textContent = 'Set email';
+                    setBtn.setAttribute('aria-label', `Set work email for ${m.name}`);
+
+                    rowEl.appendChild(nameSpan);
+                    rowEl.appendChild(setBtn);
+                    list.appendChild(rowEl);
+
+                    setBtn.addEventListener('click', () => {
+                        // Toggle: if this row's form is already open, close it
+                        const existing = rowEl.nextElementSibling?.classList.contains('email-set-form')
+                            ? rowEl.nextElementSibling : null;
+                        if (existing) {
+                            existing.remove();
+                            setBtn.textContent = 'Set email';
+                            return;
+                        }
+
+                        // Close any other open form in the list first
+                        list.querySelectorAll('.email-set-form').forEach(f => {
+                            const prevRow = f.previousElementSibling;
+                            f.remove();
+                            const btn = prevRow?.querySelector('.email-set-btn');
+                            if (btn) btn.textContent = 'Set email';
+                        });
+
+                        setBtn.textContent = 'Cancel';
+
+                        const form = document.createElement('div');
+                        form.className = 'email-set-form';
+                        form.setAttribute('role', 'group');
+                        form.setAttribute('aria-label', `Set email for ${m.name}`);
+
+                        const input = document.createElement('input');
+                        input.type = 'email';
+                        input.className = 'email-set-input';
+                        input.placeholder = 'work.email@chilternrailways.co.uk';
+                        input.autocomplete = 'off';
+                        input.autocapitalize = 'off';
+                        input.spellcheck = false;
+                        input.setAttribute('aria-label', `Work email address for ${m.name}`);
+                        input.enterKeyHint = 'done';
+
+                        const saveBtn = document.createElement('button');
+                        saveBtn.type = 'button';
+                        saveBtn.className = 'email-set-save';
+                        saveBtn.textContent = 'Save';
+
+                        const errorEl = document.createElement('span');
+                        errorEl.className = 'email-set-error';
+                        errorEl.setAttribute('role', 'alert');
+                        errorEl.setAttribute('aria-live', 'polite');
+
+                        form.appendChild(input);
+                        form.appendChild(saveBtn);
+                        form.appendChild(errorEl);
+                        rowEl.after(form);
+                        input.focus();
+
+                        saveBtn.addEventListener('click', async () => {
+                            const email = input.value.trim();
+                            if (!email || !email.includes('@') || email.length < 5) {
+                                errorEl.textContent = 'Please enter a valid email address';
+                                input.focus();
+                                return;
+                            }
+                            saveBtn.disabled = true;
+                            saveBtn.textContent = 'Saving…';
+                            errorEl.textContent = '';
+                            try {
+                                await saveStaffContact(m.name, email);
+                                emailMap.set(m.name, email);
+                                savedNames.add(m.name);
+                                renderForGrade(filterSelect.value);
+                            } catch (e) {
+                                console.error('[WorkEmailStatus] save failed', e);
+                                errorEl.textContent = 'Couldn\'t save — check your connection and try again';
+                                saveBtn.disabled = false;
+                                saveBtn.textContent = 'Save';
+                            }
+                        });
+
+                        input.addEventListener('keydown', e => {
+                            if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+                            if (e.key === 'Escape') {
+                                form.remove();
+                                setBtn.textContent = 'Set email';
+                            }
+                        });
+                    });
                 });
+
                 listContainer.appendChild(list);
             }
         }

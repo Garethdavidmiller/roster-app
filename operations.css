@@ -394,9 +394,105 @@ select:focus-visible, input:focus-visible {
     white-space: nowrap;
 }
 .email-count-chip--added {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
     background: var(--success-green-bg);
     border-color: var(--success-green-border);
     color: var(--success-green);
+}
+.email-chip-name {
+    font-weight: 500;
+}
+.email-chip-email {
+    font-size: 10px;
+    font-weight: 400;
+    opacity: 0.8;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Admin "Set email" row — vertical list for "still to add" */
+.email-count-list--missing {
+    flex-direction: column;
+    gap: 3px;
+}
+.email-missing-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.email-set-btn {
+    font-size: 11px;
+    padding: 3px 10px;
+    border: 1px solid var(--border-mid);
+    border-radius: 12px;
+    background: white;
+    color: var(--primary-blue);
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1.4;
+    touch-action: manipulation;
+}
+.email-set-btn:hover {
+    background: var(--bg-faint);
+    border-color: var(--primary-blue);
+}
+.email-set-btn:active {
+    transform: scale(var(--press-scale));
+}
+
+/* Inline admin email entry form */
+.email-set-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 8px;
+    margin: 2px 0 4px;
+}
+.email-set-input {
+    flex: 1;
+    min-width: 200px;
+    font-size: var(--type-body);
+    padding: 6px 10px;
+    border: 2px solid var(--border-mid);
+    border-radius: 6px;
+    background-color: var(--field-bg);
+    color: var(--text-dark);
+    touch-action: manipulation;
+}
+.email-set-input:focus-visible {
+    outline: none;
+    border-color: var(--primary-blue);
+    background-color: white;
+}
+.email-set-save {
+    font-size: var(--type-small);
+    font-weight: 600;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 6px;
+    background: var(--primary-blue);
+    color: white;
+    cursor: pointer;
+    white-space: nowrap;
+    touch-action: manipulation;
+}
+.email-set-save:hover { background: var(--primary-blue-dark); }
+.email-set-save:disabled { opacity: 0.6; cursor: not-allowed; }
+.email-set-save:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.email-set-error {
+    width: 100%;
+    font-size: var(--type-small);
+    color: var(--error-red);
+    min-height: 1em;
 }
 
 #opsBadge { background: var(--orange); color: var(--primary-blue); }
