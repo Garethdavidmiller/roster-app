@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v13.66 -->
+<!-- MYB Roster — Calendar v13.67 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -78,7 +78,7 @@
                 <div class="lightbox-tip"><span>Tap Today to jump back to the current week</span></div>
             </div>
             <div class="lightbox-print-wrap">
-                <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
+                <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this calendar</button>
                 <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current month's calendar</span>
             </div>
             <a href="./guide.html" target="_blank" rel="noopener" class="lightbox-bug-link" style="margin-top:4px">📖 View staff guide</a>
@@ -139,8 +139,8 @@
                 <select id="monthJumpYear" aria-label="Year"></select>
             </div>
             <div class="month-jump-actions">
-                <button id="monthJumpCancel">Cancel</button>
-                <button id="monthJumpConfirm">Go to month</button>
+                <button type="button" id="monthJumpCancel">Cancel</button>
+                <button type="button" id="monthJumpConfirm">Go to month</button>
             </div>
         </div>
     </div>
@@ -187,7 +187,7 @@
         <div id="errorBanner" class="error-banner" role="alert"></div>
         <header class="header">
             <div class="header-left">
-                <button class="btn-burger" id="navMenuBtn"
+                <button type="button" class="btn-burger" id="navMenuBtn"
                         aria-label="Open navigation menu" aria-expanded="false">☰</button>
             </div>
             <h1><img src="icon-192.png" alt="Chiltern Railways" class="title-icon" loading="eager"> Marylebone Roster</h1>
@@ -197,7 +197,7 @@
         <nav class="controls" aria-label="Calendar navigation">
             <div class="controls-row" id="navRow">
                 <div class="control-group">
-                    <button id="prevMonth" aria-label="Previous month">← Prev</button>
+                    <button type="button" id="prevMonth" aria-label="Previous month">← Prev</button>
                 </div>
                 <div class="control-group control-group--stacked">
                     <label for="teamMemberSelect" class="visually-hidden">Team Member:</label>
@@ -206,16 +206,16 @@
                     </select>
                 </div>
                 <div class="control-group">
-                    <button id="nextMonth" aria-label="Next month">Next →</button>
+                    <button type="button" id="nextMonth" aria-label="Next month">Next →</button>
                 </div>
             </div>
             <div class="controls-row">
                 <div class="control-group">
-                    <button id="todayBtn"   class="today-btn"  aria-label="Go to today">📍</button>
-                    <button id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view">👥 Team</button>
-                    <button id="alBtn"       class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
-                    <button id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">📝 Admin</button>
-                    <button id="payBtn"    class="pay-btn"    aria-label="Pay Calculator">💷 Pay</button>
+                    <button type="button" id="todayBtn"   class="today-btn"  aria-label="Go to today">📍</button>
+                    <button type="button" id="teamViewBtn" class="team-btn"  aria-label="Switch to team week view">👥 Team</button>
+                    <button type="button" id="alBtn"       class="al-btn"    aria-label="View annual leave balance">🏖️ AL</button>
+                    <button type="button" id="adminBtn"  class="admin-btn"  aria-label="Go to admin panel" title="Admin panel — manage shift overrides (requires password)">📝 Admin</button>
+                    <button type="button" id="payBtn"    class="pay-btn"    aria-label="Pay Calculator">💷 Pay</button>
                 </div>
             </div>
         </nav>
@@ -223,8 +223,8 @@
         <!-- One-off notification enable prompt — hidden by JS once dismissed or enabled -->
         <div id="notifPrompt" class="notif-prompt" style="display:none">
             <span class="notif-prompt-text">🔔 Get notified when your Huddle briefing arrives</span>
-            <button class="notif-prompt-enable" id="notifPromptEnable">Enable</button>
-            <button class="notif-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
+            <button type="button" class="notif-prompt-enable" id="notifPromptEnable">Enable</button>
+            <button type="button" class="notif-prompt-dismiss" id="notifPromptDismiss" aria-label="Dismiss">×</button>
         </div>
 
         <!-- Pay period strip: shows current period dates + link to pay calculator -->

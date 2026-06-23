@@ -177,6 +177,7 @@ roster-app/
 ├── links-design.js         ← pure link-design maths: classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns, runDesignChecks, dayClass
 ├── shared.css              ← CSS shared by all six app pages (nav panel, lightbox, login, card-header, btn-action) — NOT the guides
 ├── guide-shell.css         ← shared chrome for all 4 guide pages (header, .btn-back, .btn-pdf, print, palette tokens)
+├── guide-doc.css           ← shared styles for the two document-style guides (guide.html, paycalc-guide.html): two-column print layout, info boxes, tables, numbered steps, banner. Loaded between guide-shell.css and page CSS. NOT linked by railcard-guide.html or fip.html.
 ├── guide.css / paycalc-guide.css / railcard-guide.css / fip.css ← page-specific guide CSS
 ├── purify.es.mjs           ← self-hosted DOMPurify v3.4.8. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
 ├── service-worker.js       ← single SW for all pages; cache name includes APP_VERSION
@@ -304,7 +305,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `calendar-app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |
-| One-time work email check (v13.65) | `initEmailCheck(member)` in `admin-app.js` runs on every admin page load for an authenticated user. Guards on `lsGet('myb_email_check_done_{member}')` — if set, returns immediately. Fetches `getStaffContact(member)`; on error returns silently (never blocks the app). Shows `#emailCheckOverlay`: confirm view (email already stored — "Yes" or "Use a different email") or add view (no email — email input + save). **No ✕ close button** — the check is mandatory. `lsSet` marks it done per-member on this device after the user confirms or saves. The same email is also editable any time via Settings. |
+| One-time work email check (v13.65) | `initEmailCheck(member)` in `admin-app.js` guards on **two levels**: (1) `sessionStorage('myb_email_check')` — set by `attempt()` before `window.location.reload()` (not on the paycalc redirect path), cleared immediately at the top of `initEmailCheck()`, so the check only fires on the page load that follows a fresh login, never on reload/back-nav/returning sessions; (2) `lsGet('myb_email_check_done_{member}')` — per-member, per-device permanent gate set after the user confirms or saves. Fetches `getStaffContact(member)`; on error returns silently (never blocks the app). Shows `#emailCheckOverlay` (solid navy full-screen, white card — matches `#loginOverlay`/`#loginCard` design): confirm view (email already stored — "Yes" or "Use a different email") or add view (no email — email input + save). **No ✕ close button** — the check is mandatory. The same email is also editable any time via Settings. |
 
 ---
 
@@ -471,6 +472,7 @@ uploadedBy   Member name string
 Read: any authenticated session. Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
 Read by: `getLatestCircular()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Weekly Retail Circular.
+Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 **newsletters** (v13.59)
 ```
@@ -483,6 +485,7 @@ uploadedBy   Member name string
 Read: any authenticated session. Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
 Read by: `getLatestNewsletter()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Marylebone Newsletter.
+Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 Override cache key: `"memberName|YYYY-MM-DD"`
 

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v13.66 -->
+<!-- MYB Roster — Settings v13.67 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -46,7 +46,7 @@
             <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
-        <button id="loginSubmit">Sign in →</button>
+        <button type="button" id="loginSubmit">Sign in →</button>
         <a href="index.html" class="login-back">← Back to roster</a>
     </div>
 </div>
@@ -76,7 +76,7 @@
 
 <!-- Header -->
 <header class="app-header">
-    <button class="btn-burger" id="navMenuBtn"
+    <button type="button" class="btn-burger" id="navMenuBtn"
             aria-label="Open navigation menu" aria-expanded="false">☰</button>
     <div class="app-header-brand">
         <img src="icon-192.png" class="app-icon" id="appIcon" alt="Chiltern Railways" loading="eager">
@@ -90,7 +90,7 @@
     <!-- Work Email -->
     <div class="card" id="contactCard">
         <div class="card-header card-collapsible-header" id="contactToggleHeader">
-            <h2><span aria-hidden="true">📧</span> Work Email <button class="btn-card-tips" data-card="work-email" aria-label="Tips for work email" title="Tips for work email">?</button></h2>
+            <h2><span aria-hidden="true">📧</span> Work Email <button type="button" class="btn-card-tips" data-card="work-email" aria-label="Tips for work email" title="Tips for work email">?</button></h2>
             <span class="hint">Add your work email now — it will be used for password reset when that feature is added</span>
             <span class="collapse-chevron" id="contactChevron">▾</span>
         </div>
@@ -101,7 +101,7 @@
                        autocomplete="email" autocapitalize="off" autocorrect="off"
                        spellcheck="false" placeholder="firstname.surname"
                        enterkeyhint="done">
-                <button class="btn-action btn-primary" id="workEmailSaveBtn">Save email</button>
+                <button type="button" class="btn-action btn-primary" id="workEmailSaveBtn">Save email</button>
                 <button type="button" class="btn-contact-remove" id="workEmailRemoveBtn" style="display:none">Remove saved email</button>
                 <div class="contact-feedback" id="contactFeedback" aria-live="polite"></div>
             </div>
@@ -111,15 +111,15 @@
     <!-- Push notifications -->
     <div class="card" id="notificationsCard">
         <div class="card-header card-collapsible-header" id="notifToggleHeader">
-            <h2><span aria-hidden="true">🔔</span> Notifications <button class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications" title="Tips for notifications">?</button></h2>
+            <h2><span aria-hidden="true">🔔</span> Notifications <button type="button" class="btn-card-tips" data-card="notifications" aria-label="Tips for notifications" title="Tips for notifications">?</button></h2>
             <span class="hint">Get an alert when the daily Huddle is ready or payday is approaching</span>
             <span class="collapse-chevron" id="notifChevron">▾</span>
         </div>
         <div class="card-collapsible-body" id="notifBody">
             <div class="card-body">
                 <div id="notifStatusMsg" aria-live="polite"></div>
-                <button class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
-                <button class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
+                <button type="button" class="btn-action btn-primary" id="notifEnableBtn" style="display:none">Enable notifications</button>
+                <button type="button" class="btn-action btn-secondary" id="notifDisableBtn" style="display:none">Disable notifications</button>
                 <p id="notifDeniedMsg"></p>
             </div>
         </div>

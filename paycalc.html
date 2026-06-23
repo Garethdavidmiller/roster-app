@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.66 -->
+<!-- MYB Roster — Pay Calculator v13.67 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -27,7 +27,7 @@
 
   <!-- HEADER -->
   <header class="app-header">
-    <button class="btn-burger" id="navMenuBtn"
+    <button type="button" class="btn-burger" id="navMenuBtn"
             aria-label="Open navigation menu" aria-expanded="false">☰</button>
     <div class="app-header-brand">
       <img src="icon-192.png" class="app-icon" id="appIcon" alt="" loading="eager">
@@ -55,7 +55,7 @@
         <span class="hint" id="settingsHint">Check once per tax year — tap Save when done</span>
       </div>
       <div class="card-header-actions">
-        <button class="help-btn" data-help="settings" aria-label="Help: Settings">?</button>
+        <button type="button" class="help-btn" data-help="settings" aria-label="Help: Settings">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
     </div>
@@ -113,7 +113,7 @@
         <div class="field-hint">Only select a plan if student loan deductions appear on your payslip. If you repay by direct debit, leave as None.</div>
       </div>
 
-      <button class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
+      <button type="button" class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
       <div id="settingsSaveFeedback" role="status" aria-live="polite" style="font-size:var(--type-small);color:var(--success-text);text-align:center;min-height:18px;margin-top:6px"></div>
 
     </div>
@@ -126,9 +126,9 @@
     <select id="periodSelect" aria-label="Pay period"></select>
     <p class="period-hint">Chiltern pays every 4 weeks. Select the period matching your next payslip, or use ← to view a past period.</p>
     <div class="period-nav">
-      <button class="nav-pill" id="prevBtn">← Earlier</button>
-      <button class="nav-pill" id="nextBtn">Later →</button>
-      <button class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current period" aria-label="Jump to current pay period">📍</button>
+      <button type="button" class="nav-pill" id="prevBtn">← Earlier</button>
+      <button type="button" class="nav-pill" id="nextBtn">Later →</button>
+      <button type="button" class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current period" aria-label="Jump to current pay period">📍</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -139,7 +139,7 @@
     </div>
     <div class="save-row">
       <span class="save-status" id="saveStatus">No data saved for this period</span>
-      <button class="clear-btn" id="clearBtn">Clear all entries</button>
+      <button type="button" class="clear-btn" id="clearBtn">Clear all entries</button>
     </div>
     <a class="roster-view-link" id="rosterViewLink" href="./index.html">← View these dates in your roster calendar</a>
   </div>
@@ -165,7 +165,7 @@
     <div id="resultRateNotice" class="payslip-note" style="display:none">
       ⚠️ <strong>2026/27 pay rates not yet confirmed by Chiltern.</strong> This estimate uses a placeholder rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
     </div>
-    <button class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
+    <button type="button" class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
     </button>
     <div class="bd-body" id="bdBody"></div>
@@ -179,7 +179,7 @@
         <span class="hint">Saved automatically as you type · type 7.5 to auto-convert to 7h 30m</span>
         <button class="result-peek-btn" id="resultPeekBtn" type="button">↑ Estimated take-home: £–</button>
       </div>
-      <button class="help-btn" data-help="hours" aria-label="Help: Your Hours">?</button>
+      <button type="button" class="help-btn" data-help="hours" aria-label="Help: Your Hours">?</button>
     </div>
     <div class="card-body">
 
@@ -372,14 +372,14 @@
           <div class="h-sub">Each day you trained a colleague adds 2 hours' pay at your basic rate. Shows as extra basic pay on your payslip.</div>
         </div>
         <div class="stepper">
-          <button id="peerMinus" aria-label="Decrease peer-training sessions">−</button>
+          <button type="button" id="peerMinus" aria-label="Decrease peer-training sessions">−</button>
           <div class="stepper-val" id="peerVal" role="status" aria-live="polite" aria-label="Peer-training sessions">0</div>
-          <button id="peerPlus"  aria-label="Increase peer-training sessions">+</button>
+          <button type="button" id="peerPlus"  aria-label="Increase peer-training sessions">+</button>
         </div>
       </div>
 
       <!-- ── SHOW MORE TOGGLE ── -->
-      <button class="show-more-btn" id="hoursShowMore" aria-expanded="false" aria-controls="hoursExtra">
+      <button type="button" class="show-more-btn" id="hoursShowMore" aria-expanded="false" aria-controls="hoursExtra">
         <span id="hoursShowMoreLabel">Unusual deductions or corrections</span><span class="show-more-arrow">▼</span>
       </button>
 
@@ -419,7 +419,7 @@
         <span class="hint">Enter Year to Date figures from your last payslip to get a more accurate tax estimate</span>
       </div>
       <div class="card-header-actions">
-        <button class="help-btn" data-help="accuracy" aria-label="Help: Improve Accuracy">?</button>
+        <button type="button" class="help-btn" data-help="accuracy" aria-label="Help: Improve Accuracy">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
     </div>
@@ -458,7 +458,7 @@
         <span class="hint">Chiltern pay this once a year, each January</span>
       </div>
       <div class="card-header-actions">
-        <button class="help-btn" data-help="hpp" aria-label="Help: Holiday Pay Premium">?</button>
+        <button type="button" class="help-btn" data-help="hpp" aria-label="Help: Holiday Pay Premium">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
     </div>
@@ -487,13 +487,13 @@
         <div class="section-subhead" id="currentHppTitle">This year (2026/27)</div>
       </div>
 
-      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered above. <button class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
+      <p class="card-explainer">When you take annual leave, Chiltern only pay your basic rate — you miss out on overtime and rest day pay. To make up for this, they calculate a <strong>Holiday Pay Premium (HPP)</strong> and pay it as a lump sum every January. No extra entries needed — the estimate builds automatically from the hours you've entered above. <button type="button" class="disclaimer-toggle" id="hppBackPayLink">Expecting a pay rise? Calculate back pay →</button></p>
       <div class="hpp-result">
         <div class="hpp-label" id="hppLabel">Estimated Holiday Pay Premium for this tax year</div>
         <div class="hpp-amount" id="hppAmount">£–</div>
         <div class="hpp-basis" id="hppBasis">Enter hours across your periods above to calculate</div>
       </div>
-      <button class="hpp-toggle-btn" id="hppToggleBtn" aria-expanded="false" aria-controls="hppNoteBody"><span id="hppToggleBtnLabel">How is this calculated? </span><span class="hpp-toggle-arrow">▼</span></button>
+      <button type="button" class="hpp-toggle-btn" id="hppToggleBtn" aria-expanded="false" aria-controls="hppNoteBody"><span id="hppToggleBtnLabel">How is this calculated? </span><span class="hpp-toggle-arrow">▼</span></button>
       <div class="hpp-note-body" id="hppNoteBody">
         <div class="card-note" id="hppNote"></div>
       </div>
@@ -508,7 +508,7 @@
         <span class="hint">Use when a pay award has been backdated to April</span>
       </div>
       <div class="card-header-actions">
-        <button class="help-btn" data-help="backpay" aria-label="Help: Back Pay">?</button>
+        <button type="button" class="help-btn" data-help="backpay" aria-label="Help: Back Pay">?</button>
         <span class="card-toggle-arrow">▼</span>
       </div>
     </div>
@@ -571,11 +571,11 @@
       </div>
       <!-- Apply new rate — updates Settings so future periods calculate at the new rate -->
       <div id="applyRateWrap" style="display:none;margin-top:10px">
-        <button class="btn-primary" id="applyRateBtn"></button>
+        <button type="button" class="btn-primary" id="applyRateBtn"></button>
         <div class="field-hint" id="applyRateFeedback" style="margin-top:6px;color:var(--success-text)"></div>
       </div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
-      <button class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
+      <button type="button" class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
         Per-period breakdown &nbsp;<span class="bd-arrow">▼</span>
       </button>
       <div class="bd-body" id="backPayRows"></div>
@@ -611,7 +611,7 @@
 
   <!-- DISCLAIMER -->
   <div class="disclaimer">
-    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app uses a cumulative PAYE-style estimate — usually closer to payroll, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button>
+    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app uses a cumulative PAYE-style estimate — usually closer to payroll, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button type="button" class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button>
   </div>
 
 
@@ -647,7 +647,7 @@
     <a href="./paycalc-guide.html" target="_blank" class="lightbox-bug-link">📖 View pay guide</a>
     <a id="bugReportLink" class="lightbox-bug-link" href="#">🐛 Report a bug</a>
     <div class="lightbox-print-wrap">
-      <button id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
+      <button type="button" id="lightboxPrintBtn" class="lightbox-print-btn">🖨️ Print this page</button>
       <span id="lightboxPrintHint" class="lightbox-print-hint">Prints the current pay calculator view</span>
     </div>
   </div>

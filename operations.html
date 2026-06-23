@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v13.66 -->
+<!-- MYB Roster — Operations v13.67 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -50,7 +50,7 @@
 <main class="container">
 
     <header class="app-header">
-        <button class="btn-burger" id="navMenuBtn"
+        <button type="button" class="btn-burger" id="navMenuBtn"
                 aria-label="Open navigation menu" aria-expanded="false">☰</button>
         <div class="app-header-brand">
             <img src="icon-192.png" class="app-icon" id="appIcon" alt="Chiltern Railways" loading="eager">
@@ -62,7 +62,7 @@
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
     <div class="card" id="huddleUploadCard">
         <div class="card-header card-collapsible-header" id="huddleToggleHeader">
-            <h2><span aria-hidden="true">📋</span> Daily Huddle <button class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle" title="Tips for Daily Huddle">?</button></h2>
+            <h2><span aria-hidden="true">📋</span> Daily Huddle <button type="button" class="btn-card-tips" data-card="daily-huddle" aria-label="Tips for Daily Huddle" title="Tips for Daily Huddle">?</button></h2>
             <span class="hint">Upload today's Huddle (PDF or Word doc) — staff will see a button in the main app</span>
             <span class="collapse-chevron" id="huddleChevron">▾</span>
         </div>
@@ -74,7 +74,7 @@
                     <input type="file" id="huddleFileInput" accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" class="visually-hidden-file" aria-label="Choose huddle PDF or Word document">
                 </div>
                 <p id="huddleFileName" class="huddle-filename" aria-live="polite"></p>
-                <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
+                <button type="button" id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
                 <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
         </div>
@@ -83,7 +83,7 @@
     <!-- ==================== WEEKLY RETAIL CIRCULAR ==================== -->
     <div class="card" id="circularUploadCard">
         <div class="card-header card-collapsible-header" id="circularUploadToggleHeader">
-            <h2><span aria-hidden="true">📰</span> Weekly Retail Circular <button class="btn-card-tips" data-card="weekly-circular" aria-label="Tips for Weekly Retail Circular" title="Tips for Weekly Retail Circular">?</button></h2>
+            <h2><span aria-hidden="true">📰</span> Weekly Retail Circular <button type="button" class="btn-card-tips" data-card="weekly-circular" aria-label="Tips for Weekly Retail Circular" title="Tips for Weekly Retail Circular">?</button></h2>
             <span class="hint">Upload this week's Retail Circular PDF — staff open it from ☰ → Weekly Retail Circular</span>
             <span class="collapse-chevron" id="circularUploadChevron">▾</span>
         </div>
@@ -95,7 +95,7 @@
                     <input type="file" id="circularFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose Retail Circular PDF">
                 </div>
                 <p id="circularFileName" class="huddle-filename" aria-live="polite"></p>
-                <button id="circularUploadBtn" class="huddle-upload-btn" disabled>Upload Circular</button>
+                <button type="button" id="circularUploadBtn" class="huddle-upload-btn" disabled>Upload Circular</button>
                 <div id="circularFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
         </div>
@@ -104,7 +104,7 @@
     <!-- ==================== MARYLEBONE NEWSLETTER ==================== -->
     <div class="card" id="newsletterUploadCard">
         <div class="card-header card-collapsible-header" id="newsletterUploadToggleHeader">
-            <h2><span aria-hidden="true">🗞️</span> Marylebone Newsletter <button class="btn-card-tips" data-card="newsletter" aria-label="Tips for Marylebone Newsletter" title="Tips for Marylebone Newsletter">?</button></h2>
+            <h2><span aria-hidden="true">🗞️</span> Marylebone Newsletter <button type="button" class="btn-card-tips" data-card="newsletter" aria-label="Tips for Marylebone Newsletter" title="Tips for Marylebone Newsletter">?</button></h2>
             <span class="hint">Upload the latest Marylebone Newsletter PDF — staff open it from ☰ → Marylebone Newsletter</span>
             <span class="collapse-chevron" id="newsletterUploadChevron">▾</span>
         </div>
@@ -116,7 +116,7 @@
                     <input type="file" id="newsletterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose Newsletter PDF">
                 </div>
                 <p id="newsletterFileName" class="huddle-filename" aria-live="polite"></p>
-                <button id="newsletterUploadBtn" class="huddle-upload-btn" disabled>Upload Newsletter</button>
+                <button type="button" id="newsletterUploadBtn" class="huddle-upload-btn" disabled>Upload Newsletter</button>
                 <div id="newsletterFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
         </div>
@@ -125,7 +125,7 @@
     <!-- ==================== ROSTER UPLOAD ==================== -->
     <div class="card" id="rosterUploadCard">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
-            <h2><span aria-hidden="true">🗓️</span> Weekly Roster <button class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload" title="Tips for Weekly Roster upload">?</button></h2>
+            <h2><span aria-hidden="true">🗓️</span> Weekly Roster <button type="button" class="btn-card-tips" data-card="weekly-roster" aria-label="Tips for Weekly Roster upload" title="Tips for Weekly Roster upload">?</button></h2>
             <span class="hint">Upload the PDF roster — we'll find what's changed and ask you to confirm</span>
             <span class="collapse-chevron" id="rosterUploadChevron">▾</span>
         </div>
@@ -145,7 +145,7 @@
                         <input type="file" id="rosterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose roster PDF">
                     </div>
                     <p id="rosterFileName" class="huddle-filename" aria-live="polite"></p>
-                    <button id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
+                    <button type="button" id="rosterParseBtn" class="huddle-upload-btn" disabled>Read roster</button>
                     <div id="rosterParseFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
                 </div>
 
@@ -164,9 +164,9 @@
 
                     <div id="rosterChangeList"></div>
 
-                    <button id="rosterApplyBtn" class="btn-save">Save changes</button>
+                    <button type="button" id="rosterApplyBtn" class="btn-save">Save changes</button>
                     <p class="save-hint">All changes default to Save. Tap a row's button to skip it. Resolve any conflicts by choosing Manual or PDF, then tap Save changes.</p>
-                    <button id="rosterCancelBtn" class="roster-cancel-btn">Upload different file</button>
+                    <button type="button" id="rosterCancelBtn" class="roster-cancel-btn">Upload different file</button>
                 </div>
 
                 <div id="rosterApplyFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
@@ -178,7 +178,7 @@
     <!-- ==================== WORK EMAIL PROGRESS ==================== -->
     <div class="card" id="workEmailCard">
         <div class="card-header card-collapsible-header" id="workEmailToggleHeader">
-            <h2><span aria-hidden="true">📧</span> Work Email Progress <button class="btn-card-tips" data-card="work-email-progress" aria-label="Tips for Work Email Progress" title="Tips for Work Email Progress">?</button></h2>
+            <h2><span aria-hidden="true">📧</span> Work Email Progress <button type="button" class="btn-card-tips" data-card="work-email-progress" aria-label="Tips for Work Email Progress" title="Tips for Work Email Progress">?</button></h2>
             <span class="hint">Track who has saved their work email for the password project</span>
             <span class="collapse-chevron" id="workEmailChevron">▾</span>
         </div>
@@ -192,7 +192,7 @@
     <!-- ==================== ERROR LOG ==================== -->
     <div class="card" id="errorLogCard">
         <div class="card-header card-collapsible-header" id="errorLogToggleHeader">
-            <h2><span aria-hidden="true">🐛</span> Error Log <button class="btn-card-tips" data-card="error-log" aria-label="Tips for Error Log" title="Tips for Error Log">?</button></h2>
+            <h2><span aria-hidden="true">🐛</span> Error Log <button type="button" class="btn-card-tips" data-card="error-log" aria-label="Tips for Error Log" title="Tips for Error Log">?</button></h2>
             <span class="hint">Uncaught JS errors from authenticated pages — tap ⎘ Copy to paste a report here for diagnosis</span>
             <span class="collapse-chevron" id="errorLogChevron">▾</span>
         </div>
@@ -206,7 +206,7 @@
     <!-- ==================== STAFF LOGIN ACCOUNTS ==================== -->
     <div class="card" id="authSetupCard">
         <div class="card-header card-collapsible-header" id="authSetupToggleHeader">
-            <h2><span aria-hidden="true">🔐</span> Staff Login Accounts <button class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button></h2>
+            <h2><span aria-hidden="true">🔐</span> Staff Login Accounts <button type="button" class="btn-card-tips" data-card="staff-login" aria-label="Tips for Staff Login Accounts" title="Tips for Staff Login Accounts">?</button></h2>
             <span class="hint">Create or update staff login accounts</span>
             <span class="collapse-chevron" id="authSetupChevron">▾</span>
         </div>
@@ -219,7 +219,7 @@
                     <input type="checkbox" id="authSetupOrphans">
                     Disable accounts for anyone no longer on the roster (leavers)
                 </label>
-                <button class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
+                <button type="button" class="btn-action btn-primary" id="authSetupBtn">Set up accounts</button>
                 <div id="authSetupResult" role="status" aria-live="polite"></div>
             </div>
         </div>
