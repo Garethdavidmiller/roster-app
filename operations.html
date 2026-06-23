@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v13.58 -->
+<!-- MYB Roster — Operations v13.59 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -97,6 +97,27 @@
                 <p id="circularFileName" class="huddle-filename" aria-live="polite"></p>
                 <button id="circularUploadBtn" class="huddle-upload-btn" disabled>Upload Circular</button>
                 <div id="circularFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MARYLEBONE NEWSLETTER ==================== -->
+    <div class="card" id="newsletterUploadCard">
+        <div class="card-header card-collapsible-header" id="newsletterUploadToggleHeader">
+            <h2><span aria-hidden="true">🗞️</span> Marylebone Newsletter <button class="btn-card-tips" data-card="newsletter" aria-label="Tips for Marylebone Newsletter" title="Tips for Marylebone Newsletter">?</button></h2>
+            <span class="hint">Upload the latest Marylebone Newsletter PDF — staff open it from ☰ → Marylebone Newsletter</span>
+            <span class="collapse-chevron open" id="newsletterUploadChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="newsletterUploadBody">
+            <div class="card-body">
+                <div class="huddle-row">
+                    <input type="date" id="newsletterDate" aria-label="Newsletter date">
+                    <label for="newsletterFileInput" class="huddle-file-label">Choose PDF</label>
+                    <input type="file" id="newsletterFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose Newsletter PDF">
+                </div>
+                <p id="newsletterFileName" class="huddle-filename" aria-live="polite"></p>
+                <button id="newsletterUploadBtn" class="huddle-upload-btn" disabled>Upload Newsletter</button>
+                <div id="newsletterFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
         </div>
     </div>

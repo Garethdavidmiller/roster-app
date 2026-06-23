@@ -19,7 +19,7 @@ import { notifSupported, peekNotifState, enableNotifications, disableNotificatio
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
-import { getLatestCircular } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter } from './firebase-client.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -48,7 +48,7 @@ const NAV_INFORMATION = [
         links: [
             { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
             { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
-            { icon: '🗞️', label: 'Marylebone Newsletter',  comingSoon: true, body: 'The Marylebone Newsletter will be linked here once it goes live. Check back soon.' },
+            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
             { icon: '📣', label: 'App Notices', notices: true },
         ],
     },
@@ -258,6 +258,22 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             }).catch(() => {
                 _closePanelVisualOnly();
                 _openComingSoon(circular);
+            });
+            return;
+        }
+        const newsletter = e.target.closest('.nav-panel-link--newsletter');
+        if (newsletter) {
+            getLatestNewsletter().then(data => {
+                if (data?.storageUrl) {
+                    closePanelForNavigation();
+                    window.open(data.storageUrl, '_blank', 'noopener');
+                } else {
+                    _closePanelVisualOnly();
+                    _openComingSoon(newsletter);
+                }
+            }).catch(() => {
+                _closePanelVisualOnly();
+                _openComingSoon(newsletter);
             });
             return;
         }
@@ -593,7 +609,8 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
         <ul class="nav-panel-links">
             ${group.links.map(link => {
                 if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
-                if (link.circular)  return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
+                if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
+                if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
                 if (link.notices)   return `<li><button type="button" class="nav-panel-link nav-panel-link--notices">${link.icon} ${link.label}</button></li>`;
                 return `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`;
             }).join('')}

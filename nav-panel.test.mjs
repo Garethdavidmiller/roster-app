@@ -16,7 +16,8 @@ const store = new Map();
 
 mock.module('./firebase-client.js', {
     namedExports: {
-        getLatestCircular: async () => null,
+        getLatestCircular:    async () => null,
+        getLatestNewsletter:  async () => null,
     },
 });
 mock.module('./notif.js', {

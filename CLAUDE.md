@@ -471,6 +471,18 @@ Read: any authenticated session. Write: admin only (Storage rules also enforce P
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
 Read by: `getLatestCircular()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Weekly Retail Circular.
 
+**newsletters** (v13.59)
+```
+date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
+storageUrl   Permanent tokenised download URL
+fileType     "pdf" (always)
+uploadedAt   Firestore server timestamp
+uploadedBy   Member name string
+```
+Read: any authenticated session. Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
+Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
+Read by: `getLatestNewsletter()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Marylebone Newsletter.
+
 Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication
