@@ -371,14 +371,13 @@ function initCircularUpload() {
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         try {
-            await window._mybSession;
+            if (window._mybSession) await window._mybSession;
             await uploadCircular(date, file, currentUser);
             feedback.textContent = `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`;
             feedback.className = 'huddle-feedback huddle-feedback--ok';
             fileInput.value = '';
             fileLabel.textContent = '';
             fileLabel.classList.remove('visible');
-            uploadBtn.disabled = true;
         } catch (err) {
             console.error('[Circular] Upload failed:', err);
             feedback.textContent = 'Upload failed — please try again';
