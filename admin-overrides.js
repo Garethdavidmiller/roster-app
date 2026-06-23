@@ -18,17 +18,20 @@ import { db, collection, query, orderBy, limit, getDocs,
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
-    spare_shift:  { label: 'Spare shift',      fixed: true,  fixedValue: 'SPARE' },
-    shift:        { label: 'Shift',            fixed: false },
-    rdw:          { label: 'Rest Day Worked',  fixed: false },
-    annual_leave: { label: 'Annual Leave',     fixed: true,  fixedValue: 'AL' },
-    correction:   { label: 'Set as Rest Day',  fixed: true,  fixedValue: 'RD' },
-    sick:         { label: 'Absent',           fixed: true,  fixedValue: 'SICK' },
+    spare_shift:  { label: 'Spare shift',      pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
+    shift:        { label: 'Shift',            pill: 'Shift',    fixed: false },
+    rdw:          { label: 'Rest Day Worked',  pill: 'RDW',      fixed: false },
+    annual_leave: { label: 'Annual Leave',     pill: 'AL',       fixed: true,  fixedValue: 'AL' },
+    correction:   { label: 'Set as Rest Day',  pill: 'Rest Day', fixed: true,  fixedValue: 'RD' },
+    sick:         { label: 'Absent',           pill: 'Absent',   fixed: true,  fixedValue: 'SICK' },
     // Legacy types — no pill buttons; kept so old Saved Changes records display correctly
     allocated:    { label: 'Allocated shift',  fixed: false },
     overtime:     { label: 'Overtime',         fixed: false },
     swap:         { label: 'Swap',             fixed: false },
 };
+
+/** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth). */
+export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction'];
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
 let _allOverrides   = [];
@@ -190,12 +193,7 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-base">${getShiftBadge(baseShift)}</div>
             <div class="col-pills">
-                <button class="type-pill-btn pill-annual_leave" data-type="annual_leave" aria-pressed="false">AL</button>
-                <button class="type-pill-btn pill-spare_shift"  data-type="spare_shift" aria-pressed="false">Spare</button>
-                <button class="type-pill-btn pill-shift"        data-type="shift" aria-pressed="false">Shift</button>
-                <button class="type-pill-btn pill-rdw"          data-type="rdw" aria-pressed="false">RDW</button>
-                <button class="type-pill-btn pill-sick"         data-type="sick" aria-pressed="false">Absent</button>
-                <button class="type-pill-btn pill-correction"   data-type="correction" aria-pressed="false">Rest Day</button>
+                ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">

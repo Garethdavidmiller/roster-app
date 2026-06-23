@@ -94,6 +94,8 @@ breakage".
 | `settings.html` | Line 2 HTML comment |
 | `links.html` | Line 2 HTML comment |
 
+**Shortcut:** `npm run bump <version>` (e.g. `npm run bump 13.48`) updates all 9 locations in one command. Implemented by `scripts/bump-version.mjs`.
+
 `?v=` cache-busting strings were removed at v9.94 — do not add them back. Cache freshness is handled by `Cache-Control: no-cache` in `firebase.json`.
 
 **Documentation update policy:** Update every **0.10 version** (e.g. 10.10 → 10.20), or immediately on: new pay grade, auth/Firestore model change, SW strategy change, new page or module, data model change.
@@ -153,6 +155,7 @@ roster-app/
 ├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
 ├── firebase-client.js      ← shared module: Firebase init, exports db + all Firestore functions
+├── client-errors.js        ← pure error-log ordering/retention logic (no DOM/Firebase): CLIENT_ERROR_RETENTION_MS, isResolvedErrorExpired, expiredResolvedIds, orderClientErrors. Imported by firebase-client.js. Tested by client-errors.test.mjs (v13.48)
 ├── ls.js                   ← shared localStorage wrappers: lsGet, lsSet, lsDel — iOS Safari safe
 ├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
 ├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
@@ -195,9 +198,13 @@ roster-app/
 ├── admin-overrides.test.mjs ← tests for admin-overrides.js exports: getEffectiveShift (batch/override/base-roster priority), validateShiftRules (12h duration, 12h rest gap), buildMemberDateMap (requires --experimental-test-module-mocks)
 ├── nav-panel.test.mjs      ← tests for nav-panel.js exports: isNoticeExpired (28/90-day windows) and archiveNotice (legacy-record migration, 180-day prune, malformed-data resilience, idempotency, 50-entry cap; requires --experimental-test-module-mocks)
 ├── admin-rangepicker.test.mjs ← tests for getDateRange() in admin-rangepicker.js (inclusive endpoints, reversed range, month/year/leap/DST boundaries)
-├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations
+├── client-errors.test.mjs  ← tests for client-errors.js: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors (v13.48)
+├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations + functions/roster-members.json sync check (v13.48)
 ├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
 ├── package.json            ← dev dependencies only: http-server (not deployed; see firebase.json ignore list)
+├── scripts/
+│   ├── bump-version.mjs          ← dev utility: update APP_VERSION in all 9 locations at once — run via `npm run bump <version>` (v13.48)
+│   └── generate-roster-members.mjs ← dev utility: regenerate functions/roster-members.json from roster-data.js — run via `npm run generate:roster-members` after any staff change (v13.48)
 ├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirect rules, deploy ignore list
 ├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
 ├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date)
@@ -205,13 +212,15 @@ roster-app/
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
     ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
+    ├── roster-members.json       ← generated staff name list by grade (cea/ces/dispatcher) — do NOT hand-edit; regenerate via `npm run generate:roster-members` after any staff change (v13.48)
     └── package.json
 ```
 
 **Run all tests:**
 ```
-# Unit / deployment-hygiene tests (no browser, fast)
-node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs
+npm test
+# or individually:
+node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
 node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs
 ```
@@ -254,7 +263,7 @@ All colour values must be in CSS variables in `:root` — never hardcode hex.
 | Network-first SW for app files | Ensures staff always receive roster updates on next open. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
-| Two separate type pill lists in admin | Per-row pills in `renderWeekGrid()` (`admin-overrides.js`) and the bulk-bar pills in `admin.html` (`#bulkBar`) must stay in sync. Current order: AL · Spare · Shift · RDW · Absent · Rest Day |
+| Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day. Never hardcode either list. |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
 | `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
@@ -704,8 +713,8 @@ details and the re-introduction checklist.
 - [ ] Admin → Operations → Staff Login Accounts → **Set up accounts** (creates the login)
 - [ ] Confirm password convention in `OPERATIONS_REFERENCE.md`
 
-**Step 2b — `functions/index.js` (CEA / CES / Dispatcher only — not Management)**
-- [ ] Add the new member's name to the correct `STAFF_NAMES` array (`cea`, `ces`, or `dispatcher`) inside `parseRosterPDF` — the weekly roster PDF upload ignores any name not in this list, so a missing entry means that staff member's shifts are silently excluded from every roster import until this is updated. The list is hardcoded (can't import the browser ES module `roster-data.js` from a Cloud Function) and must be kept in sync manually.
+**Step 2b — Regenerate `functions/roster-members.json` (CEA / CES / Dispatcher only — not Management)**
+- [ ] Run `npm run generate:roster-members` — regenerates `functions/roster-members.json` from `roster-data.js` so the weekly roster PDF parser knows the new name. Without this, the staff member's shifts are silently excluded from every roster import. The sync is verified by `sw-asset-check.test.mjs` test 4.
 
 **Step 3 — Pay calculator verification (mid-year joiners only)**
 - [ ] Log in as the new member, open pay calculator, check the joining period shows the info banner and correct pro-rated contracted hours

@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v13.40 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.48 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -26,7 +26,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Settings page — Notifications, Work Email | `settings-app.js` + `settings.html` |
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
-| Error Log card (ops page) — uncaught error capture, ops card display, Copy for Claude | `error-reporter.js`, `firebase-client.js` (logClientError/getClientErrors/resolveClientError), `operations-app.js`, `operations.css` |
+| Error Log card (ops page) — uncaught error capture, ops card display, Copy for Claude | `error-reporter.js`, `firebase-client.js` (logClientError/getClientErrors/resolveClientError), `client-errors.js` (ordering/retention policy), `operations-app.js`, `operations.css` |
 | Links design workspace — 28-line design grid, paint mode, hourly coverage heat map, design checks, auto-generator UI | `links-app.js` + `links.html` + `links.css` |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) |
 | Annual Leave Booking section | `admin-al.js` |
@@ -158,8 +158,10 @@ Sick Days Recording section (extracted v9.93).
 
 ### `admin-overrides.js`
 The Change a Shift module. Owns the week grid and override list entirely.
+- `TYPES` — type metadata object (label, pill, fixed, fixedValue). `pill` is the short button label used in both the per-row grid and the bulk bar.
+- `PILL_TYPES` — ordered array of type keys for both pill lists (`['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction']`). Single source of truth — `renderWeekGrid()` generates per-row pills from this; `admin-app.js` generates bulk-bar pills from this at init. Never duplicate the list. (v13.48)
 - `initOverrides(opts)` — called once by `admin-app.js` after login; receives callbacks
-- `renderWeekGrid()` — generates per-row type pills (must stay in sync with `admin.html` bulk bar)
+- `renderWeekGrid()` — generates per-row type pills from `PILL_TYPES`
 - `loadOverrides()` / `renderTable()` — Saved Changes list
 - `executeSave()` — writes override to Firestore
 - `updateSaveBtn()` — exported so swipe carousel can call it
@@ -245,7 +247,15 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
 - `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
-- `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`
+- `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`. Ordering/retention policy delegated to `client-errors.js` (v13.48).
+
+### `client-errors.js`
+Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.
+- `CLIENT_ERROR_RETENTION_MS` — 90-day retention window constant (measured from resolution, not error time)
+- `isResolvedErrorExpired(rec, now, [retentionMs])` — true if a resolved record is past the retention window; records with no `resolvedAt` are never expired
+- `expiredResolvedIds(resolved, now, [retentionMs])` — IDs of resolved records that should be pruned
+- `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. A backlog of resolved records can never hide an older unresolved one.
+- Tested by `client-errors.test.mjs` (no mocks, runs in `test:hygiene`)
 
 ### `nav-panel.js`
 Shared slide-out navigation panel — imported by all six app pages.
