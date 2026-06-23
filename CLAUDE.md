@@ -129,101 +129,85 @@ When compacting, always preserve:
 
 ## Current file structure
 
+See `AI_MAP.md` for full module descriptions and export lists.
+
 ```
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only operations page: Huddle upload, Roster upload, Staff Login Accounts (v10.99)
-├── settings.html           ← staff self-service settings page: Notifications, Work Email (v11.06)
+├── operations.html         ← admin-only: Huddle upload, Roster upload, Staff Login Accounts, Error Log
+├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js                  ← all JavaScript for index.html (calendar, overrides cache, swipe, notifications)
-├── app-huddle-viewer.js    ← Huddle viewer overlay: sanitiseHtml, viewer open/close, _triggerAutoOpen, hashchange handler, subscribeToLatestHuddle wiring. Exports initHuddleViewer (applyHuddleButtonState removed v12.57 — #huddleBtn no longer exists). Imported by calendar-app.js (v11.40)
-├── nav-panel.js            ← shared slide-out navigation drawer: initNavPanel(opts), NAV_PAGES config, NAV_INFORMATION config, NAV_GUIDES collapsible submenu, brand logo→About (onLogoClick) + version, footer notification bell. App Notices archive: archiveNotice({ id, title, section, date, body }) — idempotent, writes to localStorage `myb_app_notices`; "📣 App Notices" nav link opens the archive panel. Imported by calendar-app.js, admin-app.js, paycalc-app.js, operations-app.js, settings-app.js
-├── notif.js                ← shared Web Push module: notifSupported, getNotifState, peekNotifState (read-only), enableNotifications, disableNotifications. VAPID key + subscribe lifecycle. Imported by nav-panel.js
-├── overlay.js              ← shared overlay helpers: lockBodyScroll, unlockBodyScroll, _pushOverlayState, _clearOverlayHistory, dismissOverlay, trapFocus, createLightbox (canonical lightbox lifecycle factory, v12.50), initCardCollapse. Singleton popstate listener. Imported by all six app pages and nav-panel.js (v11.40)
-├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox({ appLabel, bugLinkId, getUserName, onOpen, printFn }) — version line, SW update status, bug-report mailto, optional print button. Built on createLightbox. Imported by all six app pages (v12.50)
-├── tips-lightbox.js        ← shared per-card Tips (#tipsLightbox) panel: initTipsLightbox(CARD_TIPS, { getIsAdmin }) — lifecycle, renderer (incl. adminOnly/staffOnly filtering), and .btn-card-tips wiring. Pages own only their CARD_TIPS content. Imported by admin-app.js, operations-app.js, settings-app.js, links-app.js (v12.50)
-├── session.js              ← shared auth/session module: AUTH_KEY, SESSION_MS, SESSION_VER, getSurname, ensureFirebaseSession, getSession, saveSession, clearSession. Imported by admin-app.js, settings-app.js, operations-app.js, paycalc-app.js (v11.40; paycalc added v12.49)
-├── sw-register.js          ← shared service worker registration + update lifecycle: registerServiceWorker({ beforeReload, bfcache }). Imported by all six app pages (v12.28)
-├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — registers window.onerror + window.onunhandledrejection, filters noise (cross-origin, ResizeObserver, empty), session-deduplicates, writes to Firestore clientErrors collection. Imported by admin-app.js, operations-app.js, settings-app.js, paycalc-app.js (v13.31)
-├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle, chrome. Imported by calendar-app.js
-├── app-override-utils.js   ← override priority, member-start, and shift-classification helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift. Shared by calendar-app.js, app-team-view.js, and admin modules
-├── admin-app.js            ← coordinator for admin.html: login, AL/absence booking, Team Week View, module wiring, booked-box helpers
-├── operations-app.js       ← coordinator for operations.html: session guard, Firebase Auth re-establish, initHuddleUpload, initRosterUpload, initAuthSetup, initErrorLog (v10.99; error log v13.31)
-├── settings-app.js         ← coordinator for settings.html: session check (shared AUTH_KEY), login overlay, initHuddleNotifications, work email card, initNavPanel (v11.06)
-├── huddle.js               ← Huddle upload (initHuddleUpload → operations.html), push notifications card (initHuddleNotifications → settings.html), Huddle card toggle. Renamed from admin-huddle.js at v11.40
-├── admin-auth.js           ← Staff Firebase Auth account setup card (extracted v9.54)
-├── admin-al.js             ← Annual Leave Booking section. Exports initALSection(deps) and triggerConfirmedALSave()
-├── admin-sick.js           ← Sick Days Recording section. Exports initSickSection(deps)
-├── admin-overrides.js      ← Change a Shift module: week grid, bulk bar, override list, save logic, utilities; exports recordRangeOverrides() shared AL/Sick save helper
-├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix) → { reset() }. Imported by admin-al.js and admin-sick.js
-├── admin-roster-upload.js  ← Weekly Roster Upload pipeline: computeCellStates, renderReviewTable, shiftDisplay
-├── paycalc-app.js          ← all JavaScript for paycalc.html (UI, DOM, period logic)
-├── paycalc-calc.js         ← pure pay math module (no DOM/Firebase): tax, NI, SL, gross, thresholds
-├── paycalc-help.js         ← HELP_CONTENT object (tooltip/help text for pay calculator). Pure data, no DOM/Firebase. Imported by paycalc-app.js (v11.40)
-├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, hppEstKey etc.) and runMigrations(). Imported by paycalc-app.js (v11.40)
-├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion(p, member), fetchOverridesForPeriod
-├── roster-data.js          ← shared module: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
+├── calendar-app.js         ← all JS for index.html (calendar, overrides cache, swipe, notifications)
+├── app-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
+├── nav-panel.js            ← shared nav drawer: initNavPanel, NAV_PAGES/INFORMATION/GUIDES, archiveNotice, isNoticeExpired
+├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
+├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
+├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
+├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
+├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession
+├── sw-register.js          ← shared SW registration + update lifecycle: registerServiceWorker()
+├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
+├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
+├── app-override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
+├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
+├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog
+├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email
+├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
+├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
+├── admin-al.js             ← Annual Leave Booking: initALSection(deps), triggerConfirmedALSave()
+├── admin-sick.js           ← Sick Days Recording: initSickSection(deps)
+├── admin-overrides.js      ← Change a Shift: PILL_TYPES, week grid, bulk bar, override list, recordRangeOverrides()
+├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix), getDateRange()
+├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay
+├── paycalc-app.js          ← all JS for paycalc.html (UI, DOM, period logic)
+├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
+├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
+├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.) and runMigrations()
+├── paycalc-roster-suggestions.js ← roster pre-fill engine: getRosterSuggestion, fetchOverridesForPeriod
+├── roster-data.js          ← shared: APP_VERSION, CONFIG, teamMembers, all roster data, utility functions
 ├── roster-cycle-data.js    ← raw roster cycle arrays — imported by roster-data.js only
-├── firebase-client.js      ← shared module: Firebase init, exports db + all Firestore functions
-├── client-errors.js        ← pure error-log ordering/retention logic (no DOM/Firebase): CLIENT_ERROR_RETENTION_MS, isResolvedErrorExpired, expiredResolvedIds, orderClientErrors. Imported by firebase-client.js. Tested by client-errors.test.mjs (v13.48)
-├── ls.js                   ← shared localStorage wrappers: lsGet, lsSet, lsDel — iOS Safari safe
-├── index.css               ← all CSS for index.html (extracted from inline <style> at v11.41)
-├── admin.css               ← all CSS for admin.html (extracted from inline <style> at v11.41)
-├── paycalc.css             ← all CSS for paycalc.html (extracted from inline <style> at v11.41)
-├── operations.css          ← all CSS for operations.html (extracted from inline <style> at v12.01)
-├── settings.css            ← all CSS for settings.html (extracted from inline <style> at v12.01)
-├── links.html              ← 28-line link design workspace (v12.07, redesigned v12.39–v12.40); visible only to CONFIG.LINKS_DESIGNERS
-├── links.css               ← all CSS for links.html — grid table, cell colours, paint brush bar, design picker chips, compare layout, hourly coverage heat map, design checks, generator slot table (v12.47)
-├── links-app.js            ← coordinator for links.html: auth guard, Firestore load/save for the linkDesigns collection (named multi-design docs), design picker, side-by-side compare, grid render, paint mode, coverage heat map, design checks, auto-generator UI (v12.47)
-├── links-design.js         ← pure link-design maths (no DOM/Firebase): classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns (rotating-window), runDesignChecks, dayClass (v12.40)
-├── shared.css              ← CSS shared by all six app pages (index, admin, paycalc, operations, settings, links): nav panel, lightbox, login, card-header, collapsible, btn-action, btn-card-tips, tips lightbox — NOT the guides
-├── guide-shell.css         ← shared chrome for the 4 guide pages only (header, .btn-back, .btn-pdf, print). Defines brand palette tokens (--navy, --navy-dark, --navy-mid, --gold) in :root — guide pages no longer define these themselves. Linked by guide/paycalc-guide/railcard-guide/fip (v11.48; palette tokens added v11.85)
-├── guide.css               ← page-specific styles for guide.html (extracted from inline <style> at v12.04)
-├── paycalc-guide.css       ← page-specific styles for paycalc-guide.html (extracted from inline <style> at v12.04)
-├── railcard-guide.css      ← page-specific styles for railcard-guide.html (extracted from inline <style> at v12.04)
-├── fip.css                 ← page-specific styles for fip.html (extracted from inline <style> at v12.04)
-├── purify.es.mjs           ← self-hosted DOMPurify (v3.4.8 ES module). Used by app-huddle-viewer.js to sanitise Huddle HTML. To upgrade: `npm pack dompurify@<ver>`, extract package/dist/purify.es.mjs, replace this file, update version comment in app-huddle-viewer.js (v12.04)
-├── service-worker.js       ← single SW for all pages; cache name includes app version
+├── firebase-client.js      ← shared: Firebase init, db, all Firestore helpers
+├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
+├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
+├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
+├── links.html              ← 28-line link design workspace (visible to CONFIG.LINKS_DESIGNERS only)
+├── links.css               ← CSS for links.html (grid, paint bar, picker chips, compare, heat map)
+├── links-app.js            ← coordinator for links.html: multi-design Firestore, grid, paint, compare, generator UI
+├── links-design.js         ← pure link-design maths: classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns, runDesignChecks, dayClass
+├── shared.css              ← CSS shared by all six app pages (nav panel, lightbox, login, card-header, btn-action) — NOT the guides
+├── guide-shell.css         ← shared chrome for all 4 guide pages (header, .btn-back, .btn-pdf, print, palette tokens)
+├── guide.css / paycalc-guide.css / railcard-guide.css / fip.css ← page-specific guide CSS
+├── purify.es.mjs           ← self-hosted DOMPurify v3.4.8. Upgrade: `npm pack dompurify@<ver>`, extract purify.es.mjs
+├── service-worker.js       ← single SW for all pages; cache name includes APP_VERSION
 ├── manifest.json           ← PWA manifest for all pages
-├── paycalc-guide.html      ← printable pay calculator reference guide
-├── fip.html                ← FIP European travel guide for staff
-├── guide.html              ← printable staff + admin quick guide
-├── railcard-guide.html     ← Railcard at-work reference sheet (cards, GroupSave, season tickets, gateline checks); accessed via nav panel
-├── railcard-guide.js       ← JS for railcard-guide.html: print button, chip-bar navigation, sticky-offset calculation. No modules.
-├── guide-print.js          ← Shared print button handler for guide.html and paycalc-guide.html. No modules.
+├── guide.html / paycalc-guide.html / railcard-guide.html / fip.html ← printable guides (via nav panel)
+├── railcard-guide.js       ← JS for railcard-guide.html: print, chip-bar navigation
+├── guide-print.js          ← shared print button for guide.html and paycalc-guide.html
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── fonts/
-│   └── inter-latin.woff2   ← self-hosted Inter (variable, latin subset, wght 100–900). @font-face in shared.css; preloaded in every page head; precached by the SW (v11.53)
-├── CLAUDE.md               ← this file
-├── OPERATIONS_REFERENCE.md ← Power Automate, Cloud Function formats, Firebase Auth detail
-├── AI_MAP.md               ← routing guide: which file to edit for a given task
-├── KNOWN_LIMITATIONS.md    ← intentional constraints and deferred decisions
-├── ROADMAP.md              ← product history, future ideas
-├── app.test.mjs            ← tests for app-override-utils.js (tsToMillis, shouldReplaceOverride, isBeforeMemberStart)
-├── roster-data.test.mjs    ← tests for roster-data.js (bank holidays, paydays, AL, etc.)
-├── paycalc.test.mjs        ← tests for paycalc-calc.js (tax, NI, gross)
-├── paycalc-roster-suggestions.test.mjs ← tests for paycalc-roster-suggestions.js (requires --experimental-test-module-mocks)
-├── roster-parse-helpers.test.mjs ← tests for functions/roster-parse-helpers.js
-├── links-design.test.mjs   ← tests for links-design.js (generator targets/turnarounds, hourly coverage, design checks, custom-shift validation)
-├── admin-overrides.test.mjs ← tests for admin-overrides.js exports: getEffectiveShift (batch/override/base-roster priority), validateShiftRules (12h duration, 12h rest gap), buildMemberDateMap (requires --experimental-test-module-mocks)
-├── nav-panel.test.mjs      ← tests for nav-panel.js exports: isNoticeExpired (28/90-day windows) and archiveNotice (legacy-record migration, 180-day prune, malformed-data resilience, idempotency, 50-entry cap; requires --experimental-test-module-mocks)
-├── admin-rangepicker.test.mjs ← tests for getDateRange() in admin-rangepicker.js (inclusive endpoints, reversed range, month/year/leap/DST boundaries)
-├── client-errors.test.mjs  ← tests for client-errors.js: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors (v13.48)
-├── sw-asset-check.test.mjs ← deployment hygiene: every root JS module listed in service-worker.js asset lists + APP_VERSION matching in all 9 bump locations + functions/roster-members.json sync check (v13.48)
-├── module-parse.test.mjs   ← verifies every root JS module parses as an ES module (catches fatal SyntaxErrors that would brick a page — added v12.50 after settings-app.js shipped one undetected at v12.28)
-├── package.json            ← dev dependencies only: http-server (not deployed; see firebase.json ignore list)
+│   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
+├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
+├── app.test.mjs            ← tests for app-override-utils.js
+├── roster-data.test.mjs    ← tests for roster-data.js
+├── paycalc.test.mjs        ← tests for paycalc-calc.js
+├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
+├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs
+├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
+├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice (--experimental-test-module-mocks)
+├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync
+├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules)
+├── package.json            ← dev dependencies only
 ├── scripts/
-│   ├── bump-version.mjs          ← dev utility: update APP_VERSION in all 9 locations at once — run via `npm run bump <version>` (v13.48)
-│   └── generate-roster-members.mjs ← dev utility: regenerate functions/roster-members.json from roster-data.js — run via `npm run generate:roster-members` after any staff change (v13.48)
-├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirect rules, deploy ignore list
-├── storage.rules           ← Firebase Storage security rules: authenticated staff can read huddle files; admin-role token required to write
-├── firestore.indexes.json  ← Firestore composite indexes: overrides (memberName + date)
-├── generate-sri.mjs        ← dev utility: fetches Mammoth CDN SRI hash and patches huddle.js in-place (DOMPurify is self-hosted — no longer managed here)
+│   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
+│   └── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
+├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects
+├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
+├── generate-sri.mjs        ← dev utility: patches Mammoth CDN SRI hash in huddle.js
 └── functions/
     ├── index.js                  ← Cloud Functions: ingestHuddle, parseRosterPDF, setupRosterAuth
-    ├── roster-parse-helpers.js   ← Pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
-    ├── roster-members.json       ← generated staff name list by grade (cea/ces/dispatcher) — do NOT hand-edit; regenerate via `npm run generate:roster-members` after any staff change (v13.48)
+    ├── roster-parse-helpers.js   ← pure helpers: normaliseShift, buildWeekDates, extractAIJson, etc.
+    ├── roster-members.json       ← generated staff name list — do NOT hand-edit; run `npm run generate:roster-members`
     └── package.json
 ```
 
