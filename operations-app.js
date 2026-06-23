@@ -461,6 +461,7 @@ function initNewsletterUpload() {
     if (!dateInput || !fileInput || !uploadBtn) return;
 
     dateInput.value = formatISO(new Date());
+    dateInput.max   = formatISO(new Date());
 
     fileInput.addEventListener('change', () => {
         const file = fileInput.files[0];
@@ -532,6 +533,7 @@ function initCircularUpload() {
     if (!dateInput || !fileInput || !uploadBtn) return;
 
     dateInput.value = formatISO(new Date());
+    dateInput.max   = formatISO(new Date());
 
     fileInput.addEventListener('change', () => {
         const file = fileInput.files[0];

@@ -233,6 +233,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     closeBtn?.addEventListener('click', closePanel);
     overlay.addEventListener('click', closePanel);
 
+    // Guard against repeated taps while a circular/newsletter Firestore fetch is in flight.
+    let _docFetching = false;
+
     // Close panel before navigating so the panel doesn't flash behind the new page.
     // "Coming soon" and "App Notices" links are buttons — close the panel and open
     // their lightboxes instead of navigating.
@@ -245,36 +248,47 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         }
         const circular = e.target.closest('.nav-panel-link--circular');
         if (circular) {
-            // Fetch the latest circular; open PDF in new tab on success,
-            // or fall through to the comingSoon lightbox (using data-cs-* attrs) if none uploaded yet.
+            if (_docFetching) return;
+            _docFetching = true;
+            // Open a blank tab synchronously (same event tick = user gesture) so
+            // Safari does not classify the later window.open() inside .then() as a
+            // popup and block it.
+            const newTab = window.open('', '_blank');
             getLatestCircular().then(data => {
                 if (data?.storageUrl) {
+                    if (newTab) newTab.location.href = data.storageUrl;
                     closePanelForNavigation();
-                    window.open(data.storageUrl, '_blank', 'noopener');
                 } else {
+                    if (newTab) newTab.close();
                     _closePanelVisualOnly();
                     _openComingSoon(circular);
                 }
             }).catch(() => {
+                if (newTab) newTab.close();
                 _closePanelVisualOnly();
                 _openComingSoon(circular, 'Couldn\'t connect — check your signal and try again.');
-            });
+            }).finally(() => { _docFetching = false; });
             return;
         }
         const newsletter = e.target.closest('.nav-panel-link--newsletter');
         if (newsletter) {
+            if (_docFetching) return;
+            _docFetching = true;
+            const newTab = window.open('', '_blank');
             getLatestNewsletter().then(data => {
                 if (data?.storageUrl) {
+                    if (newTab) newTab.location.href = data.storageUrl;
                     closePanelForNavigation();
-                    window.open(data.storageUrl, '_blank', 'noopener');
                 } else {
+                    if (newTab) newTab.close();
                     _closePanelVisualOnly();
                     _openComingSoon(newsletter);
                 }
             }).catch(() => {
+                if (newTab) newTab.close();
                 _closePanelVisualOnly();
                 _openComingSoon(newsletter, 'Couldn\'t connect — check your signal and try again.');
-            });
+            }).finally(() => { _docFetching = false; });
             return;
         }
         if (e.target.closest('.nav-panel-link--notices')) {

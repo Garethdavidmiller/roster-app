@@ -1270,9 +1270,12 @@ body.lb-open #stickyTotal { display: none !important; }
     .nav-panel-link:hover { background: var(--nav-raised); }
 }
 
-/* Coming-soon and App-Notices entries are <button>s, not <a>s — reset native
-   button chrome so they sit identically alongside the anchor links. */
+/* Coming-soon, circular, newsletter, and App-Notices entries are <button>s, not
+   <a>s — reset native button chrome so they sit identically alongside the anchor
+   links. */
 button.nav-panel-link--coming-soon,
+button.nav-panel-link--circular,
+button.nav-panel-link--newsletter,
 button.nav-panel-link--notices {
     width: 100%;
     background: none;

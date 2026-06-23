@@ -188,10 +188,32 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
 // ---- Weekly Retail Circular ----
 
 /**
+ * Delete Firestore documents (and matching Storage files) for a collection
+ * whose `date` field is older than 6 months. Called fire-and-forget after
+ * each successful upload to cap collection growth automatically.
+ * @param {string}   collectionName - 'circulars' or 'newsletters'
+ * @param {object}   storage        - Firebase Storage instance
+ * @param {Function} refFn          - Firebase Storage `ref` function
+ * @param {Function} deleteObject   - Firebase Storage `deleteObject` function
+ */
+async function _pruneOldDocs(collectionName, storage, refFn, deleteObject) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - 6);
+    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
+    const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
+    const snap = await getDocs(q);
+    await Promise.all(snap.docs.map(async d => {
+        await deleteDoc(doc(db, collectionName, d.id));
+        await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`)).catch(() => {});
+    }));
+}
+
+/**
  * Upload a Weekly Retail Circular PDF for a given date.
  * Stores at circulars/YYYY-MM-DD.pdf in Firebase Storage and writes a metadata
  * document to the `circulars` Firestore collection. Uploading for the same date
- * overwrites the previous file (latest wins).
+ * overwrites the previous file (latest wins). Documents older than 6 months are
+ * pruned automatically after each upload.
  *
  * @param {string} date       - ISO date string, e.g. "2026-06-27"
  * @param {File}   file       - PDF file chosen by the admin
@@ -199,13 +221,14 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
  * @returns {Promise<string>} Download URL of the stored file
  */
 export async function uploadCircular(date, file, uploadedBy) {
-    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
+    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     const storageRef = ref(storage, `circulars/${date}.pdf`);
     await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
     const storageUrl = await getDownloadURL(storageRef);
     await setDoc(doc(db, 'circulars', date), {
         date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
     });
+    _pruneOldDocs('circulars', storage, ref, deleteObject).catch(() => {});
     return storageUrl;
 }
 
@@ -223,19 +246,21 @@ export async function getLatestCircular() {
 
 /**
  * Upload a Newsletter PDF to Firebase Storage and record it in Firestore.
+ * Documents older than 6 months are pruned automatically after each upload.
  * @param {string} date       - ISO date string, e.g. "2026-06-27"
  * @param {File}   file       - PDF file chosen by the admin
  * @param {string} uploadedBy - memberName of the uploading admin
  * @returns {Promise<string>} Download URL of the stored file
  */
 export async function uploadNewsletter(date, file, uploadedBy) {
-    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
+    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     const storageRef = ref(storage, `newsletters/${date}.pdf`);
     await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
     const storageUrl = await getDownloadURL(storageRef);
     await setDoc(doc(db, 'newsletters', date), {
         date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
     });
+    _pruneOldDocs('newsletters', storage, ref, deleteObject).catch(() => {});
     return storageUrl;
 }
 
