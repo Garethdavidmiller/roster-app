@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v13.57 -->
+<!-- MYB Roster — Operations v13.58 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -76,6 +76,27 @@
                 <p id="huddleFileName" class="huddle-filename" aria-live="polite"></p>
                 <button id="huddleUploadBtn" class="huddle-upload-btn" disabled>Upload Huddle</button>
                 <div id="huddleFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== WEEKLY RETAIL CIRCULAR ==================== -->
+    <div class="card" id="circularUploadCard">
+        <div class="card-header card-collapsible-header" id="circularUploadToggleHeader">
+            <h2><span aria-hidden="true">📰</span> Weekly Retail Circular <button class="btn-card-tips" data-card="weekly-circular" aria-label="Tips for Weekly Retail Circular" title="Tips for Weekly Retail Circular">?</button></h2>
+            <span class="hint">Upload this week's Retail Circular PDF — staff open it from ☰ → Weekly Retail Circular</span>
+            <span class="collapse-chevron open" id="circularUploadChevron">▾</span>
+        </div>
+        <div class="card-collapsible-body open" id="circularUploadBody">
+            <div class="card-body">
+                <div class="huddle-row">
+                    <input type="date" id="circularDate" aria-label="Circular date">
+                    <label for="circularFileInput" class="huddle-file-label">Choose PDF</label>
+                    <input type="file" id="circularFileInput" accept=".pdf,application/pdf" class="visually-hidden-file" aria-label="Choose Retail Circular PDF">
+                </div>
+                <p id="circularFileName" class="huddle-filename" aria-live="polite"></p>
+                <button id="circularUploadBtn" class="huddle-upload-btn" disabled>Upload Circular</button>
+                <div id="circularFeedback" class="huddle-feedback" role="status" aria-live="polite"></div>
             </div>
         </div>
     </div>

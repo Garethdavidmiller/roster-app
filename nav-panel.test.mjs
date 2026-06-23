@@ -14,6 +14,11 @@ import assert from 'node:assert/strict';
 // In-memory localStorage backing the ls.js mock — seeded/read directly by tests.
 const store = new Map();
 
+mock.module('./firebase-client.js', {
+    namedExports: {
+        getLatestCircular: async () => null,
+    },
+});
 mock.module('./notif.js', {
     namedExports: {
         notifSupported:      () => false,

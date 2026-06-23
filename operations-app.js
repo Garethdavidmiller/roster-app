@@ -8,8 +8,8 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, getClientErrors, resolveClientError } from './firebase-client.js';
+import { CONFIG, teamMembers, formatISO } from './roster-data.js';
+import { auth, getAllStaffContacts, saveStaffContact, getClientErrors, resolveClientError, uploadCircular } from './firebase-client.js';
 import { initErrorReporter } from './error-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
@@ -59,6 +59,7 @@ initNavPanel({
 });
 
 initHuddleUpload({ currentIsAdmin: true, currentUser });
+initCircularUpload();
 
 initRosterUpload({
     currentUser,
@@ -73,8 +74,9 @@ initAuthSetup({ currentIsAdmin: true });
 // ============================================
 // COLLAPSIBLE CARD HEADERS
 // ============================================
-initCardCollapse('huddleToggleHeader',      'huddleBody',      'huddleChevron');
-initCardCollapse('rosterUploadToggleHeader','rosterUploadBody','rosterUploadChevron');
+initCardCollapse('huddleToggleHeader',         'huddleBody',         'huddleChevron');
+initCardCollapse('circularUploadToggleHeader', 'circularUploadBody', 'circularUploadChevron');
+initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
 initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
 initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
 initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
@@ -317,6 +319,78 @@ window._mybSession.then(ok => {
 });
 
 // ============================================
+// WEEKLY RETAIL CIRCULAR UPLOAD
+// ============================================
+function initCircularUpload() {
+    const dateInput = document.getElementById('circularDate');
+    const fileInput = document.getElementById('circularFileInput');
+    const fileLabel = document.getElementById('circularFileName');
+    const uploadBtn = document.getElementById('circularUploadBtn');
+    const feedback  = document.getElementById('circularFeedback');
+    if (!dateInput || !fileInput || !uploadBtn) return;
+
+    dateInput.value = formatISO(new Date());
+
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        feedback.textContent = '';
+        feedback.className = 'huddle-feedback';
+        if (!file) {
+            fileLabel.classList.remove('visible');
+            uploadBtn.disabled = true;
+            return;
+        }
+        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+        if (!isPdf) {
+            fileLabel.classList.remove('visible');
+            uploadBtn.disabled = true;
+            feedback.textContent = 'Please choose a PDF file';
+            feedback.className = 'huddle-feedback huddle-feedback--err';
+            fileInput.value = '';
+            return;
+        }
+        if (file.size > 20 * 1024 * 1024) {
+            fileLabel.classList.remove('visible');
+            uploadBtn.disabled = true;
+            feedback.textContent = 'File too large — maximum 20 MB';
+            feedback.className = 'huddle-feedback huddle-feedback--err';
+            fileInput.value = '';
+            return;
+        }
+        fileLabel.textContent = file.name;
+        fileLabel.classList.add('visible');
+        uploadBtn.disabled = false;
+    });
+
+    uploadBtn.addEventListener('click', async () => {
+        const date = dateInput.value;
+        const file = fileInput.files[0];
+        if (!date || !file) return;
+        uploadBtn.disabled = true;
+        uploadBtn.textContent = 'Uploading…';
+        feedback.textContent = '';
+        feedback.className = 'huddle-feedback';
+        try {
+            await window._mybSession;
+            await uploadCircular(date, file, currentUser);
+            feedback.textContent = `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`;
+            feedback.className = 'huddle-feedback huddle-feedback--ok';
+            fileInput.value = '';
+            fileLabel.textContent = '';
+            fileLabel.classList.remove('visible');
+            uploadBtn.disabled = true;
+        } catch (err) {
+            console.error('[Circular] Upload failed:', err);
+            feedback.textContent = 'Upload failed — please try again';
+            feedback.className = 'huddle-feedback huddle-feedback--err';
+            uploadBtn.disabled = false;
+        } finally {
+            uploadBtn.textContent = 'Upload Circular';
+        }
+    });
+}
+
+// ============================================
 // ICON LIGHTBOX — About panel (shared about-lightbox.js)
 // ============================================
 (function () {
@@ -349,6 +423,15 @@ window._mybSession.then(ok => {
                 { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
                 { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
                 { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
+            ]}],
+        },
+        'weekly-circular': {
+            title: 'Weekly Retail Circular',
+            sections: [{ items: [
+                { icon: '📰', html: 'Upload the weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
+                { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
+                { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
+                { icon: '🤖', html: 'In a future update this will upload automatically, like the Huddle' },
             ]}],
         },
         'weekly-roster': {
