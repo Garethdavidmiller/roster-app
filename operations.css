@@ -297,7 +297,7 @@ select:focus-visible, input:focus-visible {
     border-color: var(--primary-blue);
     outline: 2px solid var(--primary-blue);
     outline-offset: 2px;
-    box-shadow: 0 0 0 4px rgba(0, 30, 60, 0.18);
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
     /* Brighten to white when active — the field 'fills in' on focus */
     background-color: white;
 }

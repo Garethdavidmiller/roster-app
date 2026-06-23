@@ -249,6 +249,8 @@
     --shadow-1: 0 1px 4px rgba(0,0,0,0.10);
     --shadow-2: 0 2px 12px rgba(0,30,60,0.12);
     --shadow-3: 0 8px 32px rgba(0,0,0,0.18);
+    /* Focus ring glow — used in every page's field :focus-visible box-shadow */
+    --focus-ring-color: color-mix(in oklch, var(--primary-blue) 18%, transparent);
 
     /* ── Motion (v11.56) ──────────────────────────────────────────
        One vocabulary for the whole app instead of cubic-beziers
@@ -1499,6 +1501,9 @@ button.nav-panel-link--notices {
        mixing in white lands it comfortably above AA while still reading red. */
     color: color-mix(in oklch, var(--error-red) 65%, white);
     padding: 4px 0;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
     flex-shrink: 0;
     touch-action: manipulation;
     font-family: inherit;
