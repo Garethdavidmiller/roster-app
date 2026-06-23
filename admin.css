@@ -1775,3 +1775,34 @@
         @media (hover: hover) and (pointer: fine) {
             #workEmailNoticeClose:hover { color: white; }
         }
+
+/* ---- One-time email check lightbox ---- */
+.email-check-icon  { font-size: 40px; text-align: center; margin-bottom: 8px; }
+.email-check-title {
+    font-size: var(--type-large); font-weight: 700; text-align: center;
+    color: var(--text-strong); margin-bottom: 8px;
+}
+.email-check-body {
+    font-size: var(--type-body); color: var(--text-mid);
+    text-align: center; margin: 0 0 16px;
+}
+.email-check-current {
+    font-size: var(--type-medium); font-weight: 600; text-align: center;
+    color: var(--primary-blue); background: var(--surface-sunken);
+    border-radius: 8px; padding: 10px 14px; margin: 0 0 16px;
+    word-break: break-all;
+}
+.email-check-btn-full { width: 100%; justify-content: center; }
+.email-check-change {
+    display: block; width: 100%; margin-top: 10px; padding: 8px;
+    background: none; border: none; font-size: var(--type-body);
+    color: var(--text-mid); text-decoration: underline;
+    cursor: pointer; touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+    .email-check-change:hover { color: var(--primary-blue); }
+}
+.email-check-error {
+    font-size: var(--type-small); color: var(--error-red);
+    min-height: 18px; margin-bottom: 8px;
+}

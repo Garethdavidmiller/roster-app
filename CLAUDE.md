@@ -304,6 +304,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `calendar-app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |
+| One-time work email check (v13.65) | `initEmailCheck(member)` in `admin-app.js` runs on every admin page load for an authenticated user. Guards on `lsGet('myb_email_check_done_{member}')` — if set, returns immediately. Fetches `getStaffContact(member)`; on error returns silently (never blocks the app). Shows `#emailCheckOverlay`: confirm view (email already stored — "Yes" or "Use a different email") or add view (no email — email input + save). **No ✕ close button** — the check is mandatory. `lsSet` marks it done per-member on this device after the user confirms or saves. The same email is also editable any time via Settings. |
 
 ---
 
