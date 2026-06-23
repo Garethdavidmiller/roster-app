@@ -132,7 +132,7 @@
     --al-lb-ok:      oklch(71.2% 0.0977 186.7deg);
     --al-lb-low:     oklch(82.9% 0.1452 73.5deg);
     --al-lb-empty:   oklch(77.2% 0.1024 19.7deg);
-    --al-low:        oklch(69.5% 0.1655 58.4deg);
+    --al-low:        oklch(48.0% 0.1655 58.4deg); /* darkened v13.50: 69.5% L → 48% L for WCAG AA 4.5:1 on white */
     --al-warning:    oklch(54.3% 0.1740 29.7deg);
     --al-warning-bg: color-mix(in oklch, var(--al-warning) 11%, white);
 
@@ -171,7 +171,7 @@
     --header-grad-to:   oklch(20.0% 0.0603 252.3deg);
 
     /* Admin override list */
-    --correction-text: oklch(63.1% 0.1970 40.3deg);
+    --correction-text: oklch(45.0% 0.1970 40.3deg); /* darkened v13.50: 63.1% L → 45% L for WCAG AA 4.5:1 on orange-light */
 
     /* ── Admin row / nav state backgrounds ──────────────────────── */
     --row-selected-bg:        oklch(95.1% 0.0138 248.0deg);
@@ -443,7 +443,7 @@ body.lb-open #stickyTotal { display: none !important; }
 }
 
 .lightbox-version {
-    color: rgba(255,255,255,0.45);
+    color: rgba(255,255,255,0.65); /* raised from 0.45 — was ~4.45:1, now clears WCAG AA */
     font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.3px;
@@ -472,12 +472,12 @@ body.lb-open #stickyTotal { display: none !important; }
     width: 100%;
     text-align: center;
     font-size: 12px;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.70); /* raised from 0.35 (3.2:1) — interactive link needs 4.5:1 */
     text-decoration: none;
     transition: color 0.15s;
 }
 @media (hover: hover) and (pointer: fine) {
-    .lightbox-bug-link:hover { color: rgba(255,255,255,0.7); }
+    .lightbox-bug-link:hover { color: white; }
 }
 
 /* Privacy note — shown in lightboxes that handle personal data (Pay Calculator etc.)
@@ -519,7 +519,7 @@ body.lb-open #stickyTotal { display: none !important; }
 /* "Posted D Mon YYYY" line — sits between the title and the body */
 .notice-date {
     font-size: var(--type-small);
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.65); /* raised from 0.40 (3.77:1) to clear WCAG AA */
     letter-spacing: 0.2px;
     text-align: center;
 }
@@ -616,7 +616,7 @@ body.lb-open #stickyTotal { display: none !important; }
 .lightbox-tips-title {
     font-size: 11px;
     font-weight: 700;
-    color: rgba(255,255,255,0.35);
+    color: rgba(255,255,255,0.65); /* raised from 0.35 (3.2:1) to clear WCAG AA */
     text-transform: uppercase;
     letter-spacing: 0.8px;
     margin-bottom: 8px;
@@ -1338,7 +1338,7 @@ button.nav-panel-link--notices {
 }
 .notices-item-date {
     font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(255, 255, 255, 0.65); /* raised from 0.35 (2.79:1) to clear WCAG AA */
     white-space: nowrap;
 }
 .notices-item-title {

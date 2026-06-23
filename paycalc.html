@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v13.49 -->
+<!-- MYB Roster — Pay Calculator v13.52 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -80,7 +80,7 @@
           <input type="text" id="hourlyRate" value="20.74" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">Check your latest payslip. The app stores a separate rate per tax year — updating here won't affect other years.</div>
-        <div class="val-warn" id="rateWarn"></div>
+        <div class="val-warn" id="rateWarn" role="alert" aria-live="polite"></div>
         <div class="joiner-notice hidden" id="rateUnconfirmedNotice">⚠ 2026/27 pay award not yet confirmed — the default rate shown may be out of date. Update it here once your payslip reflects the new rate (awards are often announced mid-year and backdated to April).</div>
       </div>
 
@@ -97,7 +97,7 @@
           <input type="text" id="pensionAmt" value="147.36" inputmode="decimal" autocomplete="off" enterkeyhint="done">
         </div>
         <div class="field-hint">Your payslip calls this "Smart RPS CR Scheme" — it's the same thing. <strong>Saved per period</strong> — update here when your pension changes and past periods will keep their own amount automatically.</div>
-        <div id="pensionWarn" class="val-warn">⚠ Pension exceeds gross pay — check the amount</div>
+        <div id="pensionWarn" class="val-warn" role="alert" aria-live="polite">⚠ Pension exceeds gross pay — check the amount</div>
       </div>
 
       <div class="field">
@@ -128,7 +128,7 @@
     <div class="period-nav">
       <button class="nav-pill" id="prevBtn">← Earlier</button>
       <button class="nav-pill" id="nextBtn">Later →</button>
-      <button class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current period">📍</button>
+      <button class="nav-pill-today hidden" id="todayPeriodBtn" title="Jump to current period" aria-label="Jump to current pay period">📍</button>
     </div>
     <div class="period-meta">
       <div class="pm-range" id="pmRange">–</div>
@@ -165,7 +165,7 @@
     <div id="resultRateNotice" class="payslip-note" style="display:none">
       ⚠️ <strong>2026/27 pay rates not yet confirmed by Chiltern.</strong> This estimate uses a placeholder rate — update your hourly rate in ⚙️ Settings once your payslip confirms the new figure.
     </div>
-    <button class="bd-btn" id="bdBtn">
+    <button class="bd-btn" id="bdBtn" aria-expanded="false" aria-controls="bdBody">
       Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>
     </button>
     <div class="bd-body" id="bdBody"></div>
@@ -379,7 +379,7 @@
       </div>
 
       <!-- ── SHOW MORE TOGGLE ── -->
-      <button class="show-more-btn" id="hoursShowMore">
+      <button class="show-more-btn" id="hoursShowMore" aria-expanded="false" aria-controls="hoursExtra">
         <span id="hoursShowMoreLabel">Unusual deductions or corrections</span><span class="show-more-arrow">▼</span>
       </button>
 
@@ -493,7 +493,7 @@
         <div class="hpp-amount" id="hppAmount">£–</div>
         <div class="hpp-basis" id="hppBasis">Enter hours across your periods above to calculate</div>
       </div>
-      <button class="hpp-toggle-btn" id="hppToggleBtn"><span id="hppToggleBtnLabel">How is this calculated? </span><span class="hpp-toggle-arrow">▼</span></button>
+      <button class="hpp-toggle-btn" id="hppToggleBtn" aria-expanded="false" aria-controls="hppNoteBody"><span id="hppToggleBtnLabel">How is this calculated? </span><span class="hpp-toggle-arrow">▼</span></button>
       <div class="hpp-note-body" id="hppNoteBody">
         <div class="card-note" id="hppNote"></div>
       </div>
@@ -575,7 +575,7 @@
         <div class="field-hint" id="applyRateFeedback" style="margin-top:6px;color:var(--success-text)"></div>
       </div>
       <!-- Per-period breakdown — collapsible, secondary to the total -->
-      <button class="bd-btn" id="bpBreakdownBtn" style="display:none">
+      <button class="bd-btn" id="bpBreakdownBtn" style="display:none" aria-expanded="false" aria-controls="backPayRows">
         Per-period breakdown &nbsp;<span class="bd-arrow">▼</span>
       </button>
       <div class="bd-body" id="backPayRows"></div>
@@ -611,7 +611,7 @@
 
   <!-- DISCLAIMER -->
   <div class="disclaimer">
-    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app uses a cumulative PAYE-style estimate — usually closer to payroll, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle">More ▼</button>
+    ⚠️ Estimate only — not financial or tax advice.<span class="disclaimer-extra" id="disclaimerExtra"> Tax is estimated by dividing your annual allowance equally across all 13 pay periods. If you enter Year to Date totals from your payslip, the app uses a cumulative PAYE-style estimate — usually closer to payroll, especially later in the year. Actual figures may still vary slightly due to employer rounding or payroll corrections. London Allowance is included automatically.</span> <button class="disclaimer-toggle" id="disclaimerToggle" aria-expanded="false" aria-controls="disclaimerExtra">More ▼</button>
   </div>
 
 

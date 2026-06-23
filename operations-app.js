@@ -189,6 +189,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                     setBtn.className = 'email-set-btn';
                     setBtn.textContent = 'Set email';
                     setBtn.setAttribute('aria-label', `Set work email for ${m.name}`);
+                    setBtn.dataset.member = m.name;
 
                     rowEl.appendChild(nameSpan);
                     rowEl.appendChild(setBtn);
@@ -260,6 +261,9 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                                 emailMap.set(m.name, email);
                                 savedNames.add(m.name);
                                 renderForGrade(filterSelect.value);
+                                // The saved member moved to "Added" chips — no set-email button
+                                // remains. Return focus to the grade filter so the user can continue.
+                                filterSelect.focus();
                             } catch (e) {
                                 console.error('[WorkEmailStatus] save failed', e);
                                 errorEl.textContent = 'Couldn\'t save — check your connection and try again';
@@ -364,6 +368,37 @@ window._mybSession.then(ok => {
                 { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
                 { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
             ]}],
+        },
+        'work-email-progress': {
+            title: 'Work Email Progress',
+            sections: [
+                { heading: 'What it\'s for', items: [
+                    { icon: '🔑', html: 'Staff save their work email to enable <strong>password recovery</strong> in a future update — nothing uses it right now. It\'s Stage 1 of the password security project.' },
+                    { icon: '🔒', html: 'Each person can only see their <strong>own email</strong>. As admin you can see all of them.' },
+                ]},
+                { heading: 'How it works', items: [
+                    { icon: '⚙️', html: 'Staff add their own email in ☰ → <strong>Settings → Work Email</strong> — the best way to get everyone to register' },
+                    { icon: '📝', html: 'You can enter an email on behalf of a staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
+                    { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher</strong> filter to track each grade.' },
+                ]},
+            ],
+        },
+        'error-log': {
+            title: 'Error Log',
+            sections: [
+                { heading: 'What it captures', items: [
+                    { icon: '🐛', html: 'Uncaught JS errors from <strong>any authenticated page</strong> (admin, pay calculator, operations, settings) — across all users\' sessions, not just yours' },
+                    { icon: '⎘', html: 'Tap <strong>⎘ Copy</strong> on any error to copy all details (message, page, app version, browser) formatted for diagnosis' },
+                ]},
+                { heading: 'Resolving errors', items: [
+                    { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed and hides it from the active list — it is <strong>not deleted immediately</strong>, just archived for 90 days then pruned automatically' },
+                    { icon: '🔄', html: 'You don\'t need to manually clean up the log — resolved errors expire on their own' },
+                ]},
+                { heading: 'What to act on', items: [
+                    { icon: '⚠️', html: '<strong>Worth investigating:</strong> the same error from multiple people, or new errors appearing after a deployment' },
+                    { icon: '🔕', html: '<strong>Usually safe to resolve:</strong> isolated one-off errors, cross-origin/extension errors (no page or version shown), brief network failures' },
+                ]},
+            ],
         },
     };
 
