@@ -459,6 +459,30 @@ Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
 Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so a backlog of resolved records can never hide an older unresolved one, and prunes resolved records 90 days past `resolvedAt`.
 
+**circulars** (v13.58)
+```
+date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
+storageUrl   Permanent tokenised download URL
+fileType     "pdf" (always)
+uploadedAt   Firestore server timestamp
+uploadedBy   Member name string
+```
+Read: any authenticated session. Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
+Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
+Read by: `getLatestCircular()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Weekly Retail Circular.
+
+**newsletters** (v13.59)
+```
+date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
+storageUrl   Permanent tokenised download URL
+fileType     "pdf" (always)
+uploadedAt   Firestore server timestamp
+uploadedBy   Member name string
+```
+Read: any authenticated session. Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
+Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
+Read by: `getLatestNewsletter()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Marylebone Newsletter.
+
 Override cache key: `"memberName|YYYY-MM-DD"`
 
 ### Authentication

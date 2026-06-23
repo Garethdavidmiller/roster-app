@@ -185,6 +185,72 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     return storageUrl;
 }
 
+// ---- Weekly Retail Circular ----
+
+/**
+ * Upload a Weekly Retail Circular PDF for a given date.
+ * Stores at circulars/YYYY-MM-DD.pdf in Firebase Storage and writes a metadata
+ * document to the `circulars` Firestore collection. Uploading for the same date
+ * overwrites the previous file (latest wins).
+ *
+ * @param {string} date       - ISO date string, e.g. "2026-06-27"
+ * @param {File}   file       - PDF file chosen by the admin
+ * @param {string} uploadedBy - memberName of the uploading admin
+ * @returns {Promise<string>} Download URL of the stored file
+ */
+export async function uploadCircular(date, file, uploadedBy) {
+    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
+    const storageRef = ref(storage, `circulars/${date}.pdf`);
+    await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+    const storageUrl = await getDownloadURL(storageRef);
+    await setDoc(doc(db, 'circulars', date), {
+        date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
+    });
+    return storageUrl;
+}
+
+/**
+ * Fetch the most recent Retail Circular document from Firestore (one-shot read).
+ * @returns {Promise<object|null>} Latest circular data object or null if none uploaded
+ */
+export async function getLatestCircular() {
+    const q = query(collection(db, 'circulars'), orderBy('date', 'desc'), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const data = snap.docs[0].data();
+    return data.storageUrl ? data : null;
+}
+
+/**
+ * Upload a Newsletter PDF to Firebase Storage and record it in Firestore.
+ * @param {string} date       - ISO date string, e.g. "2026-06-27"
+ * @param {File}   file       - PDF file chosen by the admin
+ * @param {string} uploadedBy - memberName of the uploading admin
+ * @returns {Promise<string>} Download URL of the stored file
+ */
+export async function uploadNewsletter(date, file, uploadedBy) {
+    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
+    const storageRef = ref(storage, `newsletters/${date}.pdf`);
+    await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+    const storageUrl = await getDownloadURL(storageRef);
+    await setDoc(doc(db, 'newsletters', date), {
+        date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
+    });
+    return storageUrl;
+}
+
+/**
+ * Fetch the most recent Newsletter document from Firestore (one-shot read).
+ * @returns {Promise<object|null>} Latest newsletter data object or null if none uploaded
+ */
+export async function getLatestNewsletter() {
+    const q = query(collection(db, 'newsletters'), orderBy('date', 'desc'), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const data = snap.docs[0].data();
+    return data.storageUrl ? data : null;
+}
+
 /**
  * Subscribe to real-time updates for the latest Huddle document.
  * Fires immediately with cached data (IndexedDB) on repeat visits, then again

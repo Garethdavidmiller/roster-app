@@ -248,6 +248,10 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
 - `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
 - `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`. Ordering/retention policy delegated to `client-errors.js` (v13.48).
+- `uploadCircular(date, file, uploadedBy)` — writes PDF to `circulars/{date}.pdf` in Firebase Storage and upserts the `circulars/{date}` Firestore doc; called from `operations-app.js` (v13.58)
+- `getLatestCircular()` — queries `circulars` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (v13.58)
+- `uploadNewsletter(date, file, uploadedBy)` — writes PDF to `newsletters/{date}.pdf` in Firebase Storage and upserts the `newsletters/{date}` Firestore doc; called from `operations-app.js` (v13.59)
+- `getLatestNewsletter()` — queries `newsletters` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (v13.59)
 
 ### `client-errors.js`
 Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.
