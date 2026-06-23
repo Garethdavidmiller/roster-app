@@ -379,6 +379,7 @@ window._mybSession.then(ok => {
                 { heading: 'How it works', items: [
                     { icon: '⚙️', html: 'Staff add their own email in ☰ → <strong>Settings → Work Email</strong> — the best way to get everyone to register' },
                     { icon: '📝', html: 'You can enter an email on behalf of a staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
+                    { icon: '🔑', html: '<strong>Management accounts</strong> have no Settings page — use the <strong>Set email</strong> button to register their email for them' },
                     { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
                 ]},
             ],
