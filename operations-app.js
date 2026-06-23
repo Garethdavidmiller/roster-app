@@ -83,10 +83,10 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
 // WORK EMAIL PROGRESS
 // ============================================
 (async function initWorkEmailStatus() {
-    // Active front-line staff only — excludes leavers (hidden: true).
-    // Management (hidden+managerOnly) are excluded because the password
-    // project targets the staff who use the Settings page to add emails.
-    const eligible = teamMembers.filter(m => !m.hidden);
+    // All active accounts — excludes leavers (hidden:true without managerOnly).
+    // Management accounts (hidden:true + managerOnly:true) are included: the admin
+    // sets their emails here since they have no Settings page of their own.
+    const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
     const content  = document.getElementById('emailStatusContent');
     if (!content) return;
 
@@ -108,7 +108,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
         filterSelect.id = 'emailGradeFilter';
         filterSelect.className = 'email-filter-select';
         filterSelect.setAttribute('aria-label', 'Filter by grade');
-        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher']].forEach(([val, lbl]) => {
+        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher'], ['Management', 'Management']].forEach(([val, lbl]) => {
             const opt = document.createElement('option');
             opt.value = val;
             opt.textContent = lbl;
@@ -379,7 +379,7 @@ window._mybSession.then(ok => {
                 { heading: 'How it works', items: [
                     { icon: '⚙️', html: 'Staff add their own email in ☰ → <strong>Settings → Work Email</strong> — the best way to get everyone to register' },
                     { icon: '📝', html: 'You can enter an email on behalf of a staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
-                    { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher</strong> filter to track each grade.' },
+                    { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
                 ]},
             ],
         },
