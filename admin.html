@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v13.65 -->
+<!-- MYB Roster — Admin v13.66 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -64,34 +64,32 @@
     </div>
 </div>
 
-<!-- One-time email check lightbox — shown once per device after login -->
-<div id="emailCheckOverlay" class="lb-overlay" role="dialog"
-     aria-label="Work email" aria-modal="true">
-    <div id="emailCheckContent" class="lb-content">
+<!-- One-time email check — shown once per device, triggered by a fresh login -->
+<div id="emailCheckOverlay" role="dialog" aria-label="Work email" aria-modal="true">
+    <div id="emailCheckContent">
+        <img src="icon-192.png" alt="" aria-hidden="true">
 
         <!-- Confirm view — shown when an email is already stored -->
         <div id="emailCheckConfirmView" hidden>
-            <div class="email-check-icon" aria-hidden="true">📧</div>
-            <div class="email-check-title">Your work email</div>
-            <p class="email-check-body">Is this still your work email for password recovery?</p>
+            <div class="login-app-name">Your work email</div>
+            <div class="login-subtitle">Is this still your address for password recovery?</div>
             <p id="emailCheckStoredEmail" class="email-check-current"></p>
-            <button id="emailCheckYesBtn" class="btn-action email-check-btn-full">Yes, that's correct →</button>
+            <button id="emailCheckYesBtn">Yes, that's correct →</button>
             <button id="emailCheckChangeBtn" type="button" class="email-check-change">Use a different email</button>
         </div>
 
         <!-- Add / edit view — shown when no email stored, or after "Use a different email" -->
         <div id="emailCheckEditView" hidden>
-            <div class="email-check-icon" aria-hidden="true">📧</div>
-            <div class="email-check-title">Add your work email</div>
-            <p class="email-check-body">Used for password recovery — not shared with anyone else.</p>
-            <div class="field-group">
+            <div class="login-app-name">Add your work email</div>
+            <div class="login-subtitle">Used for password recovery — not shared with anyone else.</div>
+            <div class="login-field">
                 <label for="emailCheckInput">Work email address</label>
                 <input type="email" id="emailCheckInput"
                        placeholder="name@chilternrailways.co.uk"
                        autocomplete="email" inputmode="email">
             </div>
             <div id="emailCheckError" class="email-check-error" aria-live="polite"></div>
-            <button id="emailCheckSaveBtn" class="btn-action email-check-btn-full">Save email →</button>
+            <button id="emailCheckSaveBtn">Save email →</button>
         </div>
 
     </div>

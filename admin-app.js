@@ -161,6 +161,8 @@ function initLoginOverlay() {
         if (redirect && REDIRECT_MAP[redirect]) {
             window.location.replace(REDIRECT_MAP[redirect]);
         } else {
+            // Signal that this reload follows a fresh login — initEmailCheck reads this flag.
+            sessionStorage.setItem('myb_email_check', '1');
             window.location.reload();
         }
         // _attempting stays true — page is reloading; no need to reset.
@@ -1438,6 +1440,11 @@ async function purgeSundayAL() {
  * Firestore errors skip the check silently so the app is never blocked.
  */
 async function initEmailCheck(member) {
+    // Only show on the page load that immediately follows a fresh login.
+    if (!sessionStorage.getItem('myb_email_check')) return;
+    sessionStorage.removeItem('myb_email_check');
+
+    // Already completed on this device for this member — skip.
     if (lsGet(`myb_email_check_done_${member}`)) return;
 
     let existing = null;
@@ -1456,11 +1463,8 @@ async function initEmailCheck(member) {
 
     function _dismiss() {
         lsSet(`myb_email_check_done_${member}`, '1');
-        overlay.classList.remove('open');
-        const done = () => { overlay.classList.remove('visible'); unlockBodyScroll(); };
-        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { done(); return; }
-        const t = setTimeout(done, 500);
-        overlay.addEventListener('transitionend', () => { clearTimeout(t); done(); }, { once: true });
+        overlay.classList.remove('visible');
+        unlockBodyScroll();
     }
 
     if (existing?.workEmail) {
@@ -1472,7 +1476,6 @@ async function initEmailCheck(member) {
 
     lockBodyScroll();
     overlay.classList.add('visible');
-    requestAnimationFrame(() => overlay.classList.add('open'));
     setTimeout(() => (existing?.workEmail ? yesBtn : input).focus(), 60);
 
     overlay.addEventListener('keydown', e => {
