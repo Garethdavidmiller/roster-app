@@ -1,8 +1,8 @@
 /* ──────────────────────────────────────────────────────────────────────────
    Shared shell for the four guide pages — the single source of truth for their
    common chrome. Linked by guide.html, paycalc-guide.html, railcard-guide.html
-   and fip.html. Edit the shell HERE once instead of in four inline <style>
-   blocks.
+   and fip.html. Edit the shell HERE once instead of duplicating across four
+   CSS files.
 
    This is NOT the app's shared.css (nav panel, lightbox, login). The guides
    stay independent of the app shell; they share only this small chrome file.
@@ -11,8 +11,8 @@
    the brand. Page-specific tokens (status colours, secondary navy tints) stay
    in each page's own :root and override freely — this file is linked first.
 
-   Linked BEFORE each page's inline <style>, so any page-specific override in
-   that inline block still wins on equal specificity.
+   Linked BEFORE each page's external CSS file, so any page-specific override
+   in that file still wins on equal specificity.
    ────────────────────────────────────────────────────────────────────────── */
 
 /* ── Shared brand palette ─────────────────────────────────────────────────

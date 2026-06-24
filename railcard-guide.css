@@ -311,6 +311,15 @@ body {
 a { color: var(--navy); text-underline-offset: 2px; }
 a:hover { color: var(--amber); }
 
+.guide-back-link {
+    display: block;
+    text-align: center;
+    font-size: 13px;
+    color: var(--navy);
+    text-decoration: none;
+    padding: 14px 0 4px;
+}
+
 /* ── Print (shell handles .page-header + button hiding) ───────── */
 @media print {
     * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }

@@ -22,7 +22,7 @@
     <a href="./paycalc.html" class="btn-back" aria-label="Back to Pay Calculator">←</a>
     <div>
         <h1><span aria-hidden="true">💷</span> Pay Calculator Guide</h1>
-        <div class="sub">Chiltern Railways · MYB Station · v13.x</div>
+        <div class="sub">Chiltern Railways · MYB Station · v13.70</div>
     </div>
     <button id="savePdfBtn" class="btn-print btn-pdf" type="button" aria-label="Save or print this guide">⤓ PDF</button>
 </header>
@@ -40,7 +40,7 @@
                 <div class="sub">Chiltern Railways · MYB Station · CEA and CES pay estimate tool</div>
             </div>
         </div>
-        <span class="version-pill">v13.x</span>
+        <span class="version-pill">v13.70</span>
     </div>
 
     <div class="cols">
@@ -67,14 +67,15 @@
             <div class="info"><strong>Pay cut-off:</strong> The ✂️ icon on the roster calendar marks the Saturday before payday — changes entered after that date count towards the <em>next</em> period.</div>
 
             <h2>Entering your hours</h2>
-            <p>Your standard contracted hours (Mon–Fri shifts) are included automatically — you only need to enter hours that attract a <strong>different pay rate</strong>:</p>
+            <p>Your full 140 contracted hours are included in basic pay — you only need to enter hours within that total that attract a <strong>higher rate</strong>, plus any additional hours worked:</p>
             <ul class="guide-disc-list">
                 <li><strong>Rostered Saturdays</strong> — 1.25× rate (use the Saturday field)</li>
                 <li><strong>Saturday worked on your rest day</strong> — 1.25× rate (use the RDW field, not Saturday)</li>
-                <li><strong>Overtime and other rest day working</strong> — 1.25× rate (RDW field)</li>
+                <li><strong>Rest day working (not Saturday)</strong> — 1.25× rate (RDW field)</li>
+                <li><strong>Overtime</strong> — 1.25× rate (Overtime field — separate from RDW)</li>
                 <li><strong>Sundays</strong> — 1.5× rate</li>
                 <li><strong>Bank holidays (rostered)</strong> — 1.25× rate (row appears automatically)</li>
-                <li><strong>Bank holiday overtime (RDW on a BH)</strong> — 1.25× rate (row appears automatically on BH periods)</li>
+                <li><strong>Bank holiday overtime (extra hours on a BH)</strong> — 1.25× rate</li>
                 <li><strong>Boxing Day (26 Dec)</strong> — 3× rate (row appears automatically)</li>
             </ul>
             <div class="info"><strong>Fill from calendar</strong> — If your name appears in the roster, a hint card shows how many Saturdays, Sundays, bank holidays, and RDW shifts fall in this period. Tap <strong>Fill from calendar</strong> to pre-fill all suggested categories in one tap. Once you've already typed values in those fields, the button changes to <strong>Replace with calendar values</strong> as a reminder that it will overwrite them. To fill just one category without touching others, tap the <strong>→</strong> arrow on that row instead. Filled fields turn gold; the highlight clears as soon as you edit them. When online, any shift changes recorded in the app are applied automatically — the count reflects your actual roster, not just the base.</div>
@@ -85,11 +86,12 @@
                 <tbody>
                     <tr><td><strong>Basic pay</strong></td><td>Your contracted hours at your base hourly rate</td></tr>
                     <tr><td><strong>London Allowance</strong></td><td>Fixed allowance paid each period — shown as a named line on your payslip</td></tr>
-                    <tr><td><strong>Overtime / extras</strong></td><td>Saturday hours, Boxing Day, bank holiday premium</td></tr>
-                    <tr><td><strong>Gross pay</strong></td><td>Total before any deductions. In the January payslip this includes the HPP lump sum (see below)</td></tr>
+                    <tr><td><strong>Overtime / extras</strong></td><td>Saturday, RDW, overtime, Sunday, bank holiday, BH overtime, Boxing Day, and peer training hours — each at their respective rate</td></tr>
+                    <tr><td><strong>Gross pay</strong></td><td>Total before any deductions. In the January payslip of the following year this includes the HPP lump sum (see below)</td></tr>
                     <tr><td><strong>Tax</strong></td><td>Estimated PAYE using your tax code and YTD figures</td></tr>
                     <tr><td><strong>NI</strong></td><td>Employee National Insurance contribution</td></tr>
-                    <tr><td><strong>Pension</strong></td><td>Your "Smart RPS CR Scheme" contribution — deducted <em>before</em> tax and NI are calculated (salary sacrifice means it reduces your taxable pay, not just your take-home)</td></tr>
+                    <tr><td><strong>Student loan</strong></td><td>Repayment deduction if you've selected a plan in Settings — calculated on your post-pension gross</td></tr>
+                    <tr><td><strong>Pension</strong></td><td>Your "Smart RPS CR Scheme" contribution — deducted <em>before</em> tax, NI, and student loan are calculated (salary sacrifice reduces your taxable pay)</td></tr>
                     <tr><td><strong>Net pay</strong></td><td>Estimated take-home amount</td></tr>
                 </tbody>
             </table>
@@ -117,7 +119,7 @@
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">⭐💼</span>
-                    <div><span class="pay-name">BH overtime</span><span class="pay-desc">Working extra hours on a bank holiday (RDW on a BH) — also 1.25× rate. Row appears automatically on periods containing a bank holiday</span></div>
+                    <div><span class="pay-name">BH overtime</span><span class="pay-desc">Extra hours on a bank holiday (RDW on a BH) — 1.25× rate</span></div>
                 </div>
                 <div class="pay-item">
                     <span class="pay-emoji">🎁</span>
@@ -130,9 +132,8 @@
             </div>
 
             <h2>Holiday Pay Premium (HPP)</h2>
-            <p>HPP is a portion of your irregular pay (RDW, overtime, Sunday, BH premiums) set aside so that your holiday pay reflects what you actually earn — not just your basic rate.</p>
-            <p>It <strong>accumulates throughout the year</strong> and is paid as a <strong>lump sum in January</strong>. The calculator tracks your running HPP total and shows what you have accrued so far.</p>
-            <div class="info"><strong>When does it appear in the net figure?</strong> For every period except January, HPP is shown in the HPP card only — it doesn't affect your estimated take-home because you haven't received it yet. In the <strong>January payslip period</strong>, the calculator automatically includes the HPP estimate (or your confirmed amount if you've entered it) in the gross and net figures, so the January estimate reflects what you'll actually receive.</div>
+            <p>HPP is calculated on your variable pay above basic hours — RDW, overtime, Sundays, bank holiday premiums, and London Allowance. It accumulates at 7.69% (4/52) throughout the tax year and is paid as a <strong>lump sum in January of the following year</strong> (e.g. January 2027 for the 2025/26 tax year). The calculator tracks your running HPP total and shows what you have accrued so far.</p>
+            <div class="info"><strong>When does it appear in the net figure?</strong> For every period except the January payout, HPP is shown in the HPP card only — it doesn't affect your estimated take-home because you haven't received it yet. In the <strong>January payslip of the year after the tax year ends</strong>, the calculator automatically includes the HPP estimate (or your confirmed amount if you've entered it) in the gross and net figures, so the January estimate reflects what you'll actually receive.</div>
 
             <h2>Improving accuracy — Year to Date figures</h2>
             <p>Tax is calculated incrementally across the year. To get a sharper estimate, open the <strong>Improve Accuracy</strong> section and enter two figures from the <strong>Year to Date</strong> box on your latest payslip. <em>Year to Date</em> (YTD) means the running total since April — you'll find this box on every payslip, usually in the bottom-right corner.</p>
@@ -153,7 +154,7 @@
     </div>
 
     <div class="guide-footer">
-        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v13.x · This guide is an estimate tool — your payslip is the authoritative figure
+        Marylebone Roster · Chiltern Railways · Pay Calculator Guide · v13.70 · This guide is an estimate tool — your payslip is the authoritative figure
     </div>
 </div>
 

@@ -375,3 +375,4 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     margin-top: 20px;
     line-height: 1.6;
 }
+.foot-disclaimer-link { color: inherit; }
