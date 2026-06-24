@@ -1,0 +1,219 @@
+// @ts-check
+/**
+ * paycalc-settings.js — Grade/contracted-hours helpers and Settings save/load.
+ *
+ * Owns: grade cache, getContr/getLoggedMember/getEffectiveContr/getProRateFactor/
+ *   getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey,
+ *   saveSettings, confirmSettings, setSettingsCardOpen, loadSettings.
+ * Does NOT own: period arithmetic (paycalc-periods.js), pay maths (paycalc-calc.js),
+ *   roster hints (paycalc-app.js).
+ * Edit here for: grade helpers, settings persistence, rate/YTD field updates.
+ * Do not edit here for: pay maths, period date maths, roster pre-fill.
+ */
+
+import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod } from './paycalc-calc.js';
+import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
+import { SK, periodKey, ytdPayKey, ytdTaxKey } from './paycalc-migrations.js';
+import { getSession } from './session.js';
+import { teamMembers } from './roster-data.js';
+import { lsGet, lsSet } from './ls.js';
+
+// ── GRADE CACHE ───────────────────────────────────────────────────────────────
+// lsGet is called in calculate() / calcHPP() on every keystroke; the grade only
+// changes when the user picks a different one in Settings.
+let _gradeCache = null;
+/** Return the stored grade key (e.g. 'cea'). */
+export function getGrade() {
+  if (_gradeCache !== null) return _gradeCache;
+  _gradeCache = lsGet(SK.grade) || '';
+  return _gradeCache;
+}
+function invalidateGrade() { _gradeCache = null; }
+
+/** Return contracted hours for the currently selected grade. */
+export function getContr() {
+  const g = getGrade();
+  return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
+}
+
+/** Return the teamMembers entry for the logged-in session user, or null. */
+export function getLoggedMember() {
+  const sess = getSession();
+  if (!sess?.name) return null;
+  return teamMembers.find(m => m.name === sess.name) || null;
+}
+
+/**
+ * Return effective contracted hours for the given period, pro-rated if the
+ * logged-in member started mid-period.
+ * @param {object} p - Period object with .start and .cutoff Date properties.
+ * @returns {number} Contracted hours (full or pro-rated).
+ */
+export function getEffectiveContr(p) {
+  const base   = getContr();
+  if (!p) return base;
+  if (getLoggedMember()?.noProRate) return base;
+  const factor = calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
+  return factor === 1 ? base : Math.round(base * factor);
+}
+
+/** Returns the fraction of the period that the logged-in member was employed.
+ *  Delegates to calcProRateFactor (paycalc-calc.js) — see that function for
+ *  the formula invariant and why startDate must be midnight local time. */
+export function getProRateFactor(p) {
+  if (!p) return 1;
+  if (getLoggedMember()?.noProRate) return 1;
+  return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
+}
+
+/** Full-period pension default for the current grade, period-aware.
+ *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
+export function getPensionDefault(pObj) {
+  const g = getGrade();
+  const grade = g && GRADES[g] ? g : 'cea';
+  if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
+  return GRADES[grade]?.pension ?? '';
+}
+
+// ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
+// Loads the stored rate for the given tax year into the hourly rate field.
+// Falls back to the legacy single rate, then to the current grade's default.
+/** Load the stored rate for the given tax year into the hourly rate field. */
+export function updateRateForPeriod(ty) {
+  let rates = {};
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
+  const g     = getGrade();
+  const rate  = rates[ty.label]
+             || parseFloat(lsGet(SK.rate))
+             || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
+  document.getElementById('hourlyRate').value = rate.toFixed(2);
+  // Update label to show which tax year this rate applies to
+  const lbl = document.getElementById('rateYearLabel');
+  if (lbl) lbl.textContent = `for ${ty.label}`;
+}
+
+/** Load the stored Year to Date figures for this tax year into the Improve Accuracy fields.
+ *  Called from onPeriodChange() so values reset correctly when switching between tax years. */
+export function updateYtdForTaxYear(ty) {
+  const payEl = document.getElementById('ytdPay');
+  const taxEl = document.getElementById('ytdTax');
+  if (!payEl || !taxEl) return;
+  if (document.activeElement !== payEl) payEl.value = lsGet(ytdPayKey(ty)) || '';
+  if (document.activeElement !== taxEl) taxEl.value = lsGet(ytdTaxKey(ty)) || '';
+}
+
+// ── SETTINGS SAVE / LOAD ──────────────────────────────────────────────────────
+
+/** Per-tax-year localStorage key for the "confirmed" flag. */
+export function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '_')}`; }
+
+/** Persist all field values. Called on every input change (auto-save).
+ *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings(). */
+export function saveSettings() {
+  const rateVal = document.getElementById('hourlyRate').value;
+  const pNum    = currentPeriodNum();
+  const curP    = getPeriods().find(x => x.num === pNum);
+  const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  let rates = {};
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
+  const _savedGrade   = document.getElementById('gradeSelect').value;
+  const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
+  rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
+  lsSet(SK.rates,     JSON.stringify(rates));
+  lsSet(SK.rate,      rateVal);
+  lsSet(SK.code,      document.getElementById('taxCode').value);
+  lsSet(SK.sl,        document.getElementById('studentLoan').value);
+  // On a joining period the pension field shows the pro-rated amount.
+  // Always write the full-period default to SK.pension so future full periods
+  // don't inherit the pro-rated value as their default.
+  const _pensionToSave = getProRateFactor(curP) < 1
+    ? getPensionDefault(curP)
+    : document.getElementById('pensionAmt').value;
+  lsSet(SK.pension, _pensionToSave);
+  lsSet(ytdPayKey(curTy), document.getElementById('ytdPay').value);
+  lsSet(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
+  lsSet(SK.grade,         document.getElementById('gradeSelect').value);
+  invalidateGrade();
+}
+
+/**
+ * Called by the Save button. Saves, marks this tax year as confirmed,
+ * updates the card header hint, collapses the card.
+ * @param {Function} calculate - Coordinator's calculate() callback.
+ */
+export function confirmSettings(calculate) {
+  saveSettings();
+  const pNum  = currentPeriodNum();
+  const curP  = getPeriods().find(x => x.num === pNum);
+  const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  // If this period already has saved hours, patch its pension value in-place.
+  const existingRaw = lsGet(periodKey(pNum));
+  if (existingRaw) {
+    try {
+      const d = JSON.parse(existingRaw);
+      d.pension = parseFloat(document.getElementById('pensionAmt').value) || 0;
+      lsSet(periodKey(pNum), JSON.stringify(d));
+    } catch {}
+  }
+  lsSet(settingsKey(curTy), '1');
+  lsSet(SK.setup, '1');
+  document.getElementById('setupBanner').classList.add('hidden');
+  document.getElementById('settingsNewYearNotice').classList.add('hidden');
+  // Update header hint. Fall back to grade default when rate field is blank.
+  const _cfGrade = getGrade();
+  const rate = (parseFloat(document.getElementById('hourlyRate').value)
+    || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+  const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
+  document.getElementById('settingsHint').textContent =
+    `✓ ${curTy.label} — £${rate}/hr · ${code}`;
+  // Brief "saved" confirmation then collapse
+  const fb = document.getElementById('settingsSaveFeedback');
+  fb.textContent = '✓ Settings saved';
+  setTimeout(() => {
+    fb.textContent = '';
+    setSettingsCardOpen(false);
+  }, 2500);
+  calculate();
+}
+
+/** Programmatic open/close for the Settings card — keeps aria-expanded in
+ *  sync with the classes that initCardCollapse manages on user toggles. */
+export function setSettingsCardOpen(open) {
+  const toggle = document.getElementById('settingsToggle');
+  const body   = document.getElementById('settingsBody');
+  toggle.classList.toggle('open', open);
+  body.classList.toggle('open', open);
+  toggle.setAttribute('aria-expanded', String(open));
+}
+
+/** Load persisted settings into the form fields. */
+export function loadSettings() {
+  // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
+  // no need to set it here; the field will update when buildPeriodSelect fires.
+  const code    = lsGet(SK.code);
+  const sl      = lsGet(SK.sl);
+  const pension = lsGet(SK.pension);
+  const done    = lsGet(SK.setup);
+  if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
+  if (sl)      document.getElementById('studentLoan').value = sl;
+  let grade = lsGet(SK.grade);
+  if (!grade || !GRADES[grade]) {
+    // Auto-detect from the logged-in member's role
+    if (getLoggedMember()?.role === 'CES') grade = 'ces';
+  }
+  if (grade && GRADES[grade]) {
+    document.getElementById('gradeSelect').value = grade;
+    lsSet(SK.grade, grade);
+    invalidateGrade();
+  }
+  document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
+  // Settings card starts closed in HTML. Open it only for first-time users.
+  if (!done) {
+    setSettingsCardOpen(true);
+  } else {
+    // Mark all tax years confirmed if the global setup flag was already set (v1.13+)
+    CONFIG.TAX_YEARS.forEach(ty => {
+      if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
+    });
+  }
+}
