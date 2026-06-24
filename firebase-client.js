@@ -238,14 +238,15 @@ async function _pruneOldDocs(collectionName, storage, refFn, deleteObject) {
 export async function uploadCircular(date, file, uploadedBy) {
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     const storageRef = ref(storage, `circulars/${date}.pdf`);
-    await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
-    const storageUrl = await getDownloadURL(storageRef);
+    let storageUrl;
     try {
+        await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+        storageUrl = await getDownloadURL(storageRef);
         await setDoc(doc(db, COLLECTIONS.circulars, date), {
             date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
         });
     } catch (err) {
-        // Metadata write failed — remove the just-uploaded file so it doesn't orphan.
+        // Upload, URL fetch, or metadata write failed — remove any uploaded bytes so they don't orphan.
         deleteObject(storageRef).catch(e => console.warn('[uploadCircular] rollback delete failed:', e));
         throw err;
     }
@@ -276,9 +277,10 @@ export async function getLatestCircular() {
 export async function uploadNewsletter(date, file, uploadedBy) {
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     const storageRef = ref(storage, `newsletters/${date}.pdf`);
-    await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
-    const storageUrl = await getDownloadURL(storageRef);
+    let storageUrl;
     try {
+        await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+        storageUrl = await getDownloadURL(storageRef);
         await setDoc(doc(db, COLLECTIONS.newsletters, date), {
             date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
         });

@@ -49,7 +49,14 @@ export function getSurname(fullName) {
  */
 let _sessionResolve;
 export const sessionReady = new Promise(r => (_sessionResolve = r));
-/** Call once per page-load from the page coordinator after ensureFirebaseSession(). */
+/**
+ * Call once per page-load from the page coordinator after ensureFirebaseSession().
+ * @param {boolean | Promise<boolean>} result - pass the return value of ensureFirebaseSession()
+ *   directly (Promise<boolean>) or a plain boolean (false) on the non-auth path.
+ *   JS Promise resolution procedure follows the inner Promise, so awaiting sessionReady
+ *   always yields the final boolean regardless of which form is passed.
+ * @returns {void}
+ */
 export function resolveSession(result) { _sessionResolve(result); }
 
 /**

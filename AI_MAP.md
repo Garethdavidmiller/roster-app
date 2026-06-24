@@ -135,7 +135,9 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `getSurname(name)` — derives Firebase Auth password from display name
 - `getSession()` / `saveSession(name)` / `clearSession()` — localStorage wrappers for the session object
 - `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`. Returns `Promise<boolean>`.
-- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`, `paycalc-app.js` (v12.49 — getSession/clearSession only, so paycalc enforces session expiry and refreshes the idle clock like every other page)
+- `sessionReady` — module-level `Promise<boolean>` that resolves once the page coordinator calls `resolveSession()`. Feature modules `await sessionReady` instead of reading `window._mybSession`. (v13.74)
+- `resolveSession(result)` — fulfils `sessionReady`; pass the return value of `ensureFirebaseSession()` (a `Promise<boolean>`) on the auth path, or `false` on the non-auth path. Call exactly once per page-load from the page coordinator. (v13.74)
+- Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`, `paycalc-app.js`, `links-app.js` (v12.49 / v13.74)
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
@@ -241,6 +243,7 @@ Owns the override cache and the suggestion engine. No DOM access.
 ### `firebase-client.js`
 Single Firestore initialisation point — import `db` and Firestore helpers from here, never from the Firebase CDN directly.
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
+- `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — writes to Firebase Storage + Firestore `huddles` collection; `htmlContent` is the converted HTML string for DOCX uploads (null for PDFs)
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
