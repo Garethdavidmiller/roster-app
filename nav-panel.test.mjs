@@ -39,7 +39,7 @@ mock.module('./ls.js', {
     },
 });
 
-const { isNoticeExpired, archiveNotice } = await import('./nav-panel.js');
+const { isNoticeExpired, archiveNotice, initNavPanel } = await import('./nav-panel.js');
 
 const NOTICES_KEY = 'myb_app_notices';
 const DAY = 86_400_000;
@@ -153,5 +153,28 @@ describe('archiveNotice', () => {
         store.set(NOTICES_KEY, JSON.stringify(many));
         archiveNotice(NEW);
         assert.ok(readArchive().length <= 50);
+    });
+});
+
+// ── initNavPanel DOM guard ────────────────────────────────────────────────────
+
+describe('initNavPanel', () => {
+    test('returns early without throwing when #navMenuBtn is not found', () => {
+        global.document = { getElementById: () => null };
+        assert.doesNotThrow(() => initNavPanel({ currentPage: 'calendar' }));
+    });
+
+    test('pre-initialised burger causes immediate return with no DOM mutations', () => {
+        let mutated = false;
+        const burger = {
+            dataset: { navPanelInit: '1' }, // already initialised
+            setAttribute: () => { mutated = true; },
+            getAttribute: () => null,
+            addEventListener: () => {},
+        };
+        global.document = { getElementById: id => id === 'navMenuBtn' ? burger : null };
+        // Must not throw, must not mutate the element further
+        initNavPanel({ currentPage: 'calendar' });
+        assert.equal(mutated, false, 'no DOM mutation should occur when navPanelInit is already set');
     });
 });
