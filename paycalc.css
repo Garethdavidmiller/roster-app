@@ -1,21 +1,21 @@
     /* ── Pay-calculator-specific design tokens (all shared tokens come from shared.css) ── */
     :root {
-      --boxing-day-bg:   #fff8e1;
-      --badge-pending-text: #f57f17;
-      --boxing-day-text: #bf6000;
-      --notice-text:     #5a4000;
-      --chip-bh-bg:      #7b1fa2;
-      --chip-bhot-bg:    #ab47bc;
-      --chip-ot-bg:      #f57c00;
-      --row-matched-bg:   rgba(46,125,50,0.07);
-      --row-matched-text: var(--success-green);
-      --row-differs-bg:   rgba(245,124,0,0.07);
+      --boxing-day-bg:      oklch(97.5% 0.028 89deg);
+      --badge-pending-text: oklch(68% 0.195 52deg);
+      --boxing-day-text:    oklch(55% 0.175 50deg);
+      --notice-text:        oklch(36% 0.090 65deg);
+      --chip-bh-bg:         oklch(39% 0.225 308deg);
+      --chip-bhot-bg:       oklch(52% 0.195 311deg);
+      --chip-ot-bg:         oklch(67% 0.198 50deg);
+      --row-matched-bg:     color-mix(in oklch, var(--success-green) 10%, white);
+      --row-matched-text:   var(--success-green);
+      --row-differs-bg:     color-mix(in oklch, var(--orange) 7%, white);
       --conf-high-bg:       var(--success-green-bg);
       --conf-high-text:     var(--success-green);
       --conf-recorded-bg:   var(--blue-light);
       --conf-recorded-text: var(--blue-sky);
-      --conf-possible-bg:   #fff3e0;
-      --conf-possible-text: #e65100;
+      --conf-possible-bg:   oklch(97% 0.022 72deg);
+      --conf-possible-text: oklch(58% 0.225 40deg);
     }
 
     body {
@@ -44,7 +44,7 @@
     /* .app-header, .app-header h1, .badge-page, .app-icon
        are all defined in shared.css */
     #paycalcBadge { background: var(--green); color: white; }
-    #iconLightbox .lightbox-badge { background: rgba(76,175,80,0.15); border-color: rgba(76,175,80,0.35); color: var(--green); }
+    #iconLightbox .lightbox-badge { background: color-mix(in oklch, var(--green) 15%, white); border-color: color-mix(in oklch, var(--green) 35%, white); color: var(--green); }
 
     /* paycalc-specific: header has bottom margin (admin uses grid gap) */
     .app-header { margin-bottom: 4px; }
@@ -66,7 +66,7 @@
     .btn-primary {
       display: block; width: 100%; padding: 11px 16px;
       background: var(--primary-blue); color: white;
-      border: none; border-radius: var(--radius-sm);
+      border: none; border-radius: var(--radius-button);
       font-family: inherit; font-size: 15px; font-weight: 700;
       cursor: pointer; touch-action: manipulation;
       transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
@@ -98,7 +98,7 @@
       cursor: pointer; touch-action: manipulation;
       transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     }
-    #periodSelect:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20); background-color: white; }
+    #periodSelect:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
     .period-nav { display: flex; gap: 8px; width: 100%; }
     .nav-pill {
       flex: 1;
@@ -396,7 +396,7 @@
     }
     .hhmm-field input::-webkit-inner-spin-button,
     .hhmm-field input::-webkit-outer-spin-button { -webkit-appearance: none; }
-    .hhmm-field input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20); background-color: white; }
+    .hhmm-field input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
     .hhmm-field .hhmm-lbl { font-size: var(--type-micro); color: var(--text-faint); font-weight: 600; letter-spacing: 0.3px; }
     .hhmm-sep { font-size: 20px; font-weight: 300; color: var(--text-light); padding-bottom: 14px; flex-shrink: 0; }
 
@@ -429,6 +429,7 @@
       touch-action: manipulation; transition: background-color 0.15s; flex-shrink: 0;
     }
     .stepper button:active { background: var(--primary-blue); color: white; }
+    .stepper button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
     @media (hover: hover) and (pointer: fine) {
       .stepper button:hover { background: var(--primary-blue-dark); color: white; }
     }
@@ -480,7 +481,7 @@
     }
     /* Brighten to white when active — the field 'fills in' on focus */
     .field input:focus-visible, .field select:focus-visible {
-      border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20);
+      border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color);
       background-color: white;
     }
     .field select {
@@ -899,7 +900,7 @@
     background-color: var(--field-bg); color: var(--text-dark);
     transition: border-color 0.15s, background-color 0.15s;
   }
-  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 3px rgba(0,30,60,0.20); background-color: white; }
+  .decimal-hrs-input:focus-visible { border-color: var(--primary-blue); box-shadow: 0 0 0 4px var(--focus-ring-color); background-color: white; }
   .decimal-conv-equals {
     font-size: 1.3rem; font-weight: 700; color: var(--text-light);
     flex-shrink: 0; padding-top: 20px;

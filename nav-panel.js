@@ -252,8 +252,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             _docFetching = true;
             // Open a blank tab synchronously (same event tick = user gesture) so
             // Safari does not classify the later window.open() inside .then() as a
-            // popup and block it.
+            // popup and block it. Clear opener to prevent the opened page from
+            // accessing window.opener on this app.
             const newTab = window.open('', '_blank');
+            if (newTab) newTab.opener = null;
             getLatestCircular().then(data => {
                 if (data?.storageUrl) {
                     if (newTab) newTab.location.href = data.storageUrl;
@@ -275,6 +277,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             if (_docFetching) return;
             _docFetching = true;
             const newTab = window.open('', '_blank');
+            if (newTab) newTab.opener = null;
             getLatestNewsletter().then(data => {
                 if (data?.storageUrl) {
                     if (newTab) newTab.location.href = data.storageUrl;

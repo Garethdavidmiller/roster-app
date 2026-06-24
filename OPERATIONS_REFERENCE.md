@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: June 2026 — v13.60 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.70 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -332,9 +332,10 @@ Re-uploading for the same date overwrites both the Storage file and the Firestor
 
 | Operation | Requirement |
 |-----------|-------------|
-| Reads | `request.auth != null` (any authenticated staff member) |
+| Reads | Open — no auth required. `calendar-app.js` has no Firebase session (matches Huddle model). The download URL is a tokenised Firebase Storage URL; access to the Firestore metadata alone does not bypass Storage rules. |
 | Writes | `request.auth.token.admin == true` (admin claim only) |
-| Storage | Rules enforce PDF MIME type + ≤20 MB per file |
+| Storage create/update | Rules enforce PDF MIME type + ≤20 MB per file |
+| Storage delete | Admin-only; MIME/size checks omitted (no `request.resource` on delete) |
 
 ### Firestore / Storage paths
 

@@ -182,6 +182,15 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                     addedList.appendChild(rowEl);
 
                     editBtn.addEventListener('click', () => {
+                        // Check this row's state BEFORE the close-others loop so the
+                        // loop's reset of editBtn.textContent to 'Edit' doesn't make
+                        // the subsequent check always false (Cancel → Edit → not Cancel → opens form again).
+                        if (editBtn.textContent === 'Cancel') {
+                            editBtn.textContent = 'Edit';
+                            rowEl.nextElementSibling?.classList.contains('email-set-form')
+                                && rowEl.nextElementSibling.remove();
+                            return;
+                        }
                         // Close any other open edit form in the list
                         addedList.querySelectorAll('.email-set-form').forEach(f => {
                             const prevRow = f.previousElementSibling;
@@ -189,11 +198,6 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                             prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel'
                                 && (prevRow.querySelector('.email-set-btn').textContent = 'Edit');
                         });
-
-                        if (editBtn.textContent === 'Cancel') {
-                            editBtn.textContent = 'Edit';
-                            return;
-                        }
                         editBtn.textContent = 'Cancel';
 
                         const form = document.createElement('div');

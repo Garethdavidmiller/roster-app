@@ -118,16 +118,20 @@ body.auth-ready .container { display: grid; }
     display: block;
     width: 100%;
     padding: 11px 16px;
+    min-height: 44px;
     background: var(--primary-blue);
     color: white;
     border: none;
-    border-radius: var(--radius-sm);
-    font-size: 15px;
+    border-radius: var(--radius-button);
+    font-size: var(--type-button);
     font-weight: 700;
     cursor: pointer;
-    transition: background var(--dur-fast);
+    touch-action: manipulation;
+    transition: background var(--dur-fast), transform var(--dur-fast) var(--ease-standard);
 }
 @media (hover: hover) and (pointer: fine) { .huddle-upload-btn:hover { background: var(--primary-blue-dark); } }
+.huddle-upload-btn:active:not(:disabled) { transform: scale(var(--press-scale)); }
+.huddle-upload-btn:focus-visible { outline: 2px solid var(--accent-gold); outline-offset: 2px; }
 .huddle-upload-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 .huddle-feedback { margin-top: 10px; font-size: 13px; }
 .huddle-feedback--ok  { color: var(--success-green); }
@@ -474,17 +478,19 @@ select:focus-visible, input:focus-visible {
 .email-set-input {
     flex: 1;
     min-width: 200px;
-    font-size: var(--type-body);
+    font-size: var(--type-medium);
     padding: 6px 10px;
     border: 2px solid var(--border-mid);
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background-color: var(--field-bg);
     color: var(--text-dark);
     touch-action: manipulation;
 }
 .email-set-input:focus-visible {
-    outline: none;
     border-color: var(--primary-blue);
+    outline: 2px solid var(--primary-blue);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--focus-ring-color);
     background-color: white;
 }
 .email-set-save {
@@ -492,7 +498,7 @@ select:focus-visible, input:focus-visible {
     font-weight: 600;
     padding: 6px 14px;
     border: none;
-    border-radius: 6px;
+    border-radius: var(--radius-xs);
     background: var(--primary-blue);
     color: white;
     cursor: pointer;
