@@ -78,7 +78,7 @@ export async function ensureFirebaseSession(name) {
     // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.
     const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
     const email      = nameToEmail(name);
-    let   firstError = null;
+    let   firstError;
 
     try {
         await signInWithEmailAndPassword(auth, email, fbPassword);

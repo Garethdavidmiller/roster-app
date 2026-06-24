@@ -204,7 +204,7 @@ async function _pruneOldDocs(collectionName, storage, refFn, deleteObject) {
     const snap = await getDocs(q);
     await Promise.all(snap.docs.map(async d => {
         await deleteDoc(doc(db, collectionName, d.id));
-        await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`)).catch(() => {});
+        await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`)).catch(e => console.warn(`[pruneOldDocs] ${collectionName} delete ${d.id}:`, e));
     }));
 }
 
@@ -231,7 +231,7 @@ export async function uploadCircular(date, file, uploadedBy) {
         });
     } catch (err) {
         // Metadata write failed — remove the just-uploaded file so it doesn't orphan.
-        deleteObject(storageRef).catch(() => {});
+        deleteObject(storageRef).catch(e => console.warn('[uploadCircular] rollback delete failed:', e));
         throw err;
     }
     _pruneOldDocs('circulars', storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] circulars:', e));
@@ -268,7 +268,7 @@ export async function uploadNewsletter(date, file, uploadedBy) {
             date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
         });
     } catch (err) {
-        deleteObject(storageRef).catch(() => {});
+        deleteObject(storageRef).catch(e => console.warn('[uploadNewsletter] rollback delete failed:', e));
         throw err;
     }
     _pruneOldDocs('newsletters', storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] newsletters:', e));

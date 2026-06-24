@@ -25,9 +25,10 @@ function toHundredths(v) {
 test('every root JS module is referenced in service-worker.js', () => {
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
 
-    // All root .js files except the SW itself and *.test.mjs / *.test.js files.
+    // All root .js files except the SW itself, dev config files, and test files.
+    const SW_EXCLUDED = new Set(['service-worker.js', 'eslint.config.js']);
     const rootModules = readdirSync(ROOT).filter(
-        f => f.endsWith('.js') && f !== 'service-worker.js' && !f.includes('.test.')
+        f => f.endsWith('.js') && !SW_EXCLUDED.has(f) && !f.includes('.test.')
     );
 
     // Each file must appear in the SW either as 'filename.js' or './filename.js'
@@ -130,4 +131,88 @@ test('functions/roster-members.json matches active staff in roster-data.js', asy
             + `Run: npm run generate:roster-members`
         );
     }
+});
+
+test('no unused CSS custom properties defined in :root', () => {
+    // Collect every root .css file and concatenate them for cross-file var() lookups.
+    const cssFiles = readdirSync(ROOT).filter(f => f.endsWith('.css'));
+    const allCss = cssFiles.map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
+
+    // Walk :root { } blocks and collect every --token: definition.
+    // :root bodies never contain nested { } (they are flat property lists),
+    // so a simple scan for the matching } is safe.
+    const defined = new Set();
+    let idx = 0;
+    while (idx < allCss.length) {
+        const rootPos = allCss.indexOf(':root', idx);
+        if (rootPos === -1) break;
+        const openBrace = allCss.indexOf('{', rootPos);
+        if (openBrace === -1) break;
+        const closeBrace = allCss.indexOf('}', openBrace);
+        if (closeBrace === -1) break;
+        const block = allCss.slice(openBrace + 1, closeBrace);
+        const propRe = /(--[\w-]+)\s*:/g;
+        let m;
+        while ((m = propRe.exec(block)) !== null) defined.add(m[1]);
+        idx = closeBrace + 1;
+    }
+
+    // Tokens intentionally defined but not yet referenced via var() in CSS.
+    // Each entry below is a known gap — document the reason so future reviewers
+    // know these are decisions, not accidents. Fix by either using the token or
+    // deleting it; do not grow this list without a documented reason.
+    const ALLOWED_DEAD_TOKENS = new Set([
+        // The three-surface model names --surface-canvas as the body background alias
+        // for --primary-blue. All 6 page CSS files currently use var(--primary-blue)
+        // directly. Align in a future pass by replacing body background references.
+        '--surface-canvas',
+        // Reserved type-scale step above --type-large (18px). No component needs it yet.
+        '--type-xl',
+        // Mid-range navy reference colour; no component uses it yet.
+        '--navy-mid',
+        // Night-shift coverage colour in links.css palette. No night column in current
+        // links workspace UI — kept for consistency with the other --cov-* tokens.
+        '--cov-night',
+        // Hover variants for raspberry and indigo UI elements. No interactive
+        // raspberry/indigo elements exist yet.
+        '--raspberry-hover',
+        '--indigo-hover',
+        // Reserved for a row-selection UI pattern; not yet implemented.
+        '--row-selected-bg',
+    ]);
+
+    // Every defined token must appear in a var() call somewhere in the combined CSS.
+    const dead = [...defined].filter(
+        token => !ALLOWED_DEAD_TOKENS.has(token) && !allCss.includes(`var(${token})`)
+    );
+    assert.deepEqual(
+        dead, [],
+        `CSS custom properties defined in :root but never referenced via var():\n  ${dead.join('\n  ')}`
+    );
+});
+
+test('Firestore collections in firebase-client.js all have firestore.rules entries', () => {
+    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
+    const rules  = readFileSync(join(ROOT, 'firestore.rules'), 'utf8');
+
+    // Collection names from: collection(db, 'name')  or  doc(db, 'name', ...)
+    const clientCollections = new Set();
+    const clientRe = /(?:collection|doc)\s*\(\s*db\s*,\s*['"](\w+)['"]/g;
+    let m;
+    while ((m = clientRe.exec(client)) !== null) clientCollections.add(m[1]);
+
+    // Explicit match blocks from rules: match /name/{...}
+    const ruleCollections = new Set();
+    const rulesRe = /match\s+\/(\w+)\s*\/\{/g;
+    while ((m = rulesRe.exec(rules)) !== null) ruleCollections.add(m[1]);
+
+    // 'databases' is the Firestore path root, not a collection name.
+    const FIRESTORE_PATH_SEGMENTS = new Set(['databases']);
+    const missing = [...clientCollections]
+        .filter(c => !FIRESTORE_PATH_SEGMENTS.has(c) && !ruleCollections.has(c));
+
+    assert.deepEqual(
+        missing, [],
+        `Collections used in firebase-client.js but missing from firestore.rules:\n  ${missing.join('\n  ')}`
+    );
 });
