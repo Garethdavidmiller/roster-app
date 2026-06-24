@@ -1869,7 +1869,7 @@ function initCalendarKeyboard() {
         const idx   = cells.indexOf(focused);
         if (idx === -1) return;
 
-        let next = null;
+        let next;
         switch (e.key) {
             case 'ArrowRight': next = cells[idx + 1]; break;
             case 'ArrowLeft':  next = cells[idx - 1]; break;

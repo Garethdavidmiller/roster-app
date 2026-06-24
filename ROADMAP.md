@@ -666,3 +666,60 @@ to include v14, the upgrade can proceed.
 **Profile photo / avatar:** Non-vital. Keep as-is, simplify (auto centre-crop or slider-only — drops the high-risk interactive editor), or revert entirely. See the "Profile photo / avatar" entry above for the assessment and the exact revert checklist.
 
 **GDPR:** Staff shift data is personal data. The `faithCalendar` field stores a religious preference — see KNOWN_LIMITATIONS.md for the note on handling. If the app becomes official infrastructure, data controller status and full retention policies will need documenting.
+
+---
+
+## Maintainability roadmap (added v13.72)
+
+A phased plan to make the codebase easier to maintain and extend without introducing a build system or framework. Each phase is self-contained and safe to defer. Phases are ordered by value-to-effort ratio.
+
+### Phase 0 — Safety net ✓ Done (v13.72)
+
+- `npm run lint` (ESLint on root JS/MJS) and `npm run check` (lint + test) scripts in `package.json`
+- Three silent `catch(() => {})` blocks in `firebase-client.js` upgraded to `console.warn` so Storage errors surface in DevTools and the Operations Error Log
+- `import-graph.test.mjs` — DFS-based circular import detector across all root ES modules
+- Dead CSS token test in `sw-asset-check.test.mjs` — custom properties defined in `:root` but never used via `var()`
+- Firestore cross-reference test in `sw-asset-check.test.mjs` — every collection used in `firebase-client.js` must have an entry in `firestore.rules`
+- `.github/pull_request_template.md` — cloud-backed feature completion checklist (Firestore rules, SW asset lists, version bump, no silent catches, docs)
+- KNOWN_LIMITATIONS.md — silent-catch audit decisions documented so the rationale survives the next session
+
+### Phase 1 — Lightweight type hints
+
+- **`// @ts-check` + `jsconfig.json`** — add `// @ts-check` at the top of every root JS module and a `jsconfig.json` pointing at all root modules. Gives IDE autocompletion and type errors without a build step. No runtime effect. Pairs with JSDoc `@param`/`@returns` already present on most functions.
+- **`COLLECTIONS` constant in `firebase-client.js`** — replace bare string literals like `'circulars'`, `'newsletters'`, `'clientErrors'` with a `const COLLECTIONS = { circulars: 'circulars', ... }` object. A typo in a collection name is currently a silent runtime failure; a named constant makes it refactor-safe and grep-able.
+- **Roster data integrity tests** — assert in `roster-data.test.mjs` that every `teamMember` has a valid `currentWeek` in range for their `rosterType`, that `startDate` fields are `Date` objects not strings, and that `rosterChanges` arrays are sorted ascending. Catches data-entry errors that currently produce silently wrong calendars.
+
+### Phase 2 — Session/bootstrap consolidation
+
+Replace the `window._mybSession` global handshake with an exported promise pair from `session.js`:
+
+```js
+// session.js
+let _resolve;
+export const sessionReady = new Promise(r => (_resolve = r));
+export function resolveSession(session) { _resolve(session); }
+```
+
+Page coordinators call `resolveSession(session)` after `ensureFirebaseSession()`; feature modules `import { sessionReady } from './session.js'` and `await sessionReady` instead of `await window._mybSession`. A forgotten import produces an ESLint `no-undef` error (or a TS type error with `// @ts-check`) rather than a silent permissions failure.
+
+**Why deferred:** requires touching 4 page coordinators and 5+ feature modules in one atomic change; safe to do in a quiet period. See KNOWN_LIMITATIONS.md → "`window._mybSession` is a cross-module global handshake".
+
+### Phase 3 — Point-of-use decision comments
+
+For the most surprising bits of business logic (Sunday RD enforcement, `isChristmasRD` ordering, `shouldReplaceOverride` precedence), add a single-line comment at the implementation site:
+
+```js
+// Rule: see CLAUDE.md — "Sundays are non-contracted"
+```
+
+These rules are documented in CLAUDE.md and `app-override-utils.js` JSDoc but invisible to a reader who has neither open. A line comment with the canonical reference makes the "why" discoverable without duplicating prose. No runtime effect; no tests needed.
+
+### Phase 4 — Test coverage for DOM wiring
+
+The biggest untested gap is the DOM injection layer: `nav-panel.js` (inject overlay + drawer, pill rendering, guide toggle), `overlay.js` (lightbox open/close lifecycle, focus trap, `transitionend` fallback), and `session.js` (expired session, self-heal). Add unit tests using Node's built-in `--experimental-vm-modules` + a minimal DOM stub. Does not require Playwright or a real browser. See KNOWN_LIMITATIONS.md → "Test coverage gaps" and "E2E smoke tests removed".
+
+### Phase 5 — ESLint as a devDependency
+
+Move ESLint from a globally-installed tool to a `devDependency` in `package.json`. This ensures every session / CI run uses the same ESLint version and rules without depending on the global environment. The session-start hook (`session-start.sh`) installs devDependencies on session open, so `npm run lint` will work without any manual setup.
+
+Also migrate `.eslintrc.json` to `eslint.config.js` (flat config) when ESLint is added as a devDep — the legacy config is deprecated in ESLint v9+ and removed in v10+.

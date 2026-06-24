@@ -426,3 +426,31 @@ No type-checker or import graph enforces it.
 `window._mybSession` to a checklist in CLAUDE.md, or refactor `session.js` to export
 a `getSessionPromise() / setSessionPromise()` pair so the contract is explicit and
 grep-able.
+
+---
+
+## Error handling — silent catches audit (v13.72)
+
+A full audit of `.catch(() => {})` patterns was completed in v13.72. The following
+decisions are intentional. **Do not add new silent catches** — use
+`catch(e => console.warn('[tag] message:', e))` for fire-and-forget paths so failures
+appear in DevTools and the Operations Error Log.
+
+### Intentional silent-catch patterns (correct)
+
+| File | Location | Why silent is correct |
+|------|----------|-----------------------|
+| `nav-panel.js` | Circular / Newsletter fetch | The `.finally()` handler resets `_docFetching` and the `.catch()` renders "Couldn't connect" — the error is surfaced to the user; logging would be noise |
+| `operations-app.js` | Clipboard copy in Error Log | `.catch()` shows '✗ Copy failed' inline — user-visible fallback; no logging needed |
+| `firebase-client.js` | `logClientError` call inside `error-reporter.js` | Logging a logging failure would recurse; the silent swallow is the correct terminal handler |
+| `firebase-client.js` | Firestore persistence setup chain | Persistence is best-effort; a silent fallback to non-persistent mode is the documented Firebase pattern |
+| `firebase-client.js` | `getClientErrors` resolved-record cleanup | Expired resolved records are pruned fire-and-forget; individual delete failures are inconsequential |
+| `paycalc-app.js` | Firebase session failure before `initErrorReporter` | Error reporter is not yet initialised at this point; the silent fallback is the only safe option |
+
+### Fixed in v13.72 (now log `console.warn`)
+
+| File | Location | Before | After |
+|------|----------|--------|-------|
+| `firebase-client.js:_pruneOldDocs` | Individual Storage file delete inside prune loop | `.catch(() => {})` | `.catch(e => console.warn('[pruneOldDocs] ...', e))` |
+| `firebase-client.js:uploadCircular` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadCircular] rollback ...', e))` |
+| `firebase-client.js:uploadNewsletter` | Rollback Storage delete on Firestore write failure | `.catch(() => {})` | `.catch(e => console.warn('[uploadNewsletter] rollback ...', e))` |
