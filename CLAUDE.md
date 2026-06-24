@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v13.70 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.80 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `13.70` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `13.80` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -160,7 +160,9 @@ roster-app/
 ├── admin-overrides.js      ← Change a Shift: PILL_TYPES, week grid, bulk bar, override list, recordRangeOverrides()
 ├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix), getDateRange()
 ├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay
-├── paycalc-app.js          ← all JS for paycalc.html (UI, DOM, period logic)
+├── paycalc-app.js          ← coordinator for paycalc.html (UI, DOM, autosave, HPP, sticky bar, back-pay)
+├── paycalc-periods.js      ← period arithmetic and select UI: CONFIG, getPeriods, buildPeriodSelect, updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod, hasBankHoliday, hasBoxingDay, CONDITIONAL_ROWS, updateBhRows
+├── paycalc-settings.js     ← grade/contracted-hours helpers and settings persistence: getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey, saveSettings, confirmSettings, setSettingsCardOpen, loadSettings
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.) and runMigrations()

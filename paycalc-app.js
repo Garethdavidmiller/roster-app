@@ -9,22 +9,34 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { CONFIG as ROSTER_CONFIG, teamMembers, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
 import {
-  P_YR, TAX_YEARS, GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
+  GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
-  computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
+  computeGross, computeTax, computeNI, computeSL, getPensionForPeriod,
 } from './paycalc-calc.js';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
+import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
+import {
+  CONFIG, getPeriods, currentPeriodNum,
+  hasBoxingDay, hasBankHoliday,
+  updateBhRows, buildPeriodSelect,
+  updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod,
+  _setSelectPeriod,
+} from './paycalc-periods.js';
+import {
+  getGrade, getContr, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
+  updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
+  saveSettings, confirmSettings, loadSettings,
+} from './paycalc-settings.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { HELP_CONTENT } from './paycalc-help.js';
-import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrations, NOTICE_YTD_KEY } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, NOTICE_YTD_KEY } from './paycalc-migrations.js';
 'use strict';
 
 
@@ -40,79 +52,10 @@ import { SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey, runMigrat
   }
 })();
 
-// ── CONFIG ────────────────────────────────────────────────────────────────────
-// Period arithmetic and app constants. Thresholds, tax years, and grades live in
-// paycalc-calc.js so they can be imported by the Node test runner.
-// ⚠️  TAX YEAR ROLLOVER: Each April, update ANCHOR_DATE, FIRST_OFFSET, LAST_OFFSET
-//     and the threshold tables in paycalc-calc.js.
-//     P48 anchor (13 Feb 2026) stays fixed as the offset reference point.
-const CONFIG = {
-  ANCHOR_DATE:    new Date(2026, 1, 13, 12, 0, 0), // P48 payday: 13 Feb 2026, noon local — MUST be noon to preserve the calcProRateFactor half-day invariant
-  PERIOD_DAYS:    28,
-  PERIODS_PER_YR: P_YR,
-  FIRST_OFFSET:   -11,   // P37 — first period of 2025/26 (~11 Apr 2025)
-  LAST_OFFSET:     14,   // P62 — last period of 2026/27 (~11 Mar 2027)
-  TAX_YEARS,             // imported from paycalc-calc.js
-};
-
+// CONFIG, getPeriods, currentPeriodNum, period helpers imported from paycalc-periods.js
+// Grade helpers, settings save/load imported from paycalc-settings.js
 // MILLER_ACTUALS imported from roster-data.js — payslip figures for G. Miller only.
-
-// Grade cache — lsGet is called in calculate() / calcHPP() on every keystroke; the
-// grade only changes when the user picks a different one in Settings.
-let _gradeCache = null;
-function getGrade() {
-  if (_gradeCache !== null) return _gradeCache;
-  _gradeCache = lsGet(SK.grade) || '';
-  return _gradeCache;
-}
-function invalidateGrade() { _gradeCache = null; }
-
-/** Return contracted hours for the currently selected grade. */
-function getContr() {
-  const g = getGrade();
-  return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
-}
-
-/** Return the teamMembers entry for the logged-in session user, or null. */
-function getLoggedMember() {
-  const sess = getSession();
-  if (!sess?.name) return null;
-  return teamMembers.find(m => m.name === sess.name) || null;
-}
-
-/**
- * Return effective contracted hours for the given period, pro-rated if the
- * logged-in member started mid-period.
- * @param {object} p - Period object with .start and .cutoff Date properties.
- * @returns {number} Contracted hours (full or pro-rated).
- */
-function getEffectiveContr(p) {
-  const base   = getContr();
-  if (!p) return base;
-  if (getLoggedMember()?.noProRate) return base;
-  const factor = calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
-  return factor === 1 ? base : Math.round(base * factor);
-}
-
-/** Returns the fraction of the period that the logged-in member was employed.
- *  Delegates to calcProRateFactor (paycalc-calc.js) — see that function for
- *  the formula invariant and why startDate must be midnight local time. */
-function getProRateFactor(p) {
-  if (!p) return 1;
-  if (getLoggedMember()?.noProRate) return 1;
-  return calcProRateFactor(getLoggedMember()?.startDate, p.start, p.cutoff);
-}
-
-/** Full-period pension default for the current grade, period-aware.
- *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
-function getPensionDefault(pObj) {
-  const g = getGrade();
-  const grade = g && GRADES[g] ? g : 'cea';
-  if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
-  return GRADES[grade]?.pension ?? '';
-}
-
-// SK, periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey imported from paycalc-migrations.js
+// SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js
 
 // ── BACK PAY STATE ────────────────────────────────────────────────────────────
 // Set by calcBackPay() when a "paid in" period is chosen. Read by calculate()
@@ -236,226 +179,9 @@ function onHhMm(hId, mId, warnId) {
   calculate();
 }
 
-// ── PAY PERIODS ───────────────────────────────────────────────────────────────
-// Structure of each period:
-//   cutoff  = Saturday (last day shifts count; also the hours-submission deadline)
-//   start   = Sunday after the previous period's cutoff (first day shifts count)
-//   payday  = Friday 6 days after cutoff (the day Chiltern pay into your account)
-// Period array is fully determined by CONFIG constants — same result every call.
-// Cache once; ~78 Date allocations saved per calculate() (called 6× per keystroke).
-let _periodsCache = null;
-function getPeriods() {
-  if (_periodsCache) return _periodsCache;
-  const out = [];
-  for (let offset = CONFIG.FIRST_OFFSET; offset <= CONFIG.LAST_OFFSET; offset++) {
-    const payday = new Date(CONFIG.ANCHOR_DATE);
-    payday.setDate(payday.getDate() + offset * CONFIG.PERIOD_DAYS);
-    const cutoff = new Date(payday); cutoff.setDate(cutoff.getDate() - 6);
-    // start = day after previous cutoff = cutoff - 27 days (not payday - 27)
-    const start  = new Date(cutoff); start.setDate(start.getDate() - CONFIG.PERIOD_DAYS + 1);
-    out.push({ payday, start, cutoff, num: 48 + offset });
-  }
-  _periodsCache = out;
-  return out;
-}
-
-function hasBoxingDay(p) {
-  // Check whether 26 Dec falls within the shift window (start → cutoff).
-  // Normalise to midnight so a Boxing Day on the period-start day isn't missed —
-  // p.start/p.cutoff are noon local; Boxing Day below is midnight local.
-  // Same fix as hasBankHoliday().
-  const start  = new Date(p.start.getFullYear(),  p.start.getMonth(),  p.start.getDate());
-  const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
-  for (let y = start.getFullYear(); y <= cutoff.getFullYear(); y++) {
-    const bd = new Date(y, 11, 26);
-    if (bd >= start && bd <= cutoff) return true;
-  }
-  return false;
-}
-
-// ── BANK HOLIDAY DETECTION ────────────────────────────────────────────────────
-// bhsForYear is exported from paycalc-roster-suggestions.js — one definition
-// shared with the suggestion engine. Boxing Day (26 Dec) excluded; handled
-// separately by hasBoxingDay() at 3× rate.
-function hasBankHoliday(p) {
-  // Normalise to midnight so a BH on the period-start day isn't missed.
-  // p.start/p.cutoff are noon local (inherited from FIRST_PAYDAY); BH dates are midnight local.
-  const start  = new Date(p.start.getFullYear(),  p.start.getMonth(),  p.start.getDate());
-  const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
-  const years  = new Set([start.getFullYear(), cutoff.getFullYear()]);
-  for (const y of years) {
-    if (bhsForYear(y).some(bh => bh >= start && bh <= cutoff)) return true;
-  }
-  return false;
-}
-
-// Rows that are conditionally shown/hidden based on period content.
-// Each entry: { condition(p), rows: [id], fields: [id] }
-const CONDITIONAL_ROWS = [
-  {
-    condition: hasBankHoliday,
-    rows:   ['bhRow', 'bhOtRow'],
-    fields: ['bhH', 'bhM', 'bhOtH', 'bhOtM'],
-  },
-];
-
-function updateBhRows(p) {
-  CONDITIONAL_ROWS.forEach(({ condition, rows, fields }) => {
-    const show = condition(p);
-    rows.forEach(id => document.getElementById(id)?.classList.toggle('hidden', !show));
-    if (!show) fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-  });
-}
-
-// getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod are imported from paycalc-calc.js above.
-
-// ── PERIOD SELECT ─────────────────────────────────────────────────────────────
-// iOS Safari ignores `select.value = x` when options are inside <optgroup> —
-// the select stays blank and the change event never fires. Explicitly setting
-// the matching option's .selected property works on all platforms.
-function _setSelectPeriod(sel, pNum) {
-  for (const o of sel.options) {
-    if (+o.value === pNum) { o.selected = true; return; }
-  }
-}
-
-function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = {}) {
-  if (!el) return;
-  el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';
-  let currentGroup = null, currentTyLabel = null;
-  periods.forEach(p => {
-    const ty = getTaxYearForOffset(p.num - 48);
-    if (ty.label !== currentTyLabel) {
-      currentGroup = document.createElement('optgroup');
-      currentGroup.label = `Tax year ${ty.label}`;
-      el.appendChild(currentGroup);
-      currentTyLabel = ty.label;
-    }
-    const o = document.createElement('option');
-    o.value = p.num;
-    const payStr = p.payday.toLocaleDateString('en-GB', {
-      day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
-    });
-    o.textContent = (currentPNum && p.num === currentPNum ? '● ' : '') + `P${p.num} · Paid ${payStr}`;
-    currentGroup.appendChild(o);
-  });
-}
-
-function buildPeriodSelect() {
-  const sel     = document.getElementById('periodSelect');
-  const periods = getPeriods();
-  const today   = new Date();
-
-  // Default to the first period whose payday is still in the future — this is a pay predictor,
-  // so staff want to see what they're about to be paid, not what they already received.
-  // If all paydays have passed (end of supported range), fall back to the last period.
-  const upcoming = periods.find(p => p.payday > today);
-  let defPNum    = upcoming ? upcoming.num : periods[periods.length - 1].num;
-
-  // URL params let the roster calendar pre-select a specific period.
-  // ?payday=YYYY-MM-DD  — tap on a 💷 payday cell jumps directly to that period.
-  // ?month=YYYY-MM      — 💷 header button passes the currently viewed calendar month.
-  const _urlParams = new URLSearchParams(window.location.search);
-  const _paydayParam = _urlParams.get('payday');
-  const _monthParam  = _urlParams.get('month');
-  if (_paydayParam) {
-    const [_py, _pm, _pd] = _paydayParam.split('-').map(Number);
-    const _matched = periods.find(p =>
-      p.payday.getFullYear() === _py &&
-      p.payday.getMonth()    === _pm - 1 &&
-      p.payday.getDate()     === _pd
-    );
-    if (_matched) defPNum = _matched.num;
-  } else if (_monthParam) {
-    const [_my, _mm] = _monthParam.split('-').map(Number);
-    const _mid = new Date(_my, _mm - 1, 15);
-    const _matched = periods.find(p => p.start <= _mid && _mid <= p.cutoff);
-    if (_matched) defPNum = _matched.num;
-  }
-
-  const _currentPNum = upcoming ? upcoming.num : periods[periods.length - 1].num;
-  _populatePeriodSelect(sel, periods, { currentPNum: _currentPNum });
-
-  _setSelectPeriod(sel, defPNum);
-  // Always point the ● button at the current earning period regardless of URL params
-  _defaultPeriodNum = _currentPNum;
-  onPeriodChange();
-  buildBackPayPeriodSelect();
-}
-
-function buildBackPayPeriodSelect() {
-  const sel     = document.getElementById('backPayPeriod');
-  const fromSel = document.getElementById('backPayFrom');
-  if (!sel && !fromSel) return;
-  const periods = getPeriods();
-  _populatePeriodSelect(sel,     periods, { placeholder: '— select when the lump sum will land —' });
-  _populatePeriodSelect(fromSel, periods, { placeholder: '— all periods with saved data —' });
-}
-
-// ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
-// Loads the stored rate for the given tax year into the hourly rate field.
-// Falls back to the legacy single rate, then to the current grade's default.
-function updateRateForPeriod(ty) {
-  let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
-  const g     = getGrade();
-  const rate  = rates[ty.label]
-             || parseFloat(lsGet(SK.rate))
-             || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
-  document.getElementById('hourlyRate').value = rate.toFixed(2);
-  // Update label to show which tax year this rate applies to
-  const lbl = document.getElementById('rateYearLabel');
-  if (lbl) lbl.textContent = `for ${ty.label}`;
-}
-
-// Loads the stored Year to Date figures for this tax year into the Improve Accuracy fields.
-// Called from onPeriodChange() so values reset correctly when switching between tax years.
-function updateYtdForTaxYear(ty) {
-  const payEl = document.getElementById('ytdPay');
-  const taxEl = document.getElementById('ytdTax');
-  if (!payEl || !taxEl) return;
-  if (document.activeElement !== payEl) payEl.value = lsGet(ytdPayKey(ty)) || '';
-  if (document.activeElement !== taxEl) taxEl.value = lsGet(ytdTaxKey(ty)) || '';
-}
-
-// ── TAX YEAR TABS ─────────────────────────────────────────────────────────────
-function updateTyTabs() {
-  const pNum = currentPeriodNum();
-  const offset = pNum - 48;
-  CONFIG.TAX_YEARS.forEach((ty, i) => {
-    const tab = document.getElementById(`tyTab${i}`);
-    if (!tab) return;
-    const active = offset >= ty.first && offset <= ty.last;
-    tab.classList.toggle('active', active);
-    if (active) tab.setAttribute('aria-current', 'true');
-    else tab.removeAttribute('aria-current');
-  });
-}
-
-function jumpToTaxYear(tyIndex) {
-  const ty      = CONFIG.TAX_YEARS[tyIndex];
-  if (!ty) return;
-  const periods = getPeriods();
-  // Find first period of that tax year
-  const first   = periods.find(p => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
-  if (!first) return;
-  _setSelectPeriod(document.getElementById('periodSelect'), first.num);
-  onPeriodChange();
-}
-
-function prevPeriod() {
-  const sel     = document.getElementById('periodSelect');
-  const periods = getPeriods();
-  const idx     = periods.findIndex(x => x.num === +sel.value);
-  if (idx > 0) { _setSelectPeriod(sel, periods[idx - 1].num); onPeriodChange(); }
-}
-
-function nextPeriod() {
-  const sel     = document.getElementById('periodSelect');
-  const periods = getPeriods();
-  const idx     = periods.findIndex(x => x.num === +sel.value);
-  if (idx < periods.length - 1) { _setSelectPeriod(sel, periods[idx + 1].num); onPeriodChange(); }
-}
+// Period helpers (getPeriods, currentPeriodNum, updateBhRows, buildPeriodSelect,
+// updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod) imported from paycalc-periods.js.
+// getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod imported from paycalc-calc.js.
 
 function onPeriodChange() {
   const pNum    = +document.getElementById('periodSelect').value;
@@ -610,11 +336,9 @@ function onPeriodChange() {
   stampPaycalcPrintLine();
 }
 
-// ── PERIOD DATA SAVE / LOAD ───────────────────────────────────────────────────
-function currentPeriodNum() {
-  return +document.getElementById('periodSelect').value;
-}
+// currentPeriodNum() imported from paycalc-periods.js
 
+// ── PERIOD DATA SAVE / LOAD ───────────────────────────────────────────────────
 function readFormData() {
   return {
     satH: intVal('satH'), satM: intVal('satM'),
@@ -811,125 +535,8 @@ function clearRosterSuggestedAll() {
     .forEach(el => el.classList.remove('roster-suggested'));
 }
 
-// ── SETTINGS SAVE / LOAD ──────────────────────────────────────────────────────
-// settingsKey: per-tax-year "confirmed" flag, separate from the raw saved values.
-function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '_')}`; }
-
-// saveSettings: persists all field values. Called on every input change (auto-save).
-// Does NOT set the confirmed flag or collapse the card — that's confirmSettings().
-function saveSettings() {
-  const rateVal = document.getElementById('hourlyRate').value;
-  const pNum    = currentPeriodNum();
-  const curP    = getPeriods().find(x => x.num === pNum);
-  const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
-  const _savedGrade   = document.getElementById('gradeSelect').value;
-  const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
-  rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
-  lsSet(SK.rates,     JSON.stringify(rates));
-  lsSet(SK.rate,      rateVal);
-  lsSet(SK.code,      document.getElementById('taxCode').value);
-  lsSet(SK.sl,        document.getElementById('studentLoan').value);
-  // On a joining period the pension field shows the pro-rated amount.
-  // Always write the full-period default to SK.pension so future full periods
-  // don't inherit the pro-rated value as their default.
-  // Always write the full-period rate (not the field value when pro-rated) so
-  // the global default is correct for future full periods.
-  const _pensionToSave = getProRateFactor(curP) < 1
-    ? getPensionDefault(curP)
-    : document.getElementById('pensionAmt').value;
-  lsSet(SK.pension, _pensionToSave);
-  lsSet(ytdPayKey(curTy), document.getElementById('ytdPay').value);
-  lsSet(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
-  lsSet(SK.grade,         document.getElementById('gradeSelect').value);
-  invalidateGrade();
-}
-
-// confirmSettings: called by the Save button. Saves, marks this tax year as confirmed,
-// updates the card header hint, collapses the card.
-function confirmSettings() {
-  saveSettings();
-  const pNum  = currentPeriodNum();
-  const curP  = getPeriods().find(x => x.num === pNum);
-  const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  // If this period already has saved hours, patch its pension value in-place.
-  // We only update existing records — we don't create an hours-empty record just
-  // because the user tapped Save settings.
-  const existingRaw = lsGet(periodKey(pNum));
-  if (existingRaw) {
-    try {
-      const d = JSON.parse(existingRaw);
-      d.pension = parseFloat(document.getElementById('pensionAmt').value) || 0;
-      lsSet(periodKey(pNum), JSON.stringify(d));
-    } catch {}
-  }
-  lsSet(settingsKey(curTy), '1');
-  lsSet(SK.setup, '1');
-  document.getElementById('setupBanner').classList.add('hidden');
-  document.getElementById('settingsNewYearNotice').classList.add('hidden');
-  // Update header hint to show confirmed summary. Fall back to the grade
-  // default when the rate field is blank — parseFloat('') is NaN and would
-  // display as "£NaN/hr".
-  const _cfGrade = getGrade();
-  const rate = (parseFloat(document.getElementById('hourlyRate').value)
-    || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
-  const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
-  document.getElementById('settingsHint').textContent =
-    `✓ ${curTy.label} — £${rate}/hr · ${code}`;
-  // Brief "saved" confirmation then collapse
-  const fb = document.getElementById('settingsSaveFeedback');
-  fb.textContent = '✓ Settings saved';
-  setTimeout(() => {
-    fb.textContent = '';
-    setSettingsCardOpen(false);
-  }, 2500);
-  calculate();
-}
-
-/** Programmatic open/close for the Settings card — keeps aria-expanded in
- *  sync with the classes that initCardCollapse manages on user toggles. */
-function setSettingsCardOpen(open) {
-  const toggle = document.getElementById('settingsToggle');
-  const body   = document.getElementById('settingsBody');
-  toggle.classList.toggle('open', open);
-  body.classList.toggle('open', open);
-  toggle.setAttribute('aria-expanded', String(open));
-}
-
-// _migrateCeaKeys and runMigrations moved to paycalc-migrations.js
-
-function loadSettings() {
-  // Rate is set per-period in updateRateForPeriod() called from onPeriodChange —
-  // no need to set it here; the field will update when buildPeriodSelect fires.
-  const code    = lsGet(SK.code);
-  const sl      = lsGet(SK.sl);
-  const pension = lsGet(SK.pension);
-  const done    = lsGet(SK.setup);
-  if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
-  if (sl)      document.getElementById('studentLoan').value = sl;
-  let grade = lsGet(SK.grade);
-  if (!grade || !GRADES[grade]) {
-    // Auto-detect from the logged-in member's role
-    if (getLoggedMember()?.role === 'CES') grade = 'ces';
-  }
-  if (grade && GRADES[grade]) {
-    document.getElementById('gradeSelect').value = grade;
-    lsSet(SK.grade, grade);
-    invalidateGrade();
-  }
-  document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
-  // Settings card starts closed in HTML. Open it only for first-time users.
-  // (Previously started open and was removed for returning users — caused a visible flash.)
-  if (!done) {
-    setSettingsCardOpen(true);
-  } else {
-    // Mark all tax years confirmed if the global setup flag was already set (v1.13+)
-    CONFIG.TAX_YEARS.forEach(ty => {
-      if (!lsGet(settingsKey(ty))) lsSet(settingsKey(ty), '1');
-    });
-  }
-}
+// settingsKey, saveSettings, confirmSettings(calculate), setSettingsCardOpen, loadSettings
+// imported from paycalc-settings.js.
 
 // ── ROSTER-AWARE FILL ─────────────────────────────────────────────────────────
 // Override cache state, Firestore fetch, and getRosterSuggestion are owned by
@@ -1402,7 +1009,7 @@ function calculate() {
   // Finds the tax year whose hppPaidJan matches this period's payday year.
   // The estimate is pre-computed by calcHPP() and stored in localStorage whenever
   // the user views any period in that tax year — by end of April it is essentially final.
-  const _hppTy = _curP ? TAX_YEARS.find(t =>
+  const _hppTy = _curP ? CONFIG.TAX_YEARS.find(t =>
       _curP.payday.getFullYear() === t.hppPaidJan && _curP.payday.getMonth() === 0
   ) : null;
   const _hppActualAmt  = _hppTy ? parseFloat(lsGet(hppActualKey(_hppTy)) || '0') : 0;
@@ -2110,7 +1717,7 @@ runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
     b.className = 'ty-tab';
     b.id = `tyTab${i}`;
     b.textContent = ty.label;
-    b.addEventListener('click', () => jumpToTaxYear(i));
+    b.addEventListener('click', () => jumpToTaxYear(i, onPeriodChange));
     wrap.appendChild(b);
   });
 })();
@@ -2125,14 +1732,14 @@ runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 })();
 
 loadSettings();
-buildPeriodSelect();
+_defaultPeriodNum = buildPeriodSelect(onPeriodChange);
 
 // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
 // Period navigation
 document.getElementById('periodSelect').addEventListener('change', onPeriodChange);
-document.getElementById('prevBtn').addEventListener('click', prevPeriod);
-document.getElementById('nextBtn').addEventListener('click', nextPeriod);
+document.getElementById('prevBtn').addEventListener('click', () => prevPeriod(onPeriodChange));
+document.getElementById('nextBtn').addEventListener('click', () => nextPeriod(onPeriodChange));
 document.getElementById('todayPeriodBtn').addEventListener('click', () => {
   const sel = document.getElementById('periodSelect');
   _setSelectPeriod(sel, _defaultPeriodNum);
@@ -2189,7 +1796,7 @@ document.getElementById('bpBreakdownBtn').addEventListener('click', toggleBpBrea
 document.getElementById('backPayFrom').addEventListener('change', calcBackPay);
 document.getElementById('backPayPeriod').addEventListener('change', calcBackPay);
 document.getElementById('applyRateBtn').addEventListener('click', applyNewRate);
-document.getElementById('saveSettingsBtn').addEventListener('click', confirmSettings);
+document.getElementById('saveSettingsBtn').addEventListener('click', () => confirmSettings(calculate));
 
 // Hours card — show more toggle
 document.getElementById('hoursShowMore').addEventListener('click', toggleHoursExtra);

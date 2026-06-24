@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v13.70 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.80 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -38,7 +38,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Inline date-range calendar widget (AL and Sick date pickers) | `admin-rangepicker.js` |
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
-| Pay calculator UI, period select, form, settings, HPP | `paycalc-app.js` + `paycalc.html` |
+| Pay calculator coordinator — calculate(), autosave, HPP, back-pay | `paycalc-app.js` + `paycalc.html` |
+| Pay calculator period arithmetic, select UI, nav | `paycalc-periods.js` |
+| Pay calculator grade helpers, settings save/load | `paycalc-settings.js` |
 | Pay calculator help/tooltip text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -200,15 +202,45 @@ The Weekly Roster Upload pipeline.
 - `shiftDisplay()`, `shiftValueToOverrideType()` — display and type helpers
 
 ### `paycalc-app.js`
-UI layer for `paycalc.html`. No pure pay maths here.
-- Period select, form read/write, autosave
-- `onPeriodChange()` — orchestrates all period-level updates
-- `_suggestIfBlank()` / `_applyRosterSuggestion()` — pre-fill helpers
-- Settings card, HPP card, sticky take-home bar
-- `getLoggedMember()`, `getEffectiveContr(p)` — session/period helpers
+Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
+- `calculate()` — main calculation engine (calls paycalc-calc.js pure functions)
+- `onPeriodChange()` — orchestrates all period-level updates; calls helpers from paycalc-periods.js and paycalc-settings.js
+- `autosave()` — saves hours data per period to localStorage
+- `_suggestIfBlank()` / `_applyRosterSuggestion()` — roster pre-fill helpers
+- HPP card, sticky take-home bar, back-pay card
 - `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
 - `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
-- Imports `HELP_CONTENT` from `paycalc-help.js`; imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `ytdPayKey`, `ytdTaxKey`, `runMigrations` from `paycalc-migrations.js`
+- Imports `HELP_CONTENT` from `paycalc-help.js`; imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `runMigrations` from `paycalc-migrations.js`
+- Period select, prev/next, tax-year tabs: delegated to `paycalc-periods.js`
+- Grade cache, settings save/load, rate/YTD fields: delegated to `paycalc-settings.js`
+
+### `paycalc-periods.js`
+Period arithmetic and select UI for `paycalc.html` (v13.80).
+- `CONFIG` — period anchor, PERIOD_DAYS, PERIODS_PER_YR, FIRST/LAST_OFFSET, TAX_YEARS
+- `getPeriods()` — returns the full period array; result is cached (avoids ~78 Date allocations per calculate())
+- `currentPeriodNum()` — reads `#periodSelect` value
+- `hasBoxingDay(p)` / `hasBankHoliday(p)` — period content checks
+- `CONDITIONAL_ROWS` — data-driven array: `{ condition, rows, fields }` — used by `updateBhRows`
+- `updateBhRows(p)` — shows/hides BH input rows based on period content
+- `buildPeriodSelect(onPeriodChange)` — populates the period `<select>`, handles URL params, returns the current earning period number; calls `buildBackPayPeriodSelect()` internally
+- `buildBackPayPeriodSelect()` — populates back-pay period selectors
+- `updateTyTabs()` — highlights the active tax-year tab
+- `jumpToTaxYear(tyIndex, onPeriodChange)` / `prevPeriod(onPeriodChange)` / `nextPeriod(onPeriodChange)` — navigation; accept coordinator's `onPeriodChange` callback to avoid circular dependency
+- Imports `P_YR, TAX_YEARS, getTaxYearForOffset` from `paycalc-calc.js`; imports `bhsForYear` from `paycalc-roster-suggestions.js`
+
+### `paycalc-settings.js`
+Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.80).
+- `getGrade()` / `getContr()` — grade key and contracted hours from localStorage; result cached in `_gradeCache`
+- `getLoggedMember()` — returns the logged-in member's `teamMembers` entry or null
+- `getEffectiveContr(p)` / `getProRateFactor(p)` — pro-rated helpers (full period if `noProRate`)
+- `getPensionDefault(pObj)` — period-aware pension default for the current grade
+- `updateRateForPeriod(ty)` / `updateYtdForTaxYear(ty)` — load stored rate and YTD figures into form fields; called from coordinator's `onPeriodChange`
+- `settingsKey(ty)` — per-tax-year localStorage key for the confirmed flag
+- `saveSettings()` — persists all settings fields; does not set confirmed flag
+- `confirmSettings(calculate)` — saves, marks confirmed, collapses card; calls `calculate` callback (passed by coordinator to avoid circular dep)
+- `setSettingsCardOpen(open)` — programmatic open/close keeping `aria-expanded` in sync
+- `loadSettings()` — loads persisted settings into form on page init
+- Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-migrations.js`, `session.js`, `roster-data.js`, `ls.js`
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).
