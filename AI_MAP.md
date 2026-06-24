@@ -41,6 +41,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Pay calculator coordinator — calculate(), autosave, HPP, back-pay | `paycalc-app.js` + `paycalc.html` |
 | Pay calculator period arithmetic, select UI, nav | `paycalc-periods.js` |
 | Pay calculator grade helpers, settings save/load | `paycalc-settings.js` |
+| Roster-assist hint bar UI, fill logic, snap persistence | `paycalc-roster-hint.js` |
+| Holiday Pay Premium estimator, shared period decode helpers | `paycalc-hpp.js` |
+| Back-pay lump sum calculator | `paycalc-backpay.js` |
 | Pay calculator help/tooltip text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -241,6 +244,37 @@ Grade/contracted-hours helpers and settings persistence for `paycalc.html` (v13.
 - `setSettingsCardOpen(open)` — programmatic open/close keeping `aria-expanded` in sync
 - `loadSettings()` — loads persisted settings into form on page init
 - Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-migrations.js`, `session.js`, `roster-data.js`, `ls.js`
+
+### `paycalc-roster-hint.js`
+Roster-assist hint bar UI, fill logic, and snap persistence for `paycalc.html` (v13.81).
+- `updateRosterHint()` — re-renders the hint bar based on current suggestion state
+- `updateJoinerNotice(p)` — shows/hides the pro-rata joiner banner for joining periods
+- `toggleRosterDays()` — expands/collapses the day-level breakdown in the hint bar
+- `fillFromRoster(autosave)` — fills all blank hour fields from the current suggestion; calls `autosave()` then `updateRosterHint()`
+- `fillCategoryFromRoster(cat, autosave)` — fills one category (sat/bh/sun/rdw/box) from suggestion; calls `autosave()` then `updateRosterHint()`
+- `_applyRosterSuggestion(s, force)` — internal: applies a suggestion object to form fields
+- `clearRosterSuggestedAll()` — removes all `roster-suggested` CSS highlights
+- `_restoreRosterSuggested(pNum)` — restores highlight state from snap on period load
+- `snapKey(pNum)` — localStorage key for the snap of suggestion state for a period; exported so coordinator's `clearPeriod()` can call `lsDel(snapKey(pNum))`
+- `renderRosterDayList(s)` — renders the per-day breakdown rows into the hint bar
+- Imports from `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-roster-suggestions.js`, `roster-data.js`, `ls.js`
+- Does NOT import from `paycalc-app.js` (circular dependency avoided via callback parameters)
+
+### `paycalc-hpp.js`
+Holiday Pay Premium estimator and shared period decode helpers for `paycalc.html` (v13.81).
+- `isDataEmpty(d)` — returns true if all hour fields in a persisted period object are zero/falsy; exported for coordinator's `updateSaveStatus` and for `paycalc-backpay.js`
+- `_decodeHours(p, d)` — decodes raw period data into `{satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs}` floats; exported for `paycalc-backpay.js`
+- `_varPayForPeriod(p, d, rate)` — variable pay for one period (excludes contracted basic and peer pay); used internally by `calcHPP`
+- `calcHPP(bpVarAmount, bpPNum)` — renders the HPP estimate card; receives coordinator's back-pay state as parameters to avoid importing coordinator state
+- `updatePriorHpp(ty)` — renders the prior-year actual HPP section
+- Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `roster-data.js`, `ls.js`
+
+### `paycalc-backpay.js`
+Back-pay lump sum calculator for `paycalc.html` (v13.81).
+- `_bpAwardTaxYear(fromPNum)` — tax year of the back-pay award (derived from "backdated from" period); exported for coordinator's `applyNewRate()`
+- `prefillBackPay()` — pre-fills card inputs (London Allowance defaults, April selector) when the card opens; returns `calcBackPay()` result for coordinator to consume
+- `calcBackPay()` — calculates lump sum from card inputs, renders results, returns `{ bpAmount, bpVarAmount, bpPNum }`; does NOT mutate coordinator state — caller applies the returned values
+- Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `ls.js`
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).

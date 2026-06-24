@@ -163,6 +163,9 @@ roster-app/
 ├── paycalc-app.js          ← coordinator for paycalc.html (UI, DOM, autosave, HPP, sticky bar, back-pay)
 ├── paycalc-periods.js      ← period arithmetic and select UI: CONFIG, getPeriods, buildPeriodSelect, updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod, hasBankHoliday, hasBoxingDay, CONDITIONAL_ROWS, updateBhRows
 ├── paycalc-settings.js     ← grade/contracted-hours helpers and settings persistence: getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey, saveSettings, confirmSettings, setSettingsCardOpen, loadSettings
+├── paycalc-roster-hint.js  ← roster-assist hint bar UI: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster, fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, renderRosterDayList
+├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
+├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.) and runMigrations()

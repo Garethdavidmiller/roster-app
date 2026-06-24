@@ -1,21 +1,24 @@
 // @ts-check
 /**
- * paycalc.js — Pay Calculator UI layer.
+ * paycalc-app.js — Pay Calculator coordinator for paycalc.html.
  *
- * Owns: period select, form read/write, autosave, settings, HPP, sticky bar.
- * Does NOT own: pay maths (paycalc-calc.js), override cache/suggestion engine
- *   (paycalc-roster-suggestions.js), DOM for paycalc.html.
- * Edit here for: UI behaviour, form logic, period helpers, HPP accumulation.
- * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
+ * Owns: onPeriodChange, calculate, autosave, form read/write, sticky bar,
+ *   period data save/load, INIT, event listeners.
+ * Does NOT own: period arithmetic (paycalc-periods.js), grade/settings
+ *   (paycalc-settings.js), roster hint bar (paycalc-roster-hint.js),
+ *   HPP maths (paycalc-hpp.js), back-pay maths (paycalc-backpay.js),
+ *   pay maths (paycalc-calc.js), override cache (paycalc-roster-suggestions.js).
+ * Edit here for: UI coordination, event wiring, calculate(), sticky bar.
+ * Do not edit here for: pay maths, period date maths, HPP formula, back-pay maths.
  */
 
-import { CONFIG as ROSTER_CONFIG, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, formatISO, MILLER_ACTUALS } from './roster-data.js';
 import {
-  GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
+  GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, getPensionForPeriod,
 } from './paycalc-calc.js';
-import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
+import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
 import {
@@ -26,10 +29,17 @@ import {
   _setSelectPeriod,
 } from './paycalc-periods.js';
 import {
-  getGrade, getContr, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
+  getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault,
   updateRateForPeriod, updateYtdForTaxYear, settingsKey, setSettingsCardOpen,
   saveSettings, confirmSettings, loadSettings,
 } from './paycalc-settings.js';
+import {
+  updateRosterHint, updateJoinerNotice, toggleRosterDays,
+  fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
+  clearRosterSuggestedAll, _restoreRosterSuggested, snapKey,
+} from './paycalc-roster-hint.js';
+import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
+import { prefillBackPay, calcBackPay, _bpAwardTaxYear } from './paycalc-backpay.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -52,18 +62,16 @@ import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, NOTICE_YTD_KEY }
   }
 })();
 
-// CONFIG, getPeriods, currentPeriodNum, period helpers imported from paycalc-periods.js
-// Grade helpers, settings save/load imported from paycalc-settings.js
+// Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
 // MILLER_ACTUALS imported from roster-data.js — payslip figures for G. Miller only.
 // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js
 
-// ── BACK PAY STATE ────────────────────────────────────────────────────────────
-// Set by calcBackPay() when a "paid in" period is chosen. Read by calculate()
-// to add the lump sum into that period's gross before computing tax/NI.
+// ── COORDINATOR STATE ─────────────────────────────────────────────────────────
+// Back pay state — set by _applyBpState() when calcBackPay() runs.
+// Read by calculate() to add the lump sum into that period's gross before tax/NI.
 let _bpAmount    = 0; // gross back pay for the "paid in" period (0 = none)
 let _bpVarAmount = 0; // variable (HPP-accruing) portion of the back pay lump sum
 let _bpPNum      = 0; // period number that receives the back pay (0 = none)
-
 
 // Session-level tracker — prevents Settings card from auto-opening more than once per tax year
 // per browser session. Cleared on page reload. Uses tax year label as the key.
@@ -72,6 +80,8 @@ const _settingsPrompted = new Set();
 // The default period num selected on page load (first upcoming payday). Used by
 // the ● today-period button to know when to show itself.
 let _defaultPeriodNum = null;
+
+let _adjNegative = false; // tracks intended sign of otherAdj independently of value
 
 // HELP_CONTENT imported from paycalc-help.js
 // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
@@ -384,16 +394,7 @@ function updateAdjSign() {
   btn.classList.toggle('negative', _adjNegative);
 }
 
-function isDataEmpty(d) {
-  return !d.satH && !d.satM &&
-         !d.bhH  && !d.bhM  &&
-         !d.bhOtH && !d.bhOtM &&
-         !d.otH  && !d.otM  &&
-         !d.rdwH && !d.rdwM &&
-         !d.sunH && !d.sunM &&
-         !d.boxH && !d.boxM && !d.peer &&
-         !d.slSkip && !d.otherAdj;
-}
+// isDataEmpty imported from paycalc-hpp.js
 
 function autosave() {
   calculate(); // no-op double-call is harmless but kept here for standalone inputs
@@ -530,382 +531,16 @@ function clearPeriod() {
   updateRosterHint();
 }
 
-function clearRosterSuggestedAll() {
-  document.querySelectorAll('.hhmm-field input.roster-suggested')
-    .forEach(el => el.classList.remove('roster-suggested'));
-}
-
-// settingsKey, saveSettings, confirmSettings(calculate), setSettingsCardOpen, loadSettings
+// clearRosterSuggestedAll, updateRosterHint, updateJoinerNotice, toggleRosterDays,
+// fillCategoryFromRoster, fillFromRoster, _applyRosterSuggestion,
+// _restoreRosterSuggested, snapKey imported from paycalc-roster-hint.js.
+// settingsKey, saveSettings, confirmSettings, setSettingsCardOpen, loadSettings
 // imported from paycalc-settings.js.
 
-// ── ROSTER-AWARE FILL ─────────────────────────────────────────────────────────
-// Override cache state, Firestore fetch, and getRosterSuggestion are owned by
-// paycalc-roster-suggestions.js. UI updates after the fetch promise resolves
-// are handled in onPeriodChange above.
-
-let _adjNegative = false; // tracks intended sign of otherAdj independently of value
-
-/** Formats hours+minutes as a compact string: "7h 30m", "7h", or "30m". */
-function fmtH(h, m) {
-  if (h && m) return `${h}h ${m}m`;
-  if (h)      return `${h}h`;
-  return `${m}m`;
-}
-
-/** Maps a suggestion category to a confidence badge descriptor.
- *  Returns null for base-roster rows — no badge needed when the source is the
- *  scheduled rota. Badges only appear when the source or certainty is non-obvious. */
-function _confBadge(cat, fromOv) {
-  if (cat === 'ot' || cat === 'bhOt') return { text: 'Possible overtime', cls: 'conf-possible' };
-  if (cat === 'rdw' || fromOv)        return { text: 'Recorded change',   cls: 'conf-recorded' };
-  return null;
-}
-
-// Cached output of the last rosterRows / bdBody renders — avoids the parse+layout
-// cost of innerHTML when the rendered string is identical (e.g. period change →
-// multiple upstream calls with no change in field values, or typing a non-numeric
-// key). Summary is not cached because it has two write paths (estimated + Miller
-// actual override) which would make cache invalidation error-prone.
-let _lastRosterRowsHtml = null;
-let _lastBdBodyHtml     = null;
-
-function updateRosterHint() {
-  const card = document.getElementById('rosterHintBar');
-  if (!card) return;
-
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
-  if (!p) { card.style.display = 'none'; return; }
-
-  const s = getRosterSuggestion(p, getLoggedMember());
-  if (!s) { card.style.display = 'none'; return; }
-
-  // State badge — only shown once the fetch has settled; hidden while checking
-  const badge = document.getElementById('rosterStateBadge');
-  if (badge) {
-    if (getOverridesFetchState() === 'loaded') {
-      badge.textContent  = '✓ Includes recorded changes';
-      badge.className    = 'roster-state-badge loaded';
-    } else if (getOverridesFetchState() === 'base-only') {
-      badge.textContent  = '⚠ Scheduled only';
-      badge.className    = 'roster-state-badge base-only';
-    } else {
-      badge.textContent  = '';
-      badge.className    = 'roster-state-badge';
-    }
-  }
-
-  // Category rows — only render rows that have data
-  const rows = document.getElementById('rosterRows');
-  if (rows) {
-    const cats = [
-      { cat: 'sat',  icon: '🗓️', label: 'Rostered Sat',         h: s.satH,  m: s.satM,  count: s.satCount,  fromOv: s.satFromOv },
-      { cat: 'sun',  icon: '☀️', label: 'Sunday',              h: s.sunH,  m: s.sunM,  count: s.sunCount,  fromOv: s.sunFromOv },
-      { cat: 'bh',   icon: '🏦', label: 'Bank holiday',        h: s.bhH,   m: s.bhM,   count: s.bhCount,   fromOv: s.bhFromOv  },
-      { cat: 'bhOt', icon: '🏦', label: 'Bank holiday overtime', h: s.bhOtH, m: s.bhOtM, count: s.bhOtCount, fromOv: true        },
-      { cat: 'ot',   icon: '⏰', label: 'Overtime',           h: s.otH,   m: s.otM,   count: s.otCount,   fromOv: true        },
-      { cat: 'rdw',  icon: '💼', label: 'RDW',                h: s.rdwH,  m: s.rdwM,  count: s.rdwCount,  fromOv: true        },
-      { cat: 'box',  icon: '🎁', label: 'Boxing Day',         h: s.boxH,  m: s.boxM,  count: s.boxCount,  fromOv: s.boxFromOv },
-    ].filter(r => r.count > 0);
-
-    const html = cats.map(r => {
-      const suggestMins = r.h * 60 + r.m;
-      const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
-
-      // Read the current value in the matching form field pair (null = blank).
-      const elH = document.getElementById(r.cat + 'H');
-      const elM = document.getElementById(r.cat + 'M');
-      const hv = elH?.value.trim() ?? '';
-      const mv = elM?.value.trim() ?? '';
-      const enteredMins = (hv === '' && mv === '') ? null
-        : (parseInt(hv) || 0) * 60 + (parseInt(mv) || 0);
-
-      const conf     = _confBadge(r.cat, r.fromOv);
-      const confHtml = conf ? `<span class="conf-badge ${conf.cls}">${conf.text}</span>` : '';
-
-      let rowClass, totalText, metaText, arrowHtml, ariaLabel;
-      if (enteredMins === null) {
-        // Blank — ready to fill
-        rowClass  = 'roster-row';
-        totalText = fmtH(r.h, r.m);
-        metaText  = confHtml ? `${dayStr} · ${confHtml}` : dayStr;
-        arrowHtml = `<span class="roster-cat-arrow" aria-hidden="true">→</span>`;
-        ariaLabel = `Fill ${r.label} hours from roster`;
-      } else if (enteredMins === suggestMins) {
-        // Matched — entered value equals roster suggestion; source badge not needed
-        rowClass  = 'roster-row roster-row--matched';
-        totalText = fmtH(r.h, r.m);
-        metaText  = dayStr;
-        arrowHtml = `<span class="roster-cat-match" aria-hidden="true">✓</span>`;
-        ariaLabel = `${r.label} matches roster: ${fmtH(r.h, r.m)}`;
-      } else {
-        // Differs — entered value doesn't match roster
-        const entH = Math.floor(enteredMins / 60), entM = enteredMins % 60;
-        rowClass  = 'roster-row roster-row--differs';
-        totalText = `${fmtH(entH, entM)} entered`;
-        metaText  = confHtml ? `Roster: ${fmtH(r.h, r.m)} · ${confHtml}` : `Roster: ${fmtH(r.h, r.m)}`;
-        arrowHtml = `<span class="roster-cat-arrow roster-cat-arrow--differs" aria-hidden="true">→</span>`;
-        ariaLabel = `${r.label}: you have ${fmtH(entH, entM)}, roster says ${fmtH(r.h, r.m)}. Tap to use roster`;
-      }
-
-      return `<button class="${rowClass}" type="button" data-cat="${r.cat}" ` +
-          `aria-label="${ariaLabel}">` +
-        `<span class="roster-row-icon" aria-hidden="true">${r.icon}</span>` +
-        `<span class="roster-row-label">${r.label}</span>` +
-        `<span class="roster-row-total">${totalText}</span>` +
-        `<span class="roster-row-meta">${metaText}</span>` +
-        arrowHtml +
-        `</button>`;
-    }).join('');
-    if (html !== _lastRosterRowsHtml) {
-      rows.innerHTML = html;
-      _lastRosterRowsHtml = html;
-    }
-  }
-
-  const hintTextEl = document.getElementById('rosterHintText');
-  if (hintTextEl) {
-    hintTextEl.textContent = getOverridesFetchState() === 'loaded'
-      ? 'Likely special-rate hours only — Saturday, Sunday, bank holidays, RDW, and Boxing Day. Standard contracted hours are already included in basic pay. Check against what you actually worked.'
-      : 'Base roster only — recorded shift changes not yet loaded. Special-rate hours only; standard contracted hours are already included in basic pay.';
-  }
-
-  // Adaptive bulk-fill label — "Fill" reads friendlier when there is nothing to
-  // overwrite (the common first-time case); "Replace" is honest once the user has
-  // typed values the button will clobber.
-  const fillBtn = document.getElementById('fillFromRosterBtn');
-  if (fillBtn) {
-    const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat => {
-      const h = document.getElementById(cat + 'H')?.value.trim() ?? '';
-      const m = document.getElementById(cat + 'M')?.value.trim() ?? '';
-      return h !== '' || m !== '';
-    });
-    fillBtn.textContent = hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
-  }
-
-  // Day list visibility — show/hide toggle based on whether there is any data.
-  // The list itself is only collapsed on period change (handled in onPeriodChange),
-  // so a Firestore refresh does not close an open day list mid-review.
-  const daysToggle = document.getElementById('rosterDaysToggle');
-  if (daysToggle) daysToggle.style.display = s.days.length ? '' : 'none';
-  renderRosterDayList(s.days);
-  card.style.display = '';
-}
-
-const _DAY_ABBS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const _MON_ABBS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const _DAY_CHIP_LABELS = { sat: 'Rostered Sat', sun: 'Sunday', bh: 'Bank holiday', bhOt: 'Bank holiday overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW' };
-
-/**
- * Show (or hide) a notice when the logged-in member started mid-period,
- * explaining that their contracted hours have been pro-rated.
- * @param {object} p - Current period object.
- */
-function updateJoinerNotice(p) {
-  const el = document.getElementById('joinerNotice');
-  if (!el || !p) return;
-  const member = getLoggedMember();
-  if (!member?.startDate || member.startDate <= p.start || member?.noProRate) { el.style.display = 'none'; return; }
-  if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
-  const msPerDay     = 86400000;
-  const daysEmployed = Math.round((p.cutoff - member.startDate) / msPerDay) + 1;
-  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
-  const proRated     = getEffectiveContr(p);
-  const base         = getContr();
-  const startFmt     = member.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-  el.textContent = `📅 You joined on ${startFmt}. For this period: contracted hours ${proRated} of ${base}, London Allowance and pension contribution scaled to ${daysEmployed} of ${totalDays} days.`;
-  el.style.display = '';
-}
-
-/** Populates the collapsible day list with the individual shifts behind the suggestion. */
-function renderRosterDayList(days) {
-  const list = document.getElementById('rosterDayList');
-  if (!list) return;
-  if (!days || !days.length) { list.innerHTML = ''; return; }
-
-  list.innerHTML = days.map(d => {
-    const dt      = d.date;
-    const dateStr = `${_DAY_ABBS[dt.getDay()]} ${dt.getDate()} ${_MON_ABBS[dt.getMonth()]}`;
-    const chipLabel = _DAY_CHIP_LABELS[d.type] || '';
-    return `<div class="roster-day-row">` +
-      `<span class="roster-day-date">${dateStr}</span>` +
-      `<span class="roster-day-shift">${escapeHtml(d.shift)}</span>` +
-      (chipLabel ? `<span class="roster-day-chip roster-day-chip--${d.type}">${chipLabel}</span>` : '') +
-      `</div>`;
-  }).join('');
-}
-
-/** Toggles the day list open/closed. */
-function toggleRosterDays() {
-  const list = document.getElementById('rosterDayList');
-  const btn  = document.getElementById('rosterDaysToggle');
-  if (!list || !btn) return;
-  const opening = list.style.display === 'none';
-  list.style.display = opening ? '' : 'none';
-  btn.textContent    = opening ? 'Hide days ▲' : 'Show days ▼';
-}
-
-/** Fills a single H/M field pair if currently blank. */
-function _suggestIfBlank(hId, mId, hVal, mVal) {
-  const elH = document.getElementById(hId);
-  const elM = document.getElementById(mId);
-  if (!elH || !elM) return;
-  if (hVal == null && mVal == null) return;
-  // Treat H and M independently — a manually-edited field is skipped individually
-  // rather than blocking its paired field. Prevents a user-typed minutes value from
-  // preventing the hours field (blank) from receiving the roster value.
-  const hEdited = elH.value !== '' && !elH.classList.contains('roster-suggested');
-  const mEdited = elM.value !== '' && !elM.classList.contains('roster-suggested');
-  if (!hEdited && hVal != null) {
-    elH.value = hVal ?? '';
-    elH.classList.add('roster-suggested');
-  }
-  if (!mEdited && mVal != null) {
-    elM.value = mVal ?? '';
-    elM.classList.add('roster-suggested');
-  }
-}
-
-/** Fills only the named category's hours from the current roster suggestion. Force-fills
- *  because a row tap is an explicit user action — "I want the roster value here". */
-function fillCategoryFromRoster(cat) {
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
-  if (!p) return;
-  const s = getRosterSuggestion(p, getLoggedMember());
-  if (!s) return;
-  const map = {
-    sat:  ['satH',  'satM',  s.satH,  s.satM ],
-    sun:  ['sunH',  'sunM',  s.sunH,  s.sunM ],
-    bh:   ['bhH',   'bhM',   s.bhH,   s.bhM  ],
-    bhOt: ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM],
-    ot:   ['otH',   'otM',   s.otH,   s.otM  ],
-    rdw:  ['rdwH',  'rdwM',  s.rdwH,  s.rdwM ],
-    box:  ['boxH',  'boxM',  s.boxH,  s.boxM ],
-  };
-  const args = map[cat];
-  if (!args) return;
-  const [hId, mId, hVal, mVal] = args;
-  const elH = document.getElementById(hId);
-  const elM = document.getElementById(mId);
-  if (elH && elM && hVal != null) {
-    elH.value = hVal ?? '';
-    elM.value = mVal ?? '';
-    elH.classList.add('roster-suggested');
-    elM.classList.add('roster-suggested');
-    // Merge this category into the existing snapshot so reload can restore the
-    // roster-suggested class for just these fields (without clobbering manually
-    // entered values in other categories that were not filled from the roster).
-    const pNum = currentPeriodNum();
-    try {
-      const existing = JSON.parse(lsGet(snapKey(pNum)) || '{}');
-      existing[hId] = hVal ?? '';
-      existing[mId] = mVal ?? '';
-      lsSet(snapKey(pNum), JSON.stringify(existing));
-    } catch {}
-  }
-  autosave();
-  // Programmatic value changes don't fire the input listeners — refresh the
-  // roster card so the tapped row flips from "→ Fill" to "✓ matched".
-  updateRosterHint();
-}
-
-/** Applies a suggestion object to all H/M field pairs.
- *  force=false (default): skips fields already manually entered.
- *  force=true: overwrites all fields — used by the "Replace with calendar values" button. */
-function _applyRosterSuggestion(s, force = false) {
-  const pairs = [
-    ['satH',  'satM',  s.satH,  s.satM ],
-    ['sunH',  'sunM',  s.sunH,  s.sunM ],
-    ['bhH',   'bhM',   s.bhH,   s.bhM  ],
-    ['bhOtH', 'bhOtM', s.bhOtH, s.bhOtM],
-    ['otH',   'otM',   s.otH,   s.otM  ],
-    ['rdwH',  'rdwM',  s.rdwH,  s.rdwM ],
-    ['boxH',  'boxM',  s.boxH,  s.boxM ],
-  ];
-  for (const [hId, mId, hVal, mVal] of pairs) {
-    if (force) {
-      const elH = document.getElementById(hId);
-      const elM = document.getElementById(mId);
-      if (!elH || !elM) continue;
-      if (hVal == null && mVal == null) continue;
-      elH.value = hVal ?? '';
-      elM.value = mVal ?? '';
-      elH.classList.add('roster-suggested');
-      elM.classList.add('roster-suggested');
-    } else {
-      _suggestIfBlank(hId, mId, hVal, mVal);
-    }
-  }
-  _saveRosterSnap(currentPeriodNum(), s);
-}
-
-// Per-period localStorage key for the last roster snapshot used for auto-fill.
-const snapKey = pNum => `myb_pc_snap_${pNum}`;
-
-/** Saves the suggestion values that were just applied so that loadPeriodData can restore
- *  the roster-suggested class on those fields after a page reload. Without this, a previously
- *  auto-filled non-zero value (e.g. rdwH=8) loses its gold class on reload and is mistaken
- *  for a manually-entered value, preventing the next Firestore fetch from updating it. */
-function _saveRosterSnap(pNum, s) {
-  try {
-    lsSet(snapKey(pNum), JSON.stringify({
-      satH: s.satH, satM: s.satM, sunH: s.sunH, sunM: s.sunM,
-      bhH: s.bhH, bhM: s.bhM, bhOtH: s.bhOtH, bhOtM: s.bhOtM,
-      otH: s.otH, otM: s.otM, rdwH: s.rdwH, rdwM: s.rdwM,
-      boxH: s.boxH, boxM: s.boxM,
-    }));
-  } catch {}
-}
-
-/** Re-adds roster-suggested to any field whose current value still matches the last roster
- *  snapshot, called immediately after writeFormData in loadPeriodData. This means _suggestIfBlank
- *  will update those fields if the Firestore fetch returns different values (e.g. admin added an
- *  RDW since the last time this period was open). Fields the user manually edited won't match
- *  the snapshot and keep their values untouched. */
-function _restoreRosterSuggested(pNum) {
-  let snap;
-  try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch {}
-  if (!snap) return;
-  const pairs = [
-    ['satH',  'satM',  snap.satH,  snap.satM ],
-    ['sunH',  'sunM',  snap.sunH,  snap.sunM ],
-    ['bhH',   'bhM',   snap.bhH,   snap.bhM  ],
-    ['bhOtH', 'bhOtM', snap.bhOtH, snap.bhOtM],
-    ['otH',   'otM',   snap.otH,   snap.otM  ],
-    ['rdwH',  'rdwM',  snap.rdwH,  snap.rdwM ],
-    ['boxH',  'boxM',  snap.boxH,  snap.boxM ],
-  ];
-  for (const [hId, mId, hVal, mVal] of pairs) {
-    const elH = document.getElementById(hId);
-    const elM = document.getElementById(mId);
-    if (!elH || !elM) continue;
-    // writeFormData writes 0 as '' (via `d.val || ''`); apply the same conversion for comparison.
-    // Restore gold class independently per field so a partially-cleared pair still restores
-    // the field that still matches — preventing its paired blank field from being skipped
-    // by _suggestIfBlank when Firestore returns updated data.
-    if (elH.value === String(hVal || '')) elH.classList.add('roster-suggested');
-    if (elM.value === String(mVal || '')) elM.classList.add('roster-suggested');
-  }
-}
-
-/** Fills ALL categories from the current roster suggestion, overwriting existing values. */
-function fillFromRoster() {
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
-  if (!p) return;
-  const s = getRosterSuggestion(p, getLoggedMember());
-  if (!s) return;
-  _applyRosterSuggestion(s, true);
-  autosave();
-  // Refresh row states (✓ matched) before the confirmation text swap below,
-  // so the restored text after the timeout is the canonical hint.
-  updateRosterHint();
-  // Brief confirmation — tap Clear all entries to undo
-  const hint = document.getElementById('rosterHintText');
-  if (hint) {
-    const prev = hint.textContent;
-    hint.textContent = '✓ Filled — tap "Clear all entries" to undo';
-    setTimeout(() => { hint.textContent = prev; }, 3000);
-  }
-}
+// Cached output of the last bdBody render — avoids the parse+layout cost of
+// innerHTML when the rendered string is identical. Summary has two write paths
+// (estimated + Miller actual override) so it is not cached.
+let _lastBdBodyHtml = null;
 
 // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
 function updateBadges(rate) {
@@ -1190,436 +825,27 @@ function calculate() {
     }
   }
 
-  calcHPP();
+  calcHPP(_bpVarAmount, _bpPNum);
 }
 
-// ── HPP ESTIMATOR ─────────────────────────────────────────────────────────────
-// Formula from Chiltern payroll (Marie Firby):
-// (Gross - Basic) × 4/52 = HPP
+// isDataEmpty, calcHPP, updatePriorHpp, _decodeHours, _varPayForPeriod
+// imported from paycalc-hpp.js.
 
-// Decode raw hours from a saved period data object. Guards BH/Boxing hours against
-// periods that don't contain those days — localStorage can restore saved values into
-// hidden rows, so we sanitise here rather than relying on the DOM row being hidden.
-function _decodeHours(p, d) {
-  return {
-    satHrs:  (d.satH  || 0) + (d.satM  || 0) / 60,
-    bhHrs:   hasBankHoliday(p) ? ((d.bhH   || 0) + (d.bhM   || 0) / 60) : 0,
-    bhOtHrs: hasBankHoliday(p) ? ((d.bhOtH || 0) + (d.bhOtM || 0) / 60) : 0,
-    otHrs:   (d.otH   || 0) + (d.otM   || 0) / 60,
-    rdwHrs:  (d.rdwH  || 0) + (d.rdwM  || 0) / 60,
-    sunHrs:  (d.sunH  || 0) + (d.sunM  || 0) / 60,
-    boxHrs:  hasBoxingDay(p)  ? ((d.boxH  || 0) + (d.boxM  || 0) / 60) : 0,
-  };
-}
-
-// Compute variable pay for one period from saved data. Used by calcHPP and
-// updatePriorHpp to avoid duplicating the capping and London Allowance logic.
-// bhCapped mirrors calculate(): when all contracted hours are Saturday, bhCapped = 0
-// and the BH premium must not contribute to HPP (it wasn't in that period's gross).
-function _varPayForPeriod(p, d, rate) {
-  const r125      = rate * RATE_125, r150 = rate * RATE_150, r300 = rate * RATE_300;
-  const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
-  const effContr  = getEffectiveContr(p);
-  const satCapped = Math.min(satHrs, effContr);
-  const normHrs   = effContr - satCapped;
-  const bhCapped  = Math.min(bhHrs, normHrs);
-  const pTy       = getTaxYearForOffset(p.num - 48);
-  const pLondon   = getLondonAllowanceForPeriod(p, pTy) * getProRateFactor(p);
-  return satCapped * (rate * (RATE_125 - 1)) +
-         bhCapped  * (rate * (RATE_125 - 1)) +
-         bhOtHrs   * r125                    +
-         otHrs     * r125          +
-         rdwHrs    * r125          +
-         sunHrs    * r150          +
-         boxHrs    * r300          +
-         pLondon;
-}
-// Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance
-// Does NOT include: peer training, basic pay, expenses, bonuses
-function calcHPP() {
-  const _hppGrade       = getGrade();
-  const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-  const rate       = numVal('hourlyRate') || _hppDefaultRate;
-  const allPeriods = getPeriods();
-
-  // HPP accumulates only within the selected period's tax year
-  const pNum    = currentPeriodNum();
-  const curP    = allPeriods.find(x => x.num === pNum);
-  const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const periods = allPeriods.filter(p => {
-    const o = p.num - 48;
-    return o >= ty.first && o <= ty.last;
-  });
-
-  let totalVar    = 0;
-  let pCount      = 0;
-  let usingActuals = false;
-
-  periods.forEach(p => {
-    try {
-      // Variable back pay was earned in past periods but received in _bpPNum.
-      // Added before the saved-data check so it still counts when the lump-sum
-      // period itself has no hours entered yet.
-      if (_bpVarAmount > 0 && p.num === _bpPNum) totalVar += _bpVarAmount;
-
-      // G. Miller: use hardcoded payslip varPay when available
-      const _hppActualKey = formatISO(p.payday);
-      const _hppActual = getLoggedMember()?.name === 'G. Miller'
-        ? MILLER_ACTUALS[_hppActualKey] : null;
-      if (_hppActual?.varPay != null) {
-        totalVar += _hppActual.varPay;
-        pCount++;
-        usingActuals = true;
-        return;
-      }
-
-      const raw = lsGet(periodKey(p.num));
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (isDataEmpty(d)) return;
-      pCount++;
-      totalVar += _varPayForPeriod(p, d, rate);
-    } catch {}
-  });
-
-  const hpp      = totalVar * HPP_FRACTION;
-  const amountEl = document.getElementById('hppAmount');
-  const basisEl  = document.getElementById('hppBasis');
-  const labelEl  = document.getElementById('hppLabel');
-
-  // Persist the running estimate so it survives when the user moves to the next tax year.
-  // The prior year section reads this key to show the carry-forward amount.
-  // Delete the key when the estimate drops to zero — otherwise a stale figure
-  // would silently be added to the January payslip after entries are cleared.
-  if (hpp > 0) lsSet(hppEstKey(ty), hpp.toFixed(2));
-  else         lsDel(hppEstKey(ty));
-
-  // Current year always shows the estimate (the confirmed actual lives in the prior year section
-  // once the user has moved to the following tax year).
-  if (pCount === 0) {
-    if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
-    amountEl.textContent = '£–';
-    basisEl.textContent  = 'Enter hours across your periods above to calculate';
-  } else {
-    if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
-    amountEl.textContent = fmt(hpp);
-    basisEl.textContent  = usingActuals
-      ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-      : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
-  }
-
-  // Dynamic formula note
-  const noteEl = document.getElementById('hppNote');
-  if (noteEl) {
-    noteEl.innerHTML = `<strong>How it's calculated (confirmed by Chiltern payroll):</strong> All extra pay above your basic hours (overtime, rest day working, Sundays, and London Allowance) × 7.69%. Basic pay, peer training, expenses and bonuses are not included. This estimate covers the <strong>tax year ${ty.label}</strong> — Chiltern will pay it in <strong>January ${ty.hppPaidJan}</strong>. It's reduced proportionally if you weren't employed for the full year.`;
-  }
-
-  // Update the prior year section (shows the previous tax year's HPP carry-forward)
-  updatePriorHpp(ty);
-}
-
-// ── PRIOR YEAR HPP SECTION ───────────────────────────────────────────────────
-// Shows the previous tax year's HPP estimate (or confirmed actual) in the HPP card.
-// Called at the end of calcHPP() so it refreshes whenever the main calculation runs.
-function updatePriorHpp(ty) {
-  const section = document.getElementById('priorHppSection');
-  if (!section) return;
-
-  const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === ty.label);
-  if (tyIdx <= 0) {
-    section.classList.add('hidden');
-    return;
-  }
-
-  const priorTy   = CONFIG.TAX_YEARS[tyIdx - 1];
-  const estRaw    = lsGet(hppEstKey(priorTy));
-  const actualRaw = lsGet(hppActualKey(priorTy));
-  let   est       = estRaw    ? parseFloat(estRaw)    : 0;
-  const actual    = actualRaw ? parseFloat(actualRaw) : 0;
-
-  // If no stored estimate yet, compute it on the fly so the prior-year HPP
-  // section is populated on first login even before the user has visited a
-  // prior-year period. G. Miller uses payslip varPay; everyone else reads
-  // whatever period data they have entered in localStorage.
-  if (est === 0 && !actual) {
-    const _priorPeriods = getPeriods().filter(p => {
-      const o = p.num - 48;
-      return o >= priorTy.first && o <= priorTy.last;
-    });
-
-    // G. Miller: derive from hardcoded payslip varPay figures
-    if (getLoggedMember()?.name === 'G. Miller') {
-      const _priorVar = _priorPeriods.reduce((sum, p) => {
-        const a = MILLER_ACTUALS[formatISO(p.payday)];
-        return a?.varPay != null ? sum + a.varPay : sum;
-      }, 0);
-      if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
-
-    } else {
-      // Everyone else: sum variable pay from localStorage period entries
-      const _hppGrade = getGrade();
-      const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-      let _priorVar = 0;
-      _priorPeriods.forEach(p => {
-        try {
-          const raw = lsGet(periodKey(p.num));
-          if (!raw) return;
-          const d = JSON.parse(raw);
-          if (isDataEmpty(d)) return;
-          _priorVar += _varPayForPeriod(p, d, rate);
-        } catch {}
-      });
-      if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
-    }
-
-    if (est > 0) lsSet(hppEstKey(priorTy), est.toFixed(2));
-  }
-
-  // Is the current period's payday in the January when prior-year HPP is paid?
-  const pNum = currentPeriodNum();
-  const curP = getPeriods().find(x => x.num === pNum);
-  const isJanPayday = curP &&
-    curP.payday.getFullYear() === priorTy.hppPaidJan &&
-    curP.payday.getMonth() === 0;
-
-  document.getElementById('priorHppTitle').textContent      = `${priorTy.label} Holiday Pay Premium`;
-  document.getElementById('currentHppTitle').textContent    = `This year (${ty.label})`;
-
-  const dueBadge = document.getElementById('priorHppDueBadge');
-  dueBadge.classList.toggle('hidden', !isJanPayday || actual > 0);
-
-  const amtLabel = document.getElementById('priorHppAmtLabel');
-  const amtEl    = document.getElementById('priorHppAmt');
-  const basisEl  = document.getElementById('priorHppBasis');
-
-  if (actual > 0) {
-    amtLabel.innerHTML  = `${priorTy.label} HPP <span class="actual-badge">✓ Confirmed</span>`;
-    amtEl.textContent   = fmt(actual);
-    basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
-  } else if (est > 0) {
-    amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : 'Estimated';
-    amtEl.textContent    = fmt(est);
-    basisEl.textContent  = isJanPayday
-      ? `Check your January ${priorTy.hppPaidJan} payslip and enter the confirmed amount below`
-      : `Estimated from your ${priorTy.label} periods · due January ${priorTy.hppPaidJan}`;
-  } else {
-    amtLabel.textContent = 'Estimated';
-    amtEl.textContent    = '£–';
-    basisEl.textContent  = `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
-  }
-
-  // Load stored actual into the input — only update if it differs to avoid disrupting typing
-  const input = document.getElementById('priorHppActualInput');
-  if (input) {
-    const stored = actualRaw || '';
-    if (document.activeElement !== input) input.value = stored;
-  }
-
-  section.classList.remove('hidden');
-}
-
-// ── CARD COLLAPSE TOGGLES ─────────────────────────────────────────────────────
-// All collapsible card headers are wired through the shared initCardCollapse
-// (overlay.js) in the listener section below — it adds keyboard (Enter/Space)
-// and aria-expanded support that the old per-card toggle functions lacked.
-
-/** Pre-fill the Back Pay card inputs when it opens (initCardCollapse onToggle). */
-function prefillBackPay() {
-  // Pre-fill London Allowance — old = pre-award rate, new = current rate
-  const pNum = currentPeriodNum();
-  const curP = getPeriods().find(x => x.num === pNum);
-  const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const oldLondonEl = document.getElementById('oldLondon');
-  const newLondonEl = document.getElementById('newLondon');
-  if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
-  if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
-  // Auto-select April — Chiltern's pay anniversary is always 1 April
-  const fromSel = document.getElementById('backPayFrom');
-  if (fromSel && !fromSel.value) fromSel.value = 48 + ty.first;
-  calcBackPay();
-}
-
-// ── BACK PAY CALCULATOR ───────────────────────────────────────────────────────
-
-/** Tax year the back-pay award belongs to — derived from the "backdated from"
- *  period, NOT the period being viewed (which may be a different tax year). */
-function _bpAwardTaxYear(fromPNum) {
-  const p = fromPNum ? getPeriods().find(x => x.num === fromPNum) : null;
-  return getTaxYearForOffset((p ? p.num : currentPeriodNum()) - 48);
-}
-
-function calcBackPay() {
-  const oldRate   = parseFloat(document.getElementById('oldRate').value);
-  const newRate   = parseFloat(document.getElementById('newRateInput').value);
-  const oldLondon = parseFloat(document.getElementById('oldLondon').value);
-  const newLondon = parseFloat(document.getElementById('newLondon').value);
-  const rowsEl       = document.getElementById('backPayRows');
-  const totalEl      = document.getElementById('backPayTotal');
-  const totalAmtEl   = document.getElementById('backPayTotalAmt');
-  const totalBasEl   = document.getElementById('backPayTotalBasis');
-  const noticeEl     = document.getElementById('backPayNotice');
-  const breakdownBtn = document.getElementById('bpBreakdownBtn');
-
-  const fromPNum  = +(document.getElementById('backPayFrom')?.value || 0);
-  const bpSel     = document.getElementById('backPayPeriod');
-  const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
-  const bpP       = bpPNum ? getPeriods().find(x => x.num === bpPNum) : null;
-  const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
-  const hasLondon = oldLondon > 0 && newLondon > 0 && newLondon > oldLondon;
-
-  const labelEl    = document.getElementById('backPayTotalLabel');
-  const periodWrap = document.getElementById('backPayPeriodWrap');
-  const applyWrap  = document.getElementById('applyRateWrap');
-  const applyBtn   = document.getElementById('applyRateBtn');
-
-  if (!hasRate && !hasLondon) {
-    rowsEl.innerHTML = '';
-    rowsEl.classList.remove('open');
-    totalEl.style.display      = 'none';
-    noticeEl.style.display     = 'none';
-    breakdownBtn.style.display = 'none';
-    if (periodWrap) periodWrap.style.display = 'none';
-    if (applyWrap)  applyWrap.style.display  = 'none';
-    return;
-  }
-
-  const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
-  const londonDiff = hasLondon ? newLondon - oldLondon : 0;
-  const periods    = getPeriods();
-  let rows          = '';
-  let grandTotal    = 0;
-  let grandVarTotal = 0;
-  let pCount        = 0;
-
-  periods.forEach(p => {
-    try {
-      if (fromPNum && p.num < fromPNum) return; // exclude before April
-      if (bpPNum   && p.num > bpPNum)  return; // exclude after "paid in" period
-      const raw = lsGet(periodKey(p.num));
-      if (!raw) return;
-      const d = JSON.parse(raw);
-      if (isDataEmpty(d)) return;
-
-      const { satHrs, bhHrs, bhOtHrs, otHrs, rdwHrs, sunHrs, boxHrs } = _decodeHours(p, d);
-      // Cap sat/BH hours as calculate() does — back-pay must reflect actual gross paid.
-      // Use getEffectiveContr so joining periods use pro-rated hours.
-      const _bpEffContr = getEffectiveContr(p);
-      const satCapped = Math.min(satHrs, _bpEffContr);
-      const normHrsBP = _bpEffContr - satCapped;
-      const bhCapped  = Math.min(bhHrs, normHrsBP);
-
-      const ratePay =
-        _bpEffContr    * rateDiff                    +
-        satCapped * rateDiff * (RATE_125 - 1) +
-        bhCapped  * rateDiff * (RATE_125 - 1) +
-        bhOtHrs   * rateDiff * RATE_125       +
-        otHrs     * rateDiff * RATE_125       +
-        rdwHrs    * rateDiff * RATE_125       +
-        sunHrs    * rateDiff * RATE_150       +
-        boxHrs    * rateDiff * RATE_300       +
-        (d.peer || 0) * 2 * rateDiff;
-
-      // Pro-rate londonDiff using the exact factor — avoids rounding error from
-      // dividing the integer-rounded _bpEffContr back by getContr().
-      const _bpScale = getProRateFactor(p);
-      const backPay = ratePay + londonDiff * _bpScale;
-
-      // Variable portion — mirrors _varPayForPeriod(): excludes basic contracted pay
-      // (effContr × rateDiff) and peer pay. London Allowance diff is variable (HPP accrues on it).
-      const varPay = (hasRate ? (
-        satCapped * rateDiff * (RATE_125 - 1) +
-        bhCapped  * rateDiff * (RATE_125 - 1) +
-        bhOtHrs   * rateDiff * RATE_125       +
-        otHrs     * rateDiff * RATE_125       +
-        rdwHrs    * rateDiff * RATE_125       +
-        sunHrs    * rateDiff * RATE_150       +
-        boxHrs    * rateDiff * RATE_300
-      ) : 0) + (hasLondon ? londonDiff * _bpScale : 0);
-
-      if (backPay > 0) {
-        grandTotal    += backPay;
-        grandVarTotal += varPay;
-        pCount++;
-        rows += `<div class="bp-row">
-          <span class="bp-lbl">P${p.num} · ${fd(p.payday)}</span>
-          <span class="bp-val">${fmt(backPay)}</span>
-        </div>`;
-      }
-    } catch {}
-  });
-
-  if (grandTotal > 0) {
-    // Total headline
-    totalEl.style.display  = 'block';
-    totalAmtEl.textContent = fmt(grandTotal);
-    if (labelEl) {
-      labelEl.textContent = bpP
-        ? `💷 Lump sum · Paid ${fdShort(bpP.payday)}`
-        : '💷 Lump sum on one payslip';
-    }
-    const parts = [];
-    if (hasRate)   parts.push(`rate ${fmt(oldRate)} → ${fmt(newRate)}`);
-    if (hasLondon) parts.push(`London Allow ${fmt(oldLondon)} → ${fmt(newLondon)}`);
-    totalBasEl.textContent = `${pCount} period${pCount > 1 ? 's' : ''} backdated · ${parts.join(' · ')}`;
-
-    // "Paid in" period selector
-    if (periodWrap) periodWrap.style.display = 'block';
-
-    // Tax caution
-    noticeEl.style.display = 'block';
-    if (bpP) {
-      const payLong = bpP.payday.toLocaleDateString('en-GB', {
-        day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
-      });
-      noticeEl.innerHTML = `⚠️ This lump sum will appear on your <strong>P${bpP.num} payslip (paid ${payLong})</strong>. It is taxed in full in that period — if it pushes your income over a tax band threshold, you may receive less than the gross figure shown.`;
-    } else {
-      noticeEl.textContent = '⚠️ This lump sum is taxed in the period it is paid. Select a period above to see a specific warning. If it pushes your income over a tax band threshold that month, you may receive less than the gross figure shown.';
-    }
-
-    // Apply new rate button — shown once rates are confirmed.
-    // "Already applied" compares against the stored rate for the AWARD's tax
-    // year, not the rate field (which shows the rate of whichever tax year is
-    // being viewed and may legitimately differ).
-    if (applyWrap && applyBtn && hasRate) {
-      const _awardTy = _bpAwardTaxYear(fromPNum);
-      let _storedRates = {};
-      try { _storedRates = JSON.parse(lsGet(SK.rates) || '{}'); } catch {}
-      const alreadyApplied = Math.abs((parseFloat(_storedRates[_awardTy.label]) || 0) - newRate) < 0.001;
-      applyBtn.textContent = alreadyApplied
-        ? `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${_awardTy.label})`
-        : `Apply new rate to settings — £${newRate.toFixed(2)}/hr (${_awardTy.label}) →`;
-      applyBtn.disabled = alreadyApplied;
-      applyWrap.style.display = 'block';
-    } else if (applyWrap) {
-      applyWrap.style.display = 'none';
-    }
-
-    // Per-period breakdown
-    rowsEl.innerHTML = rows;
-    breakdownBtn.style.display = 'flex';
-  } else {
-    totalEl.style.display      = 'none';
-    noticeEl.style.display     = 'none';
-    breakdownBtn.style.display = 'none';
-    if (periodWrap) periodWrap.style.display = 'none';
-    if (applyWrap)  applyWrap.style.display  = 'none';
-    rowsEl.innerHTML = '<p style="font-size:13px;color:var(--text-light);padding:8px 0">No saved periods found. Enter hours for each period first.</p>';
-  }
-
-  // Update the back pay state used by calculate() and calcHPP(), then re-run.
-  // Only associate with a period when the user has explicitly chosen one.
-  const newBpPNum    = (grandTotal > 0 && bpPNum > 0) ? bpPNum : 0;
-  const newBpAmt     = newBpPNum > 0 ? grandTotal    : 0;
-  const newBpVarAmt  = newBpPNum > 0 ? grandVarTotal : 0;
-  if (newBpPNum !== _bpPNum ||
-      Math.abs(newBpAmt    - _bpAmount)    > 0.001 ||
-      Math.abs(newBpVarAmt - _bpVarAmount) > 0.001) {
-    _bpAmount    = newBpAmt;
-    _bpVarAmount = newBpVarAmt;
-    _bpPNum      = newBpPNum;
+// ── BACK PAY STATE WRAPPERS ───────────────────────────────────────────────────
+// prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.
+// calcBackPay() returns { bpAmount, bpVarAmount, bpPNum } — this wrapper
+// compares against coordinator state and calls calculate() if changed.
+function _applyBpState({ bpAmount, bpVarAmount, bpPNum }) {
+  if (bpPNum !== _bpPNum ||
+      Math.abs(bpAmount    - _bpAmount)    > 0.001 ||
+      Math.abs(bpVarAmount - _bpVarAmount) > 0.001) {
+    _bpAmount    = bpAmount;
+    _bpVarAmount = bpVarAmount;
+    _bpPNum      = bpPNum;
     calculate();
   }
 }
+function _runCalcBackPay() { _applyBpState(calcBackPay()); }
 
 function toggleBpBreakdown() {
   const btn  = document.getElementById('bpBreakdownBtn');
@@ -1779,7 +1005,7 @@ document.getElementById('peerPlus').addEventListener('click',  () => stepPeer(1)
 
 // Back-pay inputs
 ['oldRate','newRateInput','oldLondon','newLondon'].forEach(id => {
-  document.getElementById(id).addEventListener('input', calcBackPay);
+  document.getElementById(id).addEventListener('input', _runCalcBackPay);
 });
 
 // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
@@ -1789,12 +1015,12 @@ initCardCollapse('settingsToggle',    'settingsBody',    'settingsToggle');
 initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
 initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
 initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
-  open => { if (open) prefillBackPay(); });
+  open => { if (open) _applyBpState(prefillBackPay()); });
 
 // Back-pay inputs + period selectors + apply rate
 document.getElementById('bpBreakdownBtn').addEventListener('click', toggleBpBreakdown);
-document.getElementById('backPayFrom').addEventListener('change', calcBackPay);
-document.getElementById('backPayPeriod').addEventListener('change', calcBackPay);
+document.getElementById('backPayFrom').addEventListener('change', _runCalcBackPay);
+document.getElementById('backPayPeriod').addEventListener('change', _runCalcBackPay);
 document.getElementById('applyRateBtn').addEventListener('click', applyNewRate);
 document.getElementById('saveSettingsBtn').addEventListener('click', () => confirmSettings(calculate));
 
@@ -1874,12 +1100,12 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
 
 // Roster fill — "Fill blank fields" button + per-category "Fill →" buttons
 const _fillBtn = document.getElementById('fillFromRosterBtn');
-if (_fillBtn) _fillBtn.addEventListener('click', fillFromRoster);
+if (_fillBtn) _fillBtn.addEventListener('click', () => fillFromRoster(autosave));
 
 // Per-category fill buttons are dynamically rendered inside #rosterRows — use delegation
 document.getElementById('rosterRows')?.addEventListener('click', e => {
   const catBtn = e.target.closest('[data-cat]');
-  if (catBtn) { fillCategoryFromRoster(catBtn.dataset.cat); return; }
+  if (catBtn) { fillCategoryFromRoster(catBtn.dataset.cat, autosave); return; }
   if (e.target.closest('[data-action="focus-ot"]')) {
     const el = document.getElementById('otH');
     if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
