@@ -686,23 +686,12 @@ A phased plan to make the codebase easier to maintain and extend without introdu
 ### Phase 1 — Lightweight type hints
 
 - **`// @ts-check` + `jsconfig.json`** — add `// @ts-check` at the top of every root JS module and a `jsconfig.json` pointing at all root modules. Gives IDE autocompletion and type errors without a build step. No runtime effect. Pairs with JSDoc `@param`/`@returns` already present on most functions.
-- **`COLLECTIONS` constant in `firebase-client.js`** — replace bare string literals like `'circulars'`, `'newsletters'`, `'clientErrors'` with a `const COLLECTIONS = { circulars: 'circulars', ... }` object. A typo in a collection name is currently a silent runtime failure; a named constant makes it refactor-safe and grep-able.
+- **`COLLECTIONS` constant in `firebase-client.js`** ✓ (v13.75) — `COLLECTIONS` object added; `sw-asset-check.test.mjs` updated to parse it. A typo in a collection name is now a grep-able named constant rather than a silent runtime failure.
 - **Roster data integrity tests** — assert in `roster-data.test.mjs` that every `teamMember` has a valid `currentWeek` in range for their `rosterType`, that `startDate` fields are `Date` objects not strings, and that `rosterChanges` arrays are sorted ascending. Catches data-entry errors that currently produce silently wrong calendars.
 
-### Phase 2 — Session/bootstrap consolidation
+### Phase 2 — Session/bootstrap consolidation ✓ (v13.74)
 
-Replace the `window._mybSession` global handshake with an exported promise pair from `session.js`:
-
-```js
-// session.js
-let _resolve;
-export const sessionReady = new Promise(r => (_resolve = r));
-export function resolveSession(session) { _resolve(session); }
-```
-
-Page coordinators call `resolveSession(session)` after `ensureFirebaseSession()`; feature modules `import { sessionReady } from './session.js'` and `await sessionReady` instead of `await window._mybSession`. A forgotten import produces an ESLint `no-undef` error (or a TS type error with `// @ts-check`) rather than a silent permissions failure.
-
-**Why deferred:** requires touching 4 page coordinators and 5+ feature modules in one atomic change; safe to do in a quiet period. See KNOWN_LIMITATIONS.md → "`window._mybSession` is a cross-module global handshake".
+Completed. `sessionReady` (Promise) and `resolveSession()` are exported from `session.js`; the `window._mybSession` global has been removed. Page coordinators call `resolveSession(session)`; feature modules `import { sessionReady }` and `await sessionReady`. See KNOWN_LIMITATIONS.md for the migration note.
 
 ### Phase 3 — Point-of-use decision comments
 
@@ -718,8 +707,6 @@ These rules are documented in CLAUDE.md and `app-override-utils.js` JSDoc but in
 
 The biggest untested gap is the DOM injection layer: `nav-panel.js` (inject overlay + drawer, pill rendering, guide toggle), `overlay.js` (lightbox open/close lifecycle, focus trap, `transitionend` fallback), and `session.js` (expired session, self-heal). Add unit tests using Node's built-in `--experimental-vm-modules` + a minimal DOM stub. Does not require Playwright or a real browser. See KNOWN_LIMITATIONS.md → "Test coverage gaps" and "E2E smoke tests removed".
 
-### Phase 5 — ESLint as a devDependency
+### Phase 5 — ESLint as a devDependency ✓ (v13.77)
 
-Move ESLint from a globally-installed tool to a `devDependency` in `package.json`. This ensures every session / CI run uses the same ESLint version and rules without depending on the global environment. The session-start hook (`session-start.sh`) installs devDependencies on session open, so `npm run lint` will work without any manual setup.
-
-Also migrate `.eslintrc.json` to `eslint.config.js` (flat config) when ESLint is added as a devDep — the legacy config is deprecated in ESLint v9+ and removed in v10+.
+Completed. `eslint` (v10) added to `devDependencies` alongside the existing `@eslint/js` and `globals` packages; flat config already in `eslint.config.js`. `npm run lint` and `npm run check` work on a clean checkout without a globally-installed ESLint. CI workflows updated to run `npm ci` + `npm run check`.

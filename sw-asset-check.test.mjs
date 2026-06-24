@@ -195,15 +195,28 @@ test('Firestore collections in firebase-client.js all have firestore.rules entri
     const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
     const rules  = readFileSync(join(ROOT, 'firestore.rules'), 'utf8');
 
-    // Collection names from: collection(db, 'name')  or  doc(db, 'name', ...)
+    // Collection names from the COLLECTIONS constant object exported by firebase-client.js.
+    // The code uses COLLECTIONS.name rather than bare string literals, so we parse the
+    // object declaration instead of looking for collection(db, 'literal') calls.
     const clientCollections = new Set();
-    const clientRe = /(?:collection|doc)\s*\(\s*db\s*,\s*['"](\w+)['"]/g;
-    let m;
-    while ((m = clientRe.exec(client)) !== null) clientCollections.add(m[1]);
+    const collectionsBlock = client.match(/export const COLLECTIONS\s*=\s*\{([^}]+)\}/);
+    if (collectionsBlock) {
+        const valueRe = /:\s*'(\w+)'/g;
+        let m;
+        while ((m = valueRe.exec(collectionsBlock[1])) !== null) clientCollections.add(m[1]);
+    }
+
+    // Sanity: the regex must have found at least one collection.
+    // If COLLECTIONS is refactored, update the regex above rather than silently passing.
+    assert.ok(
+        clientCollections.size > 0,
+        'Firestore collections test found zero collections — check the COLLECTIONS regex in sw-asset-check.test.mjs'
+    );
 
     // Explicit match blocks from rules: match /name/{...}
     const ruleCollections = new Set();
     const rulesRe = /match\s+\/(\w+)\s*\/\{/g;
+    let m;
     while ((m = rulesRe.exec(rules)) !== null) ruleCollections.add(m[1]);
 
     // 'databases' is the Firestore path root, not a collection name.
@@ -213,6 +226,6 @@ test('Firestore collections in firebase-client.js all have firestore.rules entri
 
     assert.deepEqual(
         missing, [],
-        `Collections used in firebase-client.js but missing from firestore.rules:\n  ${missing.join('\n  ')}`
+        `Collections in COLLECTIONS constant but missing from firestore.rules:\n  ${missing.join('\n  ')}`
     );
 });

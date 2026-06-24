@@ -9,6 +9,8 @@ ERRORS=0
 
 for f in *.js; do
   [[ "$f" == *test* ]] && continue
+  # Tooling config files are not application modules — skip them.
+  [[ "$f" == "eslint.config.js" ]] && continue
 
   if ! grep -q "$f" AI_MAP.md 2>/dev/null; then
     echo "  doc-check: $f not listed in AI_MAP.md"
@@ -27,65 +29,16 @@ if [ "$ERRORS" -gt 0 ]; then
   exit 1
 fi
 
-# STAFF_NAMES sync check — ensures functions/index.js STAFF_NAMES matches
-# the active (non-hidden) members in roster-data.js teamMembers.
-# Adding a new member to one file without the other silently breaks roster uploads.
+# Roster-members sync check — ensures functions/roster-members.json matches
+# the active (non-hidden, non-manager) staff in roster-data.js.
+# Uses the same logic as sw-asset-check.test.mjs 'roster-members.json' test.
+# Adding a new member without re-running generate:roster-members silently breaks uploads.
 if command -v node >/dev/null 2>&1; then
-  node - << 'NODEEOF'
-const fs = require('fs');
-const rosterSrc = fs.readFileSync('roster-data.js', 'utf8');
-const fnSrc     = fs.readFileSync('functions/index.js', 'utf8');
-
-// Extract non-hidden teamMembers from roster-data.js, grouped by grade
-const byGrade = { cea: new Set(), ces: new Set(), dispatcher: new Set() };
-for (const line of rosterSrc.split('\n')) {
-    if (!line.includes("name:") || !line.includes("rosterType:")) continue;
-    if (line.includes('hidden: true')) continue;
-    const name = (line.match(/name:\s*'([^']+)'/) || [])[1];
-    const role = (line.match(/role:\s*'([^']+)'/) || [])[1];
-    if (!name || !role) continue;
-    if (role === 'CES')             byGrade.ces.add(name);
-    else if (role === 'Dispatcher') byGrade.dispatcher.add(name);
-    else if (role === 'CEA')        byGrade.cea.add(name);
-    // Management members (role === 'Management') are not in STAFF_NAMES — skip them
-}
-
-// Extract STAFF_NAMES from functions/index.js
-const fnGrade = { cea: new Set(), ces: new Set(), dispatcher: new Set() };
-const block = fnSrc.match(/const STAFF_NAMES\s*=\s*\{([\s\S]*?)\n\s*\};/);
-if (block) {
-    let grade = null;
-    for (const line of block[1].split('\n')) {
-        const gm = line.match(/\b(cea|ces|dispatcher)\s*:/);
-        if (gm) grade = gm[1];
-        if (grade) {
-            for (const m of line.matchAll(/'([^']+)'/g)) fnGrade[grade].add(m[1]);
-            if (line.includes('],')) grade = null;
-        }
-    }
-}
-
-let errors = 0;
-for (const grade of ['cea', 'ces', 'dispatcher']) {
-    for (const n of byGrade[grade]) {
-        if (!fnGrade[grade].has(n)) {
-            process.stderr.write(`  staff-names: '${n}' (${grade}) is in roster-data.js but missing from functions/index.js STAFF_NAMES\n`);
-            errors++;
-        }
-    }
-    for (const n of fnGrade[grade]) {
-        if (!byGrade[grade].has(n)) {
-            process.stderr.write(`  staff-names: '${n}' (${grade}) is in functions/index.js STAFF_NAMES but not in roster-data.js (or is hidden)\n`);
-            errors++;
-        }
-    }
-}
-if (errors > 0) {
-    process.stderr.write('\n  Update STAFF_NAMES in functions/index.js to match teamMembers in roster-data.js, then re-commit.\n');
-    process.exit(1);
-}
-NODEEOF
-  if [ $? -ne 0 ]; then exit 1; fi
+  node --test --test-name-pattern "roster-members.json matches" sw-asset-check.test.mjs 2>&1
+  if [ $? -ne 0 ]; then
+    echo "  Run: npm run generate:roster-members"
+    exit 1
+  fi
 fi
 
 # Export-drift same-commit check — if a staged JS module removes or renames an
@@ -147,21 +100,22 @@ NODEEOF
   if [ $? -ne 0 ]; then exit 1; fi
 fi
 
-# ESLint — run on staged .js files only (fast; non-blocking warning if eslint not found)
-if command -v eslint >/dev/null 2>&1; then
+# ESLint — run on staged .js files only (fast).
+# Uses project-local node_modules/.bin/eslint (installed by `npm install`).
+if [[ -x "./node_modules/.bin/eslint" ]]; then
   STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | tr '\n' ' ')
   if [[ -n "$STAGED_JS" ]]; then
     # shellcheck disable=SC2086
-    eslint --max-warnings=0 $STAGED_JS
+    ./node_modules/.bin/eslint --max-warnings=0 $STAGED_JS
     if [ $? -ne 0 ]; then
       echo ""
       echo "  ESLint: fix the above warnings/errors, then re-commit."
-      echo "  (Run: eslint --fix <file> to auto-fix most issues.)"
+      echo "  (Run: ./node_modules/.bin/eslint --fix <file> to auto-fix most issues.)"
       exit 1
     fi
   fi
 else
-  echo "  (eslint not found — skipping lint check; install with: npm install -g eslint)"
+  echo "  (node_modules/.bin/eslint not found — run: npm install)"
 fi
 
 # Firebase SDK version consistency check — ensures firebase.json functions and

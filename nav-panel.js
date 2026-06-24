@@ -259,7 +259,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             if (newTab) newTab.opener = null;
             getLatestCircular().then(data => {
                 if (data?.storageUrl) {
-                    if (newTab) newTab.location.href = data.storageUrl;
+                    if (newTab) {
+                        newTab.location.href = data.storageUrl;
+                    } else {
+                        // Popup was blocked — fall back to current-tab navigation.
+                        location.href = data.storageUrl;
+                    }
                     closePanelForNavigation();
                 } else {
                     if (newTab) newTab.close();
@@ -281,7 +286,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             if (newTab) newTab.opener = null;
             getLatestNewsletter().then(data => {
                 if (data?.storageUrl) {
-                    if (newTab) newTab.location.href = data.storageUrl;
+                    if (newTab) {
+                        newTab.location.href = data.storageUrl;
+                    } else {
+                        // Popup was blocked — fall back to current-tab navigation.
+                        location.href = data.storageUrl;
+                    }
                     closePanelForNavigation();
                 } else {
                     if (newTab) newTab.close();

@@ -55,14 +55,16 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm ci
+
       # Build gate — never publish a broken build to staff. Syntax-checks every
       # root JS module (loop, so the list never goes stale) and runs the suite.
       - name: Syntax check and tests
         run: |
           for f in *.js; do echo "check $f"; node --check "$f" || exit 1; done
-          # Canonical test command lives in package.json (npm run test:* groups handle
-          # the per-group node flags) so the workflows can't drift out of sync.
-          npm test
+          # Canonical check command (lint + tests) lives in package.json.
+          npm run check
 
       # Assemble the publish folder: everything the app needs at runtime, minus
       # server-only files, docs, tests and dev tooling. Mirrors firebase.json's
