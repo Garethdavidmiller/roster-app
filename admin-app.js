@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-app.js — Coordinator and primary feature file for admin.html.
  *
@@ -15,7 +16,7 @@
 
 import { CONFIG, teamMembers, DAY_KEYS, DAY_NAMES, MONTH_ABB, MONTH_NAMES, getALEntitlement, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade, isValidEmail } from './roster-data.js';
 import { db, collection, query, where, orderBy, limit, getDocs, addDoc, deleteDoc, doc, setDoc, getDoc, serverTimestamp, writeBatch, getStaffContact, saveStaffContact } from './firebase-client.js';
-import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
+import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, getEffectiveShift, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
@@ -1560,12 +1561,11 @@ async function _runEmailCheck(member) {
 
 /**
  * Called on every admin page load for an authenticated user.
- * Awaits the Firebase session promise so getStaffContact() doesn't run before
- * authentication is restored (returning-user path: session is re-established
- * asynchronously and stored in window._mybSession).
+ * Awaits sessionReady so getStaffContact() doesn't run before authentication
+ * is restored (returning-user path re-establishes Firebase Auth asynchronously).
  */
 async function initEmailCheck(member) {
-    await window._mybSession;
+    await sessionReady;
     await _runEmailCheck(member);
 }
 
@@ -1576,8 +1576,9 @@ if (!isAuthenticated) {
     // Returning user with a valid localStorage session never passes through the
     // login click handler, so re-establish the Firebase Auth session here.
     // Without this, auth.currentUser stays null and every Firestore write fails.
-    // Stored on window so admin-auth.js can await it before "Set up accounts".
-    window._mybSession = ensureFirebaseSession(currentUser);
+    // resolveSession() fulfils sessionReady so feature modules (admin-auth.js,
+    // admin-overrides.js, huddle.js) can import sessionReady instead of window._mybSession.
+    resolveSession(ensureFirebaseSession(currentUser));
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();
@@ -1634,7 +1635,7 @@ registerServiceWorker({
         }, { once: true });
     },
 });
-window._mybSession?.then(() => initErrorReporter());
+sessionReady.then(() => initErrorReporter());
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * notif.js — Shared Web Push notification state + subscribe/unsubscribe logic.
  *

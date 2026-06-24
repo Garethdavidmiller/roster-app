@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * huddle.js — Huddle upload, Huddle card toggle, and notification card wiring.
  *
@@ -12,6 +13,7 @@
 import { formatISO } from './roster-data.js';
 import { uploadHuddle } from './firebase-client.js';
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications, isIOS } from './notif.js';
+import { sessionReady } from './session.js';
 import { initCardCollapse } from './overlay.js';
 
 /**
@@ -206,15 +208,11 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
         uploadBtn.textContent = 'Uploading…';
 
         try {
-            // Operations starts Firebase Auth restoration in the background
-            // (window._mybSession). A returning admin with a valid localStorage
-            // session skips the login handler, so auth.currentUser may still be
-            // null for a moment after the page opens. uploadHuddle writes to
-            // Storage + Firestore, both admin-gated — without this await a fast
-            // click (especially a PDF, which skips DOCX conversion) could hit a
-            // permission failure before the session is live. Mirrors the roster
-            // upload path's getIdToken guard in operations-app.js.
-            if (window._mybSession) await window._mybSession;
+            // sessionReady resolves once the page coordinator confirms the Firebase
+            // Auth session. A returning admin skips the login handler so auth.currentUser
+            // may still be null when the page opens — awaiting here prevents a fast click
+            // hitting a permission failure before the session is live.
+            await sessionReady;
             await uploadHuddle(date, file, currentUser, htmlContent);
             feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
             feedback.className = 'huddle-feedback huddle-feedback--ok';

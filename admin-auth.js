@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-auth.js — Staff Firebase Auth account setup (admin only).
  *
@@ -13,6 +14,7 @@
 
 import { CONFIG, escapeHtml, getMembersForGrade } from './roster-data.js';
 import { auth, onAuthStateChanged } from './firebase-client.js';
+import { sessionReady } from './session.js';
 
 const SETUP_AUTH_URL = 'https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth';
 
@@ -48,10 +50,10 @@ export function initAuthSetup({ currentIsAdmin }) {
         resultEl.classList.remove('visible');
 
         try {
-            // operations-app.js re-establishes the Firebase Auth session on page load for
-            // returning users (window._mybSession). Await it so the session is ready
-            // even if the user clicks "Set up accounts" before sign-in completes.
-            if (window._mybSession) { try { await window._mybSession; } catch (_) {} }
+            // sessionReady resolves once operations-app.js confirms the Firebase Auth
+            // session. Awaiting it ensures the session is live even if the admin clicks
+            // "Set up accounts" before the background sign-in completes.
+            await sessionReady;
             // Wait for Firebase Auth to restore its session from IndexedDB before
             // checking currentUser — auth.currentUser is null until the async restore
             // completes, even when a valid session exists.

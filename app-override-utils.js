@@ -1,3 +1,4 @@
+// @ts-check
 // Override priority, member-start, and shift-classification helpers.
 // Shared by app.js, app-team-view.js, and the admin modules.
 
@@ -28,6 +29,7 @@ export function tsToMillis(ts) {
  * Overrides should be suppressed before a member's start date — getBaseShift
  * already returns 'RD' for those dates; allowing an override would undo that.
  * Returns false if the member has no startDate.
+ * Always call this helper — never inline the date comparison at a call site.
  * @param {object} member
  * @param {Date}   date
  * @returns {boolean}

@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * links-design.js — Pure link-design maths for links.html. No DOM, no Firebase.
  *

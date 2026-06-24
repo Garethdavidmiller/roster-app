@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * session.js — Shared auth/session helpers for admin.html, settings.html,
  * operations.html, and paycalc.html (paycalc uses getSession/clearSession only).
@@ -36,6 +37,20 @@ export const SESSION_VER = 2; // bump to force all existing sessions to re-login
 export function getSurname(fullName) {
     return normaliseSurname(fullName);
 }
+
+/**
+ * Module-level promise that resolves once the Firebase Auth session for this
+ * page is confirmed. Page coordinators call resolveSession(); feature modules
+ * import sessionReady and await it instead of reading window._mybSession.
+ *
+ * Resolves to true (session active), false (session failed or non-auth path),
+ * or the boolean returned by ensureFirebaseSession().
+ * @type {Promise<boolean>}
+ */
+let _sessionResolve;
+export const sessionReady = new Promise(r => (_sessionResolve = r));
+/** Call once per page-load from the page coordinator after ensureFirebaseSession(). */
+export function resolveSession(result) { _sessionResolve(result); }
 
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.

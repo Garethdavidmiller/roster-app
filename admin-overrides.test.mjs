@@ -26,7 +26,16 @@ mock.module('./firebase-client.js', {
         doc:             () => null,
         serverTimestamp: () => null,
         writeBatch:      () => ({ set: () => {}, delete: () => {}, commit: async () => {} }),
-        auth:            { currentUser: null },
+        auth:                          { currentUser: null },
+        authReady:                     Promise.resolve(),
+        onAuthStateChanged:            () => () => {},
+        nameToEmail:                   () => '',
+        normaliseSurname:              s => s,
+        signInWithEmailAndPassword:    async () => {},
+        createUserWithEmailAndPassword: async () => {},
+        signInAnonymously:             async () => {},
+        signOut:                       async () => {},
+        COLLECTIONS:     { overrides: 'overrides', huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters', pushSubscriptions: 'pushSubscriptions', staffContact: 'staffContact', clientErrors: 'clientErrors', linkDesigns: 'linkDesigns' },
     },
 });
 

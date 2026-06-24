@@ -1,3 +1,4 @@
+// @ts-check
 // Railcard Guide — interactive behaviours
 // Print / Save as PDF button
 document.getElementById('savePdfBtn').addEventListener('click', function () {

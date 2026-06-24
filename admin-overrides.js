@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-overrides.js — Change a Shift section of the admin portal.
  *
@@ -14,7 +15,8 @@ import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadge
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride } from './app-override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch, auth } from './firebase-client.js';
+         deleteDoc, doc, serverTimestamp, writeBatch, auth, COLLECTIONS } from './firebase-client.js';
+import { sessionReady } from './session.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -30,7 +32,9 @@ export const TYPES = {
     swap:         { label: 'Swap',             fixed: false },
 };
 
-/** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth). */
+/** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth).
+ *  Order: AL · Spare · Shift · RDW · Absent · Rest Day — do not reorder; matches admin.html label order.
+ */
 export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction'];
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
@@ -563,7 +567,7 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
-    if (window._mybSession) await window._mybSession;
+    await sessionReady;
     if (!auth.currentUser) {
         _showError('Your session has expired — please sign out and sign back in.');
         return;
@@ -580,7 +584,7 @@ export async function executeSave(toSave, toDelete = []) {
         toSave.forEach(entry => {
             if (entry.existingId) batch.delete(doc(db, 'overrides', entry.existingId));
             const { existingId: _, ...data } = entry;
-            const newRef = doc(collection(db, 'overrides'));
+            const newRef = doc(collection(db, COLLECTIONS.overrides));
             batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
             newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
         });
@@ -631,7 +635,7 @@ export async function loadOverrides() {
     const listCount = document.getElementById('listCount');
     if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
     try {
-        const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(5000)));
+        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
         snap.forEach(s => _allOverrides.push({ id: s.id, ...s.data() }));
         renderTable();
@@ -890,7 +894,7 @@ function _initTimeInputs() {
         timeInput.classList.remove('input-error');
         timeInput.removeAttribute('aria-invalid');
         let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-        if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw;
+        if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw; // without this, "630" → "63:0"
         _formattingTime = true;
         timeInput.value = raw.length >= 3 ? raw.slice(0, 2) + ':' + raw.slice(2) : raw;
         _formattingTime = false;
@@ -1076,7 +1080,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     workingDates.forEach(date => {
         const existing = ovByDate.get(date);
         if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(db, 'overrides'));
+        const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type, value, note: '', source: 'manual',
             createdAt: serverTimestamp(), changedBy,
@@ -1087,7 +1091,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     sundayCorrections.forEach(date => {
         const existing = ovByDate.get(date);
         if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(db, 'overrides'));
+        const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
             createdAt: serverTimestamp(), changedBy,

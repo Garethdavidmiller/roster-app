@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * nav-panel.js — Slide-out navigation panel, shared by all six app pages.
  *

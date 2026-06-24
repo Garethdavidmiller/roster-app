@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * paycalc.js — Pay Calculator UI layer.
  *

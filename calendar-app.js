@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
@@ -9,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, getDocs } from './firebase-client.js';
+import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
@@ -339,6 +340,7 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
+// Always call this helper — never duplicate the navigation logic at a call site.
 function navigateToPaycalc(paydayStr) {
     if (getSession()?.name) {
         window.location.href = `./paycalc.html?payday=${paydayStr}`;
@@ -656,7 +658,7 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
             const memberOverrides = [];
             const snap = await Promise.race([
                 getDocs(query(
-                    collection(db, 'overrides'),
+                    collection(db, COLLECTIONS.overrides),
                     where('date', '>=', `${yearStr}-01-01`),
                     where('date', '<=', `${yearStr}-12-31`)
                 )),
@@ -1189,6 +1191,7 @@ try {
                 hapticFired    = false;
 
                 // Measure width now — avoids a forced layout reflow mid-gesture.
+                // Math.ceil eliminates sub-pixel seam on high-DPI screens — do not remove.
                 gestureW = Math.ceil(calendarDisplay.getBoundingClientRect().width);
 
                 // Promote current panel to its own compositor layer before dragging starts.
@@ -1575,7 +1578,7 @@ function monthKey(year, month) {
  */
 async function fetchOverridesForRange(startStr, endStr) {
     const q = query(
-        collection(db, 'overrides'),
+        collection(db, COLLECTIONS.overrides),
         where('date', '>=', startStr),
         where('date', '<=', endStr)
     );

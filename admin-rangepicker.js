@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-rangepicker.js — Inline date-range picker calendar for admin.html.
  *
