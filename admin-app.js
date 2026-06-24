@@ -1560,9 +1560,12 @@ async function _runEmailCheck(member) {
 
 /**
  * Called on every admin page load for an authenticated user.
- * Delegates to _runEmailCheck which guards via the localStorage done flag.
+ * Awaits the Firebase session promise so getStaffContact() doesn't run before
+ * authentication is restored (returning-user path: session is re-established
+ * asynchronously and stored in window._mybSession).
  */
 async function initEmailCheck(member) {
+    await window._mybSession;
     await _runEmailCheck(member);
 }
 

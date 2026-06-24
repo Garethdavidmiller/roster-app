@@ -225,10 +225,16 @@ export async function uploadCircular(date, file, uploadedBy) {
     const storageRef = ref(storage, `circulars/${date}.pdf`);
     await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
     const storageUrl = await getDownloadURL(storageRef);
-    await setDoc(doc(db, 'circulars', date), {
-        date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
-    });
-    _pruneOldDocs('circulars', storage, ref, deleteObject).catch(() => {});
+    try {
+        await setDoc(doc(db, 'circulars', date), {
+            date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
+        });
+    } catch (err) {
+        // Metadata write failed — remove the just-uploaded file so it doesn't orphan.
+        deleteObject(storageRef).catch(() => {});
+        throw err;
+    }
+    _pruneOldDocs('circulars', storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] circulars:', e));
     return storageUrl;
 }
 
@@ -257,10 +263,15 @@ export async function uploadNewsletter(date, file, uploadedBy) {
     const storageRef = ref(storage, `newsletters/${date}.pdf`);
     await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
     const storageUrl = await getDownloadURL(storageRef);
-    await setDoc(doc(db, 'newsletters', date), {
-        date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
-    });
-    _pruneOldDocs('newsletters', storage, ref, deleteObject).catch(() => {});
+    try {
+        await setDoc(doc(db, 'newsletters', date), {
+            date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
+        });
+    } catch (err) {
+        deleteObject(storageRef).catch(() => {});
+        throw err;
+    }
+    _pruneOldDocs('newsletters', storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] newsletters:', e));
     return storageUrl;
 }
 

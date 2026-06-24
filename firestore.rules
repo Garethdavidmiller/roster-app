@@ -134,30 +134,38 @@ service cloud.firestore {
     }
 
     match /circulars/{date} {
-      // Weekly Retail Circular metadata — authenticated staff may read the latest URL.
-      // Only admin may write (mirrors Storage rules and the huddles pattern).
-      allow read: if request.auth != null;
+      // Open read: calendar-app.js reads Circular metadata without a Firebase Auth
+      // session (the Calendar deliberately supports anonymous use, matching Huddles).
+      // The download URL itself is a permanent tokenised Firebase Storage URL —
+      // access to the metadata does not bypass Storage security.
+      // Only admin may write; hasOnly (not hasAll) prevents extra fields.
+      allow read;
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasAll(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
+        request.resource.data.date.size() == 10 &&
         request.resource.data.storageUrl is string &&
-        request.resource.data.fileType == 'pdf';
+        request.resource.data.fileType == 'pdf' &&
+        request.resource.data.uploadedAt is timestamp &&
+        request.resource.data.uploadedBy is string;
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
     match /newsletters/{date} {
-      // Marylebone Newsletter metadata — authenticated staff may read the latest URL.
-      // Only admin may write (mirrors Storage rules and the huddles pattern).
-      allow read: if request.auth != null;
+      // Open read — same rationale as circulars above.
+      allow read;
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasAll(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
+        request.resource.data.date.size() == 10 &&
         request.resource.data.storageUrl is string &&
-        request.resource.data.fileType == 'pdf';
+        request.resource.data.fileType == 'pdf' &&
+        request.resource.data.uploadedAt is timestamp &&
+        request.resource.data.uploadedBy is string;
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
