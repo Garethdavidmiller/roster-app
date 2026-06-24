@@ -195,7 +195,9 @@ roster-app/
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
 ├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
-├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice (--experimental-test-module-mocks)
+├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
+├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname (--experimental-test-module-mocks)
+├── overlay.test.mjs        ← tests for lockBodyScroll, unlockBodyScroll, trapFocus, initCardCollapse (no mocks; runs in test:hygiene)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
 ├── package.json            ← dev dependencies only
@@ -216,9 +218,9 @@ roster-app/
 ```
 npm test
 # or individually:
-node --test sw-asset-check.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs
+node --test sw-asset-check.test.mjs import-graph.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs overlay.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
-node --experimental-test-module-mocks --test app.test.mjs roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs
+node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs
 ```
 
 **Service worker caching:**
