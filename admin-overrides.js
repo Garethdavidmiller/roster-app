@@ -16,6 +16,7 @@ import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadge
 import { isRestShift, shouldReplaceOverride } from './app-override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, COLLECTIONS } from './firebase-client.js';
+import { sessionReady } from './session.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -564,7 +565,7 @@ export async function executeSave(toSave, toDelete = []) {
     const removes     = toDelete.length;
     const total       = toSave.length + removes;
 
-    if (window._mybSession) await window._mybSession;
+    await sessionReady;
     if (!auth.currentUser) {
         _showError('Your session has expired — please sign out and sign back in.');
         return;

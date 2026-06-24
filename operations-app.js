@@ -17,7 +17,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
-import { getSession, clearSession, ensureFirebaseSession } from './session.js';
+import { getSession, clearSession, ensureFirebaseSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -37,8 +37,9 @@ if (!currentUser || !isAdmin) {
     throw new Error('Not authorised — redirecting');
 }
 
-// Store as a Promise so admin-auth.js can await it before "Set up accounts"
-window._mybSession = ensureFirebaseSession(currentUser);
+// Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
+// import sessionReady and await it instead of reading window._mybSession.
+resolveSession(ensureFirebaseSession(currentUser));
 
 
 // ============================================
@@ -67,7 +68,7 @@ initRosterUpload({
     currentUser,
     currentIsAdmin: true,
     parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
-    getIdToken: async () => { await window._mybSession; return auth.currentUser?.getIdToken(); },
+    getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
     loadOverrides,
 });
 
@@ -97,7 +98,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
 
     try {
         // Wait for the Firebase Auth session so Firestore rules pass.
-        await window._mybSession;
+        await sessionReady;
         const contacts = await getAllStaffContacts();
 
         // Mutable maps — updated in-place after an admin saves an email.
@@ -443,7 +444,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
 // Anonymous fallback still resolves the Promise so the page renders, but
 // Cloud Functions and Storage both require a valid admin token — they'll
 // reject silently without this warning.
-window._mybSession.then(ok => {
+sessionReady.then(ok => {
     if (!ok || window._mybAuthError) {
         const main   = document.querySelector('.container');
         if (!main) return;
@@ -508,7 +509,7 @@ function initNewsletterUpload() {
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         try {
-            if (window._mybSession) await window._mybSession;
+            await sessionReady;
             await uploadNewsletter(date, file, currentUser);
             feedback.textContent = `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`;
             feedback.className = 'huddle-feedback huddle-feedback--ok';
@@ -580,7 +581,7 @@ function initCircularUpload() {
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         try {
-            if (window._mybSession) await window._mybSession;
+            await sessionReady;
             await uploadCircular(date, file, currentUser);
             feedback.textContent = `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`;
             feedback.className = 'huddle-feedback huddle-feedback--ok';
@@ -719,7 +720,7 @@ function initCircularUpload() {
     if (!content) return;
 
     try {
-        await window._mybSession;
+        await sessionReady;
         const errors = await getClientErrors();
 
         content.innerHTML = '';
@@ -853,4 +854,4 @@ function _formatForClaude(err) {
 
 // ============================================
 registerServiceWorker();
-window._mybSession.then(() => initErrorReporter());
+sessionReady.then(() => initErrorReporter());

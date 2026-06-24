@@ -12,7 +12,7 @@ import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebas
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
-import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession } from './session.js';
+import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -41,17 +41,19 @@ initNavPanel({
 });
 
 if (isAuthenticated) {
-    // Re-establish Firebase Auth in the background. Stored as a Promise (matching
     // Re-establish Firebase Auth in the background. A returning user skips the
     // login handler, so auth.currentUser may still be null for a moment and
     // an immediate Firestore write would fail the request.auth rule.
-    window._mybSession = ensureFirebaseSession(currentUser);
+    // resolveSession() fulfils sessionReady so feature modules (initApp handlers)
+    // can import sessionReady instead of reading window._mybSession.
+    resolveSession(ensureFirebaseSession(currentUser));
     initApp();
 } else {
     initLoginOverlay();
+    resolveSession(false); // fulfil sessionReady on the non-auth path (initErrorReporter runs on both paths)
 }
 registerServiceWorker();
-Promise.resolve(window._mybSession).then(() => initErrorReporter());
+sessionReady.then(() => initErrorReporter());
 
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {
@@ -210,7 +212,7 @@ function initContactCard() {
 
     // Load existing email; show a loading message while waiting.
     setFeedback('Checking for a saved email…', '');
-    Promise.resolve(window._mybSession).then(() => getStaffContact(currentUser)).then(data => {
+    sessionReady.then(() => getStaffContact(currentUser)).then(data => {
         if (data?.workEmail && !userHasTyped) {
             emailInput.value = data.workEmail;
             showSavedState(formatDate(data.updatedAt));
@@ -250,7 +252,7 @@ function initContactCard() {
         saveBtn.disabled    = true;
         saveBtn.textContent = 'Saving…';
         try {
-            if (window._mybSession) await window._mybSession;
+            await sessionReady;
             await saveStaffContact(currentUser, email);
             const today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
             showSavedState(today);
@@ -273,7 +275,7 @@ function initContactCard() {
             if (!confirm('Remove your saved work email address?')) return;
             removeBtn.disabled = true;
             try {
-                if (window._mybSession) await window._mybSession;
+                await sessionReady;
                 await deleteStaffContact(currentUser);
                 emailInput.value = '';
                 clearSavedState();

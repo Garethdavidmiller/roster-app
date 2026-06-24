@@ -39,6 +39,20 @@ export function getSurname(fullName) {
 }
 
 /**
+ * Module-level promise that resolves once the Firebase Auth session for this
+ * page is confirmed. Page coordinators call resolveSession(); feature modules
+ * import sessionReady and await it instead of reading window._mybSession.
+ *
+ * Resolves to true (session active), false (session failed or non-auth path),
+ * or the boolean returned by ensureFirebaseSession().
+ * @type {Promise<boolean>}
+ */
+let _sessionResolve;
+export const sessionReady = new Promise(r => (_sessionResolve = r));
+/** Call once per page-load from the page coordinator after ensureFirebaseSession(). */
+export function resolveSession(result) { _sessionResolve(result); }
+
+/**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
  * Firestore Security Rules require `request.auth != null` for every write.

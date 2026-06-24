@@ -12,7 +12,7 @@
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
-import { getSession, clearSession, ensureFirebaseSession } from './session.js';
+import { getSession, clearSession, ensureFirebaseSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -43,7 +43,7 @@ if (!currentUser || !isLinksDesigner) {
     throw new Error('Not authorised — redirecting');
 }
 
-window._mybSession = ensureFirebaseSession(currentUser);
+resolveSession(ensureFirebaseSession(currentUser));
 
 // ============================================
 // PAGE INIT
@@ -1110,7 +1110,7 @@ async function saveChanges() {
     if (status) { status.textContent = 'Saving…'; status.className = 'links-save-status'; }
 
     try {
-        await window._mybSession;
+        await sessionReady;
 
         if (!activeDesignId) {
             // First save of a generator-created design — create the Firestore document
@@ -1195,7 +1195,7 @@ async function saveChanges() {
 async function loadDesigns() {
     loadFailed = false;
     try {
-        await window._mybSession;
+        await sessionReady;
         const snap = await getDocs(DESIGNS_COL);
 
         const named = [];
@@ -1426,7 +1426,7 @@ registerServiceWorker({
         }
     },
 });
-window._mybSession.then(() => initErrorReporter());
+sessionReady.then(() => initErrorReporter());
 
 // ============================================
 // BOOT
