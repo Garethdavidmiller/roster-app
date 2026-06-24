@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * app-team-view.js — Team Week View for index.html.
  *

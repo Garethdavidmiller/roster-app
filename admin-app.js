@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-app.js — Coordinator and primary feature file for admin.html.
  *

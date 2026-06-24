@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * links-app.js — Coordinator for links.html.
  *
@@ -9,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp } from './firebase-client.js';
+import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
@@ -72,7 +73,7 @@ const TOTAL_POS     = 28;
 const ROTATING_LINES = 28;
 
 /** Firestore collection holding all named design documents. */
-const DESIGNS_COL = collection(db, 'linkDesigns');
+const DESIGNS_COL = collection(db, COLLECTIONS.linkDesigns);
 
 /** localStorage key remembering the last active design across visits. */
 const ACTIVE_KEY = 'myb_links_active_design';

@@ -1,3 +1,4 @@
+// @ts-check
 // MYB Roster — Pay Calculator core math
 // Pure functions only — no DOM, no Firebase, no browser globals.
 // Imported by paycalc.js (browser) and paycalc.test.mjs (Node test runner).

@@ -1,3 +1,4 @@
+// @ts-check
 // Override priority, member-start, and shift-classification helpers.
 // Shared by app.js, app-team-view.js, and the admin modules.
 

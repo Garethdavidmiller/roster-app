@@ -1,3 +1,4 @@
+// @ts-check
 // admin-al.js — Annual Leave Booking section for admin.html
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles
 // and shared functions via initALSection(deps) to avoid circular imports.

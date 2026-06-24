@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-overrides.js — Change a Shift section of the admin portal.
  *
@@ -14,7 +15,7 @@ import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadge
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride } from './app-override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch, auth } from './firebase-client.js';
+         deleteDoc, doc, serverTimestamp, writeBatch, auth, COLLECTIONS } from './firebase-client.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
 export const TYPES = {
@@ -580,7 +581,7 @@ export async function executeSave(toSave, toDelete = []) {
         toSave.forEach(entry => {
             if (entry.existingId) batch.delete(doc(db, 'overrides', entry.existingId));
             const { existingId: _, ...data } = entry;
-            const newRef = doc(collection(db, 'overrides'));
+            const newRef = doc(collection(db, COLLECTIONS.overrides));
             batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
             newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
         });
@@ -631,7 +632,7 @@ export async function loadOverrides() {
     const listCount = document.getElementById('listCount');
     if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
     try {
-        const snap = await getDocs(query(collection(db, 'overrides'), orderBy('date', 'desc'), limit(5000)));
+        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
         snap.forEach(s => _allOverrides.push({ id: s.id, ...s.data() }));
         renderTable();
@@ -1076,7 +1077,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     workingDates.forEach(date => {
         const existing = ovByDate.get(date);
         if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(db, 'overrides'));
+        const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type, value, note: '', source: 'manual',
             createdAt: serverTimestamp(), changedBy,
@@ -1087,7 +1088,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     sundayCorrections.forEach(date => {
         const existing = ovByDate.get(date);
         if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(db, 'overrides'));
+        const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
             createdAt: serverTimestamp(), changedBy,

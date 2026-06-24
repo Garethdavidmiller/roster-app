@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * firebase-client.js — Single source of truth for Firebase initialisation.
  *
@@ -74,6 +75,20 @@ export {
     getDocs, getDoc, onSnapshot,
     // writes
     addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch,
+};
+
+/** Firestore collection name constants — single source of truth. Import these
+ *  instead of bare string literals to prevent silent typos across modules.
+ */
+export const COLLECTIONS = {
+    huddles:           'huddles',
+    circulars:         'circulars',
+    newsletters:       'newsletters',
+    pushSubscriptions: 'pushSubscriptions',
+    staffContact:      'staffContact',
+    clientErrors:      'clientErrors',
+    overrides:         'overrides',
+    linkDesigns:       'linkDesigns',
 };
 
 // ---- Firebase Authentication ----
@@ -181,7 +196,7 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     const storageUrl = await getDownloadURL(storageRef);
     const firestoreDoc = { date, storageUrl, fileType, uploadedAt: serverTimestamp(), uploadedBy };
     if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
-    await setDoc(doc(db, 'huddles', date), firestoreDoc);
+    await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
     return storageUrl;
 }
 
@@ -226,7 +241,7 @@ export async function uploadCircular(date, file, uploadedBy) {
     await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
     const storageUrl = await getDownloadURL(storageRef);
     try {
-        await setDoc(doc(db, 'circulars', date), {
+        await setDoc(doc(db, COLLECTIONS.circulars, date), {
             date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
         });
     } catch (err) {
@@ -234,7 +249,7 @@ export async function uploadCircular(date, file, uploadedBy) {
         deleteObject(storageRef).catch(e => console.warn('[uploadCircular] rollback delete failed:', e));
         throw err;
     }
-    _pruneOldDocs('circulars', storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] circulars:', e));
+    _pruneOldDocs(COLLECTIONS.circulars, storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] circulars:', e));
     return storageUrl;
 }
 
@@ -243,7 +258,7 @@ export async function uploadCircular(date, file, uploadedBy) {
  * @returns {Promise<object|null>} Latest circular data object or null if none uploaded
  */
 export async function getLatestCircular() {
-    const q = query(collection(db, 'circulars'), orderBy('date', 'desc'), limit(1));
+    const q = query(collection(db, COLLECTIONS.circulars), orderBy('date', 'desc'), limit(1));
     const snap = await getDocs(q);
     if (snap.empty) return null;
     const data = snap.docs[0].data();
@@ -264,14 +279,14 @@ export async function uploadNewsletter(date, file, uploadedBy) {
     await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
     const storageUrl = await getDownloadURL(storageRef);
     try {
-        await setDoc(doc(db, 'newsletters', date), {
+        await setDoc(doc(db, COLLECTIONS.newsletters, date), {
             date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
         });
     } catch (err) {
         deleteObject(storageRef).catch(e => console.warn('[uploadNewsletter] rollback delete failed:', e));
         throw err;
     }
-    _pruneOldDocs('newsletters', storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] newsletters:', e));
+    _pruneOldDocs(COLLECTIONS.newsletters, storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] newsletters:', e));
     return storageUrl;
 }
 
@@ -280,7 +295,7 @@ export async function uploadNewsletter(date, file, uploadedBy) {
  * @returns {Promise<object|null>} Latest newsletter data object or null if none uploaded
  */
 export async function getLatestNewsletter() {
-    const q = query(collection(db, 'newsletters'), orderBy('date', 'desc'), limit(1));
+    const q = query(collection(db, COLLECTIONS.newsletters), orderBy('date', 'desc'), limit(1));
     const snap = await getDocs(q);
     if (snap.empty) return null;
     const data = snap.docs[0].data();
@@ -299,7 +314,7 @@ export async function getLatestNewsletter() {
  */
 export function subscribeToLatestHuddle(onData, onError) {
     // Single-field orderBy — Firestore auto-indexes this; no composite index needed.
-    const q = query(collection(db, 'huddles'), orderBy('date', 'desc'), limit(1));
+    const q = query(collection(db, COLLECTIONS.huddles), orderBy('date', 'desc'), limit(1));
     return onSnapshot(q, (snap) => {
         if (snap.empty) { onData(null); return; }
         const data = snap.docs[0].data();
@@ -340,7 +355,7 @@ function keyToBase64(buffer) {
  */
 export async function savePushSubscription(subscription) {
     const id = await endpointId(subscription.endpoint);
-    await setDoc(doc(db, 'pushSubscriptions', id), {
+    await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), {
         endpoint:     subscription.endpoint,
         keys: {
             p256dh: keyToBase64(subscription.getKey('p256dh')),
@@ -357,7 +372,7 @@ export async function savePushSubscription(subscription) {
 export async function deletePushSubscription(endpoint) {
     if (!endpoint) return;
     const id = await endpointId(endpoint);
-    await deleteDoc(doc(db, 'pushSubscriptions', id));
+    await deleteDoc(doc(db, COLLECTIONS.pushSubscriptions, id));
 }
 
 // ---- Staff Contact ----
@@ -369,7 +384,7 @@ export async function deletePushSubscription(endpoint) {
  * @returns {Promise<{memberName: string, workEmail: string}|null>}
  */
 export async function getStaffContact(memberName) {
-    const snap = await getDoc(doc(db, 'staffContact', memberName));
+    const snap = await getDoc(doc(db, COLLECTIONS.staffContact, memberName));
     return snap.exists() ? snap.data() : null;
 }
 
@@ -382,7 +397,7 @@ export async function getStaffContact(memberName) {
  * @returns {Promise<void>}
  */
 export async function saveStaffContact(memberName, workEmail) {
-    await setDoc(doc(db, 'staffContact', memberName), {
+    await setDoc(doc(db, COLLECTIONS.staffContact, memberName), {
         memberName,
         workEmail,
         updatedAt: serverTimestamp(),
@@ -396,7 +411,7 @@ export async function saveStaffContact(memberName, workEmail) {
  * @returns {Promise<void>}
  */
 export async function deleteStaffContact(memberName) {
-    await deleteDoc(doc(db, 'staffContact', memberName));
+    await deleteDoc(doc(db, COLLECTIONS.staffContact, memberName));
 }
 
 /**
@@ -404,7 +419,7 @@ export async function deleteStaffContact(memberName) {
  * @returns {Promise<Array<{memberName: string, workEmail: string}>>}
  */
 export async function getAllStaffContacts() {
-    const snap = await getDocs(collection(db, 'staffContact'));
+    const snap = await getDocs(collection(db, COLLECTIONS.staffContact));
     return snap.docs.map(d => d.data());
 }
 
@@ -416,7 +431,7 @@ export async function getAllStaffContacts() {
  * @param {{ memberName: string, page: string, message: string, stack: string, appVersion: string, userAgent: string }} data
  */
 export function logClientError({ memberName, page, message, stack, appVersion, userAgent }) {
-    addDoc(collection(db, 'clientErrors'), {
+    addDoc(collection(db, COLLECTIONS.clientErrors), {
         memberName, page, message, stack, appVersion, userAgent,
         timestamp: serverTimestamp(),
         resolved:  false,
@@ -441,15 +456,15 @@ export function logClientError({ memberName, page, message, stack, appVersion, u
 export async function getClientErrors() {
     const now = Date.now();
     const [unresolvedSnap, resolvedSnap] = await Promise.all([
-        getDocs(query(collection(db, 'clientErrors'), where('resolved', '==', false), limit(100))),
-        getDocs(query(collection(db, 'clientErrors'), where('resolved', '==', true),  limit(200))),
+        getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', false), limit(100))),
+        getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', true),  limit(200))),
     ]);
     const unresolved = unresolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const resolved   = resolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
     // Best-effort prune of resolved records past the retention window (from resolvedAt).
     for (const id of expiredResolvedIds(resolved, now)) {
-        deleteDoc(doc(db, 'clientErrors', id)).catch(() => {/* best-effort cleanup */});
+        deleteDoc(doc(db, COLLECTIONS.clientErrors, id)).catch(() => {/* best-effort cleanup */});
     }
     return orderClientErrors(unresolved, resolved, now);
 }
@@ -460,5 +475,5 @@ export async function getClientErrors() {
  * @param {string} id - Firestore document ID
  */
 export async function resolveClientError(id) {
-    await setDoc(doc(db, 'clientErrors', id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true });
+    await setDoc(doc(db, COLLECTIONS.clientErrors, id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true });
 }

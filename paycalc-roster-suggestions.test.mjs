@@ -16,11 +16,12 @@ let _mockGetDocs = async () => ({ forEach: () => {} });
 // mock.module must be called before the module under test is imported.
 mock.module('./firebase-client.js', {
   namedExports: {
-    db:         null,
-    collection: () => null,
-    query:      () => null,
-    where:      () => null,
-    getDocs:    (...args) => _mockGetDocs(...args),
+    db:          null,
+    collection:  () => null,
+    query:       () => null,
+    where:       () => null,
+    getDocs:     (...args) => _mockGetDocs(...args),
+    COLLECTIONS: { overrides: 'overrides', huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters', pushSubscriptions: 'pushSubscriptions', staffContact: 'staffContact', clientErrors: 'clientErrors', linkDesigns: 'linkDesigns' },
   },
 });
 

@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "checkJs": false,
+        "target": "ES2022",
+        "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        "noEmit": true,
+        "strict": false
+    },
+    "exclude": [
+        "node_modules",
+        "service-worker.js",
+        "*.test.mjs",
+        "*.test.js",
+        "purify.es.mjs",
+        "generate-sri.mjs",
+        "scripts",
+        "functions",
+        ".claude"
+    ]
+}

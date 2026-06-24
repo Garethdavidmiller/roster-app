@@ -1,3 +1,4 @@
+// @ts-check
 // admin-sick.js — Sick Days Recording section for admin.html
 // Imports data and Firebase directly; receives admin-app.js-owned DOM handles
 // and shared functions via initSickSection(deps) to avoid circular imports.

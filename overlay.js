@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * overlay.js — Shared scroll lock, Android Back button overlay helpers,
  * and card-collapse toggle.

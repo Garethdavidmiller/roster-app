@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * paycalc-help.js — Help tip content for the Pay Calculator lightboxes.
  *

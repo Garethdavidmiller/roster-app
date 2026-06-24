@@ -1,3 +1,4 @@
+// @ts-check
 // MYB Roster — Weekly Roster Upload Pipeline
 // Handles: file selection, Cloud Function call, AI-parsed shift review,
 // conflict detection, and Firestore batch write.

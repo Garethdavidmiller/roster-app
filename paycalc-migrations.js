@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * paycalc-migrations.js — localStorage storage keys and data migrations for the Pay Calculator.
  *

@@ -36,6 +36,7 @@ import {
     avatarHue,
     getSpecialDayBadges,
     isSunday,
+    CONFIG,
 } from './roster-data.js';
 
 // ---------------------------------------------------------------------------
@@ -662,4 +663,85 @@ test('isSunday: returns false for Saturday', () => {
 
 test('isSunday: returns false for a mid-week day', () => {
     assert.equal(isSunday('2026-06-17'), false);  // June 17 2026 is Wednesday
+});
+
+// ---------------------------------------------------------------------------
+// teamMembers roster integrity
+// ---------------------------------------------------------------------------
+
+const ROSTER_CYCLE_LENGTHS = {
+    main:       CONFIG.MAIN_ROSTER_WEEKS,
+    bilingual:  CONFIG.BILINGUAL_ROSTER_WEEKS,
+    fixed:      1,
+    ces:        CONFIG.CES_ROSTER_WEEKS,
+    dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS,
+};
+const VALID_ROSTER_TYPES = new Set(Object.keys(ROSTER_CYCLE_LENGTHS));
+const VALID_ROLES        = new Set(['CEA', 'CES', 'Dispatcher', 'Management']);
+
+test('every teamMember has a valid rosterType', () => {
+    const bad = teamMembers.filter(m => !VALID_ROSTER_TYPES.has(m.rosterType));
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members with invalid rosterType:\n  ${bad.map(m => `${m.name}: '${m.rosterType}'`).join('\n  ')}`
+    );
+});
+
+test('every teamMember has a valid role', () => {
+    const bad = teamMembers.filter(m => !VALID_ROLES.has(m.role));
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members with invalid role:\n  ${bad.map(m => `${m.name}: '${m.role}'`).join('\n  ')}`
+    );
+});
+
+test('every teamMember.currentWeek is in range for their rosterType', () => {
+    const bad = teamMembers.filter(m => {
+        const len = ROSTER_CYCLE_LENGTHS[m.rosterType];
+        return len === undefined || m.currentWeek < 1 || m.currentWeek > len;
+    });
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members whose currentWeek is out of range:\n  ${bad.map(m =>
+            `${m.name}: week ${m.currentWeek}, rosterType ${m.rosterType} (max ${ROSTER_CYCLE_LENGTHS[m.rosterType]})`
+        ).join('\n  ')}`
+    );
+});
+
+test('every teamMember.startDate is a Date instance when present', () => {
+    const bad = teamMembers.filter(m => m.startDate !== undefined && !(m.startDate instanceof Date));
+    assert.deepEqual(
+        bad.map(m => m.name), [],
+        `Members with non-Date startDate:\n  ${bad.map(m => `${m.name}: ${m.startDate}`).join('\n  ')}`
+    );
+});
+
+test('every teamMember.rosterChanges is sorted ascending by from date', () => {
+    const bad = [];
+    for (const m of teamMembers) {
+        if (!m.rosterChanges || m.rosterChanges.length < 2) continue;
+        for (let i = 1; i < m.rosterChanges.length; i++) {
+            if (m.rosterChanges[i].from <= m.rosterChanges[i - 1].from) {
+                bad.push(`${m.name}: entry ${i} is not after entry ${i - 1}`);
+                break;
+            }
+        }
+    }
+    assert.deepEqual(bad, [], `rosterChanges not sorted ascending:\n  ${bad.join('\n  ')}`);
+});
+
+test('every rosterChanges entry has a valid rosterType and currentWeek', () => {
+    const bad = [];
+    for (const m of teamMembers) {
+        if (!m.rosterChanges) continue;
+        for (const change of m.rosterChanges) {
+            const len = ROSTER_CYCLE_LENGTHS[change.rosterType];
+            if (!VALID_ROSTER_TYPES.has(change.rosterType)) {
+                bad.push(`${m.name}: rosterChanges entry has invalid rosterType '${change.rosterType}'`);
+            } else if (change.currentWeek < 1 || change.currentWeek > len) {
+                bad.push(`${m.name}: rosterChanges entry currentWeek ${change.currentWeek} out of range for ${change.rosterType} (max ${len})`);
+            }
+        }
+    }
+    assert.deepEqual(bad, [], `Invalid rosterChanges entries:\n  ${bad.join('\n  ')}`);
 });

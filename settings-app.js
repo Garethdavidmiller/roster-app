@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * settings-app.js — Coordinator for settings.html.
  *

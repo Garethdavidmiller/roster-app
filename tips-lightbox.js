@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * tips-lightbox.js — Shared per-card Tips (#tipsLightbox) panel.
  *

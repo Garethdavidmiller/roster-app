@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * client-errors.js — pure ordering + retention logic for the admin Error Log.
  *

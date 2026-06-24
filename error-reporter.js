@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * error-reporter.js — Lightweight uncaught-error reporter (v13.31)
  *

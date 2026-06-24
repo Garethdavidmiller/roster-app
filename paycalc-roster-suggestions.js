@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * paycalc-roster-suggestions.js
  * Roster-to-pay suggestion engine for the pay calculator.
@@ -11,7 +12,7 @@
  */
 
 import { teamMembers, getBaseShift, formatISO, getBankHolidays } from './roster-data.js';
-import { db, collection, query, where, getDocs } from './firebase-client.js';
+import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 
 // ── OVERRIDE CACHE ────────────────────────────────────────────────────────────
 // Per-date override cache for the current period — YYYY-MM-DD → { type, value }.
@@ -98,7 +99,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     // period returns at most a few hundred docs across the whole team, which is well
     // within Firestore's per-query limits and adds negligible bandwidth.
     const q = query(
-      collection(db, 'overrides'),
+      collection(db, COLLECTIONS.overrides),
       where('date', '>=', formatISO(p.start)),
       where('date', '<=', formatISO(p.cutoff))
     );

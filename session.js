@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * session.js — Shared auth/session helpers for admin.html, settings.html,
  * operations.html, and paycalc.html (paycalc uses getSession/clearSession only).

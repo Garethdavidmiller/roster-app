@@ -27,6 +27,7 @@ mock.module('./firebase-client.js', {
         serverTimestamp: () => null,
         writeBatch:      () => ({ set: () => {}, delete: () => {}, commit: async () => {} }),
         auth:            { currentUser: null },
+        COLLECTIONS:     { overrides: 'overrides', huddles: 'huddles', circulars: 'circulars', newsletters: 'newsletters', pushSubscriptions: 'pushSubscriptions', staffContact: 'staffContact', clientErrors: 'clientErrors', linkDesigns: 'linkDesigns' },
     },
 });
 

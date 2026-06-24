@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * about-lightbox.js — Shared About (#iconLightbox) panel for all six app pages.
  *

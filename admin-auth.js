@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * admin-auth.js — Staff Firebase Auth account setup (admin only).
  *

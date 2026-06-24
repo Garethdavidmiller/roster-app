@@ -1,3 +1,4 @@
+// @ts-check
 // MYB Roster — Shared Data
 // Single source of truth for roster configuration, team members, and shift patterns.
 // ES module — import named exports into consuming files:
@@ -9,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.72';
+export const APP_VERSION = '13.73';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any

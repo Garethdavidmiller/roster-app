@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * sw-register.js — Service worker registration and update lifecycle.
  *

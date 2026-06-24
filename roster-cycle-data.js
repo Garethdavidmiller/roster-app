@@ -1,3 +1,4 @@
+// @ts-check
 // MYB Roster — Shift Cycle Data
 // Pure data: the week-by-week shift patterns for each roster type.
 // No logic, no imports. Referenced by getRosterForMember() in roster-data.js.

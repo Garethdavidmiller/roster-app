@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * operations-app.js — Coordinator for operations.html.
  *

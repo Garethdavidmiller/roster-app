@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * app-huddle-viewer.js — Daily Huddle overlay for index.html.
  *

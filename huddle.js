@@ -1,3 +1,4 @@
+// @ts-check
 /**
  * huddle.js — Huddle upload, Huddle card toggle, and notification card wiring.
  *
