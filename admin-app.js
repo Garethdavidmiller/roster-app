@@ -161,8 +161,8 @@ function initLoginOverlay() {
         if (redirect && REDIRECT_MAP[redirect]) {
             window.location.replace(REDIRECT_MAP[redirect]);
         } else {
-            // Signal that this reload follows a fresh login — initEmailCheck reads this flag.
-            sessionStorage.setItem('myb_email_check', '1');
+            // Show email check inline (on top of the login overlay) before reloading.
+            await _runEmailCheck(name);
             window.location.reload();
         }
         // _attempting stays true — page is reloading; no need to reset.
@@ -1433,18 +1433,14 @@ async function purgeSundayAL() {
 }
 
 // ---- One-time work email check (shown once per device after login) ----
-/**
- * Shows a mandatory lightbox the first time each staff member loads the admin page,
- * asking them to confirm or add a work email for password recovery.
- * Dismissed permanently on this device once they confirm or save.
- * Firestore errors skip the check silently so the app is never blocked.
- */
-async function initEmailCheck(member) {
-    // Only show on the page load that immediately follows a fresh login.
-    if (!sessionStorage.getItem('myb_email_check')) return;
-    sessionStorage.removeItem('myb_email_check');
 
-    // Already completed on this device for this member — skip.
+/**
+ * Inner promise-based engine for the email check overlay.
+ * Returns without showing if the check is already done on this device,
+ * or if the Firestore fetch fails (never blocks the app).
+ * Resolves when the user confirms or saves their email.
+ */
+async function _runEmailCheck(member) {
     if (lsGet(`myb_email_check_done_${member}`)) return;
 
     let existing = null;
@@ -1456,75 +1452,118 @@ async function initEmailCheck(member) {
     const storedEl    = document.getElementById('emailCheckStoredEmail');
     const yesBtn      = document.getElementById('emailCheckYesBtn');
     const changeBtn   = document.getElementById('emailCheckChangeBtn');
+    const backBtn     = document.getElementById('emailCheckBackBtn');
     const input       = document.getElementById('emailCheckInput');
     const errorEl     = document.getElementById('emailCheckError');
     const saveBtn     = document.getElementById('emailCheckSaveBtn');
     if (!overlay) return;
 
-    function _dismiss() {
-        lsSet(`myb_email_check_done_${member}`, '1');
-        overlay.classList.remove('visible');
-        unlockBodyScroll();
-    }
+    // Hide the login overlay from assistive tech when the email check stacks on top.
+    const loginOverlay = document.getElementById('loginOverlay');
+    loginOverlay?.setAttribute('aria-hidden', 'true');
 
-    if (existing?.workEmail) {
-        storedEl.textContent = existing.workEmail;
-        confirmView.hidden = false;
-    } else {
-        editView.hidden = false;
-    }
-
-    lockBodyScroll();
-    overlay.classList.add('visible');
-    setTimeout(() => (existing?.workEmail ? yesBtn : input).focus(), 60);
-
-    overlay.addEventListener('keydown', e => {
-        if (e.key !== 'Tab') return;
-        const focusable = Array.from(overlay.querySelectorAll(
-            'button:not([disabled]), input'
-        )).filter(el => !el.closest('[hidden]') && el.offsetParent !== null);
-        if (!focusable.length) return;
-        const first = focusable[0], last = focusable[focusable.length - 1];
-        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-        if (!e.shiftKey && document.activeElement === last)  { e.preventDefault(); first.focus(); }
-    });
-
-    yesBtn.addEventListener('click', _dismiss, { once: true });
-
-    changeBtn.addEventListener('click', () => {
-        confirmView.hidden = true;
-        editView.hidden = false;
-        input.value = existing?.workEmail ?? '';
-        input.focus();
-    });
-
-    input.addEventListener('blur', () => {
-        const v = input.value.trim();
-        if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
-    });
-
-    saveBtn.addEventListener('click', async () => {
-        const email = input.value.trim();
-        errorEl.textContent = '';
-        if (!email) {
-            errorEl.textContent = 'Please enter your work email address.';
-            input.focus(); return;
+    return new Promise(resolve => {
+        function _showConfirm() {
+            confirmView.hidden = false;
+            editView.hidden = true;
+            backBtn.hidden = true;
+            overlay.setAttribute('aria-label', 'Confirm work email');
         }
-        if (!isValidEmail(email)) {
-            errorEl.textContent = 'That doesn\'t look like a valid email address.';
-            input.focus(); return;
+
+        function _showEdit(prefill, showBack) {
+            editView.hidden = false;
+            confirmView.hidden = true;
+            if (prefill !== undefined) input.value = prefill;
+            backBtn.hidden = !showBack;
+            overlay.setAttribute('aria-label', showBack ? 'Edit work email' : 'Add work email');
         }
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Saving…';
-        try {
-            await saveStaffContact(member, email);
-            _dismiss();
-        } catch {
-            errorEl.textContent = 'Couldn\'t save — check your connection and try again.';
-            saveBtn.disabled = false;
-            saveBtn.textContent = 'Save email →';
+
+        function _dismiss() {
+            lsSet(`myb_email_check_done_${member}`, '1');
+            loginOverlay?.removeAttribute('aria-hidden');
+            overlay.classList.remove('open');
+            const content = document.getElementById('emailCheckContent');
+            const onEnd = () => {
+                overlay.classList.remove('visible');
+                unlockBodyScroll();
+                resolve();
+            };
+            content.addEventListener('transitionend', onEnd, { once: true });
+            setTimeout(onEnd, 500);
         }
+
+        if (existing?.workEmail) {
+            storedEl.textContent = existing.workEmail;
+            _showConfirm();
+        } else {
+            _showEdit('', false);
+        }
+
+        lockBodyScroll();
+        overlay.classList.add('visible');
+        requestAnimationFrame(() => requestAnimationFrame(() => overlay.classList.add('open')));
+        setTimeout(() => (existing?.workEmail ? yesBtn : input).focus(), 60);
+
+        overlay.addEventListener('keydown', e => {
+            if (e.key !== 'Tab') return;
+            const focusable = Array.from(overlay.querySelectorAll(
+                'button:not([disabled]), input'
+            )).filter(el => !el.closest('[hidden]') && el.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            if (!e.shiftKey && document.activeElement === last)  { e.preventDefault(); first.focus(); }
+        });
+
+        yesBtn.addEventListener('click', _dismiss, { once: true });
+
+        changeBtn.addEventListener('click', () => {
+            _showEdit(existing?.workEmail ?? '', true);
+            input.focus();
+        });
+
+        backBtn.addEventListener('click', () => {
+            _showConfirm();
+            yesBtn.focus();
+        });
+
+        input.addEventListener('blur', () => {
+            const v = input.value.trim();
+            if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            const email = input.value.trim();
+            errorEl.textContent = '';
+            if (!email) {
+                errorEl.textContent = 'Please enter your work email address.';
+                input.focus(); return;
+            }
+            if (!isValidEmail(email)) {
+                errorEl.textContent = 'That doesn\'t look like a valid email address.';
+                input.focus(); return;
+            }
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving…';
+            try {
+                await saveStaffContact(member, email);
+                _dismiss();
+            } catch {
+                errorEl.textContent = 'Couldn\'t save — check your connection and try again.';
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save email →';
+                saveBtn.focus();
+            }
+        });
     });
+}
+
+/**
+ * Called on every admin page load for an authenticated user.
+ * Delegates to _runEmailCheck which guards via the localStorage done flag.
+ */
+async function initEmailCheck(member) {
+    await _runEmailCheck(member);
 }
 
 if (!isAuthenticated) {

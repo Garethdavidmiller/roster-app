@@ -1540,7 +1540,7 @@ button.nav-panel-link--notices {
 /* ═══════════════════════════════════════════════════════════════
    LOGIN OVERLAY — shared by admin.html and settings.html
    ═══════════════════════════════════════════════════════════════ */
-#loginOverlay {
+#loginOverlay, #emailCheckOverlay {
     display: none;
     position: fixed;
     inset: 0;
@@ -1552,9 +1552,9 @@ button.nav-panel-link--notices {
     -webkit-overflow-scrolling: touch;
     padding: max(20px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
 }
-#loginOverlay.visible { display: flex; }
+#loginOverlay.visible, #emailCheckOverlay.visible { display: flex; }
 
-#loginCard {
+#loginCard, #emailCheckContent {
     background: white;
     border-radius: var(--radius-lg);
     padding: 36px 32px 28px;
@@ -1564,7 +1564,7 @@ button.nav-panel-link--notices {
     text-align: center;
     box-shadow: var(--shadow-3);
 }
-#loginCard img {
+#loginCard img, #emailCheckContent img {
     width: 72px;
     height: 72px;
     border-radius: 16px;
@@ -1608,7 +1608,7 @@ button.nav-panel-link--notices {
     line-height: 1.4;
 }
 .login-error.visible { display: block; }
-#loginSubmit {
+#loginSubmit, #emailCheckYesBtn, #emailCheckSaveBtn {
     width: 100%;
     padding: 13px;
     background: var(--primary-blue);
@@ -1620,11 +1620,13 @@ button.nav-panel-link--notices {
     cursor: pointer;
     touch-action: manipulation;
     font-family: inherit;
-    transition: background 0.15s, transform var(--dur-fast) var(--ease-standard);
+    transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
     margin-bottom: 16px;
 }
-@media (hover: hover) and (pointer: fine) { #loginSubmit:hover { background: var(--primary-blue-dark); } }
-#loginSubmit:active { transform: scale(var(--press-scale)); }
+@media (hover: hover) and (pointer: fine) {
+    #loginSubmit:hover, #emailCheckYesBtn:hover, #emailCheckSaveBtn:hover { background: var(--primary-blue-dark); }
+}
+#loginSubmit:active, #emailCheckYesBtn:active, #emailCheckSaveBtn:active { transform: scale(var(--press-scale)); }
 #loginName:disabled {
     background: white;
     color: var(--text-light);

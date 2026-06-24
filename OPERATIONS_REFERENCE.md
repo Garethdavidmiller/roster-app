@@ -291,6 +291,62 @@ Apply approved changes:
 
 ---
 
+## Weekly Retail Circular and Marylebone Newsletter — full detail
+
+### Overview
+
+Two independent document-upload flows with identical mechanics: an admin uploads a PDF from the Operations page; staff access the latest document via the nav-panel drawer. Both are handled by the same helper pattern in `firebase-client.js`.
+
+### Upload flow (admin, Operations page)
+
+1. Admin opens the Operations page and expands the relevant card (Weekly Retail Circular or Marylebone Newsletter).
+2. Selects an upload date using the date input (capped to today — `dateInput.max = formatISO(new Date())`).
+3. Selects a PDF file and clicks **Upload**.
+4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`:
+   - Writes the PDF to Firebase Storage: `circulars/{date}.pdf` / `newsletters/{date}.pdf`
+   - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, fileType: "pdf", uploadedAt, uploadedBy }`
+   - Fire-and-forget: calls `_pruneOldDocs()` to delete documents and Storage files older than 6 months
+
+Re-uploading for the same date overwrites both the Storage file and the Firestore doc.
+
+### 6-month auto-prune
+
+`_pruneOldDocs(collectionName, storage, refFn, deleteObject)` in `firebase-client.js`:
+- Calculates a cutoff date 6 months in the past
+- Queries the collection for docs with `date < cutoff`
+- For each match: `deleteDoc` from Firestore + `deleteObject` from Storage (Storage errors swallowed silently)
+- Called fire-and-forget at the end of both `uploadCircular` and `uploadNewsletter` — a failed prune never blocks the upload
+
+### Staff access flow
+
+1. Staff taps ☰ → **Weekly Retail Circular** or **Marylebone Newsletter** in the nav-panel drawer.
+2. `nav-panel.js` click handler fires. A `_docFetching` boolean guard at module scope returns early if a fetch is already in-flight (tap-guard against rapid repeated taps).
+3. `window.open('', '_blank')` is called **synchronously** in the same event tick as the click — this is required for Safari/iOS to allow the new tab. The blank tab is opened before any async work begins.
+4. `getLatestCircular()` / `getLatestNewsletter()` is awaited:
+   - On success with a `storageUrl`: `newTab.location.href = url` opens the PDF; `closePanelForNavigation()` closes the drawer.
+   - On success with no document (null): `newTab.close()` cancels the blank tab; the coming-soon lightbox is shown.
+   - On Firestore error: same as null — cancels the blank tab, shows a retry message in the coming-soon lightbox.
+5. `_docFetching` is reset to `false` in `.finally()`.
+
+### Security
+
+| Operation | Requirement |
+|-----------|-------------|
+| Reads | `request.auth != null` (any authenticated staff member) |
+| Writes | `request.auth.token.admin == true` (admin claim only) |
+| Storage | Rules enforce PDF MIME type + ≤20 MB per file |
+
+### Firestore / Storage paths
+
+| Resource | Path |
+|----------|------|
+| Circular Firestore doc | `circulars/{YYYY-MM-DD}` |
+| Circular Storage file | `circulars/{YYYY-MM-DD}.pdf` |
+| Newsletter Firestore doc | `newsletters/{YYYY-MM-DD}` |
+| Newsletter Storage file | `newsletters/{YYYY-MM-DD}.pdf` |
+
+---
+
 ## Firebase Auth — full detail (migration complete at v7.94)
 
 ### Email and password convention

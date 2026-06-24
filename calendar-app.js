@@ -19,6 +19,7 @@ import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
+import { initErrorReporter } from './error-reporter.js';
 import { initHuddleViewer } from './app-huddle-viewer.js';
 
 // ============================================
@@ -1912,6 +1913,7 @@ function initCalendarKeyboard() {
 
 initCalendarTooltip();
 initCalendarKeyboard();
+initErrorReporter();
 
 const _calendarSession = getSession();
 initNavPanel({

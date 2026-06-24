@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Links v13.66 -->
+<!-- MYB Roster — Links v13.68 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -61,7 +61,7 @@
 <main class="container">
 
     <header class="app-header">
-        <button class="btn-burger" id="navMenuBtn"
+        <button type="button" class="btn-burger" id="navMenuBtn"
                 aria-label="Open navigation menu" aria-expanded="false">☰</button>
         <div class="app-header-brand">
             <img src="icon-192.png" class="app-icon" id="appIcon" alt="Back to calendar" loading="eager">
@@ -77,7 +77,7 @@
     <div class="card" id="linksGridCard">
         <div class="card-header card-collapsible-header" id="linksGridToggleHeader">
             <h2><span aria-hidden="true">🗓️</span> Link design — 28 lines
-                <button class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design" title="Tips for link design">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-grid" aria-label="Tips for link design" title="Tips for link design">?</button>
             </h2>
             <span class="hint">Tap any shift cell to change it. Use the Paint bar to fill cells quickly. Save when done.</span>
             <span class="collapse-chevron open" id="linksGridChevron">▾</span>
@@ -170,7 +170,7 @@
                 </div>
 
                 <div id="linksSaveRow" class="links-save-row" style="display:none">
-                    <button id="linksSaveBtn" class="btn-save" disabled>Save changes</button>
+                    <button type="button" id="linksSaveBtn" class="btn-save" disabled>Save changes</button>
                     <div class="links-save-meta">
                         <span id="linksSaveStatus" class="links-save-status" aria-live="polite"></span>
                         <span id="linksLastSaved" class="links-last-saved"></span>
@@ -186,7 +186,7 @@
     <div class="card" id="generatorCard">
         <div class="card-header card-collapsible-header" id="generatorToggleHeader">
             <h2><span aria-hidden="true">⚡</span> Auto-generate a link
-                <button class="btn-card-tips" data-card="links-generator" aria-label="Tips for the auto-generator" title="Tips for the auto-generator">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-generator" aria-label="Tips for the auto-generator" title="Tips for the auto-generator">?</button>
             </h2>
             <span class="hint">Build a rotating pattern automatically from staffing targets</span>
             <span class="collapse-chevron" id="generatorChevron">▾</span>
@@ -230,7 +230,7 @@
                         <button class="btn-text-link" id="genSeedBtn" type="button">↺ Reset targets from current roster</button>
                     </div>
                     <div id="genError" class="gen-error" aria-live="polite"></div>
-                    <button class="btn-action btn-primary" id="genApplyBtn">Generate link (all 28 lines)</button>
+                    <button type="button" class="btn-action btn-primary" id="genApplyBtn">Generate link (all 28 lines)</button>
                     <p class="gen-note">Each day's total can't exceed 28 — the remaining lines become rest days.</p>
                 </div>
             </div>
@@ -241,7 +241,7 @@
     <div class="card" id="coverageCard">
         <div class="card-header card-collapsible-header" id="coverageToggleHeader">
             <h2><span aria-hidden="true">📊</span> Coverage analysis
-                <button class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-coverage" aria-label="Tips for coverage analysis" title="Tips for coverage analysis">?</button>
             </h2>
             <span class="hint">How many people are on duty through each hour of the day</span>
             <span class="collapse-chevron open" id="coverageChevron">▾</span>
@@ -258,7 +258,7 @@
     <div class="card" id="designChecksCard">
         <div class="card-header card-collapsible-header" id="checksToggleHeader">
             <h2><span aria-hidden="true">✅</span> Design checks
-                <button class="btn-card-tips" data-card="links-checks" aria-label="Tips for design checks" title="Tips for design checks">?</button>
+                <button type="button" class="btn-card-tips" data-card="links-checks" aria-label="Tips for design checks" title="Tips for design checks">?</button>
             </h2>
             <span class="hint">Quality checks on the rotating link — weekends, rest time, run lengths, balance</span>
             <span class="collapse-chevron open" id="checksChevron">▾</span>

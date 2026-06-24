@@ -16,6 +16,7 @@ import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
+import { initErrorReporter } from './error-reporter.js';
 import { lsGet, lsSet } from './ls.js';
 import {
     DAYS,
@@ -1424,6 +1425,7 @@ registerServiceWorker({
         }
     },
 });
+window._mybSession.then(() => initErrorReporter());
 
 // ============================================
 // BOOT
