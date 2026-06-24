@@ -36,16 +36,16 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
             navigator.serviceWorker.addEventListener('controllerchange', () => {
                 beforeReload ? beforeReload() : window.location.reload();
             }, { once: true });
-            let updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+            let updateInterval = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000);
             document.addEventListener('visibilitychange', () => {
                 if (document.hidden) clearInterval(updateInterval);
-                else { clearInterval(updateInterval); registration.update(); updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000); }
+                else { clearInterval(updateInterval); registration.update().catch(() => {}); updateInterval = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000); }
             });
             if (bfcache) {
                 window.addEventListener('pagehide', () => clearInterval(updateInterval));
                 window.addEventListener('pageshow', () => {
                     clearInterval(updateInterval);
-                    updateInterval = setInterval(() => registration.update(), 60 * 60 * 1000);
+                    updateInterval = setInterval(() => registration.update().catch(() => {}), 60 * 60 * 1000);
                 });
             }
         })
