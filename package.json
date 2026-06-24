@@ -10,11 +10,12 @@
     "test:functions": "node --test roster-parse-helpers.test.mjs",
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "check": "npm run lint && npm test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "eslint": "^10.0.0",
     "globals": "^15.15.0",
     "http-server": "^14.1.1"
   }

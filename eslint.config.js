@@ -29,8 +29,8 @@ export default [
             },
         },
         rules: {
-            // Catch bindings named _ are intentionally unused (no-op catch).
-            'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+            // Catch bindings and vars named _ are intentionally unused (no-op catch / destructure discard).
+            'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
             // Intentional empty catch blocks are allowed; empty function bodies are not.
             'no-empty': ['error', { allowEmptyCatch: true }],
             'no-console': 'off',

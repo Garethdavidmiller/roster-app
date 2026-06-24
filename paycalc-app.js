@@ -9,10 +9,10 @@
  * Do not edit here for: tax/NI/gross maths, BH detection, override fetch.
  */
 
-import { CONFIG as ROSTER_CONFIG, teamMembers, getBaseShift, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, teamMembers, formatISO, escapeHtml, MILLER_ACTUALS } from './roster-data.js';
 import {
   P_YR, TAX_YEARS, GRADES, HPP_FRACTION, RATE_125, RATE_150, RATE_300,
-  calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
+  getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
 import { resetOverrides, getOverridesFetchState, fetchOverridesForPeriod, getRosterSuggestion, bhsForYear } from './paycalc-roster-suggestions.js';
@@ -307,8 +307,7 @@ function updateBhRows(p) {
   });
 }
 
-// getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod, calcBandedTax
-// are imported from paycalc-calc.js above.
+// getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod are imported from paycalc-calc.js above.
 
 // ── PERIOD SELECT ─────────────────────────────────────────────────────────────
 // iOS Safari ignores `select.value = x` when options are inside <optgroup> —
@@ -398,7 +397,7 @@ function buildBackPayPeriodSelect() {
 // Falls back to the legacy single rate, then to the current grade's default.
 function updateRateForPeriod(ty) {
   let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted'); }
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
   const g     = getGrade();
   const rate  = rates[ty.label]
              || parseFloat(lsGet(SK.rate))
@@ -679,7 +678,7 @@ function autosave() {
   try {
     lsSet(periodKey(pNum), JSON.stringify(d));
     updateSaveStatus(pNum);
-  } catch(e) { /* storage unavailable */ }
+  } catch { /* storage unavailable */ }
 }
 
 function loadPeriodData(pNum) {
@@ -687,7 +686,7 @@ function loadPeriodData(pNum) {
   try {
     const raw = lsGet(periodKey(pNum));
     if (raw) d = JSON.parse(raw);
-  } catch(e) { /* use empty */ }
+  } catch { /* use empty */ }
   writeFormData(d);
   _restoreRosterSuggested(pNum);
   // If no pension has been manually saved for this period, apply the period-specific
@@ -724,7 +723,7 @@ function updateSaveStatus(pNum) {
   const raw = lsGet(periodKey(pNum));
   if (raw) {
     let d;
-    try { d = JSON.parse(raw); } catch(e) { d = null; }
+    try { d = JSON.parse(raw); } catch { d = null; }
     if (d) {
       const _pObj = getPeriods().find(x => x.num === pNum);
       const _defaultPension = _pObj
@@ -824,7 +823,7 @@ function saveSettings() {
   const curP    = getPeriods().find(x => x.num === pNum);
   const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   const _savedGrade   = document.getElementById('gradeSelect').value;
   const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
   rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
@@ -863,7 +862,7 @@ function confirmSettings() {
       const d = JSON.parse(existingRaw);
       d.pension = parseFloat(document.getElementById('pensionAmt').value) || 0;
       lsSet(periodKey(pNum), JSON.stringify(d));
-    } catch(e) {}
+    } catch {}
   }
   lsSet(settingsKey(curTy), '1');
   lsSet(SK.setup, '1');
@@ -1194,7 +1193,7 @@ function fillCategoryFromRoster(cat) {
       existing[hId] = hVal ?? '';
       existing[mId] = mVal ?? '';
       lsSet(snapKey(pNum), JSON.stringify(existing));
-    } catch(e) {}
+    } catch {}
   }
   autosave();
   // Programmatic value changes don't fire the input listeners — refresh the
@@ -1247,7 +1246,7 @@ function _saveRosterSnap(pNum, s) {
       otH: s.otH, otM: s.otM, rdwH: s.rdwH, rdwM: s.rdwM,
       boxH: s.boxH, boxM: s.boxM,
     }));
-  } catch(e) {}
+  } catch {}
 }
 
 /** Re-adds roster-suggested to any field whose current value still matches the last roster
@@ -1257,7 +1256,7 @@ function _saveRosterSnap(pNum, s) {
  *  the snapshot and keep their values untouched. */
 function _restoreRosterSuggested(pNum) {
   let snap;
-  try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch(e) {}
+  try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch {}
   if (!snap) return;
   const pairs = [
     ['satH',  'satM',  snap.satH,  snap.satM ],
@@ -1389,7 +1388,7 @@ function calculate() {
   const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
 
   // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
-  const { gross, satCapped, normHrs, bhCapped, nonBhNorm,
+  const { gross, satCapped, _normHrs, bhCapped, nonBhNorm,
           gBasicNorm, gBasicSat, gBankHol, gBhOt, gOvertime,
           gRdw, gSunday, gBoxing, gPeer } = computeGross({
     effContr: _effContr, rate, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,
@@ -1673,7 +1672,7 @@ function calcHPP() {
       if (isDataEmpty(d)) return;
       pCount++;
       totalVar += _varPayForPeriod(p, d, rate);
-    } catch(e) {}
+    } catch {}
   });
 
   const hpp      = totalVar * HPP_FRACTION;
@@ -1761,7 +1760,7 @@ function updatePriorHpp(ty) {
           const d = JSON.parse(raw);
           if (isDataEmpty(d)) return;
           _priorVar += _varPayForPeriod(p, d, rate);
-        } catch(e) {}
+        } catch {}
       });
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     }
@@ -1939,7 +1938,7 @@ function calcBackPay() {
           <span class="bp-val">${fmt(backPay)}</span>
         </div>`;
       }
-    } catch(e) {}
+    } catch {}
   });
 
   if (grandTotal > 0) {
@@ -1977,7 +1976,7 @@ function calcBackPay() {
     if (applyWrap && applyBtn && hasRate) {
       const _awardTy = _bpAwardTaxYear(fromPNum);
       let _storedRates = {};
-      try { _storedRates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) {}
+      try { _storedRates = JSON.parse(lsGet(SK.rates) || '{}'); } catch {}
       const alreadyApplied = Math.abs((parseFloat(_storedRates[_awardTy.label]) || 0) - newRate) < 0.001;
       applyBtn.textContent = alreadyApplied
         ? `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${_awardTy.label})`
@@ -2031,7 +2030,7 @@ function applyNewRate() {
   const fromPNum = +(document.getElementById('backPayFrom')?.value || 0);
   const awardTy  = _bpAwardTaxYear(fromPNum);
   let rates = {};
-  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
+  try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   rates[awardTy.label] = newRate;
   lsSet(SK.rates, JSON.stringify(rates));
   lsSet(SK.rate,  newRate.toFixed(2)); // legacy single-rate fallback for years with no stored rate

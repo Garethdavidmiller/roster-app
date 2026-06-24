@@ -470,9 +470,9 @@ body.auth-ready .container { display: grid; }
 .check-bad      { background: rgba(200, 40, 40, 0.08); }
 .check-neutral  { background: var(--surface-sunken); }
 .check-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-.check-tick      { color: var(--success-green, #22a05a); }
-.check-warn      { color: var(--warning-amber, #c07800); }
-.check-cross     { color: var(--error-red, #c82828); }
+.check-tick      { color: var(--success-green); }
+.check-warn      { color: var(--warning-amber); }
+.check-cross     { color: var(--error-red); }
 .check-info-icon { color: var(--text-mid); }
 .check-body { flex: 1; min-width: 0; }
 .check-note { font-size: 11px; color: var(--text-mid); }
@@ -733,7 +733,7 @@ body.auth-ready .container { display: grid; }
 }
 .design-chips--compare .design-chip--active {
     background: color-mix(in srgb, var(--accent-gold) 20%, white);
-    border-color: var(--accent-gold-dark, #e6bb00);
+    border-color: var(--accent-gold-dark);
     color: var(--text-dark);
 }
 

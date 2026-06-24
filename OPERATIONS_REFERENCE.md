@@ -211,6 +211,8 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 **Important:** Do not merge the manual-click and notification-tap paths. The popup-blocking and standalone-mode constraints apply only to the notification-triggered code path. DOCX files with `htmlContent` bypass both constraints entirely — they render inline.
 
+**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent. See `RESTART_NOTIFICATIONS.md` in the repo root for the re-enable checklist.
+
 ---
 
 ## Weekly Roster Upload — full detail

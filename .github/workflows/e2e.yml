@@ -22,10 +22,13 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Install dependencies
+        run: npm ci
+
       # Deployment-hygiene tests run here (not only at deploy) so the
       # doc-checkpoint tripwire and version-consistency checks gate every
       # branch and PR — catching a missed 0.10 doc sweep before merge, not after.
       - name: Run unit and hygiene tests
         run: |
-          # Canonical test command lives in package.json so the workflows can't drift.
-          npm test
+          # Canonical check command (lint + tests) lives in package.json.
+          npm run check

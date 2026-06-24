@@ -9,8 +9,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
-import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { db, collection, query, where, getDocs, COLLECTIONS, auth, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
@@ -336,7 +336,6 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
     `;
 }
 
-// escapeHtml — imported from roster-data.js
 
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
@@ -1740,6 +1739,23 @@ async function ensureOverridesCached(year, month) {
     } catch (err) {
         syncResolved = true;
         console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
+        // Synthesise the error chip even when Firestore failed before the 800ms loading timer fired.
+        if (!syncChip) {
+            const header = document.querySelector('.calendar-header');
+            if (header) {
+                syncChip = document.createElement('button');
+                syncChip.type = 'button';
+                syncChip.className = 'sync-chip';
+                syncChip.setAttribute('aria-live', 'polite');
+                header.appendChild(syncChip);
+            }
+        }
+        if (syncChip) {
+            syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
+            syncChip.className = 'sync-chip sync-chip-error';
+            syncChip.disabled = false;
+            syncChip.addEventListener('click', doRetry, { once: true });
+        }
     } finally {
         _initialFetchInProgress = false;
         clearTimeout(loadingTimer);
@@ -1916,7 +1932,8 @@ function initCalendarKeyboard() {
 
 initCalendarTooltip();
 initCalendarKeyboard();
-initErrorReporter();
+// Anonymous sign-in gives error-reporter a valid auth token so clientError writes pass Firestore rules.
+signInAnonymously(auth).catch(() => {}).finally(() => initErrorReporter());
 
 const _calendarSession = getSession();
 initNavPanel({
