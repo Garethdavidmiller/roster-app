@@ -32,7 +32,9 @@ export const TYPES = {
     swap:         { label: 'Swap',             fixed: false },
 };
 
-/** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth). */
+/** Ordered list of type keys for the per-row and bulk-bar pill buttons (single source of truth).
+ *  Order: AL · Spare · Shift · RDW · Absent · Rest Day — do not reorder; matches admin.html label order.
+ */
 export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction'];
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
@@ -892,7 +894,7 @@ function _initTimeInputs() {
         timeInput.classList.remove('input-error');
         timeInput.removeAttribute('aria-invalid');
         let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
-        if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw;
+        if (raw.length === 3 && parseInt(raw.slice(0, 2), 10) > 23) raw = '0' + raw; // without this, "630" → "63:0"
         _formattingTime = true;
         timeInput.value = raw.length >= 3 ? raw.slice(0, 2) + ':' + raw.slice(2) : raw;
         _formattingTime = false;

@@ -340,6 +340,7 @@ function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year
 
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
+// Always call this helper — never duplicate the navigation logic at a call site.
 function navigateToPaycalc(paydayStr) {
     if (getSession()?.name) {
         window.location.href = `./paycalc.html?payday=${paydayStr}`;
@@ -1190,6 +1191,7 @@ try {
                 hapticFired    = false;
 
                 // Measure width now — avoids a forced layout reflow mid-gesture.
+                // Math.ceil eliminates sub-pixel seam on high-DPI screens — do not remove.
                 gestureW = Math.ceil(calendarDisplay.getBoundingClientRect().width);
 
                 // Promote current panel to its own compositor layer before dragging starts.
