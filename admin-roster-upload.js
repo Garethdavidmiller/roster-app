@@ -26,7 +26,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * @param {string|null} date       ISO date — detects a Sunday worked shift
  * @returns {string} HTML
  */
-function shiftDisplay(shiftStr, baseShift = null, date = null) {
+function shiftDisplay(shiftStr, _baseShift = null, date = null) {
     if (isRdwEncoded(shiftStr)) {
         const time = stripRdw(shiftStr);
         return `${getShiftBadge('RDW')}<span class="review-shift-time">${escapeHtml(time)}</span>`;

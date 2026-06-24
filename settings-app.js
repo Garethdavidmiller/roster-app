@@ -9,7 +9,7 @@
 
 import { CONFIG, getMembersForGrade, isValidEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
