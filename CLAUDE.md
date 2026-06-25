@@ -138,7 +138,10 @@ roster-app/
 ├── operations.html         ← admin-only: Huddle upload, Roster upload, Staff Login Accounts, Error Log
 ├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← all JS for index.html (calendar, overrides cache, swipe, notifications)
+├── calendar-app.js         ← coordinator for index.html: month state, swipe, event wiring, AL lightbox, sync chip, initial 3-month fetch
+├── calendar-overrides.js   ← Firestore override cache for index.html: rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth, monthKey
+├── calendar-member.js      ← team member selection for index.html: getSelectedMemberIndex, getCurrentMember, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName
+├── calendar-renderer.js    ← calendar cell/grid building for index.html: buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection
 ├── app-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
 ├── nav-panel.js            ← shared nav drawer: initNavPanel, NAV_PAGES/INFORMATION/GUIDES, archiveNotice, isNoticeExpired
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
