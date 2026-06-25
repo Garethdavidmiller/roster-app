@@ -18,7 +18,7 @@ lacks `iam.serviceAccountTokenCreator` role. Either way the URL lands in `storag
 
 Signed URL format:
 ```
-https://storage.googleapis.com/myb-roster.appspot.com/huddles%2FYYYY-MM-DD.pdf?X-Goog-...
+https://storage.googleapis.com/myb-roster.firebasestorage.app/huddles%2FYYYY-MM-DD.pdf?X-Goog-...
 ```
 
 Download token fallback format:
@@ -35,7 +35,7 @@ date         string     "YYYY-MM-DD"
 storageUrl   string     Signed URL or download-token URL (see above)
 fileType     string     "pdf" | "docx"
 uploadedAt   timestamp  Firestore server timestamp
-uploadedBy   string     "power-automate" | Firebase Auth UID (manual admin upload)
+uploadedBy   string     "power-automate" (Cloud Function) | member name string (manual admin upload)
 htmlContent  string     (optional) DOCX converted to HTML by mammoth.js at upload time.
                         Present for DOCX files only. Missing for PDFs and large DOCX
                         conversions (> 200 KB / 200,000 chars). Viewer falls back to storageUrl if absent.
@@ -192,16 +192,16 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 
 ### Huddle notification tap behaviour (v10.71)
 
-When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is `./index.html#huddle`. The app's `hashchange` listener fires `_triggerAutoOpen(huddle)` in `calendar-app.js`.
+When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is the staff-site root with the `#huddle` hash (`https://garethdavidmiller.github.io/#huddle`, from the push payload's `url` field). On load — or via the `hashchange` listener if the page is already open — `app-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `./index.html#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
 
-**Two code paths — do not unify:**
+**Two render paths inside `_triggerAutoOpen` — do not unify:**
 
-| Condition | Manual tap (📋 button) | Notification tap |
-|-----------|----------------------|-----------------|
-| `htmlContent` present (DOCX converted server-side) | Renders HTML inline in the viewer overlay | Renders HTML inline in the viewer overlay |
-| No `htmlContent` (PDF, or DOCX conversion failed) | `window.open(storageUrl)` directly — the button tap IS a user gesture | In-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) |
+| `htmlContent` | Behaviour (identical for the nav-panel link and a notification tap) |
+|---------------|--------------------------------------------------------------------|
+| Present (DOCX converted server-side) | Renders sanitised HTML inline in the viewer overlay |
+| Absent (PDF, or DOCX conversion failed) | Shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); tapping it calls `window.open(storageUrl, '_blank', 'noopener')` |
 
-**Why the in-overlay button for notification taps (no `htmlContent`):**
+**Why the in-overlay button (no `htmlContent`):**
 
 A notification tap provides no transient user activation in the page. This means:
 - `window.open('_blank', ...)` → pop-up blocked by the browser (no user gesture)
@@ -209,7 +209,7 @@ A notification tap provides no transient user activation in the page. This means
 
 Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window.open(storageUrl, '_blank', 'noopener')` then opens the file as an Android Custom Tab overlaid on top of the intact standalone PWA. The Android Back gesture dismisses the Custom Tab and returns directly to the clean standalone app.
 
-**Important:** Do not merge the manual-click and notification-tap paths. The popup-blocking and standalone-mode constraints apply only to the notification-triggered code path. DOCX files with `htmlContent` bypass both constraints entirely — they render inline.
+**Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. A notification tap carries no user activation (direct `window.open` would be pop-up-blocked; a `location.href` to the cross-origin file would knock the PWA out of standalone mode), and routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
 
 **Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent. See `RESTART_NOTIFICATIONS.md` in the repo root for the re-enable checklist.
 
@@ -313,10 +313,10 @@ Re-uploading for the same date overwrites both the Storage file and the Firestor
 
 ### 6-month auto-prune
 
-`_pruneOldDocs(collectionName, storage, refFn, deleteObject)` in `firebase-client.js`:
+`_pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject)` in `firebase-client.js`:
 - Calculates a cutoff date 6 months in the past
-- Queries the collection for docs with `date < cutoff`
-- For each match: `deleteDoc` from Firestore + `deleteObject` from Storage (Storage errors swallowed silently)
+- Queries the collection for docs with `date < cutoff`, then skips the just-uploaded `excludeDate`
+- For each match (Firestore first, then Storage): `deleteDoc` then `deleteObject`. A Storage delete failure is logged via `console.warn` and never thrown; a Firestore delete failure is caught per-doc and logged via `console.error` so one bad delete can't abort the rest
 - Called fire-and-forget at the end of both `uploadCircular` and `uploadNewsletter` — a failed prune never blocks the upload
 
 ### Staff access flow
@@ -360,7 +360,7 @@ Re-uploading for the same date overwrites both the Storage file and the Firestor
 | C. Francisco-Charles | c.franciscocharles@myb-roster.local | franciscocharles |
 | L. Atrakimaviciene | l.atrakimaviciene@myb-roster.local | atrakimaviciene |
 
-`nameToEmail(name)` in `firebase-client.js` and `functions/index.js` must stay in sync with `getSurname()` in `session.js`. As of v12.04, `getSurname()` delegates to `normaliseSurname()` which is exported from `firebase-client.js`. The same derivation is also duplicated in `functions/roster-parse-helpers.js` — this is intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update all three locations.
+`nameToEmail(name)` in `firebase-client.js` (browser) and `functions/roster-parse-helpers.js` (imported by `functions/index.js`) must stay in sync with `getSurname()` in `session.js`. As of v12.04, `getSurname()` delegates to `normaliseSurname()` which is exported from `firebase-client.js`. The same derivation is also duplicated in `functions/roster-parse-helpers.js` — this is intentional: Cloud Functions are CommonJS and cannot import browser ES modules. If the rule ever changes, update all three locations.
 
 **Password derivation rule:** surname, lowercase, alphabetic characters only, **padded to a minimum of 6 characters by repeating the surname** (Firebase Auth's minimum password length). Surnames already ≥6 chars are used as-is; shorter ones are padded by repeating the surname cyclically (e.g. `"tuck"` → `"tucktu"`). The same derivation is used both on initial account setup and by `ensureFirebaseSession()` when it self-heals a missing account on page load.
 

@@ -294,11 +294,13 @@ in the same commit.
 
 `firebase-admin@14.0.0` is available and would fix 9 moderate-severity vulnerabilities
 in the dependency chain (`uuid < 11.1.1` via `@google-cloud/firestore → google-gax → uuid`).
-The upgrade is blocked by two things:
+The upgrade is blocked by one thing:
 
-- `firebase-admin@14` requires **Node >=22**, but the functions runtime is set to Node 20.
 - `firebase-functions@7.x` (all released versions as of June 2026) declares
   `firebase-admin@"^11 || ^12 || ^13"` — it does not yet list v14 as a supported peer.
+
+(The Node-runtime prerequisite that previously also blocked this is already met:
+`functions/package.json` `engines` is on Node 22.)
 
 **Practical risk:** The `uuid` vulnerability only triggers when a caller passes an explicit
 `buf` argument to UUID generation. Firebase's internals never do this, so the vulnerability
@@ -306,12 +308,11 @@ is present in the dependency tree but not reachable in normal operation. Severit
 
 **When to upgrade:** once `firebase-functions` releases a version adding `firebase-admin@^14`
 to its peer dependency range. Check with `npm outdated` in `functions/`. When unblocked:
-1. Bump `"node": "20"` → `"node": "22"` in `functions/package.json` engines field
-2. Bump `firebase-admin` to `^14.0.0`
-3. Audit `admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js` —
+1. Bump `firebase-admin` to `^14.0.0` (the Node 22 `engines` requirement is already satisfied)
+2. Audit `admin.firestore.FieldValue.serverTimestamp()` usage in `functions/index.js` —
    v14 dropped the legacy `admin.firestore` namespace; `FieldValue` must be imported from
    `firebase-admin/firestore` directly
-4. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
+3. Test all three Cloud Functions (ingestHuddle, parseRosterPDF, setupRosterAuth) before
    deploying to production
 
 ---

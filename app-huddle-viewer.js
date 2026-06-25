@@ -8,14 +8,17 @@
  *   (firebase-client.js), push notification logic (notif.js).
  * Edit here for: viewer open/close behaviour, auto-open paths.
  *
- * Two viewer paths — do NOT collapse into one, do NOT revert notification path
- * to window.open/location.href:
+ * Two render paths — do NOT collapse into one, do NOT revert to opening the
+ * file with window.open/location.href at viewer-open time:
  *   htmlContent present (DOCX converted server-side) → render inline in viewer.
- *   No htmlContent (PDF, or DOCX where conversion failed) → manual click calls
- *     window.open directly (real gesture); notification tap shows an in-overlay
- *     "📄 Open Huddle" button because a notification tap has no user activation
- *     (window.open is blocked; location.href to a cross-origin file breaks
- *     standalone mode). The button tap IS a real gesture.
+ *   No htmlContent (PDF, or DOCX where conversion failed) → show an in-overlay
+ *     "📄 Open Huddle" button. The viewer is reached only via the #huddle hash
+ *     (the nav-panel "Daily Huddle" link and notification taps alike), so both
+ *     triggers run this same path. A notification tap carries no user activation,
+ *     so calling window.open at open time would be pop-up-blocked and a
+ *     location.href to the cross-origin file would break standalone mode —
+ *     routing through the button avoids relying on activation that may be absent.
+ *     Tapping the button IS a real gesture, so its handler can window.open safely.
  * Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
  */
 
