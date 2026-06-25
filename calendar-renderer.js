@@ -10,7 +10,7 @@
  */
 
 import {
-    CONFIG, DAY_NAMES, MONTH_NAMES,
+    DAY_NAMES, MONTH_NAMES,
     isSameDay, isBankHoliday, isChristmasDay, isEasterSunday,
     isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge,
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
