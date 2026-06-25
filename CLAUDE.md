@@ -218,7 +218,7 @@ roster-app/
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
-├── firestore.rules.test.mjs ← Firestore security rules integration tests (81 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore emulator automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary)
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (81 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore emulator automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
 ├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, CSP violation) that pass all unit tests. NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
@@ -231,7 +231,7 @@ roster-app/
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
 │   └── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
 ├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects
-├── firestore.rules         ← Firestore security rules (deployed via deploy-rules.yml; tested by firestore.rules.test.mjs)
+├── firestore.rules         ← Firestore security rules (deployed via deploy-rules.yml, gated by firestore.rules.test.mjs; tested by firestore.rules.test.mjs)
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
 ├── generate-sri.mjs        ← dev utility: patches Mammoth CDN SRI hash in huddle.js
 └── functions/

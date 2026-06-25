@@ -66,6 +66,24 @@ jobs:
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 
+      # Gate on E2E smoke tests — mirrors deploy-hosting.yml so a blank-page break
+      # cannot reach staff via the GitHub Pages URL while firebase.web.app is gated.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        run: npm run test:e2e
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-pages
+          path: playwright-report/
+          retention-days: 7
+
       # Assemble the publish folder: everything the app needs at runtime, minus
       # server-only files, docs, tests and dev tooling. Mirrors firebase.json's
       # ignore intent — but deliberately KEEPS purify.es.mjs (it's *.mjs but not
@@ -92,7 +110,14 @@ jobs:
             --exclude 'storage.rules' \
             --exclude 'firestore.indexes.json' \
             --exclude 'package.json' \
-            --exclude 'package-lock.json'
+            --exclude 'package-lock.json' \
+            --exclude 'e2e' \
+            --exclude 'playwright.config.mjs' \
+            --exclude 'githooks' \
+            --exclude 'scripts' \
+            --exclude 'eslint.config.js' \
+            --exclude 'jsconfig.json' \
+            --exclude '.claude'
 
       - name: Publish to staff GitHub Pages repo
         uses: peaceiris/actions-gh-pages@v4
