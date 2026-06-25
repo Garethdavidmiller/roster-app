@@ -5,8 +5,7 @@
 // Called by operations-app.js via initRosterUpload().
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
-import { db as _db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
-/** @type {any} */ const db = _db;
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride } from './app-override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';

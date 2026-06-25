@@ -80,6 +80,7 @@ export const SCOTTISH_TAX_BY_YEAR = {
 // Grade contractual data. 2026/27 pay awards not yet confirmed.
 // pensionPre / pensionFrom: pension changed from £154.77 → £147.36 at the May 8 2026 payslip.
 // Periods with payday < pensionFrom use pensionPre; from pensionFrom onwards use pension.
+/** @type {Record<string, any>} */
 export const GRADES = {
   cea: { label: 'CEA — £20.74/hr', rate: 20.74, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
   ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) }, // 2026/27 rate TBC
@@ -158,7 +159,7 @@ export function getLondonAllowanceForPeriod(p, ty) {
  * @returns {number} Full-period pension contribution £
  */
 export function getPensionForPeriod(grade, payday) {
-  const g = (/** @type {Record<string, any>} */ (GRADES))[grade] ?? GRADES.cea;
+  const g = GRADES[grade] ?? GRADES.cea;
   if (g.pensionPre && g.pensionFrom && payday < g.pensionFrom) return g.pensionPre;
   return g.pension;
 }

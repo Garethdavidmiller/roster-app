@@ -104,7 +104,7 @@ export function _varPayForPeriod(p, d, rate) {
  */
 export function calcHPP(bpVarAmount, bpPNum) {
   const _hppGrade       = getGrade();
-  const _hppDefaultRate = (/** @type {Record<string, any>} */ (GRADES))[_hppGrade]?.rate ?? GRADES.cea.rate;
+  const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
   const rate       = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value) || _hppDefaultRate;
   const allPeriods = getPeriods();
 
@@ -217,7 +217,7 @@ export function updatePriorHpp(ty) {
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
     } else {
       const _hppGrade = getGrade();
-      const rate = (/** @type {Record<string, any>} */ (GRADES))[_hppGrade]?.rate ?? GRADES.cea.rate;
+      const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
       let _priorVar = 0;
       _priorPeriods.forEach(/** @param {any} p */ p => {
         try {

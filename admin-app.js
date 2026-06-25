@@ -840,7 +840,7 @@ saveBtn.addEventListener('click', async () => {
             errors.push(`${formatDisplay(date)}: absence cannot be recorded on a Sunday`);
             return;
         }
-        const typeMeta    = (/** @type {Record<string, any>} */ (TYPES))[type];
+        const typeMeta    = TYPES[type];
         const startEl = /** @type {HTMLInputElement} */ (row.querySelector('.day-start'));
         const endEl   = /** @type {HTMLInputElement} */ (row.querySelector('.day-end'));
         const note    = '';
@@ -1479,8 +1479,8 @@ async function purgeSundayAL() {
  * Returns without showing if the check is already done on this device,
  * or if the Firestore fetch fails (never blocks the app).
  * Resolves when the user confirms or saves their email.
+ * @param {any} member
  */
-/** @param {any} member */
 async function _runEmailCheck(member) {
     if (lsGet(`myb_email_check_done_${member}`)) return;
 
@@ -1608,8 +1608,8 @@ async function _runEmailCheck(member) {
  * Called on every admin page load for an authenticated user.
  * Awaits sessionReady so getStaffContact() doesn't run before authentication
  * is restored (returning-user path re-establishes Firebase Auth asynchronously).
+ * @param {any} member
  */
-/** @param {any} member */
 async function initEmailCheck(member) {
     await sessionReady;
     await _runEmailCheck(member);
@@ -1632,7 +1632,7 @@ if (!isAuthenticated) {
     const _bulkPillsContainer = document.getElementById('bulkTypePills');
     if (_bulkPillsContainer) {
         _bulkPillsContainer.innerHTML = PILL_TYPES.map(t =>
-            `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${(/** @type {Record<string, any>} */ (TYPES))[t].pill}</button>`
+            `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`
         ).join('');
     }
     initOverrides({

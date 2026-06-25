@@ -92,7 +92,7 @@ export function initPaycalcLightboxes() {
         const badge = document.getElementById('welcomeGradeBadge');
         if (badge) {
           const g = lsGet(SK.grade);
-          badge.textContent = (g && /** @type {Record<string, any>} */ (GRADES)[g] ? /** @type {Record<string, any>} */ (GRADES)[g].label : 'CEA & CES') + ' grade';
+          badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
         }
       },
       onClose: () => lsSet(WELCOME_KEY, '1'),

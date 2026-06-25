@@ -18,10 +18,8 @@ import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 
-/** @type {any} */
-const _db = db;
-
 // ── TYPES ────────────────────────────────────────────────────────────────────
+/** @type {Record<string, any>} */
 export const TYPES = {
     spare_shift:  { label: 'Spare shift',      pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            pill: 'Shift',    fixed: false },
@@ -210,7 +208,7 @@ export function buildWeekGridInto(container, dateStr) {
             </div>
             <div class="col-base">${getShiftBadge(baseShift)}</div>
             <div class="col-pills">
-                ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${(/** @type {Record<string, any>} */ (TYPES))[t].pill}</button>`).join('\n                ')}
+                ${PILL_TYPES.map(t => `<button class="type-pill-btn pill-${t}" data-type="${t}" aria-pressed="false">${TYPES[t].pill}</button>`).join('\n                ')}
             </div>
             <div class="col-time">
                 <input type="text" class="time-input day-start" inputmode="numeric" placeholder="HH:MM" maxlength="5" tabindex="-1" title="24-hour start time, e.g. 06:20" aria-label="Start time (HH:MM)" aria-describedby="${timeErrId}">
@@ -247,7 +245,7 @@ export function buildWeekGridInto(container, dateStr) {
         if (existing) {
             const legacyToShift = { overtime: 'shift', allocated: 'shift' };
             const prefillType   = (/** @type {Record<string, any>} */ (legacyToShift))[existing.type] ?? existing.type;
-            const typeMeta      = (/** @type {Record<string, any>} */ (TYPES))[prefillType];
+            const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
             if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
@@ -272,14 +270,14 @@ export function buildWeekGridInto(container, dateStr) {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
                     // Pre-fill times from the base roster shift when choosing Shift or RDW,
                     // but only if the user hasn't already entered something.
-                    if (!(/** @type {Record<string, any>} */ (TYPES))[type]?.fixed && !/** @type {HTMLInputElement} */ (startEl).value && !/** @type {HTMLInputElement} */ (endEl).value) {
+                    if (!TYPES[type]?.fixed && !/** @type {HTMLInputElement} */ (startEl).value && !/** @type {HTMLInputElement} */ (endEl).value) {
                         if ((type === 'shift' || type === 'rdw') && baseShift && baseShift.includes('-')) {
                             const [prefillS, prefillE] = baseShift.split('-');
                             /** @type {HTMLInputElement} */ (startEl).value = prefillS;
                             /** @type {HTMLInputElement} */ (endEl).value   = prefillE;
                         }
                     }
-                    if (!(/** @type {Record<string, any>} */ (TYPES))[type]?.fixed) /** @type {HTMLInputElement} */ (startEl).focus();
+                    if (!TYPES[type]?.fixed) /** @type {HTMLInputElement} */ (startEl).focus();
                 }
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
@@ -376,7 +374,7 @@ function _activateRow(row, checkbox, pills, startEl, endEl, type) {
         p.classList.toggle('active', on);
         p.setAttribute('aria-pressed', String(on));
     });
-    if ((/** @type {Record<string, any>} */ (TYPES))[type]?.fixed) {
+    if (TYPES[type]?.fixed) {
         row.classList.add('fixed-type');
         if (startEl) startEl.tabIndex = -1;
         if (endEl) endEl.tabIndex = -1;
@@ -498,8 +496,8 @@ function _initBulkBar() {
                 pill.classList.add('active');
                 pill.setAttribute('aria-pressed', 'true');
                 _bulkActiveType = type;
-                if (bulkApplyBtn) bulkApplyBtn.textContent = `3. Apply "${(/** @type {Record<string, any>} */ (TYPES))[type]?.label ?? type}" to ticked days`;
-                if (bulkTimeGroup) bulkTimeGroup.style.display = ((/** @type {Record<string, any>} */ (TYPES))[type] && !(/** @type {Record<string, any>} */ (TYPES))[type].fixed) ? 'flex' : 'none';
+                if (bulkApplyBtn) bulkApplyBtn.textContent = `3. Apply "${TYPES[type]?.label ?? type}" to ticked days`;
+                if (bulkTimeGroup) bulkTimeGroup.style.display = (TYPES[type] && !TYPES[type].fixed) ? 'flex' : 'none';
                 if (bulkStart) bulkStart.value = '';
                 if (bulkEnd)   bulkEnd.value   = '';
             });
@@ -574,7 +572,7 @@ function _initBulkBar() {
 
     bulkApplyBtn?.addEventListener('click', () => {
         if (!_bulkActiveType) { _showError('Choose a type in step 2 first, then tap Apply.'); return; }
-        const typeMeta = (/** @type {Record<string, any>} */ (TYPES))[_bulkActiveType];
+        const typeMeta = TYPES[_bulkActiveType];
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
@@ -623,16 +621,16 @@ export async function executeSave(toSave, toDelete = []) {
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
     try {
-        const batch   = writeBatch(_db);
+        const batch   = writeBatch(db);
         /** @type {any[]} */
         const newDocs = [];
 
-        toDelete.forEach(id => batch.delete(doc(_db, COLLECTIONS.overrides, id)));
+        toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
 
         toSave.forEach(entry => {
-            if (entry.existingId) batch.delete(doc(_db, COLLECTIONS.overrides, entry.existingId));
+            if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
             const { existingId: _, ...data } = entry;
-            const newRef = doc(collection(_db, COLLECTIONS.overrides));
+            const newRef = doc(collection(db, COLLECTIONS.overrides));
             batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
             newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
         });
@@ -684,7 +682,7 @@ export async function loadOverrides() {
     const listCount = document.getElementById('listCount');
     if (tableBody) tableBody.innerHTML = '<tr class="state-row"><td colspan="7"><span class="spinner"></span>Loading…</td></tr>';
     try {
-        const snap = await getDocs(query(collection(_db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
+        const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
         snap.forEach(/** @param {any} s */ s => _allOverrides.push({ id: s.id, ...s.data() }));
         renderTable();
@@ -768,7 +766,7 @@ export function renderTable() {
     if (bulkDeleteBtn) bulkDeleteBtn.style.display = 'none';
 
     rows.forEach(o => {
-        const typeMeta     = (/** @type {Record<string, any>} */ (TYPES))[o.type];
+        const typeMeta     = TYPES[o.type];
         const isLegacyType = ['allocated', 'overtime', 'swap'].includes(o.type);
         const eid   = escapeHtml(o.id   || '');
         const edate = escapeHtml(o.date || '');
@@ -834,13 +832,13 @@ async function _handleDelete(e) {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-        await deleteDoc(doc(_db, COLLECTIONS.overrides, btn.dataset.id ?? ''));
+        await deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? ''));
         _allOverrides = _allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
         _onAfterSave();
         if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
         if (deleted && listFeedback) {
-            const typeMeta = (/** @type {Record<string, any>} */ (TYPES))[deleted.type];
+            const typeMeta = TYPES[deleted.type];
             listFeedback.textContent = `✓ Deleted: ${deleted.memberName} — ${formatDisplay(deleted.date)} (${typeMeta ? typeMeta.label : deleted.type})`;
             listFeedback.className = 'list-feedback success';
             setTimeout(() => { listFeedback.className = 'list-feedback'; }, 6000);
@@ -905,8 +903,8 @@ function _initOverridesTable() {
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
             try {
-                const batch = writeBatch(_db);
-                ids.forEach(id => batch.delete(doc(_db, COLLECTIONS.overrides, id)));
+                const batch = writeBatch(db);
+                ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                 await batch.commit();
                 _allOverrides = _allOverrides.filter(o => !ids.includes(o.id));
                 renderTable();
@@ -1033,7 +1031,7 @@ export function validateShiftRules(toSave, memberName) {
 
     toSave.forEach(entry => {
         const { date, value, type } = entry;
-        if ((/** @type {Record<string, any>} */ (TYPES))[type]?.fixed) return;
+        if (TYPES[type]?.fixed) return;
         if (!value || !value.includes('-')) return;
 
         const [startStr, endStr] = value.split('-');
@@ -1140,12 +1138,12 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     /** @type {any[]} */
     const newDocs    = [];
     const deletedIds = new Set();
-    const batch      = writeBatch(_db);
+    const batch      = writeBatch(db);
 
     workingDates.forEach(date => {
         const existing = ovByDate.get(date);
-        if (existing) { batch.delete(doc(_db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(_db, COLLECTIONS.overrides));
+        if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
+        const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type, value, note: '', source: 'manual',
             createdAt: serverTimestamp(), changedBy,
@@ -1155,8 +1153,8 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     sundayCorrections.forEach(date => {
         const existing = ovByDate.get(date);
-        if (existing) { batch.delete(doc(_db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(_db, COLLECTIONS.overrides));
+        if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
+        const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
             createdAt: serverTimestamp(), changedBy,

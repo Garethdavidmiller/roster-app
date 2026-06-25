@@ -282,7 +282,7 @@ function onPeriodChange() {
     // Confirmed — hide banner, update card header hint with saved values.
     /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
     const _hdrGrade = getGrade();
-    const rate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value || String((/** @type {Record<string,any>} */ (GRADES))[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+    const rate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
     const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
     /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
   } else {
@@ -624,7 +624,7 @@ function calculate() {
   const LONDON = (_curP ? getLondonAllowanceForPeriod(_curP, _ty) : _ty.londonAllow) * _proRateFactor;
 
   const _calcGrade = getGrade();
-  const _calcDefaultRate = (/** @type {Record<string,any>} */ (GRADES))[_calcGrade]?.rate ?? GRADES.cea.rate;
+  const _calcDefaultRate = GRADES[_calcGrade]?.rate ?? GRADES.cea.rate;
   const rate = numVal('hourlyRate') || _calcDefaultRate;
   const _rateWarn = document.getElementById('rateWarn');
   if (_rateWarn) {
@@ -1172,12 +1172,12 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
   const _gP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
 
   const rateEl = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
-  const _oldRateDefault = (_oldGrade && (/** @type {Record<string,any>} */ (GRADES))[_oldGrade]) ? (/** @type {Record<string,any>} */ (GRADES))[_oldGrade].rate.toFixed(2) : '';
+  const _oldRateDefault = (_oldGrade && GRADES[_oldGrade]) ? GRADES[_oldGrade].rate.toFixed(2) : '';
   const rateUntouched   = rateEl.value.trim() === '' || rateEl.value === _oldRateDefault;
-  if (g && (/** @type {Record<string,any>} */ (GRADES))[g] && rateUntouched) rateEl.value = (/** @type {Record<string,any>} */ (GRADES))[g].rate.toFixed(2);
+  if (g && GRADES[g] && rateUntouched) rateEl.value = GRADES[g].rate.toFixed(2);
 
   const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
-  const _oldPenDefault = (_oldGrade && (/** @type {Record<string,any>} */ (GRADES))[_oldGrade] && _gP)
+  const _oldPenDefault = (_oldGrade && GRADES[_oldGrade] && _gP)
     ? (getPensionForPeriod(_oldGrade, _gP.payday) * getProRateFactor(_gP)).toFixed(2)
     : '';
   const penUntouched = !_pa || _pa.value.trim() === '' || _pa.value === _oldPenDefault;

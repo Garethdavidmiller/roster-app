@@ -10,9 +10,7 @@
  * Edit here for: Firestore override query, cache invalidation, duplicate resolution.
  */
 
-import { db as _db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
-/** @type {any} */
-const db = _db;
+import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
 import { shouldReplaceOverride, isBeforeMemberStart } from './app-override-utils.js';
 
