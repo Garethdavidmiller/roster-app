@@ -220,9 +220,12 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
     await Promise.all(snap.docs
         .filter(/** @param {any} d */ d => d.id !== excludeDate)
         .map(/** @param {any} d */ async d => {
+            // storagePath added at v13.99; fall back to the legacy fixed-path convention
+            // for older documents uploaded before the versioned upload scheme.
+            const storagePath = d.data()?.storagePath ?? `${collectionName}/${d.id}.pdf`;
             try {
                 await deleteDoc(doc(db, collectionName, d.id));
-                await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`))
+                await deleteObject(refFn(storage, storagePath))
                     .catch(/** @param {any} e */ e => console.warn(`[pruneOldDocs] ${collectionName} Storage delete ${d.id}:`, e));
             } catch (/** @param {any} e */ e) {
                 console.error(`[pruneOldDocs] ${collectionName} Firestore delete ${d.id}:`, e);
@@ -237,14 +240,20 @@ const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 
  * Upload a PDF to Firebase Storage and upsert a metadata document in Firestore.
  * Shared implementation for uploadCircular and uploadNewsletter.
  *
+ * Uses a versioned Storage path (`{collection}/{date}-{uploadId}.pdf`) so the old
+ * file is not overwritten until Firestore is committed. This closes the data-loss
+ * window where a Firestore failure on a replacement would leave both old and new
+ * bytes inaccessible (pre-v13.99 used a fixed path that overwrote on upload).
+ *
  * Failure handling:
- *   - Storage fails: nothing written; throws.
- *   - New upload, Storage OK, setDoc fails: orphaned bytes rolled back via deleteObject; throws.
- *   - Replace, Storage OK (old bytes gone), setDoc fails: rollback skipped — the URL is stable
- *     (same storage path → same URL) so stale metadata is cosmetically wrong but the file resolves; throws.
- *   - setDoc retry: only for retriable Firestore codes (unavailable, deadline-exceeded, internal).
- *     Non-retriable codes (permission-denied, unauthenticated, etc.) throw immediately with no delay.
- *     setDoc on a date-keyed doc is idempotent so a double-write on partial success is safe.
+ *   - Storage fails:                                    nothing written; throws.
+ *   - Storage OK, setDoc fails (either attempt):        new bytes rolled back via deleteObject;
+ *                                                       old file unaffected; throws.
+ *   - Storage OK, setDoc succeeds, old-file cleanup fails: orphaned old Storage file
+ *                                                       (invisible to users); not thrown.
+ *   - setDoc retry: only for retriable Firestore codes (unavailable, deadline-exceeded,
+ *                   internal). Non-retriable codes throw immediately with no delay.
+ *                   setDoc on a date-keyed doc is idempotent so a double-write is safe.
  *
  * @param {string}   collectionName - 'circulars' | 'newsletters'
  * @param {string}   date           - ISO date string, e.g. "2026-06-27"
@@ -254,23 +263,30 @@ const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 
  */
 async function _uploadPdf(collectionName, date, file, uploadedBy) {
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
-    const storageRef = ref(storage, `${collectionName}/${date}.pdf`);
-    // isReplace: on failure we only roll back newly created Storage objects.
-    // On a replacement the old bytes are gone the moment uploadBytes succeeds —
-    // attempting deleteObject on that path would leave the URL 404-ing while
-    // Firestore still references it, turning a transient error into a broken link.
-    const isReplace = (await getDoc(doc(db, collectionName, date))).exists();
+
+    // Read the existing doc (if any) to obtain the old storagePath for post-commit cleanup.
+    const oldDocSnap = await getDoc(doc(db, collectionName, date));
+    const oldData = oldDocSnap.exists() ? /** @type {any} */ (oldDocSnap.data()) : null;
+    // storagePath added at v13.99; fall back for legacy docs.
+    const oldStoragePath = oldData
+        ? (oldData.storagePath ?? `${collectionName}/${date}.pdf`)
+        : null;
+
+    // Versioned path keeps the old file alive until Firestore is committed.
+    const uploadId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const newStoragePath = `${collectionName}/${date}-${uploadId}.pdf`;
+    const storageRef = ref(storage, newStoragePath);
+
     let storageUrl;
     try {
         await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
         storageUrl = await getDownloadURL(storageRef);
         const firestoreData = {
-            date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
+            date, storageUrl, storagePath: newStoragePath, fileType: 'pdf',
+            uploadedAt: serverTimestamp(), uploadedBy,
         };
-        // Retry setDoc once after 2 s on retriable failures. Storage already succeeded at this
-        // point, so the only inconsistency is stale Firestore metadata — a retry closes that window.
-        // Non-retriable errors (permission-denied, unauthenticated, invalid-argument) skip the
-        // delay and re-throw immediately so the admin sees the error without a 2-second wait.
+        // Retry setDoc once after 2 s on retriable failures. Old file is still live until
+        // this succeeds, so the admin's previously-uploaded file remains accessible.
         try {
             await setDoc(doc(db, collectionName, date), firestoreData);
         } catch (setDocErr) {
@@ -281,11 +297,18 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
             await setDoc(doc(db, collectionName, date), firestoreData);
         }
     } catch (err) {
-        if (!isReplace) {
-            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} rollback failed:`, e));
-        }
+        // Old file is unaffected — always roll back the new upload on any failure.
+        deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} rollback failed:`, e));
         throw err;
     }
+
+    // Firestore committed: asynchronously remove the superseded old Storage file.
+    if (oldStoragePath) {
+        deleteObject(ref(storage, oldStoragePath)).catch(
+            /** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} old-file cleanup failed (orphaned):`, e)
+        );
+    }
+
     _pruneOldDocs(collectionName, date, storage, ref, deleteObject).catch(e => console.error(`[pruneOldDocs] ${collectionName}:`, e));
     return storageUrl;
 }

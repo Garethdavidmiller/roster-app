@@ -261,8 +261,10 @@ removed with the cultural calendar at v13.23 → now anchors on the Work Email c
 `aria-expanded`). Wired into `e2e.yml` (branches/PRs), `deploy-hosting.yml` (Firebase Hosting gate), and
 `deploy-pages.yml` (GitHub Pages / staff URL gate — added v13.96 to close the gap where
 the staff site could receive a broken deploy while the Firebase gate caught it). Residual
-caveat: the local browser is environment-specific — iterating on the suite outside the web
-container needs a system Chromium.
+caveats: (1) the local browser is environment-specific — iterating on the suite outside the
+web container needs a system Chromium; (2) the local http-server does not apply Firebase
+Hosting's CSP headers, so CSP violations are not caught — use `firebase emulators:start
+--only hosting` for that.
 
 The original history is kept below for context.
 

@@ -218,10 +218,11 @@ roster-app/
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
-├── firestore.rules.test.mjs ← Firestore security rules integration tests (81 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore emulator automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (81 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
+├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
-├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, CSP violation) that pass all unit tests. NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
+├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers (use the Firebase Hosting emulator for CSP testing). NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
 │   ├── smoke.spec.js       ← 9 page-load tests (calendar ×3, admin login, paycalc signed-in, settings login, settings signed-in tips, operations + links auth redirects), each run on Desktop Chrome + Pixel 5
 │   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports
 ├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
@@ -249,7 +250,7 @@ node --test sw-asset-check.test.mjs import-graph.test.mjs links-design.test.mjs 
 node --experimental-vm-modules --test module-parse.test.mjs
 node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs calendar-state.test.mjs calendar-member.test.mjs calendar-overrides.test.mjs calendar-renderer.test.mjs calendar-initial-fetch.test.mjs paycalc-periods.test.mjs paycalc-hpp.test.mjs
 
-# Firestore security rules tests (requires Firebase emulator binary — starts automatically):
+# Firestore + Storage security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules
 
 # E2E smoke tests (real headless Chromium; uses pre-installed browser in the dev env):
@@ -501,6 +502,9 @@ Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.j
 ```
 date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
 storageUrl   Permanent tokenised download URL
+storagePath  Firebase Storage object path, e.g. "circulars/2026-06-25-lv9kab12.pdf" — added v13.99
+             (versioned suffix prevents overwriting the old file before Firestore commits);
+             absent on docs uploaded before v13.99 — _pruneOldDocs falls back to "{collection}/{date}.pdf"
 fileType     "pdf" (always)
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
@@ -514,6 +518,8 @@ Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage 
 ```
 date         "YYYY-MM-DD" — also used as the document ID; re-uploading the same date overwrites
 storageUrl   Permanent tokenised download URL
+storagePath  Firebase Storage object path, e.g. "newsletters/2026-06-25-lv9kab12.pdf" — added v13.99;
+             absent on docs uploaded before v13.99 — _pruneOldDocs falls back to "{collection}/{date}.pdf"
 fileType     "pdf" (always)
 uploadedAt   Firestore server timestamp
 uploadedBy   Member name string
