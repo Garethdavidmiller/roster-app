@@ -47,10 +47,10 @@ const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 // ---- Login overlay (shown when not authenticated) ----
 function initLoginOverlay() {
     const overlay       = document.getElementById('loginOverlay');
-    const gradeSelect   = document.getElementById('loginGrade');
-    const nameSelect    = document.getElementById('loginName');
-    const passwordInput = document.getElementById('loginPassword');
-    const submitBtn     = document.getElementById('loginSubmit');
+    const gradeSelect   = /** @type {HTMLSelectElement} */ (document.getElementById('loginGrade'));
+    const nameSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('loginName'));
+    const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('loginPassword'));
+    const submitBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('loginSubmit'));
     const errorEl       = document.getElementById('loginError');
 
     if (!overlay) return;
@@ -331,12 +331,12 @@ let openAboutLightbox = null;
 // ============================================
 // DOM
 // ============================================
-const fieldMember  = document.getElementById('fieldMember');
-const fieldDate    = document.getElementById('fieldDate');
+const fieldMember  = /** @type {HTMLSelectElement} */ (document.getElementById('fieldMember'));
+const fieldDate    = /** @type {HTMLInputElement} */ (document.getElementById('fieldDate'));
 const prevWeekBtn  = document.getElementById('prevWeekBtn');
 const nextWeekBtn  = document.getElementById('nextWeekBtn');
 const weekGrid     = document.getElementById('weekGrid');
-const saveBtn      = document.getElementById('saveBtn');
+const saveBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
 const formFeedback = document.getElementById('formFeedback');
 
 // On desktop, move the member-context-bar into col-side as the first card.
@@ -792,7 +792,7 @@ saveBtn.addEventListener('click', async () => {
 
     const toSave = [], toDelete = [], errors = [];
 
-    weekGrid.querySelectorAll('.day-row').forEach(row => {
+    /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')).forEach(row => {
         if (!row.dataset.type) {
             // Row was pre-filled with an existing override but user deactivated it → delete.
             if (row.dataset.existingId) toDelete.push(row.dataset.existingId);
@@ -816,8 +816,8 @@ saveBtn.addEventListener('click', async () => {
             return;
         }
         const typeMeta    = TYPES[type];
-        const startEl = row.querySelector('.day-start');
-        const endEl   = row.querySelector('.day-end');
+        const startEl = /** @type {HTMLInputElement} */ (row.querySelector('.day-start'));
+        const endEl   = /** @type {HTMLInputElement} */ (row.querySelector('.day-end'));
         const note    = '';
 
         let value;
@@ -967,7 +967,7 @@ fieldDate.addEventListener('change', () => {
  */
 function handleEdit(e) {
     // closest() makes this work both directly and via delegation on tableBody.
-    const btn        = e.target.closest('.btn-edit');
+    const btn        = /** @type {HTMLElement} */ (/** @type {Element} */ (e.target).closest('.btn-edit'));
     if (!btn) return;
     const memberName = btn.dataset.member;
     const date       = btn.dataset.date;
@@ -1001,7 +1001,7 @@ function showInChangeAShift(memberName, date) {
     syncMemberDisplay();
     syncSickMemberDisplay();
     // Align the saved-changes month filter so the new days aren't filtered out.
-    const monthFilter = document.getElementById('overridesMonthFilter');
+    const monthFilter = /** @type {HTMLSelectElement} */ (document.getElementById('overridesMonthFilter'));
     if (monthFilter) monthFilter.value = date.substring(0, 7);
     renderTable();
     renderWeekGrid();
@@ -1132,7 +1132,7 @@ initSickSection({
  * @param {string}      start      YYYY-MM-DD — inclusive
  * @param {string}      end        YYYY-MM-DD — inclusive
  * @param {HTMLElement} feedbackEl Feedback div to write success/error into
- * @param {HTMLElement} btn        The delete button (disabled during the request)
+ * @param {HTMLButtonElement} btn  The delete button (disabled during the request)
  */
 async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
     const toDelete = getAllOverrides().filter(o =>
@@ -1452,12 +1452,12 @@ async function _runEmailCheck(member) {
     const confirmView = document.getElementById('emailCheckConfirmView');
     const editView    = document.getElementById('emailCheckEditView');
     const storedEl    = document.getElementById('emailCheckStoredEmail');
-    const yesBtn      = document.getElementById('emailCheckYesBtn');
+    const yesBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckYesBtn'));
     const changeBtn   = document.getElementById('emailCheckChangeBtn');
     const backBtn     = document.getElementById('emailCheckBackBtn');
-    const input       = document.getElementById('emailCheckInput');
+    const input       = /** @type {HTMLInputElement} */ (document.getElementById('emailCheckInput'));
     const errorEl     = document.getElementById('emailCheckError');
-    const saveBtn     = document.getElementById('emailCheckSaveBtn');
+    const saveBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckSaveBtn'));
     if (!overlay) return;
 
     // Hide the login overlay from assistive tech when the email check stacks on top.
@@ -1508,9 +1508,9 @@ async function _runEmailCheck(member) {
 
         overlay.addEventListener('keydown', e => {
             if (e.key !== 'Tab') return;
-            const focusable = Array.from(overlay.querySelectorAll(
+            const focusable = /** @type {HTMLElement[]} */ (Array.from(overlay.querySelectorAll(
                 'button:not([disabled]), input'
-            )).filter(el => !el.closest('[hidden]') && el.offsetParent !== null);
+            ))).filter(el => !el.closest('[hidden]') && el.offsetParent !== null);
             if (!focusable.length) return;
             const first = focusable[0], last = focusable[focusable.length - 1];
             if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }

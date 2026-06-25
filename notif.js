@@ -32,7 +32,7 @@ export function isIOS() {
 /** True when running as an installed Home Screen PWA (standalone display mode). */
 function isStandalonePWA() {
     return window.matchMedia?.('(display-mode: standalone)').matches ||
-           window.navigator.standalone === true;
+           /** @type {any} */ (window.navigator).standalone === true;
 }
 
 /**

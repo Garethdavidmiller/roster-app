@@ -126,7 +126,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
     grid.className = 'calendar-grid';
     // Single delegated click listener — replaces per-cell listener attachment.
     grid.addEventListener('click', (e) => {
-        const cell = e.target.closest('.calendar-day');
+        const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day'));
         if (!cell) return;
         const paydayIso = cell.dataset.paydayIso;
         if (paydayIso) { navigateToPaycalc?.(paydayIso); return; }

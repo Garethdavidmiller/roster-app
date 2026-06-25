@@ -58,10 +58,10 @@ sessionReady.then(() => initErrorReporter());
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {
     const overlay       = document.getElementById('loginOverlay');
-    const gradeSelect   = document.getElementById('loginGrade');
-    const nameSelect    = document.getElementById('loginName');
-    const passwordInput = document.getElementById('loginPassword');
-    const submitBtn     = document.getElementById('loginSubmit');
+    const gradeSelect   = /** @type {HTMLSelectElement} */ (document.getElementById('loginGrade'));
+    const nameSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('loginName'));
+    const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('loginPassword'));
+    const submitBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('loginSubmit'));
     const errorEl       = document.getElementById('loginError');
 
     if (!overlay) return;
@@ -167,9 +167,9 @@ function initApp() {
 
 // ── Work Email card ───────────────────────────────────────────────────────────
 function initContactCard() {
-    const emailInput = document.getElementById('workEmailInput');
-    const saveBtn    = document.getElementById('workEmailSaveBtn');
-    const removeBtn  = document.getElementById('workEmailRemoveBtn');
+    const emailInput = /** @type {HTMLInputElement} */ (document.getElementById('workEmailInput'));
+    const saveBtn    = /** @type {HTMLButtonElement} */ (document.getElementById('workEmailSaveBtn'));
+    const removeBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('workEmailRemoveBtn'));
     const feedback   = document.getElementById('contactFeedback');
     if (!emailInput || !saveBtn) return;
 

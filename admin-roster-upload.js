@@ -60,15 +60,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     const weekEndingEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterWeekEnding'));
     const fileInput      = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterFileInput'));
     const fileNameEl     = document.getElementById('rosterFileName');
-    const parseBtn       = document.getElementById('rosterParseBtn');
+    const parseBtn       = /** @type {HTMLButtonElement|null} */ (document.getElementById('rosterParseBtn'));
     const parseFeedback  = document.getElementById('rosterParseFeedback');
     const reviewSection  = document.getElementById('rosterReviewSection');
     const conflictBanner = document.getElementById('rosterConflictBanner');
     const conflictTitle  = document.getElementById('rosterConflictTitle');
     const conflictDetail = document.getElementById('rosterConflictDetail');
     const reviewLabel    = document.getElementById('rosterReviewLabel');
-    let   changeList     = document.getElementById('rosterChangeList');
-    const applyBtn       = document.getElementById('rosterApplyBtn');
+    let   changeList     = /** @type {HTMLElement} */ (document.getElementById('rosterChangeList'));
+    const applyBtn       = /** @type {HTMLButtonElement|null} */ (document.getElementById('rosterApplyBtn'));
     const cancelBtn      = document.getElementById('rosterCancelBtn');
     const applyFeedback  = document.getElementById('rosterApplyFeedback');
 
@@ -349,7 +349,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const reader = new FileReader();
             reader.onload  = () => {
                 // result is "data:application/pdf;base64,AAAA…" — strip the prefix
-                const base64 = reader.result.split(',')[1];
+                const base64 = /** @type {string} */ (reader.result).split(',')[1];
                 resolve(base64);
             };
             reader.onerror = () => reject(new Error('Could not read the file'));
@@ -619,8 +619,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         changeList = newList;
 
         changeList.addEventListener('click', e => {
+            const target = /** @type {Element} */ (e.target);
             // Save / Skip toggle on DIFF rows
-            const approveBtn = e.target.closest('.roster-approve-btn');
+            const approveBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-approve-btn'));
             if (approveBtn) {
                 const s = cellStates.get(approveBtn.dataset.key);
                 if (!s) return;
@@ -636,7 +637,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             }
 
             // Skip all / Restore for a person — applies to DIFF and CONFLICT rows alike
-            const skipAllBtn = e.target.closest('.roster-skip-all-btn');
+            const skipAllBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-skip-all-btn'));
             if (skipAllBtn) {
                 const memberName = skipAllBtn.dataset.member;
                 const sec = changeList.querySelector(`.roster-person-section[data-member="${CSS.escape(memberName)}"]`);
@@ -646,11 +647,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 skipAllBtn.textContent = nowSkipped ? 'Restore' : 'Skip all';
                 skipAllBtn.setAttribute('aria-pressed', String(nowSkipped));
                 sec.querySelectorAll('.roster-change-row').forEach(rowEl => {
-                    const s = cellStates.get(rowEl.dataset.key);
+                    const rowHtml = /** @type {HTMLElement} */ (rowEl);
+                    const s = cellStates.get(rowHtml.dataset.key);
                     if (!s) return;
                     // inert removes the row's controls from the tab order while skipped,
                     // so they aren't keyboard-focusable behind the dimmed overlay.
-                    rowEl.inert = nowSkipped;
+                    rowHtml.inert = nowSkipped;
                     if (s.state === 'DIFF') {
                         s.chosen = !nowSkipped;
                         const btn = rowEl.querySelector('.roster-approve-btn');
@@ -665,7 +667,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                         // Skipping cancels any "use PDF" choice (keep manual = nothing written).
                         s.chosen = 'manual';
                         rowEl.querySelectorAll('.roster-choice-btn').forEach(b => {
-                            const on = b.dataset.pick === 'manual';
+                            const bHtml = /** @type {HTMLElement} */ (b);
+                            const on = bHtml.dataset.pick === 'manual';
                             b.classList.toggle('is-chosen', on);
                             b.setAttribute('aria-pressed', String(on));
                         });
@@ -680,14 +683,15 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             }
 
             // Manual / PDF choice on CONFLICT rows
-            const choiceBtn = e.target.closest('.roster-choice-btn');
+            const choiceBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-choice-btn'));
             if (choiceBtn) {
                 const s = cellStates.get(choiceBtn.dataset.key);
                 if (!s) return;
                 s.chosen = choiceBtn.dataset.pick;
                 const usesPDF = s.chosen === 'pdf';
                 choiceBtn.closest('.roster-conflict-choice').querySelectorAll('.roster-choice-btn').forEach(b => {
-                    const on = b.dataset.pick === s.chosen;
+                    const bHtml = /** @type {HTMLElement} */ (b);
+                    const on = bHtml.dataset.pick === s.chosen;
                     b.classList.toggle('is-chosen', on);
                     b.setAttribute('aria-pressed', String(on));
                 });

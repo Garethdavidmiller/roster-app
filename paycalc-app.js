@@ -102,15 +102,15 @@ const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 function numVal(id) {
     // iOS keyboards can insert smart hyphens/minus and curly quotes; parseSmartFloat
     // strips them so parseFloat doesn't silently return NaN on otherwise-valid input.
-    return parseSmartFloat(document.getElementById(id)?.value ?? '');
+    return parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
 }
-function intVal(id)    { return parseInt(document.getElementById(id)?.value ?? '') || 0; }
+function intVal(id)    { return parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0; }
 function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
 
 function clampMins(mId) {
-  const el = document.getElementById(mId);
+  const el = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   const v  = parseInt(el.value);
-  if (!isNaN(v)) { if (v > 59) el.value = 59; if (v < 0) el.value = 0; }
+  if (!isNaN(v)) { if (v > 59) el.value = '59'; if (v < 0) el.value = '0'; }
 }
 
 // Find (or lazily create) the live decimal-conversion hint that sits beneath an
@@ -132,15 +132,15 @@ function _decHintEl(hId, make) {
 // Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
 // split is a visible transformation rather than a silent one (trust on a pay form).
 function decPreview(hId) {
-  const raw = document.getElementById(hId).value;
+  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   const val = parseFloat(raw);
   if (raw.includes('.') && !isNaN(val) && val >= 0) {
     const h = Math.floor(val);
     const m = Math.round((val - h) * 60);
-    const hint = _decHintEl(hId, true);
+    const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, true));
     if (hint) { hint.textContent = `= ${h}h ${String(m).padStart(2, '0')}m`; hint.hidden = false; }
   } else {
-    const hint = _decHintEl(hId, false);
+    const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
     if (hint) hint.hidden = true;
   }
 }
@@ -149,15 +149,15 @@ function decPreview(hId) {
 // automatically on blur rather than silently truncating to 7. The live preview
 // (decPreview) has already shown the result, so the split is no surprise.
 function autoDecimalHours(hId, mId) {
-  const raw = document.getElementById(hId).value;
+  const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   if (!raw.includes('.')) return;
   const val = parseFloat(raw);
   if (isNaN(val) || val < 0) return;
   const h = Math.floor(val);
   const m = Math.round((val - h) * 60);
-  document.getElementById(hId).value = String(h);
-  document.getElementById(mId).value = m || '';
-  const hint = _decHintEl(hId, false);
+  /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(h);
+  /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = m ? String(m) : '';
+  const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));
   if (hint) hint.hidden = true; // the split now shows in the hrs/mins fields
   autosave();
 }
@@ -170,8 +170,8 @@ function onHhMm(hId, mId, warnId) {
     const curP  = getPeriods().find(x => x.num === currentPeriodNum());
     const contr = getEffectiveContr(curP);
     if (hrs > contr) {
-      document.getElementById(hId).value = contr;
-      document.getElementById(mId).value = 0;
+      /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(contr);
+      /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = '0';
       warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`;
       warn.classList.add('show');
     } else {
@@ -186,7 +186,7 @@ function onHhMm(hId, mId, warnId) {
 // getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod imported from paycalc-calc.js.
 
 function onPeriodChange() {
-  const pNum    = +document.getElementById('periodSelect').value;
+  const pNum    = +/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect')).value;
   const periods = getPeriods();
   const p       = periods.find(x => x.num === pNum);
   if (!p) return;
@@ -194,8 +194,8 @@ function onPeriodChange() {
 
   // Prev / Next button states
   const idx = periods.findIndex(x => x.num === pNum);
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
+  const prevBtn = /** @type {HTMLButtonElement} */ (document.getElementById('prevBtn'));
+  const nextBtn = /** @type {HTMLButtonElement} */ (document.getElementById('nextBtn'));
   prevBtn.disabled = (idx <= 0);
   nextBtn.disabled = (idx >= periods.length - 1);
   prevBtn.setAttribute('aria-label', idx <= 0
@@ -237,7 +237,7 @@ function onPeriodChange() {
   const boxing = hasBoxingDay(p);
   document.getElementById('boxingBanner').classList.toggle('visible', boxing);
   document.getElementById('boxingRow').classList.toggle('hidden', !boxing);
-  if (!boxing) { document.getElementById('boxH').value = ''; document.getElementById('boxM').value = ''; }
+  if (!boxing) { /** @type {HTMLInputElement} */ (document.getElementById('boxH')).value = ''; /** @type {HTMLInputElement} */ (document.getElementById('boxM')).value = ''; }
 
   // Update tax year tab active state
   updateTyTabs();
@@ -258,8 +258,8 @@ function onPeriodChange() {
     // Confirmed — hide banner, update card header hint with saved values.
     document.getElementById('setupBanner').classList.add('hidden');
     const _hdrGrade = getGrade();
-    const rate = parseFloat(document.getElementById('hourlyRate').value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
-    const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
+    const rate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+    const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
     document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
   } else {
     document.getElementById('setupBannerBody').innerHTML =
@@ -311,7 +311,7 @@ function onPeriodChange() {
   updateJoinerNotice(p);
 
   // Update Pay → Calendar link for this period
-  const _rvl = document.getElementById('rosterViewLink');
+  const _rvl = /** @type {HTMLAnchorElement | null} */ (document.getElementById('rosterViewLink'));
   if (_rvl) _rvl.href = `./index.html?date=${formatISO(p.start)}`;
 
   // Fetch admin-added overrides from Firestore in the background.
@@ -351,15 +351,15 @@ function readFormData() {
     sunH: intVal('sunH'), sunM: intVal('sunM'),
     boxH: intVal('boxH'), boxM: intVal('boxM'),
     peer: +document.getElementById('peerVal').textContent,
-    slSkip:   document.getElementById('slSkipCheck').checked,
-    otherAdj: (() => { const _r = Math.abs(parseFloat(document.getElementById('otherAdj').value) || 0); return _adjNegative ? -_r : _r; })(),
-    pension:  parseFloat(document.getElementById('pensionAmt').value) || 0,
+    slSkip:   /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
+    otherAdj: (() => { const _r = Math.abs(parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value) || 0); return _adjNegative ? -_r : _r; })(),
+    pension:  parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value) || 0,
   };
 }
 
 function writeFormData(d) {
   clearRosterSuggestedAll();
-  const set = (id, v) => { document.getElementById(id).value = v || ''; };
+  const set = (id, v) => { /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || ''; };
   set('satH', d.satH || ''); set('satM', d.satM || '');
   set('bhH',   d.bhH   || ''); set('bhM',   d.bhM   || '');
   set('bhOtH', d.bhOtH || ''); set('bhOtM', d.bhOtM || '');
@@ -368,14 +368,14 @@ function writeFormData(d) {
   set('sunH', d.sunH || ''); set('sunM', d.sunM || '');
   set('boxH', d.boxH || ''); set('boxM', d.boxM || '');
   document.getElementById('peerVal').textContent  = d.peer || 0;
-  document.getElementById('slSkipCheck').checked  = d.slSkip || false;
+  /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked  = d.slSkip || false;
   const _rawAdj = d.otherAdj ?? 0;
   _adjNegative = _rawAdj < 0;
-  document.getElementById('otherAdj').value = _rawAdj ? Math.abs(_rawAdj).toFixed(2) : '';
+  /** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value = _rawAdj ? Math.abs(_rawAdj).toFixed(2) : '';
   // Restore pension only when period data has a saved value; period-specific default is
   // applied by the caller (loadPeriodData or clearPeriod) when d.pension is null.
   // Loose != null so that pension = 0 (salary sacrifice opted out) is preserved correctly.
-  const pa = document.getElementById('pensionAmt');
+  const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
   if (pa && d.pension != null) pa.value = d.pension;
 }
 
@@ -412,7 +412,7 @@ function loadPeriodData(pNum) {
   const _pObj = getPeriods().find(x => x.num === pNum);
   if (d.pension == null && _pObj) {
     const _fullPension = getPensionDefault(_pObj);
-    const pa = document.getElementById('pensionAmt');
+    const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
     if (pa) pa.value = (_fullPension * getProRateFactor(_pObj)).toFixed(2);
   }
   updateAdjSign();
@@ -511,7 +511,7 @@ function clearPeriod() {
   // aware) — writeFormData no longer does this when d.pension is null.
   const _clearP = getPeriods().find(x => x.num === currentPeriodNum());
   if (_clearP) {
-    const _pa = document.getElementById('pensionAmt');
+    const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
     if (_pa) _pa.value = (getPensionDefault(_clearP) * getProRateFactor(_clearP)).toFixed(2);
   }
   _adjNegative = false;
@@ -618,11 +618,11 @@ function calculate() {
   const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
   const _effContr = getEffectiveContr(_curP);
-  const _adjRaw   = Math.abs(parseFloat(document.getElementById('otherAdj').value) || 0);
+  const _adjRaw   = Math.abs(parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value) || 0);
   const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
 
   // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
-  const { gross, satCapped, _normHrs, bhCapped, nonBhNorm,
+  const { gross, satCapped, normHrs: _normHrs, bhCapped, nonBhNorm,
           gBasicNorm, gBasicSat, gBankHol, gBhOt, gOvertime,
           gRdw, gSunday, gBoxing, gPeer } = computeGross({
     effContr: _effContr, rate, satHrs, bhHrs, bhOtHrs, oHrs, rHrs, sHrs, bHrs,
@@ -654,23 +654,23 @@ function calculate() {
 
   // Income tax — cumulative PAYE when YTD figures provided (W1/M1/X excluded)
   // Pass null (not 0) when the field is empty so computeTax distinguishes "not provided" from "£0 entered"
-  const ytdPayEl = document.getElementById('ytdPay');
-  const ytdTaxEl = document.getElementById('ytdTax');
+  const ytdPayEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdPay'));
+  const ytdTaxEl = /** @type {HTMLInputElement | null} */ (document.getElementById('ytdTax'));
   const ytdP = (ytdPayEl?.value ?? '').trim() !== '' ? numVal('ytdPay') : null;
   // Mirror the ytdPay guard — pass null (not 0) when blank so computeTax treats
   // "ytdPay filled, ytdTax left blank" as incomplete rather than "£0 tax collected".
   const ytdT = (ytdTaxEl?.value ?? '').trim() !== '' ? numVal('ytdTax') : null;
   const periodN = _curP ? (_curP.num - 48) - _ty.first + 1 : null;
   const { tax, usingCumulative } = computeTax(
-    sacGross, document.getElementById('taxCode').value, thresholds,
+    sacGross, /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value, thresholds,
     { ytdPay: ytdP, ytdTax: ytdT, periodN },
   );
 
   // NI and Student Loan (both on sacGross — salary sacrifice reduces all three bases)
   const ni = computeNI(sacGross, thresholds.ni);
 
-  const plan   = document.getElementById('studentLoan').value;
-  const slSkip = document.getElementById('slSkipCheck').checked;
+  const plan   = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value;
+  const slSkip = /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked;
   document.getElementById('slSkipRow').classList.toggle('hidden', plan === 'none');
   const sl = computeSL(sacGross, plan, thresholds.sl, slSkip);
 
@@ -847,12 +847,12 @@ function toggleBpBreakdown() {
 }
 
 function applyNewRate() {
-  const newRate = parseFloat(document.getElementById('newRateInput').value);
+  const newRate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
   if (!newRate) return;
   // Write the rate against the AWARD's tax year. Going through the rate field +
   // saveSettings() would store it on whichever tax year is being viewed —
   // silently corrupting last year's rate if an old period happens to be open.
-  const fromPNum = +(document.getElementById('backPayFrom')?.value || 0);
+  const fromPNum = +(/** @type {HTMLInputElement | null} */ (document.getElementById('backPayFrom'))?.value || 0);
   const awardTy  = _bpAwardTaxYear(fromPNum);
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
@@ -866,7 +866,7 @@ function applyNewRate() {
   updateRateForPeriod(curTy);
   calculate();
   // Update button state to reflect it's been applied
-  const btn = document.getElementById('applyRateBtn');
+  const btn = /** @type {HTMLButtonElement | null} */ (document.getElementById('applyRateBtn'));
   const fb  = document.getElementById('applyRateFeedback');
   if (btn) { btn.textContent = `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${awardTy.label})`; btn.disabled = true; }
   if (fb)  { fb.textContent  = `Settings updated — periods in ${awardTy.label} will now calculate at the new rate.`; }
@@ -1067,7 +1067,7 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
     let _baseVVH = window.visualViewport.height;
 
     document.addEventListener('focusin', e => {
-      _inputFocused = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+      _inputFocused = /^(INPUT|TEXTAREA|SELECT)$/.test(/** @type {Element} */ (e.target).tagName);
     });
 
     document.addEventListener('focusout', () => {
@@ -1101,9 +1101,10 @@ if (_fillBtn) _fillBtn.addEventListener('click', () => fillFromRoster(autosave))
 
 // Per-category fill buttons are dynamically rendered inside #rosterRows — use delegation
 document.getElementById('rosterRows')?.addEventListener('click', e => {
-  const catBtn = e.target.closest('[data-cat]');
-  if (catBtn) { fillCategoryFromRoster(catBtn.dataset.cat, autosave); return; }
-  if (e.target.closest('[data-action="focus-ot"]')) {
+  const _eTarget = /** @type {Element} */ (e.target);
+  const catBtn = _eTarget.closest('[data-cat]');
+  if (catBtn) { fillCategoryFromRoster(/** @type {HTMLElement} */ (catBtn).dataset.cat, autosave); return; }
+  if (_eTarget.closest('[data-action="focus-ot"]')) {
     const el = document.getElementById('otH');
     if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }
@@ -1127,15 +1128,15 @@ document.getElementById('gradeSelect').addEventListener('change', () => {
   // the grade (e.g. just to check it) must not silently wipe that figure.
   // lsGet(SK.grade) still holds the previous grade until saveSettings() runs.
   const _oldGrade = lsGet(SK.grade);
-  const g   = document.getElementById('gradeSelect').value;
+  const g   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
   const _gP = getPeriods().find(x => x.num === currentPeriodNum());
 
-  const rateEl = document.getElementById('hourlyRate');
+  const rateEl = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   const _oldRateDefault = (_oldGrade && GRADES[_oldGrade]) ? GRADES[_oldGrade].rate.toFixed(2) : '';
   const rateUntouched   = rateEl.value.trim() === '' || rateEl.value === _oldRateDefault;
   if (g && GRADES[g] && rateUntouched) rateEl.value = GRADES[g].rate.toFixed(2);
 
-  const _pa = document.getElementById('pensionAmt');
+  const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
   const _oldPenDefault = (_oldGrade && GRADES[_oldGrade] && _gP)
     ? (getPensionForPeriod(_oldGrade, _gP.payday) * getProRateFactor(_gP)).toFixed(2)
     : '';
@@ -1148,8 +1149,8 @@ document.getElementById('gradeSelect').addEventListener('change', () => {
 document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
 document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
 document.getElementById('studentLoan').addEventListener('change', () => {
-  if (document.getElementById('studentLoan').value === 'none') {
-    document.getElementById('slSkipCheck').checked = false;
+  if (/** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none') {
+    /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
   }
   saveSettings();
   autosave(); // persists the cleared slSkip flag; autosave() calls calculate() internally
@@ -1163,11 +1164,12 @@ document.getElementById('slSkipCheck').addEventListener('change', autosave);
 document.getElementById('otherAdj').addEventListener('input', () => {
   // If the user manually typed a negative number, honour it: set the sign flag
   // and normalise the field to the absolute value so the ± button is authoritative.
-  const raw = document.getElementById('otherAdj').value;
+  const _adjEl = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
+  const raw = _adjEl.value;
   const v   = parseFloat(raw);
   if (v < 0) {
     _adjNegative = true;
-    document.getElementById('otherAdj').value = Math.abs(v).toFixed(2);
+    _adjEl.value = Math.abs(v).toFixed(2);
   }
   // Positive typed value: leave _adjNegative alone — the ± button is authoritative.
   updateAdjSign();
@@ -1181,7 +1183,7 @@ document.getElementById('otherAdj').addEventListener('input', () => {
 (function () {
   function toggleAdjSign() {
     _adjNegative = !_adjNegative;
-    const input = document.getElementById('otherAdj');
+    const input = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
     const val   = parseFloat(input.value) || 0;
     // Only negate the value when it is nonzero — when zero, the button marks
     // intent so the next number typed will be shown as negative.
@@ -1209,7 +1211,7 @@ document.getElementById('priorHppActualInput').addEventListener('input', () => {
   const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
   if (tyIdx <= 0) return;
   const priorTy = CONFIG.TAX_YEARS[tyIdx - 1];
-  const val = document.getElementById('priorHppActualInput').value;
+  const val = /** @type {HTMLInputElement} */ (document.getElementById('priorHppActualInput')).value;
   if (val) {
     lsSet(hppActualKey(priorTy), val);
   } else {
@@ -1262,7 +1264,7 @@ registerServiceWorker();
 function stampPaycalcPrintLine() {
   const hdr = document.querySelector('.app-header');
   if (!hdr) return;
-  const periodSel = document.getElementById('periodSelect');
+  const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
   const p = periodSel ? getPeriods().find(x => x.num === +periodSel.value) : null;
   const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const label = p ? `Period P${p.num} · Paid ${fdShort(p.payday)} · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;

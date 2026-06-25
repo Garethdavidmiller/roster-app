@@ -86,7 +86,7 @@ export function updateRateForPeriod(ty) {
   const rate  = rates[ty.label]
              || parseFloat(lsGet(SK.rate))
              || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
-  document.getElementById('hourlyRate').value = rate.toFixed(2);
+  /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value = rate.toFixed(2);
   // Update label to show which tax year this rate applies to
   const lbl = document.getElementById('rateYearLabel');
   if (lbl) lbl.textContent = `for ${ty.label}`;
@@ -95,8 +95,8 @@ export function updateRateForPeriod(ty) {
 /** Load the stored Year to Date figures for this tax year into the Improve Accuracy fields.
  *  Called from onPeriodChange() so values reset correctly when switching between tax years. */
 export function updateYtdForTaxYear(ty) {
-  const payEl = document.getElementById('ytdPay');
-  const taxEl = document.getElementById('ytdTax');
+  const payEl = /** @type {HTMLInputElement} */ (document.getElementById('ytdPay'));
+  const taxEl = /** @type {HTMLInputElement} */ (document.getElementById('ytdTax'));
   if (!payEl || !taxEl) return;
   if (document.activeElement !== payEl) payEl.value = lsGet(ytdPayKey(ty)) || '';
   if (document.activeElement !== taxEl) taxEl.value = lsGet(ytdTaxKey(ty)) || '';
@@ -110,33 +110,33 @@ export function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '
 /** Persist all field values. Called on every input change (auto-save).
  *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings(). */
 export function saveSettings() {
-  const rateVal = document.getElementById('hourlyRate').value;
+  const rateVal = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value;
   const pNum    = currentPeriodNum();
   const curP    = getPeriods().find(x => x.num === pNum);
   const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
-  const _savedGrade   = document.getElementById('gradeSelect').value;
+  const _savedGrade   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
   const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
   rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
   lsSet(SK.rates,     JSON.stringify(rates));
   lsSet(SK.rate,      rateVal);
-  lsSet(SK.code,      document.getElementById('taxCode').value);
-  lsSet(SK.sl,        document.getElementById('studentLoan').value);
+  lsSet(SK.code,      /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value);
+  lsSet(SK.sl,        /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value);
   // Save grade and invalidate cache before getPensionDefault — it calls getGrade()
   // which reads the cache; if the user changed grade, the cache still holds the old
   // value at this point, so getPensionDefault would return the wrong pension amount.
-  lsSet(SK.grade, document.getElementById('gradeSelect').value);
+  lsSet(SK.grade, /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value);
   invalidateGrade();
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.
   const _pensionToSave = getProRateFactor(curP) < 1
     ? getPensionDefault(curP)
-    : document.getElementById('pensionAmt').value;
+    : /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value;
   lsSet(SK.pension, _pensionToSave);
-  lsSet(ytdPayKey(curTy), document.getElementById('ytdPay').value);
-  lsSet(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
+  lsSet(ytdPayKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdPay')).value);
+  lsSet(ytdTaxKey(curTy), /** @type {HTMLInputElement} */ (document.getElementById('ytdTax')).value);
 }
 
 /**
@@ -154,7 +154,7 @@ export function confirmSettings(calculate) {
   if (existingRaw) {
     try {
       const d = JSON.parse(existingRaw);
-      d.pension = parseFloat(document.getElementById('pensionAmt').value) || 0;
+      d.pension = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value) || 0;
       lsSet(periodKey(pNum), JSON.stringify(d));
     } catch {}
   }
@@ -164,9 +164,9 @@ export function confirmSettings(calculate) {
   document.getElementById('settingsNewYearNotice').classList.add('hidden');
   // Update header hint. Fall back to grade default when rate field is blank.
   const _cfGrade = getGrade();
-  const rate = (parseFloat(document.getElementById('hourlyRate').value)
+  const rate = (parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
     || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
-  const code = (document.getElementById('taxCode').value || '1257L').toUpperCase();
+  const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
   document.getElementById('settingsHint').textContent =
     `✓ ${curTy.label} — £${rate}/hr · ${code}`;
   // Brief "saved" confirmation then collapse
@@ -197,19 +197,19 @@ export function loadSettings() {
   const sl      = lsGet(SK.sl);
   const pension = lsGet(SK.pension);
   const done    = lsGet(SK.setup);
-  if (code)    document.getElementById('taxCode').value     = code.toUpperCase();
-  if (sl)      document.getElementById('studentLoan').value = sl;
+  if (code)    /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value     = code.toUpperCase();
+  if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
   let grade = lsGet(SK.grade);
   if (!grade || !GRADES[grade]) {
     // Auto-detect from the logged-in member's role
     if (getLoggedMember()?.role === 'CES') grade = 'ces';
   }
   if (grade && GRADES[grade]) {
-    document.getElementById('gradeSelect').value = grade;
+    /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value = grade;
     lsSet(SK.grade, grade);
     invalidateGrade();
   }
-  document.getElementById('pensionAmt').value = pension ?? getPensionDefault();
+  /** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value = pension ?? getPensionDefault();
   // Settings card starts closed in HTML. Open it only for first-time users.
   if (!done) {
     setSettingsCardOpen(true);

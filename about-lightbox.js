@@ -40,7 +40,7 @@ export function initAboutLightbox({ appLabel = 'MYB Roster', bugLinkId = 'bugRep
     const content  = document.getElementById('iconLightboxContent');
     const closeBtn = document.getElementById('iconLightboxClose');
     const statusEl = document.getElementById('lightboxUpdateStatus');
-    const bugLink  = document.getElementById(bugLinkId);
+    const bugLink  = /** @type {HTMLAnchorElement|null} */ (document.getElementById(bugLinkId));
 
     const versionEl = document.getElementById('lightboxVersion');
     if (versionEl) versionEl.textContent = APP_VERSION;

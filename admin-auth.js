@@ -45,7 +45,7 @@ export function initAuthSetup({ currentIsAdmin }) {
     ].map(m => m.name);
 
     btn.addEventListener('click', async () => {
-        btn.disabled    = true;
+        /** @type {HTMLButtonElement} */ (btn).disabled    = true;
         btn.textContent = 'Working…';
         resultEl.classList.remove('visible');
 
@@ -62,7 +62,7 @@ export function initAuthSetup({ currentIsAdmin }) {
                 const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
             });
             if (!currentUser) {
-                const code = window._mybAuthError ? ` (Firebase error: ${window._mybAuthError})` : '';
+                const code = /** @type {any} */ (window)._mybAuthError ? ` (Firebase error: ${/** @type {any} */ (window)._mybAuthError})` : '';
                 throw new Error(`Firebase Auth session not found${code} — please sign out and sign back in`);
             }
             // forceRefresh:true fetches a fresh token from Firebase so any recent
@@ -87,7 +87,7 @@ export function initAuthSetup({ currentIsAdmin }) {
                 body: JSON.stringify({
                     members:       ACTIVE_MEMBERS,
                     adminMembers:  CONFIG.ADMIN_NAMES,
-                    removeOrphans: orphansCb.checked,
+                    removeOrphans: /** @type {HTMLInputElement} */ (orphansCb).checked,
                 }),
             });
 
@@ -112,7 +112,7 @@ export function initAuthSetup({ currentIsAdmin }) {
             resultEl.classList.add('visible');
             console.error('[authSetup]', err);
         } finally {
-            btn.disabled    = false;
+            /** @type {HTMLButtonElement} */ (btn).disabled    = false;
             btn.textContent = 'Set up accounts';
         }
     });

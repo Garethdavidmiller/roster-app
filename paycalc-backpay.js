@@ -50,13 +50,13 @@ export function prefillBackPay() {
   const pNum = currentPeriodNum();
   const curP = getPeriods().find(x => x.num === pNum);
   const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const oldLondonEl = document.getElementById('oldLondon');
-  const newLondonEl = document.getElementById('newLondon');
+  const oldLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('oldLondon'));
+  const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
   if (!oldLondonEl.value && ty.londonAllowPre) oldLondonEl.value = ty.londonAllowPre.toFixed(2);
   if (!newLondonEl.value)                      newLondonEl.value = ty.londonAllow.toFixed(2);
   // Auto-select April — Chiltern's pay anniversary is always 1 April
-  const fromSel = document.getElementById('backPayFrom');
-  if (fromSel && !fromSel.value) fromSel.value = 48 + ty.first;
+  const fromSel = /** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'));
+  if (fromSel && !fromSel.value) fromSel.value = String(48 + ty.first);
   return calcBackPay();
 }
 
@@ -69,10 +69,10 @@ export function prefillBackPay() {
  * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number }}
  */
 export function calcBackPay() {
-  const oldRate   = parseFloat(document.getElementById('oldRate').value);
-  const newRate   = parseFloat(document.getElementById('newRateInput').value);
-  const oldLondon = parseFloat(document.getElementById('oldLondon').value);
-  const newLondon = parseFloat(document.getElementById('newLondon').value);
+  const oldRate   = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldRate')).value);
+  const newRate   = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
+  const oldLondon = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
+  const newLondon = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value);
   const rowsEl       = document.getElementById('backPayRows');
   const totalEl      = document.getElementById('backPayTotal');
   const totalAmtEl   = document.getElementById('backPayTotalAmt');
@@ -80,8 +80,8 @@ export function calcBackPay() {
   const noticeEl     = document.getElementById('backPayNotice');
   const breakdownBtn = document.getElementById('bpBreakdownBtn');
 
-  const fromPNum  = +(document.getElementById('backPayFrom')?.value || 0);
-  const bpSel     = document.getElementById('backPayPeriod');
+  const fromPNum  = +(/** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'))?.value || 0);
+  const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
   const bpP       = bpPNum ? getPeriods().find(x => x.num === bpPNum) : null;
   const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
@@ -203,7 +203,7 @@ export function calcBackPay() {
       applyBtn.textContent = alreadyApplied
         ? `✓ New rate already applied — £${newRate.toFixed(2)}/hr (${_awardTy.label})`
         : `Apply new rate to settings — £${newRate.toFixed(2)}/hr (${_awardTy.label}) →`;
-      applyBtn.disabled = alreadyApplied;
+      /** @type {HTMLButtonElement} */ (applyBtn).disabled = alreadyApplied;
       applyWrap.style.display = 'block';
     } else if (applyWrap) {
       applyWrap.style.display = 'none';

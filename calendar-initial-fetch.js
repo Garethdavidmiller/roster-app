@@ -31,6 +31,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     monthKey(next.getFullYear(), next.getMonth()),
   ]);
 
+  /** @type {HTMLButtonElement|null} */
   let syncChip = null;
   let syncResolved = false;
   const calGrid = document.getElementById('calendarDisplay');

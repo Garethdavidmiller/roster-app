@@ -57,7 +57,7 @@ export function getPeriods() {
 
 /** Return the period number currently shown in the period selector. */
 export function currentPeriodNum() {
-  return +document.getElementById('periodSelect').value;
+  return +(/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'))).value;
 }
 
 /** True if 26 Dec falls within this period's shift window. */
@@ -102,7 +102,7 @@ export function updateBhRows(p) {
   CONDITIONAL_ROWS.forEach(({ condition, rows, fields }) => {
     const show = condition(p);
     rows.forEach(id => document.getElementById(id)?.classList.toggle('hidden', !show));
-    if (!show) fields.forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+    if (!show) fields.forEach(id => { const el = document.getElementById(id); if (el) /** @type {HTMLInputElement} */ (el).value = ''; });
   });
 }
 
@@ -116,7 +116,7 @@ export function _setSelectPeriod(sel, pNum) {
   }
 }
 
-function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = {}) {
+function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = /** @type {{ placeholder?: string, currentPNum?: number }} */ ({})) {
   if (!el) return;
   el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';
   let currentGroup = null, currentTyLabel = null;
@@ -228,7 +228,7 @@ export function jumpToTaxYear(tyIndex, onPeriodChange) {
  * @param {Function} onPeriodChange Coordinator callback.
  */
 export function prevPeriod(onPeriodChange) {
-  const sel     = document.getElementById('periodSelect');
+  const sel     = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
   const periods = getPeriods();
   const idx     = periods.findIndex(x => x.num === +sel.value);
   if (idx > 0) { _setSelectPeriod(sel, periods[idx - 1].num); onPeriodChange(); }
@@ -239,7 +239,7 @@ export function prevPeriod(onPeriodChange) {
  * @param {Function} onPeriodChange Coordinator callback.
  */
 export function nextPeriod(onPeriodChange) {
-  const sel     = document.getElementById('periodSelect');
+  const sel     = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
   const periods = getPeriods();
   const idx     = periods.findIndex(x => x.num === +sel.value);
   if (idx < periods.length - 1) { _setSelectPeriod(sel, periods[idx + 1].num); onPeriodChange(); }

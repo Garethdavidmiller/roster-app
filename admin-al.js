@@ -47,10 +47,10 @@ export function initALSection({
     updateALBanner, updateALBookedBox, updateSickBookedBox,
     currentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 }) {
-const alFrom     = document.getElementById('alFrom');
-const alTo       = document.getElementById('alTo');
+const alFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('alFrom'));
+const alTo       = /** @type {HTMLInputElement}  */ (document.getElementById('alTo'));
 const alPreview  = document.getElementById('alPreview');
-const alSaveBtn  = document.getElementById('alSaveBtn');
+const alSaveBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('alSaveBtn'));
 const alFeedback = document.getElementById('alFeedback');
 _alSaveBtnRef = alSaveBtn;
 

@@ -196,8 +196,8 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
             let cum = 0;
             let val = 'RD';
             for (const seg of segdefs) {
-                const n = seg.isSpare ? (spare[cls] ?? 0) : (seg[cls] ?? 0);
-                if (pos < cum + n) { val = seg.isSpare ? 'SPARE' : seg.time; break; }
+                const n = ('isSpare' in seg) ? (spare[cls] ?? 0) : (seg[cls] ?? 0);
+                if (pos < cum + n) { val = ('isSpare' in seg) ? 'SPARE' : seg.time; break; }
                 cum += n;
             }
             p[d] = val;

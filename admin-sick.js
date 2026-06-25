@@ -32,10 +32,10 @@ export function initSickSection({
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift, showSuccess,
 }) {
-const sickFrom     = document.getElementById('sickFrom');
-const sickTo       = document.getElementById('sickTo');
+const sickFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('sickFrom'));
+const sickTo       = /** @type {HTMLInputElement}  */ (document.getElementById('sickTo'));
 const sickPreview  = document.getElementById('sickPreview');
-const sickSaveBtn  = document.getElementById('sickSaveBtn');
+const sickSaveBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('sickSaveBtn'));
 const sickFeedback = document.getElementById('sickFeedback');
 
 populateMemberDropdown(sickMember);

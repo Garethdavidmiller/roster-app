@@ -768,17 +768,9 @@ The 57 non-DOM errors represent real type risks worth fixing: wrong argument cou
 
 At the end of 9a, CI enforces a zero-non-DOM-error baseline. The 514 TS2339 DOM errors remain but are recorded as a known open tier.
 
-#### Phase 9b — DOM element casts (~15–20 hours, low value — do opportunistically)
+#### Phase 9b — DOM element casts ✓ (completed June 2026)
 
-The 514 TS2339 errors are all the same pattern: `document.getElementById('id').value` where TypeScript infers `HTMLElement` but the property only exists on `HTMLInputElement`. Every fix is a mechanical cast:
-
-```js
-const el = /** @type {HTMLInputElement} */ (document.getElementById('someId'));
-```
-
-These are not real bugs — the HTML and JS have always been co-authored to match. TypeScript can't verify this in a no-framework app, but a runtime mismatch would produce an obvious immediate error rather than a silent type bug. The safety benefit is low compared to the ~80–150 unique cast sites needed.
-
-**Recommendation:** Do 9b opportunistically as files are modified for other reasons, not as a dedicated pass. Each file touched for a bug fix or feature can have its DOM casts added at that point.
+All 489 TS2339 errors resolved with JSDoc `/** @type {HTMLXxxElement} */` casts. The typecheck CI gate now enforces zero errors of any kind (not just non-DOM errors). 33 files updated; 8 induced TS2322 `number`→`string` assignments also corrected. Phase 9c is now unblocked.
 
 #### Phase 9c — `strict: true` (after 9b is complete)
 

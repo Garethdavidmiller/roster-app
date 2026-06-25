@@ -198,16 +198,17 @@ function buildShiftOptions(currentVal, includeRdSpare = false) {
 function initDesignPicker() {
     // Delegated clicks on the main chips container
     document.getElementById('designChips')?.addEventListener('click', e => {
-        const renameBtn = e.target.closest('.design-chip-rename');
-        const deleteBtn = e.target.closest('.design-chip-delete');
-        const nameBtn   = e.target.closest('.design-chip-name');
+        const t = /** @type {Element} */ (e.target);
+        const renameBtn = /** @type {HTMLElement|null} */ (t.closest('.design-chip-rename'));
+        const deleteBtn = /** @type {HTMLElement|null} */ (t.closest('.design-chip-delete'));
+        const nameBtn   = /** @type {HTMLElement|null} */ (t.closest('.design-chip-name'));
         if (renameBtn)      renameDesign(renameBtn.dataset.id);
         else if (deleteBtn) deleteDesign(deleteBtn.dataset.id);
         else if (nameBtn)   selectDesign(nameBtn.dataset.id);
     });
     // Delegated clicks on compare chips
     document.getElementById('compareChips')?.addEventListener('click', e => {
-        const nameBtn = e.target.closest('.design-chip-name');
+        const nameBtn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.design-chip-name'));
         if (nameBtn) selectCompareDesign(nameBtn.dataset.id);
     });
     document.getElementById('newDesignBtn')?.addEventListener('click',     createDesign);
@@ -222,8 +223,8 @@ function renderDesignPicker() {
     const chipsEl        = document.getElementById('designChips');
     const compareChipsEl = document.getElementById('compareChips');
     const comparePickerRow = document.getElementById('comparePickerRow');
-    const compareBtn     = document.getElementById('compareBtn');
-    const dupBtn         = document.getElementById('dupDesignBtn');
+    const compareBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('compareBtn'));
+    const dupBtn         = /** @type {HTMLButtonElement|null} */ (document.getElementById('dupDesignBtn'));
     if (!wrap) return;
 
     // Only show the picker once at least one design exists
@@ -486,7 +487,7 @@ function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
 function armBrush(shift) {
     brush = shift;
     document.querySelectorAll('.brush-chip').forEach(c => {
-        c.classList.toggle('brush-chip--active', c.dataset.shift === shift);
+        c.classList.toggle('brush-chip--active', /** @type {HTMLElement} */ (c).dataset.shift === shift);
     });
 }
 
@@ -516,7 +517,7 @@ function renderBrushBar() {
 
     bar.querySelectorAll('.brush-chip').forEach(c => {
         c.addEventListener('click', () => {
-            let shift = c.dataset.shift;
+            let shift = /** @type {HTMLElement} */ (c).dataset.shift;
             if (shift === '__custom__') {
                 const typed = normaliseCustomShift(
                     prompt('Enter a shift time, e.g. 06:00-14:00 (start between 04:00 and 20:59):', ''));
@@ -612,7 +613,7 @@ function renderGrid() {
     if (!tbody) return;
 
     tbody.addEventListener('click', e => {
-        const btn = e.target.closest('.shift-cell-btn');
+        const btn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.shift-cell-btn'));
         if (!btn || !design) return;
 
         const pos = btn.dataset.pos;
@@ -973,13 +974,13 @@ function updateGenTotals() {
     if (!tbody) return;
 
     ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
-    document.getElementById('genSpareWeekday').value = genSpare.weekday;
-    document.getElementById('genSpareSat').value     = genSpare.sat;
-    document.getElementById('genSpareSun').value     = genSpare.sun;
+    /** @type {HTMLInputElement} */ (document.getElementById('genSpareWeekday')).value = String(genSpare.weekday);
+    /** @type {HTMLInputElement} */ (document.getElementById('genSpareSat')).value     = String(genSpare.sat);
+    /** @type {HTMLInputElement} */ (document.getElementById('genSpareSun')).value     = String(genSpare.sun);
     renderGenTable();
 
     tbody.addEventListener('input', e => {
-        const input = e.target.closest('.gen-slot-count');
+        const input = /** @type {HTMLInputElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-count'));
         if (!input) return;
         const slot = genSlots[+input.dataset.slot];
         if (!slot) return;
@@ -988,7 +989,7 @@ function updateGenTotals() {
     });
 
     tbody.addEventListener('change', e => {
-        const select = e.target.closest('.gen-slot-time');
+        const select = /** @type {HTMLSelectElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-time'));
         if (!select) return;
         const slot = genSlots[+select.dataset.slot];
         if (!slot) return;
@@ -1003,7 +1004,7 @@ function updateGenTotals() {
     });
 
     tbody.addEventListener('click', e => {
-        const btn = e.target.closest('.gen-remove-btn');
+        const btn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-remove-btn'));
         if (!btn) return;
         genSlots.splice(+btn.dataset.slot, 1);
         renderGenTable();
@@ -1011,7 +1012,7 @@ function updateGenTotals() {
 
     for (const [id, cls] of [['genSpareWeekday', 'weekday'], ['genSpareSat', 'sat'], ['genSpareSun', 'sun']]) {
         document.getElementById(id)?.addEventListener('input', e => {
-            genSpare[cls] = Math.max(0, parseInt(e.target.value, 10) || 0);
+            genSpare[cls] = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
             updateGenTotals();
         });
     }
@@ -1023,9 +1024,9 @@ function updateGenTotals() {
 
     document.getElementById('genSeedBtn')?.addEventListener('click', () => {
         ({ slots: genSlots, spare: genSpare } = buildRosterTargets());
-        document.getElementById('genSpareWeekday').value = genSpare.weekday;
-        document.getElementById('genSpareSat').value     = genSpare.sat;
-        document.getElementById('genSpareSun').value     = genSpare.sun;
+        /** @type {HTMLInputElement} */ (document.getElementById('genSpareWeekday')).value = String(genSpare.weekday);
+        /** @type {HTMLInputElement} */ (document.getElementById('genSpareSat')).value     = String(genSpare.sat);
+        /** @type {HTMLInputElement} */ (document.getElementById('genSpareSun')).value     = String(genSpare.sun);
         renderGenTable();
         const errEl = document.getElementById('genError');
         if (errEl) errEl.textContent = '';
@@ -1087,7 +1088,7 @@ function updateGenTotals() {
 // ============================================
 
 function updateSaveBtn() {
-    const btn    = document.getElementById('linksSaveBtn');
+    const btn    = /** @type {HTMLButtonElement|null} */ (document.getElementById('linksSaveBtn'));
     const status = document.getElementById('linksSaveStatus');
     if (btn) btn.disabled = !dirty;
     if (status && dirty) status.textContent = '';
@@ -1103,7 +1104,7 @@ function updateLastSaved(updatedBy, updatedAt) {
 }
 
 async function saveChanges() {
-    const btn    = document.getElementById('linksSaveBtn');
+    const btn    = /** @type {HTMLButtonElement|null} */ (document.getElementById('linksSaveBtn'));
     const status = document.getElementById('linksSaveStatus');
     if (!design) return;
     if (btn) btn.disabled = true;
@@ -1288,7 +1289,7 @@ window.addEventListener('beforeunload', e => {
 
 document.addEventListener('click', e => {
     if (!dirty) return;
-    const link = e.target.closest('.nav-panel a[href]');
+    const link = /** @type {Element} */ (e.target).closest('.nav-panel a[href]');
     if (link && !confirm('You have unsaved changes. Leave this page anyway?')) {
         e.preventDefault();
         e.stopPropagation();
