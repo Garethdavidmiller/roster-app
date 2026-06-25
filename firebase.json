@@ -34,7 +34,13 @@
       "playwright.config.mjs",
       "e2e/**",
       "playwright-report/**",
-      "test-results/**"
+      "test-results/**",
+      "scripts/**",
+      "githooks/**",
+      "eslint.config.js",
+      "jsconfig.json",
+      "storage.rules",
+      "firestore.indexes.json"
     ],
     "headers": [
       {
