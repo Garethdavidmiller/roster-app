@@ -43,14 +43,4 @@ export default [
             globals: { mammoth: 'readonly' },
         },
     },
-    // alFrom is an HTML element with id="alFrom" — accessible via browser named-element
-    // globals (window.alFrom). Declared as const in admin-al.js; used in admin-app.js
-    // updateALBanner() which is passed as a callback to admin-al.js. ESLint can't see
-    // the browser's named-element feature.
-    {
-        files: ['admin-app.js'],
-        languageOptions: {
-            globals: { alFrom: 'readonly' },
-        },
-    },
 ];

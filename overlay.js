@@ -113,7 +113,7 @@ export function trapFocus(container, e) {
  * open() — or via onOpen, which runs before the overlay becomes visible.
  *
  * @param {object} opts
- * @param {Element}  [opts.overlay]      - The .lb-overlay element
+ * @param {Element}   opts.overlay       - The .lb-overlay element
  * @param {Element}  [opts.content]      - The .lb-content card (focus-trap boundary; defaults to overlay)
  * @param {Element}  [opts.closeBtn]     - The .lb-close button (also the default initial focus)
  * @param {Element|Function} [opts.initialFocus] - Element (or fn returning one) to focus on open instead of closeBtn
@@ -121,7 +121,7 @@ export function trapFocus(container, e) {
  * @param {Function} [opts.onClose]      - Called as the overlay starts closing (any close path)
  * @returns {{ open: () => void, close: () => void }}
  */
-export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose } = {}) {
+export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose }) {
     let _focusReturn = null;
 
     function onKey(e) {

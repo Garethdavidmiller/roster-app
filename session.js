@@ -38,7 +38,7 @@ export function getSurname(fullName) {
     return normaliseSurname(fullName);
 }
 
-/** @type {((value: any) => void)|undefined} */
+/** @type {(value: any) => void} */
 let _sessionResolve;
 /**
  * Module-level promise that resolves once the Firebase Auth session for this
