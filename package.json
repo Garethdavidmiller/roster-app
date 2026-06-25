@@ -17,6 +17,7 @@
     "@eslint/js": "^10.0.1",
     "eslint": "^10.0.0",
     "globals": "^15.15.0",
-    "http-server": "^14.1.1"
+    "http-server": "^14.1.1",
+    "typescript": "^6.0.3"
   }
 }
