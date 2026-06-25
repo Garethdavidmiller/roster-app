@@ -253,8 +253,9 @@ downloaded in the dev environment" — no longer holds: the Claude Code on the w
 environment ships Chromium pre-installed at `/opt/pw-browsers` (revision 1194 =
 141.0.7390.37), matched by pinning `@playwright/test` to `1.56.1`. The suite now runs
 locally before every push (the missing iteration loop), and CI installs its own
-Chromium via `npx playwright install --with-deps chromium`. The restored suite keeps
-the CDN-stub fixture unchanged; two stale tests were updated (paycalc now has a
+Chromium via `npx playwright install --with-deps chromium`. The restored suite is nine
+page-load tests (the original eight, with the settings tips regression guard split into
+its own signed-in test). It keeps the CDN-stub fixture unchanged; two stale tests were updated (paycalc now has a
 session guard → seed a session; the settings signed-in test's faith-radio anchor was
 removed with the cultural calendar at v13.23 → now anchors on the Work Email card's
 `aria-expanded`). Wired into both `e2e.yml` (branches/PRs) and `deploy-hosting.yml`
@@ -637,8 +638,8 @@ Once Stages 2–4 are live and staff have had adequate time to migrate:
 
 `firebase-admin@14` is the current major release and resolves 9 moderate vulnerabilities
 in the transitive `uuid` dependency. Upgrade is blocked until `firebase-functions` adds
-v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only) and
-until the functions runtime is moved from Node 20 to Node 22 (required by firebase-admin v14).
+v14 to its peer dependency range (all v7.x releases declare `^11 || ^12 || ^13` only). The
+Node 22 runtime that firebase-admin v14 requires is already in place (`functions/package.json`).
 
 **Practical risk is low** — the uuid buffer-bounds bug is not reachable via Firebase's
 internal usage patterns. See KNOWN_LIMITATIONS.md for the full detail and the step-by-step

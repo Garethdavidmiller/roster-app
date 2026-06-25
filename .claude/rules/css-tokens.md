@@ -71,6 +71,8 @@ Genuinely distinct components (nav drawer pills, dense roster-review rows, badge
 | `--accent-gold` | `#f5c800` | Gold — today cell, today button, active highlights |
 | `--accent-gold-dark` | `#e6bb00` | Darker gold — hover on today button |
 
+The hex column is the brand reference (and is what the `<meta name="theme-color">` tags and `guide-shell.css` use, since the guides don't import `shared.css`). The live `:root` definitions in `shared.css` express these in `oklch()` — and `--primary-blue-dark` / `--accent-gold-dark` are now `color-mix(in oklch, …)` expressions derived from their base token, not static hex. When editing tokens, edit the `oklch`/`color-mix` values in `shared.css`, not these hex equivalents.
+
 All colour values must be in CSS variables in `:root` — never hardcode hex.
 
 ## Dark (navy) nav drawer + scoped tokens (v11.54)

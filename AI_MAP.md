@@ -23,7 +23,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
-| Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
+| Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `app-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `app-override-utils.js` |
 | Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
@@ -209,7 +209,7 @@ Shared service worker registration + update lifecycle (v12.28). All six app page
 
 ### `session.js`
 Shared auth/session module — canonical source for session logic (v11.40).
-- Constants: `AUTH_KEY`, `SESSION_MS` (30 days), `SESSION_VER`
+- Constants: `AUTH_KEY`, `SESSION_MS` (30 days absolute), `IDLE_MS` (7 days inactivity), `SESSION_VER`
 - `getSurname(name)` — derives Firebase Auth password from display name
 - `getSession()` / `saveSession(name)` / `clearSession()` — localStorage wrappers for the session object
 - `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`. Returns `Promise<boolean>`.
@@ -285,8 +285,7 @@ Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
 - `_suggestIfBlank()` / `_applyRosterSuggestion()` — roster pre-fill helpers
 - HPP card, sticky take-home bar, back-pay card
 - `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
-- `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
-- Imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `runMigrations` from `paycalc-migrations.js`; lightbox lifecycle delegated to `paycalc-lightboxes.js`
+- Imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `runMigrations` from `paycalc-migrations.js`; lightbox lifecycle delegated to `paycalc-lightboxes.js`. Back-pay maths (`calcBackPay`, `prefillBackPay`) delegated to `paycalc-backpay.js` — see that module's section
 - Period select, prev/next, tax-year tabs: delegated to `paycalc-periods.js`
 - Grade cache, settings save/load, rate/YTD fields: delegated to `paycalc-settings.js`
 
@@ -396,9 +395,9 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — writes to Firebase Storage + Firestore `huddles` collection; `htmlContent` is the converted HTML string for DOCX uploads (null for PDFs)
-- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-app.js` to keep the Huddle button live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
+- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
-- `auth`, `signInWithEmailAndPassword`, `signOut`, `nameToEmail` — Firebase Auth
+- `auth`, `authReady`, `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`, `signInAnonymously`, `signOut`, `onAuthStateChanged`, `nameToEmail`, `normaliseSurname` — Firebase Auth (`authReady` resolves once `onAuthStateChanged` has fired the first time; `normaliseSurname` is the shared surname→password derivation that `getSurname()` in `session.js` delegates to)
 - `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
 - `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`. Ordering/retention policy delegated to `client-errors.js` (v13.48).
 - `uploadCircular(date, file, uploadedBy)` — writes PDF to `circulars/{date}.pdf` in Firebase Storage and upserts the `circulars/{date}` Firestore doc; also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.58)

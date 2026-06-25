@@ -44,7 +44,7 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 
 **`paycalc.html` desktop grid on `<main>`, not `.app`** — CSS grid applies to direct children only — declare on `main { display: grid }`. `.app` only holds max-width.
 
-**Sticky take-home bar (`#stickyTotal`)** — fixed bar on mobile (hidden ≥1040px). `IntersectionObserver` shows it when `.result-card` scrolls off. `body.sticky-active` adds bottom padding.
+**Sticky take-home bar (`#stickyTotal`)** — fixed bar on mobile (hidden ≥1024px). `IntersectionObserver` shows it when `.result-card` scrolls off. `body.sticky-active` adds bottom padding.
 
 ## State management
 
