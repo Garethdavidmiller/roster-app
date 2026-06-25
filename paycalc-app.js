@@ -118,7 +118,8 @@ function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
 
 /** @param {string} mId */
 function clampMins(mId) {
-  const el = /** @type {HTMLInputElement} */ (document.getElementById(mId));
+  const el = /** @type {HTMLInputElement|null} */ (document.getElementById(mId));
+  if (!el) return;
   const v  = parseInt(el.value);
   if (!isNaN(v)) { if (v > 59) el.value = '59'; if (v < 0) el.value = '0'; }
 }
@@ -151,8 +152,9 @@ function decPreview(hId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   const val = parseFloat(raw);
   if (raw.includes('.') && !isNaN(val) && val >= 0) {
-    const h = Math.floor(val);
-    const m = Math.round((val - h) * 60);
+    let h = Math.floor(val);
+    let m = Math.round((val - h) * 60);
+    if (m >= 60) { h += 1; m = 0; } // floating-point rounding guard (e.g. 7.999)
     const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, true));
     if (hint) { hint.textContent = `= ${h}h ${String(m).padStart(2, '0')}m`; hint.hidden = false; }
   } else {
@@ -173,8 +175,10 @@ function autoDecimalHours(hId, mId) {
   if (!raw.includes('.')) return;
   const val = parseFloat(raw);
   if (isNaN(val) || val < 0) return;
-  const h = Math.floor(val);
-  const m = Math.round((val - h) * 60);
+  let h = Math.floor(val);
+  let m = Math.round((val - h) * 60);
+  // Floating-point rounding can yield m === 60 (e.g. 7.999 → round(0.999×60)=60).
+  if (m >= 60) { h += 1; m = 0; }
   /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(h);
   /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = m ? String(m) : '';
   const hint = /** @type {HTMLElement | null} */ (_decHintEl(hId, false));

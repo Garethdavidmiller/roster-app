@@ -108,7 +108,11 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     } catch (err) {
       syncResolved = true;
       console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
-      if (!syncChip) {
+      // A renderCalendar() call between the fetch start and the catch (e.g. from
+      // visibilitychange) rebuilds the calendar header, detaching the chip from the
+      // DOM. Re-create it if the reference is stale (null or disconnected).
+      const _chip = /** @type {Node|null} */ (syncChip);
+      if (!_chip || !_chip.isConnected) {
         const header = document.querySelector('.calendar-header');
         if (header) {
           syncChip = document.createElement('button');

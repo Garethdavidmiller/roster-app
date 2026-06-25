@@ -15,6 +15,8 @@
         "generate-sri.mjs",
         "scripts",
         "functions",
-        ".claude"
+        ".claude",
+        "e2e",
+        "playwright.config.mjs"
     ]
 }

@@ -258,9 +258,11 @@ page-load tests (the original eight, with the settings tips regression guard spl
 its own signed-in test). It keeps the CDN-stub fixture unchanged; two stale tests were updated (paycalc now has a
 session guard → seed a session; the settings signed-in test's faith-radio anchor was
 removed with the cultural calendar at v13.23 → now anchors on the Work Email card's
-`aria-expanded`). Wired into both `e2e.yml` (branches/PRs) and `deploy-hosting.yml`
-(gates the production deploy). Residual caveat: the local browser is environment-
-specific — iterating on the suite outside the web container needs a system Chromium.
+`aria-expanded`). Wired into `e2e.yml` (branches/PRs), `deploy-hosting.yml` (Firebase Hosting gate), and
+`deploy-pages.yml` (GitHub Pages / staff URL gate — added v13.96 to close the gap where
+the staff site could receive a broken deploy while the Firebase gate caught it). Residual
+caveat: the local browser is environment-specific — iterating on the suite outside the web
+container needs a system Chromium.
 
 The original history is kept below for context.
 

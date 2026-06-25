@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.95';
+export const APP_VERSION = '13.97';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -746,6 +746,7 @@ export function getRosterForMember(member, date) {
  * @returns {string}  Shift value e.g. "RD", "06:00-14:00"
  */
 export function getBaseShift(member, date) {
+    if (!member) return 'RD'; // guard: sibling helpers (getWeekNumberForDate etc.) all guard !member; be consistent
     if (isChristmasRD(date)) return 'RD'; // Rule: see CLAUDE.md — "isChristmasRD() applied before Firestore overrides"
     // Members with a startDate show RD for all dates before they join
     if (member.startDate) {
