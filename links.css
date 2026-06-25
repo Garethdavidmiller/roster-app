@@ -1,6 +1,8 @@
 /* links.css — all CSS for links.html (Links design workspace) */
 
 :root {
+    /* Coverage palette — links-workspace-specific; no shared.css token exists for these,
+       so hex values are defined here rather than forwarding from :root in shared.css. */
     --cov-early: #1a7fc1;
     --cov-late:  #e6700a;
     --cov-night: #6b3fa0;
