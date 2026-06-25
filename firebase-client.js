@@ -212,8 +212,13 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
  * @returns {Promise<void>}
  */
 async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject) {
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - 6);
+    const now = new Date();
+    const tm = now.getMonth() - 6;
+    // Clamp day to last valid day of the target month. setMonth() overflows on month-end
+    // dates that don't exist 6 months prior (e.g. Aug 31 → Feb 31 → March 3); clamping
+    // prevents premature deletion of documents that are only ~5 months and 29+ days old.
+    const daysInTargetMonth = new Date(now.getFullYear(), tm + 1, 0).getDate();
+    const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
     const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
     const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
     const snap = await getDocs(q);

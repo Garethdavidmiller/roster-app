@@ -143,7 +143,7 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
         request.resource.data.storageUrl is string &&
@@ -159,7 +159,7 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
         request.resource.data.storageUrl is string &&

@@ -447,6 +447,12 @@ describe('circulars', () => {
         );
     });
 
+    test('admin can create with storagePath field (v13.99+)', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), storagePath: 'circulars/2026-06-25-abc123.pdf' })
+        );
+    });
+
     test('admin cannot create with extra field (hasOnly violation)', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), extra: 'field' })
@@ -502,6 +508,12 @@ describe('newsletters', () => {
     test('admin cannot create with date not 10 chars', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), date: '2026-6-25' })
+        );
+    });
+
+    test('admin can create with storagePath field (v13.99+)', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), storagePath: 'newsletters/2026-06-25-abc123.pdf' })
         );
     });
 
