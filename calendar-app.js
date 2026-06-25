@@ -249,7 +249,7 @@ function renderCalendar() {
 
 document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
     if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
-    saveSelectedMember(parseInt(e.target.value, 10));
+    saveSelectedMember(parseInt(/** @type {HTMLSelectElement} */ (e.target).value, 10));
     renderCalendar();
     // Close AL lightbox if open — data would be stale for the new member
     closeALLightbox?.();
@@ -260,7 +260,7 @@ document.getElementById('prevMonth').addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
     // aria-disabled is set at the boundary — honour it as a true no-op so AT users
     // (and PageUp via .click()) don't trigger a pointless re-render/announce.
-    if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
+    if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
     changeMonth(-1);
     renderCalendar();
     announceMonthChange();
@@ -274,7 +274,7 @@ function pulseToday() {
         if (!todayCell) return;
         // Remove class first in case it's already there, then re-add
         todayCell.classList.remove('today-pulse');
-        void todayCell.offsetWidth; // Force reflow to restart animation
+        void /** @type {HTMLElement} */ (todayCell).offsetWidth; // Force reflow to restart animation
         todayCell.classList.add('today-pulse');
         todayCell.addEventListener('animationend', () => {
             todayCell.classList.remove('today-pulse');
@@ -312,7 +312,7 @@ document.getElementById('todayBtn').addEventListener('click', () => {
 
 document.getElementById('nextMonth').addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
-    if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
+    if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
     changeMonth(1);
     renderCalendar();
     announceMonthChange();
@@ -386,7 +386,7 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
 
     // Event delegation — #teamHelpBtn is re-created on every renderTeamView() call.
     document.addEventListener('click', e => {
-        if (e.target.closest('#teamHelpBtn')) teamInfo.open();
+        if (/** @type {Element} */ (e.target).closest('#teamHelpBtn')) teamInfo.open();
     });
 })();
 
@@ -502,8 +502,8 @@ try {
         (function() {
             const overlay    = document.getElementById('monthJumpOverlay');
             const card       = document.getElementById('monthJumpCard');
-            const selMonth   = document.getElementById('monthJumpMonth');
-            const selYear    = document.getElementById('monthJumpYear');
+            const selMonth   = /** @type {HTMLSelectElement} */ (document.getElementById('monthJumpMonth'));
+            const selYear    = /** @type {HTMLSelectElement} */ (document.getElementById('monthJumpYear'));
             const btnConfirm = document.getElementById('monthJumpConfirm');
             const btnCancel  = document.getElementById('monthJumpCancel');
             if (!overlay) return;
@@ -529,17 +529,17 @@ try {
                 content: card,
                 initialFocus: () => selMonth,
                 onOpen() {
-                    selMonth.value = getDisplayMonth();
-                    selYear.value  = getDisplayYear();
+                    selMonth.value = String(getDisplayMonth());
+                    selYear.value  = String(getDisplayYear());
                 },
             });
 
             // Delegated click: any .month-year element (rebuilt on each render)
             document.getElementById('calendarDisplay').addEventListener('click', e => {
-                if (e.target.closest('.month-year')) picker.open();
+                if (/** @type {Element} */ (e.target).closest('.month-year')) picker.open();
             });
             document.getElementById('calendarDisplay').addEventListener('keydown', e => {
-                if (e.target.closest('.month-year') && (e.key === 'Enter' || e.key === ' ')) {
+                if (/** @type {Element} */ (e.target).closest('.month-year') && (/** @type {KeyboardEvent} */ (e).key === 'Enter' || /** @type {KeyboardEvent} */ (e).key === ' ')) {
                     e.preventDefault(); picker.open();
                 }
             });
@@ -552,7 +552,7 @@ try {
                 announceMonthChange();
                 // renderCalendar() rebuilt the heading the focus restore pointed
                 // at — move focus onto the freshly rendered equivalent.
-                document.querySelector('.month-year')?.focus();
+                /** @type {HTMLElement} */ (document.querySelector('.month-year'))?.focus();
             });
 
             btnCancel.addEventListener('click', () => picker.close());
@@ -563,7 +563,7 @@ try {
         // ============================================
         document.addEventListener('keydown', (e) => {
             // Don't fire if user is typing in an input
-            if (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT') return;
+            if (/** @type {Element} */ (e.target).tagName === 'SELECT' || /** @type {Element} */ (e.target).tagName === 'INPUT') return;
             // Don't fire behind ANY open lightbox — focus sits on a button there,
             // so the input check above doesn't help: arrows/t would silently
             // change the month behind the overlay and p would print it.

@@ -42,8 +42,8 @@ export function buildRangePicker(prefix) {
     const TRANSITION  = prefersReduced ? 'none' : 'transform 0.3s cubic-bezier(0.4,0,0.2,1)';
     const DURATION_MS = prefersReduced ? 0 : 300;
 
-    const fromInput = document.getElementById(prefix + 'From');
-    const toInput   = document.getElementById(prefix + 'To');
+    const fromInput = /** @type {HTMLInputElement}  */ (document.getElementById(prefix + 'From'));
+    const toInput   = /** @type {HTMLInputElement}  */ (document.getElementById(prefix + 'To'));
     const wrap      = document.getElementById(prefix + 'RangePicker');
 
     let fromISO  = '', toISO = '', hoverISO = '';
@@ -276,9 +276,9 @@ export function buildRangePicker(prefix) {
 
     grid.addEventListener('click', e => {
         if (swFired) { swFired = false; return; }
-        const cell = e.target.closest('[data-iso]');
+        const cell = /** @type {Element} */ (e.target).closest('[data-iso]');
         if (!cell) return;
-        const iso = cell.dataset.iso;
+        const iso = /** @type {HTMLElement} */ (cell).dataset.iso;
         if (!fromISO || toISO)  { fromISO = iso; toISO = ''; }
         else if (iso < fromISO) { fromISO = iso; toISO = ''; }
         else                    { toISO   = iso; }
@@ -287,7 +287,7 @@ export function buildRangePicker(prefix) {
     });
 
     grid.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.target.click(); }
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); /** @type {HTMLElement} */ (e.target).click(); }
     });
 
     // Hover preview only on devices with a real cursor — guards iOS from firing
@@ -296,7 +296,7 @@ export function buildRangePicker(prefix) {
     if (_supportsHover) {
         grid.addEventListener('mouseover', e => {
             if (swDragging || !fromISO || toISO) return;
-            const iso = e.target.closest('[data-iso]')?.dataset.iso || '';
+            const iso = (/** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('[data-iso]')))?.dataset.iso || '';
             if (iso === hoverISO) return;
             hoverISO = iso;
             renderGrid(grid);

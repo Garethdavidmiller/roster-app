@@ -241,13 +241,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // "Coming soon" and "App Notices" links are buttons — close the panel and open
     // their lightboxes instead of navigating.
     panel.addEventListener('click', e => {
-        const comingSoon = e.target.closest('.nav-panel-link--coming-soon');
+        const comingSoon = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--coming-soon'));
         if (comingSoon) {
             _closePanelVisualOnly();    // keep the history entry for the lightbox
             _openComingSoon(comingSoon);
             return;
         }
-        const circular = e.target.closest('.nav-panel-link--circular');
+        const circular = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--circular'));
         if (circular) {
             if (_docFetching) return;
             _docFetching = true;
@@ -278,7 +278,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             }).finally(() => { _docFetching = false; });
             return;
         }
-        const newsletter = e.target.closest('.nav-panel-link--newsletter');
+        const newsletter = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--newsletter'));
         if (newsletter) {
             if (_docFetching) return;
             _docFetching = true;
@@ -305,12 +305,12 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             }).finally(() => { _docFetching = false; });
             return;
         }
-        if (e.target.closest('.nav-panel-link--notices')) {
+        if (/** @type {Element} */ (e.target).closest('.nav-panel-link--notices')) {
             _closePanelVisualOnly();
             _openNotices();
             return;
         }
-        if (e.target.closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
+        if (/** @type {Element} */ (e.target).closest('.nav-panel-pill, .nav-panel-link')) { closePanelForNavigation(); return; }
     });
 
     // Sign-out footer button
@@ -340,7 +340,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     });
 
     // Notification toggle — an in-panel action, so the panel stays open.
-    const bell      = document.getElementById('navNotifBell');
+    const bell      = /** @type {HTMLButtonElement|null} */ (document.getElementById('navNotifBell'));
     const bellIcon  = document.getElementById('navNotifIcon');
     let _bellBusy   = false;
 
@@ -586,9 +586,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (!_panelOpen) return;
         if (e.key === 'Escape') { closePanel(); return; }
         if (e.key === 'Tab') {
-            const focusable = Array.from(panel.querySelectorAll(
+            const focusable = /** @type {HTMLElement[]} */ (Array.from(panel.querySelectorAll(
                 'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])'
-            )).filter(el => el.offsetParent !== null); // visible only — skip the collapsed Guides links
+            ))).filter(el => el.offsetParent !== null); // visible only — skip the collapsed Guides links
             if (focusable.length === 0) return;
             const first  = focusable[0];
             const last   = focusable[focusable.length - 1];

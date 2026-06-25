@@ -26,7 +26,7 @@ export function initCalendarTooltip() {
 
   let _tipW = 0, _tipH = 0;
   document.addEventListener('mouseover', e => {
-    const cell = e.target.closest('.calendar-day[data-tooltip]');
+    const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day[data-tooltip]'));
     if (!cell) { tip.hidden = true; return; }
     tip.textContent = cell.dataset.tooltip;
     tip.hidden = false;
@@ -50,10 +50,10 @@ export function initCalendarTooltip() {
  */
 export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
   document.addEventListener('keydown', e => {
-    const focused = document.activeElement;
+    const focused = /** @type {HTMLElement|null} */ (document.activeElement);
     if (!focused?.classList.contains('calendar-day') || focused.classList.contains('other-month')) return;
 
-    const cells = [...document.querySelectorAll('.calendar-day:not(.other-month)')];
+    const cells = /** @type {HTMLElement[]} */ ([...document.querySelectorAll('.calendar-day:not(.other-month)')]);
     const idx   = cells.indexOf(focused);
     if (idx === -1) return;
 

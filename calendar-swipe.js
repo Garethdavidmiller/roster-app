@@ -108,7 +108,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     calendarDisplay.addEventListener('pointerdown', (e) => {
         if (!e.isPrimary || _swipeCooldown || isTeamViewMode()) return;
 
-        gestureCurrentPanel = document.querySelector('.calendar-container:not(.carousel-panel)');
+        gestureCurrentPanel = /** @type {HTMLElement|null} */ (document.querySelector('.calendar-container:not(.carousel-panel)'));
         if (!gestureCurrentPanel) return;
 
         // Prime the Vibration API once on the first user gesture only.

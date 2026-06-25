@@ -31,8 +31,8 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
  */
 export function initHuddleNotifications() {
     const statusMsg  = document.getElementById('notifStatusMsg');
-    const enableBtn  = document.getElementById('notifEnableBtn');
-    const disableBtn = document.getElementById('notifDisableBtn');
+    const enableBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifEnableBtn'));
+    const disableBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifDisableBtn'));
     const deniedMsg  = document.getElementById('notifDeniedMsg');
 
     // Shared collapse helper — adds aria-expanded, role="button", and keyboard nav
@@ -111,10 +111,10 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
     if (!currentIsAdmin) return;
 
     const card      = document.getElementById('huddleUploadCard');
-    const dateInput = document.getElementById('huddleDate');
-    const fileInput = document.getElementById('huddleFileInput');
+    const dateInput = /** @type {HTMLInputElement|null} */ (document.getElementById('huddleDate'));
+    const fileInput = /** @type {HTMLInputElement|null} */ (document.getElementById('huddleFileInput'));
     const fileLabel = document.getElementById('huddleFileName');
-    const uploadBtn = document.getElementById('huddleUploadBtn');
+    const uploadBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('huddleUploadBtn'));
     const feedback  = document.getElementById('huddleFeedback');
 
     if (!card || !dateInput || !fileInput || !uploadBtn) return;
@@ -175,7 +175,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             uploadBtn.textContent = 'Converting…';
             try {
                 await new Promise((resolve, reject) => {
-                    if (window.mammoth) { resolve(); return; }
+                    if (/** @type {any} */ (window).mammoth) { resolve(); return; }
                     const s = document.createElement('script');
                     s.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
                     s.crossOrigin = 'anonymous';

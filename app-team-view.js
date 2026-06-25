@@ -215,18 +215,19 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
         const gradeTabList = calendarDisplay.querySelector('.grade-tabs');
         if (gradeTabList) {
             gradeTabList.addEventListener('click', e => {
-                const tab = e.target.closest('.grade-tab');
-                if (tab) renderTeamView(tab.dataset.grade, { skipFetch: true });
+                const tab = /** @type {Element} */ (e.target).closest('.grade-tab');
+                if (tab) renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade, { skipFetch: true });
             });
             gradeTabList.addEventListener('keydown', e => {
-                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                const ke = /** @type {KeyboardEvent} */ (e);
+                if (ke.key !== 'ArrowRight' && ke.key !== 'ArrowLeft') return;
                 e.preventDefault();
                 const tabs = [...gradeTabList.querySelectorAll('.grade-tab')];
                 const idx  = tabs.findIndex(t => t === document.activeElement);
                 if (idx === -1) return;
-                const next = tabs[(idx + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length];
+                const next = /** @type {HTMLElement} */ (tabs[(idx + (ke.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]);
                 renderTeamView(next.dataset.grade, { skipFetch: true });
-                calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade}"]`)?.focus();
+                /** @type {HTMLElement} */ (calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade}"]`))?.focus();
             });
         }
 
@@ -240,7 +241,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             currentTeamWeekStart = d;
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
-            calendarDisplay.querySelector('#tvPrevWeek')?.focus();
+            /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvPrevWeek'))?.focus();
         });
         if (tvNext) tvNext.addEventListener('click', () => {
             const d = new Date(currentTeamWeekStart);
@@ -249,7 +250,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             currentTeamWeekStart = d;
             renderTeamView(currentTeamGrade);
             announceTeamWeek();
-            calendarDisplay.querySelector('#tvNextWeek')?.focus();
+            /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvNextWeek'))?.focus();
         });
         if (tvToday) tvToday.addEventListener('click', () => {
             currentTeamWeekStart = getSunday(new Date());
@@ -258,17 +259,17 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             // The "↩ This week" button is replaced by a non-interactive "This week"
             // badge on the current week, so focus can't return to it. Move focus to a
             // stable control (Next week) instead of letting it drop to <body>.
-            calendarDisplay.querySelector('#tvNextWeek')?.focus();
+            /** @type {HTMLElement} */ (calendarDisplay.querySelector('#tvNextWeek'))?.focus();
         });
 
         // Scroll hint — show once per device; lsSet marks it seen after first scroll.
         const tableWrap = calendarDisplay.querySelector('.team-table-wrap');
         const scrollHint = calendarDisplay.querySelector('.tv-scroll-hint');
         if (scrollHint && lsGet('myb_team_scroll_seen')) {
-            scrollHint.style.display = 'none';
+            /** @type {HTMLElement} */ (scrollHint).style.display = 'none';
         } else if (tableWrap && scrollHint) {
             tableWrap.addEventListener('scroll', () => {
-                scrollHint.style.display = 'none';
+                /** @type {HTMLElement} */ (scrollHint).style.display = 'none';
                 lsSet('myb_team_scroll_seen', '1');
             }, { once: true });
         }
@@ -368,8 +369,8 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
                 : 'Switch to team week view');
             teamBtn.setAttribute('aria-pressed', teamViewMode ? 'true' : 'false');
         }
-        if (navRow)  navRow.style.display = teamViewMode ? 'none' : '';
-        if (legend)  legend.style.display = teamViewMode ? 'none' : '';
+        if (navRow)  /** @type {HTMLElement} */ (navRow).style.display = teamViewMode ? 'none' : '';
+        if (legend)  /** @type {HTMLElement} */ (legend).style.display = teamViewMode ? 'none' : '';
         document.body.classList.toggle('team-view-active', teamViewMode);
     }
 

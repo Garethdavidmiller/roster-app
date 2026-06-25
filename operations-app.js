@@ -445,7 +445,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
 // Cloud Functions and Storage both require a valid admin token — they'll
 // reject silently without this warning.
 sessionReady.then(ok => {
-    if (!ok || window._mybAuthError) {
+    if (!ok || /** @type {any} */ (window)._mybAuthError) {
         const main   = document.querySelector('.container');
         if (!main) return;
         const banner = document.createElement('p');
@@ -459,10 +459,10 @@ sessionReady.then(ok => {
 // MARYLEBONE NEWSLETTER UPLOAD
 // ============================================
 function initNewsletterUpload() {
-    const dateInput = document.getElementById('newsletterDate');
-    const fileInput = document.getElementById('newsletterFileInput');
+    const dateInput = /** @type {HTMLInputElement} */ (document.getElementById('newsletterDate'));
+    const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('newsletterFileInput'));
     const fileLabel = document.getElementById('newsletterFileName');
-    const uploadBtn = document.getElementById('newsletterUploadBtn');
+    const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById('newsletterUploadBtn'));
     const feedback  = document.getElementById('newsletterFeedback');
     if (!dateInput || !fileInput || !uploadBtn) return;
 
@@ -531,10 +531,10 @@ function initNewsletterUpload() {
 // WEEKLY RETAIL CIRCULAR UPLOAD
 // ============================================
 function initCircularUpload() {
-    const dateInput = document.getElementById('circularDate');
-    const fileInput = document.getElementById('circularFileInput');
+    const dateInput = /** @type {HTMLInputElement} */ (document.getElementById('circularDate'));
+    const fileInput = /** @type {HTMLInputElement} */ (document.getElementById('circularFileInput'));
     const fileLabel = document.getElementById('circularFileName');
-    const uploadBtn = document.getElementById('circularUploadBtn');
+    const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById('circularUploadBtn'));
     const feedback  = document.getElementById('circularFeedback');
     if (!dateInput || !fileInput || !uploadBtn) return;
 

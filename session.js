@@ -129,14 +129,14 @@ export async function ensureFirebaseSession(name) {
     // password mismatch on an existing account (auth/email-already-in-use),
     // and any other persistent email/password failure.
     console.warn('[Auth] Falling back to anonymous sign-in. Original error:', firstError);
-    window._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
+    /** @type {any} */ (window)._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
     try {
         await signInAnonymously(auth);
         console.warn('[Auth] Anonymous session established for', name);
         return true;
     } catch (anonErr) {
         console.error('[Auth] Anonymous sign-in failed:', anonErr.code);
-        window._mybAuthError = `${firstError} + anon:${anonErr.code}`;
+        /** @type {any} */ (window)._mybAuthError = `${firstError} + anon:${anonErr.code}`;
         return false;
     }
 }

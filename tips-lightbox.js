@@ -68,7 +68,7 @@ export function initTipsLightbox(cardTips, { getIsAdmin } = {}) {
     document.querySelectorAll('.btn-card-tips').forEach(btn => {
         btn.addEventListener('click', e => {
             e.stopPropagation();
-            openTips(btn.dataset.card);
+            openTips(/** @type {HTMLElement} */ (btn).dataset.card);
         });
     });
 }

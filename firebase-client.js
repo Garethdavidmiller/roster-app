@@ -381,7 +381,7 @@ export async function deletePushSubscription(endpoint) {
  * Load a staff member's contact record from Firestore.
  * Returns the data object or null if no record exists yet.
  * @param {string} memberName
- * @returns {Promise<{memberName: string, workEmail: string}|null>}
+ * @returns {Promise<{memberName: string, workEmail: string, updatedAt?: import('firebase/firestore').Timestamp}|null>}
  */
 export async function getStaffContact(memberName) {
     const snap = await getDoc(doc(db, COLLECTIONS.staffContact, memberName));

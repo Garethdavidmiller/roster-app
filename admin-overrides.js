@@ -153,7 +153,7 @@ export function updateWeekNavLabel(dateStr) {
  * @param {string}      dateStr  YYYY-MM-DD
  */
 export function buildWeekGridInto(container, dateStr) {
-    const fieldMember = document.getElementById('fieldMember');
+    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const memberName  = fieldMember?.value;
     const member      = teamMembers.find(m => m.name === memberName);
     if (!member || !memberName || !dateStr) return;
@@ -220,22 +220,22 @@ export function buildWeekGridInto(container, dateStr) {
 
         // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid)
         if (isSunday(dateISO)) {
-            const alPill = row.querySelector('.pill-annual_leave');
+            const alPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-annual_leave'));
             if (alPill) {
                 alPill.disabled = true;
                 alPill.title    = 'Annual leave cannot be recorded on a Sunday — Sundays are not contracted days';
             }
-            const sickPill = row.querySelector('.pill-sick');
+            const sickPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-sick'));
             if (sickPill) {
                 sickPill.disabled = true;
                 sickPill.title    = 'Absence cannot be recorded on a Sunday — Sundays are not contracted days';
             }
         }
 
-        const checkbox = row.querySelector('.day-cb');
+        const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
         const pills    = row.querySelectorAll('.type-pill-btn');
-        const startEl  = row.querySelector('.day-start');
-        const endEl    = row.querySelector('.day-end');
+        const startEl  = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+        const endEl    = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
 
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
         if (existing) {
@@ -251,7 +251,8 @@ export function buildWeekGridInto(container, dateStr) {
             }
         }
 
-        pills.forEach(pill => {
+        pills.forEach(pillEl => {
+            const pill = /** @type {HTMLButtonElement} */ (pillEl);
             pill.addEventListener('click', () => {
                 const type    = pill.dataset.type;
                 const already = pill.classList.contains('active');
@@ -275,7 +276,7 @@ export function buildWeekGridInto(container, dateStr) {
                     if (!TYPES[type]?.fixed) startEl.focus();
                 }
                 // Show RD hint when Shift is chosen on a base-rest day
-                const rdHint = row.querySelector('.col-rd-hint');
+                const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
                 if (rdHint) rdHint.hidden = !(type === 'shift' && row.dataset.baseIsRd === '1' && !already);
                 _markChanged();
                 updateSaveBtn();
@@ -311,11 +312,11 @@ export function buildWeekGridInto(container, dateStr) {
  * Resets unsaved-changes state, shows the bulk bar, and refreshes the Save button.
  */
 export function renderWeekGrid() {
-    const fieldMember = document.getElementById('fieldMember');
-    const fieldDate   = document.getElementById('fieldDate');
+    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+    const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const weekGrid    = document.getElementById('weekGrid');
     const bulkBar     = document.getElementById('bulkBar');
-    const saveBtn     = document.getElementById('saveBtn');
+    const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
     const dateStr     = fieldDate?.value;
 
@@ -384,9 +385,9 @@ function _deactivateRow(row, checkbox, pills, startEl, endEl) {
 
 export function updateSaveBtn() {
     const weekGrid = document.getElementById('weekGrid');
-    const saveBtn  = document.getElementById('saveBtn');
+    const saveBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     if (!weekGrid || !saveBtn) return;
-    const rows       = [...weekGrid.querySelectorAll('.day-row')];
+    const rows       = /** @type {HTMLElement[]} */ ([...weekGrid.querySelectorAll('.day-row')]);
     const saveCount  = rows.filter(r => r.dataset.type && !r.classList.contains('prefilled-existing')).length;
     const delCount   = rows.filter(r => !r.dataset.type && r.dataset.existingId).length;
     const total = saveCount + delCount;
@@ -433,9 +434,9 @@ export function resetBulkPills() {
     _bulkActiveType = '';
     const bulkTypePills = document.getElementById('bulkTypePills');
     const bulkTimeGroup = document.getElementById('bulkTimeGroup');
-    const bulkStart     = document.getElementById('bulkStart');
-    const bulkEnd       = document.getElementById('bulkEnd');
-    const bulkApplyBtn  = document.getElementById('bulkApplyBtn');
+    const bulkStart     = /** @type {HTMLInputElement|null} */ (document.getElementById('bulkStart'));
+    const bulkEnd       = /** @type {HTMLInputElement|null} */ (document.getElementById('bulkEnd'));
+    const bulkApplyBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
     if (bulkTypePills) bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
     if (bulkTimeGroup) bulkTimeGroup.style.display = 'none';
     if (bulkStart) bulkStart.value = '';
@@ -446,13 +447,14 @@ export function resetBulkPills() {
 function _initBulkBar() {
     const bulkTypePills = document.getElementById('bulkTypePills');
     const bulkTimeGroup = document.getElementById('bulkTimeGroup');
-    const bulkStart     = document.getElementById('bulkStart');
-    const bulkEnd       = document.getElementById('bulkEnd');
-    const bulkApplyBtn  = document.getElementById('bulkApplyBtn');
+    const bulkStart     = /** @type {HTMLInputElement|null} */ (document.getElementById('bulkStart'));
+    const bulkEnd       = /** @type {HTMLInputElement|null} */ (document.getElementById('bulkEnd'));
+    const bulkApplyBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkApplyBtn'));
     const weekGrid      = document.getElementById('weekGrid');
 
     if (bulkTypePills) {
-        bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pill => {
+        bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pillEl => {
+            const pill = /** @type {HTMLButtonElement} */ (pillEl);
             pill.addEventListener('click', () => {
                 const type    = pill.dataset.type;
                 const already = pill.classList.contains('active');
@@ -470,9 +472,10 @@ function _initBulkBar() {
     }
 
     document.getElementById('bulkSelMonFri')?.addEventListener('click', () => {
-        weekGrid?.querySelectorAll('.day-row').forEach(row => {
+        weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
+            const row      = /** @type {HTMLElement} */ (rowEl);
             const dayIdx   = new Date(row.dataset.date + 'T12:00:00').getDay();
-            const checkbox = row.querySelector('.day-cb');
+            const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             if (dayIdx >= 1 && dayIdx <= 5) {
                 checkbox.checked = true;
@@ -485,7 +488,8 @@ function _initBulkBar() {
                     row.classList.remove('selected');
                 } else {
                     _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                        row.querySelector('.day-start'), row.querySelector('.day-end'));
+                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
+                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
                 }
             }
         });
@@ -493,12 +497,13 @@ function _initBulkBar() {
     });
 
     document.getElementById('bulkSelWorking')?.addEventListener('click', () => {
-        const memberName = document.getElementById('fieldMember')?.value;
+        const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
-        weekGrid?.querySelectorAll('.day-row').forEach(row => {
+        weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
+            const row      = /** @type {HTMLElement} */ (rowEl);
             const dateISO  = row.dataset.date;
             const date     = new Date(dateISO + 'T12:00:00');
-            const checkbox = row.querySelector('.day-cb');
+            const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             const base = member ? getBaseShift(member, date) : 'RD';
             // Also respect recorded RD corrections so corrected days aren't re-selected
@@ -513,7 +518,8 @@ function _initBulkBar() {
                     row.classList.remove('selected');
                 } else {
                     _deactivateRow(row, checkbox, row.querySelectorAll('.type-pill-btn'),
-                        row.querySelector('.day-start'), row.querySelector('.day-end'));
+                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start')),
+                        /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end')));
                 }
             }
         });
@@ -521,8 +527,9 @@ function _initBulkBar() {
     });
 
     document.getElementById('bulkSelAll')?.addEventListener('click', () => {
-        weekGrid?.querySelectorAll('.day-row').forEach(row => {
-            const checkbox = row.querySelector('.day-cb');
+        weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
+            const row      = /** @type {HTMLElement} */ (rowEl);
+            const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             checkbox.checked = true;
             if (!row.dataset.type) row.classList.add('selected');
@@ -533,18 +540,19 @@ function _initBulkBar() {
     bulkApplyBtn?.addEventListener('click', () => {
         if (!_bulkActiveType) { _showError('Choose a type in step 2 first, then tap Apply.'); return; }
         const typeMeta = TYPES[_bulkActiveType];
-        weekGrid?.querySelectorAll('.day-row').forEach(row => {
-            const checkbox = row.querySelector('.day-cb');
+        weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
+            const row      = /** @type {HTMLElement} */ (rowEl);
+            const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
             if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick') && isSunday(row.dataset.date)) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
             const pills   = row.querySelectorAll('.type-pill-btn');
-            const startEl = row.querySelector('.day-start');
-            const endEl   = row.querySelector('.day-end');
+            const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+            const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
             _activateRow(row, checkbox, pills, startEl, endEl, _bulkActiveType);
             row.classList.remove('prefilled-existing'); // mark as user-edited, not pre-filled
             if (typeMeta && !typeMeta.fixed) {
-                if (bulkStart?.value) startEl.value = bulkStart.value;
-                if (bulkEnd?.value)   endEl.value   = bulkEnd.value;
+                if (bulkStart?.value && startEl) startEl.value = bulkStart.value;
+                if (bulkEnd?.value && endEl)     endEl.value   = bulkEnd.value;
             }
         });
         _markChanged();
@@ -561,10 +569,10 @@ function _initBulkBar() {
  * @param {string[]} toDelete  Firestore document IDs to delete
  */
 export async function executeSave(toSave, toDelete = []) {
-    const fieldMember = document.getElementById('fieldMember');
-    const fieldDate   = document.getElementById('fieldDate');
+    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+    const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     const weekGrid    = document.getElementById('weekGrid');
-    const saveBtn     = document.getElementById('saveBtn');
+    const saveBtn     = /** @type {HTMLButtonElement|null} */ (document.getElementById('saveBtn'));
     const memberName  = fieldMember?.value;
     const overwrites  = toSave.filter(e => e.existingId).length;
     const creates     = toSave.length - overwrites;
@@ -601,11 +609,12 @@ export async function executeSave(toSave, toDelete = []) {
         _showSuccess(`${parts.join(', ')} for ${memberName}`);
 
         // Reset checked rows in the grid
-        weekGrid?.querySelectorAll('.day-row').forEach(row => {
-            const checkbox = row.querySelector('.day-cb');
+        weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
+            const row      = /** @type {HTMLElement} */ (rowEl);
+            const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             const pills    = row.querySelectorAll('.type-pill-btn');
-            const s        = row.querySelector('.day-start');
-            const e        = row.querySelector('.day-end');
+            const s        = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
+            const e        = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
             if (checkbox) _deactivateRow(row, checkbox, pills, s, e);
         });
 
@@ -643,8 +652,8 @@ export async function loadOverrides() {
         _allOverrides = [];
         snap.forEach(s => _allOverrides.push({ id: s.id, ...s.data() }));
         renderTable();
-        const fieldMember = document.getElementById('fieldMember');
-        const fieldDate   = document.getElementById('fieldDate');
+        const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+        const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
         if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
         _onAfterSave();
     } catch (err) {
@@ -663,11 +672,11 @@ export async function loadOverrides() {
  * When _tableShowAllOverrides is true, shows all members (admin toggle).
  */
 export function renderTable() {
-    const fieldMember        = document.getElementById('fieldMember');
+    const fieldMember        = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
     const tableBody          = document.getElementById('overrideTableBody');
     const listCount          = document.getElementById('listCount');
-    const overridesMonthFilter = document.getElementById('overridesMonthFilter');
-    const selectAllOverrides = document.getElementById('selectAllOverrides');
+    const overridesMonthFilter = /** @type {HTMLSelectElement|null} */ (document.getElementById('overridesMonthFilter'));
+    const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
     const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
     const selectedMember     = fieldMember?.value;
     const memberFilter       = _tableShowAllOverrides ? '' : (selectedMember || '');
@@ -747,7 +756,7 @@ export function renderTable() {
 function _updateBulkDeleteVisibility() {
     const tableBody          = document.getElementById('overrideTableBody');
     const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
-    const selectAllOverrides = document.getElementById('selectAllOverrides');
+    const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
     const checkedCount = tableBody?.querySelectorAll('.row-select:checked').length ?? 0;
     if (bulkDeleteBtn) bulkDeleteBtn.style.display = checkedCount > 0 ? 'inline-block' : 'none';
     if (selectAllOverrides) {
@@ -770,11 +779,11 @@ function _armConfirmButton(btn, confirmLabel, resetLabel) {
 
 async function _handleDelete(e) {
     // closest() makes this work both directly and via delegation.
-    const btn     = e.target.closest('.btn-delete');
+    const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
     if (!btn) return;
     const listFeedback = document.getElementById('listFeedback');
-    const fieldMember  = document.getElementById('fieldMember');
-    const fieldDate    = document.getElementById('fieldDate');
+    const fieldMember  = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+    const fieldDate    = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     if (!btn.classList.contains('confirming')) {
         _armConfirmButton(btn, '⚠ Delete?', 'Delete');
         return;
@@ -809,39 +818,40 @@ async function _handleDelete(e) {
 }
 
 function _initOverridesTable() {
-    const selectAllOverrides = document.getElementById('selectAllOverrides');
-    const bulkDeleteBtn      = document.getElementById('bulkDeleteBtn');
+    const selectAllOverrides = /** @type {HTMLInputElement|null} */ (document.getElementById('selectAllOverrides'));
+    const bulkDeleteBtn      = /** @type {HTMLButtonElement|null} */ (document.getElementById('bulkDeleteBtn'));
     const overridesMonthFilter = document.getElementById('overridesMonthFilter');
     const listFeedback       = document.getElementById('listFeedback');
-    const fieldMember        = document.getElementById('fieldMember');
-    const fieldDate          = document.getElementById('fieldDate');
+    const fieldMember        = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+    const fieldDate          = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
 
     // Delegated listeners — one per event type on the whole table body, replaces
     // attaching N per-row listeners on every renderTable() call.
     const tableBody = document.getElementById('overrideTableBody');
     if (tableBody) {
         tableBody.addEventListener('click', (e) => {
-            if (e.target.closest('.btn-delete')) return _handleDelete(e);
-            if (e.target.closest('.btn-edit'))   return _onEditRow(e);
+            const target = /** @type {Element} */ (e.target);
+            if (target.closest('.btn-delete')) return _handleDelete(e);
+            if (target.closest('.btn-edit'))   return _onEditRow(e);
         });
         tableBody.addEventListener('change', (e) => {
-            if (e.target.closest('.row-select')) _updateBulkDeleteVisibility();
+            if (/** @type {Element} */ (e.target).closest('.row-select')) _updateBulkDeleteVisibility();
         });
     }
 
     if (selectAllOverrides) {
         selectAllOverrides.addEventListener('change', () => {
             document.getElementById('overrideTableBody')?.querySelectorAll('.row-select')
-                .forEach(cb => { cb.checked = selectAllOverrides.checked; });
+                .forEach(cb => { /** @type {HTMLInputElement} */ (cb).checked = selectAllOverrides.checked; });
             _updateBulkDeleteVisibility();
         });
     }
 
     if (bulkDeleteBtn) {
         bulkDeleteBtn.addEventListener('click', async () => {
-            const checkedRows = [...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])];
+            const checkedRows = /** @type {HTMLElement[]} */ ([...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])]);
             if (!checkedRows.length) return;
-            const ids = checkedRows.map(cb => cb.dataset.id);
+            const ids = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id);
 
             // Two-tap confirmation — matches single-delete pattern
             if (!bulkDeleteBtn.classList.contains('confirming')) {
@@ -893,8 +903,8 @@ function _initOverridesTable() {
 function _initTimeInputs() {
     // Typing 4 digits auto-inserts the colon: "0730" → "07:30"
     document.addEventListener('input', e => {
-        if (_formattingTime || !e.target.classList.contains('time-input')) return;
-        const timeInput = e.target;
+        if (_formattingTime || !/** @type {Element} */ (e.target).classList.contains('time-input')) return;
+        const timeInput = /** @type {HTMLInputElement} */ (e.target);
         timeInput.classList.remove('input-error');
         timeInput.removeAttribute('aria-invalid');
         let raw = timeInput.value.replace(/[^0-9]/g, '').slice(0, 4);
@@ -904,23 +914,24 @@ function _initTimeInputs() {
         _formattingTime = false;
         if (raw.length === 4) {
             if (timeInput.classList.contains('day-start')) {
-                timeInput.closest('.day-row')?.querySelector('.day-end')?.focus();
+                /** @type {HTMLElement|null} */ (timeInput.closest('.day-row')?.querySelector('.day-end'))?.focus();
             } else if (timeInput.id === 'bulkStart') {
-                document.getElementById('bulkEnd')?.focus();
+                /** @type {HTMLElement|null} */ (document.getElementById('bulkEnd'))?.focus();
             }
         }
     });
 
     document.addEventListener('focusout', e => {
-        if (!e.target.classList.contains('time-input')) return;
-        const val = e.target.value.trim();
-        if (!val) { e.target.classList.remove('input-error'); e.target.removeAttribute('aria-invalid'); return; }
+        if (!/** @type {Element} */ (e.target).classList.contains('time-input')) return;
+        const timeInput = /** @type {HTMLInputElement} */ (e.target);
+        const val = timeInput.value.trim();
+        if (!val) { timeInput.classList.remove('input-error'); timeInput.removeAttribute('aria-invalid'); return; }
         const invalid = !/^([01]\d|2[0-3]):[0-5]\d$/.test(val);
-        e.target.classList.toggle('input-error', invalid);
+        timeInput.classList.toggle('input-error', invalid);
         // Expose the failure to assistive tech, not just via the CSS class. The input
         // already points at its error span through aria-describedby.
-        if (invalid) e.target.setAttribute('aria-invalid', 'true');
-        else e.target.removeAttribute('aria-invalid');
+        if (invalid) timeInput.setAttribute('aria-invalid', 'true');
+        else timeInput.removeAttribute('aria-invalid');
     });
 }
 
@@ -1110,8 +1121,8 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
     _allOverrides.push(...newDocs);
     _allOverrides.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     renderTable();
-    const fieldMember = document.getElementById('fieldMember');
-    const fieldDate   = document.getElementById('fieldDate');
+    const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
+    const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
     if (fieldMember?.value && fieldDate?.value) renderWeekGrid();
 
     return { workingCount: workingDates.length, sundayCount: sundayCorrections.length };

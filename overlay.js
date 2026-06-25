@@ -51,7 +51,7 @@ export function _pushOverlayState(closeHandler) {
  * @param {Element}  el                  - The .lb-overlay element
  * @param {object}   [opts]
  * @param {EventListener} [opts.onKey]   - document keydown listener to remove
- * @param {Element}  [opts.focusReturn]  - element to focus synchronously on close
+ * @param {HTMLElement}  [opts.focusReturn]  - element to focus synchronously on close
  * @param {Function} [opts.afterClose]   - called once .visible is removed and scroll unlocked
  */
 export function dismissOverlay(el, { onKey, focusReturn, afterClose } = {}) {
@@ -93,7 +93,7 @@ window.addEventListener('popstate', () => {
  */
 export function trapFocus(container, e) {
     if (e.key !== 'Tab' || !container) return;
-    const els = [...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.getAttribute('aria-disabled') !== 'true');
+    const els = /** @type {HTMLElement[]} */ ([...container.querySelectorAll('button,a[href],input,select,textarea,[contenteditable],[tabindex]:not([tabindex="-1"])')]).filter(el => !/** @type {any} */ (el).disabled && el.getAttribute('aria-disabled') !== 'true');
     if (!els.length) { e.preventDefault(); return; }
     const first = els[0], last = els[els.length - 1];
     if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }

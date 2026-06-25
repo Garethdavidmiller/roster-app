@@ -7,7 +7,7 @@ document.getElementById('savePdfBtn').addEventListener('click', function () {
 
 // Chip-bar navigation: click a chip → smooth-scroll to the target section
 document.querySelector('.chip-bar').addEventListener('click', function (e) {
-    var chip = e.target.closest('.chip');
+    var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
     if (!chip) return;
     var target = document.getElementById(chip.dataset.target);
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -20,13 +20,13 @@ document.querySelector('.chip-bar').addEventListener('click', function (e) {
 // measuring at rAF can give the wrong height if Inter hasn't applied yet and
 // the subtitle wraps at a different line height under the fallback font.
 function adjustScrollOffsets() {
-    var hdr = document.querySelector('.page-header');
-    var bar = document.querySelector('.chip-bar');
+    var hdr = /** @type {HTMLElement} */ (document.querySelector('.page-header'));
+    var bar = /** @type {HTMLElement} */ (document.querySelector('.chip-bar'));
     var hdrH = hdr.offsetHeight;
     bar.style.top = hdrH + 'px';
     var stickyH = hdrH + bar.offsetHeight + 8;
     document.querySelectorAll('.rc, .section').forEach(function (el) {
-        el.style.scrollMarginTop = stickyH + 'px';
+        /** @type {HTMLElement} */ (el).style.scrollMarginTop = stickyH + 'px';
     });
 }
 if (document.fonts && document.fonts.ready) {

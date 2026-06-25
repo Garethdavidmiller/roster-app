@@ -64,8 +64,8 @@ function renderRosterDayList(days) {
 
 /** Fills a single H/M field pair if currently blank (or previously roster-filled). */
 function _suggestIfBlank(hId, mId, hVal, mVal) {
-  const elH = document.getElementById(hId);
-  const elM = document.getElementById(mId);
+  const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
+  const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   if (!elH || !elM) return;
   if (hVal == null && mVal == null) return;
   // Treat H and M independently — a manually-edited field is skipped individually
@@ -117,8 +117,8 @@ export function _restoreRosterSuggested(pNum) {
     ['boxH',  'boxM',  snap.boxH,  snap.boxM ],
   ];
   for (const [hId, mId, hVal, mVal] of pairs) {
-    const elH = document.getElementById(hId);
-    const elM = document.getElementById(mId);
+    const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
+    const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
     if (!elH || !elM) continue;
     if (elH.value === String(hVal || '')) elH.classList.add('roster-suggested');
     if (elM.value === String(mVal || '')) elM.classList.add('roster-suggested');
@@ -168,8 +168,8 @@ export function updateRosterHint() {
       const suggestMins = r.h * 60 + r.m;
       const dayStr = r.count === 1 ? '1 day' : `${r.count} days`;
 
-      const elH = document.getElementById(r.cat + 'H');
-      const elM = document.getElementById(r.cat + 'M');
+      const elH = /** @type {HTMLInputElement} */ (document.getElementById(r.cat + 'H'));
+      const elM = /** @type {HTMLInputElement} */ (document.getElementById(r.cat + 'M'));
       const hv = elH?.value.trim() ?? '';
       const mv = elM?.value.trim() ?? '';
       const enteredMins = (hv === '' && mv === '') ? null
@@ -225,8 +225,8 @@ export function updateRosterHint() {
   const fillBtn = document.getElementById('fillFromRosterBtn');
   if (fillBtn) {
     const hasEntries = ['sat', 'sun', 'bh', 'bhOt', 'ot', 'rdw', 'box'].some(cat => {
-      const h = document.getElementById(cat + 'H')?.value.trim() ?? '';
-      const m = document.getElementById(cat + 'M')?.value.trim() ?? '';
+      const h = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'H'))?.value.trim() ?? '';
+      const m = /** @type {HTMLInputElement} */ (document.getElementById(cat + 'M'))?.value.trim() ?? '';
       return h !== '' || m !== '';
     });
     fillBtn.textContent = hasEntries ? 'Replace with calendar values' : 'Fill from calendar';
@@ -294,8 +294,8 @@ export function _applyRosterSuggestion(s, force = false) {
   ];
   for (const [hId, mId, hVal, mVal] of pairs) {
     if (force) {
-      const elH = document.getElementById(hId);
-      const elM = document.getElementById(mId);
+      const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
+      const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
       if (!elH || !elM) continue;
       if (hVal == null && mVal == null) continue;
       elH.value = hVal ?? '';
@@ -332,8 +332,8 @@ export function fillCategoryFromRoster(cat, autosave) {
   const args = map[cat];
   if (!args) return;
   const [hId, mId, hVal, mVal] = args;
-  const elH = document.getElementById(hId);
-  const elM = document.getElementById(mId);
+  const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
+  const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   if (elH && elM && hVal != null) {
     elH.value = hVal ?? '';
     elM.value = mVal ?? '';

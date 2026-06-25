@@ -73,7 +73,7 @@ export function initPaycalcLightboxes() {
     document.querySelectorAll('.help-btn').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
-        openHelp(btn.dataset.help);
+        openHelp(/** @type {HTMLElement} */ (btn).dataset.help);
       });
     });
   })();
@@ -136,7 +136,7 @@ export function initPaycalcLightboxes() {
   (function () {
     const toggle = document.getElementById('decimalConverterToggle');
     const body   = document.getElementById('decimalConverterBody');
-    const input  = document.getElementById('decimalHrsInput');
+    const input  = /** @type {HTMLInputElement|null} */ (document.getElementById('decimalHrsInput'));
     const result = document.getElementById('decimalHrsResult');
     if (!toggle || !body || !input || !result) return;
 
