@@ -13,7 +13,10 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 |------|----------------|
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
-| Calendar UI, month view, swipe, shift display | `calendar-app.js` |
+| Calendar UI coordinator — month state, swipe, event wiring, AL lightbox, sync chip, initial fetch | `calendar-app.js` |
+| Calendar override cache — rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth | `calendar-overrides.js` |
+| Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
+| Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
 | Team Week View — grid, navigation, Firestore fetch, toggle | `app-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `app-override-utils.js` |
@@ -76,14 +79,44 @@ The single source of truth for all roster data.
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
 ### `calendar-app.js`
-Everything that touches `index.html` at runtime.
-- Calendar render, month carousel, swipe gestures
-- Override cache for the calendar view (`rosterOverridesCache`)
-- Team Week View toggle
-- Notification/push subscription wiring
-- Sync chip state machine
-- `navigateToPaycalc(paydayStr)` — shared helper for payday/cutoff cell clicks; checks session then navigates
+Coordinator for `index.html`. Owns display state and event wiring; delegates rendering, override cache, and member selection to sub-modules.
+- Month carousel state (`currentDisplayMonth/Year`), `changeMonth()`, Prev/Next/Today/Jump event wiring
+- `navigateToPaycalc(paydayStr)` — payday/cutoff cell click helper; checks session then navigates
+- `renderCalendar()` — calls `buildCalendarContainer` + `ensureOverridesCached`; shows stale-member banner via `takeStaleMemberName()`
+- `updateLegend()` — shows/hides Spare/RDW/AL/Sick/Night/Christmas/Easter legend items
+- AL lightbox (loadALStats), day-detail lightbox, month-jump picker, About lightbox wiring
+- Sync chip state machine (hidden → `↻ Updating…` → silent remove on success / `⚠ Couldn't update` on timeout)
+- Initial 3-month Firestore fetch IIFE — calls `setInitialFetchInProgress`, `addFetchedMonths`, `fetchOverridesForRange`
+- Swipe gesture (Pointer Events API) — pre-builds adjacent panels in `pointerdown`; calls `buildCalendarContainer` with `navigateToPaycalc`/`onDayDetail` opts
+- Team Week View toggle, notification prompt, keyboard shortcuts, SW registration
 - Calls `initHuddleViewer()` from `app-huddle-viewer.js`
+
+### `calendar-overrides.js`
+Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
+- `rosterOverridesCache` — exported `Map` keyed `"memberName|YYYY-MM-DD"`; imported by `calendar-renderer.js` for cell rendering and by the coordinator
+- `fetchOverridesForRange(startStr, endStr)` — Firestore date-range query; populates cache, warns on duplicates, clears `shiftTypesMonthCache`
+- `ensureOverridesCached(year, month, renderFn)` — no-op if already fetched; fires background fetch then calls `renderFn()` on success (coordinator provides callback with teamView + member-change guards)
+- `getShiftTypesInMonth(member, year, month)` — memoised `Set<string>` of shift types appearing in a month; used by `updateLegend()`
+- `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
+- `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
+- `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by the coordinator's initial IIFE
+
+### `calendar-member.js`
+Team member selection for `index.html` — extracted from `calendar-app.js` at v13.82.
+- `getSelectedMemberIndex()` — resolves saved name → index; sets `_staleMemberName` flag if name no longer in roster; auto-selects from session if no saved preference
+- `takeStaleMemberName()` — consume-and-clear accessor for the stale-name flag; called by `renderCalendar()` to show a one-time banner
+- `getCurrentMember()` — returns the resolved `teamMembers` entry for the selected index
+- `saveSelectedMember(index)` — persists selection by name to localStorage via `lsSet`
+- `getDefaultMemberIndex()` — resolves `CONFIG.DEFAULT_MEMBER_NAME` to an index at runtime
+- `populateTeamMemberDropdown()` — builds flat or optgroup `<select>` depending on number of distinct roles
+- `validateTeamMembers()` — checks team member object shape; returns error string array
+
+### `calendar-renderer.js`
+Calendar cell and grid building for `index.html` — extracted from `calendar-app.js` at v13.82.
+- `buildCalendarContainer(month, year, opts)` — builds and returns a fully-populated `calendar-container` div. `opts = { navigateToPaycalc?, onDayDetail? }` callbacks avoid importing the coordinator. Reads `rosterOverridesCache` from `calendar-overrides.js` and calls `getCurrentMember()` from `calendar-member.js`.
+- `createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year)` — pure; returns HTML string for the month/week header
+- `createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime)` — pure; returns HTML string for a single day cell's interior
+- `getSwipeDirection(startX, startY, endX, endY, elapsed)` — pure math; returns `'left'`, `'right'`, or `null`
 
 ### `app-huddle-viewer.js`
 Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Only export is `initHuddleViewer()` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).

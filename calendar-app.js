@@ -2,19 +2,19 @@
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
- * Owns: month carousel, swipe gestures, shift cell render, override cache for
- *   the calendar view, Team Week View, notification wiring, sync chip.
- * Does NOT own: roster data (roster-data.js), Firebase init (firebase-client.js).
- * Edit here for: calendar display, swipe behaviour, override cache.
+ * Owns: month carousel, swipe gestures, Team Week View, notification wiring,
+ *   sync chip, AL lightbox, day-detail lightbox, month-jump picker.
+ * Does NOT own: rendering (calendar-renderer.js), override cache (calendar-overrides.js),
+ *   member selection (calendar-member.js), roster data (roster-data.js).
+ * Edit here for: calendar state, event wiring, initial data fetch.
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, getALEntitlement, isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday, getPaydaysAndCutoffs, isPayday, isCutoffDate, getShiftKind, getShiftClass, getShiftBadge, getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, getALEntitlement, computeEaster, getPaydaysAndCutoffs, formatISO, isSunday, SWIPE_THRESHOLD } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS, auth, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
-import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
@@ -22,6 +22,9 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initHuddleViewer } from './app-huddle-viewer.js';
+import { rosterOverridesCache, _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, monthKey, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth } from './calendar-overrides.js';
+import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
+import { buildCalendarContainer, getSwipeDirection } from './calendar-renderer.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -36,27 +39,6 @@ import { initHuddleViewer } from './app-huddle-viewer.js';
 // CONFIG.APP_VERSION is set in roster-data.js from the exported APP_VERSION constant.
 // No manual version override needed here.
 
-// ============================================
-// FIREBASE — db imported from firebase-client.js
-// Caches declared here so renderCalendar() always finds a Map — even on
-// the first synchronous render before Firestore responds.
-// ============================================
-
-// Cache keyed "memberName|YYYY-MM-DD".
-const rosterOverridesCache  = new Map();
-const fetchedMonths         = new Set();
-// Cache for getShiftTypesInMonth(). Key: "memberName|year|month".
-// Cleared whenever fetchOverridesForRange() writes new data into rosterOverridesCache.
-const shiftTypesMonthCache  = new Map();
-
-// Set when localStorage held a member name that's no longer in the roster.
-// renderCalendar() shows a brief info banner once then clears this flag.
-let _staleMemberName = null;
-
-// Guards against ensureOverridesCached() triggering a competing fetch while
-// the initial 3-month load is already in flight. Set true before the IIFE
-// await, cleared in its finally block.
-let _initialFetchInProgress = false;
 
 // Assigned by the About-lightbox IIFE; lets the nav-panel drawer logo open the
 // same About panel that the header logo opens on the calendar page.
@@ -66,64 +48,6 @@ let openAboutLightbox = null;
 // surface the same shift label / extras / override note that desktop users get
 // from the hover tooltip. Touch had no way to read data-tooltip before this.
 let openDayDetail = null;
-
-// ============================================
-// BANK HOLIDAYS / PAYDAY / DATE UTILITIES
-// ============================================
-// isSameDay, computeEaster, isBankHoliday, isChristmasDay, isEasterSunday,
-// getPaydaysAndCutoffs, isPayday, isCutoffDate — all imported from roster-data.js.
-
-const fullDayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
-// Accessible-label text for each shift kind returned by getShiftKind().
-const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Night shift' };
-
-// ============================================
-// DATA VALIDATION
-// ============================================
-
-// validateRosterPatterns() already runs automatically when roster-data.js loads.
-// We only keep validateTeamMembers() here — it checks team member object shape,
-// which has no equivalent in the shared module.
-
-// Validate team members data
-function validateTeamMembers() {
-    const errors = [];
-    
-    if (!teamMembers || teamMembers.length === 0) {
-        errors.push('No team members defined');
-        return errors;
-    }
-    
-    teamMembers.forEach((member, index) => {
-        if (!member.name) {
-            errors.push(`Team member at index ${index} has no name`);
-        }
-        if (!member.currentWeek || member.currentWeek < 1) {
-            errors.push(`${member.name || `Index ${index}`}: Invalid currentWeek`);
-        }
-        if (!member.role) {
-            errors.push(`${member.name || `Index ${index}`}: Missing role field (expected "CEA", "CES" etc.)`);
-        }
-        if (member.rosterType !== 'main' && member.rosterType !== 'bilingual' && member.rosterType !== 'fixed' && member.rosterType !== 'ces' && member.rosterType !== 'dispatcher') {
-            errors.push(`${member.name || `Index ${index}`}: Unknown rosterType "${member.rosterType}" (expected "main", "bilingual", "fixed", "ces" or "dispatcher")`);
-        }
-        if (member.rosterType === 'bilingual' && member.currentWeek > CONFIG.BILINGUAL_ROSTER_WEEKS) {
-            errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds bilingual roster weeks (${CONFIG.BILINGUAL_ROSTER_WEEKS})`);
-        }
-        if (member.rosterType === 'main' && member.currentWeek > CONFIG.MAIN_ROSTER_WEEKS) {
-            errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds main roster weeks (${CONFIG.MAIN_ROSTER_WEEKS})`);
-        }
-        if (member.rosterType === 'ces' && member.currentWeek > CONFIG.CES_ROSTER_WEEKS) {
-            errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds CES roster weeks (${CONFIG.CES_ROSTER_WEEKS})`);
-        }
-        if (member.rosterType === 'dispatcher' && member.currentWeek > CONFIG.DISPATCHER_ROSTER_WEEKS) {
-            errors.push(`${member.name}: currentWeek ${member.currentWeek} exceeds dispatcher roster weeks (${CONFIG.DISPATCHER_ROSTER_WEEKS})`);
-        }
-    });
-    
-    return errors;
-}
 
 // ============================================
 // CALENDAR STATE
@@ -205,137 +129,6 @@ function dismissSwipeHint() {
     setTimeout(() => { hint.style.display = 'none'; hint.classList.remove('fade-out'); }, 400);
 }
 
-// Get selected team member index (default to G. Miller)
-// Resolve DEFAULT_MEMBER_NAME to an index at runtime — safe against array reordering.
-// Returns 0 as ultimate fallback if the name isn't found.
-function getDefaultMemberIndex() {
-    const idx = teamMembers.findIndex(m => m.name === CONFIG.DEFAULT_MEMBER_NAME && !m.hidden);
-    return idx !== -1 ? idx : 0;
-}
-
-// Selection is stored by name (not index) so it survives array reordering.
-function getSelectedMemberIndex() {
-    const savedName = lsGet('myb_roster_selected_member');
-    if (savedName) {
-        const idx = teamMembers.findIndex(m => m.name === savedName && !m.hidden);
-        if (idx !== -1) return idx;
-        // savedName stored but not found — stale entry from a removed member
-        _staleMemberName = savedName;
-        lsDel('myb_roster_selected_member');
-        return getDefaultMemberIndex();
-    }
-    // No saved selection (fresh device) — auto-select from the admin session if present
-    // so the logged-in staff member sees their own calendar without triggering a
-    // member-switch cache clear when they pick themselves from the dropdown.
-    const sess = getSession();
-    if (sess?.name) {
-        const idx = teamMembers.findIndex(m => m.name === sess.name && !m.hidden);
-        if (idx !== -1) {
-            saveSelectedMember(idx);
-            return idx;
-        }
-    }
-    return getDefaultMemberIndex();
-}
-
-// Save selected team member by name
-function saveSelectedMember(index) {
-    if (index >= 0 && index < teamMembers.length) {
-        lsSet('myb_roster_selected_member', teamMembers[index].name);
-    }
-}
-
-// Populate team member dropdown
-function populateTeamMemberDropdown() {
-    const select = document.getElementById('teamMemberSelect');
-    if (!select) return;
-    
-    // Clear any existing options
-    select.innerHTML = '';
-    
-    // Get selected member index using dedicated helper
-    const selectedIndex = getSelectedMemberIndex();
-    
-    // Build dropdown — flat list if only one role present, optgroup per role if multiple.
-    // This means no visual change today (all CEA), but CES entries appear in their own
-    // group automatically the moment the first CES member is added.
-    const visibleMembers = teamMembers
-        .map((member, index) => ({ member, index }))
-        .filter(({ member }) => !member.hidden);
-
-    const distinctRoles = [...new Set(visibleMembers.map(({ member }) => member.role || 'CEA'))];
-    const useGroups = distinctRoles.length > 1;
-
-    if (useGroups) {
-        distinctRoles.forEach(role => {
-            const group = document.createElement('optgroup');
-            group.label = role;
-            visibleMembers
-                .filter(({ member }) => (member.role || 'CEA') === role)
-                .forEach(({ member, index }) => {
-                    const option = document.createElement('option');
-                    option.value = index;
-                    option.textContent = member.name;
-                    if (index === selectedIndex) option.selected = true;
-                    group.appendChild(option);
-                });
-            select.appendChild(group);
-        });
-    } else {
-        // Single role — flat list, no group label shown
-        visibleMembers.forEach(({ member, index }) => {
-            const option = document.createElement('option');
-            option.value = index;
-            option.textContent = member.name;
-            if (index === selectedIndex) option.selected = true;
-            select.appendChild(option);
-        });
-    }
-}
-
-// getWeekNumberForDate, getShiftKind, getShiftClass, getShiftBadge — imported from roster-data.js
-
-// Helper: Get current selected member
-function getCurrentMember() {
-    const selectedIndex = getSelectedMemberIndex();
-    const member = teamMembers[selectedIndex];
-    
-    if (!member) {
-        console.error(`Invalid team member index: ${selectedIndex}`);
-        // Fallback to first team member
-        return teamMembers[0] || { name: 'Unknown', currentWeek: 1, rosterType: 'main', role: 'CEA' };
-    }
-    
-    return member;
-}
-
-// getRosterForMember — imported from roster-data.js
-
-// Helper: Create calendar header HTML (pure function — takes explicit month/year, no global state)
-function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year) {
-    // Fixed roster (empty weekPrefix) — no week number to display
-    let weekDisplay = '';
-    if (weekPrefix !== '') {
-        if (firstWeekNum === lastWeekNum) {
-            weekDisplay = `· ${weekPrefix} ${firstWeekNum}`;
-        } else {
-            // Build plural: append 's' to the last word of the prefix
-            // "CEA Week" → "CEA Weeks", "BL Week" → "BL Weeks", "CES Week" → "CES Weeks", "Week" → "Weeks"
-            const lastSpaceIdx = weekPrefix.lastIndexOf(' ');
-            const pluralPrefix = lastSpaceIdx !== -1
-                ? weekPrefix.slice(0, lastSpaceIdx + 1) + weekPrefix.slice(lastSpaceIdx + 1) + 's'
-                : weekPrefix + 's';
-            weekDisplay = `· ${pluralPrefix} ${firstWeekNum}-${lastWeekNum}`;
-        }
-    }
-    return `
-        <div class="month-year" role="button" tabindex="0" aria-label="Jump to month — currently ${MONTH_NAMES[month]} ${year}">${MONTH_NAMES[month]} ${year}</div>
-        <div class="week-info">
-            ${weekDisplay ? `<span class="week-info-text">${weekDisplay}</span>` : ''}
-        </div>
-    `;
-}
-
 
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
@@ -348,259 +141,6 @@ function navigateToPaycalc(paydayStr) {
     }
 }
 
-// Helper: Create day cell HTML (pure function)
-// isWorkedDay — pre-calculated by caller (shift !== RD/SPARE/OFF) to avoid duplication.
-// permanentShift ('early'|'late'|undefined) — overrides badge on worked days and suppresses time.
-// rdwTime — actual shift time for RDW overrides (e.g. '08:00-16:30'), since shift='RDW' sentinel.
-function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '') {
-    let badge;
-    // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
-    if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
-        badge = '<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>';
-    } else if (shift !== 'RDW' && isWorkedDay && permanentShift === 'early') {
-        badge = '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
-    } else {
-        badge = getShiftBadge(shift);
-    }
-    const displayTime = shift === 'RDW' ? rdwTime : shift;
-    // Insert a word-break opportunity after the hyphen so "06:20-14:20"
-    // breaks as "06:20-" / "14:20" on narrow mobile cells, not mid-digit.
-    const displayTimeHtml = displayTime ? displayTime.replace('-', '-<wbr>') : '';
-    return `
-        <div class="day-number">${date.getDate()}</div>
-        ${badge}
-        ${isWorkedDay && !permanentShift && displayTimeHtml ? `<div class="shift-time">${displayTimeHtml}</div>` : ''}
-    `;
-}
-
-// ============================================
-// SWIPE GESTURE DETECTION
-// ============================================
-
-// SWIPE_THRESHOLD and SWIPE_VELOCITY imported from roster-data.js — shared with admin-app.js
-
-// Calculate swipe direction based on touch coordinates, distance and velocity.
-// A gesture commits if it crosses SWIPE_THRESHOLD distance OR exceeds VELOCITY_THRESHOLD
-// speed — a fast confident flick registers even if the finger didn't travel far.
-function getSwipeDirection(startX, startY, endX, endY, elapsed) {
-    const deltaX = endX - startX;
-    const deltaY = endY - startY;
-
-    // Calculate angle — swipe must be mostly horizontal (< 30° from horizontal axis)
-    const angle = Math.abs(Math.atan2(deltaY, deltaX) * 180 / Math.PI);
-    const isHorizontal = angle < 30 || angle > 150;
-    if (!isHorizontal) return null;
-
-    const distance = Math.abs(deltaX);
-    const velocity = elapsed > 0 ? distance / elapsed : 0; // px/ms
-
-    // Commit if distance threshold met OR velocity threshold met (fast flick)
-    if (distance < SWIPE_THRESHOLD && velocity < SWIPE_VELOCITY) return null;
-
-    return deltaX > 0 ? 'right' : 'left';
-}
-
-// ============================================
-// CALENDAR RENDERING
-// ============================================
-
-// Builds and returns a fully populated calendar-container div.
-// Accepts explicit month/year so callers never need to mutate global display state.
-// Defaults to currentDisplayMonth/Year so existing callers (renderCalendar) are unchanged.
-function buildCalendarContainer(month = currentDisplayMonth, year = currentDisplayYear) {
-    const member = getCurrentMember();
-    const firstDay = new Date(year, month, 1);
-    const lastDay  = new Date(year, month + 1, 0);
-    // Resolve the roster descriptor for the displayed month so the week-prefix
-    // label (e.g. "CES Week") follows any scheduled rosterChanges transition.
-    const roster = getRosterForMember(member, firstDay);
-
-    const today = getToday();
-    const calendarContainer = document.createElement('div');
-    calendarContainer.className = 'calendar-container';
-
-    const firstWeekNum = getWeekNumberForDate(firstDay, member);
-    const lastWeekNum  = getWeekNumberForDate(lastDay,  member);
-
-    // Header
-    const header = document.createElement('div');
-    header.className = 'calendar-header';
-    header.innerHTML = createCalendarHeader(firstWeekNum, lastWeekNum, roster.weekPrefix, month, year);
-    calendarContainer.appendChild(header);
-
-    // Grid
-    const grid = document.createElement('div');
-    grid.className = 'calendar-grid';
-    // Single delegated click listener for payday/cutoff cells — replaces per-cell
-    // listener attachment (one per ~6 special cells per month was previously creating
-    // closures that were GC'd on next render).
-    grid.addEventListener('click', (e) => {
-        const cell = e.target.closest('.calendar-day');
-        if (!cell) return;
-        const paydayIso = cell.dataset.paydayIso;
-        if (paydayIso) { navigateToPaycalc(paydayIso); return; }
-        const cutoffIso = cell.dataset.cutoffIso;
-        if (cutoffIso) {
-            // Look up the payday paired with this cutoff rather than adding a fixed
-            // offset: paydays shift backwards over bank holidays, so the cutoff→payday
-            // gap is not constant. cutoffs[] and paydays[] are parallel arrays, and the
-            // cutoff cell only renders when isCutoffDate() is true for its own calendar
-            // year, so the cutoff is guaranteed to live in that year's result.
-            const cutoffYear = Number(cutoffIso.slice(0, 4));
-            const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
-            const idx = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
-            if (idx !== -1) navigateToPaycalc(formatISO(paydays[idx]));
-            return;
-        }
-        // Any other in-month cell: on touch devices (no hover tooltip) open the
-        // day-detail lightbox so staff can read the shift time and override note.
-        if (window.matchMedia('(pointer: coarse)').matches) openDayDetail?.(cell);
-    });
-
-    DAY_NAMES.forEach(day => {
-        const dayHeader = document.createElement('div');
-        dayHeader.className = 'day-header';
-        // No role: a lone columnheader needs an enclosing grid/table/row structure to
-        // be meaningful, which this CSS-grid-of-divs calendar doesn't provide. Each day
-        // cell already carries a full accessible name via aria-label, so the weekday
-        // strip is left as plain text rather than a structurally-orphaned columnheader.
-        dayHeader.textContent = day;
-        grid.appendChild(dayHeader);
-    });
-
-    const startDay = firstDay.getDay();
-    const prevMonthLastDay = new Date(year, month, 0);
-    for (let i = 0; i < startDay; i++) {
-        const adjacentMonthCell = document.createElement('div');
-        adjacentMonthCell.className = 'calendar-day other-month';
-        adjacentMonthCell.setAttribute('aria-hidden', 'true');
-        const dayNum = prevMonthLastDay.getDate() - startDay + i + 1;
-        adjacentMonthCell.innerHTML = `<div class="day-number">${dayNum}</div>`;
-        grid.appendChild(adjacentMonthCell);
-    }
-
-    const daysInMonth = lastDay.getDate();
-    for (let day = 1; day <= daysInMonth; day++) {
-        const currentDate = new Date(year, month, day);
-
-        // getBaseShift handles: Christmas RD, startDate suppression, roster lookup
-        let shift = getBaseShift(member, currentDate);
-
-        // Firestore override — applied after the Christmas check so the base rule holds
-        // for Dec 25, while Dec 26 (Boxing Day) can still become RDW for overtime.
-        // Cache key: "memberName|YYYY-MM-DD" — pipe avoids ambiguity with names containing
-        // spaces and dots. The cache is populated by the Firebase module script on load.
-        let overrideNote = '';
-        let rdwTime = '';
-        const dateStr = formatISO(currentDate);
-        {
-            const override = !isBeforeMemberStart(member, currentDate) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
-            if (override) {
-                // RDW overrides carry a real shift time as their value, but must
-                // render with the RDW colour scheme, not Early/Late/Night. Swap
-                // the value for the 'RDW' sentinel so getShiftClass/Badge pick up
-                // the correct pink styling. The actual time is preserved in rdwTime
-                // so it can still be shown below the badge.
-                if (override.type === 'rdw') {
-                    rdwTime = override.value;
-                    shift   = 'RDW';
-                    overrideNote = override.note;
-                } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr))) {
-                    // Sick override on a base rest day, or ANY Sunday — suppress it.
-                    // Absence only applies to contracted working days; Sundays are
-                    // non-contracted for all grades, so absence never shows on a Sunday
-                    // even when the rotating roster brings a worked Sunday into the
-                    // absence range (belt-and-braces for any legacy Sunday SICK data).
-                } else {
-                    shift = override.value;
-                    overrideNote = override.note;
-                }
-            }
-        }
-
-        const isWorkedDay = shift !== 'RD' && shift !== 'SPARE' && shift !== 'OFF' && shift !== 'AL' && shift !== 'SICK';
-        const shiftClass = shift === 'RDW'                                    ? getShiftClass(shift)
-                         : isWorkedDay && member.permanentShift === 'late'  ? 'late-shift'
-                         : isWorkedDay && member.permanentShift === 'early' ? 'early-shift'
-                         : getShiftClass(shift);
-        const dayCell = document.createElement('div');
-        dayCell.className = `calendar-day ${shiftClass}`;
-        dayCell.setAttribute('role', 'button');
-
-        const shiftLabel = shift === 'RD' || shift === 'OFF' ? 'Rest day'
-            : shift === 'SPARE' ? 'Spare day'
-            : shift === 'AL'    ? 'Annual leave'
-            : shift === 'SICK'  ? 'Absence'
-            : shift === 'RDW'   ? 'Rest day worked'
-            : SHIFT_KIND_LABELS[getShiftKind(shift, member)]
-                + (member.permanentShift ? '' : ` ${shift}`);
-
-        const isToday  = isSameDay(currentDate, today);
-        const isBH     = isBankHoliday(currentDate);
-        const isXmas   = isChristmasDay(currentDate);
-        const isEaster = isEasterSunday(currentDate);
-        const isPay    = isPayday(currentDate);
-        const isCutoff = isCutoffDate(currentDate);
-
-        const extras = [
-            isToday  ? 'Today' : '',
-            isBH     ? 'Bank holiday' : '',
-            isXmas   ? 'Christmas Day' : '',
-            isEaster ? 'Easter Sunday' : '',
-            isPay    ? 'Payday' : '',
-            isCutoff ? 'Cut-off date' : '',
-        ].filter(Boolean).join(', ');
-        dayCell.setAttribute('aria-label',
-            `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year} — ${shiftLabel}${extras ? ' — ' + extras : ''}`
-        );
-        dayCell.setAttribute('tabindex', '-1');
-        const ttShift = shiftLabel + (shift === 'RDW' && rdwTime ? ` ${rdwTime}` : '');
-        const ttParts = [ttShift];
-        if (extras) ttParts.push(extras);
-        if (overrideNote) ttParts.push(`"${overrideNote}"`);
-        dayCell.dataset.tooltip = ttParts.join(' · ');
-        // Structured pieces for the tap-to-view day-detail lightbox (touch devices).
-        dayCell.dataset.detailDay   = `${fullDayNames[currentDate.getDay()]} ${currentDate.getDate()} ${MONTH_NAMES[month]} ${year}`;
-        dayCell.dataset.detailShift = ttShift;
-        if (extras)       dayCell.dataset.detailExtras = extras;
-        if (overrideNote) dayCell.dataset.detailNote   = overrideNote;
-
-        if (isToday)  dayCell.classList.add('today');
-        if (isBH)     dayCell.classList.add('bank-holiday');
-        if (isXmas)   dayCell.classList.add('christmas-day');
-        if (isEaster) dayCell.classList.add('easter-day');
-        if (isPay) {
-            dayCell.classList.add('payday');
-            dayCell.dataset.paydayIso = dateStr;
-        }
-        if (isCutoff) {
-            dayCell.classList.add('cutoff');
-            dayCell.dataset.cutoffIso = dateStr;
-        }
-
-        dayCell.innerHTML = createDayCell(currentDate, shift, member.permanentShift, isWorkedDay, rdwTime);
-        grid.appendChild(dayCell);
-    }
-
-    const totalCells = startDay + daysInMonth;
-    const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-    for (let i = 1; i <= remainingCells; i++) {
-        const adjacentMonthCell = document.createElement('div');
-        adjacentMonthCell.className = 'calendar-day other-month';
-        adjacentMonthCell.setAttribute('aria-hidden', 'true');
-        adjacentMonthCell.innerHTML = `<div class="day-number">${i}</div>`;
-        grid.appendChild(adjacentMonthCell);
-    }
-
-    // Roving tabindex — today's cell is the keyboard entry point; others sit at -1
-    // so Tab reaches the calendar in one keystroke, then arrows move between days.
-    const rovingCells  = [...grid.querySelectorAll('.calendar-day:not(.other-month)')];
-    const rovingAnchor = rovingCells.find(c => c.classList.contains('today')) || rovingCells[0];
-    if (rovingAnchor) rovingAnchor.setAttribute('tabindex', '0');
-
-    calendarContainer.appendChild(grid);
-    return calendarContainer;
-}
 
 // ============================================
 // ANNUAL LEAVE LIGHTBOX
@@ -737,48 +277,6 @@ function buildCalendarContainer(month = currentDisplayMonth, year = currentDispl
     };
 })();
 
-/**
- * Returns a Set of shift-type strings that actually appear in the given month
- * for the given member, after applying roster pattern + Firestore overrides.
- * Used by updateLegend() to show/hide Spare, RDW, and AL legend items.
- *
- * Result is memoised in shiftTypesMonthCache keyed by "memberName|year|month".
- * The cache is cleared by fetchOverridesForRange() whenever fresh override data
- * arrives from Firestore, so stale results are never served.
- *
- * @param {Object} member - member object from teamMembers
- * @param {number} year
- * @param {number} month - 0-indexed JS month
- * @returns {Set<string>}
- */
-function getShiftTypesInMonth(member, year, month) {
-    const cacheKey = `${member.name}|${year}|${month}`;
-    if (shiftTypesMonthCache.has(cacheKey)) return shiftTypesMonthCache.get(cacheKey);
-
-    const types = new Set();
-    const days  = new Date(year, month + 1, 0).getDate(); // last day of month
-
-    for (let day = 1; day <= days; day++) {
-        const date    = new Date(year, month, day);
-        // getBaseShift applies the Christmas RD rule before the roster lookup
-        let shift = getBaseShift(member, date);
-
-        const dateStr = formatISO(date);
-        const ov = !isBeforeMemberStart(member, date) ? rosterOverridesCache.get(`${member.name}|${dateStr}`) : null;
-        if (ov && !(ov.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr)))) {
-            shift = ov.type === 'rdw' ? 'RDW' : ov.value;
-        }
-
-        if (shift === 'SPARE') types.add('SPARE');
-        else if (shift === 'RDW')  types.add('RDW');
-        else if (shift === 'AL')   types.add('AL');
-        else if (shift === 'SICK') types.add('SICK');
-    }
-
-    shiftTypesMonthCache.set(cacheKey, types);
-    return types;
-}
-
 // updateLegend — shows/hides conditional legend items:
 //   Spare/RDW/AL — only when that shift type actually appears this month
 //   Night        — only for Dispatcher roster members
@@ -828,9 +326,8 @@ function renderCalendar() {
         const member = getCurrentMember();
 
         // If the previously-selected member was removed from the roster, show a one-time notice.
-        if (_staleMemberName) {
-            const stale = _staleMemberName;
-            _staleMemberName = null;
+        const stale = takeStaleMemberName();
+        if (stale) {
             const banner = document.getElementById('errorBanner');
             if (banner) {
                 banner.textContent = `"${stale}" is no longer in the roster — showing ${member.name}'s calendar. Use the dropdown to select the correct person.`;
@@ -856,7 +353,10 @@ function renderCalendar() {
         lsSet('myb_roster_month', currentDisplayMonth);
         lsSet('myb_roster_year',  currentDisplayYear);
 
-        const calendarContainer = buildCalendarContainer(); // uses defaults
+        const calendarContainer = buildCalendarContainer(currentDisplayMonth, currentDisplayYear, {
+            navigateToPaycalc,
+            onDayDetail: (cell) => openDayDetail?.(cell),
+        });
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
 
@@ -881,7 +381,10 @@ function renderCalendar() {
         // Skipped while the initial 3-month fetch is in flight to avoid a competing
         // fetch that could race against it and produce a blank re-render mid-load.
         if (!_initialFetchInProgress) {
-            ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
+            const _mAtFetch = getSelectedMemberIndex();
+            ensureOverridesCached(currentDisplayYear, currentDisplayMonth, () => {
+                if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendar();
+            });
         }
 
     } catch (error) {
@@ -1137,7 +640,10 @@ try {
                 // Clamp to valid range
                 if (y > CONFIG.MAX_YEAR) { y = CONFIG.MAX_YEAR; m = 11; }
                 if (y < CONFIG.MIN_YEAR) { y = CONFIG.MIN_YEAR; m = 0;  }
-                return buildCalendarContainer(m, y);
+                return buildCalendarContainer(m, y, {
+                    navigateToPaycalc,
+                    onDayDetail: (cell) => openDayDetail?.(cell),
+                });
             }
 
             // Position a panel off-screen without transition.
@@ -1351,7 +857,10 @@ try {
                         // 3-month IIFE cache is cleared and only the previously-viewed month
                         // was re-fetched — swiping to an adjacent month would show no overrides.
                         // This call is a no-op if the month is already cached.
-                        ensureOverridesCached(currentDisplayYear, currentDisplayMonth);
+                        const _mAtFetch = getSelectedMemberIndex();
+                        ensureOverridesCached(currentDisplayYear, currentDisplayMonth, () => {
+                            if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendar();
+                        });
                     }
 
                     const safetyTimer = setTimeout(restoreIncoming, TRANSITION_DURATION_MS + 50);
@@ -1555,98 +1064,13 @@ try {
 }
 
 // ============================================
-// FIRESTORE HELPER FUNCTIONS
-// ============================================
-
-
-/**
- * Generate a month key string (e.g. '2026-03') for the fetchedMonths Set.
- * @param {number} year
- * @param {number} month - 0-indexed JS month
- * @returns {string}
- */
-function monthKey(year, month) {
-    return `${year}-${String(month + 1).padStart(2, '0')}`;
-}
-
-/**
- * Query Firestore for all override documents in a date range and populate the cache.
- * Documents with missing required fields are skipped and logged.
- * @param {string} startStr - 'YYYY-MM-DD' inclusive start
- * @param {string} endStr   - 'YYYY-MM-DD' inclusive end
- */
-async function fetchOverridesForRange(startStr, endStr) {
-    const q = query(
-        collection(db, COLLECTIONS.overrides),
-        where('date', '>=', startStr),
-        where('date', '<=', endStr)
-    );
-    const snapshot = await getDocs(q);
-    if (snapshot.size >= 1900) console.warn('[Firestore] Override query returned', snapshot.size, 'docs — approaching practical limit. Consider archiving old overrides.');
-    snapshot.forEach(doc => {
-        const data = doc.data();
-        if (!data.memberName || !data.date || !data.value) {
-            console.error('[Firestore] Skipping malformed override document:', doc.id, data);
-            return;
-        }
-        const key      = `${data.memberName}|${data.date}`;
-        const incoming = {
-            value:     data.value,
-            note:      data.note   || '',
-            type:      data.type   || '',
-            source:    data.source || null,
-            createdAt: data.createdAt || null,
-        };
-        const existing = rosterOverridesCache.get(key);
-        if (existing) {
-            console.warn('[Firestore] Duplicate override for', key,
-                '— keeping', shouldReplaceOverride(existing, incoming) ? 'incoming' : 'existing',
-                { existing, incoming });
-        }
-        if (shouldReplaceOverride(existing, incoming)) {
-            rosterOverridesCache.set(key, incoming);
-        }
-    });
-    // New override data may change which shift types appear in a month,
-    // so invalidate the getShiftTypesInMonth() memo cache.
-    shiftTypesMonthCache.clear();
-}
-
-/**
- * Ensure overrides for a given month are in the cache.
- * Called by renderCalendar() on every navigation — no-op if already fetched,
- * fires a background fetch and re-render if not.
- * @param {number} year
- * @param {number} month - 0-indexed JS month
- */
-async function ensureOverridesCached(year, month) {
-    const key = monthKey(year, month);
-    if (fetchedMonths.has(key)) return;  // Already fetched — nothing to do
-
-    // Mark before awaiting to prevent concurrent duplicate fetches
-    // if renderCalendar() fires twice in quick succession for the same month.
-    fetchedMonths.add(key);
-
-    const memberAtFetch = getSelectedMemberIndex();
-    try {
-        const startStr = formatISO(new Date(year, month, 1));
-        const endStr   = formatISO(new Date(year, month + 1, 0));
-        await fetchOverridesForRange(startStr, endStr);
-        if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === memberAtFetch) renderCalendar();
-    } catch (err) {
-        fetchedMonths.delete(key);  // Allow retry on next navigation
-        console.error('[Firestore] Failed to fetch overrides for', key, err);
-    }
-}
-
-// ============================================
 // INITIAL 3-MONTH FETCH
 // Fetches previous, current, and next month in a single Firestore query.
 // Pre-fills the cache for all three swipe positions so there is no visible
 // delay when the user swipes left or right on first open.
 // ============================================
 (async () => {
-    _initialFetchInProgress = true;
+    setInitialFetchInProgress(true);
 
     const now  = new Date();
     const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -1655,9 +1079,11 @@ async function ensureOverridesCached(year, month) {
     // Mark all three months as fetched before awaiting — prevents
     // ensureOverridesCached() from issuing redundant per-month fetches
     // if renderCalendar() fires while the initial query is in flight.
-    fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
-    fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
-    fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
+    addFetchedMonths([
+        monthKey(prev.getFullYear(), prev.getMonth()),
+        monthKey(now.getFullYear(),  now.getMonth()),
+        monthKey(next.getFullYear(), next.getMonth()),
+    ]);
 
     // Show an "Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
     // Injected into .calendar-header so it sits next to the month/year heading.
@@ -1702,9 +1128,11 @@ async function ensureOverridesCached(year, month) {
         syncChip.disabled = true;
 
         // Re-mark the initial 3 months only — other months fetched during navigation stay cached.
-        fetchedMonths.add(monthKey(prev.getFullYear(), prev.getMonth()));
-        fetchedMonths.add(monthKey(now.getFullYear(),  now.getMonth()));
-        fetchedMonths.add(monthKey(next.getFullYear(), next.getMonth()));
+        addFetchedMonths([
+            monthKey(prev.getFullYear(), prev.getMonth()),
+            monthKey(now.getFullYear(),  now.getMonth()),
+            monthKey(next.getFullYear(), next.getMonth()),
+        ]);
 
         const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
         const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
@@ -1757,7 +1185,7 @@ async function ensureOverridesCached(year, month) {
             syncChip.addEventListener('click', doRetry, { once: true });
         }
     } finally {
-        _initialFetchInProgress = false;
+        setInitialFetchInProgress(false);
         clearTimeout(loadingTimer);
         clearTimeout(timeoutTimer);
         if (syncChip && syncResolved && !syncChip.className.includes('sync-chip-error')) {
