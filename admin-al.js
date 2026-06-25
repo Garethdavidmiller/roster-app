@@ -14,7 +14,9 @@ const esc = escapeHtml;
 // triggerConfirmedALSave() is called by the confirm bar in admin-app.js when
 // the user accepts saving over their AL entitlement.
 let _alBookingConfirmed = false;
+/** @type {any} */
 let _alSaveBtnRef       = null;
+/** @type {any} */
 let _alFeedbackTimer    = null;
 
 /** Called by the AL confirm bar "Save anyway" button in admin-app.js. */
@@ -49,9 +51,9 @@ export function initALSection({
 }) {
 const alFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('alFrom'));
 const alTo       = /** @type {HTMLInputElement}  */ (document.getElementById('alTo'));
-const alPreview  = document.getElementById('alPreview');
+const alPreview  = /** @type {HTMLElement} */ (document.getElementById('alPreview'));
 const alSaveBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('alSaveBtn'));
-const alFeedback = document.getElementById('alFeedback');
+const alFeedback = /** @type {HTMLElement} */ (document.getElementById('alFeedback'));
 _alSaveBtnRef = alSaveBtn;
 
 populateMemberDropdown(alMember);
@@ -116,7 +118,7 @@ function updateAlPreview() {
             // Check order matches recordRangeOverrides: Sunday → override → base
             if (isSunday(dateStr)) { restCount++; return; }
             const ov = memberOvByDate.get(dateStr);
-            if (ov && isRestShift(ov.value)) { restCount++; return; }
+            if (ov && isRestShift((/** @type {any} */ (ov)).value)) { restCount++; return; }
             const base = getBaseShift(memberObj, d);
             if (isRestShift(base)) { restCount++; return; }
             if (base === 'SPARE') spareCount++;
@@ -161,13 +163,13 @@ alSaveBtn.addEventListener('click', async () => {
         const workingDates = dates.filter(d => {
             if (isSunday(d)) return false;
             const ov = memberOvByDate.get(d);
-            if (ov && isRestShift(ov.value)) return false;
-            const base = getBaseShift(memberObj, new Date(d + 'T12:00:00'));
+            if (ov && isRestShift((/** @type {any} */ (ov)).value)) return false;
+            const base = getBaseShift(/** @type {any} */ (memberObj), new Date(d + 'T12:00:00'));
             return !isRestShift(base);
         });
         const years = [...new Set(workingDates.map(d => d.substring(0, 4)))];
         for (const yearStr of years) {
-            const entitlement    = getALEntitlement(memberObj, parseInt(yearStr, 10), getAllOverrides());
+            const entitlement    = getALEntitlement(/** @type {any} */ (memberObj), parseInt(yearStr, 10), getAllOverrides());
             // Collect existing AL dates as a Set to subtract overlap from the new booking
             // (re-booking dates already marked AL must not double-count toward the cap).
             const existingALDates = new Set(
@@ -197,7 +199,7 @@ alSaveBtn.addEventListener('click', async () => {
 
     try {
         const { workingCount } = await recordRangeOverrides({
-            type: 'annual_leave', value: 'AL', memberName: member, dates, changedBy: currentUser,
+            type: 'annual_leave', value: 'AL', memberName: member, dates, changedBy: currentUser ?? '',
         });
 
         if (!workingCount) {
@@ -226,7 +228,7 @@ alSaveBtn.addEventListener('click', async () => {
         console.error('[Admin] AL save failed:', err);
         clearTimeout(_alFeedbackTimer);
         alFeedback.className = 'feedback error';
-        alFeedback.textContent = err.message === 'auth/session-expired'
+        alFeedback.textContent = (/** @type {any} */ (err)).message === 'auth/session-expired'
             ? '⚠ Session expired — please sign out and sign back in.'
             : "⚠ Couldn't save — check your connection and try again.";
     } finally {

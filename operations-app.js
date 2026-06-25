@@ -49,6 +49,7 @@ document.body.classList.add('auth-ready');
 
 // Assigned by the About-lightbox IIFE further down; the closure below only reads
 // it when the drawer logo is tapped, by which point it is set.
+/** @type {any} */
 let openAboutLightbox = null;
 
 initNavPanel({
@@ -131,7 +132,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
         const listContainer = document.createElement('div');
         content.appendChild(listContainer);
 
-        function renderForGrade(grade) {
+        function renderForGrade(/** @type {string} */ grade) {
             const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
             const total    = pool.length;
             const added    = pool.filter(m =>  savedNames.has(m.name));
@@ -197,8 +198,10 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
                         addedList.querySelectorAll('.email-set-form').forEach(f => {
                             const prevRow = f.previousElementSibling;
                             f.remove();
-                            prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel'
-                                && (prevRow.querySelector('.email-set-btn').textContent = 'Edit');
+                            if (prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel') {
+                                const setBtn = prevRow.querySelector('.email-set-btn');
+                                if (setBtn) setBtn.textContent = 'Edit';
+                            }
                         });
                         editBtn.textContent = 'Cancel';
 
@@ -464,13 +467,13 @@ function initNewsletterUpload() {
     const fileLabel = document.getElementById('newsletterFileName');
     const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById('newsletterUploadBtn'));
     const feedback  = document.getElementById('newsletterFeedback');
-    if (!dateInput || !fileInput || !uploadBtn) return;
+    if (!dateInput || !fileInput || !uploadBtn || !feedback || !fileLabel) return;
 
     dateInput.value = formatISO(new Date());
     dateInput.max   = formatISO(new Date());
 
     fileInput.addEventListener('change', () => {
-        const file = fileInput.files[0];
+        const file = (fileInput.files || [])[0];
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         if (!file) {
@@ -502,7 +505,7 @@ function initNewsletterUpload() {
 
     uploadBtn.addEventListener('click', async () => {
         const date = dateInput.value;
-        const file = fileInput.files[0];
+        const file = (fileInput.files || [])[0];
         if (!date || !file) return;
         uploadBtn.disabled = true;
         uploadBtn.textContent = 'Uploading…';
@@ -536,13 +539,13 @@ function initCircularUpload() {
     const fileLabel = document.getElementById('circularFileName');
     const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById('circularUploadBtn'));
     const feedback  = document.getElementById('circularFeedback');
-    if (!dateInput || !fileInput || !uploadBtn) return;
+    if (!dateInput || !fileInput || !uploadBtn || !feedback || !fileLabel) return;
 
     dateInput.value = formatISO(new Date());
     dateInput.max   = formatISO(new Date());
 
     fileInput.addEventListener('change', () => {
-        const file = fileInput.files[0];
+        const file = (fileInput.files || [])[0];
         feedback.textContent = '';
         feedback.className = 'huddle-feedback';
         if (!file) {
@@ -574,7 +577,7 @@ function initCircularUpload() {
 
     uploadBtn.addEventListener('click', async () => {
         const date = dateInput.value;
-        const file = fileInput.files[0];
+        const file = (fileInput.files || [])[0];
         if (!date || !file) return;
         uploadBtn.disabled = true;
         uploadBtn.textContent = 'Uploading…';
@@ -740,7 +743,7 @@ function initCircularUpload() {
             // Summary line: when · member · page · message
             const summary = document.createElement('div');
             summary.className = 'error-summary';
-            const addSpan = (cls, text) => {
+            const addSpan = (/** @type {string} */ cls, /** @type {string} */ text) => {
                 const s = document.createElement('span');
                 s.className = cls;
                 s.textContent = text;
@@ -815,7 +818,7 @@ function initCircularUpload() {
 })();
 
 /** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23". */
-function _relativeTime(date) {
+function _relativeTime(/** @type {Date} */ date) {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
     const exact = date.toLocaleString('en-GB', {
         day: 'numeric', month: 'short',
@@ -830,7 +833,7 @@ function _relativeTime(date) {
 }
 
 /** Build the plain-text block that gets pasted into Claude for diagnosis. */
-function _formatForClaude(err) {
+function _formatForClaude(/** @type {any} */ err) {
     const when = err.timestamp?.toDate
         ? err.timestamp.toDate().toLocaleString('en-GB', {
             day: 'numeric', month: 'short', year: 'numeric',

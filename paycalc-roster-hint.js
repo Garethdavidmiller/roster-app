@@ -20,18 +20,26 @@ import { lsGet, lsSet } from './ls.js';
 // ── RENDER CACHE ──────────────────────────────────────────────────────────────
 // Avoids the parse+layout cost of innerHTML when the rendered string is identical
 // (e.g. period change → multiple upstream calls with no change in field values).
-let _lastRosterRowsHtml = null;
+/** @type {any} */ let _lastRosterRowsHtml = null;
 
-/** Formats hours+minutes as a compact string: "7h 30m", "7h", or "30m". */
+/**
+ * Formats hours+minutes as a compact string: "7h 30m", "7h", or "30m".
+ * @param {any} h
+ * @param {any} m
+ */
 function fmtH(h, m) {
   if (h && m) return `${h}h ${m}m`;
   if (h)      return `${h}h`;
   return `${m}m`;
 }
 
-/** Maps a suggestion category to a confidence badge descriptor.
- *  Returns null for base-roster rows — no badge needed when the source is the
- *  scheduled rota. Badges only appear when the source or certainty is non-obvious. */
+/**
+ * Maps a suggestion category to a confidence badge descriptor.
+ * Returns null for base-roster rows — no badge needed when the source is the
+ * scheduled rota. Badges only appear when the source or certainty is non-obvious.
+ * @param {any} cat
+ * @param {any} fromOv
+ */
 function _confBadge(cat, fromOv) {
   if (cat === 'ot' || cat === 'bhOt') return { text: 'Possible overtime', cls: 'conf-possible' };
   if (cat === 'rdw' || fromOv)        return { text: 'Recorded change',   cls: 'conf-recorded' };
@@ -45,15 +53,18 @@ const _DAY_CHIP_LABELS = {
   bhOt: 'Bank holiday overtime', ot: 'Overtime', box: 'Boxing Day', rdw: 'RDW',
 };
 
-/** Populates the collapsible day list with the individual shifts behind the suggestion. */
+/**
+ * Populates the collapsible day list with the individual shifts behind the suggestion.
+ * @param {any} days
+ */
 function renderRosterDayList(days) {
   const list = document.getElementById('rosterDayList');
   if (!list) return;
   if (!days || !days.length) { list.innerHTML = ''; return; }
-  list.innerHTML = days.map(d => {
+  list.innerHTML = days.map(/** @param {any} d */ d => {
     const dt      = d.date;
     const dateStr = `${_DAY_ABBS[dt.getDay()]} ${dt.getDate()} ${_MON_ABBS[dt.getMonth()]}`;
-    const chipLabel = _DAY_CHIP_LABELS[d.type] || '';
+    const chipLabel = (/** @type {Record<string, any>} */ (_DAY_CHIP_LABELS))[d.type] || '';
     return `<div class="roster-day-row">` +
       `<span class="roster-day-date">${dateStr}</span>` +
       `<span class="roster-day-shift">${escapeHtml(d.shift)}</span>` +
@@ -62,7 +73,13 @@ function renderRosterDayList(days) {
   }).join('');
 }
 
-/** Fills a single H/M field pair if currently blank (or previously roster-filled). */
+/**
+ * Fills a single H/M field pair if currently blank (or previously roster-filled).
+ * @param {any} hId
+ * @param {any} mId
+ * @param {any} hVal
+ * @param {any} mVal
+ */
 function _suggestIfBlank(hId, mId, hVal, mVal) {
   const elH = /** @type {HTMLInputElement} */ (document.getElementById(hId));
   const elM = /** @type {HTMLInputElement} */ (document.getElementById(mId));
@@ -84,11 +101,18 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
 
 // ── SNAP PERSISTENCE ──────────────────────────────────────────────────────────
 
-/** Per-period localStorage key for the last roster snapshot used for auto-fill. */
+/**
+ * Per-period localStorage key for the last roster snapshot used for auto-fill.
+ * @param {any} pNum
+ */
 export const snapKey = pNum => `myb_pc_snap_${pNum}`;
 
-/** Saves the suggestion values that were just applied so that loadPeriodData can restore
- *  the roster-suggested class on those fields after a page reload. */
+/**
+ * Saves the suggestion values that were just applied so that loadPeriodData can restore
+ * the roster-suggested class on those fields after a page reload.
+ * @param {any} pNum
+ * @param {any} s
+ */
 function _saveRosterSnap(pNum, s) {
   try {
     lsSet(snapKey(pNum), JSON.stringify({
@@ -102,7 +126,9 @@ function _saveRosterSnap(pNum, s) {
 
 /** Re-adds roster-suggested to any field whose current value still matches the last
  *  roster snapshot. Called immediately after writeFormData in loadPeriodData so that
- *  _suggestIfBlank can update those fields when Firestore returns new data. */
+ *  _suggestIfBlank can update those fields when Firestore returns new data.
+ * @param {any} pNum
+ */
 export function _restoreRosterSuggested(pNum) {
   let snap;
   try { const raw = lsGet(snapKey(pNum)); if (raw) snap = JSON.parse(raw); } catch {}
@@ -132,10 +158,10 @@ export function updateRosterHint() {
   const card = document.getElementById('rosterHintBar');
   if (!card) return;
 
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   if (!p) { card.style.display = 'none'; return; }
 
-  const s = getRosterSuggestion(p, getLoggedMember());
+  const s = /** @type {any} */ (getRosterSuggestion(p, getLoggedMember()));
   if (!s) { card.style.display = 'none'; return; }
 
   const badge = document.getElementById('rosterStateBadge');
@@ -241,7 +267,7 @@ export function updateRosterHint() {
 /**
  * Show (or hide) a notice when the logged-in member started mid-period,
  * explaining that their contracted hours have been pro-rated.
- * @param {object} p - Current period object.
+ * @param {any} p - Current period object.
  */
 export function updateJoinerNotice(p) {
   const el = document.getElementById('joinerNotice');
@@ -281,6 +307,8 @@ export function clearRosterSuggestedAll() {
  * Applies a suggestion object to all H/M field pairs.
  * force=false (default): skips fields already manually entered.
  * force=true: overwrites all fields — used by the "Replace with calendar values" button.
+ * @param {any} s
+ * @param {boolean} [force]
  */
 export function _applyRosterSuggestion(s, force = false) {
   const pairs = [
@@ -316,11 +344,11 @@ export function _applyRosterSuggestion(s, force = false) {
  * @param {Function} autosave - Coordinator autosave callback.
  */
 export function fillCategoryFromRoster(cat, autosave) {
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   if (!p) return;
-  const s = getRosterSuggestion(p, getLoggedMember());
+  const s = /** @type {any} */ (getRosterSuggestion(p, getLoggedMember()));
   if (!s) return;
-  const map = {
+  const map = /** @type {Record<string, any>} */ ({
     sat:  ['satH',  'satM',  s.satH,  s.satM ],
     sun:  ['sunH',  'sunM',  s.sunH,  s.sunM ],
     bh:   ['bhH',   'bhM',   s.bhH,   s.bhM  ],
@@ -328,7 +356,7 @@ export function fillCategoryFromRoster(cat, autosave) {
     ot:   ['otH',   'otM',   s.otH,   s.otM  ],
     rdw:  ['rdwH',  'rdwM',  s.rdwH,  s.rdwM ],
     box:  ['boxH',  'boxM',  s.boxH,  s.boxM ],
-  };
+  });
   const args = map[cat];
   if (!args) return;
   const [hId, mId, hVal, mVal] = args;
@@ -360,7 +388,7 @@ export function fillCategoryFromRoster(cat, autosave) {
  * @param {Function} autosave - Coordinator autosave callback.
  */
 export function fillFromRoster(autosave) {
-  const p = getPeriods().find(x => x.num === currentPeriodNum());
+  const p = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   if (!p) return;
   const s = getRosterSuggestion(p, getLoggedMember());
   if (!s) return;

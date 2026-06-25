@@ -23,13 +23,13 @@ const _unknownShiftWarned = new Set();
  * Initialises the Team Week View.
  *
  * @param {object} deps
- * @param {Map}      deps.rosterOverridesCache   Shared override cache keyed "memberName|date"
+ * @param {Map<any,any>} deps.rosterOverridesCache   Shared override cache keyed "memberName|date"
  * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
- * @returns {{ toggleTeamView, applyTeamViewChrome, isTeamViewMode, renderTeamView,
- *             announceTeamWeek, restoreTeamView, jumpToCurrentWeek }}
+ * @returns {{ toggleTeamView: any, applyTeamViewChrome: any, isTeamViewMode: any, renderTeamView: any,
+ *             announceTeamWeek: any, restoreTeamView: any, jumpToCurrentWeek: any }}
  */
 export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, renderCalendar,
                                 _pushOverlayState, _clearOverlayHistory }) {
@@ -53,7 +53,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
     // ── HELPERS ───────────────────────────────────────────────────────────────
 
     /** Returns the Sunday of the week containing `date` (Chiltern week: Sun–Sat). */
-    function getSunday(date) {
+    function getSunday(/** @type {any} */ date) {
         const d = new Date(date);
         d.setHours(0, 0, 0, 0);
         d.setDate(d.getDate() - d.getDay()); // getDay() 0=Sun, so subtract to reach Sunday
@@ -61,7 +61,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
     }
 
     /** Returns an array of 7 Date objects Sun–Sat starting from `sunday`. */
-    function getTeamWeekDates(sunday) {
+    function getTeamWeekDates(/** @type {any} */ sunday) {
         return Array.from({ length: 7 }, (_, i) => {
             const d = new Date(sunday);
             d.setDate(d.getDate() + i);
@@ -74,7 +74,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
      * applying any cached Firestore overrides over the base roster.
      * @returns {{ text: string, cls: string }}
      */
-    function getTeamCellDisplay(member, date) {
+    function getTeamCellDisplay(/** @type {any} */ member, /** @type {any} */ date) {
         const dateStr  = formatISO(date);
         const cacheKey = `${member.name}|${dateStr}`;
 
@@ -108,7 +108,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
     }
 
     /** Formats a Sunday-anchored week as "19–25 May 2026" or "28 Apr – 4 May 2026". */
-    function formatTeamWeekLabel(sunday) {
+    function formatTeamWeekLabel(/** @type {any} */ sunday) {
         const dates = getTeamWeekDates(sunday);
         const s = dates[0], e = dates[6];
         return s.getMonth() === e.getMonth()
@@ -216,7 +216,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
         if (gradeTabList) {
             gradeTabList.addEventListener('click', e => {
                 const tab = /** @type {Element} */ (e.target).closest('.grade-tab');
-                if (tab) renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade, { skipFetch: true });
+                if (tab) renderTeamView(/** @type {HTMLElement} */ (tab).dataset.grade ?? '', { skipFetch: true });
             });
             gradeTabList.addEventListener('keydown', e => {
                 const ke = /** @type {KeyboardEvent} */ (e);
@@ -226,8 +226,8 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
                 const idx  = tabs.findIndex(t => t === document.activeElement);
                 if (idx === -1) return;
                 const next = /** @type {HTMLElement} */ (tabs[(idx + (ke.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length]);
-                renderTeamView(next.dataset.grade, { skipFetch: true });
-                /** @type {HTMLElement} */ (calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade}"]`))?.focus();
+                renderTeamView(next.dataset.grade ?? '', { skipFetch: true });
+                /** @type {HTMLElement} */ (calendarDisplay.querySelector(`.grade-tab[data-grade="${next.dataset.grade ?? ''}"]`))?.focus();
             });
         }
 
@@ -312,7 +312,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             // Discard if the user navigated to a different week while this was in flight
             if (!teamViewMode || currentTeamWeekStart.getTime() !== fetchToken) return;
             let updated = false;
-            snap.forEach(doc => {
+            snap.forEach(/** @param {any} doc */ doc => {
                 const d          = doc.data();
                 const cacheKey   = `${d.memberName}|${d.date}`;
                 const existing   = rosterOverridesCache.get(cacheKey);

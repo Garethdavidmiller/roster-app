@@ -10,6 +10,7 @@ import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
 const esc = escapeHtml;
 
+/** @type {any} */
 let _sickFeedbackTimer = null;
 
 /**
@@ -34,9 +35,9 @@ export function initSickSection({
 }) {
 const sickFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('sickFrom'));
 const sickTo       = /** @type {HTMLInputElement}  */ (document.getElementById('sickTo'));
-const sickPreview  = document.getElementById('sickPreview');
+const sickPreview  = /** @type {HTMLElement} */ (document.getElementById('sickPreview'));
 const sickSaveBtn  = /** @type {HTMLButtonElement} */ (document.getElementById('sickSaveBtn'));
-const sickFeedback = document.getElementById('sickFeedback');
+const sickFeedback = /** @type {HTMLElement} */ (document.getElementById('sickFeedback'));
 
 populateMemberDropdown(sickMember);
 // iOS Safari ignores select.value on optgroup-nested options — set option.selected directly.
@@ -102,7 +103,7 @@ function updateSickPreview() {
         dates.forEach(dateStr => {
             if (isSunday(dateStr)) { restCount++; return; }
             const ov = memberOvByDate.get(dateStr);
-            if (ov && isRestShift(ov.value)) { restCount++; return; }
+            if (ov && isRestShift((/** @type {any} */ (ov)).value)) { restCount++; return; }
             const d    = new Date(dateStr + 'T12:00:00');
             const base = getBaseShift(memberObj, d);
             if (isRestShift(base)) { restCount++; return; }
@@ -133,7 +134,7 @@ sickSaveBtn.addEventListener('click', async () => {
 
     try {
         const { workingCount } = await recordRangeOverrides({
-            type: 'sick', value: 'SICK', memberName: member, dates, changedBy: currentUser,
+            type: 'sick', value: 'SICK', memberName: member, dates, changedBy: currentUser ?? '',
         });
 
         if (!workingCount) {
@@ -163,7 +164,7 @@ sickSaveBtn.addEventListener('click', async () => {
         console.error('[Admin] Sick save failed:', err);
         clearTimeout(_sickFeedbackTimer);
         sickFeedback.className = 'feedback error';
-        sickFeedback.textContent = err.message === 'auth/session-expired'
+        sickFeedback.textContent = (/** @type {any} */ (err)).message === 'auth/session-expired'
             ? '⚠ Session expired — please sign out and sign back in.'
             : "⚠ Couldn't save — check your connection and try again.";
     } finally {

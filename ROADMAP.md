@@ -772,6 +772,6 @@ At the end of 9a, CI enforces a zero-non-DOM-error baseline. The 514 TS2339 DOM 
 
 All 489 TS2339 errors resolved with JSDoc `/** @type {HTMLXxxElement} */` casts. The typecheck CI gate now enforces zero errors of any kind (not just non-DOM errors). 33 files updated; 8 induced TS2322 `number`→`string` assignments also corrected. Phase 9c is now unblocked.
 
-#### Phase 9c — `strict: true` (after 9b is complete)
+#### Phase 9c — `strict: true` ✓ (completed June 2026)
 
-Do not enable `strict` until 9b is done. Adding it before that activates `strictNullChecks`, turning every `document.getElementById()` return from `HTMLElement` into `HTMLElement | null` — a third wave of ~200+ errors on top of the existing DOM cast work. Once 9b is clear, add `"strict": true` to `jsconfig.json` and work through the null-check pass file-by-file. No `// @ts-ignore` suppressions — use `!` non-null assertions only where the element's presence is guaranteed by the page structure and is immediately obvious.
+`"strict": true` added to `jsconfig.json`. All 1560 errors across 46 files resolved: null-safety (`!` non-null assertions and `if (!el) return` guards), implicit-any parameters (`@param {any}` JSDoc), implicit-any variables (`/** @type {any} */` annotations), object-indexing (`/** @type {Record<string, any>} */` casts), and `unknown`-typed catch bindings (`/** @type {any} */` casts on `err`). No `// @ts-ignore` suppressions — all fixes are explicit type annotations or runtime-safe guards. 446 tests pass. Phase 9d (replacing `any` casts with precise types) is now unblocked.

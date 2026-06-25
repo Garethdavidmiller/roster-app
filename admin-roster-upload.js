@@ -5,12 +5,13 @@
 // Called by operations-app.js via initRosterUpload().
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
+import { db as _db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
+/** @type {any} */ const db = _db;
 import { shouldReplaceOverride } from './app-override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
-const isRdwEncoded = v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
-const stripRdw     = v => v.slice(RDW_PREFIX.length);
+const isRdwEncoded = /** @param {any} v */ v => typeof v === 'string' && v.startsWith(RDW_PREFIX);
+const stripRdw     = /** @param {any} v */ v => v.slice(RDW_PREFIX.length);
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -59,18 +60,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     const rosterTypeEl   = /** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'));
     const weekEndingEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterWeekEnding'));
     const fileInput      = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterFileInput'));
-    const fileNameEl     = document.getElementById('rosterFileName');
+    const fileNameEl     = /** @type {any} */ (document.getElementById('rosterFileName'));
     const parseBtn       = /** @type {HTMLButtonElement|null} */ (document.getElementById('rosterParseBtn'));
-    const parseFeedback  = document.getElementById('rosterParseFeedback');
-    const reviewSection  = document.getElementById('rosterReviewSection');
-    const conflictBanner = document.getElementById('rosterConflictBanner');
-    const conflictTitle  = document.getElementById('rosterConflictTitle');
-    const conflictDetail = document.getElementById('rosterConflictDetail');
-    const reviewLabel    = document.getElementById('rosterReviewLabel');
-    let   changeList     = /** @type {HTMLElement} */ (document.getElementById('rosterChangeList'));
-    const applyBtn       = /** @type {HTMLButtonElement|null} */ (document.getElementById('rosterApplyBtn'));
-    const cancelBtn      = document.getElementById('rosterCancelBtn');
-    const applyFeedback  = document.getElementById('rosterApplyFeedback');
+    const parseFeedback  = /** @type {any} */ (document.getElementById('rosterParseFeedback'));
+    const reviewSection  = /** @type {any} */ (document.getElementById('rosterReviewSection'));
+    const conflictBanner = /** @type {any} */ (document.getElementById('rosterConflictBanner'));
+    const conflictTitle  = /** @type {any} */ (document.getElementById('rosterConflictTitle'));
+    const conflictDetail = /** @type {any} */ (document.getElementById('rosterConflictDetail'));
+    const reviewLabel    = /** @type {any} */ (document.getElementById('rosterReviewLabel'));
+    let   changeList     = /** @type {any} */ (document.getElementById('rosterChangeList'));
+    const applyBtn       = /** @type {any} */ (document.getElementById('rosterApplyBtn'));
+    const cancelBtn      = /** @type {any} */ (document.getElementById('rosterCancelBtn'));
+    const applyFeedback  = /** @type {any} */ (document.getElementById('rosterApplyFeedback'));
 
     if (!card || !rosterTypeEl || !weekEndingEl || !fileInput || !parseBtn) return;
 
@@ -79,8 +80,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
     // In-memory store for the parsed result and computed cell states.
     // Cleared when "Start over" is clicked.
-    let _parsedResult = null;      // response from parseRosterPDF Cloud Function
-    let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
+    /** @type {any} */ let _parsedResult = null;      // response from parseRosterPDF Cloud Function
+    /** @type {any} */ let _cellStates   = null;      // computed Map: "memberName|date" → { state, parsedShift, manualValue, manualId, chosen }
 
     // Default week ending to the next Saturday (roster PDFs always end on a Saturday).
     // If today is already Saturday, jump to the one after so we default to the upcoming week.
@@ -110,7 +111,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
     // ---- Show chosen filename and enable parse button ----
     fileInput.addEventListener('change', () => {
-        const file = fileInput.files[0];
+        const file = fileInput.files?.[0];
         parseFeedback.textContent = '';
         parseFeedback.className   = 'huddle-feedback';
         if (!file) {
@@ -141,7 +142,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
     // ---- "Read Roster" button ----
     parseBtn.addEventListener('click', async () => {
-        const file       = fileInput.files[0];
+        const file       = fileInput.files?.[0];
         const weekEnding = weekEndingEl.value;
         const rosterType = rosterTypeEl.value;
 
@@ -208,10 +209,11 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         } catch (err) {
             console.error('[RosterUpload] Parse failed:', err);
+            const _err = /** @type {any} */ (err);
             let userMsg;
-            if (err.name === 'AbortError' || (err.name === 'TypeError' && err.message.includes('Load failed'))) {
+            if (_err.name === 'AbortError' || (_err.name === 'TypeError' && _err.message.includes('Load failed'))) {
                 userMsg = 'Parsing took longer than expected. The PDF may be large — please try again, or check your connection.';
-            } else if (err instanceof TypeError && err.message === 'Failed to fetch') {
+            } else if (_err instanceof TypeError && _err.message === 'Failed to fetch') {
                 userMsg = "Couldn't reach the server — check your internet connection or try again later.";
             } else {
                 userMsg = 'Unexpected error — please try again or contact support.';
@@ -325,9 +327,10 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
         } catch (err) {
             console.error('[RosterUpload] Apply failed:', err);
-            const detail = err?.code === 'permission-denied'
+            const _applyErr = /** @type {any} */ (err);
+            const detail = _applyErr?.code === 'permission-denied'
                 ? 'your session may have expired. Try signing out and back in.'
-                : (err?.message || 'Unknown error — check the browser console.');
+                : (_applyErr?.message || 'Unknown error — check the browser console.');
             applyFeedback.textContent = `Couldn't save — ${detail}`;
             applyFeedback.className   = 'huddle-feedback huddle-feedback--err';
             applyBtn.disabled    = false;
@@ -362,13 +365,13 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      * We only fetch dates in the roster week — no need to load the full cache.
      *
      * @param {string[]} dates - Array of YYYY-MM-DD strings (the 7 days of the week)
-     * @returns {Promise<Array>} Array of override objects { id, memberName, date, value, source, ... }
+     * @returns {Promise<Array<any>>} Array of override objects { id, memberName, date, value, source, ... }
      */
     async function fetchOverridesForWeek(dates) {
         try {
             const q    = query(collection(db, COLLECTIONS.overrides), where('date', 'in', dates));
             const snap = await getDocs(q);
-            return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            return snap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
         } catch (err) {
             console.error('[RosterUpload] Could not fetch existing overrides:', err);
             return [];   // Non-fatal — means we may miss conflicts, but won't crash
@@ -388,9 +391,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      *   CONFLICT — A manually entered override exists that differs from the PDF → flag it
      *   COVERED  — A manual override exists and already matches the PDF → nothing to do
      *
-     * @param {object} parsedResult  - Response from parseRosterPDF
-     * @param {Array}  existingOverrides - Overrides already in Firestore for this week
-     * @returns {Map}
+     * @param {any} parsedResult  - Response from parseRosterPDF
+     * @param {Array<any>}  existingOverrides - Overrides already in Firestore for this week
+     * @returns {Map<string, any>}
      */
     function computeCellStates(parsedResult, existingOverrides) {
         const states = new Map();
@@ -436,7 +439,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
 
                 // Bilingual roster uses 'OFF' for rest days; AI always returns 'RD'.
                 // Treat them as identical for all comparison purposes.
-                const normRest = s => (s === 'OFF' ? 'RD' : s);
+                const normRest = /** @param {any} s */ s => (s === 'OFF' ? 'RD' : s);
                 const normParsed = normRest(sundaySafe);
                 const normBase   = normRest(baseShift);
 
@@ -488,8 +491,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      * Only people with at least one DIFF or CONFLICT are shown.
      * Uses event delegation on changeList so no listener accumulation on re-render.
      *
-     * @param {object} parsedResult
-     * @param {Map}    cellStates
+     * @param {any} parsedResult
+     * @param {Map<string, any>}    cellStates
      */
     function renderReviewTable(parsedResult, cellStates) {
         const { dates, parsed, weekEnding } = parsedResult;
@@ -542,7 +545,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             const member = teamMembers.find(m => m.name === entry.memberName && !m.hidden);
             if (!member) continue;
 
-            const changedDates = dates.filter(d => {
+            const changedDates = dates.filter(/** @param {any} d */ d => {
                 const s = cellStates.get(`${entry.memberName}|${d}`);
                 return s && (s.state === 'DIFF' || s.state === 'CONFLICT');
             });
@@ -614,16 +617,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         }
 
         // ---- Event delegation (replace old listener to avoid accumulation) ----
-        const newList = /** @type {HTMLElement} */ (changeList.cloneNode(true));
-        changeList.parentNode.replaceChild(newList, changeList);
+        const newList = /** @type {any} */ (changeList.cloneNode(true));
+        /** @type {any} */ (changeList.parentNode).replaceChild(newList, changeList);
         changeList = newList;
 
-        changeList.addEventListener('click', e => {
+        changeList.addEventListener('click', /** @param {any} e */ e => {
             const target = /** @type {Element} */ (e.target);
             // Save / Skip toggle on DIFF rows
             const approveBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-approve-btn'));
             if (approveBtn) {
-                const s = cellStates.get(approveBtn.dataset.key);
+                const s = cellStates.get(approveBtn.dataset.key ?? '');
                 if (!s) return;
                 s.chosen = !s.chosen;
                 const approved = s.chosen !== false;
@@ -631,7 +634,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                 approveBtn.classList.toggle('is-skipped',  !approved);
                 approveBtn.setAttribute('aria-pressed', String(approved));
                 approveBtn.textContent = approved ? 'Save' : 'Skip';
-                approveBtn.closest('.roster-change-row').classList.toggle('is-skipped', !approved);
+                /** @type {any} */ (approveBtn.closest('.roster-change-row')).classList.toggle('is-skipped', !approved);
                 updateApplyState();
                 return;
             }
@@ -639,16 +642,16 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // Skip all / Restore for a person — applies to DIFF and CONFLICT rows alike
             const skipAllBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-skip-all-btn'));
             if (skipAllBtn) {
-                const memberName = skipAllBtn.dataset.member;
+                const memberName = skipAllBtn.dataset.member ?? '';
                 const sec = changeList.querySelector(`.roster-person-section[data-member="${CSS.escape(memberName)}"]`);
                 if (!sec) return;
                 const nowSkipped = !sec.classList.contains('section-skipped');
                 sec.classList.toggle('section-skipped', nowSkipped);
                 skipAllBtn.textContent = nowSkipped ? 'Restore' : 'Skip all';
                 skipAllBtn.setAttribute('aria-pressed', String(nowSkipped));
-                sec.querySelectorAll('.roster-change-row').forEach(rowEl => {
+                sec.querySelectorAll('.roster-change-row').forEach(/** @param {any} rowEl */ rowEl => {
                     const rowHtml = /** @type {HTMLElement} */ (rowEl);
-                    const s = cellStates.get(rowHtml.dataset.key);
+                    const s = cellStates.get(rowHtml.dataset.key ?? '');
                     if (!s) return;
                     // inert removes the row's controls from the tab order while skipped,
                     // so they aren't keyboard-focusable behind the dimmed overlay.
@@ -666,7 +669,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     } else if (s.state === 'CONFLICT') {
                         // Skipping cancels any "use PDF" choice (keep manual = nothing written).
                         s.chosen = 'manual';
-                        rowEl.querySelectorAll('.roster-choice-btn').forEach(b => {
+                        rowEl.querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
                             const bHtml = /** @type {HTMLElement} */ (b);
                             const on = bHtml.dataset.pick === 'manual';
                             b.classList.toggle('is-chosen', on);
@@ -685,18 +688,18 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
             // Manual / PDF choice on CONFLICT rows
             const choiceBtn = /** @type {HTMLElement|null} */ (target.closest('.roster-choice-btn'));
             if (choiceBtn) {
-                const s = cellStates.get(choiceBtn.dataset.key);
+                const s = cellStates.get(choiceBtn.dataset.key ?? '');
                 if (!s) return;
                 s.chosen = choiceBtn.dataset.pick;
                 const usesPDF = s.chosen === 'pdf';
-                choiceBtn.closest('.roster-conflict-choice').querySelectorAll('.roster-choice-btn').forEach(b => {
+                /** @type {any} */ (choiceBtn.closest('.roster-conflict-choice')).querySelectorAll('.roster-choice-btn').forEach(/** @param {any} b */ b => {
                     const bHtml = /** @type {HTMLElement} */ (b);
                     const on = bHtml.dataset.pick === s.chosen;
                     b.classList.toggle('is-chosen', on);
                     b.setAttribute('aria-pressed', String(on));
                 });
                 // Update the value pills to show which is active
-                const row    = choiceBtn.closest('.roster-change-row');
+                const row    = /** @type {any} */ (choiceBtn.closest('.roster-change-row'));
                 const mPill  = row.querySelector('.roster-cv-manual');
                 const pPill  = row.querySelector('.roster-cv-pdf');
                 if (mPill) { mPill.classList.toggle('val-active', !usesPDF); mPill.classList.toggle('val-dim', usesPDF); }

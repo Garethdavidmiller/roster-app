@@ -1,15 +1,15 @@
 // @ts-check
 // Railcard Guide — interactive behaviours
 // Print / Save as PDF button
-document.getElementById('savePdfBtn').addEventListener('click', function () {
+document.getElementById('savePdfBtn')?.addEventListener('click', function () {
     window.print();
 });
 
 // Chip-bar navigation: click a chip → smooth-scroll to the target section
-document.querySelector('.chip-bar').addEventListener('click', function (e) {
+document.querySelector('.chip-bar')?.addEventListener('click', function (e) {
     var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
     if (!chip) return;
-    var target = document.getElementById(chip.dataset.target);
+    var target = document.getElementById(chip.dataset.target ?? '');
     if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 

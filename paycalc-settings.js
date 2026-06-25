@@ -21,6 +21,7 @@ import { lsGet, lsSet } from './ls.js';
 // ── GRADE CACHE ───────────────────────────────────────────────────────────────
 // lsGet is called in calculate() / calcHPP() on every keystroke; the grade only
 // changes when the user picks a different one in Settings.
+/** @type {any} */
 let _gradeCache = null;
 /** Return the stored grade key (e.g. 'cea'). */
 export function getGrade() {
@@ -33,7 +34,7 @@ function invalidateGrade() { _gradeCache = null; }
 /** Return contracted hours for the currently selected grade. */
 export function getContr() {
   const g = getGrade();
-  return (g && GRADES[g]) ? GRADES[g].contr : GRADES.cea.contr;
+  return (g && /** @type {Record<string, any>} */ (GRADES)[g]) ? /** @type {Record<string, any>} */ (GRADES)[g].contr : GRADES.cea.contr;
 }
 
 /** Return the teamMembers entry for the logged-in session user, or null. */
@@ -46,7 +47,7 @@ export function getLoggedMember() {
 /**
  * Return effective contracted hours for the given period, pro-rated if the
  * logged-in member started mid-period.
- * @param {object} p - Period object with .start and .cutoff Date properties.
+ * @param {any} p - Period object with .start and .cutoff Date properties.
  * @returns {number} Contracted hours (full or pro-rated).
  */
 export function getEffectiveContr(p) {
@@ -60,6 +61,7 @@ export function getEffectiveContr(p) {
 /** Returns the fraction of the period that the logged-in member was employed.
  *  Delegates to calcProRateFactor (paycalc-calc.js) — see that function for
  *  the formula invariant and why startDate must be midnight local time. */
+/** @param {any} p */
 export function getProRateFactor(p) {
   if (!p) return 1;
   if (getLoggedMember()?.noProRate) return 1;
@@ -68,24 +70,27 @@ export function getProRateFactor(p) {
 
 /** Full-period pension default for the current grade, period-aware.
  *  Pass a period object to get the correct rate for that payday (handles cut-overs). */
+/** @param {any} [pObj] */
 export function getPensionDefault(pObj) {
   const g = getGrade();
-  const grade = g && GRADES[g] ? g : 'cea';
+  const grade = g && /** @type {Record<string, any>} */ (GRADES)[g] ? g : 'cea';
   if (pObj?.payday) return getPensionForPeriod(grade, pObj.payday);
-  return GRADES[grade]?.pension ?? '';
+  return /** @type {Record<string, any>} */ (GRADES)[grade]?.pension ?? '';
 }
 
 // ── PER-TAX-YEAR RATE ─────────────────────────────────────────────────────────
 // Loads the stored rate for the given tax year into the hourly rate field.
 // Falls back to the legacy single rate, then to the current grade's default.
 /** Load the stored rate for the given tax year into the hourly rate field. */
+/** @param {any} ty */
 export function updateRateForPeriod(ty) {
+  /** @type {Record<string, any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted'); }
   const g     = getGrade();
   const rate  = rates[ty.label]
-             || parseFloat(lsGet(SK.rate))
-             || (g && GRADES[g] ? GRADES[g].rate : GRADES.cea.rate);
+             || parseFloat(lsGet(SK.rate) ?? '')
+             || (g && /** @type {Record<string, any>} */ (GRADES)[g] ? /** @type {Record<string, any>} */ (GRADES)[g].rate : GRADES.cea.rate);
   /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value = rate.toFixed(2);
   // Update label to show which tax year this rate applies to
   const lbl = document.getElementById('rateYearLabel');
@@ -94,6 +99,7 @@ export function updateRateForPeriod(ty) {
 
 /** Load the stored Year to Date figures for this tax year into the Improve Accuracy fields.
  *  Called from onPeriodChange() so values reset correctly when switching between tax years. */
+/** @param {any} ty */
 export function updateYtdForTaxYear(ty) {
   const payEl = /** @type {HTMLInputElement} */ (document.getElementById('ytdPay'));
   const taxEl = /** @type {HTMLInputElement} */ (document.getElementById('ytdTax'));
@@ -105,6 +111,7 @@ export function updateYtdForTaxYear(ty) {
 // ── SETTINGS SAVE / LOAD ──────────────────────────────────────────────────────
 
 /** Per-tax-year localStorage key for the "confirmed" flag. */
+/** @param {any} ty */
 export function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '_')}`; }
 
 /** Persist all field values. Called on every input change (auto-save).
@@ -112,12 +119,13 @@ export function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '
 export function saveSettings() {
   const rateVal = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value;
   const pNum    = currentPeriodNum();
-  const curP    = getPeriods().find(x => x.num === pNum);
+  const curP    = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const curTy   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
+  /** @type {Record<string, any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   const _savedGrade   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
-  const _gradeDefault = GRADES[_savedGrade]?.rate ?? GRADES.cea.rate;
+  const _gradeDefault = /** @type {Record<string, any>} */ (GRADES)[_savedGrade]?.rate ?? GRADES.cea.rate;
   rates[curTy.label] = parseFloat(rateVal) || _gradeDefault;
   lsSet(SK.rates,     JSON.stringify(rates));
   lsSet(SK.rate,      rateVal);
@@ -147,7 +155,7 @@ export function saveSettings() {
 export function confirmSettings(calculate) {
   saveSettings();
   const pNum  = currentPeriodNum();
-  const curP  = getPeriods().find(x => x.num === pNum);
+  const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   // If this period already has saved hours, patch its pension value in-place.
   const existingRaw = lsGet(periodKey(pNum));
@@ -160,20 +168,20 @@ export function confirmSettings(calculate) {
   }
   lsSet(settingsKey(curTy), '1');
   lsSet(SK.setup, '1');
-  document.getElementById('setupBanner').classList.add('hidden');
-  document.getElementById('settingsNewYearNotice').classList.add('hidden');
+  document.getElementById('setupBanner')?.classList.add('hidden');
+  document.getElementById('settingsNewYearNotice')?.classList.add('hidden');
   // Update header hint. Fall back to grade default when rate field is blank.
   const _cfGrade = getGrade();
   const rate = (parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value)
-    || (GRADES[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+    || (/** @type {Record<string, any>} */ (GRADES)[_cfGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
   const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
-  document.getElementById('settingsHint').textContent =
-    `✓ ${curTy.label} — £${rate}/hr · ${code}`;
+  const hintEl = document.getElementById('settingsHint');
+  if (hintEl) hintEl.textContent = `✓ ${curTy.label} — £${rate}/hr · ${code}`;
   // Brief "saved" confirmation then collapse
   const fb = document.getElementById('settingsSaveFeedback');
-  fb.textContent = '✓ Settings saved';
+  if (fb) fb.textContent = '✓ Settings saved';
   setTimeout(() => {
-    fb.textContent = '';
+    if (fb) fb.textContent = '';
     setSettingsCardOpen(false);
   }, 2500);
   calculate();
@@ -181,12 +189,13 @@ export function confirmSettings(calculate) {
 
 /** Programmatic open/close for the Settings card — keeps aria-expanded in
  *  sync with the classes that initCardCollapse manages on user toggles. */
+/** @param {any} open */
 export function setSettingsCardOpen(open) {
   const toggle = document.getElementById('settingsToggle');
   const body   = document.getElementById('settingsBody');
-  toggle.classList.toggle('open', open);
-  body.classList.toggle('open', open);
-  toggle.setAttribute('aria-expanded', String(open));
+  if (toggle) toggle.classList.toggle('open', open);
+  if (body)   body.classList.toggle('open', open);
+  if (toggle) toggle.setAttribute('aria-expanded', String(open));
 }
 
 /** Load persisted settings into the form fields. */
@@ -200,11 +209,11 @@ export function loadSettings() {
   if (code)    /** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value     = code.toUpperCase();
   if (sl)      /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value = sl;
   let grade = lsGet(SK.grade);
-  if (!grade || !GRADES[grade]) {
+  if (!grade || !/** @type {Record<string, any>} */ (GRADES)[grade]) {
     // Auto-detect from the logged-in member's role
     if (getLoggedMember()?.role === 'CES') grade = 'ces';
   }
-  if (grade && GRADES[grade]) {
+  if (grade && /** @type {Record<string, any>} */ (GRADES)[grade]) {
     /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value = grade;
     lsSet(SK.grade, grade);
     invalidateGrade();

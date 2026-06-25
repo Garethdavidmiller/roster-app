@@ -93,6 +93,7 @@ export async function getNotifState() {
 
     try {
         const reg = await swReady();
+        /** @type {PushSubscription|null} */
         let sub   = await reg.pushManager.getSubscription();
         if (!sub) return 'off-lapsed';
 
@@ -104,7 +105,7 @@ export async function getNotifState() {
         }
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {
-        console.warn('[Notifications] State check failed:', err.message);
+        console.warn('[Notifications] State check failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
     }
 }
@@ -127,10 +128,11 @@ export async function peekNotifState() {
 
     try {
         const reg = await swReady();
+        /** @type {PushSubscription|null} */
         const sub = await reg.pushManager.getSubscription();
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {
-        console.warn('[Notifications] State peek failed:', err.message);
+        console.warn('[Notifications] State peek failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
     }
 }
@@ -153,7 +155,7 @@ export async function enableNotifications() {
         await subscribe();
         return 'on';
     } catch (err) {
-        console.warn('[Notifications] Enable failed:', err.message);
+        console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
     }
 }
@@ -173,7 +175,7 @@ export async function disableNotifications() {
             await deletePushSubscription(endpoint).catch(() => {});
         }
     } catch (err) {
-        console.warn('[Notifications] Disable failed:', err.message);
+        console.warn('[Notifications] Disable failed:', /** @type {any} */ (err).message);
     }
     return Notification.permission === 'denied' ? 'denied' : 'off-lapsed';
 }

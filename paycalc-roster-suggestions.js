@@ -22,23 +22,23 @@ import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-c
 let _overridesByDate = new Map();
 
 /** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. */
-export function _setOverridesForTest(map) { _overridesByDate = map; }
+export function _setOverridesForTest(/** @type {any} */ map) { _overridesByDate = map; }
 
 /** Test-only: inject an extra date as a BH for a given year. Ensures cache is
  *  populated from real BHs first, then adds the extra date. */
-export function _addBhDateForTest(year, iso) {
+export function _addBhDateForTest(/** @type {any} */ year, /** @type {any} */ iso) {
     if (!_bhDateKeyCache.has(year)) {
-        _bhDateKeyCache.set(year, new Set(bhsForYear(year).map(bh => `${bh.getMonth()}-${bh.getDate()}`)));
+        _bhDateKeyCache.set(year, new Set(bhsForYear(year).map(/** @param {any} bh */ bh => `${bh.getMonth()}-${bh.getDate()}`)));
     }
     const d = new Date(iso + 'T12:00:00');
     _bhDateKeyCache.get(year).add(`${d.getMonth()}-${d.getDate()}`);
 }
 
 /** Test-only: remove a previously-injected BH date from the per-year cache. */
-export function _removeBhDateForTest(year, iso) {
+export function _removeBhDateForTest(/** @type {any} */ year, /** @type {any} */ iso) {
     if (_bhDateKeyCache.has(year)) {
         const d = new Date(iso + 'T12:00:00');
-        _bhDateKeyCache.get(year).delete(`${d.getMonth()}-${d.getDate()}`);
+        /** @type {any} */ (_bhDateKeyCache.get(year)).delete(`${d.getMonth()}-${d.getDate()}`);
     }
 }
 
@@ -53,7 +53,7 @@ let _overrideFetchToken = 0;
 let _overridesFetchState = 'base-only';
 
 /** Called from onPeriodChange to reset the cache before a new fetch starts. */
-export function resetOverrides(newState) {
+export function resetOverrides(/** @type {any} */ newState) {
   _overrideFetchToken++;
   _overridesByDate = new Map();
   _overridesFetchState = newState;
@@ -70,24 +70,24 @@ export function getOverridesFetchState() {
 // period scan in getRosterSuggestion and in hasBankHoliday() during recalc.
 const _bhYearCache = new Map();
 const _bhDateKeyCache = new Map();
-export function bhsForYear(year) {
+export function bhsForYear(/** @type {any} */ year) {
   if (!_bhYearCache.has(year)) {
     _bhYearCache.set(year,
-      getBankHolidays(year).filter(d => !(d.getMonth() === 11 && d.getDate() === 26)));
+      getBankHolidays(year).filter(/** @param {any} d */ d => !(d.getMonth() === 11 && d.getDate() === 26)));
   }
   return _bhYearCache.get(year);
 }
 
-function _isDateBH(d) {
+function _isDateBH(/** @type {any} */ d) {
   const y = d.getFullYear();
   if (!_bhDateKeyCache.has(y)) {
-    _bhDateKeyCache.set(y, new Set(bhsForYear(y).map(bh => `${bh.getMonth()}-${bh.getDate()}`)));
+    _bhDateKeyCache.set(y, new Set(bhsForYear(y).map(/** @param {any} bh */ bh => `${bh.getMonth()}-${bh.getDate()}`)));
   }
-  return _bhDateKeyCache.get(y).has(`${d.getMonth()}-${d.getDate()}`);
+  return /** @type {any} */ (_bhDateKeyCache.get(y)).has(`${d.getMonth()}-${d.getDate()}`);
 }
 
 // ── OVERTIME FORMATTER ────────────────────────────────────────────────────────
-const _fmtOt = m => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h${mm ? ' ' + mm + 'm' : ''}`; };
+const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m % 60; return `+${h}h${mm ? ' ' + mm + 'm' : ''}`; };
 
 // ── FIRESTORE FETCH ───────────────────────────────────────────────────────────
 /**
@@ -124,7 +124,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     const snap = await getDocs(q);
     if (thisToken !== _overrideFetchToken) return 'cancelled';
     const map = new Map();
-    snap.forEach(doc => {
+    snap.forEach(/** @param {any} doc */ doc => {
       const d = doc.data();
       if (!d.date || d.memberName !== memberName) return;
       // Priority matches app.js calendar: manual always beats roster_import;
@@ -146,7 +146,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     // failing fetch from a previous period could overwrite the badge state set
     // by the current period's fetch.
     if (thisToken !== _overrideFetchToken) return 'cancelled';
-    console.warn('[paycalc-roster-suggestions] fetchOverridesForPeriod failed — using base roster only:', err?.message ?? err);
+    console.warn('[paycalc-roster-suggestions] fetchOverridesForPeriod failed — using base roster only:', (/** @type {any} */ (err))?.message ?? err);
     _overridesFetchState = 'base-only';
     return 'base-only';
   }
@@ -165,7 +165,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
  * Returns null if there are no special-category shifts in the period.
  *
  * @param {{ start: Date, cutoff: Date }} p - Pay period object
- * @param {object} member - teamMembers entry for the logged-in user (caller's responsibility)
+ * @param {any} member - teamMembers entry for the logged-in user (caller's responsibility)
  * @returns {object|null}
  */
 export function getRosterSuggestion(p, member) {

@@ -24,6 +24,7 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
     if (!('serviceWorker' in navigator)) return;
     navigator.serviceWorker.register('./service-worker.js')
         .then(registration => {
+            /** @param {ServiceWorker} w */
             function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
             if (registration.waiting) activate(registration.waiting);
             registration.addEventListener('updatefound', () => {

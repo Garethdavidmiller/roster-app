@@ -22,9 +22,9 @@ import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
 import { isDataEmpty, _decodeHours } from './paycalc-hpp.js';
 
-const fd      = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'2-digit', timeZone:'Europe/London' });
-const fdShort = d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', timeZone:'Europe/London' });
-const fmt     = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fd      = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'2-digit', timeZone:'Europe/London' });
+const fdShort = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', timeZone:'Europe/London' });
+const fmt     = /** @param {any} n */ n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ const fmt     = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
  * @param {number} fromPNum - Period number of the "backdated from" selector value.
  */
 export function _bpAwardTaxYear(fromPNum) {
-  const p = fromPNum ? getPeriods().find(x => x.num === fromPNum) : null;
+  const p = fromPNum ? getPeriods().find(/** @param {any} x */ x => x.num === fromPNum) : null;
   return getTaxYearForOffset((p ? p.num : currentPeriodNum()) - 48);
 }
 
@@ -48,7 +48,7 @@ export function _bpAwardTaxYear(fromPNum) {
  */
 export function prefillBackPay() {
   const pNum = currentPeriodNum();
-  const curP = getPeriods().find(x => x.num === pNum);
+  const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const ty   = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   const oldLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('oldLondon'));
   const newLondonEl = /** @type {HTMLInputElement} */ (document.getElementById('newLondon'));
@@ -73,17 +73,17 @@ export function calcBackPay() {
   const newRate   = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
   const oldLondon = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
   const newLondon = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value);
-  const rowsEl       = document.getElementById('backPayRows');
-  const totalEl      = document.getElementById('backPayTotal');
-  const totalAmtEl   = document.getElementById('backPayTotalAmt');
-  const totalBasEl   = document.getElementById('backPayTotalBasis');
-  const noticeEl     = document.getElementById('backPayNotice');
-  const breakdownBtn = document.getElementById('bpBreakdownBtn');
+  const rowsEl       = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
+  const totalEl      = /** @type {HTMLElement} */ (document.getElementById('backPayTotal'));
+  const totalAmtEl   = /** @type {HTMLElement} */ (document.getElementById('backPayTotalAmt'));
+  const totalBasEl   = /** @type {HTMLElement} */ (document.getElementById('backPayTotalBasis'));
+  const noticeEl     = /** @type {HTMLElement} */ (document.getElementById('backPayNotice'));
+  const breakdownBtn = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
 
   const fromPNum  = +(/** @type {HTMLSelectElement} */ (document.getElementById('backPayFrom'))?.value || 0);
   const bpSel     = /** @type {HTMLSelectElement} */ (document.getElementById('backPayPeriod'));
   const bpPNum    = bpSel ? +bpSel.value : 0; // "paid in" period — also the cap
-  const bpP       = bpPNum ? getPeriods().find(x => x.num === bpPNum) : null;
+  const bpP       = bpPNum ? getPeriods().find(/** @param {any} x */ x => x.num === bpPNum) : null;
   const hasRate   = oldRate   > 0 && newRate   > 0 && newRate   > oldRate;
   const hasLondon = oldLondon > 0 && newLondon > 0 && newLondon > oldLondon;
 
@@ -111,7 +111,7 @@ export function calcBackPay() {
   let grandVarTotal = 0;
   let pCount        = 0;
 
-  periods.forEach(p => {
+  periods.forEach(/** @param {any} p */ p => {
     try {
       if (fromPNum && p.num < fromPNum) return;
       if (bpPNum   && p.num > bpPNum)  return;
@@ -197,6 +197,7 @@ export function calcBackPay() {
     // field (which shows the rate of whichever tax year is being viewed).
     if (applyWrap && applyBtn && hasRate) {
       const _awardTy = _bpAwardTaxYear(fromPNum);
+      /** @type {Record<string, any>} */
       let _storedRates = {};
       try { _storedRates = JSON.parse(lsGet(SK.rates) || '{}'); } catch {}
       const alreadyApplied = Math.abs((parseFloat(_storedRates[_awardTy.label]) || 0) - newRate) < 0.001;

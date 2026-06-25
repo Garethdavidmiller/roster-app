@@ -58,15 +58,15 @@ export function initPaycalcLightboxes() {
 
     const help = createLightbox({
       overlay:  lb,
-      content:  document.getElementById('helpLightboxContent'),
-      closeBtn: document.getElementById('helpLightboxClose'),
+      content:  /** @type {Element|undefined} */ (document.getElementById('helpLightboxContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('helpLightboxClose') ?? undefined),
     });
 
-    function openHelp(key) {
-      const data = HELP_CONTENT[key];
+    function openHelp(/** @type {any} */ key) {
+      const data = /** @type {Record<string, any>} */ (HELP_CONTENT)[key];
       if (!data) return;
-      titleEl.textContent = data.title;
-      listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
+      if (titleEl) titleEl.textContent = data.title;
+      if (listEl) listEl.innerHTML = data.tips.map((/** @type {any} */ t) => `<li>${t}</li>`).join('');
       help.open();
     }
 
@@ -86,13 +86,13 @@ export function initPaycalcLightboxes() {
 
     const welcome = createLightbox({
       overlay:  lb,
-      content:  document.getElementById('welcomeLightboxContent'),
-      closeBtn: document.getElementById('welcomeLightboxClose'),
+      content:  /** @type {Element|undefined} */ (document.getElementById('welcomeLightboxContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('welcomeLightboxClose') ?? undefined),
       onOpen() {
         const badge = document.getElementById('welcomeGradeBadge');
         if (badge) {
           const g = lsGet(SK.grade);
-          badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
+          badge.textContent = (g && /** @type {Record<string, any>} */ (GRADES)[g] ? /** @type {Record<string, any>} */ (GRADES)[g].label : 'CEA & CES') + ' grade';
         }
       },
       onClose: () => lsSet(WELCOME_KEY, '1'),
@@ -115,8 +115,8 @@ export function initPaycalcLightboxes() {
 
     const notice = createLightbox({
       overlay:  lb,
-      content:  document.getElementById('noticeYtdContent'),
-      closeBtn: document.getElementById('noticeYtdClose'),
+      content:  /** @type {Element|undefined} */ (document.getElementById('noticeYtdContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('noticeYtdClose') ?? undefined),
       onClose: () => {
         archiveNotice({
           id:      'ytd_2627',
@@ -141,20 +141,22 @@ export function initPaycalcLightboxes() {
     if (!toggle || !body || !input || !result) return;
 
     initCardCollapse('decimalConverterToggle', 'decimalConverterBody',
-      'decimalConverterToggle', open => { if (open) input.focus(); });
+      'decimalConverterToggle', (/** @type {any} */ open) => { if (open) input.focus(); });
 
     function convert() {
-      const val = parseFloat(input.value);
-      if (isNaN(val) || val < 0) { result.textContent = '–'; return; }
+      const _input  = /** @type {HTMLInputElement} */ (input);
+      const _result = /** @type {HTMLElement} */ (result);
+      const val = parseFloat(_input.value);
+      if (isNaN(val) || val < 0) { _result.textContent = '–'; return; }
       const totalMins = Math.round(val * 60);
       const hrs  = Math.floor(totalMins / 60);
       const mins = totalMins % 60;
       if (hrs === 0) {
-        result.textContent = `${mins} min${mins !== 1 ? 's' : ''}`;
+        _result.textContent = `${mins} min${mins !== 1 ? 's' : ''}`;
       } else if (mins === 0) {
-        result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''}`;
+        _result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''}`;
       } else {
-        result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''} ${mins} min${mins !== 1 ? 's' : ''}`;
+        _result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''} ${mins} min${mins !== 1 ? 's' : ''}`;
       }
     }
 

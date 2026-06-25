@@ -49,6 +49,7 @@ import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.j
 
 // Assigned by the About-lightbox IIFE; lets the nav-panel drawer logo open the
 // same About panel that the header logo opens on the calendar page.
+/** @type {any} */
 let openAboutLightbox = null;
 
 // Returned by initCalendarLightboxes(); lets a day-cell tap (touch devices)
@@ -77,6 +78,7 @@ const teamView = initTeamView({
 
 // Central month navigation — all buttons, keyboard and swipe go through here.
 // State change is pure (calendar-state.js); this wrapper adds the UI side-effect.
+/** @param {any} delta */
 function changeMonth(delta) {
     changeDisplay(delta);
     dismissSwipeHint();
@@ -108,6 +110,7 @@ function dismissSwipeHint() {
 // Navigate to the pay calculator for a given payday ISO date string.
 // Requires a valid session; otherwise redirects to admin login with a return hint.
 // Always call this helper — never duplicate the navigation logic at a call site.
+/** @param {any} paydayStr */
 function navigateToPaycalc(paydayStr) {
     if (getSession()?.name) {
         window.location.href = `./paycalc.html?payday=${paydayStr}`;
@@ -126,6 +129,7 @@ function navigateToPaycalc(paydayStr) {
 //   🐣 Easter    — only in the month Easter Sunday falls in
 //   Faith events — only for opted-in calendar, only the months that event falls in
 // Called inside renderCalendar() on every navigation.
+/** @param {any} id */
 function _legendEl(id) {
     return document.getElementById(id);
 }
@@ -137,7 +141,7 @@ function updateLegend() {
     const typesThisMonth = member
         ? getShiftTypesInMonth(member, getDisplayYear(), getDisplayMonth())
         : new Set();
-    const setLegendItemVisible = (id, visible) => { const legendItem = _legendEl(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
+    const setLegendItemVisible = /** @param {any} id @param {any} visible */ (id, visible) => { const legendItem = _legendEl(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
     setLegendItemVisible('legend-spare', typesThisMonth.has('SPARE'));
     setLegendItemVisible('legend-rdw',   typesThisMonth.has('RDW'));
     setLegendItemVisible('legend-al',    typesThisMonth.has('AL'));
@@ -146,7 +150,7 @@ function updateLegend() {
     const row2 = _legendEl('legend-row-2');
     if (row2) row2.style.display = (typesThisMonth.has('SPARE') || typesThisMonth.has('RDW') || typesThisMonth.has('AL') || typesThisMonth.has('SICK')) ? '' : 'none';
 
-    const isDispatcher = member && member.rosterType === 'dispatcher';
+    const isDispatcher = member && (/** @type {any} */ (member)).rosterType === 'dispatcher';
     const nightItem = _legendEl('legend-night');
     if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
 
@@ -172,7 +176,7 @@ function renderCalendar() {
         if (stale) {
             const banner = document.getElementById('errorBanner');
             if (banner) {
-                banner.textContent = `"${stale}" is no longer in the roster — showing ${member.name}'s calendar. Use the dropdown to select the correct person.`;
+                banner.textContent = `"${stale}" is no longer in the roster — showing ${(/** @type {any} */ (member)).name}'s calendar. Use the dropdown to select the correct person.`;
                 banner.classList.add('visible');
                 // Keep visible for 30s — this is actionable (user needs to re-select).
                 setTimeout(() => banner.classList.remove('visible'), 30000);
@@ -184,7 +188,7 @@ function renderCalendar() {
 
         // Set team member name on header for printing
         const headerElement = document.querySelector('.header');
-        if (headerElement) headerElement.setAttribute('data-member-name', member.name);
+        if (headerElement) headerElement.setAttribute('data-member-name', (/** @type {any} */ (member)).name);
 
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (!calendarDisplay) throw new Error('Calendar display element not found');
@@ -196,7 +200,7 @@ function renderCalendar() {
 
         const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {
             navigateToPaycalc,
-            onDayDetail: (cell) => openDayDetail?.(cell),
+            onDayDetail: /** @param {any} cell */ (cell) => openDayDetail?.(cell),
         });
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
@@ -247,7 +251,7 @@ function renderCalendar() {
 // EVENT LISTENERS
 // ============================================
 
-document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
+(/** @type {HTMLElement} */ (document.getElementById('teamMemberSelect'))).addEventListener('change', (e) => {
     if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
     saveSelectedMember(parseInt(/** @type {HTMLSelectElement} */ (e.target).value, 10));
     renderCalendar();
@@ -256,7 +260,7 @@ document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
 });
 
 
-document.getElementById('prevMonth').addEventListener('click', (e) => {
+(/** @type {HTMLElement} */ (document.getElementById('prevMonth'))).addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
     // aria-disabled is set at the boundary — honour it as a true no-op so AT users
     // (and PageUp via .click()) don't trigger a pointless re-render/announce.
@@ -296,7 +300,7 @@ function announceMonthChange() {
 }
 
 
-document.getElementById('todayBtn').addEventListener('click', () => {
+(/** @type {HTMLElement} */ (document.getElementById('todayBtn'))).addEventListener('click', () => {
     if (isSwipeCooldown()) return;
     if (teamView.isTeamViewMode()) {
         teamView.jumpToCurrentWeek();
@@ -310,7 +314,7 @@ document.getElementById('todayBtn').addEventListener('click', () => {
     }
 });
 
-document.getElementById('nextMonth').addEventListener('click', (e) => {
+(/** @type {HTMLElement} */ (document.getElementById('nextMonth'))).addEventListener('click', (e) => {
     if (isSwipeCooldown()) return;
     if (/** @type {Element} */ (e.currentTarget).getAttribute('aria-disabled') === 'true') return;
     changeMonth(1);
@@ -320,7 +324,7 @@ document.getElementById('nextMonth').addEventListener('click', (e) => {
 
 // Pay button — navigates to paycalc.html for any signed-in staff member.
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
-document.getElementById('payBtn').addEventListener('click', () => {
+(/** @type {HTMLElement} */ (document.getElementById('payBtn'))).addEventListener('click', () => {
     if (getSession()?.name) {
         const m = String(getDisplayMonth() + 1).padStart(2, '0');
         window.location.href = `./paycalc.html?month=${getDisplayYear()}-${m}`;
@@ -353,13 +357,13 @@ document.getElementById('payBtn').addEventListener('click', () => {
     }
     if (!period) return;
 
-    const fmt    = d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
+    const fmt    = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'Europe/London' });
     const payISO = formatISO(period.payday);
     strip.innerHTML = `Pay period: <a class="pay-period-link" href="./paycalc.html?payday=${payISO}">${fmt(period.start)} – ${fmt(period.cutoff)}</a> · paid ${fmt(period.payday)}`;
     strip.style.display = '';
 })();
 
-document.getElementById('adminBtn').addEventListener('click', () => {
+(/** @type {HTMLElement} */ (document.getElementById('adminBtn'))).addEventListener('click', () => {
     const today = new Date();
     const isCurrentMonth = getDisplayMonth() === today.getMonth() && getDisplayYear() === today.getFullYear();
     const targetDate = isCurrentMonth ? today : new Date(getDisplayYear(), getDisplayMonth(), 1);
@@ -369,7 +373,7 @@ document.getElementById('adminBtn').addEventListener('click', () => {
     location.href = `admin.html?date=${yyyy}-${mm}-${dd}`;
 });
 
-document.getElementById('teamViewBtn').addEventListener('click', teamView.toggleTeamView);
+(/** @type {HTMLElement} */ (document.getElementById('teamViewBtn'))).addEventListener('click', teamView.toggleTeamView);
 
 (function initTeamLightboxes() {
     const lb = document.getElementById('teamInfoLightbox');
@@ -380,8 +384,8 @@ document.getElementById('teamViewBtn').addEventListener('click', teamView.toggle
     // the pattern every other lightbox follows.
     const teamInfo = createLightbox({
         overlay:  lb,
-        content:  document.getElementById('teamInfoContent'),
-        closeBtn: document.getElementById('teamInfoClose'),
+        content:  /** @type {HTMLElement} */ (document.getElementById('teamInfoContent')),
+        closeBtn: /** @type {HTMLElement} */ (document.getElementById('teamInfoClose')),
     });
 
     // Event delegation — #teamHelpBtn is re-created on every renderTeamView() call.
@@ -462,7 +466,7 @@ try {
 
             const about = initAboutLightbox({
                 appLabel: 'MYB Roster',
-                getUserName: () => getCurrentMember()?.name || 'Not selected',
+                getUserName: () => (/** @type {any} */ (getCurrentMember()))?.name || 'Not selected',
                 onOpen() {
                     // Swap content based on current view mode
                     const inTeam = teamView.isTeamViewMode();
@@ -526,8 +530,8 @@ try {
             // No .lb-close button here: Cancel is the close control.
             const picker = createLightbox({
                 overlay,
-                content: card,
-                initialFocus: () => selMonth,
+                content: card || undefined,
+                initialFocus: () => selMonth || undefined,
                 onOpen() {
                     selMonth.value = String(getDisplayMonth());
                     selYear.value  = String(getDisplayYear());
@@ -535,16 +539,16 @@ try {
             });
 
             // Delegated click: any .month-year element (rebuilt on each render)
-            document.getElementById('calendarDisplay').addEventListener('click', e => {
+            (/** @type {HTMLElement} */ (document.getElementById('calendarDisplay'))).addEventListener('click', e => {
                 if (/** @type {Element} */ (e.target).closest('.month-year')) picker.open();
             });
-            document.getElementById('calendarDisplay').addEventListener('keydown', e => {
+            (/** @type {HTMLElement} */ (document.getElementById('calendarDisplay'))).addEventListener('keydown', e => {
                 if (/** @type {Element} */ (e.target).closest('.month-year') && (/** @type {KeyboardEvent} */ (e).key === 'Enter' || /** @type {KeyboardEvent} */ (e).key === ' ')) {
                     e.preventDefault(); picker.open();
                 }
             });
 
-            btnConfirm.addEventListener('click', () => {
+            btnConfirm?.addEventListener('click', () => {
                 setDisplayMonth(parseInt(selMonth.value, 10));
                 setDisplayYear(parseInt(selYear.value, 10));
                 picker.close();
@@ -555,7 +559,7 @@ try {
                 /** @type {HTMLElement} */ (document.querySelector('.month-year'))?.focus();
             });
 
-            btnCancel.addEventListener('click', () => picker.close());
+            btnCancel?.addEventListener('click', () => picker.close());
         })();
 
         // ============================================
@@ -617,7 +621,7 @@ function stampPrintDate() {
     const header = document.querySelector('.header');
     if (!header) return;
     header.setAttribute('data-print-date', `Printed: ${now}`);
-    header.setAttribute('data-member-name', getCurrentMember().name);
+    header.setAttribute('data-member-name', (/** @type {any} */ (getCurrentMember())).name);
 }
 stampPrintDate();
 window.addEventListener('beforeprint', stampPrintDate);
@@ -657,9 +661,10 @@ initHuddleViewer();
     const enableBtn  = document.getElementById('notifPromptEnable');
     const dismissBtn = document.getElementById('notifPromptDismiss');
     if (!prompt || !enableBtn || !dismissBtn) return;
+    const _prompt = /** @type {HTMLElement} */ (prompt);
 
-    prompt.style.display = 'flex';
-    function hide() { prompt.style.display = 'none'; }
+    _prompt.style.display = 'flex';
+    function hide() { _prompt.style.display = 'none'; }
 
     enableBtn.addEventListener('click', async () => {
         hide();

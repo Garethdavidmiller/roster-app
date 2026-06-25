@@ -104,7 +104,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       syncResolved = true;
       if (!isTeamViewMode()) renderCalendar();
 
-      if (syncChip) { syncChip.remove(); syncChip = null; }
+      if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
     } catch (err) {
       syncResolved = true;
       console.error('[Firestore] Initial override fetch failed — base roster will be used', err);

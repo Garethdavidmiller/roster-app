@@ -10,7 +10,7 @@
  */
 
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
-import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
+import { db as _db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { getSession, clearSession, ensureFirebaseSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
@@ -50,7 +50,7 @@ resolveSession(ensureFirebaseSession(currentUser));
 // ============================================
 document.body.classList.add('auth-ready');
 
-let openAboutLightbox = null;
+/** @type {any} */ let openAboutLightbox = null;
 
 initNavPanel({
     currentPage:     'links',
@@ -73,7 +73,7 @@ const TOTAL_POS     = 28;
 const ROTATING_LINES = 28;
 
 /** Firestore collection holding all named design documents. */
-const DESIGNS_COL = collection(db, COLLECTIONS.linkDesigns);
+const DESIGNS_COL = collection(_db, COLLECTIONS.linkDesigns);
 
 /** localStorage key remembering the last active design across visits. */
 const ACTIVE_KEY = 'myb_links_active_design';
@@ -108,10 +108,10 @@ const { EARLY_SHIFTS, LATE_SHIFTS } = (() => {
 let design = null;
 let dirty  = false;
 let loadFailed      = false;
-let loadedUpdatedAt = null; // millis — for save concurrency check
+/** @type {any} */ let loadedUpdatedAt = null; // millis — for save concurrency check
 
 // Paint-mode brush: string = armed shift, null = no brush
-let brush = null;
+/** @type {any} */ let brush = null;
 
 // Generator targets
 /** @type {Array<{time:string, weekday:number, sat:number, sun:number}>} */
@@ -121,15 +121,18 @@ let genSpare = { weekday: 0, sat: 0, sun: 0 };
 // Multi-design state
 /** @type {Array<{id:string, name:string, patterns:Object, updatedAt:*, updatedBy:string}>} */
 let designs         = [];
-let activeDesignId  = null; // null = design not yet saved to Firestore
-let compareDesignId = null;
+/** @type {any} */ let activeDesignId  = null; // null = design not yet saved to Firestore
+/** @type {any} */ let compareDesignId = null;
 let compareMode     = false;
 
 // ============================================
 // HELPERS
 // ============================================
 
-/** Compact two-line label for a shift button: "06:20\n14:20" or "RD" / "SP". */
+/**
+ * Compact two-line label for a shift button: "06:20\n14:20" or "RD" / "SP".
+ * @param {any} shift
+ */
 function shiftLabel(shift) {
     if (!shift || shift === 'RD' || shift === 'OFF') return 'RD';
     if (shift === 'SPARE') return 'SP';
@@ -137,7 +140,10 @@ function shiftLabel(shift) {
     return dash > 0 ? `${shift.slice(0, dash)}\n${shift.slice(dash + 1)}` : shift;
 }
 
-/** Start-time portion of a shift string for compact chip labels: "06:20-14:20" → "06:20". */
+/**
+ * Start-time portion of a shift string for compact chip labels: "06:20-14:20" → "06:20".
+ * @param {any} shift
+ */
 function formatShortTime(shift) {
     const dash = shift.indexOf('-');
     return dash > 0 ? shift.slice(0, dash) : shift;
@@ -147,15 +153,18 @@ function formatShortTime(shift) {
 const emptyPattern = () => Object.fromEntries(DAYS.map(d => [d, 'RD']));
 
 /** An all-rest line is "not yet designed" — flagged amber, not muted. */
-const isUnfilledPattern = (p) => DAYS.every(d => {
+const isUnfilledPattern = (/** @type {any} */ p) => DAYS.every(d => {
     const s = p?.[d] ?? 'RD';
     return s === 'RD' || s === 'OFF';
 });
 
-/** Deep-copy a patterns object so edits don't mutate the designs array. */
+/**
+ * Deep-copy a patterns object so edits don't mutate the designs array.
+ * @param {any} patterns
+ */
 function deepCopyPatterns(patterns) {
-    const copy = {};
-    for (const [k, v] of Object.entries(patterns || {})) copy[k] = { ...v };
+    const copy = /** @type {Record<string, any>} */ ({});
+    for (const [k, v] of Object.entries(patterns || {})) copy[k] = { ...(/** @type {any} */ (v)) };
     return copy;
 }
 
@@ -167,7 +176,7 @@ function deepCopyPatterns(patterns) {
  * normaliseCustomShift() also rejects starts between 21:00 and 03:59.
  */
 function buildShiftOptions(currentVal, includeRdSpare = false) {
-    const opt = (val, label) => {
+    const opt = (/** @type {any} */ val, /** @type {any} */ label) => {
         const sel = val === currentVal ? ' selected' : '';
         return `<option value="${escapeHtml(val)}"${sel}>${escapeHtml(label)}</option>`;
     };
@@ -321,14 +330,17 @@ async function duplicateDesign() {
     }
 }
 
-/** Rename an existing design. */
+/**
+ * Rename an existing design.
+ * @param {any} id
+ */
 async function renameDesign(id) {
     const d = designs.find(x => x.id === id);
     if (!d) return;
     const name = prompt('New name:', d.name)?.trim();
     if (!name || name === d.name) return;
     try {
-        await setDoc(doc(db, COLLECTIONS.linkDesigns, id), { name }, { merge: true });
+        await setDoc(doc(_db, COLLECTIONS.linkDesigns, id), { name }, { merge: true });
         d.name = name;
         if (id === activeDesignId && design) design.name = name;
         renderDesignPicker();
@@ -337,14 +349,17 @@ async function renameDesign(id) {
     }
 }
 
-/** Delete a design (with confirmation). The last design can't be deleted —
- * the ✕ button is disabled in that state, so this guard is just a backstop. */
+/**
+ * Delete a design (with confirmation). The last design can't be deleted —
+ * the ✕ button is disabled in that state, so this guard is just a backstop.
+ * @param {any} id
+ */
 async function deleteDesign(id) {
     if (designs.length <= 1) return;
     const d = designs.find(x => x.id === id);
     if (!d || !confirm(`Delete "${d.name}"? This can't be undone.`)) return;
     try {
-        await deleteDoc(doc(db, COLLECTIONS.linkDesigns, id));
+        await deleteDoc(doc(_db, COLLECTIONS.linkDesigns, id));
         designs = designs.filter(x => x.id !== id);
         if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
         if (id === activeDesignId) _activateDesign(designs[0]);
@@ -354,7 +369,10 @@ async function deleteDesign(id) {
     }
 }
 
-/** Switch the active design. Warns if dirty. */
+/**
+ * Switch the active design. Warns if dirty.
+ * @param {any} id
+ */
 function selectDesign(id) {
     if (id === activeDesignId) return;
     if (dirty && !confirm('You have unsaved changes. Switch to another design? Changes will be lost.')) return;
@@ -365,7 +383,10 @@ function selectDesign(id) {
     _activateDesign(d);
 }
 
-/** Internal: set a design as active and refresh all UI. */
+/**
+ * Internal: set a design as active and refresh all UI.
+ * @param {any} d
+ */
 function _activateDesign(d) {
     if (!d) return;
     activeDesignId  = d.id;
@@ -402,7 +423,10 @@ function toggleCompareMode() {
     renderCompare();
 }
 
-/** Select the design shown in the compare column. */
+/**
+ * Select the design shown in the compare column.
+ * @param {any} id
+ */
 function selectCompareDesign(id) {
     compareDesignId = id;
     renderDesignPicker();
@@ -434,6 +458,10 @@ function renderCompare() {
 /**
  * Render a read-only compare grid into tbodyId/tfootId.
  * Cells that differ from otherPatterns get the .cell-diff class.
+ * @param {any} tbodyId
+ * @param {any} tfootId
+ * @param {any} patterns
+ * @param {any} otherPatterns
  */
 function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
     const tbody = document.getElementById(tbodyId);
@@ -466,7 +494,7 @@ function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
     if (tfoot) {
         const cov   = calcCoverage(patterns);
         const cells = DAYS.map(d => {
-            const { early, late, spare, night } = cov[d];
+            const { early, late, spare, night } = (/** @type {Record<string, any>} */ (cov))[d];
             const worked = early + late + spare + night;
             return `<td class="cov-cell">` +
                 `<span class="cov-num">${worked}</span>` +
@@ -484,6 +512,7 @@ function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
 // PAINT BRUSH
 // ============================================
 
+/** @param {any} shift */
 function armBrush(shift) {
     brush = shift;
     document.querySelectorAll('.brush-chip').forEach(c => {
@@ -502,7 +531,7 @@ function renderBrushBar() {
     if (!design || compareMode) { bar.style.display = 'none'; return; }
     bar.style.display = '';
 
-    const chip = (shift, label, typeClass, extra = '') =>
+    const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '') =>
         `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
         `aria-label="Paint: ${escapeHtml(label)}" title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
 
@@ -579,7 +608,7 @@ function renderGrid() {
     const rows = [];
     for (let pos = 1; pos <= TOTAL_POS; pos++) {
         const posStr  = String(pos);
-        const p        = design.patterns[posStr] || emptyPattern();
+        const p        = (/** @type {Record<string, any>} */ (design.patterns))[posStr] || emptyPattern();
         const rowClass = isUnfilledPattern(p) ? 'row-unfilled' : '';
 
         const dayCells = DAYS.map((d, di) => {
@@ -627,10 +656,17 @@ function renderGrid() {
     });
 })();
 
-/** Apply a shift value to a cell, update state and re-render coverage. */
+/**
+ * Apply a shift value to a cell, update state and re-render coverage.
+ * @param {any} pos
+ * @param {any} day
+ * @param {any} shift
+ */
 function applyShift(pos, day, shift) {
-    if (!design.patterns[pos]) design.patterns[pos] = emptyPattern();
-    design.patterns[pos][day] = shift;
+    if (!design) return;
+    const pats = /** @type {Record<string, any>} */ (design.patterns);
+    if (!pats[pos]) pats[pos] = emptyPattern();
+    pats[pos][day] = shift;
     dirty = true;
     updateSaveBtn();
 
@@ -639,7 +675,7 @@ function applyShift(pos, day, shift) {
     if (oldBtn) restoreBtn(oldBtn.parentElement, pos, day, shift);
 
     const tr = tbody?.querySelector(`tr[data-pos="${pos}"]`);
-    if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(design.patterns[pos]));
+    if (tr) tr.classList.toggle('row-unfilled', isUnfilledPattern(pats[pos]));
 
     const cov = calcCoverage(design.patterns);
     renderFooter(cov);
@@ -647,6 +683,7 @@ function applyShift(pos, day, shift) {
     renderDesignChecks();
 }
 
+/** @param {any} cov */
 function renderFooter(cov) {
     const tfoot = document.getElementById('linksCoverageFoot');
     if (!tfoot || !design || !cov) return;
@@ -668,12 +705,14 @@ function renderFooter(cov) {
 // INLINE CELL EDITING (dropdown mode)
 // ============================================
 
+/** @param {any} btn */
 function openCellEdit(btn) {
+    if (!design) return;
     const cell     = btn.parentElement;
     const pos      = btn.dataset.pos;
     const day      = btn.dataset.day;
     const dayLabel = DAY_LABELS[DAYS.indexOf(day)];
-    const current  = design.patterns[pos]?.[day] ?? 'RD';
+    const current  = (/** @type {Record<string, any>} */ (design.patterns))[pos]?.[day] ?? 'RD';
 
     const select = document.createElement('select');
     select.className = 'shift-cell-select';
@@ -716,6 +755,12 @@ function openCellEdit(btn) {
     requestAnimationFrame(() => select.focus());
 }
 
+/**
+ * @param {any} cell
+ * @param {any} pos
+ * @param {any} day
+ * @param {any} shift
+ */
 function restoreBtn(cell, pos, day, shift) {
     const type   = classifyShift(shift);
     const label  = shiftLabel(shift);
@@ -734,6 +779,7 @@ function restoreBtn(cell, pos, day, shift) {
 // COVERAGE HEAT MAP
 // ============================================
 
+/** @param {any} [_cov] */
 function renderCoverageChart(_cov) {
     const wrap     = document.getElementById('coverageHeatmap');
     const emptyMsg = document.getElementById('coverageEmptyMsg');
@@ -905,13 +951,15 @@ function renderDesignChecks() {
  */
 function buildRosterTargets() {
     const sources = [];
-    for (let w = 1; w <= 20; w++) sources.push(weeklyRoster[w]);
+    const _weeklyRoster = /** @type {Record<number, any>} */ (weeklyRoster);
+    const _bilingualRoster = /** @type {Record<number, any>} */ (bilingualRoster);
+    for (let w = 1; w <= 20; w++) sources.push(_weeklyRoster[w]);
     const blMembers = teamMembers.filter(m => m.rosterType === 'bilingual' && !m.hidden);
-    for (let i = 0; i < 2; i++) sources.push(bilingualRoster[blMembers[i]?.currentWeek || (i + 1)]);
+    for (let i = 0; i < 2; i++) sources.push(_bilingualRoster[blMembers[i]?.currentWeek || (i + 1)]);
 
     const weekdays = DAYS.filter(d => dayClass(d) === 'weekday');
-    const perDay = {};
-    const spareByDay = Object.fromEntries(DAYS.map(d => [d, 0]));
+    const perDay = /** @type {Record<string, any>} */ ({});
+    const spareByDay = /** @type {Record<string, any>} */ (Object.fromEntries(DAYS.map(d => [d, 0])));
     for (const src of sources) {
         for (const d of DAYS) {
             const s = src?.[d];
@@ -945,7 +993,7 @@ function renderGenTable() {
         `aria-label="Shift time for row ${i + 1}">${buildShiftOptions(slot.time)}</select></td>` +
         ['weekday', 'sat', 'sun'].map(cls =>
             `<td><input type="number" class="gen-input gen-slot-count" min="0" max="28" ` +
-            `value="${slot[cls]}" data-slot="${i}" data-class="${cls}" ` +
+            `value="${(/** @type {Record<string, any>} */ (slot))[cls]}" data-slot="${i}" data-class="${cls}" ` +
             `aria-label="${cls === 'weekday' ? 'Mon–Fri' : cls === 'sat' ? 'Saturday' : 'Sunday'} target for ${escapeHtml(slot.time)}"></td>`
         ).join('') +
         `<td class="gen-td-remove"><button class="gen-remove-btn" data-slot="${i}" type="button" ` +
@@ -956,7 +1004,7 @@ function renderGenTable() {
 }
 
 function updateGenTotals() {
-    const tot = { weekday: genSpare.weekday, sat: genSpare.sat, sun: genSpare.sun };
+    const tot = /** @type {Record<string, any>} */ ({ weekday: genSpare.weekday, sat: genSpare.sat, sun: genSpare.sun });
     for (const s of genSlots) {
         tot.weekday += s.weekday; tot.sat += s.sat; tot.sun += s.sun;
     }
@@ -982,16 +1030,16 @@ function updateGenTotals() {
     tbody.addEventListener('input', e => {
         const input = /** @type {HTMLInputElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-count'));
         if (!input) return;
-        const slot = genSlots[+input.dataset.slot];
+        const slot = genSlots[+(input.dataset.slot ?? '')];
         if (!slot) return;
-        slot[input.dataset.class] = Math.max(0, parseInt(input.value, 10) || 0);
+        (/** @type {Record<string, any>} */ (slot))[input.dataset.class ?? ''] = Math.max(0, parseInt(input.value, 10) || 0);
         updateGenTotals();
     });
 
     tbody.addEventListener('change', e => {
         const select = /** @type {HTMLSelectElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-slot-time'));
         if (!select) return;
-        const slot = genSlots[+select.dataset.slot];
+        const slot = genSlots[+(select.dataset.slot ?? '')];
         if (!slot) return;
         if (select.value === '__custom__') {
             const typed = normaliseCustomShift(
@@ -1006,13 +1054,13 @@ function updateGenTotals() {
     tbody.addEventListener('click', e => {
         const btn = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.gen-remove-btn'));
         if (!btn) return;
-        genSlots.splice(+btn.dataset.slot, 1);
+        genSlots.splice(+(btn.dataset.slot ?? ''), 1);
         renderGenTable();
     });
 
     for (const [id, cls] of [['genSpareWeekday', 'weekday'], ['genSpareSat', 'sat'], ['genSpareSun', 'sun']]) {
         document.getElementById(id)?.addEventListener('input', e => {
-            genSpare[cls] = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
+            (/** @type {Record<string, any>} */ (genSpare))[cls] = Math.max(0, parseInt(/** @type {HTMLInputElement} */ (e.target).value, 10) || 0);
             updateGenTotals();
         });
     }
@@ -1044,7 +1092,7 @@ function updateGenTotals() {
         const over = ['weekday', 'sat', 'sun'].filter(c => tot[c] > 28);
         if (over.length) {
             if (errEl) {
-                const names = { weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' };
+                const names = /** @type {Record<string, any>} */ ({ weekday: 'Mon–Fri', sat: 'Saturday', sun: 'Sunday' });
                 errEl.textContent = `Can't generate: ${over.map(c => `${names[c]} totals ${tot[c]}`).join(', ')} — ` +
                     `each day's total (shifts + spare) can't exceed 28 lines.`;
             }
@@ -1094,6 +1142,10 @@ function updateSaveBtn() {
     if (status && dirty) status.textContent = '';
 }
 
+/**
+ * @param {any} updatedBy
+ * @param {any} updatedAt
+ */
 function updateLastSaved(updatedBy, updatedAt) {
     const el = document.getElementById('linksLastSaved');
     if (!el) return;
@@ -1127,7 +1179,7 @@ async function saveChanges() {
             // Read back to capture the server timestamp for concurrency tracking
             let savedAt = null;
             try {
-                const snap = await getDoc(doc(db, COLLECTIONS.linkDesigns, ref.id));
+                const snap = await getDoc(doc(_db, COLLECTIONS.linkDesigns, ref.id));
                 savedAt = snap.data()?.updatedAt ?? null;
                 loadedUpdatedAt = savedAt?.toMillis?.() ?? null;
             } catch { loadedUpdatedAt = null; }
@@ -1142,7 +1194,7 @@ async function saveChanges() {
         }
 
         // Concurrency check: two designers can have this page open simultaneously
-        const designRef = doc(db, COLLECTIONS.linkDesigns, activeDesignId);
+        const designRef = doc(_db, COLLECTIONS.linkDesigns, activeDesignId);
         try {
             const fresh   = await getDoc(designRef);
             const freshTs = fresh.exists() ? (fresh.data().updatedAt?.toMillis?.() ?? null) : null;
@@ -1402,8 +1454,8 @@ document.addEventListener('click', e => {
 
     const beta = createLightbox({
         overlay:  lb,
-        content:  document.getElementById('betaLightboxContent'),
-        closeBtn: document.getElementById('betaLightboxClose'),
+        content:  /** @type {any} */ (document.getElementById('betaLightboxContent')),
+        closeBtn: /** @type {any} */ (document.getElementById('betaLightboxClose')),
         onClose() {
             lsSet(BETA_KEY, '1');
             archiveNotice({

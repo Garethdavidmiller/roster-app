@@ -46,7 +46,9 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     const TRANSITION             = prefersReducedMotion ? 'none' : 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
     const TRANSITION_DURATION_MS = prefersReducedMotion ? 0 : 350; // Must match the duration in TRANSITION above
 
+    /** @type {HTMLElement|null} */
     let prevPanel = null;
+    /** @type {HTMLElement|null} */
     let nextPanel = null;
     let isListening = false;     // True from pointerdown until gesture is resolved (tap or completed swipe)
     let isDragging = false;      // True only after horizontal intent is confirmed in pointermove
@@ -54,7 +56,9 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
     let touchStartY = 0;
     let touchStartTime = 0;
     let gestureW = 0;            // Cached display width — measured on pointerdown, reused throughout gesture
+    /** @type {HTMLElement|null} */
     let gestureCurrentPanel = null; // Cached current panel — queried once on pointerdown, reused throughout gesture
+    /** @type {number|null} */
     let rafId = null;            // requestAnimationFrame handle — throttles transform writes to one per frame
     let pendingX = 0;            // Most recent deltaX — consumed by the scheduled RAF frame
     let _vibratePrimed = false;  // navigator.vibrate(0) only needs to run once per page lifetime
@@ -62,7 +66,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
 
     // Returns true if swiping in the given direction would actually change the month.
     // At the year boundaries, swiping toward the blocked side should always snap back.
-    function canNavigate(direction) {
+    function canNavigate(/** @type {string} */ direction) {
         if (direction === 'prev') return !(getDisplayYear() === CONFIG.MIN_YEAR && getDisplayMonth() === 0);
         if (direction === 'next') return !(getDisplayYear() === CONFIG.MAX_YEAR && getDisplayMonth() === 11);
         return true;
@@ -70,7 +74,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
 
     // Build a panel for an adjacent month using explicit month/year params —
     // no global state mutation, no risk of corruption if an exception is thrown.
-    function buildAdjacentPanel(monthDelta) {
+    function buildAdjacentPanel(/** @type {number} */ monthDelta) {
         let m = getDisplayMonth() + monthDelta;
         let y = getDisplayYear();
         if (m > 11) { m = 0;  y++; }
@@ -79,14 +83,14 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
         if (y < CONFIG.MIN_YEAR) { y = CONFIG.MIN_YEAR; m = 0;  }
         return buildCalendarContainer(m, y, {
             navigateToPaycalc,
-            onDayDetail: openDayDetail,
+            onDayDetail: openDayDetail ?? undefined,
         });
     }
 
     // Position a panel off-screen without transition.
     // Static layout (position/top/left/width) is in the .carousel-panel CSS class.
     // gestureW is cached on pointerdown — no layout recalculation needed here.
-    function parkPanel(panel, side) {
+    function parkPanel(/** @type {HTMLElement} */ panel, /** @type {string} */ side) {
         panel.classList.add('carousel-panel');
         panel.style.transition = 'none';
         panel.style.transform  = `translate3d(${side === 'right' ? gestureW : -gestureW}px, 0, 0)`;
@@ -175,7 +179,7 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             // Horizontal intent confirmed — defer setPointerCapture to here (iOS Safari
             // suppresses pointermove if captured on pointerdown).
             calendarDisplay.setPointerCapture(e.pointerId);
-            gestureCurrentPanel.style.transition = 'none';
+            if (gestureCurrentPanel) gestureCurrentPanel.style.transition = 'none';
             _swipeCooldown = true;
             isDragging    = true;
         }
@@ -261,11 +265,13 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             if (discardPanel && discardPanel.parentNode) discardPanel.remove();
 
             function restoreIncoming() {
-                incomingPanel.classList.remove('carousel-panel');
-                incomingPanel.style.transition = '';
-                incomingPanel.style.transform  = '';
-                incomingPanel.style.willChange = '';
-                if (current.parentNode) current.remove();
+                if (incomingPanel) {
+                    incomingPanel.classList.remove('carousel-panel');
+                    incomingPanel.style.transition = '';
+                    incomingPanel.style.transform  = '';
+                    incomingPanel.style.willChange = '';
+                }
+                if (current && current.parentNode) current.remove();
                 prevPanel = null;
                 nextPanel = null;
                 gestureCurrentPanel = null;

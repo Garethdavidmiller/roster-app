@@ -30,10 +30,10 @@ export function initHuddleUpload({ currentIsAdmin, currentUser }) {
  * Used by settings.html where notifications are available to all staff.
  */
 export function initHuddleNotifications() {
-    const statusMsg  = document.getElementById('notifStatusMsg');
+    const statusMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifStatusMsg'));
     const enableBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifEnableBtn'));
     const disableBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('notifDisableBtn'));
-    const deniedMsg  = document.getElementById('notifDeniedMsg');
+    const deniedMsg  = /** @type {HTMLElement|null} */ (document.getElementById('notifDeniedMsg'));
 
     // Shared collapse helper — adds aria-expanded, role="button", and keyboard nav
     initCardCollapse('notifToggleHeader', 'notifBody', 'notifChevron');
@@ -49,51 +49,58 @@ export function initHuddleNotifications() {
         return;
     }
 
+    if (!statusMsg || !enableBtn || !disableBtn || !deniedMsg) return;
+
+    const _statusMsg  = /** @type {HTMLElement} */ (statusMsg);
+    const _enableBtn  = /** @type {HTMLButtonElement} */ (enableBtn);
+    const _disableBtn = /** @type {HTMLButtonElement} */ (disableBtn);
+    const _deniedMsg  = /** @type {HTMLElement} */ (deniedMsg);
+
     // peekNotifState reads state without triggering the VAPID-rotation side effect —
     // app.js runs the full getNotifState() on load; this page only needs to read.
     async function refreshUI() {
         const state = await peekNotifState();
-        enableBtn.style.display  = 'none';
-        disableBtn.style.display = 'none';
-        deniedMsg.style.display  = 'none';
-        enableBtn.disabled  = false;
-        disableBtn.disabled = false;
-        enableBtn.textContent  = 'Enable notifications';
-        disableBtn.textContent = 'Disable notifications';
+        _enableBtn.style.display  = 'none';
+        _disableBtn.style.display = 'none';
+        _deniedMsg.style.display  = 'none';
+        _enableBtn.disabled  = false;
+        _disableBtn.disabled = false;
+        _enableBtn.textContent  = 'Enable notifications';
+        _disableBtn.textContent = 'Disable notifications';
         if (state === 'on') {
-            statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when payday is approaching. (Daily Huddle alerts temporarily paused)';
-            disableBtn.style.display = 'block';
+            _statusMsg.textContent    = 'Notifications are on — you\'ll be alerted when payday is approaching. (Daily Huddle alerts temporarily paused)';
+            _disableBtn.style.display = 'block';
         } else if (state === 'off-lapsed') {
-            statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
-            enableBtn.style.display = 'block';
+            _statusMsg.textContent   = 'Notifications are enabled in your browser but your subscription has lapsed. Tap Enable to resubscribe.';
+            _enableBtn.style.display = 'block';
         } else if (state === 'denied') {
-            statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';
+            _statusMsg.textContent   = 'Notifications are blocked. To re-enable, check your browser or device settings.';
             if (isIOS()) {
-                deniedMsg.textContent = 'On iPhone/iPad: Settings → Chrome or Safari → Notifications → Allow.';
+                _deniedMsg.textContent = 'On iPhone/iPad: Settings → Chrome or Safari → Notifications → Allow.';
             } else if (/Android/i.test(navigator.userAgent)) {
-                deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
+                _deniedMsg.textContent = 'On Android: tap the padlock in Chrome → Site settings → Notifications → Allow.';
             } else {
-                deniedMsg.textContent = 'In Chrome: click the padlock in the address bar → Site settings → Notifications → Allow.';
+                _deniedMsg.textContent = 'In Chrome: click the padlock in the address bar → Site settings → Notifications → Allow.';
             }
-            deniedMsg.style.display = 'block';
+            _deniedMsg.style.display = 'block';
         } else {
-            statusMsg.textContent   = 'Tap Enable to get an alert when payday is approaching. (Daily Huddle alerts temporarily paused)';
-            enableBtn.style.display = 'block';
+            _statusMsg.textContent   = 'Tap Enable to get an alert when payday is approaching. (Daily Huddle alerts temporarily paused)';
+            _enableBtn.style.display = 'block';
         }
     }
 
     const safeRefresh = () => refreshUI().catch(err => console.warn('[Notifications] Refresh error:', err));
 
-    enableBtn.addEventListener('click', async () => {
-        enableBtn.disabled = true;
-        enableBtn.textContent = 'Enabling…';
+    _enableBtn.addEventListener('click', async () => {
+        _enableBtn.disabled = true;
+        _enableBtn.textContent = 'Enabling…';
         await enableNotifications().catch(err => console.warn('[Notifications] Enable failed:', err));
         await safeRefresh();
     });
 
-    disableBtn.addEventListener('click', async () => {
-        disableBtn.disabled = true;
-        disableBtn.textContent = 'Disabling…';
+    _disableBtn.addEventListener('click', async () => {
+        _disableBtn.disabled = true;
+        _disableBtn.textContent = 'Disabling…';
         await disableNotifications().catch(err => console.warn('[Notifications] Disable failed:', err));
         await safeRefresh();
     });
@@ -107,7 +114,7 @@ export function initHuddleNotifications() {
 // The card HTML is always in the DOM but hidden via style="display:none".
 // This block reveals it and wires up the upload flow only when the signed-in
 // user is an admin. Non-admins never see the card.
-function _initHuddleUpload(currentIsAdmin, currentUser) {
+function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {string|null} */ currentUser) {
     if (!currentIsAdmin) return;
 
     const card      = document.getElementById('huddleUploadCard');
@@ -117,7 +124,12 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
     const uploadBtn = /** @type {HTMLButtonElement|null} */ (document.getElementById('huddleUploadBtn'));
     const feedback  = document.getElementById('huddleFeedback');
 
-    if (!card || !dateInput || !fileInput || !uploadBtn) return;
+    if (!card || !dateInput || !fileInput || !uploadBtn || !fileLabel || !feedback) return;
+
+    const _fileLabel = /** @type {HTMLElement} */ (fileLabel);
+    const _uploadBtn = /** @type {HTMLButtonElement} */ (uploadBtn);
+    const _feedback  = /** @type {HTMLElement} */ (feedback);
+    const _fileInput = /** @type {HTMLInputElement} */ (fileInput);
 
     // Reveal card for admin
     card.style.display = '';
@@ -125,22 +137,22 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
     // Default date to today
     dateInput.value = formatISO(new Date());
 
-    function _rejectFile(reason) {
-        fileLabel.classList.remove('visible');
-        uploadBtn.disabled = true;
-        feedback.textContent = reason;
-        feedback.className = 'huddle-feedback huddle-feedback--err';
-        fileInput.value = '';
+    function _rejectFile(/** @type {string} */ reason) {
+        _fileLabel.classList.remove('visible');
+        _uploadBtn.disabled = true;
+        _feedback.textContent = reason;
+        _feedback.className = 'huddle-feedback huddle-feedback--err';
+        _fileInput.value = '';
     }
 
     // Show chosen filename and enable upload button when a file is selected
-    fileInput.addEventListener('change', () => {
-        const file = fileInput.files[0];
-        feedback.textContent = '';
-        feedback.className = 'huddle-feedback';
+    _fileInput.addEventListener('change', () => {
+        const file = (_fileInput.files || [])[0];
+        _feedback.textContent = '';
+        _feedback.className = 'huddle-feedback';
         if (!file) {
-            fileLabel.classList.remove('visible');
-            uploadBtn.disabled = true;
+            _fileLabel.classList.remove('visible');
+            _uploadBtn.disabled = true;
             return;
         }
         const isPdf  = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
@@ -154,27 +166,27 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             _rejectFile('File too large — maximum 20 MB');
             return;
         }
-        fileLabel.textContent = file.name;
-        fileLabel.classList.add('visible');
-        uploadBtn.disabled = false;
+        _fileLabel.textContent = file.name;
+        _fileLabel.classList.add('visible');
+        _uploadBtn.disabled = false;
     });
 
-    uploadBtn.addEventListener('click', async () => {
+    _uploadBtn.addEventListener('click', async () => {
         const date = dateInput.value;
-        const file = fileInput.files[0];
+        const file = (_fileInput.files || [])[0];
         if (!date || !file) return;
 
-        uploadBtn.disabled = true;
-        feedback.textContent = '';
-        feedback.className = 'huddle-feedback';
+        _uploadBtn.disabled = true;
+        _feedback.textContent = '';
+        _feedback.className = 'huddle-feedback';
 
         let htmlContent = null;
         const isDocx = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
                     || file.name.toLowerCase().endsWith('.docx');
         if (isDocx) {
-            uploadBtn.textContent = 'Converting…';
+            _uploadBtn.textContent = 'Converting…';
             try {
-                await new Promise((resolve, reject) => {
+                await new Promise(/** @param {(v?: any) => void} resolve @param {(e: any) => void} reject */ (resolve, reject) => {
                     if (/** @type {any} */ (window).mammoth) { resolve(); return; }
                     const s = document.createElement('script');
                     s.src         = 'https://cdn.jsdelivr.net/npm/mammoth@1.12.0/mammoth.browser.min.js';
@@ -196,17 +208,17 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
                 htmlContent = html && html.length < 200_000 ? html : null;
             } catch (convErr) {
                 console.error('[Huddle] DOCX conversion failed:', convErr);
-                feedback.textContent = convErr.message === 'load'
+                _feedback.textContent = (/** @type {any} */ (convErr)).message === 'load'
                     ? "Couldn't load Word converter — check your connection and try again"
                     : "Couldn't read the Word file — make sure it is a valid .docx";
-                feedback.className = 'huddle-feedback huddle-feedback--err';
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = 'Upload Huddle';
+                _feedback.className = 'huddle-feedback huddle-feedback--err';
+                _uploadBtn.disabled = false;
+                _uploadBtn.textContent = 'Upload Huddle';
                 return;
             }
         }
 
-        uploadBtn.textContent = 'Uploading…';
+        _uploadBtn.textContent = 'Uploading…';
 
         try {
             // sessionReady resolves once the page coordinator confirms the Firebase
@@ -214,20 +226,20 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
             // may still be null when the page opens — awaiting here prevents a fast click
             // hitting a permission failure before the session is live.
             await sessionReady;
-            await uploadHuddle(date, file, currentUser, htmlContent);
-            feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
-            feedback.className = 'huddle-feedback huddle-feedback--ok';
-            fileInput.value = '';
-            fileLabel.textContent = '';
-            fileLabel.classList.remove('visible');
+            await uploadHuddle(date, file, currentUser || '', htmlContent);
+            _feedback.textContent = `Huddle uploaded for ${date} — staff will see it on the main app`;
+            _feedback.className = 'huddle-feedback huddle-feedback--ok';
+            _fileInput.value = '';
+            _fileLabel.textContent = '';
+            _fileLabel.classList.remove('visible');
         } catch (err) {
             console.error('[Huddle] Upload failed:', err);
-            feedback.textContent = 'Upload failed — please try again';
-            feedback.className = 'huddle-feedback huddle-feedback--err';
-            uploadBtn.disabled = false;
+            _feedback.textContent = 'Upload failed — please try again';
+            _feedback.className = 'huddle-feedback huddle-feedback--err';
+            _uploadBtn.disabled = false;
         }
 
-        uploadBtn.textContent = 'Upload Huddle';
+        _uploadBtn.textContent = 'Upload Huddle';
     });
 }
 

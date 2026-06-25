@@ -15,6 +15,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 
 // Set when getSelectedMemberIndex() finds a saved name that is no longer in the roster.
 // Consumed by renderCalendar() via takeStaleMemberName() to show a one-time banner.
+/** @type {string|null} */
 let _staleMemberName = null;
 
 /**
@@ -118,6 +119,7 @@ export function getCurrentMember() {
 
 /** @returns {string[]} */
 export function validateTeamMembers() {
+    /** @type {string[]} */
     const errors = [];
     if (!teamMembers || teamMembers.length === 0) {
         errors.push('No team members defined');

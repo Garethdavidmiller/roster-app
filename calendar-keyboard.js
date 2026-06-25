@@ -28,7 +28,7 @@ export function initCalendarTooltip() {
   document.addEventListener('mouseover', e => {
     const cell = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.calendar-day[data-tooltip]'));
     if (!cell) { tip.hidden = true; return; }
-    tip.textContent = cell.dataset.tooltip;
+    tip.textContent = cell.dataset.tooltip ?? '';
     tip.hidden = false;
     const r = tip.getBoundingClientRect();
     _tipW = r.width;
@@ -79,7 +79,7 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
           const cutoffIso  = focused.dataset.cutoffIso;
           const cutoffYear = Number(cutoffIso.slice(0, 4));
           const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
-          const i = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
+          const i = cutoffs.findIndex(/** @param {any} c */ c => formatISO(c) === cutoffIso);
           if (i !== -1) navigateToPaycalc(formatISO(paydays[i]));
           return;
         }
