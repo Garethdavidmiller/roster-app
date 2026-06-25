@@ -12,7 +12,7 @@
  * Do not edit here for: pay maths, period date maths, HPP formula, back-pay maths.
  */
 
-import { CONFIG as ROSTER_CONFIG, formatISO, MILLER_ACTUALS } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, formatISO, MILLER_ACTUALS, parseSmartFloat } from './roster-data.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
@@ -102,15 +102,9 @@ const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ── INPUT HELPERS ─────────────────────────────────────────────────────────────
 function numVal(id) {
-    // iOS keyboards can insert smart hyphens/minus and curly quotes; strip them
-    // so parseFloat doesn't silently return NaN on otherwise-valid user input.
-    const v = document.getElementById(id)?.value ?? '';
-    if (!v) return 0;
-    const cleaned = v
-        .replace(/[‐-―−−]/g, '-')
-        .replace(/[‘’]/g, "'")
-        .trim();
-    return parseFloat(cleaned) || 0;
+    // iOS keyboards can insert smart hyphens/minus and curly quotes; parseSmartFloat
+    // strips them so parseFloat doesn't silently return NaN on otherwise-valid input.
+    return parseSmartFloat(document.getElementById(id)?.value ?? '');
 }
 function intVal(id)    { return parseInt(document.getElementById(id)?.value ?? '') || 0; }
 function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
@@ -828,8 +822,8 @@ function calculate() {
   calcHPP(_bpVarAmount, _bpPNum);
 }
 
-// isDataEmpty, calcHPP, updatePriorHpp, _decodeHours, _varPayForPeriod
-// imported from paycalc-hpp.js.
+// isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
+// _decodeHours, _varPayForPeriod are in paycalc-hpp.js but only imported by paycalc-backpay.js.
 
 // ── BACK PAY STATE WRAPPERS ───────────────────────────────────────────────────
 // prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.

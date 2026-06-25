@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.83';
+export const APP_VERSION = '13.84';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -731,7 +731,7 @@ export function getRosterForMember(member, date) {
  * @returns {string}  Shift value e.g. "RD", "06:00-14:00"
  */
 export function getBaseShift(member, date) {
-    if (isChristmasRD(date)) return 'RD';
+    if (isChristmasRD(date)) return 'RD'; // Rule: see CLAUDE.md — "isChristmasRD() applied before Firestore overrides"
     // Members with a startDate show RD for all dates before they join
     if (member.startDate) {
         const s = member.startDate;
@@ -763,6 +763,24 @@ export function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Parse a numeric field value, first normalising the iOS smart hyphens/minus
+ * signs and curly quotes that keyboards can insert — without this, parseFloat
+ * silently returns NaN on otherwise-valid user input. Returns 0 for empty or
+ * unparseable input. Single source for paycalc-app.js numVal() and the HPP rate
+ * read in paycalc-hpp.js (which must agree with calculate()'s rate).
+ * @param {string|null|undefined} v - Raw field value.
+ * @returns {number}
+ */
+export function parseSmartFloat(v) {
+    if (!v) return 0;
+    const cleaned = String(v)
+        .replace(/[‐-―−−]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .trim();
+    return parseFloat(cleaned) || 0;
 }
 
 /**

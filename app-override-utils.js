@@ -54,6 +54,7 @@ export function isBeforeMemberStart(member, date) {
  * @param {object}           incoming
  * @returns {boolean}
  */
+// Rule: see CLAUDE.md — "shouldReplaceOverride" precedence: manual beats import; within same source, newer wins.
 export function shouldReplaceOverride(existing, incoming) {
     if (!existing) return true;
     const existingIsImport = (existing.source || '') === 'roster_import';

@@ -186,7 +186,7 @@ export function buildPeriodSelect(onPeriodChange) {
 export function buildBackPayPeriodSelect() {
   const sel     = document.getElementById('backPayPeriod');
   const fromSel = document.getElementById('backPayFrom');
-  if (!sel && !fromSel) return;
+  if (!sel || !fromSel) return;
   const periods = getPeriods();
   _populatePeriodSelect(sel,     periods, { placeholder: '— select when the lump sum will land —' });
   _populatePeriodSelect(fromSel, periods, { placeholder: '— all periods with saved data —' });
