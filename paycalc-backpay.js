@@ -106,6 +106,10 @@ export function calcBackPay() {
   const rateDiff   = hasRate   ? newRate   - oldRate   : 0;
   const londonDiff = hasLondon ? newLondon - oldLondon : 0;
   const periods    = getPeriods();
+  // Back-pay applies within a single tax-year anniversary — derive it from the
+  // "backdated from" period so that a "paid in" period in a subsequent year does
+  // not accidentally pull in periods from that later year.
+  const awardTy    = fromPNum ? _bpAwardTaxYear(fromPNum) : null;
   let rows          = '';
   let grandTotal    = 0;
   let grandVarTotal = 0;
@@ -115,6 +119,9 @@ export function calcBackPay() {
     try {
       if (fromPNum && p.num < fromPNum) return;
       if (bpPNum   && p.num > bpPNum)  return;
+      // Skip periods outside the award tax year (e.g. when "paid in" period is
+      // in the following year — don't apply 2025/26 rate diff to 2026/27 work).
+      if (awardTy && getTaxYearForOffset(p.num - 48) !== awardTy) return;
       const raw = lsGet(periodKey(p.num));
       if (!raw) return;
       const d = JSON.parse(raw);

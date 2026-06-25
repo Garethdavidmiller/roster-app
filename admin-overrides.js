@@ -87,7 +87,7 @@ function getSundayOfWeek(dateStr) {
  * Builds a Map<dateISO, override> for a specific member from the override cache.
  * O(N+D) alternative to O(N×D) per-date lookups. Call once per render cycle.
  * @param {string} memberName
- * @returns {Map<string, object>}
+ * @returns {Map<string, any>}
  */
 export function buildMemberDateMap(memberName) {
     const map = new Map();
@@ -175,7 +175,10 @@ export function buildWeekGridInto(container, dateStr) {
     container.appendChild(header);
 
     // Compute once for the whole 7-row loop instead of allocating a Date per row.
-    const todayISO = formatISO(new Date());
+    const todayISO      = formatISO(new Date());
+    // buildMemberDateMap applies shouldReplaceOverride() so manual beats roster_import
+    // (bare .find() would return whichever arrived first in the array — wrong precedence).
+    const memberDateMap = buildMemberDateMap(memberName);
 
     for (let i = 0; i < 7; i++) {
         const date    = new Date(sunday);
@@ -186,7 +189,7 @@ export function buildWeekGridInto(container, dateStr) {
         const badges    = getSpecialDayBadges(date, dateISO);
         const badgeHTML = badges.map(b => `<span class="day-badge" title="${b.title}">${b.icon}</span>`).join('');
 
-        const existing = _allOverrides.find(o => o.memberName === memberName && o.date === dateISO);
+        const existing = memberDateMap.get(dateISO);
 
         const row = document.createElement('div');
         const isToday = dateISO === todayISO;
@@ -532,6 +535,8 @@ function _initBulkBar() {
     document.getElementById('bulkSelWorking')?.addEventListener('click', () => {
         const memberName = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'))?.value;
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
+        // Build priority-correct override map once — manual beats roster_import per date.
+        const selMemberDateMap = memberName ? buildMemberDateMap(memberName) : null;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const dateISO  = row.dataset.date ?? '';
@@ -540,7 +545,7 @@ function _initBulkBar() {
             if (!checkbox) return;
             const base = member ? getBaseShift(member, date) : 'RD';
             // Also respect recorded RD corrections so corrected days aren't re-selected
-            const ov    = memberName ? _allOverrides.find(o => o.memberName === memberName && o.date === dateISO) : null;
+            const ov    = selMemberDateMap?.get(dateISO) ?? null;
             const isRD  = isRestShift(base) || (ov && isRestShift(ov.value));
             if (!isRD) {
                 checkbox.checked = true;
@@ -1102,11 +1107,9 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     const memberObj = teamMembers.find(m => m.name === memberName);
 
-    // Build a Map<date, override> once to avoid O(N×D) linear scan per date
-    const ovByDate = new Map();
-    for (const o of _allOverrides) {
-        if (o.memberName === memberName) ovByDate.set(o.date, o);
-    }
+    // Build a priority-correct Map<date, override> — buildMemberDateMap applies
+    // shouldReplaceOverride() so manual overrides beat roster_import entries.
+    const ovByDate = buildMemberDateMap(memberName);
 
     const workingDates = memberObj
         ? dates.filter(dateStr => {

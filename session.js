@@ -99,7 +99,9 @@ export async function ensureFirebaseSession(name) {
 
     const pw         = getSurname(name);
     // Firebase Auth requires ≥6 chars — repeat the derived password string to reach the minimum.
-    const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw);
+    // padEnd with an empty fill string is a no-op, so fall back to 'x' when pw is empty
+    // (a single-token name with no surname would otherwise produce an unusable empty password).
+    const fbPassword = pw.length >= 6 ? pw : pw.padEnd(6, pw || 'x');
     const email      = nameToEmail(name);
     let   firstError;
 

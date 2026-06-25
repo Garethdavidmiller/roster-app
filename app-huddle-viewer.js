@@ -91,12 +91,16 @@ export function initHuddleViewer() {
             // element about to be overwritten by body.innerHTML).
             _viewerFocusReturn = document.activeElement;
             lockBodyScroll();
+            // Push history state and attach keydown listener only once per open —
+            // a stale-huddle re-trigger calls openViewer() a second time while the
+            // viewer is already visible, which would push a duplicate history entry
+            // and add a second keydown listener (Android Back would then need two presses).
+            _pushOverlayState(closeViewer);
+            document.addEventListener('keydown', onKey);
         }
         _viewerOpen = true;
         viewer.classList.add('visible');
         requestAnimationFrame(() => viewer.classList.add('open'));
-        _pushOverlayState(closeViewer);
-        document.addEventListener('keydown', onKey);
     }
     function closeViewer() {
         _viewerOpen = false;
