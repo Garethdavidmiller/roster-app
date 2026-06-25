@@ -37,6 +37,13 @@ function _report(err, src = '') {
         // cosmetic and cannot be acted on.
         if (message.includes('ResizeObserver loop')) return;
 
+        // Chrome emits this as an unhandled rejection when its own automatic
+        // background SW-update check fails due to a network blip. Our explicit
+        // registration.update() calls already have .catch(()=>{}) so the only
+        // path here is the browser's internal check — the existing SW stays active
+        // and the user experience is unaffected. Not actionable; suppress.
+        if (message.includes('Failed to update a ServiceWorker')) return;
+
         // Errors whose source URL is a different origin belong to extensions or
         // injected scripts — out of scope for this app.
         if (src && src.startsWith('http') && !src.includes(location.hostname)) return;
