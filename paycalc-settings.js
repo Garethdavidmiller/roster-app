@@ -123,6 +123,11 @@ export function saveSettings() {
   lsSet(SK.rate,      rateVal);
   lsSet(SK.code,      document.getElementById('taxCode').value);
   lsSet(SK.sl,        document.getElementById('studentLoan').value);
+  // Save grade and invalidate cache before getPensionDefault — it calls getGrade()
+  // which reads the cache; if the user changed grade, the cache still holds the old
+  // value at this point, so getPensionDefault would return the wrong pension amount.
+  lsSet(SK.grade, document.getElementById('gradeSelect').value);
+  invalidateGrade();
   // On a joining period the pension field shows the pro-rated amount.
   // Always write the full-period default to SK.pension so future full periods
   // don't inherit the pro-rated value as their default.
@@ -132,8 +137,6 @@ export function saveSettings() {
   lsSet(SK.pension, _pensionToSave);
   lsSet(ytdPayKey(curTy), document.getElementById('ytdPay').value);
   lsSet(ytdTaxKey(curTy), document.getElementById('ytdTax').value);
-  lsSet(SK.grade,         document.getElementById('gradeSelect').value);
-  invalidateGrade();
 }
 
 /**

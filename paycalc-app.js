@@ -828,8 +828,8 @@ function calculate() {
   calcHPP(_bpVarAmount, _bpPNum);
 }
 
-// isDataEmpty, calcHPP, updatePriorHpp, _decodeHours, _varPayForPeriod
-// imported from paycalc-hpp.js.
+// isDataEmpty, calcHPP, updatePriorHpp imported from paycalc-hpp.js.
+// _decodeHours, _varPayForPeriod are in paycalc-hpp.js but only imported by paycalc-backpay.js.
 
 // ── BACK PAY STATE WRAPPERS ───────────────────────────────────────────────────
 // prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.
