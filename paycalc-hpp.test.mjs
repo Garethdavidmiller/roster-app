@@ -22,6 +22,7 @@ import { RATE_125, RATE_150, RATE_300 } from './paycalc-calc.js';
 const _ls = new Map();
 let _hasBankHolidayVal = false;
 let _hasBoxingDayVal   = false;
+let _proRateFactorVal  = 1;
 
 mock.module('./paycalc-periods.js', {
     namedExports: {
@@ -38,7 +39,7 @@ mock.module('./paycalc-settings.js', {
         getGrade:          () => 'cea',
         getLoggedMember:   () => null,
         getEffectiveContr: () => 140,
-        getProRateFactor:  () => 1,
+        getProRateFactor:  () => _proRateFactorVal,
     },
 });
 
@@ -67,6 +68,7 @@ function reset() {
     _ls.clear();
     _hasBankHolidayVal = false;
     _hasBoxingDayVal   = false;
+    _proRateFactorVal  = 1;
 }
 
 /**
@@ -244,5 +246,12 @@ describe('_varPayForPeriod', () => {
         assertPounds(
             _varPayForPeriod(makeP50(), { bhOtH: 2 }, RATE),
             2 * R125 + LONDON, '2 bhOt hrs');
+    });
+
+    test('pro-rates London Allowance when getProRateFactor returns 0.5', () => {
+        _proRateFactorVal = 0.5;
+        assertPounds(
+            _varPayForPeriod(makeP50(), {}, RATE),
+            LONDON * 0.5, 'half London Allowance for joiner');
     });
 });

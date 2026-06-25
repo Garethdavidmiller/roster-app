@@ -92,8 +92,6 @@ const {
     _setSelectPeriod, prevPeriod, nextPeriod,
 } = await import('./paycalc-periods.js');
 
-const { SK } = await import('./paycalc-migrations.js');
-
 const {
     settingsKey, getContr, getEffectiveContr, getProRateFactor,
 } = await import('./paycalc-settings.js');
@@ -367,7 +365,7 @@ describe('getEffectiveContr', () => {
     test('returns pro-rated hours when member started mid-period', () => {
         _session = { name: 'J. Joiner', exp: Date.now() + 9e9, idle: Date.now() + 9e9 };
         // P48: Jan 11 – Feb 7 (noon) 2026 (28 days). Member starts Jan 25.
-        const start    = new Date(2026, 0, 11);
+        const start    = new Date(2026, 0, 11, 12, 0, 0); // noon — calcProRateFactor invariant
         const cutoff   = new Date(2026, 1, 7, 12, 0, 0); // noon — calcProRateFactor invariant
         const startDate = new Date(2026, 0, 25);          // day 15 of the period
         _teamMembersData.push({ name: 'J. Joiner', role: 'CEA', currentWeek: 1, rosterType: 'main', startDate });
