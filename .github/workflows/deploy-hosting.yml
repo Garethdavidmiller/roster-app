@@ -32,6 +32,26 @@ jobs:
           # Canonical check command (lint + tests) lives in package.json.
           npm run check
 
+      # Gate the deploy on the E2E smoke suite. The app is offline-first, so a
+      # blank-page break (SyntaxError, missing import, CSP violation) is invisible
+      # to already-installed phones — the only thing that catches it before staff
+      # do is a real-browser page-load test. Do not deploy if smoke fails.
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        run: npm run test:e2e
+        env:
+          CI: true
+
+      - name: Upload Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 

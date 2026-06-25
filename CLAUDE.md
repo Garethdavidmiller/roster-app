@@ -220,6 +220,10 @@ roster-app/
 ├── firestore.rules.test.mjs ← Firestore security rules integration tests (78 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore emulator automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
+├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, CSP violation) that pass all unit tests. NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
+│   ├── smoke.spec.js       ← 9 page-load tests (calendar ×3, admin login, paycalc signed-in, settings login, settings signed-in tips, operations + links auth redirects), each run on Desktop Chrome + Pixel 5
+│   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports
+├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
 ├── package.json            ← dev dependencies only
 ├── scripts/
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
@@ -244,6 +248,9 @@ node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.m
 
 # Firestore security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules
+
+# E2E smoke tests (real headless Chromium; uses pre-installed browser in the dev env):
+npm run test:e2e
 ```
 
 **Service worker caching:**
