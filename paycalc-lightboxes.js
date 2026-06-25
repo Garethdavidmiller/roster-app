@@ -98,7 +98,7 @@ export function initPaycalcLightboxes() {
       onClose: () => lsSet(WELCOME_KEY, '1'),
     });
 
-    lb.querySelector('.welcome-guide-link')?.addEventListener('click', welcome.close);
+    lb.querySelector('.welcome-guide-link')?.addEventListener('click', () => welcome.close());
 
     if (!lsGet(WELCOME_KEY)) welcome.open();
   })();

@@ -2,10 +2,12 @@
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
- * Owns: month carousel, swipe gestures, Team Week View, notification wiring,
- *   sync chip, AL lightbox, day-detail lightbox, month-jump picker.
+ * Owns: month carousel, Team Week View, notification wiring, month-jump picker,
+ *   day-detail lightbox, About lightbox wiring.
  * Does NOT own: rendering (calendar-renderer.js), override cache (calendar-overrides.js),
- *   member selection (calendar-member.js), roster data (roster-data.js).
+ *   member selection (calendar-member.js), swipe (calendar-swipe.js),
+ *   sync chip + initial fetch (calendar-initial-fetch.js),
+ *   AL lightbox (calendar-al-lightbox.js), roster data (roster-data.js).
  * Edit here for: calendar state, event wiring, initial data fetch.
  * Do not edit here for: pay maths, admin features, override entry.
  */
@@ -436,7 +438,7 @@ try {
             renderCalendar,
             updateLegend,
             navigateToPaycalc,
-            openDayDetail: (cell) => openDayDetail?.(cell),
+            openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
         });
 
 
@@ -509,13 +511,13 @@ try {
             // Populate year select once (2024–2030)
             for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
                 const opt = document.createElement('option');
-                opt.value = y; opt.textContent = y;
+                opt.value = String(y); opt.textContent = String(y);
                 selYear.appendChild(opt);
             }
             // Populate month select once
             MONTH_NAMES.forEach((name, i) => {
                 const opt = document.createElement('option');
-                opt.value = i; opt.textContent = name;
+                opt.value = String(i); opt.textContent = name;
                 selMonth.appendChild(opt);
             });
 
@@ -553,7 +555,7 @@ try {
                 document.querySelector('.month-year')?.focus();
             });
 
-            btnCancel.addEventListener('click', picker.close);
+            btnCancel.addEventListener('click', () => picker.close());
         })();
 
         // ============================================

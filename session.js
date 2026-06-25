@@ -38,6 +38,8 @@ export function getSurname(fullName) {
     return normaliseSurname(fullName);
 }
 
+/** @type {(value: any) => void} */
+let _sessionResolve;
 /**
  * Module-level promise that resolves once the Firebase Auth session for this
  * page is confirmed. Page coordinators call resolveSession(); feature modules
@@ -47,8 +49,7 @@ export function getSurname(fullName) {
  * or the boolean returned by ensureFirebaseSession().
  * @type {Promise<boolean>}
  */
-let _sessionResolve;
-export const sessionReady = new Promise(r => (_sessionResolve = r));
+export const sessionReady = /** @type {Promise<boolean>} */ (new Promise(r => (_sessionResolve = r)));
 /**
  * Call once per page-load from the page coordinator after ensureFirebaseSession().
  * @param {boolean | Promise<boolean>} result - pass the return value of ensureFirebaseSession()

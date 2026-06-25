@@ -32,7 +32,7 @@ import { createLightbox } from './overlay.js';
  *                                        team-view content swap), run before the panel shows
  * @param {Function} [opts.printFn]     - Replaces window.print() for the optional
  *                                        #lightboxPrintBtn (e.g. calendar's landscape team print)
- * @returns {{ open: Function, close: Function }|null}
+ * @returns {{ open: () => void, close: () => void }|null}
  */
 export function initAboutLightbox({ appLabel = 'MYB Roster', bugLinkId = 'bugReportLink', getUserName, onOpen, printFn } = {}) {
     const lightbox = document.getElementById('iconLightbox');

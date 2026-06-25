@@ -98,7 +98,7 @@ export function dayClass(d) {
  * @returns {Object.<string,{hours:number[], spare:number}>} keyed by day
  */
 export function calcHourlyCoverage(patterns, totalPos = 28) {
-    const out = {};
+    const out = /** @type {Object.<string,{hours:number[], spare:number}>} */ ({});
     for (const d of DAYS) out[d] = { hours: new Array(24).fill(0), spare: 0 };
     for (let pos = 1; pos <= totalPos; pos++) {
         const p = patterns[String(pos)];
@@ -215,7 +215,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
  * @param {Object} patterns - { "1".."N": { sun..sat } }
  * @param {number} [rotatingLines=28] - all 28 lines rotate
  * @returns {{
- *   weekendsOff: number, totalWeeks: number,
+ *   weekendsOff: number, weekendsOffPct: number, totalWeeks: number,
  *   unfilledLines: number[],
  *   turnarounds: Array<{fromLine:number, fromDay:string, fromShift:string,
  *                       toLine:number, toDay:string, toShift:string, restMinutes:number}>,

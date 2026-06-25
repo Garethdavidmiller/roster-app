@@ -908,7 +908,7 @@ function toggleDisclaimer() {
 // ── PEER STEPPER ──────────────────────────────────────────────────────────────
 function stepPeer(delta) {
   const el = document.getElementById('peerVal');
-  el.textContent = Math.max(0, Math.min(10, +el.textContent + delta));
+  el.textContent = String(Math.max(0, Math.min(10, +el.textContent + delta)));
   autosave();
 }
 

@@ -15,7 +15,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade, isValidEmail } from './roster-data.js';
-import { db, doc, writeBatch, getStaffContact, saveStaffContact } from './firebase-client.js';
+import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -722,7 +722,8 @@ function updateALBanner() {
     const member      = teamMembers.find(m => m.name === memberName);
     if (!member)      { banner.hidden = true; return; }
 
-    const yearStr     = alFrom.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
+    const alFrom      = /** @type {HTMLInputElement|null} */ (document.getElementById('alFrom'));
+    const yearStr     = alFrom?.value ? alFrom.value.substring(0, 4) : (fieldDate.value ? fieldDate.value.substring(0, 4) : String(new Date().getFullYear()));
     const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
     const todayStr    = formatISO(new Date());
 
@@ -736,10 +737,10 @@ function updateALBanner() {
     });
     const remaining   = entitlement - taken - booked;
 
-    remEl.textContent    = remaining;
-    takenEl.textContent  = taken;
-    bookedEl.textContent = booked;
-    entEl.textContent    = entitlement;
+    remEl.textContent    = String(remaining);
+    takenEl.textContent  = String(taken);
+    bookedEl.textContent = String(booked);
+    entEl.textContent    = String(entitlement);
 
     // Show breakdown note for Dispatchers (22 base + N bank holiday lieu days)
     const breakdownEl = document.getElementById('alBannerBreakdown');
@@ -764,7 +765,7 @@ function updateALBanner() {
     const headerBalEl = document.getElementById('alHeaderBalance');
     const headerRemEl = document.getElementById('alHeaderRemaining');
     if (headerBalEl && headerRemEl) {
-        headerRemEl.textContent = remaining;
+        headerRemEl.textContent = String(remaining);
         headerBalEl.hidden = false;
         headerBalEl.className = 'al-header-balance'
             + (remaining <= 0 ? ' balance-none' : remaining <= 5 ? ' balance-low' : '');
@@ -903,8 +904,8 @@ document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
 
 // ── AL / sick — element handles and display helpers referenced by the member picker below ──
 // Declared here because the fieldMember change handler references them.
-const alMember   = document.getElementById('alMember');
-const sickMember = document.getElementById('sickMember');
+const alMember   = /** @type {HTMLSelectElement|null} */ (document.getElementById('alMember'));
+const sickMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('sickMember'));
 function syncMemberDisplay() {
     const memberDisplay = document.getElementById('alMemberDisplay');
     if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
@@ -1147,7 +1148,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     btn.textContent = '…';
     try {
         const batch = writeBatch(db);
-        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
+        toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
         await batch.commit();
         const ids = new Set(toDelete.map(o => o.id));
         setAllOverrides(getAllOverrides().filter(o => !ids.has(o.id)));
@@ -1414,7 +1415,7 @@ async function purgeSundayAL() {
         }
 
         const batch = writeBatch(db);
-        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
+        toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
         await batch.commit();
 
         console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,

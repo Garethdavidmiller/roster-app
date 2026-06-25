@@ -46,8 +46,9 @@ export function expiredResolvedIds(resolved, now, retentionMs = CLIENT_ERROR_RET
 /**
  * Build the ordered list for the Error Log card: every UNRESOLVED record first
  * (newest-first), then up to `resolvedLimit` recent, non-expired resolved records
- * (newest-first). Unresolved records are never dropped, so a backlog of resolved
- * records can never hide one.
+ * (newest-first). Unresolved records are always listed first; within expected
+ * operational volume (< 100 unresolved at once), a backlog of resolved records
+ * cannot displace them.
  * @param {Array} unresolved
  * @param {Array} resolved
  * @param {number} now

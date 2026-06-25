@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v13.80 · Updated every 0.10 version*
+*Last updated: June 2026 — v13.90 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `13.80` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `13.90` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -321,7 +321,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `calendar-app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |
-| `initErrorReporter()` call pattern (v13.78) | Writes to Firestore `clientErrors`, so a valid auth token is required. Three canonical call sites: (1) **`calendar-app.js`** — no named session, so call `signInAnonymously(auth).catch(()=>{}).finally(()=>initErrorReporter())` (anonymous auth gives a token; fails silently if Firebase is unreachable); (2) **Authenticated pages with `sessionReady`** (`admin-app.js`, `settings-app.js`, `operations-app.js`, `links-app.js`) — call `sessionReady.then(()=>initErrorReporter())`; (3) **`paycalc-app.js`** (no `sessionReady`, uses `ensureFirebaseSession` directly) — call `ensureFirebaseSession(name).catch(()=>{}).finally(initErrorReporter)`. Never call `initErrorReporter()` bare without an auth context — writes will be silently rejected by Firestore rules. |
+| `initErrorReporter()` call pattern (v13.78) | Writes to Firestore `clientErrors`, so a valid auth token is required. Three canonical call sites: (1) **`calendar-app.js`** — wait for auth persistence to load, then sign in anonymously only if no named user is already present: `authReady.then(()=>auth.currentUser?null:signInAnonymously(auth).catch(()=>{})).catch(()=>{}).finally(()=>initErrorReporter())` — this preserves a named identity (e.g. admin opened admin.html first) instead of racing with or replacing it; (2) **Authenticated pages with `sessionReady`** (`admin-app.js`, `settings-app.js`, `operations-app.js`, `links-app.js`) — call `sessionReady.then(()=>initErrorReporter())`; (3) **`paycalc-app.js`** (no `sessionReady`, uses `ensureFirebaseSession` directly) — call `ensureFirebaseSession(name).catch(()=>{}).finally(initErrorReporter)`. Never call `initErrorReporter()` bare without an auth context — writes will be silently rejected by Firestore rules. |
 | One-time work email check (v13.68) | `_runEmailCheck(member)` in `admin-app.js` is the inner engine; `initEmailCheck(member)` is a thin wrapper called on every authenticated page load. Guard: `lsGet('myb_email_check_done_{member}')` — per-member, per-device permanent gate set after the user confirms or saves; if set, returns immediately. **Login path (v13.68):** `attempt()` calls `await _runEmailCheck(name)` directly after `ensureFirebaseSession()`, then `window.location.reload()` — the email check appears inline on top of the login overlay (same navy background, card animates in) so there is no jarring page reload between sign-in and email check. Overlay and card CSS shared with `#loginOverlay`/`#loginCard` via combined selectors in `shared.css`; card entrance uses `opacity + translateY` transition with `.open` class on the overlay. Fetches `getStaffContact(member)`; on error returns silently (never blocks the app). Shows `#emailCheckOverlay`: confirm view (email already stored — "Yes" or "Use a different email → ← Back") or add view (no email — email input + save). **No ✕ close button** — the check is mandatory. The same email is also editable any time via Settings. |
 
 ---
@@ -476,7 +476,7 @@ resolvedAt   Firestore server timestamp — set when an admin resolves; retentio
 Write: any authenticated session (`request.auth != null`); shape-validated by Firestore rules.
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
-Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so a backlog of resolved records can never hide an older unresolved one, and prunes resolved records 90 days past `resolvedAt`.
+Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. Prunes resolved records 90 days past `resolvedAt`.
 
 **circulars** (v13.58)
 ```

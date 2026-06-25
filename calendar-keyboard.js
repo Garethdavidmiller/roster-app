@@ -83,7 +83,7 @@ export function initCalendarKeyboard({ navigateToPaycalc, openDayDetail }) {
           if (i !== -1) navigateToPaycalc(formatISO(paydays[i]));
           return;
         }
-        openDayDetail?.(focused);
+        openDayDetail?.(/** @type {HTMLElement} */ (focused));
         return;
       default: return;
     }
