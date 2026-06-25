@@ -2,7 +2,7 @@
 /**
  * sw-register.js — Service worker registration and update lifecycle.
  *
- * Shared by all six app pages: app.js, admin-app.js, paycalc.js,
+ * Shared by all six app pages: calendar-app.js, admin-app.js, paycalc-app.js,
  * operations-app.js, settings-app.js, links-app.js.
  *
  * Pattern: register → activate any waiting worker immediately → listen for

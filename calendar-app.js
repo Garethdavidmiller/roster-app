@@ -2,10 +2,12 @@
 /**
  * calendar-app.js — Calendar UI for index.html.
  *
- * Owns: month carousel, swipe gestures, Team Week View, notification wiring,
- *   sync chip, AL lightbox, day-detail lightbox, month-jump picker.
+ * Owns: month carousel, Team Week View, notification wiring, month-jump picker,
+ *   day-detail lightbox, About lightbox wiring.
  * Does NOT own: rendering (calendar-renderer.js), override cache (calendar-overrides.js),
- *   member selection (calendar-member.js), roster data (roster-data.js).
+ *   member selection (calendar-member.js), swipe (calendar-swipe.js),
+ *   sync chip + initial fetch (calendar-initial-fetch.js),
+ *   AL lightbox (calendar-al-lightbox.js), roster data (roster-data.js).
  * Edit here for: calendar state, event wiring, initial data fetch.
  * Do not edit here for: pay maths, admin features, override entry.
  */

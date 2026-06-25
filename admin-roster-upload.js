@@ -5,7 +5,7 @@
 // Called by operations-app.js via initRosterUpload().
 
 import { teamMembers, MONTH_ABB, getShiftBadge, getBaseShift, escapeHtml, formatISO, isSunday } from './roster-data.js';
-import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp } from './firebase-client.js';
+import { db, collection, query, where, getDocs, doc, writeBatch, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { shouldReplaceOverride } from './app-override-utils.js';
 
 const RDW_PREFIX   = 'RDW|';
@@ -291,8 +291,8 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     if (type === 'correction' && (value === 'AL' || value === 'SICK')) savedValue = 'RD';
                     // Replace any existing override for this member/date in the same batch,
                     // so "Use PDF" / a re-import doesn't leave a stale doc beside the new one.
-                    if (replaceId) batch.delete(doc(db, 'overrides', replaceId));
-                    const ref  = doc(collection(db, 'overrides'));
+                    if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));
+                    const ref  = doc(collection(db, COLLECTIONS.overrides));
                     batch.set(ref, {
                         memberName,
                         date,
@@ -366,7 +366,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
      */
     async function fetchOverridesForWeek(dates) {
         try {
-            const q    = query(collection(db, 'overrides'), where('date', 'in', dates));
+            const q    = query(collection(db, COLLECTIONS.overrides), where('date', 'in', dates));
             const snap = await getDocs(q);
             return snap.docs.map(d => ({ id: d.id, ...d.data() }));
         } catch (err) {

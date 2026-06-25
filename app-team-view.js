@@ -12,7 +12,7 @@
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift, escapeHtml, formatISO,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
-import { db, collection, query, where, getDocs } from './firebase-client.js';
+import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
 
@@ -304,7 +304,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
     async function fetchTeamWeekOverrides(weekStart, weekEnd, fetchToken) {
         try {
             const snap = await getDocs(query(
-                collection(db, 'overrides'),
+                collection(db, COLLECTIONS.overrides),
                 where('date', '>=', formatISO(weekStart)),
                 where('date', '<=', formatISO(weekEnd))
             ));

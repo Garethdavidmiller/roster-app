@@ -15,7 +15,7 @@
  */
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade, isValidEmail } from './roster-data.js';
-import { db, doc, writeBatch, getStaffContact, saveStaffContact } from './firebase-client.js';
+import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
@@ -1148,7 +1148,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     btn.textContent = '…';
     try {
         const batch = writeBatch(db);
-        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
+        toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
         await batch.commit();
         const ids = new Set(toDelete.map(o => o.id));
         setAllOverrides(getAllOverrides().filter(o => !ids.has(o.id)));
@@ -1415,7 +1415,7 @@ async function purgeSundayAL() {
         }
 
         const batch = writeBatch(db);
-        toDelete.forEach(o => batch.delete(doc(db, 'overrides', o.id)));
+        toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
         await batch.commit();
 
         console.log(`[purgeSundayAL] Removed ${toDelete.length} Sunday AL override${toDelete.length !== 1 ? 's' : ''}:`,

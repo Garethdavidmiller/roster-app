@@ -441,9 +441,9 @@ export function logClientError({ memberName, page, message, stack, appVersion, u
 /**
  * Fetch client error records for the admin error log (admin-only).
  *
- * Unresolved errors get their OWN equality query so they can NEVER be hidden behind a
- * backlog of resolved ones — the previous single newest-first window could do exactly
- * that once 100 resolved records piled up in front of an older unresolved one. Resolved
+ * Unresolved errors get their OWN equality query, prioritised ahead of resolved ones —
+ * the previous single newest-first window could hide them once 100 resolved records
+ * piled up. Within expected operational volume (< 100 unresolved at once) none are missed. Resolved
  * records are fetched with a bounded query and used both for display context and to
  * prune anything past the post-resolution retention window, so the collection stays
  * bounded at this app's scale (not just the newest rows being cleaned up).

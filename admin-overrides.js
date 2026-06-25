@@ -583,10 +583,10 @@ export async function executeSave(toSave, toDelete = []) {
         const batch   = writeBatch(db);
         const newDocs = [];
 
-        toDelete.forEach(id => batch.delete(doc(db, 'overrides', id)));
+        toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
 
         toSave.forEach(entry => {
-            if (entry.existingId) batch.delete(doc(db, 'overrides', entry.existingId));
+            if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
             const { existingId: _, ...data } = entry;
             const newRef = doc(collection(db, COLLECTIONS.overrides));
             batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
@@ -783,7 +783,7 @@ async function _handleDelete(e) {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-        await deleteDoc(doc(db, 'overrides', btn.dataset.id));
+        await deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id));
         _allOverrides = _allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
         _onAfterSave();
@@ -854,7 +854,7 @@ function _initOverridesTable() {
             bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
             try {
                 const batch = writeBatch(db);
-                ids.forEach(id => batch.delete(doc(db, 'overrides', id)));
+                ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
                 await batch.commit();
                 _allOverrides = _allOverrides.filter(o => !ids.includes(o.id));
                 renderTable();
@@ -1083,7 +1083,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     workingDates.forEach(date => {
         const existing = ovByDate.get(date);
-        if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
+        if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
         const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type, value, note: '', source: 'manual',
@@ -1094,7 +1094,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     sundayCorrections.forEach(date => {
         const existing = ovByDate.get(date);
-        if (existing) { batch.delete(doc(db, 'overrides', existing.id)); deletedIds.add(existing.id); }
+        if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
         const newRef = doc(collection(db, COLLECTIONS.overrides));
         batch.set(newRef, {
             memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',

@@ -411,7 +411,7 @@ Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by
 - `CLIENT_ERROR_RETENTION_MS` — 90-day retention window constant (measured from resolution, not error time)
 - `isResolvedErrorExpired(rec, now, [retentionMs])` — true if a resolved record is past the retention window; records with no `resolvedAt` are never expired
 - `expiredResolvedIds(resolved, now, [retentionMs])` — IDs of resolved records that should be pruned
-- `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. A backlog of resolved records can never hide an older unresolved one.
+- `orderClientErrors(unresolved, resolved, now, [opts])` — ordered list for the Error Log card: all unresolved first (newest-first), then up to `resolvedLimit` (default 30) recent resolved records. Unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) resolved backlogs cannot displace them.
 - Tested by `client-errors.test.mjs` (no mocks, runs in `test:hygiene`)
 
 ### `nav-panel.js`

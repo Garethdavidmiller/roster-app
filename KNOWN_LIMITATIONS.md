@@ -193,7 +193,7 @@ planning, not aggregate operational analysis. The dense row grid already gives s
 at-a-glance clarity. Do not re-add without a specific operational use case from Gareth.
 
 ### Override cache is never cleared on member switch
-`rosterOverridesCache` in `calendar-app.js` is keyed `"memberName|date"` and accumulates
+`rosterOverridesCache` in `calendar-overrides.js` is keyed `"memberName|date"` and accumulates
 overrides for all members without a size limit. It is not cleared when the selected
 member changes — switching members triggers a new fetch that adds to the existing map.
 This is intentional (avoids redundant Firestore reads on member switch) but means the

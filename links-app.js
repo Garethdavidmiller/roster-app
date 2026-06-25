@@ -327,7 +327,7 @@ async function renameDesign(id) {
     const name = prompt('New name:', d.name)?.trim();
     if (!name || name === d.name) return;
     try {
-        await setDoc(doc(db, 'linkDesigns', id), { name }, { merge: true });
+        await setDoc(doc(db, COLLECTIONS.linkDesigns, id), { name }, { merge: true });
         d.name = name;
         if (id === activeDesignId && design) design.name = name;
         renderDesignPicker();
@@ -343,7 +343,7 @@ async function deleteDesign(id) {
     const d = designs.find(x => x.id === id);
     if (!d || !confirm(`Delete "${d.name}"? This can't be undone.`)) return;
     try {
-        await deleteDoc(doc(db, 'linkDesigns', id));
+        await deleteDoc(doc(db, COLLECTIONS.linkDesigns, id));
         designs = designs.filter(x => x.id !== id);
         if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
         if (id === activeDesignId) _activateDesign(designs[0]);
@@ -1126,7 +1126,7 @@ async function saveChanges() {
             // Read back to capture the server timestamp for concurrency tracking
             let savedAt = null;
             try {
-                const snap = await getDoc(doc(db, 'linkDesigns', ref.id));
+                const snap = await getDoc(doc(db, COLLECTIONS.linkDesigns, ref.id));
                 savedAt = snap.data()?.updatedAt ?? null;
                 loadedUpdatedAt = savedAt?.toMillis?.() ?? null;
             } catch { loadedUpdatedAt = null; }
@@ -1141,7 +1141,7 @@ async function saveChanges() {
         }
 
         // Concurrency check: two designers can have this page open simultaneously
-        const designRef = doc(db, 'linkDesigns', activeDesignId);
+        const designRef = doc(db, COLLECTIONS.linkDesigns, activeDesignId);
         try {
             const fresh   = await getDoc(designRef);
             const freshTs = fresh.exists() ? (fresh.data().updatedAt?.toMillis?.() ?? null) : null;
