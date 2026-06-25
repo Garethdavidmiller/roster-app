@@ -217,6 +217,7 @@ roster-app/
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (78 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore emulator automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
 ├── package.json            ← dev dependencies only
@@ -240,6 +241,9 @@ npm test
 node --test sw-asset-check.test.mjs import-graph.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs overlay.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
 node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs calendar-state.test.mjs calendar-member.test.mjs calendar-overrides.test.mjs calendar-renderer.test.mjs calendar-initial-fetch.test.mjs paycalc-periods.test.mjs paycalc-hpp.test.mjs
+
+# Firestore security rules tests (requires Firebase emulator binary — starts automatically):
+npm run test:rules
 ```
 
 **Service worker caching:**
