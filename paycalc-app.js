@@ -925,7 +925,7 @@ runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 
 // Tax-year quick-jump tabs — generated from TAX_YEARS so the April rollover only
 // touches paycalc-calc.js (no hand-edited tab markup). Must run before
-// buildPeriodSelect(): onPeriodChange → updateTyTabs looks the tabs up by id.
+// buildPeriodSelect() + onPeriodChange(): updateTyTabs looks the tabs up by id.
 (function buildTyTabs() {
   const wrap = document.getElementById('tyTabs');
   if (!wrap) return;
@@ -950,7 +950,12 @@ runMigrations({ getPeriods, getLoggedMember, getPensionDefault });
 })();
 
 loadSettings();
-_defaultPeriodNum = buildPeriodSelect(onPeriodChange);
+// _defaultPeriodNum must be assigned BEFORE onPeriodChange() runs — the period
+// button visibility check is `pNum === _defaultPeriodNum`. buildPeriodSelect()
+// returns the default period number; we then call onPeriodChange() explicitly so
+// the button is correctly hidden on the initial load (not shown as if off-default).
+_defaultPeriodNum = buildPeriodSelect();
+onPeriodChange();
 
 // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 

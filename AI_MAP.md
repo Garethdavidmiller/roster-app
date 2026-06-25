@@ -308,7 +308,7 @@ Period arithmetic and select UI for `paycalc.html` (v13.80).
 - `hasBoxingDay(p)` / `hasBankHoliday(p)` — period content checks
 - `CONDITIONAL_ROWS` — data-driven array: `{ condition, rows, fields }` — used by `updateBhRows`
 - `updateBhRows(p)` — shows/hides BH input rows based on period content
-- `buildPeriodSelect(onPeriodChange)` — populates the period `<select>`, handles URL params, returns the current earning period number; calls `buildBackPayPeriodSelect()` internally
+- `buildPeriodSelect()` — populates the period `<select>`, handles URL params, calls `buildBackPayPeriodSelect()` internally; returns the current earning period number — caller must assign it to `_defaultPeriodNum` first, then call `onPeriodChange()` explicitly
 - `buildBackPayPeriodSelect()` — populates back-pay period selectors
 - `updateTyTabs()` — highlights the active tax-year tab
 - `jumpToTaxYear(tyIndex, onPeriodChange)` / `prevPeriod(onPeriodChange)` / `nextPeriod(onPeriodChange)` — navigation; accept coordinator's `onPeriodChange` callback to avoid circular dependency
