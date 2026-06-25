@@ -218,7 +218,7 @@ async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, delete
     const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
     const snap = await getDocs(q);
     await Promise.all(snap.docs
-        .filter(d => d.id !== excludeDate)
+        .filter(/** @param {any} d */ d => d.id !== excludeDate)
         .map(/** @param {any} d */ async d => {
             try {
                 await deleteDoc(doc(db, collectionName, d.id));
@@ -273,9 +273,10 @@ async function _uploadPdf(collectionName, date, file, uploadedBy) {
         // delay and re-throw immediately so the admin sees the error without a 2-second wait.
         try {
             await setDoc(doc(db, collectionName, date), firestoreData);
-        } catch (/** @param {any} setDocErr */ setDocErr) {
-            console.warn(`[uploadPdf] ${collectionName} setDoc attempt 1 failed (${setDocErr?.code})`);
-            if (!_RETRIABLE_FIRESTORE_CODES.has(setDocErr?.code)) throw setDocErr;
+        } catch (setDocErr) {
+            const e = /** @type {any} */ (setDocErr);
+            console.warn(`[uploadPdf] ${collectionName} setDoc attempt 1 failed (${e?.code})`);
+            if (!_RETRIABLE_FIRESTORE_CODES.has(e?.code)) throw setDocErr;
             await new Promise(r => setTimeout(r, 2000));
             await setDoc(doc(db, collectionName, date), firestoreData);
         }
