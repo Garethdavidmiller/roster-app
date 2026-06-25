@@ -316,7 +316,7 @@ describe('staffContact', () => {
     test('auth with name claim can delete own doc', async () => {
         const member = 'T. Tester';
         await setDoc(doc(namedDb(member, 'uid_tester'), 'staffContact', member), VALID_CONTACT(member));
-        await assertSucceeds(deleteDoc(doc(namedDb(member, 'uid_t'), 'staffContact', member)));
+        await assertSucceeds(deleteDoc(doc(namedDb(member, 'uid_tester'), 'staffContact', member)));
     });
 
     test('admin can delete any doc', async () => {
