@@ -191,27 +191,102 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     return storageUrl;
 }
 
-// ---- Weekly Retail Circular ----
+// ---- Weekly Retail Circular / Newsletter ----
 
 /**
  * Delete Firestore documents (and matching Storage files) for a collection
  * whose `date` field is older than 6 months. Called fire-and-forget after
  * each successful upload to cap collection growth automatically.
+ *
+ * Each document is deleted independently — a failure on one does not abort the rest.
+ * Firestore is deleted first; Storage follows only on success. This ordering means a
+ * partial failure leaves an orphaned Storage file (invisible to users) rather than a
+ * Firestore doc with a broken storageUrl (user-facing 404).
+ *
  * @param {string}   collectionName - 'circulars' or 'newsletters'
+ * @param {string}   excludeDate    - Date string of the just-uploaded doc to skip — prevents
+ *                                    immediately pruning a historical correction (date > 6 months old)
  * @param {object}   storage        - Firebase Storage instance
  * @param {Function} refFn          - Firebase Storage `ref` function
  * @param {Function} deleteObject   - Firebase Storage `deleteObject` function
+ * @returns {Promise<void>}
  */
-async function _pruneOldDocs(collectionName, storage, refFn, deleteObject) {
+async function _pruneOldDocs(collectionName, excludeDate, storage, refFn, deleteObject) {
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - 6);
     const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
     const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
     const snap = await getDocs(q);
-    await Promise.all(snap.docs.map(/** @param {any} d */ async d => {
-        await deleteDoc(doc(db, collectionName, d.id));
-        await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`)).catch(/** @param {any} e */ e => console.warn(`[pruneOldDocs] ${collectionName} delete ${d.id}:`, e));
-    }));
+    await Promise.all(snap.docs
+        .filter(d => d.id !== excludeDate)
+        .map(/** @param {any} d */ async d => {
+            try {
+                await deleteDoc(doc(db, collectionName, d.id));
+                await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`))
+                    .catch(/** @param {any} e */ e => console.warn(`[pruneOldDocs] ${collectionName} Storage delete ${d.id}:`, e));
+            } catch (/** @param {any} e */ e) {
+                console.error(`[pruneOldDocs] ${collectionName} Firestore delete ${d.id}:`, e);
+            }
+        }));
+}
+
+/** Firestore error codes that warrant a single retry — transient service unavailability only. */
+const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 'internal']);
+
+/**
+ * Upload a PDF to Firebase Storage and upsert a metadata document in Firestore.
+ * Shared implementation for uploadCircular and uploadNewsletter.
+ *
+ * Failure handling:
+ *   - Storage fails: nothing written; throws.
+ *   - New upload, Storage OK, setDoc fails: orphaned bytes rolled back via deleteObject; throws.
+ *   - Replace, Storage OK (old bytes gone), setDoc fails: rollback skipped — the URL is stable
+ *     (same storage path → same URL) so stale metadata is cosmetically wrong but the file resolves; throws.
+ *   - setDoc retry: only for retriable Firestore codes (unavailable, deadline-exceeded, internal).
+ *     Non-retriable codes (permission-denied, unauthenticated, etc.) throw immediately with no delay.
+ *     setDoc on a date-keyed doc is idempotent so a double-write on partial success is safe.
+ *
+ * @param {string}   collectionName - 'circulars' | 'newsletters'
+ * @param {string}   date           - ISO date string, e.g. "2026-06-27"
+ * @param {File}     file           - PDF file chosen by the admin
+ * @param {string}   uploadedBy     - memberName of the uploading admin
+ * @returns {Promise<string>} Download URL of the stored file
+ */
+async function _uploadPdf(collectionName, date, file, uploadedBy) {
+    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
+    const storageRef = ref(storage, `${collectionName}/${date}.pdf`);
+    // isReplace: on failure we only roll back newly created Storage objects.
+    // On a replacement the old bytes are gone the moment uploadBytes succeeds —
+    // attempting deleteObject on that path would leave the URL 404-ing while
+    // Firestore still references it, turning a transient error into a broken link.
+    const isReplace = (await getDoc(doc(db, collectionName, date))).exists();
+    let storageUrl;
+    try {
+        await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
+        storageUrl = await getDownloadURL(storageRef);
+        const firestoreData = {
+            date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
+        };
+        // Retry setDoc once after 2 s on retriable failures. Storage already succeeded at this
+        // point, so the only inconsistency is stale Firestore metadata — a retry closes that window.
+        // Non-retriable errors (permission-denied, unauthenticated, invalid-argument) skip the
+        // delay and re-throw immediately so the admin sees the error without a 2-second wait.
+        try {
+            await setDoc(doc(db, collectionName, date), firestoreData);
+        } catch (/** @param {any} setDocErr */ setDocErr) {
+            console.warn(`[uploadPdf] ${collectionName} setDoc attempt 1 failed (${setDocErr?.code})`);
+            if (!_RETRIABLE_FIRESTORE_CODES.has(setDocErr?.code)) throw setDocErr;
+            await new Promise(r => setTimeout(r, 2000));
+            await setDoc(doc(db, collectionName, date), firestoreData);
+        }
+    } catch (err) {
+        if (!isReplace) {
+            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn(`[uploadPdf] ${collectionName} rollback failed:`, e));
+        }
+        throw err;
+    }
+    _pruneOldDocs(collectionName, date, storage, ref, deleteObject).catch(e => console.error(`[pruneOldDocs] ${collectionName}:`, e));
+    return storageUrl;
 }
 
 /**
@@ -227,29 +302,7 @@ async function _pruneOldDocs(collectionName, storage, refFn, deleteObject) {
  * @returns {Promise<string>} Download URL of the stored file
  */
 export async function uploadCircular(date, file, uploadedBy) {
-    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
-    const storageRef = ref(storage, `circulars/${date}.pdf`);
-    // Check before uploading so we know whether this is a replacement.
-    // On failure we only delete the Storage object when it is newly created — deleting
-    // on a re-upload failure would destroy the previously-valid object while Firestore
-    // still references it, turning a transient error into a permanent broken link.
-    const isReplace = (await getDoc(doc(db, COLLECTIONS.circulars, date))).exists();
-    let storageUrl;
-    try {
-        await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
-        storageUrl = await getDownloadURL(storageRef);
-        await setDoc(doc(db, COLLECTIONS.circulars, date), {
-            date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
-        });
-    } catch (err) {
-        if (!isReplace) {
-            // New upload only — safe to clean up the orphaned bytes.
-            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadCircular] rollback delete failed:', e));
-        }
-        throw err;
-    }
-    _pruneOldDocs(COLLECTIONS.circulars, storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] circulars:', e));
-    return storageUrl;
+    return _uploadPdf(COLLECTIONS.circulars, date, file, uploadedBy);
 }
 
 /**
@@ -273,24 +326,7 @@ export async function getLatestCircular() {
  * @returns {Promise<string>} Download URL of the stored file
  */
 export async function uploadNewsletter(date, file, uploadedBy) {
-    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
-    const storageRef = ref(storage, `newsletters/${date}.pdf`);
-    const isReplace = (await getDoc(doc(db, COLLECTIONS.newsletters, date))).exists();
-    let storageUrl;
-    try {
-        await uploadBytes(storageRef, file, { contentType: 'application/pdf' });
-        storageUrl = await getDownloadURL(storageRef);
-        await setDoc(doc(db, COLLECTIONS.newsletters, date), {
-            date, storageUrl, fileType: 'pdf', uploadedAt: serverTimestamp(), uploadedBy,
-        });
-    } catch (err) {
-        if (!isReplace) {
-            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadNewsletter] rollback delete failed:', e));
-        }
-        throw err;
-    }
-    _pruneOldDocs(COLLECTIONS.newsletters, storage, ref, deleteObject).catch(e => console.error('[pruneOldDocs] newsletters:', e));
-    return storageUrl;
+    return _uploadPdf(COLLECTIONS.newsletters, date, file, uploadedBy);
 }
 
 /**

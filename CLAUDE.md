@@ -212,8 +212,18 @@ roster-app/
 ├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname (--experimental-test-module-mocks)
 ├── overlay.test.mjs        ← tests for lockBodyScroll, unlockBodyScroll, trapFocus, initCardCollapse (no mocks; runs in test:hygiene)
+├── calendar-state.test.mjs / calendar-member.test.mjs / calendar-overrides.test.mjs ← tests for calendar-state.js, calendar-member.js, calendar-overrides.js (--experimental-test-module-mocks)
+├── calendar-renderer.test.mjs   ← tests for createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer (fake DOM; --experimental-test-module-mocks)
+├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
+├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
+├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (78 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore emulator automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
+├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, CSP violation) that pass all unit tests. NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
+│   ├── smoke.spec.js       ← 9 page-load tests (calendar ×3, admin login, paycalc signed-in, settings login, settings signed-in tips, operations + links auth redirects), each run on Desktop Chrome + Pixel 5
+│   └── fixtures.js         ← hermetic Firebase: intercepts `gstatic.com/firebasejs/**`, serves local no-op stubs of every symbol firebase-client.js imports
+├── playwright.config.mjs   ← Playwright config: chromium + mobile-chrome projects, local http-server, SW blocked, CDN-free. Uses pre-installed Chromium in dev (`/opt/pw-browsers`); CI installs its own
 ├── package.json            ← dev dependencies only
 ├── scripts/
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
@@ -234,7 +244,13 @@ npm test
 # or individually:
 node --test sw-asset-check.test.mjs import-graph.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs overlay.test.mjs
 node --experimental-vm-modules --test module-parse.test.mjs
-node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs
+node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs calendar-state.test.mjs calendar-member.test.mjs calendar-overrides.test.mjs calendar-renderer.test.mjs calendar-initial-fetch.test.mjs paycalc-periods.test.mjs paycalc-hpp.test.mjs
+
+# Firestore security rules tests (requires Firebase emulator binary — starts automatically):
+npm run test:rules
+
+# E2E smoke tests (real headless Chromium; uses pre-installed browser in the dev env):
+npm run test:e2e
 ```
 
 **Service worker caching:**

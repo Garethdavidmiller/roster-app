@@ -362,7 +362,14 @@ unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration
 Before adding new untested behaviour in these modules, consider whether a unit or
 integration test can be added first.
 
-### E2E smoke tests removed (v12.75) — to be brought back with a better approach
+### E2E smoke tests — REMOVED v12.75, RESTORED v13.95 (no longer a limitation)
+
+**Resolved v13.95.** Restored once Chromium became available pre-installed in the
+dev environment (`/opt/pw-browsers`), giving back the local iteration loop whose
+absence forced the v12.75 removal. The suite (`e2e/`, `npm run test:e2e`) runs in CI
+and gates the hosting deploy; `@playwright/test` is pinned to `1.56.1` to match the
+pre-installed browser revision. Full restoration notes: ROADMAP.md → "E2E smoke tests".
+The original removal rationale is preserved below.
 
 Playwright smoke tests were added to verify that each app page loads, the JS module graph
 executes without error, and key UI elements render (member dropdown, calendar grid, login

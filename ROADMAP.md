@@ -246,7 +246,22 @@ A 28-line rotating link design tool for Marylebone station. Accessible only to `
 
 ---
 
-### E2E smoke tests ✗ (added v12.65 → removed v12.75) — to be brought back better
+### E2E smoke tests ✓ (added v12.65 → removed v12.75 → restored v13.95)
+
+**RESTORED v13.95.** The sole blocker — "the Playwright Chromium binary cannot be
+downloaded in the dev environment" — no longer holds: the Claude Code on the web
+environment ships Chromium pre-installed at `/opt/pw-browsers` (revision 1194 =
+141.0.7390.37), matched by pinning `@playwright/test` to `1.56.1`. The suite now runs
+locally before every push (the missing iteration loop), and CI installs its own
+Chromium via `npx playwright install --with-deps chromium`. The restored suite keeps
+the CDN-stub fixture unchanged; two stale tests were updated (paycalc now has a
+session guard → seed a session; the settings signed-in test's faith-radio anchor was
+removed with the cultural calendar at v13.23 → now anchors on the Work Email card's
+`aria-expanded`). Wired into both `e2e.yml` (branches/PRs) and `deploy-hosting.yml`
+(gates the production deploy). Residual caveat: the local browser is environment-
+specific — iterating on the suite outside the web container needs a system Chromium.
+
+The original history is kept below for context.
 
 **Why they were needed in the first place:** Every app page statically imports
 `./firebase-client.js`, which in turn statically imports the Firebase SDK from
