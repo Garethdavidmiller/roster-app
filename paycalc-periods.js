@@ -142,10 +142,11 @@ function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = {}) {
  * Populate the period selector, navigate to the appropriate default period, and
  * return the current-earning period number (used by the coordinator as the ● anchor).
  *
- * @param {Function} onPeriodChange - Coordinator callback to call after selecting.
  * @returns {number} The current earning period number (first upcoming payday).
+ *   Caller must invoke `onPeriodChange()` immediately after assigning the return value
+ *   so that `_defaultPeriodNum` is set before the first period-change handler runs.
  */
-export function buildPeriodSelect(onPeriodChange) {
+export function buildPeriodSelect() {
   const sel     = document.getElementById('periodSelect');
   const periods = getPeriods();
   const today   = new Date();
@@ -177,7 +178,6 @@ export function buildPeriodSelect(onPeriodChange) {
   _populatePeriodSelect(sel, periods, { currentPNum: _currentPNum });
 
   _setSelectPeriod(sel, defPNum);
-  onPeriodChange();
   buildBackPayPeriodSelect();
   return _currentPNum; // coordinator stores this as _defaultPeriodNum
 }

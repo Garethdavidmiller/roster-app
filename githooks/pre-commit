@@ -103,7 +103,10 @@ fi
 # ESLint — run on staged .js files only (fast).
 # Uses project-local node_modules/.bin/eslint (installed by `npm install`).
 if [[ -x "./node_modules/.bin/eslint" ]]; then
-  STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | tr '\n' ' ')
+  # service-worker.js is excluded from ESLint (it's in .eslintignore / has a matching
+  # ignore pattern) — ESLint warns "file ignored" which fails --max-warnings=0.
+  # It has no ES-module syntax anyway; use node --check for syntax-only validation.
+  STAGED_JS=$(git diff --cached --name-only --diff-filter=ACM | grep '\.js$' | grep -v 'node_modules\|functions/' | grep -v 'service-worker\.js' | tr '\n' ' ')
   if [[ -n "$STAGED_JS" ]]; then
     # shellcheck disable=SC2086
     ./node_modules/.bin/eslint --max-warnings=0 $STAGED_JS
@@ -116,6 +119,15 @@ if [[ -x "./node_modules/.bin/eslint" ]]; then
   fi
 else
   echo "  (node_modules/.bin/eslint not found — run: npm install)"
+fi
+
+# service-worker.js syntax check — ESLint is bypassed above; use node --check instead.
+if git diff --cached --name-only --diff-filter=ACM | grep -q '^service-worker\.js$'; then
+  node --check service-worker.js
+  if [ $? -ne 0 ]; then
+    echo "  service-worker.js: syntax check failed."
+    exit 1
+  fi
 fi
 
 # Firebase SDK version consistency check — ensures firebase.json functions and

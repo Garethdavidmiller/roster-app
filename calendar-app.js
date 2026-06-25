@@ -11,7 +11,7 @@
  */
 
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
-import { auth, signInAnonymously } from './firebase-client.js';
+import { auth, authReady, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
@@ -673,8 +673,13 @@ initHuddleViewer();
 // Tooltip and keyboard navigation — see calendar-keyboard.js.
 initCalendarTooltip();
 initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
-// Anonymous sign-in gives error-reporter a valid auth token so clientError writes pass Firestore rules.
-signInAnonymously(auth).catch(() => {}).finally(() => initErrorReporter());
+// Wait for auth persistence to load, then sign in anonymously only if no named user
+// is already signed in (e.g. someone who opened Admin/Paycalc first). An existing
+// user already has a token; calling signInAnonymously would race or replace them.
+authReady
+    .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
+    .catch(() => {})
+    .finally(() => initErrorReporter());
 
 const _calendarSession = getSession();
 initNavPanel({
