@@ -708,15 +708,15 @@ Added `// Rule: see CLAUDE.md — "…"` one-liners at each surprising business-
 
 Completed. `eslint` (v10) added to `devDependencies` alongside the existing `@eslint/js` and `globals` packages; flat config already in `eslint.config.js`. `npm run lint` and `npm run check` work on a clean checkout without a globally-installed ESLint. CI workflows updated to run `npm ci` + `npm run check`.
 
-### Phase 6 — File-size refactoring (in progress, v13.82–)
+### Phase 6 — File-size refactoring ✓ (v13.82–v13.86)
 
 Split large coordinator files into focused sub-modules. Ordered by day-to-day impact:
 
-**calendar-app.js** ✓ Partially complete (v13.82–v13.83)
-`calendar-renderer.js`, `calendar-overrides.js`, `calendar-member.js`, `calendar-state.js`, `calendar-swipe.js` extracted. Coordinator is now ~1,039 lines (was 1,950). Further candidates: AL lightbox (~97 lines), month-jump picker (~57 lines), keyboard nav (~50 lines), notifications prompt (~30 lines), tooltip (~26 lines), initial fetch (~125 lines) — each self-contained and extractable with a deps-injection pattern matching `initSwipeHandler`.
+**calendar-app.js** ✓ Complete (v13.82–v13.86)
+Eight sub-modules extracted over v13.82–v13.86: `calendar-renderer.js`, `calendar-overrides.js`, `calendar-member.js`, `calendar-state.js`, `calendar-swipe.js` (v13.82–v13.83), then `calendar-al-lightbox.js`, `calendar-initial-fetch.js`, `calendar-keyboard.js` (v13.86). Coordinator dropped from 1,950 → ~670 lines.
 
-**paycalc-app.js** ✓ Partially complete (v13.x)
-`paycalc-settings.js`, `paycalc-periods.js`, `paycalc-roster-hint.js`, `paycalc-hpp.js`, `paycalc-backpay.js` extracted. Coordinator is ~1,432 lines. Seam: `calculate()` stays in coordinator and is passed as a callback to modules that need to trigger it (avoids circular imports).
+**paycalc-app.js** ✓ Complete (v13.x–v13.86)
+`paycalc-settings.js`, `paycalc-periods.js`, `paycalc-roster-hint.js`, `paycalc-hpp.js`, `paycalc-backpay.js` (earlier), then `paycalc-lightboxes.js` (v13.86). Coordinator dropped from ~1,950 → ~1,270 lines. `calculate()` stays in coordinator and is passed as a callback to modules that need to trigger it (avoids circular imports).
 
 ### Phase 7 — Firestore emulator test suite
 
