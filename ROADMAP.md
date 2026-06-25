@@ -739,10 +739,47 @@ Stage 4: Account recovery using verified work email.
 
 ### Phase 9 — TypeScript zero-diagnostic baseline
 
-Lowest urgency but highest long-term payoff. Can be done incrementally.
+Scoped June 2026. `typescript` 6.0.3 is now installed as a devDependency. `// @ts-check` is already on every root module; `jsconfig.json` has `checkJs: false` and `strict: false`. Running `npx tsc --noEmit` currently produces **~570 errors** across the codebase — split into two very different tiers:
 
-- `// @ts-check` is already on every file, so a soft baseline exists
-- Add `"strict": true` to `jsconfig.json` and work through the resulting diagnostics file-by-file
-- Add `@param`/`@returns` JSDoc to any exported functions that lack them
-- Goal: `npx tsc --noEmit` reports zero diagnostics without adding any `// @ts-ignore` suppressions
-- No build step required — `tsc` in check-only mode validates JSDoc types against usage
+**Diagnostic breakdown (June 2026 survey):**
+
+| Error code | Count | Category |
+|-----------|-------|----------|
+| TS2339 | 514 (84%) | DOM property access on `HTMLElement` — `.value`, `.disabled`, `.dataset`, etc. |
+| TS2322 | 26 | Type mismatch — number assigned to string field, function signature mismatch |
+| TS2363/2362 | 11 | Arithmetic on untyped operand |
+| TS2554 | 7 | Wrong argument count |
+| TS2307 | 4 | Cannot resolve Firebase CDN `import()` URL |
+| TS2304 | 3 | Cannot find name (out-of-scope variable) |
+| Other | ~6 | Structural mismatches, misc |
+
+Top files by error count: `admin-overrides.js` 102 · `admin-app.js` 85 · `paycalc-app.js` 61 · `admin-roster-upload.js` 38 · `operations-app.js` 30 · `links-app.js` 28 · `settings-app.js` 25.
+
+---
+
+#### Phase 9a — Fix substantive errors, add CI gate (~6–8 hours, high value)
+
+The 57 non-DOM errors represent real type risks worth fixing: wrong argument counts, arithmetic on untyped values, unresolved module imports, out-of-scope names. Steps:
+
+1. Set `"checkJs": true` in `jsconfig.json` (activates tsc globally, not just per-file via `// @ts-check`)
+2. Fix TS2307 — Firebase CDN `import()` URLs: install `firebase` as a devDependency so the type stubs resolve, or add targeted `// @ts-ignore` on the CDN import lines in `firebase-client.js` (these are the only acceptable suppressions — the CDN URL is a deliberate no-bundler architecture decision)
+3. Fix TS2322 type mismatches, TS2554 wrong arg counts, TS2363 arithmetic-on-unknown, TS2304 out-of-scope names — these are the errors most likely to represent real bugs
+4. Add `npx tsc --noEmit` to `npm run check` (after lint, before tests) so CI catches regressions
+
+At the end of 9a, CI enforces a zero-non-DOM-error baseline. The 514 TS2339 DOM errors remain but are recorded as a known open tier.
+
+#### Phase 9b — DOM element casts (~15–20 hours, low value — do opportunistically)
+
+The 514 TS2339 errors are all the same pattern: `document.getElementById('id').value` where TypeScript infers `HTMLElement` but the property only exists on `HTMLInputElement`. Every fix is a mechanical cast:
+
+```js
+const el = /** @type {HTMLInputElement} */ (document.getElementById('someId'));
+```
+
+These are not real bugs — the HTML and JS have always been co-authored to match. TypeScript can't verify this in a no-framework app, but a runtime mismatch would produce an obvious immediate error rather than a silent type bug. The safety benefit is low compared to the ~80–150 unique cast sites needed.
+
+**Recommendation:** Do 9b opportunistically as files are modified for other reasons, not as a dedicated pass. Each file touched for a bug fix or feature can have its DOM casts added at that point.
+
+#### Phase 9c — `strict: true` (after 9b is complete)
+
+Do not enable `strict` until 9b is done. Adding it before that activates `strictNullChecks`, turning every `document.getElementById()` return from `HTMLElement` into `HTMLElement | null` — a third wave of ~200+ errors on top of the existing DOM cast work. Once 9b is clear, add `"strict": true` to `jsconfig.json` and work through the null-check pass file-by-file. No `// @ts-ignore` suppressions — use `!` non-null assertions only where the element's presence is guaranteed by the page structure and is immediately obvious.
