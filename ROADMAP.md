@@ -683,29 +683,26 @@ A phased plan to make the codebase easier to maintain and extend without introdu
 - `.github/pull_request_template.md` — cloud-backed feature completion checklist (Firestore rules, SW asset lists, version bump, no silent catches, docs)
 - KNOWN_LIMITATIONS.md — silent-catch audit decisions documented so the rationale survives the next session
 
-### Phase 1 — Lightweight type hints
+### Phase 1 — Lightweight type hints ✓ (v13.84)
 
-- **`// @ts-check` + `jsconfig.json`** — add `// @ts-check` at the top of every root JS module and a `jsconfig.json` pointing at all root modules. Gives IDE autocompletion and type errors without a build step. No runtime effect. Pairs with JSDoc `@param`/`@returns` already present on most functions.
-- **`COLLECTIONS` constant in `firebase-client.js`** ✓ (v13.75) — `COLLECTIONS` object added; `sw-asset-check.test.mjs` updated to parse it. A typo in a collection name is now a grep-able named constant rather than a silent runtime failure.
-- **Roster data integrity tests** — assert in `roster-data.test.mjs` that every `teamMember` has a valid `currentWeek` in range for their `rosterType`, that `startDate` fields are `Date` objects not strings, and that `rosterChanges` arrays are sorted ascending. Catches data-entry errors that currently produce silently wrong calendars.
+- **`// @ts-check`** — present on every root JS module (two config files intentionally excluded: `eslint.config.js`, `service-worker.js`).
+- **`COLLECTIONS` constant in `firebase-client.js`** ✓ (v13.75) — `COLLECTIONS` object added; `sw-asset-check.test.mjs` updated to parse it.
+- **Roster data integrity tests** ✓ — `roster-data.test.mjs` asserts valid `currentWeek` range, `startDate instanceof Date`, and `rosterChanges` sorted ascending.
 
 ### Phase 2 — Session/bootstrap consolidation ✓ (v13.74)
 
 Completed. `sessionReady` (Promise) and `resolveSession()` are exported from `session.js`; the `window._mybSession` global has been removed. Page coordinators call `resolveSession(session)`; feature modules `import { sessionReady }` and `await sessionReady`. See KNOWN_LIMITATIONS.md for the migration note.
 
-### Phase 3 — Point-of-use decision comments
+### Phase 3 — Point-of-use decision comments ✓ (v13.85)
 
-For the most surprising bits of business logic (Sunday RD enforcement, `isChristmasRD` ordering, `shouldReplaceOverride` precedence), add a single-line comment at the implementation site:
+Added `// Rule: see CLAUDE.md — "…"` one-liners at each surprising business-logic enforcement site:
+- `getBaseShift()` in `roster-data.js` — `isChristmasRD` ordering
+- `shouldReplaceOverride()` in `app-override-utils.js` — manual-beats-import precedence
+- All four Sunday-enforcement layers in `admin-overrides.js` (pill disable, bulk-bar skip, `recordRangeOverrides` filter) and `calendar-renderer.js` (sick-override display suppression)
 
-```js
-// Rule: see CLAUDE.md — "Sundays are non-contracted"
-```
+### Phase 4 — Test coverage for DOM wiring ✓ (v13.84)
 
-These rules are documented in CLAUDE.md and `app-override-utils.js` JSDoc but invisible to a reader who has neither open. A line comment with the canonical reference makes the "why" discoverable without duplicating prose. No runtime effect; no tests needed.
-
-### Phase 4 — Test coverage for DOM wiring
-
-The biggest untested gap is the DOM injection layer: `nav-panel.js` (inject overlay + drawer, pill rendering, guide toggle), `overlay.js` (lightbox open/close lifecycle, focus trap, `transitionend` fallback), and `session.js` (expired session, self-heal). Add unit tests using Node's built-in `--experimental-vm-modules` + a minimal DOM stub. Does not require Playwright or a real browser. See KNOWN_LIMITATIONS.md → "Test coverage gaps" and "E2E smoke tests removed".
+`nav-panel.test.mjs`, `overlay.test.mjs`, and `session.test.mjs` exist and run in CI. Covers: nav-panel injection and pill rendering, overlay lifecycle (open/close, focus trap, `transitionend` fallback), session constants and self-heal logic.
 
 ### Phase 5 — ESLint as a devDependency ✓ (v13.77)
 

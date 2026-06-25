@@ -731,7 +731,7 @@ export function getRosterForMember(member, date) {
  * @returns {string}  Shift value e.g. "RD", "06:00-14:00"
  */
 export function getBaseShift(member, date) {
-    if (isChristmasRD(date)) return 'RD';
+    if (isChristmasRD(date)) return 'RD'; // Rule: see CLAUDE.md — "isChristmasRD() applied before Firestore overrides"
     // Members with a startDate show RD for all dates before they join
     if (member.startDate) {
         const s = member.startDate;

@@ -183,8 +183,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
                     overrideNote = override.note;
                 } else if (override.type === 'sick' && (shift === 'RD' || shift === 'OFF' || isSunday(dateStr))) {
                     // Sick override on a base rest day, or ANY Sunday — suppress it.
-                    // Sundays are non-contracted; absence never shows on a Sunday even
-                    // when a rotating roster brings a worked Sunday into the absence range.
+                    // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 5: display suppression)
                 } else {
                     shift = override.value;
                     overrideNote = override.note;

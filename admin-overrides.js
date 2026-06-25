@@ -213,7 +213,7 @@ export function buildWeekGridInto(container, dateStr) {
 
         container.appendChild(row);
 
-        // Sundays are uncontracted — disable AL and Absent pills
+        // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 1: disable pills in week grid)
         if (isSunday(dateISO)) {
             const alPill = row.querySelector('.pill-annual_leave');
             if (alPill) {
@@ -531,8 +531,7 @@ function _initBulkBar() {
         weekGrid?.querySelectorAll('.day-row').forEach(row => {
             const checkbox = row.querySelector('.day-cb');
             if (!checkbox || !checkbox.checked) return;
-            // AL and Absent cannot be recorded on Sundays (uncontracted) — skip silently
-            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick') && isSunday(row.dataset.date)) return;
+            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick') && isSunday(row.dataset.date)) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = row.querySelector('.day-start');
             const endEl   = row.querySelector('.day-end');
@@ -1048,7 +1047,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     const workingDates = memberObj
         ? dates.filter(dateStr => {
-            if (isSunday(dateStr)) return false;
+            if (isSunday(dateStr)) return false; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 3: recordRangeOverrides filter)
             const ov = ovByDate.get(dateStr);
             // An existing override (e.g. RDW) takes precedence over the base shift:
             // if it marks the day as worked, include it even when base is RD.
