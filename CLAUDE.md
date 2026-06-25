@@ -138,7 +138,9 @@ roster-app/
 ├── operations.html         ← admin-only: Huddle upload, Roster upload, Staff Login Accounts, Error Log
 ├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← coordinator for index.html: month state, swipe, event wiring, AL lightbox, sync chip, initial 3-month fetch
+├── calendar-app.js         ← coordinator for index.html: event wiring, AL lightbox, sync chip, initial 3-month fetch
+├── calendar-state.js       ← display month/year state for index.html: getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth
+├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown
 ├── calendar-overrides.js   ← Firestore override cache for index.html: rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth, monthKey
 ├── calendar-member.js      ← team member selection for index.html: getSelectedMemberIndex, getCurrentMember, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html: buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection

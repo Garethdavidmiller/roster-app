@@ -13,7 +13,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 |------|----------------|
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
-| Calendar UI coordinator — month state, swipe, event wiring, AL lightbox, sync chip, initial fetch | `calendar-app.js` |
+| Calendar UI coordinator — event wiring, AL lightbox, sync chip, initial fetch | `calendar-app.js` |
+| Calendar display state — getDisplayMonth/Year, setDisplayMonth/Year, changeDisplay, persistViewedMonth | `calendar-state.js` |
+| Calendar swipe carousel — initSwipeHandler, isSwipeCooldown | `calendar-swipe.js` |
 | Calendar override cache — rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth | `calendar-overrides.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
@@ -79,17 +81,31 @@ The single source of truth for all roster data.
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
 ### `calendar-app.js`
-Coordinator for `index.html`. Owns display state and event wiring; delegates rendering, override cache, and member selection to sub-modules.
-- Month carousel state (`currentDisplayMonth/Year`), `changeMonth()`, Prev/Next/Today/Jump event wiring
+Coordinator for `index.html`. Delegates state, swipe, rendering, override cache, and member selection to sub-modules.
+- `changeMonth(delta)` — thin wrapper: calls `changeDisplay()` then `dismissSwipeHint()`
 - `navigateToPaycalc(paydayStr)` — payday/cutoff cell click helper; checks session then navigates
 - `renderCalendar()` — calls `buildCalendarContainer` + `ensureOverridesCached`; shows stale-member banner via `takeStaleMemberName()`
 - `updateLegend()` — shows/hides Spare/RDW/AL/Sick/Night/Christmas/Easter legend items
 - AL lightbox (loadALStats), day-detail lightbox, month-jump picker, About lightbox wiring
 - Sync chip state machine (hidden → `↻ Updating…` → silent remove on success / `⚠ Couldn't update` on timeout)
 - Initial 3-month Firestore fetch IIFE — calls `setInitialFetchInProgress`, `addFetchedMonths`, `fetchOverridesForRange`
-- Swipe gesture (Pointer Events API) — pre-builds adjacent panels in `pointerdown`; calls `buildCalendarContainer` with `navigateToPaycalc`/`onDayDetail` opts
 - Team Week View toggle, notification prompt, keyboard shortcuts, SW registration
-- Calls `initHuddleViewer()` from `app-huddle-viewer.js`
+- Calls `initSwipeHandler()`, `initHuddleViewer()`
+
+### `calendar-state.js`
+Display month/year state for `index.html` — extracted from `calendar-app.js` at v13.83.
+- `getDisplayMonth()` / `getDisplayYear()` — current display position getters
+- `setDisplayMonth(m)` / `setDisplayYear(y)` — direct setters (used by today-button and month-jump picker)
+- `changeDisplay(delta)` — pure state change with boundary clamping; no DOM side-effects
+- `persistViewedMonth()` — writes current position to `localStorage` after each navigation
+- Runs `restoreViewedMonth()` IIFE at module load (skips future months)
+
+### `calendar-swipe.js`
+Pointer Events swipe carousel for `index.html` — extracted from `calendar-app.js` at v13.83.
+- `initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, navigateToPaycalc, openDayDetail })` — wires all pointer events on `#calendarDisplay`
+- `isSwipeCooldown()` — returns true while a swipe animation is in flight; coordinator uses this to suppress button clicks
+- Adjacent panels built in `pointerdown` (not `pointermove`) to avoid mid-swipe jank; setPointerCapture deferred to `pointermove` (iOS Safari fix)
+- RAF-throttled transform writes; haptic feedback on threshold cross
 
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.

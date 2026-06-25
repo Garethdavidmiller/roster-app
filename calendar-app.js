@@ -10,7 +10,7 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, MONTH_NAMES, getALEntitlement, computeEaster, getPaydaysAndCutoffs, formatISO, isSunday, SWIPE_THRESHOLD } from './roster-data.js';
+import { CONFIG, MONTH_NAMES, getALEntitlement, computeEaster, getPaydaysAndCutoffs, formatISO, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS, auth, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
@@ -24,7 +24,9 @@ import { initErrorReporter } from './error-reporter.js';
 import { initHuddleViewer } from './app-huddle-viewer.js';
 import { rosterOverridesCache, _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, monthKey, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
-import { buildCalendarContainer, getSwipeDirection } from './calendar-renderer.js';
+import { buildCalendarContainer } from './calendar-renderer.js';
+import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
+import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -49,36 +51,7 @@ let openAboutLightbox = null;
 // from the hover tooltip. Touch had no way to read data-tooltip before this.
 let openDayDetail = null;
 
-// ============================================
-// CALENDAR STATE
-// ============================================
-
-// Current date: Always evaluated fresh to handle app staying open past midnight
-function getToday() { return new Date(); }
-
-let currentDisplayMonth = getToday().getMonth();
-let currentDisplayYear = getToday().getFullYear();
-
-// Restore last-viewed month from localStorage (if valid, within app bounds, and not a future month).
-// Future months are not restored so the app always opens on the current month when the user was
-// previously browsing ahead — staff should see today's roster on open, not a month they peeked at.
-(function restoreViewedMonth() {
-    const m = parseInt(lsGet('myb_roster_month'), 10);
-    const y = parseInt(lsGet('myb_roster_year'),  10);
-    if (!isNaN(m) && !isNaN(y) && y >= CONFIG.MIN_YEAR && y <= CONFIG.MAX_YEAR && m >= 0 && m <= 11) {
-        const today = getToday();
-        const isFuture = y > today.getFullYear() || (y === today.getFullYear() && m > today.getMonth());
-        if (!isFuture) {
-            currentDisplayMonth = m;
-            currentDisplayYear  = y;
-        }
-    }
-})();
-
-// ============================================
-// SWIPE GESTURE STATE
-// ============================================
-let swipeCooldown = false;
+// (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
 
 // ============================================
 // TEAM VIEW
@@ -97,13 +70,9 @@ const teamView = initTeamView({
 // ============================================
 
 // Central month navigation — all buttons, keyboard and swipe go through here.
-// Ensures clamping logic lives in exactly one place.
+// State change is pure (calendar-state.js); this wrapper adds the UI side-effect.
 function changeMonth(delta) {
-    currentDisplayMonth += delta;
-    if (currentDisplayMonth > 11) { currentDisplayMonth = 0; currentDisplayYear++; }
-    if (currentDisplayMonth < 0)  { currentDisplayMonth = 11; currentDisplayYear--; }
-    if (currentDisplayYear > CONFIG.MAX_YEAR) { currentDisplayYear = CONFIG.MAX_YEAR; currentDisplayMonth = 11; }
-    if (currentDisplayYear < CONFIG.MIN_YEAR) { currentDisplayYear = CONFIG.MIN_YEAR; currentDisplayMonth = 0;  }
+    changeDisplay(delta);
     dismissSwipeHint();
 }
 
@@ -168,7 +137,7 @@ function navigateToPaycalc(paydayStr) {
 
     async function loadALStats() {
         const member  = getCurrentMember();
-        const year    = currentDisplayYear;
+        const year    = getDisplayYear();
         const yearStr = String(year);
 
         yearEl.textContent  = yearStr;
@@ -293,7 +262,7 @@ function updateLegend() {
 
     // Spare / RDW / AL — conditional on whether they appear this month
     const typesThisMonth = member
-        ? getShiftTypesInMonth(member, currentDisplayYear, currentDisplayMonth)
+        ? getShiftTypesInMonth(member, getDisplayYear(), getDisplayMonth())
         : new Set();
     const setLegendItemVisible = (id, visible) => { const legendItem = _legendEl(id); if (legendItem) legendItem.style.display = visible ? '' : 'none'; };
     setLegendItemVisible('legend-spare', typesThisMonth.has('SPARE'));
@@ -309,13 +278,13 @@ function updateLegend() {
     if (nightItem) nightItem.style.display = isDispatcher ? '' : 'none';
 
     const christmasItem = _legendEl('legend-christmas');
-    if (christmasItem) christmasItem.style.display = currentDisplayMonth === 11 ? '' : 'none';
+    if (christmasItem) christmasItem.style.display = getDisplayMonth() === 11 ? '' : 'none';
 
     // Easter Sunday can fall in March or April — check which month it's in this year
     const easterItem = _legendEl('legend-easter');
     if (easterItem) {
-        const easterSunMonth = computeEaster(currentDisplayYear).getMonth();
-        easterItem.style.display = currentDisplayMonth === easterSunMonth ? '' : 'none';
+        const easterSunMonth = computeEaster(getDisplayYear()).getMonth();
+        easterItem.style.display = getDisplayMonth() === easterSunMonth ? '' : 'none';
     }
 }
 
@@ -347,13 +316,12 @@ function renderCalendar() {
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (!calendarDisplay) throw new Error('Calendar display element not found');
 
-        document.title = `MYB Roster — ${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
+        document.title = `MYB Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
 
         // Persist so the user returns to the same month after closing the app
-        lsSet('myb_roster_month', currentDisplayMonth);
-        lsSet('myb_roster_year',  currentDisplayYear);
+        persistViewedMonth();
 
-        const calendarContainer = buildCalendarContainer(currentDisplayMonth, currentDisplayYear, {
+        const calendarContainer = buildCalendarContainer(getDisplayMonth(), getDisplayYear(), {
             navigateToPaycalc,
             onDayDetail: (cell) => openDayDetail?.(cell),
         });
@@ -362,8 +330,8 @@ function renderCalendar() {
 
         // Update Prev/Next buttons at year/month boundaries
         // aria-disabled signals the limit to screen readers; opacity gives visual feedback
-        const atStart = currentDisplayYear === CONFIG.MIN_YEAR && currentDisplayMonth === 0;
-        const atEnd   = currentDisplayYear === CONFIG.MAX_YEAR && currentDisplayMonth === 11;
+        const atStart = getDisplayYear() === CONFIG.MIN_YEAR && getDisplayMonth() === 0;
+        const atEnd   = getDisplayYear() === CONFIG.MAX_YEAR && getDisplayMonth() === 11;
         const prevBtn = document.getElementById('prevMonth');
         const nextBtn = document.getElementById('nextMonth');
         if (prevBtn) {
@@ -382,7 +350,7 @@ function renderCalendar() {
         // fetch that could race against it and produce a blank re-render mid-load.
         if (!_initialFetchInProgress) {
             const _mAtFetch = getSelectedMemberIndex();
-            ensureOverridesCached(currentDisplayYear, currentDisplayMonth, () => {
+            ensureOverridesCached(getDisplayYear(), getDisplayMonth(), () => {
                 if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendar();
             });
         }
@@ -407,7 +375,7 @@ function renderCalendar() {
 // ============================================
 
 document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
-    if (swipeCooldown) return; // Don't interrupt a swipe animation
+    if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
     saveSelectedMember(parseInt(e.target.value, 10));
     renderCalendar();
     // Close AL lightbox if open — data would be stale for the new member
@@ -416,7 +384,7 @@ document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
 
 
 document.getElementById('prevMonth').addEventListener('click', (e) => {
-    if (swipeCooldown) return;
+    if (isSwipeCooldown()) return;
     // aria-disabled is set at the boundary — honour it as a true no-op so AT users
     // (and PageUp via .click()) don't trigger a pointless re-render/announce.
     if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
@@ -450,19 +418,19 @@ function announceMonthChange() {
     // Clear first so repeated same-direction navigation always fires the announcement
     announcer.textContent = '';
     requestAnimationFrame(() => {
-        announcer.textContent = `${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
+        announcer.textContent = `${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
     });
 }
 
 
 document.getElementById('todayBtn').addEventListener('click', () => {
-    if (swipeCooldown) return;
+    if (isSwipeCooldown()) return;
     if (teamView.isTeamViewMode()) {
         teamView.jumpToCurrentWeek();
     } else {
-        const now = getToday();
-        currentDisplayMonth = now.getMonth();
-        currentDisplayYear = now.getFullYear();
+        const now = new Date();
+        setDisplayMonth(now.getMonth());
+        setDisplayYear(now.getFullYear());
         renderCalendar();
         pulseToday();
         announceMonthChange();
@@ -470,7 +438,7 @@ document.getElementById('todayBtn').addEventListener('click', () => {
 });
 
 document.getElementById('nextMonth').addEventListener('click', (e) => {
-    if (swipeCooldown) return;
+    if (isSwipeCooldown()) return;
     if (e.currentTarget.getAttribute('aria-disabled') === 'true') return;
     changeMonth(1);
     renderCalendar();
@@ -481,8 +449,8 @@ document.getElementById('nextMonth').addEventListener('click', (e) => {
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
 document.getElementById('payBtn').addEventListener('click', () => {
     if (getSession()?.name) {
-        const m = String(currentDisplayMonth + 1).padStart(2, '0');
-        window.location.href = `./paycalc.html?month=${currentDisplayYear}-${m}`;
+        const m = String(getDisplayMonth() + 1).padStart(2, '0');
+        window.location.href = `./paycalc.html?month=${getDisplayYear()}-${m}`;
     } else {
         window.location.href = './admin.html?redirect=paycalc';
     }
@@ -519,9 +487,9 @@ document.getElementById('payBtn').addEventListener('click', () => {
 })();
 
 document.getElementById('adminBtn').addEventListener('click', () => {
-    const today = getToday();
-    const isCurrentMonth = currentDisplayMonth === today.getMonth() && currentDisplayYear === today.getFullYear();
-    const targetDate = isCurrentMonth ? today : new Date(currentDisplayYear, currentDisplayMonth, 1);
+    const today = new Date();
+    const isCurrentMonth = getDisplayMonth() === today.getMonth() && getDisplayYear() === today.getFullYear();
+    const targetDate = isCurrentMonth ? today : new Date(getDisplayYear(), getDisplayMonth(), 1);
     const yyyy = String(targetDate.getFullYear()).padStart(4, '0');
     const mm   = String(targetDate.getMonth() + 1).padStart(2, '0');
     const dd   = String(targetDate.getDate()).padStart(2, '0');
@@ -590,323 +558,16 @@ try {
             });
         }
 
-        // ============================================
-        // SETUP SWIPE/DRAG GESTURES (Touch + Mouse + Trackpad)
-        // ============================================
-        // Uses the Pointer Events API — a single unified API for mouse, touch
-        // and stylus. Works identically on mobile (finger swipe) and desktop
-        // (click-drag or trackpad swipe). setPointerCapture() on pointerdown
-        // ensures events keep firing even if the pointer leaves the element.
-        // ============================================
-        const calendarDisplay = document.getElementById('calendarDisplay');
+        // Swipe gesture handler — see calendar-swipe.js for full implementation.
+        initSwipeHandler({
+            isTeamViewMode: () => teamView.isTeamViewMode(),
+            changeMonth,
+            renderCalendar,
+            updateLegend,
+            navigateToPaycalc,
+            openDayDetail: (cell) => openDayDetail?.(cell),
+        });
 
-        if (calendarDisplay) {
-            // Respect prefers-reduced-motion — instant transitions for users who need it
-            const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            const TRANSITION             = prefersReducedMotion ? 'none' : 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)';
-            const TRANSITION_DURATION_MS = prefersReducedMotion ? 0 : 350; // Must match the duration in TRANSITION above
-            let prevPanel = null;
-            let nextPanel = null;
-            let isListening = false;     // True from pointerdown until gesture is resolved (tap or completed swipe)
-            let isDragging = false;      // True only after horizontal intent is confirmed in pointermove
-            let touchStartX = 0;
-            let touchStartY = 0;
-            let touchStartTime = 0;
-            let gestureW = 0;            // Cached display width — measured on pointerdown, reused throughout gesture
-            let gestureCurrentPanel = null; // Cached current panel — queried once on pointerdown, reused throughout gesture
-            let rafId = null;            // requestAnimationFrame handle — throttles transform writes to one per frame
-            let pendingX = 0;            // Most recent deltaX — consumed by the scheduled RAF frame
-            let _vibratePrimed = false;  // navigator.vibrate(0) only needs to run once per page lifetime
-
-            // Returns true if swiping in the given direction would actually change the month.
-            // At the year boundaries, swiping toward the blocked side should always snap back.
-            function canNavigate(direction) {
-                if (direction === 'prev') {
-                    return !(currentDisplayYear === CONFIG.MIN_YEAR && currentDisplayMonth === 0);
-                }
-                if (direction === 'next') {
-                    return !(currentDisplayYear === CONFIG.MAX_YEAR && currentDisplayMonth === 11);
-                }
-                return true;
-            }
-
-            // Build a panel for an adjacent month using explicit month/year params —
-            // no global state mutation, no risk of corruption if an exception is thrown.
-            function buildAdjacentPanel(monthDelta) {
-                let m = currentDisplayMonth + monthDelta;
-                let y = currentDisplayYear;
-                if (m > 11) { m = 0;  y++; }
-                if (m < 0)  { m = 11; y--; }
-                // Clamp to valid range
-                if (y > CONFIG.MAX_YEAR) { y = CONFIG.MAX_YEAR; m = 11; }
-                if (y < CONFIG.MIN_YEAR) { y = CONFIG.MIN_YEAR; m = 0;  }
-                return buildCalendarContainer(m, y, {
-                    navigateToPaycalc,
-                    onDayDetail: (cell) => openDayDetail?.(cell),
-                });
-            }
-
-            // Position a panel off-screen without transition.
-            // Static layout (position/top/left/width) is in the .carousel-panel CSS class.
-            // gestureW is cached on touchstart — no layout recalculation needed here.
-            function parkPanel(panel, side) {
-                panel.classList.add('carousel-panel');
-                panel.style.transition = 'none';
-                panel.style.transform  = `translate3d(${side === 'right' ? gestureW : -gestureW}px, 0, 0)`;
-                panel.style.willChange = 'transform';
-            }
-
-            // Remove pre-built panels cleanly from DOM
-            function discardPanels() {
-                if (prevPanel && prevPanel.parentNode) prevPanel.remove();
-                if (nextPanel && nextPanel.parentNode) nextPanel.remove();
-                prevPanel = null;
-                nextPanel = null;
-            }
-
-            let hapticFired = false;
-
-            // pointerdown — record start position and pre-build adjacent panels.
-            // Pointer Events unifies mouse, touch and stylus into one API. We defer setPointerCapture
-            // to pointermove (once horizontal intent is confirmed) because capturing immediately on
-            // pointerdown causes iOS Safari to mis-classify the gesture and suppress pointermove
-            // events — the same approach used in admin.html where swipe works reliably on iOS.
-            //
-            // Panels are built here (not in pointermove) so that DOM construction and layer promotion
-            // happen during the dead-zone before horizontal intent is confirmed. By the time the user
-            // has moved far enough to trigger dragging, the GPU layers are already ready — eliminating
-            // the jank spike that occurred when panels were built mid-swipe. If the gesture turns out
-            // to be a tap, discardPanels() in pointerup cleans them up with no visible effect.
-            calendarDisplay.addEventListener('pointerdown', (e) => {
-                if (!e.isPrimary || swipeCooldown || teamView.isTeamViewMode()) return;
-
-                gestureCurrentPanel = document.querySelector('.calendar-container:not(.carousel-panel)');
-                if (!gestureCurrentPanel) return;
-
-                // Prime the Vibration API once on the first user gesture only.
-                // Chrome Android requires a user activation before navigator.vibrate() works,
-                // but we only need to do it once per page lifetime, not on every pointerdown.
-                if (!_vibratePrimed && navigator.vibrate) { navigator.vibrate(0); _vibratePrimed = true; }
-
-                touchStartX    = e.clientX;
-                touchStartY    = e.clientY;
-                touchStartTime = Date.now();
-                isListening    = true;
-                isDragging     = false;
-                hapticFired    = false;
-
-                // Measure width now — avoids a forced layout reflow mid-gesture.
-                // Math.ceil eliminates sub-pixel seam on high-DPI screens — do not remove.
-                gestureW = Math.ceil(calendarDisplay.getBoundingClientRect().width);
-
-                // Promote current panel to its own compositor layer before dragging starts.
-                gestureCurrentPanel.style.willChange = 'transform';
-
-                // Build and park adjacent panels while the finger is still in the dead-zone.
-                try {
-                    if (canNavigate('prev')) {
-                        prevPanel = buildAdjacentPanel(-1);
-                        parkPanel(prevPanel, 'left');
-                        calendarDisplay.appendChild(prevPanel);
-                    }
-                    if (canNavigate('next')) {
-                        nextPanel = buildAdjacentPanel(1);
-                        parkPanel(nextPanel, 'right');
-                        calendarDisplay.appendChild(nextPanel);
-                    }
-                } catch (err) {
-                    console.error('Failed to pre-build adjacent panels:', err);
-                    discardPanels();
-                }
-            });
-
-            // pointermove — confirm direction then track finger position.
-            // On the first move past the dead zone we decide: vertical → abandon (panels were
-            // pre-built in pointerdown, so discard them); horizontal → capture the pointer and
-            // start dragging. Deferring setPointerCapture to here (not pointerdown) is the key
-            // fix for iOS Safari, which is stricter than Android about gesture arbitration.
-            calendarDisplay.addEventListener('pointermove', (e) => {
-                if (!e.isPrimary || !isListening) return;
-
-                const deltaX = e.clientX - touchStartX;
-                const deltaY = e.clientY - touchStartY;
-
-                if (!isDragging) {
-                    // Dead zone — ignore tiny jitter
-                    if (Math.abs(deltaX) <= 5 && Math.abs(deltaY) <= 5) return;
-
-                    if (Math.abs(deltaY) >= Math.abs(deltaX)) {
-                        // Vertical intent — abandon; let the browser handle scrolling.
-                        // Clean up the panels pre-built in pointerdown.
-                        isListening = false;
-                        discardPanels();
-                        if (gestureCurrentPanel) {
-                            gestureCurrentPanel.style.willChange = '';
-                            gestureCurrentPanel = null;
-                        }
-                        return;
-                    }
-
-                    // Horizontal intent confirmed — panels are already in the DOM from pointerdown.
-                    // Defer setPointerCapture to here (iOS Safari suppresses pointermove if captured
-                    // on pointerdown). Disable transition so finger maps 1:1 to panel position.
-                    calendarDisplay.setPointerCapture(e.pointerId);
-                    gestureCurrentPanel.style.transition = 'none';
-                    swipeCooldown = true;
-                    isDragging    = true;
-                }
-
-                if (!gestureCurrentPanel) return;
-
-                const RESISTANCE = 0.3;
-                const atPrevBoundary = deltaX > 0 && !prevPanel;
-                const atNextBoundary = deltaX < 0 && !nextPanel;
-                const effectiveDeltaX = (atPrevBoundary || atNextBoundary)
-                    ? deltaX * RESISTANCE
-                    : deltaX;
-
-                // RAF-throttle transform writes — pointermove fires faster than the display refresh
-                // rate (up to 120 Hz on ProMotion). Writing style.transform on every event causes
-                // redundant style mutations per frame and is the main source of swipe jitter on iOS.
-                // Storing the latest position in pendingX and scheduling one RAF per frame keeps
-                // transforms in sync with the compositor.
-                // translate3d(x, 0, 0) is used instead of translateX(x) — functionally equivalent
-                // but more reliably pushed to the GPU compositing thread on iOS Safari.
-                pendingX = effectiveDeltaX;
-                if (!rafId) {
-                    rafId = requestAnimationFrame(() => {
-                        rafId = null;
-                        if (!gestureCurrentPanel) return;
-                        gestureCurrentPanel.style.transform = `translate3d(${pendingX}px, 0, 0)`;
-                        if (prevPanel) prevPanel.style.transform = `translate3d(${-gestureW + pendingX}px, 0, 0)`;
-                        if (nextPanel) nextPanel.style.transform = `translate3d(${gestureW  + pendingX}px, 0, 0)`;
-                    });
-                }
-
-                if (!hapticFired && !atPrevBoundary && !atNextBoundary && Math.abs(deltaX) >= SWIPE_THRESHOLD) {
-                    if (navigator.vibrate) navigator.vibrate(30);
-                    hapticFired = true;
-                }
-            });
-
-            // pointerup — replaces touchend
-            calendarDisplay.addEventListener('pointerup', (e) => {
-                if (!e.isPrimary || !isListening) return;
-                isListening = false;
-
-                if (!isDragging) {
-                    // Pointer went down and up without confirmed horizontal drag — was a tap.
-                    // Discard the panels pre-built in pointerdown and clear layer promotion.
-                    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-                    discardPanels();
-                    if (gestureCurrentPanel) gestureCurrentPanel.style.willChange = '';
-                    gestureCurrentPanel = null;
-                    return;
-                }
-                isDragging = false;
-                if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-
-                // Release pointer capture now gesture is complete
-                try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
-
-                const current = gestureCurrentPanel;
-                if (!current) { discardPanels(); swipeCooldown = false; return; }
-
-                const direction = getSwipeDirection(touchStartX, touchStartY, e.clientX, e.clientY, Date.now() - touchStartTime);
-                const w = gestureW;
-
-                if (direction) {
-                    if (!hapticFired && navigator.vibrate) navigator.vibrate(30);
-
-                    const incomingPanel = direction === 'left' ? nextPanel : prevPanel;
-                    const discardPanel  = direction === 'left' ? prevPanel : nextPanel;
-
-                    if (!incomingPanel) {
-                        discardPanels();
-                        current.style.transition = 'none';
-                        current.style.transform  = '';
-                        current.style.willChange = '';
-                        swipeCooldown = false;
-                        console.warn('Swipe commit: incomingPanel was null, aborting without state change');
-                        return;
-                    }
-
-                    changeMonth(direction === 'left' ? 1 : -1);
-                    document.title = `MYB Roster — ${MONTH_NAMES[currentDisplayMonth]} ${currentDisplayYear}`;
-                    updateLegend();
-
-                    current.style.transition       = TRANSITION;
-                    current.style.transform        = `translate3d(${direction === 'left' ? -w : w}px, 0, 0)`;
-                    incomingPanel.style.transition = TRANSITION;
-                    incomingPanel.style.transform  = 'translate3d(0, 0, 0)';
-
-                    if (discardPanel && discardPanel.parentNode) discardPanel.remove();
-
-                    function restoreIncoming() {
-                        incomingPanel.classList.remove('carousel-panel');
-                        incomingPanel.style.transition = '';
-                        incomingPanel.style.transform  = '';
-                        incomingPanel.style.willChange = '';
-                        if (current.parentNode) current.remove();
-                        prevPanel = null;
-                        nextPanel = null;
-                        gestureCurrentPanel = null;
-                        swipeCooldown = false;
-                        // Swipe bypasses renderCalendar() so ensureOverridesCached() would
-                        // never fire for the newly-visible month. After a member switch the
-                        // 3-month IIFE cache is cleared and only the previously-viewed month
-                        // was re-fetched — swiping to an adjacent month would show no overrides.
-                        // This call is a no-op if the month is already cached.
-                        const _mAtFetch = getSelectedMemberIndex();
-                        ensureOverridesCached(currentDisplayYear, currentDisplayMonth, () => {
-                            if (!teamView.isTeamViewMode() && getSelectedMemberIndex() === _mAtFetch) renderCalendar();
-                        });
-                    }
-
-                    const safetyTimer = setTimeout(restoreIncoming, TRANSITION_DURATION_MS + 50);
-                    incomingPanel.addEventListener('transitionend', () => {
-                        clearTimeout(safetyTimer);
-                        restoreIncoming();
-                    }, { once: true });
-
-                } else {
-                    current.style.transition = TRANSITION;
-                    current.style.transform  = 'translate3d(0, 0, 0)';
-                    current.style.willChange = '';
-                    if (prevPanel) { prevPanel.style.transition = TRANSITION; prevPanel.style.transform = `translate3d(${-w}px, 0, 0)`; }
-                    if (nextPanel) { nextPanel.style.transition = TRANSITION; nextPanel.style.transform = `translate3d(${w}px, 0, 0)`;  }
-                    setTimeout(() => {
-                        discardPanels();
-                        gestureCurrentPanel = null;
-                        swipeCooldown = false;
-                    }, TRANSITION_DURATION_MS + 50);
-                }
-            });
-
-            // pointercancel — fires when OS interrupts the gesture (call, notification, rotate)
-            calendarDisplay.addEventListener('pointercancel', (e) => {
-                if (!e.isPrimary || !isListening) return;
-                isListening   = false;
-                isDragging    = false;
-                swipeCooldown = false;
-                if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
-
-                // Release pointer capture on cancel
-                try { calendarDisplay.releasePointerCapture(e.pointerId); } catch (_) {}
-
-                if (gestureCurrentPanel) {
-                    gestureCurrentPanel.style.transition = 'none';
-                    gestureCurrentPanel.style.transform  = '';
-                    gestureCurrentPanel.style.willChange = '';
-                    gestureCurrentPanel = null;
-                }
-                discardPanels();
-            });
-
-            // Prevent context menu on long-press (Android) or right-click (desktop)
-            calendarDisplay.addEventListener('contextmenu', (e) => e.preventDefault());
-
-        }
 
         // ============================================
         // ICON LIGHTBOX / ABOUT PANEL
@@ -995,8 +656,8 @@ try {
                 content: card,
                 initialFocus: () => selMonth,
                 onOpen() {
-                    selMonth.value = currentDisplayMonth;
-                    selYear.value  = currentDisplayYear;
+                    selMonth.value = getDisplayMonth();
+                    selYear.value  = getDisplayYear();
                 },
             });
 
@@ -1011,8 +672,8 @@ try {
             });
 
             btnConfirm.addEventListener('click', () => {
-                currentDisplayMonth = parseInt(selMonth.value, 10);
-                currentDisplayYear  = parseInt(selYear.value, 10);
+                setDisplayMonth(parseInt(selMonth.value, 10));
+                setDisplayYear(parseInt(selYear.value, 10));
                 picker.close();
                 renderCalendar();
                 announceMonthChange();
@@ -1034,7 +695,7 @@ try {
             // so the input check above doesn't help: arrows/t would silently
             // change the month behind the overlay and p would print it.
             if (document.querySelector('.lb-overlay.visible')) return;
-            if (swipeCooldown) return; // Don't interrupt a swipe animation
+            if (isSwipeCooldown()) return; // Don't interrupt a swipe animation
             if (teamView.isTeamViewMode()) {
                 if (e.key === 'ArrowLeft')  document.getElementById('tvPrevWeek')?.click();
                 if (e.key === 'ArrowRight') document.getElementById('tvNextWeek')?.click();
@@ -1045,7 +706,7 @@ try {
             // (handled by initCalendarKeyboard). Only navigate months when no cell is focused.
             if (e.key === 'ArrowLeft'  && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(-1); renderCalendar(); announceMonthChange(); }
             if (e.key === 'ArrowRight' && !document.activeElement?.classList.contains('calendar-day')) { changeMonth(1);  renderCalendar(); announceMonthChange(); }
-            if (e.key === 't' || e.key === 'T') { const now = getToday(); currentDisplayMonth = now.getMonth(); currentDisplayYear = now.getFullYear(); renderCalendar(); pulseToday(); announceMonthChange(); }
+            if (e.key === 't' || e.key === 'T') { const now = new Date(); setDisplayMonth(now.getMonth()); setDisplayYear(now.getFullYear()); renderCalendar(); pulseToday(); announceMonthChange(); }
             if (e.key === 'p' || e.key === 'P') {
                 if (!document.getElementById('huddleViewer')?.classList.contains('open')) window.print();
             }

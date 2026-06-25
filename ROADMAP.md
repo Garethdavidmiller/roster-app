@@ -710,3 +710,42 @@ The biggest untested gap is the DOM injection layer: `nav-panel.js` (inject over
 ### Phase 5 — ESLint as a devDependency ✓ (v13.77)
 
 Completed. `eslint` (v10) added to `devDependencies` alongside the existing `@eslint/js` and `globals` packages; flat config already in `eslint.config.js`. `npm run lint` and `npm run check` work on a clean checkout without a globally-installed ESLint. CI workflows updated to run `npm ci` + `npm run check`.
+
+### Phase 6 — File-size refactoring (in progress, v13.82–)
+
+Split large coordinator files into focused sub-modules. Ordered by day-to-day impact:
+
+**calendar-app.js** ✓ Partially complete (v13.82–v13.83)
+`calendar-renderer.js`, `calendar-overrides.js`, `calendar-member.js`, `calendar-state.js`, `calendar-swipe.js` extracted. Coordinator is now ~1,039 lines (was 1,950). Further candidates: AL lightbox (~97 lines), month-jump picker (~57 lines), keyboard nav (~50 lines), notifications prompt (~30 lines), tooltip (~26 lines), initial fetch (~125 lines) — each self-contained and extractable with a deps-injection pattern matching `initSwipeHandler`.
+
+**paycalc-app.js** ✓ Partially complete (v13.x)
+`paycalc-settings.js`, `paycalc-periods.js`, `paycalc-roster-hint.js`, `paycalc-hpp.js`, `paycalc-backpay.js` extracted. Coordinator is ~1,432 lines. Seam: `calculate()` stays in coordinator and is passed as a callback to modules that need to trigger it (avoids circular imports).
+
+### Phase 7 — Firestore emulator test suite
+
+Prerequisite for Password security Stages 2–4 being safe to ship.
+
+- Wire `@firebase/rules-unit-testing` (Firestore emulator) into `npm test`
+- Cover: Firestore security rules for all collections (overrides, staffContact, clientErrors, circulars, newsletters, pushSubscriptions)
+- Cover: override write paths (spare_shift, annual_leave, correction, sick) with member-isolation logic
+- Cover: circular/newsletter prune side-effect in `_pruneOldDocs()`
+- Currently zero automated coverage for any of this; any rules change ships blind
+
+### Phase 8 — Password security Stages 2–4
+
+**Depends on Phase 7 (Firestore emulator) being in place first** — auth changes are high-risk without it.
+
+Stage 1 ✓ (v12.68): Work email collection via staffContact.
+Stage 2: Email-based password reset flow (send verification link, user resets).
+Stage 3: Per-member write isolation in Firestore rules (`request.auth.token.name == memberName`) — suspended at v10.94 after a production outage; re-introduction checklist in KNOWN_LIMITATIONS.md task #2.
+Stage 4: Account recovery using verified work email.
+
+### Phase 9 — TypeScript zero-diagnostic baseline
+
+Lowest urgency but highest long-term payoff. Can be done incrementally.
+
+- `// @ts-check` is already on every file, so a soft baseline exists
+- Add `"strict": true` to `jsconfig.json` and work through the resulting diagnostics file-by-file
+- Add `@param`/`@returns` JSDoc to any exported functions that lack them
+- Goal: `npx tsc --noEmit` reports zero diagnostics without adding any `// @ts-ignore` suppressions
+- No build step required — `tsc` in check-only mode validates JSDoc types against usage

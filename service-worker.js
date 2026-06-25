@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v13.82
+// MYB Roster — Service Worker v13.83
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '13.82';
+const APP_VERSION = '13.83';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -24,7 +24,8 @@ const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html',
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
-    'calendar-app.js', 'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
+    'calendar-app.js', 'calendar-state.js', 'calendar-swipe.js',
+    'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
     'app-team-view.js', 'app-override-utils.js', 'app-huddle-viewer.js',
     'admin-app.js', 'huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
@@ -63,6 +64,8 @@ const CORE_ASSETS = [
     "./links-design.js",
     "./settings-app.js",
     "./calendar-app.js",
+    "./calendar-state.js",
+    "./calendar-swipe.js",
     "./calendar-overrides.js",
     "./calendar-member.js",
     "./calendar-renderer.js",
