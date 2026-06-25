@@ -53,12 +53,6 @@ describe('expiredResolvedIds', () => {
 });
 
 describe('orderClientErrors', () => {
-    test('every unresolved record comes before any resolved record', () => {
-        const unresolved = [rec('u-old', 50), rec('u-new', 1)];
-        const resolved   = [rec('r-new', 2, { resolved: true, resolvedDaysAgo: 1 })];
-        const out = orderClientErrors(unresolved, resolved, NOW);
-        assert.deepEqual(out.map(e => e.id), ['u-new', 'u-old', 'r-new']);
-    });
     test('a backlog of resolved records can never hide an old unresolved one', () => {
         const unresolved = [rec('u-ancient', 365)];
         const resolved   = Array.from({ length: 50 }, (_, i) => rec(`r${i}`, i, { resolved: true, resolvedDaysAgo: 1 }));

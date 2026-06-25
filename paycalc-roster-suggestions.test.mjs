@@ -28,6 +28,8 @@ mock.module('./firebase-client.js', {
 const {
   getRosterSuggestion,
   _setOverridesForTest,
+  _addBhDateForTest,
+  _removeBhDateForTest,
   fetchOverridesForPeriod,
   resetOverrides,
 } = await import('./paycalc-roster-suggestions.js');
@@ -243,6 +245,28 @@ describe('fetchOverridesForPeriod — override priority', () => {
     // Cache empty → base roster used → BH on Easter Monday still shows
     _setOverridesForTest(new Map());
     assert.strictEqual(getRosterSuggestion(period(date), cReen), null); // Sat=RD base, no override
+  });
+
+});
+
+// ── Sunday-on-BH payroll rule ─────────────────────────────────────────────────
+
+describe('getRosterSuggestion — Sunday-on-BH payroll rule', () => {
+
+  test('Sunday-on-BH: Sunday wins (sun bucket at 1.5×, not bh bucket)', () => {
+    // Chiltern rule: Sunday always pays at 1.5×, regardless of whether it is also
+    // a bank holiday. The dow===0 check is before isBH in the suggestion engine.
+    // 2026-06-07 is a Sunday. Inject it as a BH to verify the ordering.
+    _addBhDateForTest(2026, '2026-06-07');
+    _setOverridesForTest(new Map([
+      ['2026-06-07', { type: 'shift', value: '10:00-18:00', _ts: 1, _manual: true }],
+    ]));
+    const s = getRosterSuggestion(period('2026-06-07'), cReen);
+    assert.ok(s, 'expected a suggestion for the Sunday override');
+    assert.equal(s.sunCount, 1, 'Sunday-on-BH must go to sun bucket, not bh bucket');
+    assert.equal(s.bhCount,  0, 'Sunday-on-BH must not go to bh bucket');
+    // Cleanup
+    _removeBhDateForTest(2026, '2026-06-07');
   });
 
 });

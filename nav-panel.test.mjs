@@ -63,6 +63,9 @@ describe('isNoticeExpired', () => {
     test('notice older than 28 days is expired (default)', () => {
         assert.equal(isNoticeExpired(noticeDate(29)), true);
     });
+    test('notice exactly 28 days old is expired (boundary)', () => {
+        assert.equal(isNoticeExpired(noticeDate(28)), true);
+    });
     test('90-day override keeps an 88-day-old notice live', () => {
         assert.equal(isNoticeExpired(noticeDate(88), 90), false);
     });
@@ -152,7 +155,7 @@ describe('archiveNotice', () => {
         }));
         store.set(NOTICES_KEY, JSON.stringify(many));
         archiveNotice(NEW);
-        assert.ok(readArchive().length <= 50);
+        assert.equal(readArchive().length, 50);
     });
 });
 

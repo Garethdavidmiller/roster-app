@@ -53,8 +53,8 @@ describe('constants', () => {
         assert.equal(IDLE_MS, 7 * 24 * 60 * 60 * 1000);
     });
 
-    test('SESSION_VER is a positive integer', () => {
-        assert.ok(Number.isInteger(SESSION_VER) && SESSION_VER > 0);
+    test('SESSION_VER is an integer >= 2', () => {
+        assert.ok(Number.isInteger(SESSION_VER) && SESSION_VER >= 2);
     });
 
     test('AUTH_KEY is a non-empty string', () => {

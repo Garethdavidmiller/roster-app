@@ -10,8 +10,8 @@
  * Do not edit here for: pay maths, admin features, override entry.
  */
 
-import { CONFIG, MONTH_NAMES, getALEntitlement, computeEaster, getPaydaysAndCutoffs, formatISO, isSunday } from './roster-data.js';
-import { db, collection, query, where, getDocs, COLLECTIONS, auth, signInAnonymously } from './firebase-client.js';
+import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
+import { auth, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
@@ -22,11 +22,14 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { initHuddleViewer } from './app-huddle-viewer.js';
-import { rosterOverridesCache, _initialFetchInProgress, setInitialFetchInProgress, addFetchedMonths, monthKey, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
 import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
+import { initCalendarLightboxes } from './calendar-al-lightbox.js';
+import { initInitialFetch } from './calendar-initial-fetch.js';
+import { initCalendarTooltip, initCalendarKeyboard } from './calendar-keyboard.js';
 
 // ============================================
 // CEA ROSTER CALENDAR
@@ -46,10 +49,11 @@ import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
 // same About panel that the header logo opens on the calendar page.
 let openAboutLightbox = null;
 
-// Assigned by the day-detail lightbox IIFE; lets a day-cell tap (touch devices)
+// Returned by initCalendarLightboxes(); lets a day-cell tap (touch devices)
 // surface the same shift label / extras / override note that desktop users get
-// from the hover tooltip. Touch had no way to read data-tooltip before this.
-let openDayDetail = null;
+// from the hover tooltip, and lets renderCalendar() close the AL lightbox on
+// member change (stale data). Both handles are ready before the swipe init.
+const { openDayDetail, closeALLightbox } = initCalendarLightboxes();
 
 // (Calendar display state lives in calendar-state.js; swipe cooldown in calendar-swipe.js)
 
@@ -111,140 +115,7 @@ function navigateToPaycalc(paydayStr) {
 }
 
 
-// ============================================
-// ANNUAL LEAVE LIGHTBOX
-// ============================================
-(function() {
-    const lb           = document.getElementById('alLightbox');
-    const takenEl      = document.getElementById('alLbTaken');
-    const bookedEl     = document.getElementById('alLbBooked');
-    const remEl        = document.getElementById('alLbRemaining');
-    const entEl        = document.getElementById('alLbEntitlement');
-    const yearEl       = document.getElementById('alLbYear');
-    const breakdownEl  = document.getElementById('alLbBreakdown');
-
-    // Shared canonical lifecycle (focus save/restore, Escape, Tab trap,
-    // Android Back) — the inline focus-trap copy this replaces predated
-    // trapFocus being extracted to overlay.js at v11.40.
-    const alLb = createLightbox({
-        overlay:  lb,
-        content:  document.getElementById('alLightboxContent'),
-        closeBtn: document.getElementById('alLightboxClose'),
-        onOpen:   () => loadALStats(),
-    });
-
-    const alErrorEl = document.getElementById('alLbError');
-
-    async function loadALStats() {
-        const member  = getCurrentMember();
-        const year    = getDisplayYear();
-        const yearStr = String(year);
-
-        yearEl.textContent  = yearStr;
-        takenEl.textContent = '…';
-        bookedEl.textContent = '…';
-        remEl.textContent   = '…';
-        if (alErrorEl) alErrorEl.hidden = true;
-
-        if (!member) {
-            takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-            if (breakdownEl) breakdownEl.hidden = true;
-            return;
-        }
-
-        entEl.textContent = '…';
-
-        // today's date as YYYY-MM-DD for comparing AL dates
-        const todayStr = formatISO(new Date());
-
-        try {
-            let taken = 0;
-            let booked = 0;
-            // Collect all overrides for this member so Dispatcher lieu days can be calculated.
-            // Date-range query with client-side memberName filter — matches the calendar pattern
-            // and avoids depending on a deployed composite (memberName + date) index.
-            const memberOverrides = [];
-            const snap = await Promise.race([
-                getDocs(query(
-                    collection(db, COLLECTIONS.overrides),
-                    where('date', '>=', `${yearStr}-01-01`),
-                    where('date', '<=', `${yearStr}-12-31`)
-                )),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('AL load timeout')), 15_000)),
-            ]);
-            snap.forEach(d => {
-                const data = d.data();
-                if (data.memberName !== member.name) return;
-                memberOverrides.push(data);
-                // Sundays are uncontracted — don't count Sunday AL entries
-                if (data.type === 'annual_leave' && data.date && data.date.startsWith(yearStr) &&
-                        !isSunday(data.date)) {
-                    if (data.date <= todayStr) taken++; else booked++;
-                }
-            });
-            const entitlement = getALEntitlement(member, year, memberOverrides);
-            entEl.textContent = entitlement;
-            const remaining = entitlement - taken - booked;
-            takenEl.textContent  = taken;
-            bookedEl.textContent = booked;
-            remEl.textContent    = remaining;
-            remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
-            // Dispatchers: explain the entitlement split (22 base + bank holiday lieu days)
-            if (breakdownEl) {
-                if (member.role === 'Dispatcher') {
-                    const lieu = entitlement - 22;
-                    breakdownEl.textContent = `22 base + ${lieu} BH lieu`;
-                    breakdownEl.hidden = false;
-                } else {
-                    breakdownEl.hidden = true;
-                }
-            }
-        } catch (e) {
-            console.error('[AL lightbox] Failed:', e);
-            takenEl.textContent = bookedEl.textContent = remEl.textContent = entEl.textContent = '—';
-            if (breakdownEl) breakdownEl.hidden = true;
-            if (alErrorEl) alErrorEl.hidden = false;
-        }
-    }
-
-    window.closeALLightbox = alLb.close;
-
-    document.getElementById('alBtn').addEventListener('click', alLb.open);
-})();
-
-// ============================================
-// DAY DETAIL LIGHTBOX (touch tap on a calendar cell)
-// ============================================
-// Surfaces the shift time, day markers, and any override note when a staff
-// member taps a day on a touch device — the same content desktop users read
-// from the hover tooltip (which is unreachable on touch).
-(function() {
-    const lb       = document.getElementById('dayDetailLightbox');
-    const dateEl   = document.getElementById('dayDetailDate');
-    const shiftEl  = document.getElementById('dayDetailShift');
-    const extrasEl = document.getElementById('dayDetailExtras');
-    const noteEl   = document.getElementById('dayDetailNote');
-    if (!lb) return;
-
-    const detailLb = createLightbox({
-        overlay:  lb,
-        content:  document.getElementById('dayDetailContent'),
-        closeBtn: document.getElementById('dayDetailClose'),
-    });
-
-    // Assigned to the module-level handle so the delegated grid click handler
-    // (rebuilt per render) can open this single, persistent lightbox.
-    openDayDetail = (cell) => {
-        const d = cell.dataset;
-        dateEl.textContent  = d.detailDay   || '';
-        shiftEl.textContent = d.detailShift || '';
-        if (d.detailExtras) { extrasEl.textContent = d.detailExtras; extrasEl.hidden = false; }
-        else                  extrasEl.hidden = true;
-        if (d.detailNote)   { noteEl.textContent = `"${d.detailNote}"`; noteEl.hidden = false; }
-        else                  noteEl.hidden = true;
-        detailLb.open();
-    };
-})();
+// AL and day-detail lightboxes initialised above via initCalendarLightboxes().
 
 // updateLegend — shows/hides conditional legend items:
 //   Spare/RDW/AL — only when that shift type actually appears this month
@@ -379,7 +250,7 @@ document.getElementById('teamMemberSelect').addEventListener('change', (e) => {
     saveSelectedMember(parseInt(e.target.value, 10));
     renderCalendar();
     // Close AL lightbox if open — data would be stale for the new member
-    window.closeALLightbox?.();
+    closeALLightbox?.();
 });
 
 
@@ -725,143 +596,12 @@ try {
 }
 
 // ============================================
-// INITIAL 3-MONTH FETCH
-// Fetches previous, current, and next month in a single Firestore query.
-// Pre-fills the cache for all three swipe positions so there is no visible
-// delay when the user swipes left or right on first open.
+// INITIAL 3-MONTH FETCH + SYNC CHIP + VISIBILITY GUARD
+// See calendar-initial-fetch.js.
 // ============================================
-(async () => {
-    setInitialFetchInProgress(true);
-
-    const now  = new Date();
-    const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-    // Mark all three months as fetched before awaiting — prevents
-    // ensureOverridesCached() from issuing redundant per-month fetches
-    // if renderCalendar() fires while the initial query is in flight.
-    addFetchedMonths([
-        monthKey(prev.getFullYear(), prev.getMonth()),
-        monthKey(now.getFullYear(),  now.getMonth()),
-        monthKey(next.getFullYear(), next.getMonth()),
-    ]);
-
-    // Show an "Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
-    // Injected into .calendar-header so it sits next to the month/year heading.
-    // Also adds .calendar-fetching to the calendar container to trigger skeleton shimmer.
-    // Cleared on success (brief "✓ Up to date"), or replaced with an error + retry on timeout.
-    let syncChip = null;
-    let syncResolved = false;
-    const calGrid = document.getElementById('calendarDisplay');
-    const loadingTimer = setTimeout(() => {
-        const header = document.querySelector('.calendar-header');
-        if (header && !syncResolved) {
-            syncChip = document.createElement('button');
-            syncChip.type = 'button';
-            syncChip.className = 'sync-chip';
-            syncChip.setAttribute('aria-live', 'polite');
-            syncChip.textContent = '↻ Updating your shifts…';
-            syncChip.disabled = true;
-            header.appendChild(syncChip);
-        }
-        if (calGrid) calGrid.classList.add('calendar-fetching');
-    }, 800);
-
-    // If Firestore takes more than 10 s, show an error state with a retry link.
-    const timeoutTimer = setTimeout(() => {
-        if (syncResolved) return;
-        if (syncChip) {
-            syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
-            syncChip.className = 'sync-chip sync-chip-error';
-            syncChip.disabled = false;
-            syncChip.addEventListener('click', doRetry, { once: true });
-        }
-        if (calGrid) calGrid.classList.remove('calendar-fetching');
-    }, 10000);
-
-    // Retry handler — re-runs the same 3-month fetch as the initial load.
-    // Shows "↻ Retrying…" while in flight so the user knows something is happening.
-    // Restores the error chip (with another retry listener) if the attempt fails again.
-    async function doRetry() {
-        if (!syncChip) return;
-        syncChip.textContent = '↻ Retrying…';
-        syncChip.className = 'sync-chip';
-        syncChip.disabled = true;
-
-        // Re-mark the initial 3 months only — other months fetched during navigation stay cached.
-        addFetchedMonths([
-            monthKey(prev.getFullYear(), prev.getMonth()),
-            monthKey(now.getFullYear(),  now.getMonth()),
-            monthKey(next.getFullYear(), next.getMonth()),
-        ]);
-
-        const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
-        const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
-
-        try {
-            await fetchOverridesForRange(startStr, endStr);
-            syncResolved = true;
-            if (syncChip) { syncChip.remove(); syncChip = null; }
-            if (!teamView.isTeamViewMode()) renderCalendar();
-        } catch (err) {
-            console.error('[Firestore] Retry failed:', err);
-            if (syncChip) {
-                syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
-                syncChip.className = 'sync-chip sync-chip-error';
-                syncChip.disabled = false;
-                syncChip.addEventListener('click', doRetry, { once: true });
-                syncChip.focus();
-            }
-        }
-    }
-
-    try {
-        const startStr = formatISO(new Date(prev.getFullYear(), prev.getMonth(), 1));
-        const endStr   = formatISO(new Date(next.getFullYear(), next.getMonth() + 1, 0));
-
-        await fetchOverridesForRange(startStr, endStr);
-        syncResolved = true;
-        if (!teamView.isTeamViewMode()) renderCalendar();
-
-        // Silently remove the chip on success — "Up to date" is noise.
-        if (syncChip) { syncChip.remove(); syncChip = null; }
-    } catch (err) {
-        syncResolved = true;
-        console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
-        // Synthesise the error chip even when Firestore failed before the 800ms loading timer fired.
-        if (!syncChip) {
-            const header = document.querySelector('.calendar-header');
-            if (header) {
-                syncChip = document.createElement('button');
-                syncChip.type = 'button';
-                syncChip.className = 'sync-chip';
-                syncChip.setAttribute('aria-live', 'polite');
-                header.appendChild(syncChip);
-            }
-        }
-        if (syncChip) {
-            syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
-            syncChip.className = 'sync-chip sync-chip-error';
-            syncChip.disabled = false;
-            syncChip.addEventListener('click', doRetry, { once: true });
-        }
-    } finally {
-        setInitialFetchInProgress(false);
-        clearTimeout(loadingTimer);
-        clearTimeout(timeoutTimer);
-        if (syncChip && syncResolved && !syncChip.className.includes('sync-chip-error')) {
-            syncChip.remove();
-        }
-        if (calGrid) calGrid.classList.remove('calendar-fetching');
-    }
-})();
-
-// If the tab is suspended on iOS during the initial fetch and then restored,
-// re-render from whatever cached data we have so the calendar is not blank.
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && _initialFetchInProgress) {
-        if (!teamView.isTeamViewMode()) renderCalendar();
-    }
+initInitialFetch({
+    isTeamViewMode: () => teamView.isTeamViewMode(),
+    renderCalendar,
 });
 
 // ============================================
@@ -930,97 +670,9 @@ initHuddleViewer();
     });
 })();
 
-// ============================================
-// CALENDAR HOVER TOOLTIP (desktop only)
-// ============================================
-// Creates a single floating div and repositions it on mousemove.
-// Reads data-tooltip set per cell in buildCalendarContainer().
-// Not initialised on touch devices (matchMedia guard).
-function initCalendarTooltip() {
-    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-    const tip = document.createElement('div');
-    tip.id = 'calTooltip';
-    tip.hidden = true;
-    tip.setAttribute('aria-hidden', 'true');
-    document.body.appendChild(tip);
-
-    let _tipW = 0, _tipH = 0;
-    document.addEventListener('mouseover', e => {
-        const cell = e.target.closest('.calendar-day[data-tooltip]');
-        if (!cell) { tip.hidden = true; return; }
-        tip.textContent = cell.dataset.tooltip;
-        tip.hidden = false;
-        // Cache dimensions once after content changes — avoids forced reflow on every mousemove.
-        const r = tip.getBoundingClientRect();
-        _tipW = r.width;
-        _tipH = r.height;
-    });
-
-    document.addEventListener('mousemove', e => {
-        if (tip.hidden) return;
-        tip.style.left = Math.min(e.clientX + 14, window.innerWidth  - _tipW - 8) + 'px';
-        tip.style.top  = Math.min(e.clientY + 16, window.innerHeight - _tipH - 8) + 'px';
-    });
-}
-
-// ============================================
-// CALENDAR KEYBOARD NAVIGATION
-// ============================================
-// Arrow keys move focus between day cells (roving tabindex).
-// PageUp / PageDown navigate months without touching the mouse.
-function initCalendarKeyboard() {
-    document.addEventListener('keydown', e => {
-        const focused = document.activeElement;
-        if (!focused?.classList.contains('calendar-day') || focused.classList.contains('other-month')) return;
-
-        const cells = [...document.querySelectorAll('.calendar-day:not(.other-month)')];
-        const idx   = cells.indexOf(focused);
-        if (idx === -1) return;
-
-        let next;
-        switch (e.key) {
-            case 'ArrowRight': next = cells[idx + 1]; break;
-            case 'ArrowLeft':  next = cells[idx - 1]; break;
-            case 'ArrowDown':  next = cells[idx + 7]; break;
-            case 'ArrowUp':    next = cells[idx - 7]; break;
-            case 'PageDown':
-                e.preventDefault();
-                document.getElementById('nextMonth')?.click();
-                return;
-            case 'PageUp':
-                e.preventDefault();
-                document.getElementById('prevMonth')?.click();
-                return;
-            case 'Enter':
-            case ' ':
-                // Activate the focused day cell — payday/cutoff cells navigate to
-                // the pay calculator; any other cell opens the day-detail lightbox
-                // on touch (matching the delegated grid click handler).
-                e.preventDefault();
-                if (focused.dataset.paydayIso) { navigateToPaycalc(focused.dataset.paydayIso); return; }
-                if (focused.dataset.cutoffIso) {
-                    const cutoffIso  = focused.dataset.cutoffIso;
-                    const cutoffYear = Number(cutoffIso.slice(0, 4));
-                    const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
-                    const i = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
-                    if (i !== -1) navigateToPaycalc(formatISO(paydays[i]));
-                    return;
-                }
-                openDayDetail?.(focused);
-                return;
-            default: return;
-        }
-
-        if (!next) return;
-        e.preventDefault();
-        focused.setAttribute('tabindex', '-1');
-        next.setAttribute('tabindex', '0');
-        next.focus();
-    });
-}
-
+// Tooltip and keyboard navigation — see calendar-keyboard.js.
 initCalendarTooltip();
-initCalendarKeyboard();
+initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // Anonymous sign-in gives error-reporter a valid auth token so clientError writes pass Firestore rules.
 signInAnonymously(auth).catch(() => {}).finally(() => initErrorReporter());
 

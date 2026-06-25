@@ -40,13 +40,12 @@ import {
 } from './paycalc-roster-hint.js';
 import { isDataEmpty, calcHPP, updatePriorHpp } from './paycalc-hpp.js';
 import { prefillBackPay, calcBackPay, _bpAwardTaxYear } from './paycalc-backpay.js';
-import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
-import { initCardCollapse, createLightbox } from './overlay.js';
-import { initAboutLightbox } from './about-lightbox.js';
+import { initNavPanel } from './nav-panel.js';
+import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
-import { HELP_CONTENT } from './paycalc-help.js';
-import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, NOTICE_YTD_KEY } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, runMigrations } from './paycalc-migrations.js';
+import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 'use strict';
 
 
@@ -83,7 +82,6 @@ let _defaultPeriodNum = null;
 
 let _adjNegative = false; // tracks intended sign of otherAdj independently of value
 
-// HELP_CONTENT imported from paycalc-help.js
 // periodKey (and SK, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey) imported from paycalc-migrations.js
 
 // Period data schema — all fields that get saved per period
@@ -1226,63 +1224,16 @@ document.getElementById('hppBackPayLink').addEventListener('click', () => {
   document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
-// ── ABOUT LIGHTBOX ────────────────────────────────────────────────────────────
-// Exposed to module scope so the nav-panel drawer logo can open it (the header
-// logo is now a back button — see appIcon handler below). Lifecycle, SW status,
-// bug link, and print button are the shared about-lightbox.js.
-let openAboutLightbox = null;
-(function () {
-  const about = initAboutLightbox({
-    appLabel: 'MYB Pay Calculator',
-    getUserName: () => getLoggedMember()?.name,
-  });
-  if (about) openAboutLightbox = about.open;
-
-  // Header logo is a back-to-calendar button (About moved to the drawer logo).
-  const appIcon = document.getElementById('appIcon');
-  if (!appIcon) return;
-  appIcon.title = 'Back to calendar';
-  appIcon.setAttribute('aria-label', 'Back to calendar');
-  appIcon.addEventListener('click', () => { window.location.href = './index.html'; });
-})();
+// ── LIGHTBOXES — About, Help, Welcome, YTD notice, Decimal converter ──────────
+// All five lightboxes delegated to paycalc-lightboxes.js; returns the About
+// open handle so the nav-panel drawer logo can open the same panel.
+const { openAboutLightbox } = initPaycalcLightboxes();
 
 // ── SW UPDATE AUTO-ACTIVATION ─────────────────────────────────────────────────
 // Handled by the shared registerServiceWorker() call below (see "SERVICE WORKER").
 // A hand-rolled duplicate of that lifecycle used to live here; it was removed at
 // v12.96 because running both registered two controllerchange listeners and two
 // hourly update() timers, which could fire the post-update reload twice.
-
-// ── HELP LIGHTBOX ─────────────────────────────────────────────────────────────
-// Generic lightbox driven by HELP_CONTENT — opened by any .help-btn[data-help].
-// Lifecycle (focus, Escape, trap, Android Back) is the shared createLightbox.
-(function () {
-  const lb      = document.getElementById('helpLightbox');
-  const titleEl = document.getElementById('helpLightboxTitle');
-  const listEl  = document.getElementById('helpLightboxList');
-  if (!lb) return;
-
-  const help = createLightbox({
-    overlay:  lb,
-    content:  document.getElementById('helpLightboxContent'),
-    closeBtn: document.getElementById('helpLightboxClose'),
-  });
-
-  function openHelp(key) {
-    const data = HELP_CONTENT[key];
-    if (!data) return;
-    titleEl.textContent = data.title;
-    listEl.innerHTML = data.tips.map(t => `<li>${t}</li>`).join('');
-    help.open();
-  }
-
-  // Wire all ? buttons. stopPropagation prevents collapsible card toggles firing.
-  document.querySelectorAll('.help-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      openHelp(btn.dataset.help);
-    });
-  });
-})();
 
 // ── SERVICE WORKER ────────────────────────────────────────────────────────────
 registerServiceWorker();
@@ -1298,100 +1249,6 @@ registerServiceWorker();
   if (name) ensureFirebaseSession(name).catch(() => {/* reporter still starts below */}).finally(initErrorReporter);
   else initErrorReporter();
 }());
-
-// Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
-// only shows after welcome has been dismissed). Defined at module level so both
-// IIFEs read the same string without risk of divergence.
-const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
-
-// ── WELCOME LIGHTBOX ──────────────────────────────────────────────────────────
-// Shown once, on the very first visit to the pay calculator. Never shown again.
-// Dismissed by the ✕ button or clicking the overlay; guide link also dismisses it.
-(function () {
-  const lb = document.getElementById('welcomeLightbox');
-  if (!lb) return;
-
-  const welcome = createLightbox({
-    overlay:  lb,
-    content:  document.getElementById('welcomeLightboxContent'),
-    closeBtn: document.getElementById('welcomeLightboxClose'),
-    onOpen() {
-      const badge = document.getElementById('welcomeGradeBadge');
-      if (badge) {
-        const g = lsGet(SK.grade);
-        badge.textContent = (g && GRADES[g] ? GRADES[g].label : 'CEA & CES') + ' grade';
-      }
-    },
-    onClose: () => lsSet(WELCOME_KEY, '1'),
-  });
-
-  lb.querySelector('.welcome-guide-link')?.addEventListener('click', welcome.close);
-
-  if (!lsGet(WELCOME_KEY)) welcome.open();
-})();
-
-// ── YTD NOTICE ────────────────────────────────────────────────────────────────
-// Shown once after the welcome lightbox has been dismissed. Reminds staff to
-// enter their year-to-date figures from previous payslips so the current-period
-// tax estimate reflects what has already been deducted this tax year.
-(function () {
-  const NOTICE_DATE = '6 Apr 2026';
-  // Silently expire on a new device if the notice is older than 90 days (tax-year range).
-  if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
-  // Show only after the welcome lightbox has been seen, and only once.
-  if (!lsGet(WELCOME_KEY) || lsGet(NOTICE_YTD_KEY)) return;
-
-  const lb = document.getElementById('noticeYtdLightbox');
-  if (!lb) return;
-
-  const notice = createLightbox({
-    overlay:  lb,
-    content:  document.getElementById('noticeYtdContent'),
-    closeBtn: document.getElementById('noticeYtdClose'),
-    onClose: () => {
-      // Archive first so the notice is recorded before the seen-flag suppresses it.
-      archiveNotice({
-        id:      'ytd_2627',
-        title:   'Enter your YTD figures',
-        section: 'Pay',
-        date:    NOTICE_DATE,
-        body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
-      });
-      lsSet(NOTICE_YTD_KEY, '1');
-    },
-  });
-
-  notice.open();
-})();
-
-// ── DECIMAL HOURS CONVERTER ───────────────────────────────────────────────────
-(function () {
-  const toggle = document.getElementById('decimalConverterToggle');
-  const body   = document.getElementById('decimalConverterBody');
-  const input  = document.getElementById('decimalHrsInput');
-  const result = document.getElementById('decimalHrsResult');
-  if (!toggle || !body || !input || !result) return;
-
-  initCardCollapse('decimalConverterToggle', 'decimalConverterBody',
-    'decimalConverterToggle', open => { if (open) input.focus(); });
-
-  function convert() {
-    const val = parseFloat(input.value);
-    if (isNaN(val) || val < 0) { result.textContent = '–'; return; }
-    const totalMins = Math.round(val * 60);
-    const hrs  = Math.floor(totalMins / 60);
-    const mins = totalMins % 60;
-    if (hrs === 0) {
-      result.textContent = `${mins} min${mins !== 1 ? 's' : ''}`;
-    } else if (mins === 0) {
-      result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''}`;
-    } else {
-      result.textContent = `${hrs} hr${hrs !== 1 ? 's' : ''} ${mins} min${mins !== 1 ? 's' : ''}`;
-    }
-  }
-
-  input.addEventListener('input', convert);
-})();
 
 // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────
 // iOS Safari does not fire beforeprint when AirPrint is invoked, so we also stamp

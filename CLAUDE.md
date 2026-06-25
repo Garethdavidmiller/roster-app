@@ -138,9 +138,12 @@ roster-app/
 ├── operations.html         ← admin-only: Huddle upload, Roster upload, Staff Login Accounts, Error Log
 ├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
-├── calendar-app.js         ← coordinator for index.html: event wiring, AL lightbox, sync chip, initial 3-month fetch
+├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring
 ├── calendar-state.js       ← display month/year state for index.html: getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth
 ├── calendar-swipe.js       ← Pointer Events swipe carousel for index.html: initSwipeHandler, isSwipeCooldown
+├── calendar-al-lightbox.js ← AL lightbox + day-detail lightbox for index.html: initCalendarLightboxes() → { openDayDetail, closeALLightbox }
+├── calendar-initial-fetch.js ← initial 3-month Firestore fetch and sync-chip UI for index.html: initInitialFetch({ isTeamViewMode, renderCalendar })
+├── calendar-keyboard.js    ← keyboard navigation + hover tooltip for index.html: initCalendarTooltip(), initCalendarKeyboard({ navigateToPaycalc, openDayDetail })
 ├── calendar-overrides.js   ← Firestore override cache for index.html: rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth, monthKey
 ├── calendar-member.js      ← team member selection for index.html: getSelectedMemberIndex, getCurrentMember, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html: buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection
@@ -166,6 +169,7 @@ roster-app/
 ├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix), getDateRange()
 ├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay
 ├── paycalc-app.js          ← coordinator for paycalc.html (UI, DOM, autosave, HPP, sticky bar, back-pay)
+├── paycalc-lightboxes.js   ← lightbox and overlay initialisation for paycalc.html: initPaycalcLightboxes() → { openAboutLightbox }
 ├── paycalc-periods.js      ← period arithmetic and select UI: CONFIG, getPeriods, buildPeriodSelect, updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod, hasBankHoliday, hasBoxingDay, CONDITIONAL_ROWS, updateBhRows
 ├── paycalc-settings.js     ← grade/contracted-hours helpers and settings persistence: getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey, saveSettings, confirmSettings, setSettingsCardOpen, loadSettings
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster, fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, renderRosterDayList
