@@ -373,6 +373,7 @@ describe('getEffectiveContr', () => {
         const base = getContr();
         const factor = calcProRateFactor(startDate, start, cutoff);
         assert.ok(factor > 0 && factor < 1, `factor should be (0,1), got ${factor}`);
+        assert.equal(getEffectiveContr(p), 75, 'Math.round(140 * 15/28) = 75');
         assert.equal(getEffectiveContr(p), Math.round(base * factor));
     });
 

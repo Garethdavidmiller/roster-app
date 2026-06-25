@@ -154,19 +154,21 @@ describe('overrides', () => {
         );
     });
 
+    test('auth cannot create with empty value string', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), value: '' })
+        );
+    });
+
     test('auth can delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'overrides', id), VALID_OVERRIDE())
-        );
+        await setDoc(doc(staffDb(), 'overrides', id), VALID_OVERRIDE());
         await assertSucceeds(deleteDoc(doc(staffDb(), 'overrides', id)));
     });
 
     test('anon cannot delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'overrides', id), VALID_OVERRIDE())
-        );
+        await setDoc(doc(staffDb(), 'overrides', id), VALID_OVERRIDE());
         await assertFails(deleteDoc(doc(anonDb(), 'overrides', id)));
     });
 });
@@ -199,17 +201,13 @@ describe('huddles', () => {
 
     test('admin can delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'huddles', id), VALID_HUDDLE())
-        );
+        await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
         await assertSucceeds(deleteDoc(doc(adminDb(), 'huddles', id)));
     });
 
     test('auth (non-admin) cannot delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'huddles', id), VALID_HUDDLE())
-        );
+        await setDoc(doc(adminDb(), 'huddles', id), VALID_HUDDLE());
         await assertFails(deleteDoc(doc(staffDb(), 'huddles', id)));
     });
 });
@@ -317,25 +315,19 @@ describe('staffContact', () => {
 
     test('auth with name claim can delete own doc', async () => {
         const member = 'T. Tester';
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'staffContact', member), VALID_CONTACT(member))
-        );
+        await setDoc(doc(namedDb(member, 'uid_tester'), 'staffContact', member), VALID_CONTACT(member));
         await assertSucceeds(deleteDoc(doc(namedDb(member, 'uid_t'), 'staffContact', member)));
     });
 
     test('admin can delete any doc', async () => {
         const member = 'T. Admin';
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'staffContact', member), VALID_CONTACT(member))
-        );
+        await setDoc(doc(namedDb(member, 'uid_tadmin'), 'staffContact', member), VALID_CONTACT(member));
         await assertSucceeds(deleteDoc(doc(adminDb(), 'staffContact', member)));
     });
 
     test('auth without claim cannot delete', async () => {
         const member = 'T. Staff';
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'staffContact', member), VALID_CONTACT(member))
-        );
+        await setDoc(doc(namedDb(member, 'uid_tstaff'), 'staffContact', member), VALID_CONTACT(member));
         await assertFails(deleteDoc(doc(staffDb(), 'staffContact', member)));
     });
 });
@@ -408,22 +400,16 @@ describe('clientErrors', () => {
     });
 
     test('admin can update (resolve) an error', async () => {
-        const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'clientErrors', id), VALID_ERROR())
-        );
+        const ref = await addDoc(collection(staffDb(), 'clientErrors'), VALID_ERROR());
         await assertSucceeds(
-            updateDoc(doc(adminDb(), 'clientErrors', id), { resolved: true, resolvedAt: serverTimestamp() })
+            updateDoc(doc(adminDb(), 'clientErrors', ref.id), { resolved: true, resolvedAt: serverTimestamp() })
         );
     });
 
     test('auth (non-admin) cannot update', async () => {
-        const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'clientErrors', id), VALID_ERROR())
-        );
+        const ref = await addDoc(collection(staffDb(), 'clientErrors'), VALID_ERROR());
         await assertFails(
-            updateDoc(doc(staffDb(), 'clientErrors', id), { resolved: true })
+            updateDoc(doc(staffDb(), 'clientErrors', ref.id), { resolved: true })
         );
     });
 });
@@ -475,17 +461,13 @@ describe('circulars', () => {
 
     test('admin can delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'circulars', id), VALID_CIRCULAR())
-        );
+        await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
         await assertSucceeds(deleteDoc(doc(adminDb(), 'circulars', id)));
     });
 
     test('auth (non-admin) cannot delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'circulars', id), VALID_CIRCULAR())
-        );
+        await setDoc(doc(adminDb(), 'circulars', id), VALID_CIRCULAR());
         await assertFails(deleteDoc(doc(staffDb(), 'circulars', id)));
     });
 });
@@ -529,19 +511,21 @@ describe('newsletters', () => {
         );
     });
 
+    test('admin cannot create with uploadedAt as string', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'newsletters', uid()), { ...VALID_CIRCULAR(), uploadedAt: '2026-06-25' })
+        );
+    });
+
     test('admin can delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'newsletters', id), VALID_CIRCULAR())
-        );
+        await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
         await assertSucceeds(deleteDoc(doc(adminDb(), 'newsletters', id)));
     });
 
     test('auth (non-admin) cannot delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'newsletters', id), VALID_CIRCULAR())
-        );
+        await setDoc(doc(adminDb(), 'newsletters', id), VALID_CIRCULAR());
         await assertFails(deleteDoc(doc(staffDb(), 'newsletters', id)));
     });
 });
@@ -568,6 +552,11 @@ describe('pushSubscriptions', () => {
         );
     });
 
+    test('anon cannot create without subscribedAt', async () => {
+        const { subscribedAt: _s, ...missing } = VALID_SUB();
+        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), missing));
+    });
+
     test('anon cannot create with empty endpoint string', async () => {
         await assertFails(
             setDoc(doc(anonDb(), 'pushSubscriptions', uid()), { ...VALID_SUB(), endpoint: '' })
@@ -584,17 +573,13 @@ describe('pushSubscriptions', () => {
 
     test('anon cannot delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'pushSubscriptions', id), VALID_SUB())
-        );
+        await setDoc(doc(anonDb(), 'pushSubscriptions', id), VALID_SUB());
         await assertFails(deleteDoc(doc(anonDb(), 'pushSubscriptions', id)));
     });
 
     test('auth can delete', async () => {
         const id = uid();
-        await testEnv.withSecurityRulesDisabled(ctx =>
-            setDoc(doc(ctx.firestore(), 'pushSubscriptions', id), VALID_SUB())
-        );
+        await setDoc(doc(anonDb(), 'pushSubscriptions', id), VALID_SUB());
         await assertSucceeds(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
     });
 });
