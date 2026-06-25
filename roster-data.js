@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.83';
+export const APP_VERSION = '13.84';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -763,6 +763,24 @@ export function escapeHtml(str) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
+}
+
+/**
+ * Parse a numeric field value, first normalising the iOS smart hyphens/minus
+ * signs and curly quotes that keyboards can insert — without this, parseFloat
+ * silently returns NaN on otherwise-valid user input. Returns 0 for empty or
+ * unparseable input. Single source for paycalc-app.js numVal() and the HPP rate
+ * read in paycalc-hpp.js (which must agree with calculate()'s rate).
+ * @param {string|null|undefined} v - Raw field value.
+ * @returns {number}
+ */
+export function parseSmartFloat(v) {
+    if (!v) return 0;
+    const cleaned = String(v)
+        .replace(/[‐-―−−]/g, '-')
+        .replace(/[‘’]/g, "'")
+        .trim();
+    return parseFloat(cleaned) || 0;
 }
 
 /**

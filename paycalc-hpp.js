@@ -17,7 +17,7 @@ import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } fr
 import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey } from './paycalc-migrations.js';
-import { formatISO, MILLER_ACTUALS } from './roster-data.js';
+import { formatISO, MILLER_ACTUALS, parseSmartFloat } from './roster-data.js';
 
 const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
@@ -105,7 +105,7 @@ export function _varPayForPeriod(p, d, rate) {
 export function calcHPP(bpVarAmount, bpPNum) {
   const _hppGrade       = getGrade();
   const _hppDefaultRate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-  const rate       = parseFloat(document.getElementById('hourlyRate').value) || _hppDefaultRate;
+  const rate       = parseSmartFloat(document.getElementById('hourlyRate').value) || _hppDefaultRate;
   const allPeriods = getPeriods();
 
   const pNum    = currentPeriodNum();

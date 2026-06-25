@@ -32,6 +32,7 @@ import {
     teamMembers,
     computeEaster,
     escapeHtml,
+    parseSmartFloat,
     avatarInitials,
     avatarHue,
     getSpecialDayBadges,
@@ -525,6 +526,35 @@ test('escapeHtml: escapes all four special chars together', () => {
 
 test('escapeHtml: number is coerced to string', () => {
     assert.equal(escapeHtml(42), '42');
+});
+
+// ---------------------------------------------------------------------------
+// parseSmartFloat
+// ---------------------------------------------------------------------------
+
+test('parseSmartFloat: empty/null/undefined returns 0', () => {
+    assert.equal(parseSmartFloat(''), 0);
+    assert.equal(parseSmartFloat(null), 0);
+    assert.equal(parseSmartFloat(undefined), 0);
+});
+
+test('parseSmartFloat: plain numeric string parses', () => {
+    assert.equal(parseSmartFloat('20.74'), 20.74);
+    assert.equal(parseSmartFloat('  21.81 '), 21.81);
+});
+
+test('parseSmartFloat: unparseable string returns 0', () => {
+    assert.equal(parseSmartFloat('abc'), 0);
+});
+
+test('parseSmartFloat: iOS smart minus is normalised so parseFloat succeeds', () => {
+    // U+2212 MINUS SIGN — raw parseFloat('−5') returns NaN; the strip fixes it.
+    assert.equal(parseSmartFloat('−5'), -5);
+});
+
+test('parseSmartFloat: curly quote is stripped before parse', () => {
+    // A trailing curly quote must not break an otherwise-valid number.
+    assert.equal(parseSmartFloat('20.74’'), 20.74);
 });
 
 // ---------------------------------------------------------------------------

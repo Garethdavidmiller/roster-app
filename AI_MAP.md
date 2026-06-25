@@ -80,6 +80,7 @@ The single source of truth for all roster data.
 - `getBaseShift(member, date)` — **always use this, never read roster.data directly**
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
+- `parseSmartFloat(str)` — number parse that strips iOS smart hyphens/curly quotes first; single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`
 ### `calendar-app.js`
 Coordinator for `index.html`. Delegates state, swipe, rendering, override cache, and member selection to sub-modules.
 - `changeMonth(delta)` — thin wrapper: calls `changeDisplay()` then `dismissSwipeHint()`
