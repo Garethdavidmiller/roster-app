@@ -91,8 +91,8 @@ function _parseNoticeDate(str) {
  * Use to silently dismiss stale notices on a new device:
  *   if (isNoticeExpired(NOTICE_DATE))     { lsSet(DONE_KEY, '1'); return; }  // 28-day (default)
  *   if (isNoticeExpired(NOTICE_DATE, 90)) { lsSet(DONE_KEY, '1'); return; }  // 90-day (long)
- * @param {string} dateStr — "D Mon YYYY", e.g. "22 Jun 2026"
- * @param {number} [days=28] — expiry window: 28 for short-range, 90 for long-range
+ * @param {string} dateStr - "D Mon YYYY", e.g. "22 Jun 2026"
+ * @param {number} [days=28] - expiry window: 28 for short-range, 90 for long-range
  */
 export function isNoticeExpired(dateStr, days = 28) {
     const posted = _parseNoticeDate(dateStr);
@@ -140,7 +140,7 @@ export function archiveNotice({ id, title, section, date, body }) {
 
 /**
  * Initialise the navigation panel for the current page.
- * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, onLogoClick?: (() => void)|null }} opts
+ * @param {{ currentPage?: 'calendar'|'admin'|'paycalc'|'operations'|'settings'|'links', memberName?: string|null, onSignOut?: (() => void)|null, isAdmin?: boolean, isLinksDesigner?: boolean, onLogoClick?: (() => void)|null }} opts
  *   onLogoClick — opens the page's existing About/version lightbox when the
  *   drawer logo is tapped. The header logo on sub-pages is now a back button,
  *   so About lives on the drawer logo instead.
@@ -396,9 +396,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     /**
      * Open the placeholder lightbox for a "coming soon" link.
-     * @param {HTMLElement} [triggerEl] the link that was tapped — its
+     * @param {HTMLElement} [triggerEl] the link that was tapped - its
      *   data-cs-title / data-cs-icon drive the heading, so the one generic
      *   lightbox shows the right title for whichever item opened it.
+     * @param {string} [overrideBody]
      */
     function _openComingSoon(triggerEl, overrideBody) {
         if (!csLightbox) return;

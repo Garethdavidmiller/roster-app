@@ -250,8 +250,8 @@ export function updateJoinerNotice(p) {
   if (!member?.startDate || member.startDate <= p.start || member?.noProRate) { el.style.display = 'none'; return; }
   if (member.startDate > p.cutoff) { el.style.display = 'none'; return; }
   const msPerDay     = 86400000;
-  const daysEmployed = Math.round((p.cutoff - member.startDate) / msPerDay) + 1;
-  const totalDays    = Math.round((p.cutoff - p.start) / msPerDay) + 1;
+  const daysEmployed = Math.round((+p.cutoff - +member.startDate) / msPerDay) + 1;
+  const totalDays    = Math.round((+p.cutoff - +p.start) / msPerDay) + 1;
   const proRated     = getEffectiveContr(p);
   const base         = getContr();
   const startFmt     = member.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });

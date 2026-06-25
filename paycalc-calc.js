@@ -189,8 +189,8 @@ export function calcProRateFactor(startDate, periodStart, periodCutoff) {
   if (!startDate || startDate <= periodStart) return 1;
   if (startDate > periodCutoff) return 0;
   const msPerDay     = 86400000;
-  const daysEmployed = Math.round((periodCutoff - startDate) / msPerDay) + 1;
-  const totalDays    = Math.round((periodCutoff - periodStart) / msPerDay) + 1;
+  const daysEmployed = Math.round((+periodCutoff - +startDate) / msPerDay) + 1;
+  const totalDays    = Math.round((+periodCutoff - +periodStart) / msPerDay) + 1;
   return daysEmployed / totalDays;
 }
 

@@ -82,11 +82,11 @@ export function initCalendarLightboxes() {
         }
       });
       const entitlement = getALEntitlement(member, year, memberOverrides);
-      entEl.textContent  = entitlement;
+      entEl.textContent  = String(entitlement);
       const remaining = entitlement - taken - booked;
-      takenEl.textContent  = taken;
-      bookedEl.textContent = booked;
-      remEl.textContent    = remaining;
+      takenEl.textContent  = String(taken);
+      bookedEl.textContent = String(booked);
+      remEl.textContent    = String(remaining);
       remEl.className      = 'al-lb-val' + (remaining <= 0 ? ' empty' : remaining <= 5 ? ' low' : '');
       if (breakdownEl) {
         if (member.role === 'Dispatcher') {
@@ -105,7 +105,7 @@ export function initCalendarLightboxes() {
     }
   }
 
-  document.getElementById('alBtn').addEventListener('click', alLb.open);
+  document.getElementById('alBtn').addEventListener('click', () => alLb.open());
 
   // ── DAY DETAIL LIGHTBOX (touch tap on a calendar cell) ─────────────────────
   // Surfaces the shift time, day markers, and any override note when a staff

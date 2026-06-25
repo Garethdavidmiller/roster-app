@@ -42,10 +42,15 @@ let _allOverrides   = [];
 let _bulkActiveType = '';
 let _currentUser      = '';
 let _currentIsAdmin   = false;
+/** @type {(msg: string) => void} */
 let _showSuccess      = () => {};
+/** @type {(msg: string) => void} */
 let _showError        = () => {};
+/** @type {() => void} */
 let _onAfterSave      = () => {};  // refresh AL/sick banners after any write
+/** @type {() => void} */
 let _markChanged      = () => {};
+/** @type {(e: MouseEvent) => void} */
 let _onEditRow        = () => {};  // handleEdit lives in admin-app.js; passed as callback
 
 // When true, renderTable shows all members instead of only the selected member.
@@ -98,11 +103,11 @@ export function buildMemberDateMap(memberName) {
  * @param {object} opts
  * @param {string}   opts.currentUser       Logged-in member name (written to changedBy on saves)
  * @param {boolean}  opts.currentIsAdmin    Whether the user has admin rights
- * @param {Function} opts.showSuccess       Show a success message in the week editor
- * @param {Function} opts.showError         Show an error message in the week editor
- * @param {Function} opts.onAfterSave       Called after any write; refreshes AL/sick banners
- * @param {Function} opts.markChanged       Marks the week grid as having unsaved changes
- * @param {Function} opts.onEditRow         handleEdit from admin-app.js — jumps to edit an override
+ * @param {(msg: string) => void} opts.showSuccess  Show a success message in the week editor
+ * @param {(msg: string) => void} opts.showError    Show an error message in the week editor
+ * @param {() => void} opts.onAfterSave       Called after any write; refreshes AL/sick banners
+ * @param {() => void} opts.markChanged       Marks the week grid as having unsaved changes
+ * @param {(e: MouseEvent) => void} opts.onEditRow   handleEdit from admin-app.js - jumps to edit an override
  */
 export function initOverrides({ currentUser, currentIsAdmin, showSuccess, showError,
                                  onAfterSave, markChanged, onEditRow }) {

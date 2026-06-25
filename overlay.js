@@ -50,7 +50,7 @@ export function _pushOverlayState(closeHandler) {
  *
  * @param {Element}  el                  - The .lb-overlay element
  * @param {object}   [opts]
- * @param {Function} [opts.onKey]        - document keydown listener to remove
+ * @param {EventListener} [opts.onKey]   - document keydown listener to remove
  * @param {Element}  [opts.focusReturn]  - element to focus synchronously on close
  * @param {Function} [opts.afterClose]   - called once .visible is removed and scroll unlocked
  */
@@ -113,13 +113,13 @@ export function trapFocus(container, e) {
  * open() — or via onOpen, which runs before the overlay becomes visible.
  *
  * @param {object} opts
- * @param {Element}  opts.overlay        - The .lb-overlay element
+ * @param {Element}  [opts.overlay]      - The .lb-overlay element
  * @param {Element}  [opts.content]      - The .lb-content card (focus-trap boundary; defaults to overlay)
  * @param {Element}  [opts.closeBtn]     - The .lb-close button (also the default initial focus)
  * @param {Element|Function} [opts.initialFocus] - Element (or fn returning one) to focus on open instead of closeBtn
  * @param {Function} [opts.onOpen]       - Called with open()'s arguments before the overlay is shown
  * @param {Function} [opts.onClose]      - Called as the overlay starts closing (any close path)
- * @returns {{ open: Function, close: Function }}
+ * @returns {{ open: () => void, close: () => void }}
  */
 export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose } = {}) {
     let _focusReturn = null;

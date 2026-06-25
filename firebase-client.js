@@ -12,27 +12,14 @@
  * are re-exported so callers never need to import from the CDN directly.
  */
 
+// @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
-import {
-    initializeFirestore, getFirestore, persistentLocalCache,
-    collection, query, where, orderBy, limit,
-    getDocs, getDoc, addDoc, setDoc, deleteDoc,
-    doc, serverTimestamp, writeBatch, onSnapshot
-} from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+// @ts-ignore
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
-import {
-    getAuth,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    signInAnonymously,
-    signOut,
-    setPersistence,
-    indexedDBLocalPersistence,
-    browserLocalPersistence,
-    browserSessionPersistence,
-} from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
+// @ts-ignore
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
 
 const firebaseConfig = {
@@ -156,6 +143,7 @@ export function nameToEmail(fullName) {
 let _storagePromise = null;
 function _getStorageSdk() {
     if (!_storagePromise) {
+        // @ts-ignore
         _storagePromise = import('https://www.gstatic.com/firebasejs/12.10.0/firebase-storage.js')
             .then(({ getStorage, ref, uploadBytes, getDownloadURL, deleteObject }) =>
                 ({ storage: getStorage(app), ref, uploadBytes, getDownloadURL, deleteObject }));

@@ -316,6 +316,6 @@ export function getRosterSuggestion(p, member) {
     // never from the base roster alone. rdwFromOv likewise — base roster never schedules RDW.
     bhOtFromOv: true, boxFromOv, rdwFromOv: true,
     memberName: member.name,
-    days: days.sort((a, b) => a.date - b.date),
+    days: days.sort((a, b) => +a.date - +b.date),
   };
 }

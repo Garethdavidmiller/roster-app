@@ -436,7 +436,7 @@ try {
             renderCalendar,
             updateLegend,
             navigateToPaycalc,
-            openDayDetail: (cell) => openDayDetail?.(cell),
+            openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
         });
 
 
@@ -509,13 +509,13 @@ try {
             // Populate year select once (2024–2030)
             for (let y = CONFIG.MIN_YEAR; y <= CONFIG.MAX_YEAR; y++) {
                 const opt = document.createElement('option');
-                opt.value = y; opt.textContent = y;
+                opt.value = String(y); opt.textContent = String(y);
                 selYear.appendChild(opt);
             }
             // Populate month select once
             MONTH_NAMES.forEach((name, i) => {
                 const opt = document.createElement('option');
-                opt.value = i; opt.textContent = name;
+                opt.value = String(i); opt.textContent = name;
                 selMonth.appendChild(opt);
             });
 
@@ -553,7 +553,7 @@ try {
                 document.querySelector('.month-year')?.focus();
             });
 
-            btnCancel.addEventListener('click', picker.close);
+            btnCancel.addEventListener('click', () => picker.close());
         })();
 
         // ============================================

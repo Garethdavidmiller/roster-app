@@ -11,7 +11,8 @@
     "bump": "node scripts/bump-version.mjs",
     "generate:roster-members": "node scripts/generate-roster-members.mjs",
     "lint": "eslint . --max-warnings=0",
-    "check": "npm run lint && npm test"
+    "typecheck": "node scripts/typecheck.mjs",
+    "check": "npm run lint && npm run typecheck && npm test"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

@@ -22,7 +22,7 @@ const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
  * Sunday shift is by definition overtime.
  *
  * @param {string} shiftStr
- * @param {string|null} baseShift  reserved for call-site symmetry (unused)
+ * @param {string|null} _baseShift  reserved for call-site symmetry (unused)
  * @param {string|null} date       ISO date — detects a Sunday worked shift
  * @returns {string} HTML
  */
@@ -56,9 +56,9 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
     const esc = escapeHtml;  // local alias
 
     const card           = document.getElementById('rosterUploadCard');
-    const rosterTypeEl   = document.getElementById('rosterType');
-    const weekEndingEl   = document.getElementById('rosterWeekEnding');
-    const fileInput      = document.getElementById('rosterFileInput');
+    const rosterTypeEl   = /** @type {HTMLSelectElement|null} */ (document.getElementById('rosterType'));
+    const weekEndingEl   = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterWeekEnding'));
+    const fileInput      = /** @type {HTMLInputElement|null} */ (document.getElementById('rosterFileInput'));
     const fileNameEl     = document.getElementById('rosterFileName');
     const parseBtn       = document.getElementById('rosterParseBtn');
     const parseFeedback  = document.getElementById('rosterParseFeedback');
@@ -614,7 +614,7 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
         }
 
         // ---- Event delegation (replace old listener to avoid accumulation) ----
-        const newList = changeList.cloneNode(true);
+        const newList = /** @type {HTMLElement} */ (changeList.cloneNode(true));
         changeList.parentNode.replaceChild(newList, changeList);
         changeList = newList;
 

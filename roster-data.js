@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.89';
+export const APP_VERSION = '13.81';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -198,9 +198,9 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
  * for every bank holiday on which they worked (after overrides). All other roles
  * return a fixed number regardless of year or overrides.
  *
- * @param {object} member    — teamMembers entry
- * @param {number} [year]    — calendar year; defaults to current year
- * @param {Array}  [overrides] — all override objects for this member; defaults to []
+ * @param {object} member    - teamMembers entry
+ * @param {number} [year]    - calendar year; defaults to current year
+ * @param {Array}  [overrides] - all override objects for this member; defaults to []
  * @returns {number}
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
@@ -421,7 +421,7 @@ export function getPaydaysAndCutoffs(year) {
         const cutoffs = [];
         const msPerDay = 24 * 60 * 60 * 1000;
         const jan1 = new Date(year, 0, 1, 12, 0, 0);
-        const daysSinceFirst   = Math.floor((jan1 - CONFIG.FIRST_PAYDAY) / msPerDay);
+        const daysSinceFirst   = Math.floor((+jan1 - +CONFIG.FIRST_PAYDAY) / msPerDay);
         const cyclesSinceFirst = Math.floor(daysSinceFirst / CONFIG.PAYDAY_INTERVAL_DAYS);
         let currentMs = CONFIG.FIRST_PAYDAY.getTime()
             + cyclesSinceFirst * CONFIG.PAYDAY_INTERVAL_DAYS * msPerDay;
@@ -695,7 +695,7 @@ export function getWeekNumberForDate(date, member) {
     const sunday = new Date(noon);
     sunday.setDate(noon.getDate() - noon.getDay());
 
-    const weeksDiff = Math.floor(Math.round((sunday - referenceSunday) / (1000 * 60 * 60 * 24)) / 7);
+    const weeksDiff = Math.floor(Math.round((+sunday - +referenceSunday) / (1000 * 60 * 60 * 24)) / 7);
     const w = member.currentWeek + weeksDiff;
     return ((w - 1) % cycleLength + cycleLength) % cycleLength + 1;
 }
@@ -814,7 +814,7 @@ export function avatarHue(name) {
 }
 
 /**
- * Validate an email address. Requires a non-whitespace local part, @, a domain
+ * Validate an email address. Requires a non-whitespace local part, an @ sign, a domain
  * with at least one dot, and a TLD of two or more characters.
  * Used by settings-app.js and operations-app.js — single authoritative validator.
  * @param {string} v

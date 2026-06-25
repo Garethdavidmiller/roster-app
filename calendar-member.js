@@ -87,7 +87,7 @@ export function populateTeamMemberDropdown() {
                 .filter(({ member }) => (member.role || 'CEA') === role)
                 .forEach(({ member, index }) => {
                     const option = document.createElement('option');
-                    option.value = index;
+                    option.value = String(index);
                     option.textContent = member.name;
                     if (index === selectedIndex) option.selected = true;
                     group.appendChild(option);
@@ -97,7 +97,7 @@ export function populateTeamMemberDropdown() {
     } else {
         visibleMembers.forEach(({ member, index }) => {
             const option = document.createElement('option');
-            option.value = index;
+            option.value = String(index);
             option.textContent = member.name;
             if (index === selectedIndex) option.selected = true;
             select.appendChild(option);

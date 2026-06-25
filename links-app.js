@@ -733,7 +733,7 @@ function restoreBtn(cell, pos, day, shift) {
 // COVERAGE HEAT MAP
 // ============================================
 
-function renderCoverageChart() {
+function renderCoverageChart(_cov) {
     const wrap     = document.getElementById('coverageHeatmap');
     const emptyMsg = document.getElementById('coverageEmptyMsg');
     if (!wrap) return;

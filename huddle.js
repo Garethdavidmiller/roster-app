@@ -185,7 +185,7 @@ function _initHuddleUpload(currentIsAdmin, currentUser) {
                     document.head.appendChild(s);
                 });
                 const arrayBuffer = await file.arrayBuffer();
-                const result      = await mammoth.convertToHtml({ arrayBuffer });
+                const result      = await /** @type {any} */ (globalThis).mammoth.convertToHtml({ arrayBuffer });
                 const html        = result.value || null;
                 // Cap at 200 KB — a Huddle is a short daily briefing; anything larger
                 // indicates an unexpected document or conversion anomaly. Fall back to

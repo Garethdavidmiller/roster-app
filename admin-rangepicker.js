@@ -123,7 +123,7 @@ export function buildRangePicker(prefix) {
             const iso = `${yr}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
             const el  = document.createElement('div');
             el.className  = 'rp-day';
-            el.textContent = d;
+            el.textContent = String(d);
             el.dataset.iso = iso;
             el.tabIndex    = 0;
             el.setAttribute('role', 'button');
