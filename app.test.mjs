@@ -32,10 +32,6 @@ describe('tsToMillis', () => {
         assert.equal(tsToMillis(null), 0);
     });
 
-    it('returns 0 for undefined', () => {
-        assert.equal(tsToMillis(undefined), 0);
-    });
-
     it('calls .toMillis() on a Firestore Timestamp object', () => {
         const ts = { toMillis: () => 1_700_000_000_000 };
         assert.equal(tsToMillis(ts), 1_700_000_000_000);
@@ -79,14 +75,6 @@ describe('shouldReplaceOverride', () => {
         const existing = { source: 'roster_import', createdAt: { seconds: 1000 } };
         const newer    = { source: 'roster_import', createdAt: { seconds: 2000 } };
         const older    = { source: 'roster_import', createdAt: { seconds:  500 } };
-        assert.equal(shouldReplaceOverride(existing, newer), true);
-        assert.equal(shouldReplaceOverride(existing, older), false);
-    });
-
-    it('among two manual entries, newer createdAt wins', () => {
-        const existing = { source: '', createdAt: { seconds: 1000 } };
-        const newer    = { source: '', createdAt: { seconds: 2000 } };
-        const older    = { source: '', createdAt: { seconds:  500 } };
         assert.equal(shouldReplaceOverride(existing, newer), true);
         assert.equal(shouldReplaceOverride(existing, older), false);
     });

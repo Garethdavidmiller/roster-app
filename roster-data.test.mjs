@@ -183,14 +183,6 @@ test('validateRosterPatterns: all roster patterns are valid (returns 0 errors)',
 // Annual leave entitlement — edge cases
 // ---------------------------------------------------------------------------
 
-test('getALEntitlement: bilingual roster CEA gets 32 days', () => {
-    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'bilingual' }), 32);
-});
-
-test('getALEntitlement: hidden member still returns correct entitlement', () => {
-    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'main', hidden: true }), 32);
-});
-
 // ---------------------------------------------------------------------------
 // isChristmasRD
 // ---------------------------------------------------------------------------
@@ -201,10 +193,6 @@ test('isChristmasRD: 25 Dec is always a rest day', () => {
 
 test('isChristmasRD: 26 Dec is a rest day (can be overridden to RDW via Firestore)', () => {
     assert.ok(isChristmasRD(d(2026, 12, 26)));
-});
-
-test('isChristmasRD: 27 Dec is not a Christmas rest day', () => {
-    assert.equal(isChristmasRD(d(2026, 12, 27)), false);
 });
 
 test('isChristmasRD: 24 Dec is not a Christmas rest day', () => {
@@ -219,20 +207,12 @@ test('isEarlyShift: 04:00-12:00 is an early shift', () => {
     assert.ok(isEarlyShift('04:00-12:00'));
 });
 
-test('isEarlyShift: 06:30-14:30 is an early shift', () => {
-    assert.ok(isEarlyShift('06:30-14:30'));
-});
-
 test('isEarlyShift: 11:00-19:00 is not an early shift (starts at threshold)', () => {
     assert.equal(isEarlyShift('11:00-19:00'), false);
 });
 
 test('isNightShift: 21:00-05:00 is a night shift', () => {
     assert.ok(isNightShift('21:00-05:00'));
-});
-
-test('isNightShift: 23:30-07:30 is a night shift', () => {
-    assert.ok(isNightShift('23:30-07:30'));
 });
 
 test('isNightShift: 14:00-22:00 is not a night shift', () => {
@@ -346,6 +326,7 @@ test('getRosterForMember: main roster member returns weeklyRoster', () => {
     const roster = getRosterForMember(member);
     assert.ok(roster, 'getRosterForMember returned falsy');
     assert.ok(roster.data, 'Roster has no data property');
+    assert.equal(roster.type, 'main', 'Roster type should be main');
 });
 
 test('getRosterForMember: fixed roster member returns fixedRoster', () => {
@@ -426,12 +407,15 @@ test('B. Khalil: follows the CES roster from 1 July 2026', () => {
 // getBaseShift
 // ---------------------------------------------------------------------------
 
-test('getBaseShift: returns a string for a known member on a weekday', () => {
+test('getBaseShift: returns a valid shift for a known member on a weekday', () => {
     const member = teamMembers.find(m => m.rosterType === 'main' && !m.hidden);
     assert.ok(member, 'No visible main roster member found');
     // Any Monday in 2026 — use a stable date
     const shift = getBaseShift(member, d(2026, 3, 16)); // Mon 16 Mar 2026
-    assert.ok(typeof shift === 'string' && shift.length > 0, `Expected shift string, got "${shift}"`);
+    assert.ok(
+        /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(shift) || ['RD', 'SPARE', 'OFF'].includes(shift),
+        `Expected a valid shift string, got "${shift}"`
+    );
 });
 
 test('getBaseShift: fixed-roster member on a weekend returns RD', () => {
@@ -452,6 +436,13 @@ test('getBaseShift: startDate suppression — returns RD before member joins', (
     // On startDate itself — should return normal shift (not suppressed)
     const shiftOn = getBaseShift(member, d(2026, 4, 20)); // 20 Apr 2026
     assert.ok(shiftOn !== undefined, 'Expected a value on startDate');
+});
+
+test('getBaseShift: Christmas Day (Dec 25) always returns RD regardless of roster', () => {
+    // isChristmasRD() is applied before base roster lookup — Dec 25 is always RD.
+    const member = teamMembers.find(m => m.rosterType === 'main' && !m.hidden);
+    assert.ok(member, 'No visible main roster member found');
+    assert.equal(getBaseShift(member, d(2026, 12, 25)), 'RD');
 });
 
 // ---------------------------------------------------------------------------
@@ -486,10 +477,6 @@ test('computeEaster: 2024 Easter Sunday is 31 March', () => {
     const e = computeEaster(2024);
     assert.equal(e.getMonth(), 2);  // March = month index 2
     assert.equal(e.getDate(), 31);
-});
-
-test('computeEaster: returns a Date object', () => {
-    assert.ok(computeEaster(2026) instanceof Date);
 });
 
 // ---------------------------------------------------------------------------

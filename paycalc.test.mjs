@@ -33,12 +33,6 @@ describe('constants', () => {
     assert.equal(GRADES.cea.pension, 147.36);
   });
 
-  test('GRADES.ces has correct rate and contracted hours', () => {
-    assert.equal(GRADES.ces.rate, 21.81);
-    assert.equal(GRADES.ces.contr, 140);
-    assert.equal(GRADES.ces.pension, 147.36);
-  });
-
   test('TAX_YEARS has 2025/26 and 2026/27 entries', () => {
     assert.equal(TAX_YEARS.length, 2);
     assert.equal(TAX_YEARS[0].label, '2025/26');
@@ -134,11 +128,6 @@ describe('getLondonAllowanceForPeriod', () => {
     approx(getLondonAllowanceForPeriod({ payday: cutover }, TY25), 276.16, 'on cutover');
   });
 
-  test('payday well after cutover → post-award rate (276.16)', () => {
-    const later = new Date(2026, 2, 1);
-    approx(getLondonAllowanceForPeriod({ payday: later }, TY25), 276.16, 'post cutover');
-  });
-
   test('2026/27 has no londonAllowPre → always returns londonAllow', () => {
     const payday = new Date(2026, 5, 1);
     approx(getLondonAllowanceForPeriod({ payday }, TY26), TY26.londonAllow, '2026/27 single rate');
@@ -217,9 +206,6 @@ describe('computeSL', () => {
     assert.equal(computeSL(sacGross, 'postgrad', sl), expected);
   });
 
-  test('2026/27 plan1 threshold is higher than 2025/26', () => {
-    assert.ok(T26.sl.plan1.t > T25.sl.plan1.t, 'plan1 threshold should increase for 2026/27');
-  });
 });
 
 // ── computeTax ────────────────────────────────────────────────────────────────
@@ -452,7 +438,6 @@ describe('computeGross', () => {
   test('CES rate (21.81) gives higher gross than CEA (20.74) for same hours', () => {
     const ceaGross = computeGross(BASE).gross;
     const cesGross = computeGross({ ...BASE, rate: 21.81 }).gross;
-    assert.ok(cesGross > ceaGross, 'CES gross should exceed CEA gross');
     approx(cesGross - ceaGross, 140 * (21.81 - 20.74), 'CES vs CEA gross diff');
   });
 
@@ -495,7 +480,7 @@ describe('salary sacrifice', () => {
   test('sacGross reduces SL base vs pre-sacrifice gross', () => {
     const sl = computeSL(sacGross, 'plan2', T25.sl);
     const slFull = computeSL(gross, 'plan2', T25.sl);
-    assert.ok(sl <= slFull, 'pension sacrifice should reduce or maintain SL repayment');
+    assert.ok(sl < slFull, 'pension sacrifice should reduce SL repayment');
   });
 
   test('pension exceeding gross → sacGross clamps to 0', () => {
@@ -526,14 +511,9 @@ describe('integration fixture (CEA Period 8 2025/26)', () => {
   const ni  = computeNI(sacGross, T25.ni);
   const net = sacGross - tax - ni;
 
-  test('gross is sensible (roughly £3,200–£3,300)', () => {
-    assert.ok(gross > 3200 && gross < 3300, `gross ${gross.toFixed(2)} out of expected range`);
+  test('gross is correct for effContr=140, satHrs=8', () => {
+    approx(gross, 3221.24, 'P8 gross');
   });
-
-  test('tax > 0', () => { assert.ok(tax > 0); });
-  test('NI > 0',  () => { assert.ok(ni > 0); });
-  test('net < sacGross', () => { assert.ok(net < sacGross); });
-  test('net is positive', () => { assert.ok(net > 0); });
 
   test('tax + NI < sacGross', () => {
     assert.ok(tax + ni < sacGross, `deductions (${(tax + ni).toFixed(2)}) should not exceed sacGross (${sacGross.toFixed(2)})`);

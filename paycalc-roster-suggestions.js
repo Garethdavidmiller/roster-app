@@ -24,6 +24,24 @@ let _overridesByDate = new Map();
 /** Test-only: inject a pre-built overrides map so unit tests bypass Firestore. */
 export function _setOverridesForTest(map) { _overridesByDate = map; }
 
+/** Test-only: inject an extra date as a BH for a given year. Ensures cache is
+ *  populated from real BHs first, then adds the extra date. */
+export function _addBhDateForTest(year, iso) {
+    if (!_bhDateKeyCache.has(year)) {
+        _bhDateKeyCache.set(year, new Set(bhsForYear(year).map(bh => `${bh.getMonth()}-${bh.getDate()}`)));
+    }
+    const d = new Date(iso + 'T12:00:00');
+    _bhDateKeyCache.get(year).add(`${d.getMonth()}-${d.getDate()}`);
+}
+
+/** Test-only: remove a previously-injected BH date from the per-year cache. */
+export function _removeBhDateForTest(year, iso) {
+    if (_bhDateKeyCache.has(year)) {
+        const d = new Date(iso + 'T12:00:00');
+        _bhDateKeyCache.get(year).delete(`${d.getMonth()}-${d.getDate()}`);
+    }
+}
+
 // Monotonic request token — incremented on every period change. A Firestore
 // fetch only writes its results if its token is still the latest, so a slow
 // fetch from an earlier period can never overwrite the current period's data.
