@@ -1,6 +1,6 @@
 // @ts-check
 // Override priority, member-start, and shift-classification helpers.
-// Shared by app.js, app-team-view.js, and the admin modules.
+// Shared by calendar-app.js, app-team-view.js, and the admin modules.
 
 /**
  * Returns true if the shift is a non-working rest day (RD or OFF).
@@ -14,7 +14,7 @@ export function isRestShift(shift) {
 /**
  * Converts a Firestore Timestamp or plain {seconds} object to milliseconds.
  * Returns 0 for null/undefined or unrecognised shapes.
- * @param {object|null} ts
+ * @param {any} ts
  * @returns {number}
  */
 export function tsToMillis(ts) {
@@ -30,8 +30,8 @@ export function tsToMillis(ts) {
  * already returns 'RD' for those dates; allowing an override would undo that.
  * Returns false if the member has no startDate.
  * Always call this helper — never inline the date comparison at a call site.
- * @param {object} member
- * @param {Date}   date
+ * @param {any} member
+ * @param {Date} date
  * @returns {boolean}
  */
 export function isBeforeMemberStart(member, date) {
@@ -50,8 +50,8 @@ export function isBeforeMemberStart(member, date) {
  * This ensures a human-entered correction survives a roster re-upload, and
  * that if two imports exist for the same date the most recent one is used.
  *
- * @param {object|undefined} existing
- * @param {object}           incoming
+ * @param {any} existing
+ * @param {any} incoming
  * @returns {boolean}
  */
 // Rule: see CLAUDE.md — "shouldReplaceOverride" precedence: manual beats import; within same source, newer wins.

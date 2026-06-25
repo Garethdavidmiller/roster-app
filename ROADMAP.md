@@ -737,11 +737,9 @@ Stage 2: Email-based password reset flow (send verification link, user resets).
 Stage 3: Per-member write isolation in Firestore rules (`request.auth.token.name == memberName`) — suspended at v10.94 after a production outage; re-introduction checklist in KNOWN_LIMITATIONS.md task #2.
 Stage 4: Account recovery using verified work email.
 
-### Phase 9 — TypeScript zero-diagnostic baseline
+### Phase 9 — TypeScript zero-diagnostic baseline ✓ (all sub-phases complete June 2026)
 
-Scoped June 2026. `typescript` 6.0.3 is now installed as a devDependency. `// @ts-check` is already on every root module; `jsconfig.json` has `checkJs: false` and `strict: false`. Running `npx tsc --noEmit` currently produces **~570 errors** across the codebase — split into two very different tiers:
-
-**Diagnostic breakdown (June 2026 survey):**
+**Initial survey (June 2026, before Phase 9a — historical):** `typescript` 6.0.3 installed as a devDependency; `// @ts-check` on every root module; `jsconfig.json` had `checkJs: false` and `strict: false`; `npx tsc --noEmit` produced **~570 errors** in two tiers:
 
 | Error code | Count | Category |
 |-----------|-------|----------|
@@ -757,21 +755,14 @@ Top files by error count: `admin-overrides.js` 102 · `admin-app.js` 85 · `payc
 
 ---
 
-#### Phase 9a — Fix substantive errors, add CI gate (~6–8 hours, high value)
+#### Phase 9a — Fix substantive errors, add CI gate ✓ (completed June 2026)
 
-The 57 non-DOM errors represent real type risks worth fixing: wrong argument counts, arithmetic on untyped values, unresolved module imports, out-of-scope names. Steps:
-
-1. Set `"checkJs": true` in `jsconfig.json` (activates tsc globally, not just per-file via `// @ts-check`)
-2. Fix TS2307 — Firebase CDN `import()` URLs: install `firebase` as a devDependency so the type stubs resolve, or add targeted `// @ts-ignore` on the CDN import lines in `firebase-client.js` (these are the only acceptable suppressions — the CDN URL is a deliberate no-bundler architecture decision)
-3. Fix TS2322 type mismatches, TS2554 wrong arg counts, TS2363 arithmetic-on-unknown, TS2304 out-of-scope names — these are the errors most likely to represent real bugs
-4. Add `npx tsc --noEmit` to `npm run check` (after lint, before tests) so CI catches regressions
-
-At the end of 9a, CI enforces a zero-non-DOM-error baseline. The 514 TS2339 DOM errors remain but are recorded as a known open tier.
+Set `"checkJs": true` in `jsconfig.json`; fixed all 57 non-DOM errors (TS2307 Firebase CDN imports suppressed with targeted `// @ts-ignore` on the CDN import lines in `firebase-client.js` — the only acceptable suppressions, consistent with the no-bundler architecture; TS2322/2554/2363/2304 resolved with JSDoc annotations and runtime-safe guards); added fail-closed `scripts/typecheck.mjs` CI gate (trusts `result.error || result.status !== 0`, not a stdout regex — avoids false-pass when tsc fails to launch). Zero non-DOM errors enforced from this point; the 514 TS2339 DOM errors remained as the open tier going into 9b.
 
 #### Phase 9b — DOM element casts ✓ (completed June 2026)
 
 All 489 TS2339 errors resolved with JSDoc `/** @type {HTMLXxxElement} */` casts. The typecheck CI gate now enforces zero errors of any kind (not just non-DOM errors). 33 files updated; 8 induced TS2322 `number`→`string` assignments also corrected. Phase 9c is now unblocked.
 
-#### Phase 9c — `strict: true` (after 9b is complete)
+#### Phase 9c — `strict: true` ✓ (completed June 2026)
 
-Do not enable `strict` until 9b is done. Adding it before that activates `strictNullChecks`, turning every `document.getElementById()` return from `HTMLElement` into `HTMLElement | null` — a third wave of ~200+ errors on top of the existing DOM cast work. Once 9b is clear, add `"strict": true` to `jsconfig.json` and work through the null-check pass file-by-file. No `// @ts-ignore` suppressions — use `!` non-null assertions only where the element's presence is guaranteed by the page structure and is immediately obvious.
+`"strict": true` added to `jsconfig.json`. All 1560 errors across 46 files resolved: null-safety (`!` non-null assertions and `if (!el) return` guards), implicit-any parameters (`@param {any}` JSDoc), implicit-any variables (`/** @type {any} */` annotations), object-indexing (`/** @type {Record<string, any>} */` casts), and `unknown`-typed catch bindings (`/** @type {any} */` casts on `err`). No `// @ts-ignore` suppressions — all fixes are explicit type annotations or runtime-safe guards. 446 tests pass. Phase 9d (replacing `any` casts with precise types) is now unblocked.

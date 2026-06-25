@@ -4,7 +4,7 @@
  *
  * Injects overlay + drawer HTML into document.body, then wires the burger
  * button (#navMenuBtn). Uses the same history.pushState / popstate pattern
- * as the existing overlay helpers in app.js so Android Back closes the panel.
+ * as the existing overlay helpers in calendar-app.js so Android Back closes the panel.
  *
  * Usage (call once, after DOM is ready — ES modules are deferred by default):
  *   import { initNavPanel } from './nav-panel.js';
@@ -80,9 +80,10 @@ const NOTICES_KEY = 'myb_app_notices';
 const ARCHIVE_EXPIRY_DAYS = 180;
 
 const _MONTHS = { Jan:0, Feb:1, Mar:2, Apr:3, May:4, Jun:5, Jul:6, Aug:7, Sep:8, Oct:9, Nov:10, Dec:11 };
+/** @param {any} str */
 function _parseNoticeDate(str) {
     const [d, mon, y] = str.trim().split(/\s+/);
-    const m = _MONTHS[mon];
+    const m = /** @type {Record<string, any>} */ (_MONTHS)[mon];
     return (m === undefined) ? NaN : new Date(+y, m, +d).getTime();
 }
 
@@ -146,7 +147,7 @@ export function archiveNotice({ id, title, section, date, body }) {
  *   so About lives on the drawer logo instead.
  */
 export function initNavPanel({ currentPage = 'calendar', memberName = null, onSignOut = null, isAdmin = false, isLinksDesigner = false, onLogoClick = null } = {}) {
-    const burger = document.getElementById('navMenuBtn');
+    const burger = /** @type {HTMLElement} */ (document.getElementById('navMenuBtn'));
     if (!burger) return;
     if (burger.dataset.navPanelInit) return;
     burger.dataset.navPanelInit = '1';
@@ -156,8 +157,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner);
 
-    const panel    = document.getElementById('navPanel');
-    const overlay  = document.getElementById('navPanelOverlay');
+    const panel    = /** @type {HTMLElement} */ (document.getElementById('navPanel'));
+    const overlay  = /** @type {HTMLElement} */ (document.getElementById('navPanelOverlay'));
     const closeBtn = document.getElementById('navPanelClose');
     if (!panel || !overlay) return;
 
@@ -257,7 +258,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             // accessing window.opener on this app.
             const newTab = window.open('', '_blank');
             if (newTab) newTab.opener = null;
-            getLatestCircular().then(data => {
+            getLatestCircular().then(/** @param {any} data */ data => {
                 if (data?.storageUrl) {
                     if (newTab) {
                         newTab.location.href = data.storageUrl;
@@ -284,7 +285,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             _docFetching = true;
             const newTab = window.open('', '_blank');
             if (newTab) newTab.opener = null;
-            getLatestNewsletter().then(data => {
+            getLatestNewsletter().then(/** @param {any} data */ data => {
                 if (data?.storageUrl) {
                     if (newTab) {
                         newTab.location.href = data.storageUrl;
@@ -344,7 +345,8 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     const bellIcon  = document.getElementById('navNotifIcon');
     let _bellBusy   = false;
 
-    /** Apply a state string to the toggle glyph and accessible name. */
+    /** Apply a state string to the toggle glyph and accessible name.
+     * @param {any} state */
     function _paintBell(state) {
         if (!bell) return;
         const on = state === 'on';
@@ -360,7 +362,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     /**
      * Re-read and repaint the bell. No-op when the bell is not rendered.
      * Uses peekNotifState (no side effects) — repainting on every panel open
-     * must not write to Firestore. VAPID rotation runs from app.js on load.
+     * must not write to Firestore. VAPID rotation runs from calendar-app.js on load.
      */
     async function _refreshBell() {
         if (!bell) return;
@@ -449,7 +451,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         el.addEventListener('transitionend', done, { once: true });
     }
 
-    function _finishComingSoonClose() { _finishNavLightboxClose(csLightbox); }
+    function _finishComingSoonClose() { _finishNavLightboxClose(/** @type {HTMLElement} */ (csLightbox)); }
 
     // Called by user action (Escape, ✕, backdrop) — pop the shared entry.
     function _closeComingSoon() {
@@ -476,6 +478,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
     // Escape closes the lightbox. Tab is trapped — the lightbox has only one
     // focusable element (the ✕ button) so Tab would immediately escape otherwise.
+    /** @param {any} e */
     function _onComingSoonKey(e) {
         if (e.key === 'Escape') { _closeComingSoon(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); csClose?.focus(); }
@@ -505,13 +508,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const SECTION_MODS = { Pay: 'pay', Links: 'links', Settings: 'settings', Operations: 'ops', Calendar: 'calendar' };
         if (list) {
             list.innerHTML = '';
-            notices.forEach(n => {
+            notices.forEach(/** @param {any} n */ n => {
                 const item    = document.createElement('div');
                 item.className = 'notices-item';
                 const header  = document.createElement('div');
                 header.className = 'notices-item-header';
                 const sectionEl = document.createElement('span');
-                const sectionMod = SECTION_MODS[n.section];
+                const sectionMod = /** @type {Record<string, any>} */ (SECTION_MODS)[n.section];
                 sectionEl.className = `notices-item-section${sectionMod ? ' notices-item-section--' + sectionMod : ''}`;
                 sectionEl.textContent = n.section || '';
                 const dateEl  = document.createElement('span');
@@ -546,7 +549,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         setTimeout(() => noticesClose?.focus(), 60);
     }
 
-    function _finishNoticesClose() { _finishNavLightboxClose(noticesLightbox); }
+    function _finishNoticesClose() { _finishNavLightboxClose(/** @type {HTMLElement} */ (noticesLightbox)); }
 
     function _closeNotices() {
         if (!noticesLightbox) return;
@@ -569,6 +572,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         _finishNoticesClose();
     }
 
+    /** @param {any} e */
     function _onNoticesKey(e) {
         if (e.key === 'Escape') { _closeNotices(); return; }
         if (e.key === 'Tab')    { e.preventDefault(); noticesClose?.focus(); }
@@ -620,7 +624,13 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
 
 // lockBodyScroll / unlockBodyScroll imported from overlay.js
 
-/** Build and inject the overlay + drawer HTML into document.body. */
+/** Build and inject the overlay + drawer HTML into document.body.
+ * @param {any} currentPage
+ * @param {any} memberName
+ * @param {any} onSignOut
+ * @param {any} isAdmin
+ * @param {any} isLinksDesigner
+ */
 function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     // Render every permitted destination. The current page is shown too — as an
     // inert "you are here" pill (aria-current) rather than being filtered out —
@@ -636,7 +646,7 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
     const infoGroups = NAV_INFORMATION.map(group => `
         <p class="nav-panel-group-heading">${group.heading}</p>
         <ul class="nav-panel-links">
-            ${group.links.map(link => {
+            ${group.links.map(/** @param {any} link */ link => {
                 if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
                 if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
                 if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;

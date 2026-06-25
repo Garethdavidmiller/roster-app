@@ -28,7 +28,7 @@ const SHIFT_KIND_LABELS = { early: 'Early shift', late: 'Late shift', night: 'Ni
  * Builds the HTML string for the calendar's month/week header.
  * Pure — takes explicit params, reads no global state.
  */
-export function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, month, year) {
+export function createCalendarHeader(/** @type {any} */ firstWeekNum, /** @type {any} */ lastWeekNum, /** @type {any} */ weekPrefix, /** @type {any} */ month, /** @type {any} */ year) {
     let weekDisplay = '';
     if (weekPrefix !== '') {
         if (firstWeekNum === lastWeekNum) {
@@ -55,7 +55,7 @@ export function createCalendarHeader(firstWeekNum, lastWeekNum, weekPrefix, mont
  * Builds the inner HTML for a single day cell. Pure — takes explicit params.
  * rdwTime — actual shift time for RDW overrides, since shift='RDW' sentinel.
  */
-export function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime = '') {
+export function createDayCell(/** @type {any} */ date, /** @type {any} */ shift, /** @type {any} */ permanentShift, /** @type {any} */ isWorkedDay, rdwTime = '') {
     let badge;
     // RDW always gets its own badge regardless of permanentShift — it's a distinct pay category
     if (shift !== 'RDW' && isWorkedDay && permanentShift === 'late') {
@@ -80,7 +80,7 @@ export function createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime 
  * Returns 'left', 'right', or null if the gesture doesn't qualify.
  * Commits if distance ≥ SWIPE_THRESHOLD OR velocity ≥ SWIPE_VELOCITY (fast flick).
  */
-export function getSwipeDirection(startX, startY, endX, endY, elapsed) {
+export function getSwipeDirection(/** @type {any} */ startX, /** @type {any} */ startY, /** @type {any} */ endX, /** @type {any} */ endY, /** @type {any} */ elapsed) {
     const deltaX = endX - startX;
     const deltaY = endY - startY;
     // Swipe must be mostly horizontal (< 30° from horizontal axis)
@@ -104,7 +104,7 @@ export function getSwipeDirection(startX, startY, endX, endY, elapsed) {
  */
 export function buildCalendarContainer(month, year, opts = {}) {
     const { navigateToPaycalc, onDayDetail } = opts;
-    const member = getCurrentMember();
+    const member = /** @type {any} */ (getCurrentMember());
     const firstDay = new Date(year, month, 1);
     const lastDay  = new Date(year, month + 1, 0);
     // Resolve the roster descriptor for the displayed month so the week-prefix
@@ -136,7 +136,7 @@ export function buildCalendarContainer(month, year, opts = {}) {
             // paydays shift backwards over bank holidays so the gap is not constant.
             const cutoffYear = Number(cutoffIso.slice(0, 4));
             const { paydays, cutoffs } = getPaydaysAndCutoffs(cutoffYear);
-            const idx = cutoffs.findIndex(c => formatISO(c) === cutoffIso);
+            const idx = cutoffs.findIndex((/** @type {any} */ c) => formatISO(c) === cutoffIso);
             if (idx !== -1) navigateToPaycalc?.(formatISO(paydays[idx]));
             return;
         }

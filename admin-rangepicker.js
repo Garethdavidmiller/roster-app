@@ -44,7 +44,7 @@ export function buildRangePicker(prefix) {
 
     const fromInput = /** @type {HTMLInputElement}  */ (document.getElementById(prefix + 'From'));
     const toInput   = /** @type {HTMLInputElement}  */ (document.getElementById(prefix + 'To'));
-    const wrap      = document.getElementById(prefix + 'RangePicker');
+    const wrap      = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RangePicker'));
 
     let fromISO  = '', toISO = '', hoverISO = '';
     let yr = new Date().getFullYear(), mo = new Date().getMonth();
@@ -65,21 +65,22 @@ export function buildRangePicker(prefix) {
             <div class="rp-grid" id="${prefix}RpGrid"></div>
         </div>`;
 
-    const chipFrom  = document.getElementById(prefix + 'RpFrom');
-    const chipTo    = document.getElementById(prefix + 'RpTo');
-    const clearBtn  = document.getElementById(prefix + 'RpClear');
-    const label     = document.getElementById(prefix + 'RpLabel');
-    const clip      = document.getElementById(prefix + 'RpClip');
-    const grid      = document.getElementById(prefix + 'RpGrid');
+    const chipFrom  = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpFrom'));
+    const chipTo    = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpTo'));
+    const clearBtn  = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpClear'));
+    const label     = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpLabel'));
+    const clip      = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpClip'));
+    const grid      = /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpGrid'));
 
+    /** @param {number} delta */
     function moveMonth(delta) {
         mo += delta;
         if (mo > 11) { mo = 0; yr++; }
         if (mo < 0)  { mo = 11; yr--; }
     }
 
-    document.getElementById(prefix + 'RpPrev').addEventListener('click', () => { moveMonth(-1); render(); });
-    document.getElementById(prefix + 'RpNext').addEventListener('click', () => { moveMonth(+1); render(); });
+    /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpPrev')).addEventListener('click', () => { moveMonth(-1); render(); });
+    /** @type {HTMLElement} */ (document.getElementById(prefix + 'RpNext')).addEventListener('click', () => { moveMonth(+1); render(); });
     clearBtn.addEventListener('click', () => {
         fromISO = toISO = hoverISO = '';
         fromInput.value = toInput.value = '';
@@ -88,6 +89,7 @@ export function buildRangePicker(prefix) {
         updateChips();
     });
 
+    /** @param {any} iso */
     function fmt(iso) {
         const d = new Date(iso + 'T12:00:00');
         return `${DAY_NAMES[d.getDay()].slice(0,3)} ${d.getDate()} ${MONTH_ABB[d.getMonth()]}`;
@@ -102,6 +104,7 @@ export function buildRangePicker(prefix) {
     }
 
     // Renders a month grid into any target element for the current yr/mo state.
+    /** @param {any} target */
     function renderGrid(target) {
         const startOff    = (new Date(yr, mo, 1).getDay() + 6) % 7; // Mon = 0
         const daysInMonth = new Date(yr, mo + 1, 0).getDate();
@@ -155,6 +158,7 @@ export function buildRangePicker(prefix) {
 
     // Build an adjacent month panel for carousel animation.
     // Temporarily shifts yr/mo by delta, renders into a new div, then restores state.
+    /** @param {number} delta */
     function buildAdjPanel(delta) {
         const savedMo = mo, savedYr = yr;
         moveMonth(delta);
@@ -170,7 +174,9 @@ export function buildRangePicker(prefix) {
     let swStartX = 0, swStartY = 0, swStartT = 0;
     let swListening = false, swDragging = false, swFired = false;
     let swHaptic = false, swCooldown = false;
-    let swWidth = 0, swPanelPrev = null, swPanelNext = null;
+    let swWidth = 0;
+    /** @type {any} */ let swPanelPrev = null;
+    /** @type {any} */ let swPanelNext = null;
 
     function discardAdj() {
         if (swPanelPrev?.parentNode) swPanelPrev.remove();
@@ -278,7 +284,7 @@ export function buildRangePicker(prefix) {
         if (swFired) { swFired = false; return; }
         const cell = /** @type {Element} */ (e.target).closest('[data-iso]');
         if (!cell) return;
-        const iso = /** @type {HTMLElement} */ (cell).dataset.iso;
+        const iso = /** @type {HTMLElement} */ (cell).dataset.iso ?? '';
         if (!fromISO || toISO)  { fromISO = iso; toISO = ''; }
         else if (iso < fromISO) { fromISO = iso; toISO = ''; }
         else                    { toISO   = iso; }

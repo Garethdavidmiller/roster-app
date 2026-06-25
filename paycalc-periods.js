@@ -37,6 +37,7 @@ export const CONFIG = {
 //   payday  = Friday 6 days after cutoff (the day Chiltern pay into your account)
 // Period array is fully determined by CONFIG constants — same result every call.
 // Cache once; ~78 Date allocations saved per calculate() (called 6× per keystroke).
+/** @type {any} */
 let _periodsCache = null;
 
 /** Return the full array of pay periods for the supported date range. Cached. */
@@ -61,7 +62,7 @@ export function currentPeriodNum() {
 }
 
 /** True if 26 Dec falls within this period's shift window. */
-export function hasBoxingDay(p) {
+export function hasBoxingDay(/** @type {any} */ p) {
   const start  = new Date(p.start.getFullYear(),  p.start.getMonth(),  p.start.getDate());
   const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
   for (let y = start.getFullYear(); y <= cutoff.getFullYear(); y++) {
@@ -77,12 +78,12 @@ export function hasBoxingDay(p) {
 // separately by hasBoxingDay() at 3× rate.
 
 /** True if any bank holiday (excluding Boxing Day) falls within this period. */
-export function hasBankHoliday(p) {
+export function hasBankHoliday(/** @type {any} */ p) {
   const start  = new Date(p.start.getFullYear(),  p.start.getMonth(),  p.start.getDate());
   const cutoff = new Date(p.cutoff.getFullYear(), p.cutoff.getMonth(), p.cutoff.getDate());
   const years  = new Set([start.getFullYear(), cutoff.getFullYear()]);
   for (const y of years) {
-    if (bhsForYear(y).some(bh => bh >= start && bh <= cutoff)) return true;
+    if (bhsForYear(y).some((/** @type {any} */ bh) => bh >= start && bh <= cutoff)) return true;
   }
   return false;
 }
@@ -98,7 +99,7 @@ export const CONDITIONAL_ROWS = [
 ];
 
 /** Show/hide the bank-holiday input rows depending on whether the period has a BH. */
-export function updateBhRows(p) {
+export function updateBhRows(/** @type {any} */ p) {
   CONDITIONAL_ROWS.forEach(({ condition, rows, fields }) => {
     const show = condition(p);
     rows.forEach(id => document.getElementById(id)?.classList.toggle('hidden', !show));
@@ -110,17 +111,20 @@ export function updateBhRows(p) {
 // iOS Safari ignores `select.value = x` when options are inside <optgroup> —
 // the select stays blank and the change event never fires. Explicitly setting
 // the matching option's .selected property works on all platforms.
-export function _setSelectPeriod(sel, pNum) {
+export function _setSelectPeriod(/** @type {any} */ sel, /** @type {any} */ pNum) {
   for (const o of sel.options) {
     if (+o.value === pNum) { o.selected = true; return; }
   }
 }
 
-function _populatePeriodSelect(el, periods, { placeholder, currentPNum } = /** @type {{ placeholder?: string, currentPNum?: number }} */ ({})) {
+function _populatePeriodSelect(/** @type {any} */ el, /** @type {any} */ periods, { placeholder, currentPNum } = /** @type {{ placeholder?: string, currentPNum?: number }} */ ({})) {
   if (!el) return;
   el.innerHTML = placeholder ? `<option value="">${placeholder}</option>` : '';
-  let currentGroup = null, currentTyLabel = null;
-  periods.forEach(p => {
+  /** @type {any} */
+  let currentGroup = null;
+  /** @type {any} */
+  let currentTyLabel = null;
+  periods.forEach((/** @type {any} */ p) => {
     const ty = getTaxYearForOffset(p.num - 48);
     if (ty.label !== currentTyLabel) {
       currentGroup = document.createElement('optgroup');
@@ -152,7 +156,7 @@ export function buildPeriodSelect() {
   const today   = new Date();
 
   // Default to the first period whose payday is still in the future.
-  const upcoming = periods.find(p => p.payday > today);
+  const upcoming = periods.find((/** @type {any} */ p) => p.payday > today);
   let defPNum    = upcoming ? upcoming.num : periods[periods.length - 1].num;
 
   // URL params let the roster calendar pre-select a specific period.
@@ -161,7 +165,7 @@ export function buildPeriodSelect() {
   const _monthParam  = _urlParams.get('month');
   if (_paydayParam) {
     const [_py, _pm, _pd] = _paydayParam.split('-').map(Number);
-    const _matched = periods.find(p =>
+    const _matched = periods.find((/** @type {any} */ p) =>
       p.payday.getFullYear() === _py &&
       p.payday.getMonth()    === _pm - 1 &&
       p.payday.getDate()     === _pd
@@ -170,7 +174,7 @@ export function buildPeriodSelect() {
   } else if (_monthParam) {
     const [_my, _mm] = _monthParam.split('-').map(Number);
     const _mid = new Date(_my, _mm - 1, 15);
-    const _matched = periods.find(p => p.start <= _mid && _mid <= p.cutoff);
+    const _matched = periods.find((/** @type {any} */ p) => p.start <= _mid && _mid <= p.cutoff);
     if (_matched) defPNum = _matched.num;
   }
 
@@ -217,7 +221,7 @@ export function jumpToTaxYear(tyIndex, onPeriodChange) {
   const ty      = CONFIG.TAX_YEARS[tyIndex];
   if (!ty) return;
   const periods = getPeriods();
-  const first   = periods.find(p => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
+  const first   = periods.find((/** @type {any} */ p) => (p.num - 48) >= ty.first && (p.num - 48) <= ty.last);
   if (!first) return;
   _setSelectPeriod(document.getElementById('periodSelect'), first.num);
   onPeriodChange();
@@ -230,7 +234,7 @@ export function jumpToTaxYear(tyIndex, onPeriodChange) {
 export function prevPeriod(onPeriodChange) {
   const sel     = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
   const periods = getPeriods();
-  const idx     = periods.findIndex(x => x.num === +sel.value);
+  const idx     = periods.findIndex((/** @type {any} */ x) => x.num === +sel.value);
   if (idx > 0) { _setSelectPeriod(sel, periods[idx - 1].num); onPeriodChange(); }
 }
 
@@ -241,6 +245,6 @@ export function prevPeriod(onPeriodChange) {
 export function nextPeriod(onPeriodChange) {
   const sel     = /** @type {HTMLSelectElement} */ (document.getElementById('periodSelect'));
   const periods = getPeriods();
-  const idx     = periods.findIndex(x => x.num === +sel.value);
+  const idx     = periods.findIndex((/** @type {any} */ x) => x.num === +sel.value);
   if (idx < periods.length - 1) { _setSelectPeriod(sel, periods[idx + 1].num); onPeriodChange(); }
 }

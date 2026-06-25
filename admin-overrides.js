@@ -19,6 +19,7 @@ import { db, collection, query, orderBy, limit, getDocs,
 import { sessionReady } from './session.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
+/** @type {Record<string, any>} */
 export const TYPES = {
     spare_shift:  { label: 'Spare shift',      pill: 'Spare',    fixed: true,  fixedValue: 'SPARE' },
     shift:        { label: 'Shift',            pill: 'Shift',    fixed: false },
@@ -38,6 +39,7 @@ export const TYPES = {
 export const PILL_TYPES = ['annual_leave', 'spare_shift', 'shift', 'rdw', 'sick', 'correction'];
 
 // ── PRIVATE STATE ─────────────────────────────────────────────────────────────
+/** @type {any[]} */
 let _allOverrides   = [];
 let _bulkActiveType = '';
 let _currentUser      = '';
@@ -64,6 +66,7 @@ let _formattingTime = false;
 
 // ── PUBLIC STATE ACCESSORS ────────────────────────────────────────────────────
 export function getAllOverrides()    { return _allOverrides; }
+/** @param {any[]} arr */
 export function setAllOverrides(arr) { _allOverrides = arr; }
 
 /** Clears the "show all staff" toggle and re-renders the table. Call when the selected member changes. */
@@ -73,6 +76,7 @@ export function resetTableMemberFilter() {
 }
 
 /** Returns a new Date set to the Sunday of the week containing dateStr. */
+/** @param {string} dateStr */
 function getSundayOfWeek(dateStr) {
     const d = new Date(dateStr + 'T12:00:00');
     d.setDate(d.getDate() - d.getDay());
@@ -240,21 +244,21 @@ export function buildWeekGridInto(container, dateStr) {
         // Pre-fill with existing override — mark as prefilled so Save button stays disabled until user edits
         if (existing) {
             const legacyToShift = { overtime: 'shift', allocated: 'shift' };
-            const prefillType   = legacyToShift[existing.type] ?? existing.type;
+            const prefillType   = (/** @type {Record<string, any>} */ (legacyToShift))[existing.type] ?? existing.type;
             const typeMeta      = TYPES[prefillType];
             _activateRow(row, checkbox, pills, startEl, endEl, prefillType);
             row.classList.add('prefilled-existing');
             if (typeMeta && !typeMeta.fixed && existing.value && existing.value.includes('-')) {
                 const [s, e] = existing.value.split('-');
-                startEl.value = s;
-                endEl.value   = e;
+                /** @type {HTMLInputElement} */ (startEl).value = s;
+                /** @type {HTMLInputElement} */ (endEl).value   = e;
             }
         }
 
         pills.forEach(pillEl => {
             const pill = /** @type {HTMLButtonElement} */ (pillEl);
             pill.addEventListener('click', () => {
-                const type    = pill.dataset.type;
+                const type    = pill.dataset.type ?? '';
                 const already = pill.classList.contains('active');
                 row.classList.remove('prefilled-existing');
                 if (already) {
@@ -266,14 +270,14 @@ export function buildWeekGridInto(container, dateStr) {
                     _activateRow(row, checkbox, pills, startEl, endEl, type);
                     // Pre-fill times from the base roster shift when choosing Shift or RDW,
                     // but only if the user hasn't already entered something.
-                    if (!TYPES[type]?.fixed && !startEl.value && !endEl.value) {
+                    if (!TYPES[type]?.fixed && !/** @type {HTMLInputElement} */ (startEl).value && !/** @type {HTMLInputElement} */ (endEl).value) {
                         if ((type === 'shift' || type === 'rdw') && baseShift && baseShift.includes('-')) {
                             const [prefillS, prefillE] = baseShift.split('-');
-                            startEl.value = prefillS;
-                            endEl.value   = prefillE;
+                            /** @type {HTMLInputElement} */ (startEl).value = prefillS;
+                            /** @type {HTMLInputElement} */ (endEl).value   = prefillE;
                         }
                     }
-                    if (!TYPES[type]?.fixed) startEl.focus();
+                    if (!TYPES[type]?.fixed) /** @type {HTMLInputElement} */ (startEl).focus();
                 }
                 // Show RD hint when Shift is chosen on a base-rest day
                 const rdHint = /** @type {HTMLElement|null} */ (row.querySelector('.col-rd-hint'));
@@ -283,27 +287,33 @@ export function buildWeekGridInto(container, dateStr) {
             });
         });
 
-        checkbox.addEventListener('change', () => {
-            if (checkbox.checked) {
-                if (!row.dataset.type) row.classList.add('selected');
-            } else {
-                row.classList.remove('prefilled-existing');
-                _deactivateRow(row, checkbox, pills, startEl, endEl);
-            }
-            _markChanged();
-            updateSaveBtn();
-            _updateBulkSelCount();
-        });
+        if (checkbox) {
+            checkbox.addEventListener('change', () => {
+                if (/** @type {HTMLInputElement} */ (checkbox).checked) {
+                    if (!row.dataset.type) row.classList.add('selected');
+                } else {
+                    row.classList.remove('prefilled-existing');
+                    _deactivateRow(row, checkbox, pills, startEl, endEl);
+                }
+                _markChanged();
+                updateSaveBtn();
+                _updateBulkSelCount();
+            });
+        }
 
         // 'input' is needed alongside 'change' because the auto-format handler in
         // _initTimeInputs() programmatically sets element.value on each keystroke.
         // On Safari/WebKit this resets the browser's change-detection baseline, so
         // 'change' never fires when focus leaves (current value == last programmatic value).
         const onTimeEdit = () => { row.classList.remove('prefilled-existing'); _markChanged(); updateSaveBtn(); };
-        startEl.addEventListener('input',  onTimeEdit);
-        startEl.addEventListener('change', onTimeEdit);
-        endEl.addEventListener('input',    onTimeEdit);
-        endEl.addEventListener('change',   onTimeEdit);
+        if (startEl) {
+            startEl.addEventListener('input',  onTimeEdit);
+            startEl.addEventListener('change', onTimeEdit);
+        }
+        if (endEl) {
+            endEl.addEventListener('input',    onTimeEdit);
+            endEl.addEventListener('change',   onTimeEdit);
+        }
     }
 }
 
@@ -320,7 +330,7 @@ export function renderWeekGrid() {
     const memberName  = fieldMember?.value;
     const dateStr     = fieldDate?.value;
 
-    updateWeekNavLabel(dateStr);
+    updateWeekNavLabel(dateStr ?? '');
 
     if (!memberName || !dateStr) {
         if (weekGrid) weekGrid.innerHTML = `<div class="week-empty">${_currentIsAdmin ? 'Select a staff member and date above to load the week.' : 'Select a date above to load the week.'}</div>`;
@@ -347,37 +357,60 @@ export function renderWeekGrid() {
     _updateBulkSelCount();
 }
 
+/**
+ * @param {HTMLElement} row
+ * @param {HTMLInputElement|null} checkbox
+ * @param {NodeListOf<Element>} pills
+ * @param {HTMLInputElement|null} startEl
+ * @param {HTMLInputElement|null} endEl
+ * @param {string} type
+ */
 function _activateRow(row, checkbox, pills, startEl, endEl, type) {
-    checkbox.checked = true;
+    if (checkbox) checkbox.checked = true;
     row.classList.add('active');
     row.classList.remove('selected');
     pills.forEach(p => {
-        const on = p.dataset.type === type;
+        const on = (/** @type {HTMLElement} */ (p)).dataset.type === type;
         p.classList.toggle('active', on);
         p.setAttribute('aria-pressed', String(on));
     });
     if (TYPES[type]?.fixed) {
         row.classList.add('fixed-type');
-        startEl.tabIndex = endEl.tabIndex = -1;
+        if (startEl) startEl.tabIndex = -1;
+        if (endEl) endEl.tabIndex = -1;
     } else {
         row.classList.remove('fixed-type');
-        startEl.tabIndex = endEl.tabIndex = 0;
+        if (startEl) startEl.tabIndex = 0;
+        if (endEl) endEl.tabIndex = 0;
     }
     row.dataset.type = type;
     const badge = row.querySelector('.overwrite-badge');
     if (badge) badge.textContent = '⚠ Updating';
 }
 
+/**
+ * @param {HTMLElement} row
+ * @param {HTMLInputElement|null} checkbox
+ * @param {NodeListOf<Element>} pills
+ * @param {HTMLInputElement|null} startEl
+ * @param {HTMLInputElement|null} endEl
+ */
 function _deactivateRow(row, checkbox, pills, startEl, endEl) {
-    checkbox.checked = false;
+    if (checkbox) checkbox.checked = false;
     row.classList.remove('active', 'fixed-type', 'selected', 'row-error');
     pills.forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
-    startEl.value = endEl.value = '';
-    startEl.classList.remove('input-error');
-    endEl.classList.remove('input-error');
-    startEl.removeAttribute('aria-invalid');
-    endEl.removeAttribute('aria-invalid');
-    startEl.tabIndex = endEl.tabIndex = -1;
+    if (startEl) {
+        startEl.value = '';
+        startEl.classList.remove('input-error');
+        startEl.removeAttribute('aria-invalid');
+        startEl.tabIndex = -1;
+    }
+    if (endEl) {
+        endEl.value = '';
+        endEl.classList.remove('input-error');
+        endEl.removeAttribute('aria-invalid');
+        endEl.tabIndex = -1;
+    }
     delete row.dataset.type;
     const badge = row.querySelector('.overwrite-badge');
     if (badge) badge.textContent = '⚠ Existing';
@@ -456,7 +489,7 @@ function _initBulkBar() {
         bulkTypePills.querySelectorAll('.type-pill-btn').forEach(pillEl => {
             const pill = /** @type {HTMLButtonElement} */ (pillEl);
             pill.addEventListener('click', () => {
-                const type    = pill.dataset.type;
+                const type    = pill.dataset.type ?? '';
                 const already = pill.classList.contains('active');
                 if (already) { resetBulkPills(); return; }
                 bulkTypePills.querySelectorAll('.type-pill-btn').forEach(p => { p.classList.remove('active'); p.setAttribute('aria-pressed', 'false'); });
@@ -474,7 +507,7 @@ function _initBulkBar() {
     document.getElementById('bulkSelMonFri')?.addEventListener('click', () => {
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
-            const dayIdx   = new Date(row.dataset.date + 'T12:00:00').getDay();
+            const dayIdx   = new Date((row.dataset.date ?? '') + 'T12:00:00').getDay();
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
             if (dayIdx >= 1 && dayIdx <= 5) {
@@ -501,7 +534,7 @@ function _initBulkBar() {
         const member = memberName ? teamMembers.find(m => m.name === memberName) : null;
         weekGrid?.querySelectorAll('.day-row').forEach(rowEl => {
             const row      = /** @type {HTMLElement} */ (rowEl);
-            const dateISO  = row.dataset.date;
+            const dateISO  = row.dataset.date ?? '';
             const date     = new Date(dateISO + 'T12:00:00');
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox) return;
@@ -544,7 +577,7 @@ function _initBulkBar() {
             const row      = /** @type {HTMLElement} */ (rowEl);
             const checkbox = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-cb'));
             if (!checkbox || !checkbox.checked) return;
-            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick') && isSunday(row.dataset.date)) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
+            if ((_bulkActiveType === 'annual_leave' || _bulkActiveType === 'sick') && isSunday(row.dataset.date ?? '')) return; // Rule: see CLAUDE.md — "Sundays are non-contracted" (layer 2: bulk-bar skip)
             const pills   = row.querySelectorAll('.type-pill-btn');
             const startEl = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-start'));
             const endEl   = /** @type {HTMLInputElement|null} */ (row.querySelector('.day-end'));
@@ -565,7 +598,7 @@ function _initBulkBar() {
 /**
  * Writes a batch of override changes to Firestore and updates the in-memory cache.
  * Disables the Save button while running; re-enables in the finally block.
- * @param {Array<{memberName,date,type,value,note,existingId}>} toSave
+ * @param {Array<{memberName:string, date:string, type:string, value:string, note:string, existingId:string}>} toSave
  * @param {string[]} toDelete  Firestore document IDs to delete
  */
 export async function executeSave(toSave, toDelete = []) {
@@ -589,6 +622,7 @@ export async function executeSave(toSave, toDelete = []) {
 
     try {
         const batch   = writeBatch(db);
+        /** @type {any[]} */
         const newDocs = [];
 
         toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
@@ -629,7 +663,7 @@ export async function executeSave(toSave, toDelete = []) {
 
     } catch (err) {
         console.error('[Admin] Save failed:', err);
-        _showError(err?.code === 'permission-denied'
+        _showError((/** @type {any} */ (err))?.code === 'permission-denied'
             ? "Couldn't save — your session may have expired. Try signing out and back in."
             : 'Could not save — check your connection and try again.');
     } finally {
@@ -650,7 +684,7 @@ export async function loadOverrides() {
     try {
         const snap = await getDocs(query(collection(db, COLLECTIONS.overrides), orderBy('date', 'desc'), limit(5000)));
         _allOverrides = [];
-        snap.forEach(s => _allOverrides.push({ id: s.id, ...s.data() }));
+        snap.forEach(/** @param {any} s */ s => _allOverrides.push({ id: s.id, ...s.data() }));
         renderTable();
         const fieldMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('fieldMember'));
         const fieldDate   = /** @type {HTMLInputElement|null} */ (document.getElementById('fieldDate'));
@@ -766,6 +800,11 @@ function _updateBulkDeleteVisibility() {
     }
 }
 
+/**
+ * @param {HTMLButtonElement} btn
+ * @param {string} confirmLabel
+ * @param {string} resetLabel
+ */
 function _armConfirmButton(btn, confirmLabel, resetLabel) {
     btn.classList.add('confirming');
     btn.textContent = confirmLabel;
@@ -777,6 +816,7 @@ function _armConfirmButton(btn, confirmLabel, resetLabel) {
     }, 5000);
 }
 
+/** @param {MouseEvent} e */
 async function _handleDelete(e) {
     // closest() makes this work both directly and via delegation.
     const btn     = /** @type {HTMLButtonElement|null} */ (/** @type {Element} */ (e.target).closest('.btn-delete'));
@@ -792,7 +832,7 @@ async function _handleDelete(e) {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-        await deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id));
+        await deleteDoc(doc(db, COLLECTIONS.overrides, btn.dataset.id ?? ''));
         _allOverrides = _allOverrides.filter(o => o.id !== btn.dataset.id);
         renderTable();
         _onAfterSave();
@@ -809,7 +849,7 @@ async function _handleDelete(e) {
         btn.classList.remove('confirming');
         btn.textContent = 'Delete';
         if (listFeedback) {
-            listFeedback.textContent = err?.code === 'unavailable'
+            listFeedback.textContent = (/** @type {any} */ (err))?.code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
                 : '⚠ Could not delete — check your connection and try again.';
             listFeedback.className = 'list-feedback error';
@@ -851,7 +891,7 @@ function _initOverridesTable() {
         bulkDeleteBtn.addEventListener('click', async () => {
             const checkedRows = /** @type {HTMLElement[]} */ ([...(document.getElementById('overrideTableBody')?.querySelectorAll('.row-select:checked') ?? [])]);
             if (!checkedRows.length) return;
-            const ids = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id);
+            const ids = checkedRows.map(cb => /** @type {HTMLElement} */ (cb).dataset.id ?? '');
 
             // Two-tap confirmation — matches single-delete pattern
             if (!bulkDeleteBtn.classList.contains('confirming')) {
@@ -880,7 +920,7 @@ function _initOverridesTable() {
                 bulkDeleteBtn.disabled = false;
                 bulkDeleteBtn.textContent = 'Delete selected';
                 if (listFeedback) {
-                    listFeedback.textContent = err?.code === 'unavailable'
+                    listFeedback.textContent = (/** @type {any} */ (err))?.code === 'unavailable'
                         ? '⚠ You appear to be offline — reconnect and try again.'
                         : '⚠ Bulk delete failed — check your connection and try again.';
                     listFeedback.className = 'list-feedback error';
@@ -936,16 +976,22 @@ function _initTimeInputs() {
 }
 
 // ── SHIFT RULE HELPERS ────────────────────────────────────────────────────────
+/** @param {string} timeStr */
 function _parseMinutes(timeStr) {
     const [h, m] = timeStr.split(':').map(Number);
     return h * 60 + m;
 }
 
+/**
+ * @param {string} startStr
+ * @param {string} endStr
+ */
 function _effectiveEndMins(startStr, endStr) {
     const s = _parseMinutes(startStr), e = _parseMinutes(endStr);
     return e >= s ? e : e + 24 * 60;
 }
 
+/** @param {number} mins */
 function _fmtHours(mins) {
     const h = mins / 60;
     return (Number.isInteger(h) ? h : h.toFixed(1)) + 'h';
@@ -956,7 +1002,7 @@ function _fmtHours(mins) {
  * pending save batch first, then _allOverrides, then the base roster.
  * @param {string} memberName
  * @param {string} dateISO  YYYY-MM-DD
- * @param {Array}  batch    Pending toSave entries
+ * @param {any[]}  batch    Pending toSave entries
  */
 export function getEffectiveShift(memberName, dateISO, batch) {
     const inBatch = batch.find(e => e.date === dateISO);
@@ -974,12 +1020,13 @@ export function getEffectiveShift(memberName, dateISO, batch) {
 /**
  * Validates max shift duration (12 h) and minimum rest gap (12 h) for toSave.
  * Marks failing rows with .row-error in the DOM.
- * @param {Array}  toSave
+ * @param {any[]}  toSave
  * @param {string} memberName
  * @returns {string[]} Human-readable error strings (empty = valid)
  */
 export function validateShiftRules(toSave, memberName) {
     const weekGrid   = document.getElementById('weekGrid');
+    /** @type {string[]} */
     const ruleErrors = [];
 
     toSave.forEach(entry => {
@@ -1088,6 +1135,7 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     if (!workingDates.length) return { workingCount: 0, sundayCount: sundayCorrections.length };
 
+    /** @type {any[]} */
     const newDocs    = [];
     const deletedIds = new Set();
     const batch      = writeBatch(db);
@@ -1129,7 +1177,10 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 }
 
 // ── DATE DISPLAY ──────────────────────────────────────────────────────────────
-/** Formats YYYY-MM-DD as "18 Mar 2026". Returns "—" for empty input. */
+/**
+ * Formats YYYY-MM-DD as "18 Mar 2026". Returns "—" for empty input.
+ * @param {string} str
+ */
 export function formatDisplay(str) {
     if (!str) return '—';
     const [y, m, d] = str.split('-');

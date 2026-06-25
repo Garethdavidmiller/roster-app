@@ -42,7 +42,7 @@ export function initAuthSetup({ currentIsAdmin }) {
         ...getMembersForGrade('CES'),
         ...getMembersForGrade('Dispatcher'),
         ...getMembersForGrade('Management'),
-    ].map(m => m.name);
+    ].map(m => /** @type {any} */ (m).name);
 
     btn.addEventListener('click', async () => {
         /** @type {HTMLButtonElement} */ (btn).disabled    = true;
@@ -59,7 +59,7 @@ export function initAuthSetup({ currentIsAdmin }) {
             // completes, even when a valid session exists.
             const currentUser = await new Promise(resolve => {
                 if (auth.currentUser) { resolve(auth.currentUser); return; }
-                const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
+                const unsub = onAuthStateChanged(auth, /** @param {any} user */ user => { unsub(); resolve(user); });
             });
             if (!currentUser) {
                 const code = /** @type {any} */ (window)._mybAuthError ? ` (Firebase error: ${/** @type {any} */ (window)._mybAuthError})` : '';
@@ -108,7 +108,7 @@ export function initAuthSetup({ currentIsAdmin }) {
             resultEl.innerHTML = lines.map(l => `<p class="auth-result-line">${escapeHtml(l)}</p>`).join('');
             resultEl.classList.add('visible');
         } catch (err) {
-            resultEl.innerHTML = `<p class="auth-result-error">❌ ${escapeHtml(err.message)}</p>`;
+            resultEl.innerHTML = `<p class="auth-result-error">❌ ${escapeHtml(/** @type {any} */ (err).message)}</p>`;
             resultEl.classList.add('visible');
             console.error('[authSetup]', err);
         } finally {

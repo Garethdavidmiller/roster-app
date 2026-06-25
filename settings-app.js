@@ -26,6 +26,7 @@ const currentUser      = currentSession?.name ?? null;
 
 // Assigned by initIconLightbox (runs inside initApp when signed in); the closure
 // below only reads it when the drawer logo is tapped.
+/** @type {any} */
 let openAboutLightbox = null;
 
 // Nav panel is always initialised — even when not signed in, so the user can
@@ -62,7 +63,7 @@ function initLoginOverlay() {
     const nameSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('loginName'));
     const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('loginPassword'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('loginSubmit'));
-    const errorEl       = document.getElementById('loginError');
+    const errorEl       = /** @type {HTMLElement} */ (document.getElementById('loginError'));
 
     if (!overlay) return;
     overlay.classList.add('visible');
@@ -83,10 +84,10 @@ function initLoginOverlay() {
     const savedGrade = lsGet(GRADE_KEY);
     if (savedGrade) { gradeSelect.value = savedGrade; populateNames(savedGrade); }
 
-    function populateNames(grade) {
+    function populateNames(/** @type {any} */ grade) {
         const members = getMembersForGrade(grade);
         nameSelect.innerHTML = '<option value="">— Select name —</option>';
-        members.forEach(m => nameSelect.appendChild(new Option(m.name, m.name)));
+        members.forEach(m => nameSelect.appendChild(new Option(/** @type {any} */ (m).name, /** @type {any} */ (m).name)));
         nameSelect.disabled = members.length === 0;
     }
 
@@ -135,12 +136,12 @@ function initLoginOverlay() {
         const authOk = await ensureFirebaseSession(name);
         if (!authOk) console.warn('[Auth] Firebase session not established — Firestore writes may fail');
         saveSession(name);
-        overlay.classList.remove('visible');
+        /** @type {HTMLElement} */ (overlay).classList.remove('visible');
         unlockBodyScroll();
         window.location.reload();
     }
 
-    function showError(msg) {
+    function showError(/** @type {any} */ msg) {
         errorEl.textContent = msg;
         errorEl.classList.add('visible');
         submitBtn.disabled    = false;
@@ -170,7 +171,7 @@ function initContactCard() {
     const emailInput = /** @type {HTMLInputElement} */ (document.getElementById('workEmailInput'));
     const saveBtn    = /** @type {HTMLButtonElement} */ (document.getElementById('workEmailSaveBtn'));
     const removeBtn  = /** @type {HTMLButtonElement|null} */ (document.getElementById('workEmailRemoveBtn'));
-    const feedback   = document.getElementById('contactFeedback');
+    const feedback   = /** @type {HTMLElement} */ (document.getElementById('contactFeedback'));
     if (!emailInput || !saveBtn) return;
 
     initCardCollapse('contactToggleHeader', 'contactBody', 'contactChevron');
@@ -187,12 +188,12 @@ function initContactCard() {
         if (v && !v.includes('@')) emailInput.value = v + '@chilternrailways.co.uk';
     });
 
-    function setFeedback(msg, state) {
+    function setFeedback(/** @type {any} */ msg, /** @type {any} */ state) {
         feedback.textContent = msg;
         feedback.className   = `contact-feedback${state ? ' ' + state : ''}`;
     }
 
-    function formatDate(ts) {
+    function formatDate(/** @type {any} */ ts) {
         try {
             const d = ts?.toDate?.();
             if (!d || isNaN(d.getTime())) return null;
@@ -200,7 +201,7 @@ function initContactCard() {
         } catch { return null; }
     }
 
-    function showSavedState(dateStr) {
+    function showSavedState(/** @type {any} */ dateStr) {
         setFeedback(dateStr ? `✓ Saved — last updated ${dateStr}` : '✓ Saved', 'ok');
         if (removeBtn) removeBtn.style.display = '';
     }
@@ -259,7 +260,7 @@ function initContactCard() {
         } catch (err) {
             console.warn('[staffContact] Save failed:', err);
             setFeedback(
-                err?.code === 'permission-denied'
+                (/** @type {any} */ (err))?.code === 'permission-denied'
                     ? 'Couldn\'t save — please sign out and sign back in.'
                     : 'Couldn\'t save — check your connection and try again.',
                 'err'
@@ -282,7 +283,7 @@ function initContactCard() {
             } catch (err) {
                 console.warn('[staffContact] Remove failed:', err);
                 setFeedback(
-                    err?.code === 'permission-denied'
+                    (/** @type {any} */ (err))?.code === 'permission-denied'
                         ? 'Couldn\'t remove — please sign out and sign back in.'
                         : 'Couldn\'t remove — check your connection and try again.',
                     'err'

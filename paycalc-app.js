@@ -78,6 +78,7 @@ const _settingsPrompted = new Set();
 
 // The default period num selected on page load (first upcoming payday). Used by
 // the ● today-period button to know when to show itself.
+/** @type {number | null} */
 let _defaultPeriodNum = null;
 
 let _adjNegative = false; // tracks intended sign of otherAdj independently of value
@@ -90,23 +91,32 @@ function emptyPeriodData() {
 }
 
 // ── DATE HELPERS ──────────────────────────────────────────────────────────────
-const fd = d => d.toLocaleDateString('en-GB', {
+const fd = /** @param {Date} d */ d => d.toLocaleDateString('en-GB', {
   day:'numeric', month:'short', year:'2-digit', timeZone:'Europe/London'
 });
-const fdShort = d => d.toLocaleDateString('en-GB', {
+const fdShort = /** @param {Date} d */ d => d.toLocaleDateString('en-GB', {
   day:'numeric', month:'short', timeZone:'Europe/London'
 });
-const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fmt = /** @param {number} n */ n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ── INPUT HELPERS ─────────────────────────────────────────────────────────────
+/**
+ * @param {string} id
+ */
 function numVal(id) {
     // iOS keyboards can insert smart hyphens/minus and curly quotes; parseSmartFloat
     // strips them so parseFloat doesn't silently return NaN on otherwise-valid input.
     return parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '');
 }
+/** @param {string} id */
 function intVal(id)    { return parseInt(/** @type {HTMLInputElement} */ (document.getElementById(id))?.value ?? '') || 0; }
+/**
+ * @param {string} hId
+ * @param {string} mId
+ */
 function hhmmDec(hId, mId) { return intVal(hId) + intVal(mId) / 60; }
 
+/** @param {string} mId */
 function clampMins(mId) {
   const el = /** @type {HTMLInputElement} */ (document.getElementById(mId));
   const v  = parseInt(el.value);
@@ -115,10 +125,15 @@ function clampMins(mId) {
 
 // Find (or lazily create) the live decimal-conversion hint that sits beneath an
 // hours field's hrs:mins pair. Returns null if the field/markup is missing.
+/**
+ * @param {string} hId
+ * @param {boolean} make
+ */
 function _decHintEl(hId, make) {
   const wrap = document.getElementById(hId)?.closest('.hhmm-wrap');
   if (!wrap) return null;
   const col = wrap.parentElement;
+  if (!col) return null;
   let hint = col.querySelector('.hhmm-dec-hint');
   if (!hint && make) {
     hint = document.createElement('div');
@@ -131,6 +146,7 @@ function _decHintEl(hId, make) {
 
 // Live "= 7h 30m" preview shown WHILE a decimal is being typed, so the on-blur
 // split is a visible transformation rather than a silent one (trust on a pay form).
+/** @param {string} hId */
 function decPreview(hId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   const val = parseFloat(raw);
@@ -148,6 +164,10 @@ function decPreview(hId) {
 // If someone types "7.5" into an hours field, split it into 7 hrs 30 mins
 // automatically on blur rather than silently truncating to 7. The live preview
 // (decPreview) has already shown the result, so the split is no surprise.
+/**
+ * @param {string} hId
+ * @param {string} mId
+ */
 function autoDecimalHours(hId, mId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   if (!raw.includes('.')) return;
@@ -162,20 +182,24 @@ function autoDecimalHours(hId, mId) {
   autosave();
 }
 
+/**
+ * @param {string} hId
+ * @param {string} mId
+ * @param {string | null} warnId
+ */
 function onHhMm(hId, mId, warnId) {
   // Validate Saturday hours don't exceed contracted hours (pro-rated for joining periods)
   if (warnId) {
     const hrs   = hhmmDec(hId, mId);
     const warn  = document.getElementById(warnId);
-    const curP  = getPeriods().find(x => x.num === currentPeriodNum());
+    const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
     const contr = getEffectiveContr(curP);
     if (hrs > contr) {
       /** @type {HTMLInputElement} */ (document.getElementById(hId)).value = String(contr);
       /** @type {HTMLInputElement} */ (document.getElementById(mId)).value = '0';
-      warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`;
-      warn.classList.add('show');
+      if (warn) { warn.textContent = `⚠ Capped at ${contr} hrs — your contracted maximum for this period`; warn.classList.add('show'); }
     } else {
-      warn.classList.remove('show');
+      if (warn) warn.classList.remove('show');
     }
   }
   calculate();
@@ -188,12 +212,12 @@ function onHhMm(hId, mId, warnId) {
 function onPeriodChange() {
   const pNum    = +/** @type {HTMLSelectElement} */ (document.getElementById('periodSelect')).value;
   const periods = getPeriods();
-  const p       = periods.find(x => x.num === pNum);
+  const p       = periods.find(/** @param {any} x */ x => x.num === pNum);
   if (!p) return;
   const cutStr  = fdShort(p.cutoff);
 
   // Prev / Next button states
-  const idx = periods.findIndex(x => x.num === pNum);
+  const idx = periods.findIndex(/** @param {any} x */ x => x.num === pNum);
   const prevBtn = /** @type {HTMLButtonElement} */ (document.getElementById('prevBtn'));
   const nextBtn = /** @type {HTMLButtonElement} */ (document.getElementById('nextBtn'));
   prevBtn.disabled = (idx <= 0);
@@ -221,22 +245,22 @@ function onPeriodChange() {
   const payStr = p.payday.toLocaleDateString('en-GB', {
     day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Europe/London'
   });
-  document.getElementById('pmRange').textContent   = `${startStr} – ${cutLongStr}`;
-  document.getElementById('pmSub').textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
-  document.getElementById('periodBadge').textContent = `P${p.num}`;
-  document.getElementById('netPeriod').textContent   = `Paid ${fd(p.payday)}`;
+  /** @type {HTMLElement} */ (document.getElementById('pmRange')).textContent   = `${startStr} – ${cutLongStr}`;
+  /** @type {HTMLElement} */ (document.getElementById('pmSub')).textContent     = `💷 Paid: ${payStr}  ·  Tax year ${ty.label}`;
+  /** @type {HTMLElement} */ (document.getElementById('periodBadge')).textContent = `P${p.num}`;
+  /** @type {HTMLElement} */ (document.getElementById('netPeriod')).textContent   = `Paid ${fd(p.payday)}`;
 
   // Update cut-off date in sub descriptions
-  document.getElementById('overtimeSub').textContent =
+  /** @type {HTMLElement} */ (document.getElementById('overtimeSub')).textContent =
     `Extra hours on top of a rostered shift (cut-off: ${cutStr}). Shows as "Overtime 1.25" on your payslip.`;
-  document.getElementById('rdwSub').textContent =
+  /** @type {HTMLElement} */ (document.getElementById('rdwSub')).textContent =
     `Came in on a rest day, or worked a Saturday that wasn't in your roster (cut-off: ${cutStr}). Shows as "RDW 1.25" on your payslip.`;
-  document.getElementById('sundaySub').textContent =
+  /** @type {HTMLElement} */ (document.getElementById('sundaySub')).textContent =
     `Any hours you worked on a Sunday (cut-off: ${cutStr}). Shows as "RDW Sun 1.5" on your payslip.`;
 
   const boxing = hasBoxingDay(p);
-  document.getElementById('boxingBanner').classList.toggle('visible', boxing);
-  document.getElementById('boxingRow').classList.toggle('hidden', !boxing);
+  /** @type {HTMLElement} */ (document.getElementById('boxingBanner')).classList.toggle('visible', boxing);
+  /** @type {HTMLElement} */ (document.getElementById('boxingRow')).classList.toggle('hidden', !boxing);
   if (!boxing) { /** @type {HTMLInputElement} */ (document.getElementById('boxH')).value = ''; /** @type {HTMLInputElement} */ (document.getElementById('boxM')).value = ''; }
 
   // Update tax year tab active state
@@ -253,18 +277,18 @@ function onPeriodChange() {
   // Settings confirmation check for this tax year.
   const tyConfirmed = lsGet(settingsKey(ty));
   // Always keep the title current so the hardcoded HTML default never shows stale text.
-  document.getElementById('setupBannerTitle').textContent = `👋 Set up for ${ty.label}`;
+  /** @type {HTMLElement} */ (document.getElementById('setupBannerTitle')).textContent = `👋 Set up for ${ty.label}`;
   if (tyConfirmed) {
     // Confirmed — hide banner, update card header hint with saved values.
-    document.getElementById('setupBanner').classList.add('hidden');
+    /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
     const _hdrGrade = getGrade();
     const rate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
     const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
-    document.getElementById('settingsHint').textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
+    /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
   } else {
-    document.getElementById('setupBannerBody').innerHTML =
+    /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
       `Enter your <strong>hourly rate</strong> and <strong>tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
-    document.getElementById('setupBanner').classList.remove('hidden');
+    /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
     // Auto-open settings once per session per TY — only for returning users (new users
     // already see the settings card open). Show the in-card notice for returning users.
     if (!_settingsPrompted.has(ty.label)) {
@@ -272,10 +296,12 @@ function onPeriodChange() {
       if (lsGet(SK.setup)) {
         setSettingsCardOpen(true);
         const notice = document.getElementById('settingsNewYearNotice');
-        notice.textContent = ty.rateUnconfirmed
-          ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
-          : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
-        notice.classList.remove('hidden');
+        if (notice) {
+          notice.textContent = ty.rateUnconfirmed
+            ? `New tax year ${ty.label} — the pay award has not yet been confirmed. The default rate may be out of date. Update once your payslip reflects the new rate (awards are often backdated to April), then tap Save settings.`
+            : `New tax year ${ty.label} — check your hourly rate is up to date, then tap Save settings.`;
+          notice.classList.remove('hidden');
+        }
       }
     }
   }
@@ -324,7 +350,7 @@ function onPeriodChange() {
       if (currentPeriodNum() !== _fetchedPNum) return;
       updateRosterHint();
       // Silently refresh any gold-highlighted fields filled during 'checking' state.
-      const _refreshP = getPeriods().find(x => x.num === _fetchedPNum);
+      const _refreshP = getPeriods().find(/** @param {any} x */ x => x.num === _fetchedPNum);
       if (_refreshP) {
         const _refreshS = getRosterSuggestion(_refreshP, getLoggedMember());
         if (_refreshS) { _applyRosterSuggestion(_refreshS); autosave(); }
@@ -350,16 +376,17 @@ function readFormData() {
     rdwH: intVal('rdwH'), rdwM: intVal('rdwM'),
     sunH: intVal('sunH'), sunM: intVal('sunM'),
     boxH: intVal('boxH'), boxM: intVal('boxM'),
-    peer: +document.getElementById('peerVal').textContent,
+    peer: +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent,
     slSkip:   /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
     otherAdj: (() => { const _r = Math.abs(parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value) || 0); return _adjNegative ? -_r : _r; })(),
     pension:  parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value) || 0,
   };
 }
 
+/** @param {any} d */
 function writeFormData(d) {
   clearRosterSuggestedAll();
-  const set = (id, v) => { /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || ''; };
+  const set = /** @param {string} id @param {any} v */ (id, v) => { /** @type {HTMLInputElement} */ (document.getElementById(id)).value = v || ''; };
   set('satH', d.satH || ''); set('satM', d.satM || '');
   set('bhH',   d.bhH   || ''); set('bhM',   d.bhM   || '');
   set('bhOtH', d.bhOtH || ''); set('bhOtM', d.bhOtM || '');
@@ -367,7 +394,7 @@ function writeFormData(d) {
   set('rdwH', d.rdwH || ''); set('rdwM', d.rdwM || '');
   set('sunH', d.sunH || ''); set('sunM', d.sunM || '');
   set('boxH', d.boxH || ''); set('boxM', d.boxM || '');
-  document.getElementById('peerVal').textContent  = d.peer || 0;
+  /** @type {HTMLElement} */ (document.getElementById('peerVal')).textContent  = d.peer || 0;
   /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked  = d.slSkip || false;
   const _rawAdj = d.otherAdj ?? 0;
   _adjNegative = _rawAdj < 0;
@@ -380,7 +407,7 @@ function writeFormData(d) {
 }
 
 function updateAdjSign() {
-  const btn = document.getElementById('adjSignBtn');
+  const btn = /** @type {HTMLElement} */ (document.getElementById('adjSignBtn'));
   btn.textContent = _adjNegative ? '−' : '+';
   btn.setAttribute('aria-label', _adjNegative ? 'Toggle sign: currently negative' : 'Toggle sign: currently positive');
   btn.classList.toggle('negative', _adjNegative);
@@ -398,7 +425,9 @@ function autosave() {
   } catch { /* storage unavailable */ }
 }
 
+/** @param {number} pNum */
 function loadPeriodData(pNum) {
+  /** @type {any} */
   let d = emptyPeriodData();
   try {
     const raw = lsGet(periodKey(pNum));
@@ -409,7 +438,7 @@ function loadPeriodData(pNum) {
   // If no pension has been manually saved for this period, apply the period-specific
   // default. This handles both: (a) pension rate cut-overs (old periods show the old
   // rate, new periods show the new rate) and (b) joining-period pro-ration.
-  const _pObj = getPeriods().find(x => x.num === pNum);
+  const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   if (d.pension == null && _pObj) {
     const _fullPension = getPensionDefault(_pObj);
     const pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
@@ -418,31 +447,30 @@ function loadPeriodData(pNum) {
   updateAdjSign();
   // Auto-expand "more options" if this period has extras saved
   const hasExtras = d.slSkip || d.otherAdj;
-  const extraBody = document.getElementById('hoursExtra');
-  const extraBtn  = document.getElementById('hoursShowMore');
-  if (hasExtras && !extraBody.classList.contains('open')) {
+  const extraBody = /** @type {HTMLElement | null} */ (document.getElementById('hoursExtra'));
+  const extraBtn  = /** @type {HTMLElement | null} */ (document.getElementById('hoursShowMore'));
+  if (hasExtras && extraBody && !extraBody.classList.contains('open')) {
     extraBody.classList.add('open');
-    extraBtn.classList.add('open');
-    extraBtn.querySelector('.show-more-arrow').textContent = '▲';
-    document.getElementById('hoursShowMoreLabel').textContent = 'Hide adjustments';
-  } else if (!hasExtras && extraBody.classList.contains('open')) {
+    if (extraBtn) { extraBtn.classList.add('open'); /** @type {HTMLElement} */ (extraBtn.querySelector('.show-more-arrow')).textContent = '▲'; }
+    /** @type {HTMLElement} */ (document.getElementById('hoursShowMoreLabel')).textContent = 'Hide adjustments';
+  } else if (!hasExtras && extraBody && extraBody.classList.contains('open')) {
     extraBody.classList.remove('open');
-    extraBtn.classList.remove('open');
-    extraBtn.querySelector('.show-more-arrow').textContent = '▼';
-    document.getElementById('hoursShowMoreLabel').textContent = 'Unusual deductions or corrections';
+    if (extraBtn) { extraBtn.classList.remove('open'); /** @type {HTMLElement} */ (extraBtn.querySelector('.show-more-arrow')).textContent = '▼'; }
+    /** @type {HTMLElement} */ (document.getElementById('hoursShowMoreLabel')).textContent = 'Unusual deductions or corrections';
   }
   updateSaveStatus(pNum);
   calculate();
 }
 
+/** @param {number} pNum */
 function updateSaveStatus(pNum) {
-  const el  = document.getElementById('saveStatus');
+  const el  = /** @type {HTMLElement} */ (document.getElementById('saveStatus'));
   const raw = lsGet(periodKey(pNum));
   if (raw) {
     let d;
     try { d = JSON.parse(raw); } catch { d = null; }
     if (d) {
-      const _pObj = getPeriods().find(x => x.num === pNum);
+      const _pObj = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
       const _defaultPension = _pObj
         ? parseFloat((getPensionDefault(_pObj) * getProRateFactor(_pObj)).toFixed(2))
         : getPensionDefault();
@@ -458,15 +486,15 @@ function updateSaveStatus(pNum) {
   el.className   = 'save-status unsaved';
 }
 
-const _clearState = { pending: false, timer: null, countdownTimer: null };
+const _clearState = /** @type {{ pending: boolean, timer: ReturnType<typeof setTimeout> | null, countdownTimer: ReturnType<typeof setInterval> | null }} */ ({ pending: false, timer: null, countdownTimer: null });
 
 // iOS suspends timers when a tab is backgrounded; on resume the queued setTimeout
 // fires immediately, which could turn the "Tap again to confirm" prompt into an
 // accidental wipe. Reset the confirm state whenever the tab becomes hidden.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && _clearState.pending) {
-    clearTimeout(_clearState.timer);
-    clearInterval(_clearState.countdownTimer);
+    clearTimeout(_clearState.timer ?? undefined);
+    clearInterval(_clearState.countdownTimer ?? undefined);
     _clearState.pending = false;
     _clearState.timer = null;
     _clearState.countdownTimer = null;
@@ -479,37 +507,34 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function clearPeriod() {
-  const btn = document.getElementById('clearBtn');
+  const btn = /** @type {HTMLElement | null} */ (document.getElementById('clearBtn'));
   if (!_clearState.pending) {
     _clearState.pending = true;
     let secs = 3;
-    btn.textContent = `Tap again to confirm (${secs})`;
-    btn.classList.add('confirming');
+    if (btn) { btn.textContent = `Tap again to confirm (${secs})`; btn.classList.add('confirming'); }
     // Countdown tick every second
     _clearState.countdownTimer = setInterval(() => {
       secs--;
-      if (secs > 0) btn.textContent = `Tap again to confirm (${secs})`;
+      if (secs > 0 && btn) btn.textContent = `Tap again to confirm (${secs})`;
     }, 1000);
     _clearState.timer = setTimeout(() => {
-      clearInterval(_clearState.countdownTimer);
+      clearInterval(_clearState.countdownTimer ?? undefined);
       _clearState.pending = false;
-      btn.textContent = 'Clear all entries';
-      btn.classList.remove('confirming');
+      if (btn) { btn.textContent = 'Clear all entries'; btn.classList.remove('confirming'); }
     }, 3000);
     return;
   }
-  clearTimeout(_clearState.timer);
-  clearInterval(_clearState.countdownTimer);
+  clearTimeout(_clearState.timer ?? undefined);
+  clearInterval(_clearState.countdownTimer ?? undefined);
   _clearState.pending = false;
-  btn.textContent = 'Clear all entries';
-  btn.classList.remove('confirming');
+  if (btn) { btn.textContent = 'Clear all entries'; btn.classList.remove('confirming'); }
   const pNum = currentPeriodNum();
   lsDel(periodKey(pNum));
   lsDel(snapKey(pNum));
   writeFormData(emptyPeriodData());
   // Apply the period-specific pension default (pro-rated for joining periods, rate-cut-over
   // aware) — writeFormData no longer does this when d.pension is null.
-  const _clearP = getPeriods().find(x => x.num === currentPeriodNum());
+  const _clearP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   if (_clearP) {
     const _pa = /** @type {HTMLInputElement | null} */ (document.getElementById('pensionAmt'));
     if (_pa) _pa.value = (getPensionDefault(_clearP) * getProRateFactor(_clearP)).toFixed(2);
@@ -532,21 +557,32 @@ function clearPeriod() {
 // Cached output of the last bdBody render — avoids the parse+layout cost of
 // innerHTML when the rendered string is identical. Summary has two write paths
 // (estimated + Miller actual override) so it is not cached.
+/** @type {string | null} */
 let _lastBdBodyHtml = null;
 
 // ── CALCULATION ENGINE ────────────────────────────────────────────────────────
+/** @param {number} rate */
 function updateBadges(rate) {
+  /** @type {function(number, any): string} */
   const f = (r, mult) => `${mult}×  ·  £${(rate * r).toFixed(2)}/hr`;
-  document.getElementById('badge-sat').textContent = f(RATE_125, '1.25');
-  document.getElementById('badge-bh').textContent   = f(RATE_125, '1.25');
-  document.getElementById('badge-bhot').textContent = f(RATE_125, '1.25');
-  document.getElementById('badge-ot').textContent   = f(RATE_125, '1.25');
-  document.getElementById('badge-rdw').textContent = f(RATE_125, '1.25');
-  document.getElementById('badge-sun').textContent = f(RATE_150, '1.5');
-  document.getElementById('badge-box').textContent = f(RATE_300, '3');
+  /** @type {HTMLElement} */ (document.getElementById('badge-sat')).textContent = f(RATE_125, '1.25');
+  /** @type {HTMLElement} */ (document.getElementById('badge-bh')).textContent   = f(RATE_125, '1.25');
+  /** @type {HTMLElement} */ (document.getElementById('badge-bhot')).textContent = f(RATE_125, '1.25');
+  /** @type {HTMLElement} */ (document.getElementById('badge-ot')).textContent   = f(RATE_125, '1.25');
+  /** @type {HTMLElement} */ (document.getElementById('badge-rdw')).textContent = f(RATE_125, '1.25');
+  /** @type {HTMLElement} */ (document.getElementById('badge-sun')).textContent = f(RATE_150, '1.5');
+  /** @type {HTMLElement} */ (document.getElementById('badge-box')).textContent = f(RATE_300, '3');
 }
 
-/** Render the proportional pay breakdown bar and legend above the summary rows. */
+/**
+ * Render the proportional pay breakdown bar and legend above the summary rows.
+ * @param {number} gross
+ * @param {number} pension
+ * @param {number} tax
+ * @param {number} ni
+ * @param {number} sl
+ * @param {number} net
+ */
 function updateBreakBar(gross, pension, tax, ni, sl, net) {
   const bar    = document.getElementById('payBreakBar');
   const legend = document.getElementById('payBreakLegend');
@@ -558,8 +594,8 @@ function updateBreakBar(gross, pension, tax, ni, sl, net) {
   bar.classList.add('pbb-visible');
   legend.classList.add('pbb-visible');
 
-  const pct = v => ((v / gross) * 100).toFixed(2);
-  const fmtPct = v => `${((v / gross) * 100).toFixed(0)}%`;
+  const pct = /** @param {number} v */ v => ((v / gross) * 100).toFixed(2);
+  const fmtPct = /** @param {number} v */ v => `${((v / gross) * 100).toFixed(0)}%`;
 
   const segs = [
     { id: 'pbbPension', cls: 'pbb-pension', val: pension, label: 'Pension', legendId: 'pblPension', dotCls: 'pbl-dot pbb-pension' },
@@ -580,7 +616,7 @@ function updateBreakBar(gross, pension, tax, ni, sl, net) {
 function calculate() {
   // Resolve thresholds for the selected period's tax year
   const _pNum   = currentPeriodNum();
-  const _curP   = getPeriods().find(x => x.num === _pNum);
+  const _curP   = getPeriods().find(/** @param {any} x */ x => x.num === _pNum);
   if (!_curP) return;
   const _ty     = _curP ? getTaxYearForOffset(_curP.num - 48) : CONFIG.TAX_YEARS[0];
   const thresholds = getThresholds(_ty.label);
@@ -603,7 +639,7 @@ function calculate() {
   const r125 = rate * RATE_125;
   const r150 = rate * RATE_150;
   const r300 = rate * RATE_300;
-  const peer = +document.getElementById('peerVal').textContent;
+  const peer = +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent;
 
   const satHrs  = hhmmDec('satH',  'satM');
   // Guard: only count BH/Boxing hours if this period actually contains those days.
@@ -671,7 +707,7 @@ function calculate() {
 
   const plan   = /** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value;
   const slSkip = /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked;
-  document.getElementById('slSkipRow').classList.toggle('hidden', plan === 'none');
+  /** @type {HTMLElement} */ (document.getElementById('slSkipRow')).classList.toggle('hidden', plan === 'none');
   const sl = computeSL(sacGross, plan, thresholds.sl, slSkip);
 
   const net = sacGross - tax - ni - sl;
@@ -679,12 +715,12 @@ function calculate() {
   updateBreakBar(grossWithBp, pension, tax, ni, sl, net);
 
   // UI
-  document.getElementById('netDisplay').textContent = fmt(net);
-  document.getElementById('pensionRef').textContent = pension.toFixed(2);
-  document.getElementById('payslipNote').style.display = 'block';
-  document.getElementById('absenceCaveat').style.display = 'block';
+  /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(net);
+  /** @type {HTMLElement} */ (document.getElementById('pensionRef')).textContent = pension.toFixed(2);
+  /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display = 'block';
+  /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'block';
 
-  document.getElementById('summary').innerHTML = `
+  /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
     ${(_bpThisPeriod > 0 || _hppForPeriod > 0)
       ? `<div class="sum-row"><span class="lbl">Regular pay</span><span class="val">${fmt(gross)}</span></div>
          ${_bpThisPeriod > 0 ? `<div class="sum-row sum-bp"><span class="lbl">Back pay lump sum (pay award)</span><span class="val">+${fmt(_bpThisPeriod)}</span></div>` : ''}
@@ -699,7 +735,7 @@ function calculate() {
     <div class="sum-row sum-net"><span class="lbl">Estimated take-home pay${_bpThisPeriod > 0 && _hppForPeriod > 0 ? ' (inc. back pay & HPP)' : _bpThisPeriod > 0 ? ' (inc. back pay)' : _hppForPeriod > 0 ? ' (inc. HPP)' : ''}</span><span class="val">${fmt(net)}</span></div>
   `;
 
-  const fh = h => {
+  const fh = /** @param {number} h */ h => {
     const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
     return mm > 0 ? `${hh}h ${mm}m` : `${hh}h`;
   };
@@ -733,7 +769,7 @@ function calculate() {
   if (_hppForPeriod > 0)
     bd += `<div class="bd-row bd-extra"><span class="b-lbl">Holiday Pay Premium${_hppIsEstimate ? ' (estimated)' : ''}</span><span class="b-val">+${fmt(_hppForPeriod)}</span></div>`;
   if (bd !== _lastBdBodyHtml) {
-    document.getElementById('bdBody').innerHTML = bd;
+    /** @type {HTMLElement} */ (document.getElementById('bdBody')).innerHTML = bd;
     _lastBdBodyHtml = bd;
   }
 
@@ -743,15 +779,15 @@ function calculate() {
   // section below still shows the estimate so the comparison is visible.
   const _actualKey  = _curP ? formatISO(_curP.payday) : null;
   const _actual     = _actualKey && getLoggedMember()?.name === 'G. Miller'
-    ? MILLER_ACTUALS[_actualKey] : null;
+    ? (/** @type {Record<string,any>} */ (MILLER_ACTUALS))[_actualKey] : null;
   const _netLabel   = document.getElementById('netLabel');
 
   if (_actual) {
     if (_netLabel) _netLabel.textContent = '✅ Your Actual Take-Home Pay';
-    document.getElementById('netDisplay').textContent = fmt(_actual.net);
-    document.getElementById('payslipNote').style.display   = 'none';
-    document.getElementById('absenceCaveat').style.display = 'none';
-    document.getElementById('summary').innerHTML = `
+    /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(_actual.net);
+    /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display   = 'none';
+    /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'none';
+    /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
       <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>
       <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(_actual.tax)}</span></div>
       <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(_actual.ni)}</span></div>
@@ -761,7 +797,7 @@ function calculate() {
         <span class="lbl">Calculator estimate</span><span class="val">${fmt(net)}</span>
       </div>
     `;
-    document.getElementById('bdBtn').innerHTML =
+    /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
       `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
     const _peekBtn = document.getElementById('resultPeekBtn');
     if (_peekBtn) _peekBtn.textContent = `↑ Actual take-home: ${fmt(_actual.net)}`;
@@ -788,7 +824,7 @@ function calculate() {
     if (_stickyLbl) _stickyLbl.textContent = _suffix
         ? `💷 Estimated take-home (${_suffix})`
         : '💷 Estimated take-home';
-    document.getElementById('bdBtn').innerHTML =
+    /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
       `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
   }
 
@@ -807,7 +843,7 @@ function calculate() {
         _bpLink.type = 'button';
         _bpLink.textContent = 'view back pay card';
         _bpLink.addEventListener('click', () => {
-          document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth' });
+          /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth' });
         });
         _bannerEl.appendChild(_bpLink);
       }
@@ -827,6 +863,7 @@ function calculate() {
 // prefillBackPay, calcBackPay, _bpAwardTaxYear imported from paycalc-backpay.js.
 // calcBackPay() returns { bpAmount, bpVarAmount, bpPNum } — this wrapper
 // compares against coordinator state and calls calculate() if changed.
+/** @param {{ bpAmount: any, bpVarAmount: any, bpPNum: any }} _ */
 function _applyBpState({ bpAmount, bpVarAmount, bpPNum }) {
   if (bpPNum !== _bpPNum ||
       Math.abs(bpAmount    - _bpAmount)    > 0.001 ||
@@ -840,9 +877,9 @@ function _applyBpState({ bpAmount, bpVarAmount, bpPNum }) {
 function _runCalcBackPay() { _applyBpState(calcBackPay()); }
 
 function toggleBpBreakdown() {
-  const btn  = document.getElementById('bpBreakdownBtn');
+  const btn  = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
   const open = btn.classList.toggle('open');
-  document.getElementById('backPayRows').classList.toggle('open', open);
+  /** @type {HTMLElement} */ (document.getElementById('backPayRows')).classList.toggle('open', open);
   btn.setAttribute('aria-expanded', String(open));
 }
 
@@ -854,6 +891,7 @@ function applyNewRate() {
   // silently corrupting last year's rate if an old period happens to be open.
   const fromPNum = +(/** @type {HTMLInputElement | null} */ (document.getElementById('backPayFrom'))?.value || 0);
   const awardTy  = _bpAwardTaxYear(fromPNum);
+  /** @type {Record<string,any>} */
   let rates = {};
   try { rates = JSON.parse(lsGet(SK.rates) || '{}'); } catch(_e) { console.warn('[PayCalc] Rates store corrupted, resetting'); }
   rates[awardTy.label] = newRate;
@@ -861,7 +899,7 @@ function applyNewRate() {
   lsSet(SK.rate,  newRate.toFixed(2)); // legacy single-rate fallback for years with no stored rate
   // Refresh the rate field for the tax year being viewed (it may be a different
   // year, in which case its rate is correctly left unchanged).
-  const curP  = getPeriods().find(x => x.num === currentPeriodNum());
+  const curP  = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
   const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   updateRateForPeriod(curTy);
   calculate();
@@ -875,48 +913,49 @@ function applyNewRate() {
 // ── HPP FORMULA NOTE TOGGLE ───────────────────────────────────────────────────
 // ── HOURS SHOW MORE TOGGLE ────────────────────────────────────────────────────
 function toggleHoursExtra() {
-  const btn  = document.getElementById('hoursShowMore');
-  const body = document.getElementById('hoursExtra');
+  const btn  = /** @type {HTMLElement} */ (document.getElementById('hoursShowMore'));
+  const body = /** @type {HTMLElement} */ (document.getElementById('hoursExtra'));
   const open = body.classList.toggle('open');
   btn.classList.toggle('open', open);
   btn.setAttribute('aria-expanded', String(open));
-  btn.querySelector('.show-more-arrow').textContent = open ? '▲' : '▼';
-  document.getElementById('hoursShowMoreLabel').textContent = open
+  /** @type {HTMLElement} */ (btn.querySelector('.show-more-arrow')).textContent = open ? '▲' : '▼';
+  /** @type {HTMLElement} */ (document.getElementById('hoursShowMoreLabel')).textContent = open
     ? 'Hide adjustments'
     : 'Unusual deductions or corrections';
 }
 
 function toggleHppNote() {
-  const btn  = document.getElementById('hppToggleBtn');
-  const body = document.getElementById('hppNoteBody');
+  const btn  = /** @type {HTMLElement} */ (document.getElementById('hppToggleBtn'));
+  const body = /** @type {HTMLElement} */ (document.getElementById('hppNoteBody'));
   const open = body.classList.toggle('open');
   btn.classList.toggle('open', open);
   btn.setAttribute('aria-expanded', String(open));
-  btn.querySelector('.hpp-toggle-arrow').textContent = open ? '▲' : '▼';
-  document.getElementById('hppToggleBtnLabel').textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
+  /** @type {HTMLElement} */ (btn.querySelector('.hpp-toggle-arrow')).textContent = open ? '▲' : '▼';
+  /** @type {HTMLElement} */ (document.getElementById('hppToggleBtnLabel')).textContent = open ? 'Hide calculation details ' : 'How is this calculated? ';
 }
 
 // ── DISCLAIMER TOGGLE ─────────────────────────────────────────────────────────
 function toggleDisclaimer() {
-  const extra  = document.getElementById('disclaimerExtra');
-  const toggle = document.getElementById('disclaimerToggle');
+  const extra  = /** @type {HTMLElement} */ (document.getElementById('disclaimerExtra'));
+  const toggle = /** @type {HTMLElement} */ (document.getElementById('disclaimerToggle'));
   const open   = extra.classList.toggle('open');
   toggle.textContent = open ? 'Less ▲' : 'More ▼';
   toggle.setAttribute('aria-expanded', String(open));
 }
 
 // ── PEER STEPPER ──────────────────────────────────────────────────────────────
+/** @param {number} delta */
 function stepPeer(delta) {
-  const el = document.getElementById('peerVal');
-  el.textContent = String(Math.max(0, Math.min(10, +el.textContent + delta)));
+  const el = /** @type {HTMLElement} */ (document.getElementById('peerVal'));
+  el.textContent = String(Math.max(0, Math.min(10, +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent + delta)));
   autosave();
 }
 
 // ── BREAKDOWN TOGGLE ──────────────────────────────────────────────────────────
 function toggleBD() {
-  const btn  = document.getElementById('bdBtn');
+  const btn  = /** @type {HTMLElement} */ (document.getElementById('bdBtn'));
   const open = btn.classList.toggle('open');
-  document.getElementById('bdBody').classList.toggle('open', open);
+  /** @type {HTMLElement} */ (document.getElementById('bdBody')).classList.toggle('open', open);
   btn.setAttribute('aria-expanded', String(open));
 }
 
@@ -960,49 +999,49 @@ onPeriodChange();
 // ── EVENT LISTENERS (no inline handlers in HTML — roster-app convention) ──────
 
 // Period navigation
-document.getElementById('periodSelect').addEventListener('change', onPeriodChange);
-document.getElementById('prevBtn').addEventListener('click', () => prevPeriod(onPeriodChange));
-document.getElementById('nextBtn').addEventListener('click', () => nextPeriod(onPeriodChange));
-document.getElementById('todayPeriodBtn').addEventListener('click', () => {
+/** @type {HTMLElement} */ (document.getElementById('periodSelect')).addEventListener('change', onPeriodChange);
+/** @type {HTMLElement} */ (document.getElementById('prevBtn')).addEventListener('click', () => prevPeriod(onPeriodChange));
+/** @type {HTMLElement} */ (document.getElementById('nextBtn')).addEventListener('click', () => nextPeriod(onPeriodChange));
+/** @type {HTMLElement} */ (document.getElementById('todayPeriodBtn')).addEventListener('click', () => {
   const sel = document.getElementById('periodSelect');
   _setSelectPeriod(sel, _defaultPeriodNum);
   onPeriodChange();
 });
-document.getElementById('clearBtn').addEventListener('click', clearPeriod);
+/** @type {HTMLElement} */ (document.getElementById('clearBtn')).addEventListener('click', clearPeriod);
 
 // Result breakdown toggle
-document.getElementById('bdBtn').addEventListener('click', toggleBD);
+/** @type {HTMLElement} */ (document.getElementById('bdBtn')).addEventListener('click', toggleBD);
 
 // Roster day list toggle
-document.getElementById('rosterDaysToggle').addEventListener('click', toggleRosterDays);
+/** @type {HTMLElement} */ (document.getElementById('rosterDaysToggle')).addEventListener('click', toggleRosterDays);
 
 // Hours inputs — Saturday (has validation warn)
-document.getElementById('satH').addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
-document.getElementById('satM').addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn'); autosave(); });
+/** @type {HTMLElement} */ (document.getElementById('satH')).addEventListener('input', () => { onHhMm('satH','satM','satWarn'); autosave(); });
+/** @type {HTMLElement} */ (document.getElementById('satM')).addEventListener('input', () => { clampMins('satM'); onHhMm('satH','satM','satWarn'); autosave(); });
 
 // Hours inputs — minutes clamp + autosave
-['bhH','bhOtH','otH','rdwH','sunH','boxH'].forEach(id => {
-  document.getElementById(id).addEventListener('input', autosave);
+['bhH','bhOtH','otH','rdwH','sunH','boxH'].forEach(/** @param {string} id */ id => {
+  /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', autosave);
 });
-['bhM','bhOtM','otM','rdwM','sunM','boxM'].forEach(id => {
-  document.getElementById(id).addEventListener('input', () => { clampMins(id); autosave(); });
+['bhM','bhOtM','otM','rdwM','sunM','boxM'].forEach(/** @param {string} id */ id => {
+  /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', () => { clampMins(id); autosave(); });
 });
 
 // Decimal auto-correction — if someone types "7.5" into an hours field, split it
 // into 7h 30m on blur instead of silently truncating to 7. A live "= 7h 30m"
 // preview shows while typing so the on-blur split is never a silent surprise.
 [['satH','satM'],['bhH','bhM'],['bhOtH','bhOtM'],['otH','otM'],['rdwH','rdwM'],['sunH','sunM'],['boxH','boxM']].forEach(([h,m]) => {
-  document.getElementById(h).addEventListener('input', () => decPreview(h));
-  document.getElementById(h).addEventListener('blur', () => autoDecimalHours(h, m));
+  /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('input', () => decPreview(h));
+  /** @type {HTMLElement} */ (document.getElementById(h)).addEventListener('blur', () => autoDecimalHours(h, m));
 });
 
 // Peer training stepper
-document.getElementById('peerMinus').addEventListener('click', () => stepPeer(-1));
-document.getElementById('peerPlus').addEventListener('click',  () => stepPeer(1));
+/** @type {HTMLElement} */ (document.getElementById('peerMinus')).addEventListener('click', () => stepPeer(-1));
+/** @type {HTMLElement} */ (document.getElementById('peerPlus')).addEventListener('click',  () => stepPeer(1));
 
 // Back-pay inputs
-['oldRate','newRateInput','oldLondon','newLondon'].forEach(id => {
-  document.getElementById(id).addEventListener('input', _runCalcBackPay);
+['oldRate','newRateInput','oldLondon','newLondon'].forEach(/** @param {string} id */ id => {
+  /** @type {HTMLElement} */ (document.getElementById(id)).addEventListener('input', _runCalcBackPay);
 });
 
 // Card collapse toggles — shared initCardCollapse (overlay.js) adds keyboard +
@@ -1012,21 +1051,21 @@ initCardCollapse('settingsToggle',    'settingsBody',    'settingsToggle');
 initCardCollapse('payslipCardToggle', 'payslipCardBody', 'payslipCardToggle');
 initCardCollapse('hppCardToggle',     'hppCardBody',     'hppCardToggle');
 initCardCollapse('backPayCardToggle', 'backPayBody',     'backPayCardToggle',
-  open => { if (open) _applyBpState(prefillBackPay()); });
+  /** @param {any} open */ open => { if (open) _applyBpState(prefillBackPay()); });
 
 // Back-pay inputs + period selectors + apply rate
-document.getElementById('bpBreakdownBtn').addEventListener('click', toggleBpBreakdown);
-document.getElementById('backPayFrom').addEventListener('change', _runCalcBackPay);
-document.getElementById('backPayPeriod').addEventListener('change', _runCalcBackPay);
-document.getElementById('applyRateBtn').addEventListener('click', applyNewRate);
-document.getElementById('saveSettingsBtn').addEventListener('click', () => confirmSettings(calculate));
+/** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn')).addEventListener('click', toggleBpBreakdown);
+/** @type {HTMLElement} */ (document.getElementById('backPayFrom')).addEventListener('change', _runCalcBackPay);
+/** @type {HTMLElement} */ (document.getElementById('backPayPeriod')).addEventListener('change', _runCalcBackPay);
+/** @type {HTMLElement} */ (document.getElementById('applyRateBtn')).addEventListener('click', applyNewRate);
+/** @type {HTMLElement} */ (document.getElementById('saveSettingsBtn')).addEventListener('click', () => confirmSettings(calculate));
 
 // Hours card — show more toggle
-document.getElementById('hoursShowMore').addEventListener('click', toggleHoursExtra);
+/** @type {HTMLElement} */ (document.getElementById('hoursShowMore')).addEventListener('click', toggleHoursExtra);
 
 // Result peek — scrolls result card into view
 document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
-  document.querySelector('.result-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  /** @type {HTMLElement} */ (document.querySelector('.result-card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 // Sticky take-home bar — show when result card is off-screen on mobile
@@ -1063,8 +1102,9 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
   // the field the user is typing into. visualViewport shrinks when the keyboard
   // appears; a >150px drop is a reliable keyboard signal.
   if (window.visualViewport) {
+    const _vv = window.visualViewport;
     let _inputFocused = false;
-    let _baseVVH = window.visualViewport.height;
+    let _baseVVH = _vv.height;
 
     document.addEventListener('focusin', e => {
       _inputFocused = /^(INPUT|TEXTAREA|SELECT)$/.test(/** @type {Element} */ (e.target).tagName);
@@ -1075,12 +1115,12 @@ document.getElementById('resultPeekBtn')?.addEventListener('click', () => {
       stickyBar.classList.remove('keyboard-up');
       // Refresh baseline after keyboard dismissal (orientation may have changed)
       setTimeout(() => {
-        _baseVVH = window.visualViewport.height;
+        _baseVVH = _vv.height;
       }, 300);
     });
 
-    window.visualViewport.addEventListener('resize', () => {
-      const keyboardUp = _inputFocused && (_baseVVH - window.visualViewport.height) > 120;
+    _vv.addEventListener('resize', () => {
+      const keyboardUp = _inputFocused && (_baseVVH - _vv.height) > 120;
       stickyBar.classList.toggle('keyboard-up', keyboardUp);
     }, { passive: true });
   }
@@ -1103,7 +1143,7 @@ if (_fillBtn) _fillBtn.addEventListener('click', () => fillFromRoster(autosave))
 document.getElementById('rosterRows')?.addEventListener('click', e => {
   const _eTarget = /** @type {Element} */ (e.target);
   const catBtn = _eTarget.closest('[data-cat]');
-  if (catBtn) { fillCategoryFromRoster(/** @type {HTMLElement} */ (catBtn).dataset.cat, autosave); return; }
+  if (catBtn) { fillCategoryFromRoster(/** @type {HTMLElement} */ (catBtn).dataset.cat || '', autosave); return; }
   if (_eTarget.closest('[data-action="focus-ot"]')) {
     const el = document.getElementById('otH');
     if (el) { el.focus(); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
@@ -1121,7 +1161,7 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
 // Tax year tab listeners are attached when the tabs are generated (see INIT).
 
 // Settings inputs
-document.getElementById('gradeSelect').addEventListener('change', () => {
+/** @type {HTMLElement} */ (document.getElementById('gradeSelect')).addEventListener('change', () => {
   // Preserve hand-entered values: only replace the rate / pension if they still
   // hold the PREVIOUS grade's default (i.e. the user hasn't customised them).
   // The app explicitly asks staff to enter their exact payslip rate, so tapping
@@ -1129,7 +1169,7 @@ document.getElementById('gradeSelect').addEventListener('change', () => {
   // lsGet(SK.grade) still holds the previous grade until saveSettings() runs.
   const _oldGrade = lsGet(SK.grade);
   const g   = /** @type {HTMLSelectElement} */ (document.getElementById('gradeSelect')).value;
-  const _gP = getPeriods().find(x => x.num === currentPeriodNum());
+  const _gP = getPeriods().find(/** @param {any} x */ x => x.num === currentPeriodNum());
 
   const rateEl = /** @type {HTMLInputElement} */ (document.getElementById('hourlyRate'));
   const _oldRateDefault = (_oldGrade && GRADES[_oldGrade]) ? GRADES[_oldGrade].rate.toFixed(2) : '';
@@ -1146,9 +1186,9 @@ document.getElementById('gradeSelect').addEventListener('change', () => {
   if (_pa && penUntouched) _pa.value = (getPensionDefault(_gP) * getProRateFactor(_gP)).toFixed(2);
   calculate();
 });
-document.getElementById('hourlyRate').addEventListener('input',  () => { saveSettings(); calculate(); });
-document.getElementById('taxCode').addEventListener('input',     () => { saveSettings(); calculate(); });
-document.getElementById('studentLoan').addEventListener('change', () => {
+/** @type {HTMLElement} */ (document.getElementById('hourlyRate')).addEventListener('input',  () => { saveSettings(); calculate(); });
+/** @type {HTMLElement} */ (document.getElementById('taxCode')).addEventListener('input',     () => { saveSettings(); calculate(); });
+/** @type {HTMLElement} */ (document.getElementById('studentLoan')).addEventListener('change', () => {
   if (/** @type {HTMLSelectElement} */ (document.getElementById('studentLoan')).value === 'none') {
     /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked = false;
   }
@@ -1157,11 +1197,11 @@ document.getElementById('studentLoan').addEventListener('change', () => {
 });
 // pensionAmt: save global default AND lock pension to current period immediately.
 // autosave() calls calculate() internally, so no separate calculate() call needed.
-document.getElementById('pensionAmt').addEventListener('input',  () => { saveSettings(); autosave(); });
+/** @type {HTMLElement} */ (document.getElementById('pensionAmt')).addEventListener('input',  () => { saveSettings(); autosave(); });
 
 // Per-period overrides
-document.getElementById('slSkipCheck').addEventListener('change', autosave);
-document.getElementById('otherAdj').addEventListener('input', () => {
+/** @type {HTMLElement} */ (document.getElementById('slSkipCheck')).addEventListener('change', autosave);
+/** @type {HTMLElement} */ (document.getElementById('otherAdj')).addEventListener('input', () => {
   // If the user manually typed a negative number, honour it: set the sign flag
   // and normalise the field to the absolute value so the ± button is authoritative.
   const _adjEl = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
@@ -1191,7 +1231,7 @@ document.getElementById('otherAdj').addEventListener('input', () => {
     updateAdjSign();
     autosave();
   }
-  const btn = document.getElementById('adjSignBtn');
+  const btn = /** @type {HTMLElement} */ (document.getElementById('adjSignBtn'));
   let touchFired = false;
   // passive:false is required so preventDefault() actually suppresses the
   // synthesised click — iOS treats touchend as passive by default.
@@ -1200,13 +1240,13 @@ document.getElementById('otherAdj').addEventListener('input', () => {
 })();
 
 // Payslip card inputs
-document.getElementById('ytdPay').addEventListener('input',    () => { saveSettings(); calculate(); });
-document.getElementById('ytdTax').addEventListener('input',    () => { saveSettings(); calculate(); });
+/** @type {HTMLElement} */ (document.getElementById('ytdPay')).addEventListener('input',    () => { saveSettings(); calculate(); });
+/** @type {HTMLElement} */ (document.getElementById('ytdTax')).addEventListener('input',    () => { saveSettings(); calculate(); });
 
 // Prior year HPP actual — saves to per-year key and refreshes the prior HPP section display
-document.getElementById('priorHppActualInput').addEventListener('input', () => {
+/** @type {HTMLElement} */ (document.getElementById('priorHppActualInput')).addEventListener('input', () => {
   const pNum  = currentPeriodNum();
-  const curP  = getPeriods().find(x => x.num === pNum);
+  const curP  = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const curTy = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
   const tyIdx = CONFIG.TAX_YEARS.findIndex(t => t.label === curTy.label);
   if (tyIdx <= 0) return;
@@ -1221,14 +1261,14 @@ document.getElementById('priorHppActualInput').addEventListener('input', () => {
 });
 
 // HPP formula toggle + disclaimer + back-pay cross-link
-document.getElementById('hppToggleBtn').addEventListener('click', toggleHppNote);
-document.getElementById('disclaimerToggle').addEventListener('click', toggleDisclaimer);
-document.getElementById('hppBackPayLink').addEventListener('click', () => {
+/** @type {HTMLElement} */ (document.getElementById('hppToggleBtn')).addEventListener('click', toggleHppNote);
+/** @type {HTMLElement} */ (document.getElementById('disclaimerToggle')).addEventListener('click', toggleDisclaimer);
+/** @type {HTMLElement} */ (document.getElementById('hppBackPayLink')).addEventListener('click', () => {
   const body = document.getElementById('backPayBody');
   // Route through the header click so initCardCollapse keeps aria-expanded in
   // sync and runs the open-time pre-fill.
-  if (!body.classList.contains('open')) document.getElementById('backPayCardToggle').click();
-  document.getElementById('backPayCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (body && !body.classList.contains('open')) /** @type {HTMLElement} */ (document.getElementById('backPayCardToggle')).click();
+  /** @type {HTMLElement} */ (document.getElementById('backPayCard')).scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
 
 // ── LIGHTBOXES — About, Help, Welcome, YTD notice, Decimal converter ──────────
@@ -1265,7 +1305,7 @@ function stampPaycalcPrintLine() {
   const hdr = document.querySelector('.app-header');
   if (!hdr) return;
   const periodSel = /** @type {HTMLSelectElement | null} */ (document.getElementById('periodSelect'));
-  const p = periodSel ? getPeriods().find(x => x.num === +periodSel.value) : null;
+  const p = periodSel ? getPeriods().find(/** @param {any} x */ x => x.num === +periodSel.value) : null;
   const now = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   const label = p ? `Period P${p.num} · Paid ${fdShort(p.payday)} · Printed ${now}` : `MYB Pay Calculator · Printed ${now}`;
   hdr.setAttribute('data-print-line', label);
@@ -1277,8 +1317,8 @@ const _paycalcMember = getLoggedMember();
 initNavPanel({
     currentPage: 'paycalc',
     memberName:  _paycalcMember?.name || null,
-    isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name),
-    isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name),
+    isAdmin:         ROSTER_CONFIG.ADMIN_NAMES.includes(_paycalcMember?.name ?? ''),
+    isLinksDesigner: ROSTER_CONFIG.LINKS_DESIGNERS.includes(_paycalcMember?.name ?? ''),
     onLogoClick: () => openAboutLightbox?.(),
     onSignOut:   _paycalcMember ? () => {
         clearSession(); // clears localStorage AND signs out Firebase Auth

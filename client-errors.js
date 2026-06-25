@@ -30,17 +30,19 @@ export function isResolvedErrorExpired(rec, now, retentionMs = CLIENT_ERROR_RETE
 }
 
 /** Newest-first comparator on a record's `timestamp` (the time the error occurred). */
-function _byNewest(a, b) {
-    const ms = e => e.timestamp?.toMillis?.() ?? 0;
+function _byNewest(/** @type {any} */ a, /** @type {any} */ b) {
+    const ms = (/** @type {any} */ e) => e.timestamp?.toMillis?.() ?? 0;
     return ms(b) - ms(a);
 }
 
 /**
  * IDs of resolved records that should be pruned (expired past retention from resolution).
+ * @param {any[]} resolved
+ * @param {number} now
  * @returns {string[]}
  */
 export function expiredResolvedIds(resolved, now, retentionMs = CLIENT_ERROR_RETENTION_MS) {
-    return resolved.filter(r => isResolvedErrorExpired(r, now, retentionMs)).map(r => r.id);
+    return resolved.filter((/** @type {any} */ r) => isResolvedErrorExpired(r, now, retentionMs)).map((/** @type {any} */ r) => r.id);
 }
 
 /**
@@ -49,8 +51,8 @@ export function expiredResolvedIds(resolved, now, retentionMs = CLIENT_ERROR_RET
  * (newest-first). Unresolved records are always listed first; within expected
  * operational volume (< 100 unresolved at once), a backlog of resolved records
  * cannot displace them.
- * @param {Array} unresolved
- * @param {Array} resolved
+ * @param {any[]} unresolved
+ * @param {any[]} resolved
  * @param {number} now
  * @param {{retentionMs?: number, resolvedLimit?: number}} [opts]
  */

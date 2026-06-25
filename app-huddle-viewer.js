@@ -27,6 +27,7 @@ import { subscribeToLatestHuddle } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
+/** @type {any} */
 let _huddleData  = null;
 let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
 
@@ -60,8 +61,8 @@ function sanitiseHtml(html) {
 
 /** Wire up the Huddle viewer overlay and start the Firestore subscription. Call once on page load. */
 export function initHuddleViewer() {
-    const viewer = document.getElementById('huddleViewer');
-    const body   = document.getElementById('huddleViewerBody');
+    const viewer = /** @type {HTMLElement} */ (document.getElementById('huddleViewer'));
+    const body   = /** @type {HTMLElement} */ (document.getElementById('huddleViewerBody'));
     const close  = document.getElementById('huddleViewerClose');
 
     // Detect notification tap — SW appends #huddle to the URL so we know to
@@ -72,9 +73,12 @@ export function initHuddleViewer() {
     if (_autoOpen) history.replaceState(null, '', window.location.pathname);
     let _autoOpened = false;
 
+    /** @type {any} */
     let _viewerFocusReturn = null;
     let _viewerOpen = false;  // true from the openViewer call; false from closeViewer call
+    /** @type {any} */
     let _sanitisedUrl  = null;
+    /** @type {any} */
     let _sanitisedHtml = null;
 
     function openViewer() {
@@ -97,6 +101,7 @@ export function initHuddleViewer() {
         _viewerFocusReturn = null;
         dismissOverlay(viewer, { onKey, focusReturn });
     }
+    /** @param {any} e */
     function onKey(e) {
         if (e.key === 'Escape') { closeViewer(); return; }
         trapFocus(viewer, e);
@@ -104,6 +109,7 @@ export function initHuddleViewer() {
 
     // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl
     // so DOMPurify doesn't re-parse the same document on every reopen.
+    /** @param {any} huddle */
     function showInlineHuddle(huddle) {
         if (huddle.storageUrl !== _sanitisedUrl) {
             _sanitisedHtml = sanitiseHtml(huddle.htmlContent);
@@ -111,13 +117,14 @@ export function initHuddleViewer() {
         }
         body.innerHTML = _sanitisedHtml;
         openViewer();
-        close.focus();
+        close?.focus();
     }
 
     if (close) {
         close.addEventListener('click', closeViewer);
     }
 
+    /** @param {any} huddle */
     function _triggerAutoOpen(huddle) {
         _autoOpened = true;
         try {
@@ -164,11 +171,12 @@ export function initHuddleViewer() {
     // Real-time listener — fires from IndexedDB cache on repeat visits (near-instant)
     // then again when the server confirms. Also fires when a new huddle is uploaded,
     // so staff don't need to refresh the page.
+    /** @type {any} */
     let _unsubHuddle = null;
     function startHuddleSubscription() {
         if (_unsubHuddle) _unsubHuddle();
         _unsubHuddle = subscribeToLatestHuddle(
-            (huddle) => {
+            /** @param {any} huddle */ (huddle) => {
                 const prevUrl = _huddleData?.storageUrl;
                 if (!huddle) {
                     _huddleState = 'none';
@@ -186,7 +194,7 @@ export function initHuddleViewer() {
                     }
                 }
             },
-            (err) => {
+            /** @param {any} err */ (err) => {
                 _huddleState = 'error';
                 console.warn('[Huddle] Could not fetch latest huddle:', err);
             }

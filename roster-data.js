@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '13.92';
+export const APP_VERSION = '13.93';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -154,9 +154,9 @@ export const teamMembers = [
  * Count how many UK bank holidays a dispatcher actually worked in a given year,
  * after applying Firestore overrides. Each worked bank holiday earns 1 day in lieu.
  *
- * @param {object} member   — teamMembers entry (must be a Dispatcher)
+ * @param {any}    member   — teamMembers entry (must be a Dispatcher)
  * @param {number} year     — calendar year to check
- * @param {Array}  overrides — flat array of override objects { memberName, date, value, ... }
+ * @param {Array<any>}  overrides — flat array of override objects { memberName, date, value, ... }
  * @returns {number}  count of bank holidays on which the member worked
  */
 function countDispatcherBankHolidaysWorked(member, year, overrides) {
@@ -198,9 +198,9 @@ function countDispatcherBankHolidaysWorked(member, year, overrides) {
  * for every bank holiday on which they worked (after overrides). All other roles
  * return a fixed number regardless of year or overrides.
  *
- * @param {object} member    - teamMembers entry
+ * @param {any}    member    - teamMembers entry
  * @param {number} [year]    - calendar year; defaults to current year
- * @param {Array}  [overrides] - all override objects for this member; defaults to []
+ * @param {Array<any>}  [overrides] - all override objects for this member; defaults to []
  * @returns {number}
  */
 export function getALEntitlement(member, year = new Date().getFullYear(), overrides = []) {
@@ -232,7 +232,7 @@ export const MONTH_ABB   = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Au
 export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const TEAM_GRADES = ['CEA', 'CES', 'Dispatcher'];
 
-// Swipe gesture thresholds — shared by app.js and admin-app.js so tuning
+// Swipe gesture thresholds — shared by calendar-app.js and admin-app.js so tuning
 // in one place applies to both pages.
 export const SWIPE_THRESHOLD = 75;   // Minimum px to count as an intentional swipe
 export const SWIPE_VELOCITY  = 0.4;  // px/ms — fast flick commits even below distance threshold
@@ -272,6 +272,7 @@ export function computeEaster(year) {
 // ============================================
 
 // Compare two dates by calendar day only (ignores time component)
+/** @param {any} date1 @param {any} date2 */
 export function isSameDay(date1, date2) {
     return date1.getDate()     === date2.getDate()  &&
            date1.getMonth()    === date2.getMonth() &&
@@ -290,6 +291,7 @@ export function isSameDay(date1, date2) {
 //   { year: 2023, month: 5, day: 8 }  — King's Coronation extra BH
 //
 // None currently scheduled for 2024–2030. Check gov.uk each autumn.
+/** @type {Array<any>} */
 export const SPECIAL_BANK_HOLIDAYS = [
     // Add future one-off bank holidays here when announced by the government.
 ];
@@ -298,6 +300,7 @@ export const SPECIAL_BANK_HOLIDAYS = [
 // Delegates Easter to computeEaster() — no Computus code is duplicated here.
 // Returns an array of Date objects.
 // Only supports years within CONFIG.MIN_YEAR–CONFIG.MAX_YEAR; returns [] outside that range.
+/** @param {any} year */
 function calculateBankHolidays(year) {
     if (year < CONFIG.MIN_YEAR || year > CONFIG.MAX_YEAR) {
         console.warn(`calculateBankHolidays: year ${year} is outside supported range (${CONFIG.MIN_YEAR}–${CONFIG.MAX_YEAR}). Returning empty list.`);
@@ -368,11 +371,13 @@ function calculateBankHolidays(year) {
 const _bankHolidaysCache = new Map();
 const _bhSetCache = new Map();
 const _easterSundaySetCache = new Map();
+/** @param {any} year */
 export function getBankHolidays(year) {
     if (!_bankHolidaysCache.has(year)) _bankHolidaysCache.set(year, calculateBankHolidays(year));
     return _bankHolidaysCache.get(year);
 }
 
+/** @param {any} year */
 function _getBhSet(year) {
     if (!_bhSetCache.has(year)) {
         _bhSetCache.set(year, new Set(getBankHolidays(year).map(formatISO)));
@@ -380,6 +385,7 @@ function _getBhSet(year) {
     return _bhSetCache.get(year);
 }
 
+/** @param {any} year */
 function _getEasterSundaySet(year) {
     if (!_easterSundaySetCache.has(year)) {
         const s = new Set();
@@ -395,16 +401,19 @@ function _getEasterSundaySet(year) {
     return _easterSundaySetCache.get(year);
 }
 
+/** @param {any} date */
 export function isBankHoliday(date) {
     return _getBhSet(date.getFullYear()).has(formatISO(date));
 }
 
 // Dec 25 only — used for 🎄 decoration
+/** @param {any} date */
 export function isChristmasDay(date) {
     return date.getMonth() === 11 && date.getDate() === 25;
 }
 
 // Easter Sunday (day before Easter Monday) — used for 🐣 decoration
+/** @param {any} date */
 export function isEasterSunday(date) {
     return _getEasterSundaySet(date.getFullYear()).has(formatISO(date));
 }
@@ -414,6 +423,7 @@ export function isEasterSunday(date) {
 const _paydayCache = new Map();
 const _paydaySetCache = new Map();
 const _cutoffSetCache = new Map();
+/** @param {any} year */
 export function getPaydaysAndCutoffs(year) {
     if (year < CONFIG.MIN_YEAR) return { paydays: [], cutoffs: [] };
     if (!_paydayCache.has(year)) {
@@ -460,6 +470,7 @@ export function getPaydaysAndCutoffs(year) {
     return _paydayCache.get(year);
 }
 
+/** @param {any} year */
 function _getPaydaySet(year) {
     if (!_paydaySetCache.has(year)) {
         _paydaySetCache.set(year, new Set(getPaydaysAndCutoffs(year).paydays.map(formatISO)));
@@ -467,6 +478,7 @@ function _getPaydaySet(year) {
     return _paydaySetCache.get(year);
 }
 
+/** @param {any} year */
 function _getCutoffSet(year) {
     if (!_cutoffSetCache.has(year)) {
         _cutoffSetCache.set(year, new Set(getPaydaysAndCutoffs(year).cutoffs.map(formatISO)));
@@ -474,10 +486,12 @@ function _getCutoffSet(year) {
     return _cutoffSetCache.get(year);
 }
 
+/** @param {any} date */
 export function isPayday(date) {
     return _getPaydaySet(date.getFullYear()).has(formatISO(date));
 }
 
+/** @param {any} date */
 export function isCutoffDate(date) {
     return _getCutoffSet(date.getFullYear()).has(formatISO(date));
 }
@@ -488,6 +502,7 @@ export function isCutoffDate(date) {
 // ============================================
 // Returns an array of { icon, title } objects for the given date.
 
+/** @param {any} date @param {any} _dateStr */
 export function getSpecialDayBadges(date, _dateStr) {
     const badges = [];
     if (isBankHoliday(date))   badges.push({ icon: '⭐', title: 'Bank Holiday' });
@@ -518,7 +533,7 @@ export function validateRosterPatterns() {
     for (const [rosterName, roster] of Object.entries(rosters)) {
         for (const [week, days] of Object.entries(roster)) {
             for (const day of DAYS) {
-                const shift = days[day];
+                const shift = /** @type {Record<string, any>} */ (days)[day];
                 if (shift === undefined) {
                     console.error(`validateRosterPatterns: ${rosterName} week ${week} is missing day '${day}'`);
                     errors++;
@@ -586,7 +601,7 @@ export function isNightShift(timeStr) {
  * Shared by the calendar day cells and the Team Week View so both render
  * the same kind for the same shift.
  * @param {string} timeStr  Shift value (e.g. "06:00-14:00")
- * @param {object} [member] Team member — permanentShift is honoured if set
+ * @param {any} [member] Team member — permanentShift is honoured if set
  * @returns {'early'|'late'|'night'}
  */
 export function getShiftKind(timeStr, member) {
@@ -649,9 +664,9 @@ export function getShiftBadge(timeStr) {
  * shallow copy with the matching change's rosterType/currentWeek overlaid.
  * The latest change whose `from` (midnight, inclusive) ≤ date wins, so the
  * `rosterChanges` array must be sorted ascending by `from`.
- * @param {Object} member  teamMembers entry
+ * @param {any} member  teamMembers entry
  * @param {Date}   date
- * @returns {Object}  member, or a copy with effective roster fields
+ * @returns {any}  member, or a copy with effective roster fields
  */
 export function resolveMemberRoster(member, date) {
     if (!member || !member.rosterChanges || !member.rosterChanges.length) return member;
@@ -671,7 +686,7 @@ export function resolveMemberRoster(member, date) {
  * Returns the roster week number (1-based, within the cycle) for a given date and member.
  * Each week runs Sunday–Saturday. Normalises to noon to avoid DST edge cases.
  * @param {Date} date
- * @param {Object} member  teamMembers entry
+ * @param {any} member  teamMembers entry
  * @returns {number}  Week number within the roster cycle
  */
 export function getWeekNumberForDate(date, member) {
@@ -704,10 +719,10 @@ export function getWeekNumberForDate(date, member) {
  * Returns the full roster descriptor for a member.
  * Returns an object with: type, data (the roster map), cycleLength, weekPrefix.
  * admin.html's simple getRosterData can be replaced by `.data` on this result.
- * @param {Object} member  teamMembers entry
+ * @param {any} member  teamMembers entry
  * @param {Date}   [date]  Optional — when supplied, applies any scheduled
  *                         `rosterChanges` so the descriptor matches that date.
- * @returns {{ type: string, data: Object, cycleLength: number, weekPrefix: string }}
+ * @returns {{ type: string, data: any, cycleLength: number, weekPrefix: string }}
  */
 export function getRosterForMember(member, date) {
     if (!member) {
@@ -726,7 +741,7 @@ export function getRosterForMember(member, date) {
 /**
  * Returns the base roster shift for a member on a given date, before any Firestore overrides.
  * Applies the Christmas/Boxing Day RD rule before the roster lookup.
- * @param {Object} member  teamMembers entry
+ * @param {any} member  teamMembers entry
  * @param {Date}   date
  * @returns {string}  Shift value e.g. "RD", "06:00-14:00"
  */
@@ -867,7 +882,7 @@ if (typeof location !== 'undefined' &&
 // ── G. MILLER ACTUAL PAYSLIP DATA ─────────────────────────────────────────────
 // Actual figures from Gareth Miller's 2025/26 payslips, keyed by ISO payday date.
 // gross = post-pension taxable pay (matches "Taxable Pay" line on payslip).
-// Only shown in paycalc.js when 'G. Miller' is the logged-in member.
+// Only shown in paycalc-app.js when 'G. Miller' is the logged-in member.
 export const MILLER_ACTUALS = {
     '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.90, sl: 202.00, net: 3081.35, varPay: 1612.73 },
     '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },

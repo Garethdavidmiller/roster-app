@@ -86,7 +86,7 @@ export async function ensureFirebaseSession(name) {
     // auth.currentUser is null synchronously even when a session exists in
     // IndexedDB. Wait for the first onAuthStateChanged to get the real state.
     const existing = await new Promise(resolve => {
-        const unsub = onAuthStateChanged(auth, user => { unsub(); resolve(user); });
+        const unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => { unsub(); resolve(user); });
     });
     // Only reuse a persisted session when it belongs to the expected user.
     // An anonymous fallback session, or a session for a different member (e.g.
@@ -107,16 +107,18 @@ export async function ensureFirebaseSession(name) {
         await signInWithEmailAndPassword(auth, email, fbPassword);
         return true;
     } catch (e) {
-        firstError = e.code;
-        console.warn('[Auth] signIn failed:', e.code, 'for', email);
-        if (e.code === 'auth/user-not-found') {
+        const _e = /** @type {any} */ (e);
+        firstError = _e.code;
+        console.warn('[Auth] signIn failed:', _e.code, 'for', email);
+        if (_e.code === 'auth/user-not-found') {
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
                 console.warn('[Auth] Created Firebase Auth account for', name);
                 return true;
             } catch (createErr) {
-                console.warn('[Auth] createUser failed:', createErr.code, 'for', email);
-                firstError = createErr.code;
+                const _ce = /** @type {any} */ (createErr);
+                console.warn('[Auth] createUser failed:', _ce.code, 'for', email);
+                firstError = _ce.code;
             }
         }
         // auth/invalid-credential means the account exists with a different password —
@@ -135,8 +137,9 @@ export async function ensureFirebaseSession(name) {
         console.warn('[Auth] Anonymous session established for', name);
         return true;
     } catch (anonErr) {
-        console.error('[Auth] Anonymous sign-in failed:', anonErr.code);
-        /** @type {any} */ (window)._mybAuthError = `${firstError} + anon:${anonErr.code}`;
+        const _ae = /** @type {any} */ (anonErr);
+        console.error('[Auth] Anonymous sign-in failed:', _ae.code);
+        /** @type {any} */ (window)._mybAuthError = `${firstError} + anon:${_ae.code}`;
         return false;
     }
 }
@@ -165,7 +168,10 @@ export function getSession() {
     } catch { return null; }
 }
 
-/** Persist a new session for the named user (30-day absolute expiry, idle clock starts now). */
+/**
+ * Persist a new session for the named user (30-day absolute expiry, idle clock starts now).
+ * @param {string} name
+ */
 export function saveSession(name) {
     const now = Date.now();
     lsSet(AUTH_KEY, JSON.stringify({
@@ -179,5 +185,5 @@ export function saveSession(name) {
 /** Clear the session from localStorage and sign out of Firebase Auth. */
 export function clearSession() {
     lsDel(AUTH_KEY);
-    firebaseSignOut(auth).catch(err => console.warn('[Auth] signOut failed:', err));
+    firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
 }

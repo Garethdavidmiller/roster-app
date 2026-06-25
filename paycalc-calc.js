@@ -1,11 +1,11 @@
 // @ts-check
 // MYB Roster — Pay Calculator core math
 // Pure functions only — no DOM, no Firebase, no browser globals.
-// Imported by paycalc.js (browser) and paycalc.test.mjs (Node test runner).
+// Imported by paycalc-app.js (browser) and paycalc.test.mjs (Node test runner).
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
-// Pay-rate multipliers — used by computeGross and imported by paycalc.js.
+// Pay-rate multipliers — used by computeGross and imported by paycalc-app.js.
 export const RATE_125 = 1.25;
 export const RATE_150 = 1.50;
 export const RATE_300 = 3.00;
@@ -80,6 +80,7 @@ export const SCOTTISH_TAX_BY_YEAR = {
 // Grade contractual data. 2026/27 pay awards not yet confirmed.
 // pensionPre / pensionFrom: pension changed from £154.77 → £147.36 at the May 8 2026 payslip.
 // Periods with payday < pensionFrom use pensionPre; from pensionFrom onwards use pension.
+/** @type {Record<string, any>} */
 export const GRADES = {
   cea: { label: 'CEA — £20.74/hr', rate: 20.74, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) },
   ces: { label: 'CES — £21.81/hr', rate: 21.81, contr: 140, pension: 147.36, pensionPre: 154.77, pensionFrom: new Date(2026, 4, 8) }, // 2026/27 rate TBC
@@ -122,16 +123,16 @@ export function getTaxYearForOffset(offset) {
  * Return threshold objects for a given tax year label.
  * Falls back to 2025/26 with a warning if year not found.
  * @param {string} yearLabel - e.g. '2025/26'
- * @returns {{ tax, scottishTax, ni, sl, londonAllow }}
+ * @returns {{ tax: any, scottishTax: any, ni: any, sl: any, londonAllow: number }}
  */
 export function getThresholds(yearLabel) {
   const ty = TAX_YEARS.find(t => t.label === yearLabel) || TAX_YEARS[0];
-  if (!TAX_BY_YEAR[yearLabel]) console.warn(`[PayCalc] No tax data for ${yearLabel} — using 2025/26 thresholds. Update TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, and SCOTTISH_TAX_BY_YEAR.`);
+  if (!(/** @type {Record<string, any>} */ (TAX_BY_YEAR))[yearLabel]) console.warn(`[PayCalc] No tax data for ${yearLabel} — using 2025/26 thresholds. Update TAX_BY_YEAR, NI_BY_YEAR, SL_BY_YEAR, and SCOTTISH_TAX_BY_YEAR.`);
   return {
-    tax:         TAX_BY_YEAR[yearLabel]          || TAX_BY_YEAR['2025/26'],
-    scottishTax: SCOTTISH_TAX_BY_YEAR[yearLabel] || SCOTTISH_TAX_BY_YEAR['2025/26'],
-    ni:          NI_BY_YEAR[yearLabel]           || NI_BY_YEAR['2025/26'],
-    sl:          SL_BY_YEAR[yearLabel]           || SL_BY_YEAR['2025/26'],
+    tax:         (/** @type {Record<string, any>} */ (TAX_BY_YEAR))[yearLabel]          || TAX_BY_YEAR['2025/26'],
+    scottishTax: (/** @type {Record<string, any>} */ (SCOTTISH_TAX_BY_YEAR))[yearLabel] || SCOTTISH_TAX_BY_YEAR['2025/26'],
+    ni:          (/** @type {Record<string, any>} */ (NI_BY_YEAR))[yearLabel]           || NI_BY_YEAR['2025/26'],
+    sl:          (/** @type {Record<string, any>} */ (SL_BY_YEAR))[yearLabel]           || SL_BY_YEAR['2025/26'],
     londonAllow: ty.londonAllow,
   };
 }
@@ -212,9 +213,9 @@ export function calcProRateFactor(startDate, periodStart, periodCutoff) {
  * @param {number} i.peerDays  - Peer training days (each = 2h at 1×)
  * @param {number} i.otherAdj  - Other adjustment £ (may be negative)
  * @param {number} i.london    - London Allowance £
- * @returns {{ gross, satCapped, normHrs, bhCapped, nonBhNorm,
- *             gBasicNorm, gBasicSat, gBankHol, gBhOt, gOvertime,
- *             gRdw, gSunday, gBoxing, gPeer }}
+ * @returns {{ gross: number, satCapped: number, normHrs: number, bhCapped: number, nonBhNorm: number,
+ *             gBasicNorm: number, gBasicSat: number, gBankHol: number, gBhOt: number, gOvertime: number,
+ *             gRdw: number, gSunday: number, gBoxing: number, gPeer: number }}
  */
 export function computeGross(i) {
   const r125 = i.rate * RATE_125, r150 = i.rate * RATE_150, r300 = i.rate * RATE_300;
@@ -260,7 +261,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
   const isNonCum   = /[WM]1$|X$/.test(rawCode);
   const baseCode   = rawCode.replace(/[WM]1$|X$/, '');
   const isScottish = /^S/.test(baseCode);
-  const TAX = t.tax, SCOT = t.scottishTax;
+  const TAX = /** @type {any} */ (t.tax), SCOT = /** @type {any} */ (t.scottishTax);
 
   function resolvePA() {
     let pa = (isScottish ? SCOT : TAX).pa;
@@ -272,7 +273,7 @@ export function computeTax(sacGross, taxCode, t, { ytdPay = null, ytdTax = null,
     return pa;
   }
 
-  function taxOnAmount(amount, scale) {
+  function taxOnAmount(/** @type {number} */ amount, /** @type {number|null} */ scale) {
     if (baseCode === 'NT') return 0;
     if (baseCode === 'BR' || baseCode === 'SBR') return amount * (isScottish ? SCOT.bands[1].rate : TAX.r20);
     if (baseCode === 'D0' || baseCode === 'SD0') return amount * (isScottish ? SCOT.bands[3].rate : TAX.r40);
@@ -327,7 +328,7 @@ export function computeNI(sacGross, ni) {
  */
 export function computeSL(sacGross, plan, slByYear, skip = false) {
   if (skip || plan === 'none' || !slByYear) return 0;
-  const slPlan = slByYear[plan];
+  const slPlan = (/** @type {Record<string, any>} */ (slByYear))[plan];
   if (!slPlan) return 0;
   return Math.floor(Math.max(0, (sacGross - slPlan.t) * slPlan.r));
 }

@@ -3,7 +3,7 @@
  * notif.js — Shared Web Push notification state + subscribe/unsubscribe logic.
  *
  * Single source of truth for the VAPID key and the push-subscription lifecycle.
- * Imported by nav-panel.js (footer bell), app.js (silent renewal + one-off prompt),
+ * Imported by nav-panel.js (footer bell), calendar-app.js (silent renewal + one-off prompt),
  * and huddle.js (Notifications card enable/disable UI).
  *
  * Public API:
@@ -93,6 +93,7 @@ export async function getNotifState() {
 
     try {
         const reg = await swReady();
+        /** @type {PushSubscription|null} */
         let sub   = await reg.pushManager.getSubscription();
         if (!sub) return 'off-lapsed';
 
@@ -104,7 +105,7 @@ export async function getNotifState() {
         }
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {
-        console.warn('[Notifications] State check failed:', err.message);
+        console.warn('[Notifications] State check failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
     }
 }
@@ -115,7 +116,7 @@ export async function getNotifState() {
  * runs the VAPID-rotation migration. Use this for UI that re-reads state often
  * (e.g. the nav-panel bell repaints on every drawer open) so opening the menu
  * doesn't trigger a Firestore write each time. The migration still runs from
- * app.js on page load via getNotifState().
+ * calendar-app.js on page load via getNotifState().
  * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
 export async function peekNotifState() {
@@ -127,10 +128,11 @@ export async function peekNotifState() {
 
     try {
         const reg = await swReady();
+        /** @type {PushSubscription|null} */
         const sub = await reg.pushManager.getSubscription();
         return sub ? 'on' : 'off-lapsed';
     } catch (err) {
-        console.warn('[Notifications] State peek failed:', err.message);
+        console.warn('[Notifications] State peek failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
     }
 }
@@ -153,7 +155,7 @@ export async function enableNotifications() {
         await subscribe();
         return 'on';
     } catch (err) {
-        console.warn('[Notifications] Enable failed:', err.message);
+        console.warn('[Notifications] Enable failed:', /** @type {any} */ (err).message);
         return 'off-lapsed';
     }
 }
@@ -173,7 +175,7 @@ export async function disableNotifications() {
             await deletePushSubscription(endpoint).catch(() => {});
         }
     } catch (err) {
-        console.warn('[Notifications] Disable failed:', err.message);
+        console.warn('[Notifications] Disable failed:', /** @type {any} */ (err).message);
     }
     return Notification.permission === 'denied' ? 'denied' : 'off-lapsed';
 }

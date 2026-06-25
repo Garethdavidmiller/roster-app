@@ -65,7 +65,7 @@ export async function fetchOverridesForRange(startStr, endStr) {
     );
     const snapshot = await getDocs(q);
     if (snapshot.size >= 1900) console.warn('[Firestore] Override query returned', snapshot.size, 'docs — approaching practical limit. Consider archiving old overrides.');
-    snapshot.forEach(doc => {
+    snapshot.forEach((/** @type {any} */ doc) => {
         const data = doc.data();
         if (!data.memberName || !data.date || !data.value) {
             console.error('[Firestore] Skipping malformed override document:', doc.id, data);
@@ -122,7 +122,7 @@ export async function ensureOverridesCached(year, month, renderFn) {
  * for the given member, after applying roster pattern + Firestore overrides.
  * Used by updateLegend() to show/hide Spare, RDW, AL, and Absent legend items.
  * Result is memoised; cache cleared by fetchOverridesForRange() on new data.
- * @param {object} member
+ * @param {any} member
  * @param {number} year
  * @param {number} month - 0-indexed
  * @returns {Set<string>}

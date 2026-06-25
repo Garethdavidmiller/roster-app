@@ -49,13 +49,13 @@ export function normaliseCustomShift(raw) {
 }
 
 /** Start of a timed shift in minutes since midnight, or null for RD/SPARE. */
-export function startMinutes(shift) {
+export function startMinutes(/** @type {any} */ shift) {
     const m = typeof shift === 'string' && shift.match(/^(\d{2}):(\d{2})-/);
     return m ? (+m[1]) * 60 + (+m[2]) : null;
 }
 
 /** End of a timed shift in minutes since midnight, or null for RD/SPARE. */
-export function endMinutes(shift) {
+export function endMinutes(/** @type {any} */ shift) {
     const m = typeof shift === 'string' && shift.match(/-(\d{2}):(\d{2})$/);
     return m ? (+m[1]) * 60 + (+m[2]) : null;
 }
@@ -66,10 +66,11 @@ export function endMinutes(shift) {
  * @param {number} totalPos
  */
 export function calcCoverage(patterns, totalPos = 28) {
+    /** @type {Record<string, any>} */
     const cov = {};
     for (const d of DAYS) cov[d] = { early: 0, late: 0, spare: 0, night: 0, rd: 0 };
     for (let pos = 1; pos <= totalPos; pos++) {
-        const p = patterns[String(pos)];
+        const p = /** @type {Record<string, any>} */ (patterns)[String(pos)];
         for (const d of DAYS) {
             const type = classifyShift(p ? (p[d] ?? 'RD') : 'RD');
             cov[d][type]++;
@@ -101,7 +102,7 @@ export function calcHourlyCoverage(patterns, totalPos = 28) {
     const out = /** @type {Object.<string,{hours:number[], spare:number}>} */ ({});
     for (const d of DAYS) out[d] = { hours: new Array(24).fill(0), spare: 0 };
     for (let pos = 1; pos <= totalPos; pos++) {
-        const p = patterns[String(pos)];
+        const p = /** @type {Record<string, any>} */ (patterns)[String(pos)];
         if (!p) continue;
         for (const d of DAYS) {
             const s = p[d] ?? 'RD';
@@ -152,11 +153,12 @@ export function calcHourlyCoverage(patterns, totalPos = 28) {
  */
 export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }, lines = 28 }) {
     if (!Array.isArray(slots) || slots.length === 0) return null;
+    const _spare = /** @type {Record<string, any>} */ (spare);
     const classes = ['weekday', 'sat', 'sun'];
     for (const cls of classes) {
-        let total = spare[cls] ?? 0;
+        let total = _spare[cls] ?? 0;
         if (!Number.isInteger(total) || total < 0) return null;
-        for (const s of slots) {
+        for (const s of /** @type {Array<Record<string, any>>} */ (slots)) {
             const n = s[cls] ?? 0;
             if (!Number.isInteger(n) || n < 0) return null;
             if (startMinutes(s.time) === null) return null;
@@ -168,7 +170,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
     // Front-to-back window order: latest start first, earliest last, spare in
     // the middle. A person's position moves front-ward through their week, so
     // they progress earliest → spare → latest across the days they work.
-    const sorted = [...slots].sort((a, b) => startMinutes(b.time) - startMinutes(a.time));
+    const sorted = [.../** @type {Array<Record<string, any>>} */ (slots)].sort((a, b) => /** @type {number} */ (startMinutes(b.time)) - /** @type {number} */ (startMinutes(a.time)));
     const mid = Math.floor(sorted.length / 2);
     const segdefs = [
         ...sorted.slice(0, mid),
@@ -180,6 +182,7 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
     // wheel completes exactly one lap per week (the rotation is seamless).
     const base = Math.floor(lines / 7);
     const rem  = lines - base * 7;
+    /** @type {number[]} */
     const starts = [];
     let acc = 0;
     for (let i = 0; i < 7; i++) {
@@ -187,16 +190,18 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
         acc += base + (i < rem ? 1 : 0);
     }
 
+    /** @type {Record<string, any>} */
     const patterns = {};
     for (let row = 1; row <= lines; row++) {
+        /** @type {Record<string, any>} */
         const p = {};
         DAYS.forEach((d, i) => {
             const cls = dayClass(d);
             const pos = (((row - 1) - starts[i]) % lines + lines) % lines;
             let cum = 0;
             let val = 'RD';
-            for (const seg of segdefs) {
-                const n = ('isSpare' in seg) ? (spare[cls] ?? 0) : (seg[cls] ?? 0);
+            for (const seg of /** @type {Array<Record<string, any>>} */ (segdefs)) {
+                const n = ('isSpare' in seg) ? (_spare[cls] ?? 0) : (seg[cls] ?? 0);
                 if (pos < cum + n) { val = ('isSpare' in seg) ? 'SPARE' : seg.time; break; }
                 cum += n;
             }
@@ -224,8 +229,8 @@ export function generatePatterns({ slots, spare = { weekday: 0, sat: 0, sun: 0 }
  * }}
  */
 export function runDesignChecks(patterns, rotatingLines = 28) {
-    const shiftAt = (w, d) => patterns[String(w)]?.[d] ?? 'RD';
-    const isWorked = s => s !== 'RD' && s !== 'OFF';
+    const shiftAt = (/** @type {any} */ w, /** @type {any} */ d) => /** @type {Record<string, any>} */ (patterns)[String(w)]?.[d] ?? 'RD';
+    const isWorked = (/** @type {any} */ s) => s !== 'RD' && s !== 'OFF';
 
     // One person's journey through the whole rotation, day by day.
     const seq = [];

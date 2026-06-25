@@ -71,7 +71,7 @@ export function initAboutLightbox({ appLabel = 'MYB Roster', bugLinkId = 'bugRep
     }
 
     const lb = createLightbox({
-        overlay: lightbox, content, closeBtn,
+        overlay: lightbox, content: content ?? undefined, closeBtn: closeBtn ?? undefined,
         onOpen() {
             refreshUpdateStatus();
             refreshBugLink();

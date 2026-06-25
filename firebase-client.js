@@ -42,6 +42,7 @@ const app = initializeApp(firebaseConfig);
  * fail at init time. Wrap the call in try/catch so we fall back to the
  * default memory cache rather than breaking the whole app.
  */
+/** @type {any} */
 let db;
 try {
     db = initializeFirestore(app, { localCache: persistentLocalCache() });
@@ -90,7 +91,7 @@ export const auth = getAuth(app);
 export const authReady = setPersistence(auth, indexedDBLocalPersistence)
     .catch(() => setPersistence(auth, browserLocalPersistence))
     .catch(() => setPersistence(auth, browserSessionPersistence))
-    .catch(err => { console.warn('[Auth] persistence setup failed:', err); });
+    .catch(/** @param {any} err */ err => { console.warn('[Auth] persistence setup failed:', err); });
 
 // Re-export auth operations so callers import from one place.
 export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
@@ -140,6 +141,7 @@ export function nameToEmail(fullName) {
 // ---- Firebase Storage ----
 // Storage SDK is loaded lazily on first call to uploadHuddle().
 // Cached as a module-level promise so concurrent uploads share one fetch.
+/** @type {any} */
 let _storagePromise = null;
 function _getStorageSdk() {
     if (!_storagePromise) {
@@ -182,6 +184,7 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     // and PA-ingest huddles have different URL lifetimes. Both work; the difference is
     // documented so a future unification decision is deliberate.
     const storageUrl = await getDownloadURL(storageRef);
+    /** @type {Record<string, any>} */
     const firestoreDoc = { date, storageUrl, fileType, uploadedAt: serverTimestamp(), uploadedBy };
     if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
     await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
@@ -205,9 +208,9 @@ async function _pruneOldDocs(collectionName, storage, refFn, deleteObject) {
     const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;
     const q = query(collection(db, collectionName), where('date', '<', cutoffStr));
     const snap = await getDocs(q);
-    await Promise.all(snap.docs.map(async d => {
+    await Promise.all(snap.docs.map(/** @param {any} d */ async d => {
         await deleteDoc(doc(db, collectionName, d.id));
-        await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`)).catch(e => console.warn(`[pruneOldDocs] ${collectionName} delete ${d.id}:`, e));
+        await deleteObject(refFn(storage, `${collectionName}/${d.id}.pdf`)).catch(/** @param {any} e */ e => console.warn(`[pruneOldDocs] ${collectionName} delete ${d.id}:`, e));
     }));
 }
 
@@ -241,7 +244,7 @@ export async function uploadCircular(date, file, uploadedBy) {
     } catch (err) {
         if (!isReplace) {
             // New upload only — safe to clean up the orphaned bytes.
-            deleteObject(storageRef).catch(e => console.warn('[uploadCircular] rollback delete failed:', e));
+            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadCircular] rollback delete failed:', e));
         }
         throw err;
     }
@@ -282,7 +285,7 @@ export async function uploadNewsletter(date, file, uploadedBy) {
         });
     } catch (err) {
         if (!isReplace) {
-            deleteObject(storageRef).catch(e => console.warn('[uploadNewsletter] rollback delete failed:', e));
+            deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadNewsletter] rollback delete failed:', e));
         }
         throw err;
     }
@@ -315,7 +318,7 @@ export async function getLatestNewsletter() {
 export function subscribeToLatestHuddle(onData, onError) {
     // Single-field orderBy — Firestore auto-indexes this; no composite index needed.
     const q = query(collection(db, COLLECTIONS.huddles), orderBy('date', 'desc'), limit(1));
-    return onSnapshot(q, (snap) => {
+    return onSnapshot(q, /** @param {any} snap */ (snap) => {
         if (snap.empty) { onData(null); return; }
         const data = snap.docs[0].data();
         if (!data.storageUrl) console.warn('[Huddle] Document missing storageUrl:', snap.docs[0].id);
@@ -342,6 +345,7 @@ async function endpointId(endpoint) {
  * The spread is safe here: VAPID keys are always ≤65 bytes (p256dh) and 16 bytes
  * (auth), so the argument list never risks a stack overflow.
  */
+/** @param {any} buffer */
 function keyToBase64(buffer) {
     return btoa(String.fromCharCode(...new Uint8Array(buffer)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
@@ -420,7 +424,7 @@ export async function deleteStaffContact(memberName) {
  */
 export async function getAllStaffContacts() {
     const snap = await getDocs(collection(db, COLLECTIONS.staffContact));
-    return snap.docs.map(d => d.data());
+    return snap.docs.map(/** @param {any} d */ d => d.data());
 }
 
 // ---- Client Error Reporting ----
@@ -459,8 +463,8 @@ export async function getClientErrors() {
         getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', false), limit(100))),
         getDocs(query(collection(db, COLLECTIONS.clientErrors), where('resolved', '==', true),  limit(200))),
     ]);
-    const unresolved = unresolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-    const resolved   = resolvedSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const unresolved = unresolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
+    const resolved   = resolvedSnap.docs.map(/** @param {any} d */ d => ({ id: d.id, ...d.data() }));
 
     // Best-effort prune of resolved records past the retention window (from resolvedAt).
     for (const id of expiredResolvedIds(resolved, now)) {

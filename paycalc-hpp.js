@@ -19,7 +19,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey } from './paycalc-migrations.js';
 import { formatISO, MILLER_ACTUALS, parseSmartFloat } from './roster-data.js';
 
-const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const fmt = (/** @type {number} */ n) => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ const fmt = n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
  * True when a period-data object has no hours or special flags entered.
  * Exported so coordinator (updateSaveStatus) and paycalc-backpay.js can import it.
  */
-export function isDataEmpty(d) {
+export function isDataEmpty(/** @type {any} */ d) {
   return !d.satH && !d.satM &&
          !d.bhH  && !d.bhM  &&
          !d.bhOtH && !d.bhOtM &&
@@ -45,8 +45,8 @@ export function isDataEmpty(d) {
  * Decode stored hour fields from a period data object into decimal totals.
  * Guards BH/Boxing fields against periods that don't contain those days.
  * Exported for paycalc-backpay.js.
- * @param {object} p - Period object.
- * @param {object} d - Saved period data from localStorage.
+ * @param {any} p - Period object.
+ * @param {any} d - Saved period data from localStorage.
  */
 export function _decodeHours(p, d) {
   return {
@@ -69,8 +69,8 @@ export function _decodeHours(p, d) {
  * Used by calcHPP, updatePriorHpp, and paycalc-backpay.js.
  * Variable pay includes: OT, RDW, Sunday, Boxing Day, Saturday uplift, London Allowance.
  * Does NOT include: peer training, basic pay, expenses, bonuses.
- * @param {object} p - Period object.
- * @param {object} d - Saved period data.
+ * @param {any} p - Period object.
+ * @param {any} d - Saved period data.
  * @param {number} rate - Hourly rate.
  */
 export function _varPayForPeriod(p, d, rate) {
@@ -109,9 +109,9 @@ export function calcHPP(bpVarAmount, bpPNum) {
   const allPeriods = getPeriods();
 
   const pNum    = currentPeriodNum();
-  const curP    = allPeriods.find(x => x.num === pNum);
+  const curP    = allPeriods.find(/** @param {any} x */ x => x.num === pNum);
   const ty      = curP ? getTaxYearForOffset(curP.num - 48) : CONFIG.TAX_YEARS[0];
-  const periods = allPeriods.filter(p => {
+  const periods = allPeriods.filter(/** @param {any} p */ p => {
     const o = p.num - 48;
     return o >= ty.first && o <= ty.last;
   });
@@ -120,7 +120,7 @@ export function calcHPP(bpVarAmount, bpPNum) {
   let pCount      = 0;
   let usingActuals = false;
 
-  periods.forEach(p => {
+  periods.forEach(/** @param {any} p */ p => {
     try {
       // Variable back pay was earned in past periods but received in bpPNum.
       // Added before the saved-data check so it still counts when the lump-sum
@@ -129,7 +129,7 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
       const _hppActualKey = formatISO(p.payday);
       const _hppActual = getLoggedMember()?.name === 'G. Miller'
-        ? MILLER_ACTUALS[_hppActualKey] : null;
+        ? (/** @type {Record<string, any>} */ (MILLER_ACTUALS))[_hppActualKey] : null;
       if (_hppActual?.varPay != null) {
         totalVar += _hppActual.varPay;
         pCount++;
@@ -159,12 +159,12 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
   if (pCount === 0) {
     if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
-    amountEl.textContent = '£–';
-    basisEl.textContent  = 'Enter hours across your periods above to calculate';
+    if (amountEl) amountEl.textContent = '£–';
+    if (basisEl)  basisEl.textContent  = 'Enter hours across your periods above to calculate';
   } else {
     if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
-    amountEl.textContent = fmt(hpp);
-    basisEl.textContent  = usingActuals
+    if (amountEl) amountEl.textContent = fmt(hpp);
+    if (basisEl)  basisEl.textContent  = usingActuals
       ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
       : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
   }
@@ -183,7 +183,7 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
 /**
  * Update the prior-year HPP section of the HPP card.
- * @param {object} ty - Current tax year object from CONFIG.TAX_YEARS.
+ * @param {any} ty - Current tax year object from CONFIG.TAX_YEARS.
  */
 export function updatePriorHpp(ty) {
   const section = document.getElementById('priorHppSection');
@@ -195,7 +195,7 @@ export function updatePriorHpp(ty) {
     return;
   }
 
-  const priorTy   = CONFIG.TAX_YEARS[tyIdx - 1];
+  const priorTy   = /** @type {any} */ (CONFIG.TAX_YEARS[tyIdx - 1]);
   const estRaw    = lsGet(hppEstKey(priorTy));
   const actualRaw = lsGet(hppActualKey(priorTy));
   let   est       = estRaw    ? parseFloat(estRaw)    : 0;
@@ -204,14 +204,14 @@ export function updatePriorHpp(ty) {
   // If no stored estimate yet, compute on the fly so the prior-year HPP section
   // is populated on first login even before the user has visited a prior-year period.
   if (est === 0 && !actual) {
-    const _priorPeriods = getPeriods().filter(p => {
+    const _priorPeriods = getPeriods().filter(/** @param {any} p */ p => {
       const o = p.num - 48;
       return o >= priorTy.first && o <= priorTy.last;
     });
 
     if (getLoggedMember()?.name === 'G. Miller') {
-      const _priorVar = _priorPeriods.reduce((sum, p) => {
-        const a = MILLER_ACTUALS[formatISO(p.payday)];
+      const _priorVar = _priorPeriods.reduce((/** @type {number} */ sum, /** @type {any} */ p) => {
+        const a = (/** @type {Record<string, any>} */ (MILLER_ACTUALS))[formatISO(p.payday)];
         return a?.varPay != null ? sum + a.varPay : sum;
       }, 0);
       if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
@@ -219,7 +219,7 @@ export function updatePriorHpp(ty) {
       const _hppGrade = getGrade();
       const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
       let _priorVar = 0;
-      _priorPeriods.forEach(p => {
+      _priorPeriods.forEach(/** @param {any} p */ p => {
         try {
           const raw = lsGet(periodKey(p.num));
           if (!raw) return;
@@ -235,35 +235,37 @@ export function updatePriorHpp(ty) {
   }
 
   const pNum = currentPeriodNum();
-  const curP = getPeriods().find(x => x.num === pNum);
+  const curP = getPeriods().find(/** @param {any} x */ x => x.num === pNum);
   const isJanPayday = curP &&
     curP.payday.getFullYear() === priorTy.hppPaidJan &&
     curP.payday.getMonth() === 0;
 
-  document.getElementById('priorHppTitle').textContent      = `${priorTy.label} Holiday Pay Premium`;
-  document.getElementById('currentHppTitle').textContent    = `This year (${ty.label})`;
+  const priorHppTitleEl    = document.getElementById('priorHppTitle');
+  const currentHppTitleEl  = document.getElementById('currentHppTitle');
+  if (priorHppTitleEl)   priorHppTitleEl.textContent   = `${priorTy.label} Holiday Pay Premium`;
+  if (currentHppTitleEl) currentHppTitleEl.textContent = `This year (${ty.label})`;
 
   const dueBadge = document.getElementById('priorHppDueBadge');
-  dueBadge.classList.toggle('hidden', !isJanPayday || actual > 0);
+  if (dueBadge) dueBadge.classList.toggle('hidden', !isJanPayday || actual > 0);
 
   const amtLabel = document.getElementById('priorHppAmtLabel');
   const amtEl    = document.getElementById('priorHppAmt');
   const basisEl  = document.getElementById('priorHppBasis');
 
   if (actual > 0) {
-    amtLabel.innerHTML  = `${priorTy.label} HPP <span class="actual-badge">✓ Confirmed</span>`;
-    amtEl.textContent   = fmt(actual);
-    basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
+    if (amtLabel) amtLabel.innerHTML  = `${priorTy.label} HPP <span class="actual-badge">✓ Confirmed</span>`;
+    if (amtEl)    amtEl.textContent   = fmt(actual);
+    if (basisEl)  basisEl.textContent = `Confirmed from your January ${priorTy.hppPaidJan} payslip`;
   } else if (est > 0) {
-    amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : 'Estimated';
-    amtEl.textContent    = fmt(est);
-    basisEl.textContent  = isJanPayday
+    if (amtLabel) amtLabel.textContent = isJanPayday ? 'Expected on this payslip' : 'Estimated';
+    if (amtEl)    amtEl.textContent    = fmt(est);
+    if (basisEl)  basisEl.textContent  = isJanPayday
       ? `Check your January ${priorTy.hppPaidJan} payslip and enter the confirmed amount below`
       : `Estimated from your ${priorTy.label} periods · due January ${priorTy.hppPaidJan}`;
   } else {
-    amtLabel.textContent = 'Estimated';
-    amtEl.textContent    = '£–';
-    basisEl.textContent  = `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
+    if (amtLabel) amtLabel.textContent = 'Estimated';
+    if (amtEl)    amtEl.textContent    = '£–';
+    if (basisEl)  basisEl.textContent  = `No ${priorTy.label} variable pay recorded — check your January ${priorTy.hppPaidJan} payslip`;
   }
 
   const input = document.getElementById('priorHppActualInput');

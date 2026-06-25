@@ -38,8 +38,12 @@ export function initTipsLightbox(cardTips, { getIsAdmin } = {}) {
     const bodyEl   = document.getElementById('tipsLbBody');
     if (!lb || !titleEl || !bodyEl) return;
 
-    const lightbox = createLightbox({ overlay: lb, content, closeBtn });
+    const lightbox = createLightbox({ overlay: lb, content: content ?? undefined, closeBtn: closeBtn ?? undefined });
 
+    /**
+     * @param {any} tips
+     * @param {boolean} isAdmin
+     */
     function render(tips, isAdmin) {
         let html = '';
         for (const section of tips.sections) {
@@ -55,12 +59,13 @@ export function initTipsLightbox(cardTips, { getIsAdmin } = {}) {
         return html;
     }
 
+    /** @param {any} key */
     function openTips(key) {
-        const tips = cardTips[key];
+        const tips = /** @type {Record<string, any>} */ (cardTips)[key];
         if (!tips) return;
-        lb.setAttribute('aria-label', tips.title);
-        titleEl.textContent = tips.title;
-        bodyEl.innerHTML = render(tips, !!getIsAdmin?.());
+        /** @type {HTMLElement} */ (lb).setAttribute('aria-label', tips.title);
+        /** @type {HTMLElement} */ (titleEl).textContent = tips.title;
+        /** @type {HTMLElement} */ (bodyEl).innerHTML = render(tips, !!getIsAdmin?.());
         lightbox.open();
     }
 

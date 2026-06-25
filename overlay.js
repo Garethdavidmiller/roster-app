@@ -3,7 +3,7 @@
  * overlay.js — Shared scroll lock, Android Back button overlay helpers,
  * and card-collapse toggle.
  *
- * Imported by app.js, admin-app.js, paycalc.js, operations-app.js,
+ * Imported by calendar-app.js, admin-app.js, paycalc-app.js, operations-app.js,
  * settings-app.js, links-app.js, and nav-panel.js.
  *
  * Body scroll lock: iOS Safari ignores overflow:hidden on body, so we pin
@@ -33,9 +33,11 @@ export function unlockBodyScroll() {
 }
 
 let _overlayHistoryPushed = false;
+/** @type {Function|null} */
 let _backHandler = null;
 
 /** Push a shallow history entry so Android Back closes the overlay. */
+/** @param {Function} closeHandler */
 export function _pushOverlayState(closeHandler) {
     if (!_overlayHistoryPushed) {
         history.pushState({ mybOverlay: true }, '');
@@ -122,14 +124,16 @@ export function trapFocus(container, e) {
  * @returns {{ open: () => void, close: () => void }}
  */
 export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose }) {
+    /** @type {Element|null} */
     let _focusReturn = null;
 
+    /** @param {KeyboardEvent} e */
     function onKey(e) {
         if (e.key === 'Escape') { close(); return; }
         trapFocus(content ?? overlay, e);
     }
 
-    function open(...args) {
+    function open(/** @type {any[]} */...args) {
         _focusReturn = document.activeElement;
         onOpen?.(...args);
         lockBodyScroll();
@@ -145,7 +149,7 @@ export function createLightbox({ overlay, content, closeBtn, initialFocus, onOpe
 
     function close() {
         onClose?.();
-        dismissOverlay(overlay, { onKey, focusReturn: _focusReturn });
+        dismissOverlay(overlay, { onKey: /** @type {EventListener} */ (onKey), focusReturn: /** @type {HTMLElement|undefined} */ (_focusReturn ?? undefined) });
         _focusReturn = null;
     }
 
@@ -184,9 +188,9 @@ export function initCardCollapse(headerId, bodyId, chevronId, onToggle) {
     if (!header.hasAttribute('aria-controls')) header.setAttribute('aria-controls', bodyId);
 
     function toggle() {
-        const open = body.classList.toggle('open');
+        const open = /** @type {HTMLElement} */ (body).classList.toggle('open');
         if (chevron && chevron !== body) chevron.classList.toggle('open', open);
-        header.setAttribute('aria-expanded', String(open));
+        /** @type {HTMLElement} */ (header).setAttribute('aria-expanded', String(open));
         onToggle?.(open);
     }
 

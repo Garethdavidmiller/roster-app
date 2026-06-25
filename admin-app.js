@@ -51,7 +51,7 @@ function initLoginOverlay() {
     const nameSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('loginName'));
     const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('loginPassword'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('loginSubmit'));
-    const errorEl       = document.getElementById('loginError');
+    const errorEl       = /** @type {HTMLElement} */ (document.getElementById('loginError'));
 
     if (!overlay) return;
     overlay.classList.add('visible');
@@ -70,6 +70,7 @@ function initLoginOverlay() {
     GRADE_ORDER.forEach(g => gradeSelect.appendChild(new Option(g, g)));
 
     // Repopulate name dropdown whenever grade changes
+    /** @param {string} grade */
     function populateNames(grade) {
         nameSelect.innerHTML = '';
         if (!grade) {
@@ -78,7 +79,7 @@ function initLoginOverlay() {
             return;
         }
         nameSelect.appendChild(new Option('— Select your name —', ''));
-        getMembersForGrade(grade).forEach(m => nameSelect.appendChild(new Option(m.name, m.name)));
+        getMembersForGrade(grade).forEach(m => nameSelect.appendChild(new Option((/** @type {any} */ (m)).name, (/** @type {any} */ (m)).name)));
         nameSelect.disabled = false;
     }
 
@@ -158,7 +159,7 @@ function initLoginOverlay() {
         const redirect = new URLSearchParams(location.search).get('redirect');
         // Whitelist redirect values to prevent open-redirect. New redirect targets
         // require an entry here — the pattern catches them at compile time.
-        const REDIRECT_MAP = { paycalc: './paycalc.html' };
+        const REDIRECT_MAP = /** @type {Record<string, string>} */ ({ paycalc: './paycalc.html' });
         if (redirect && REDIRECT_MAP[redirect]) {
             window.location.replace(REDIRECT_MAP[redirect]);
         } else {
@@ -177,6 +178,7 @@ function initLoginOverlay() {
 // Exposed to module scope so the nav-panel drawer logo can open it (the header
 // logo is a back button — see headerIcon handler below). Lifecycle, SW update
 // status, bug link, and print button are the shared about-lightbox.js.
+/** @type {any} */
 let openAboutLightbox = null;
 (function() {
     const about = initAboutLightbox({
@@ -335,9 +337,9 @@ const fieldMember  = /** @type {HTMLSelectElement} */ (document.getElementById('
 const fieldDate    = /** @type {HTMLInputElement} */ (document.getElementById('fieldDate'));
 const prevWeekBtn  = document.getElementById('prevWeekBtn');
 const nextWeekBtn  = document.getElementById('nextWeekBtn');
-const weekGrid     = document.getElementById('weekGrid');
+const weekGrid     = /** @type {HTMLElement} */ (document.getElementById('weekGrid'));
 const saveBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('saveBtn'));
-const formFeedback = document.getElementById('formFeedback');
+const formFeedback = /** @type {HTMLElement} */ (document.getElementById('formFeedback'));
 
 // On desktop, move the member-context-bar into col-side as the first card.
 // This replaces the full-width navy banner with a compact white sidebar card.
@@ -346,22 +348,26 @@ const formFeedback = document.getElementById('formFeedback');
 // Uses a matchMedia listener so layout corrects on resize (not just at load).
 (function syncMemberBarToSidebar() {
     const mq  = window.matchMedia('(min-width: 1024px)');
-    const bar = document.querySelector('.member-context-bar');
-    if (!bar) return;
+    const barEl = document.querySelector('.member-context-bar');
+    if (!barEl) return;
+    const bar = /** @type {Element} */ (barEl);
     const colMain = bar.parentElement;
     const colSide = document.querySelector('.col-side');
     if (!colMain || !colSide) return;
 
+    /** @param {boolean} isDesktop */
     function apply(isDesktop) {
         if (isDesktop) {
-            colSide.insertBefore(bar, colSide.firstChild);
+            const _side = /** @type {Element} */ (colSide);
+            _side.insertBefore(bar, _side.firstChild || null);
         } else {
             // colMain is .container; insert bar after the header, not before it
-            const appHeader = colMain.querySelector('header.app-header');
+            const _main = /** @type {Element} */ (colMain);
+            const appHeader = _main.querySelector('header.app-header');
             if (appHeader) {
                 appHeader.after(bar);
             } else {
-                colMain.insertBefore(bar, colMain.firstChild);
+                _main.insertBefore(bar, _main.firstChild || null);
             }
         }
     }
@@ -375,6 +381,7 @@ const formFeedback = document.getElementById('formFeedback');
 // ============================================
 const roles = [...new Set(teamMembers.filter(m => !m.hidden).map(m => m.role))];
 
+/** @param {any} select */
 function populateMemberDropdown(select) {
     roles.forEach(role => {
         const grp = document.createElement('optgroup');
@@ -390,6 +397,10 @@ populateMemberDropdown(fieldMember);
 
 // iOS Safari silently fails when setting .value on a <select> with <optgroup>s.
 // Iterate options and set .selected directly instead.
+/**
+ * @param {any} sel
+ * @param {any} val
+ */
 function _setSelectValue(sel, val) {
     for (const o of sel.options) if (o.value === val) { o.selected = true; return; }
 }
@@ -452,8 +463,10 @@ window.addEventListener('beforeunload', e => {
 
 // Pending navigation callback — set by confirmNavigate() when unsaved changes
 // exist. Executed if the user taps "Discard and continue" in the banner.
+/** @type {any} */
 let _pendingNavigate = null;
 // Element focus returns to when the unsaved banner is dismissed without navigating.
+/** @type {any} */
 let _bannerReturnFocus = null;
 
 (function initUnsavedBanner() {
@@ -520,7 +533,7 @@ function shiftWeek(delta) {
     if (confirmNavigate(go)) go();
 }
 
-document.getElementById('thisWeekBtn').addEventListener('click', () => {
+/** @type {HTMLElement} */ (document.getElementById('thisWeekBtn')).addEventListener('click', () => {
     const go = () => { fieldDate.value = formatISO(new Date()); lastFieldDate = fieldDate.value; renderWeekGrid(); };
     if (confirmNavigate(go)) go();
 });
@@ -542,11 +555,17 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     const SWIPE_PX  = SWIPE_THRESHOLD;  // shared constant from roster-data.js
     const SWIPE_VEL = SWIPE_VELOCITY;   // shared constant from roster-data.js
 
-    let swipePanelPrev = null, swipePanelNext = null, swipePanelCurrent = null;
+    /** @type {any} */
+    let swipePanelPrev = null;
+    /** @type {any} */
+    let swipePanelNext = null;
+    /** @type {any} */
+    let swipePanelCurrent = null;
     let swipePanelWidth = 0, swipeStartX = 0, swipeStartY = 0, swipeStartTime = 0;
     let swipeListening = false, swipeDragging = false, swipeHapticFired = false, swipeCooldown = false;
 
     // Build a fully-functional adjacent week panel offset off-screen by delta weeks.
+    /** @param {any} delta */
     function buildAdjPanel(delta) {
         const d = new Date(fieldDate.value + 'T12:00:00');
         d.setDate(d.getDate() + delta * 7);
@@ -690,8 +709,8 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
     });
 
     // Button handlers inside IIFE so they share the swipeCooldown closure variable
-    prevWeekBtn.addEventListener('click', () => { if (!swipeCooldown) shiftWeek(-1); });
-    nextWeekBtn.addEventListener('click', () => { if (!swipeCooldown) shiftWeek(+1); });
+    /** @type {HTMLElement} */ (prevWeekBtn).addEventListener('click', () => { if (!swipeCooldown) shiftWeek(-1); });
+    /** @type {HTMLElement} */ (nextWeekBtn).addEventListener('click', () => { if (!swipeCooldown) shiftWeek(+1); });
 })();
 
 // ============================================
@@ -704,12 +723,13 @@ document.getElementById('thisWeekBtn').addEventListener('click', () => {
  * Hidden when no member is selected.
  */
 function updateALBanner() {
-    const banner      = document.getElementById('alBanner');
-    const remEl       = document.getElementById('alBannerRemaining');
-    const takenEl     = document.getElementById('alBannerTaken');
-    const bookedEl    = document.getElementById('alBannerBooked');
-    const entEl       = document.getElementById('alBannerEntitlement');
-    const warnEl      = document.getElementById('alBannerWarn');
+    const banner      = /** @type {HTMLElement} */ (document.getElementById('alBanner'));
+    const remEl       = /** @type {HTMLElement} */ (document.getElementById('alBannerRemaining'));
+    const takenEl     = /** @type {HTMLElement} */ (document.getElementById('alBannerTaken'));
+    const bookedEl    = /** @type {HTMLElement} */ (document.getElementById('alBannerBooked'));
+    const entEl       = /** @type {HTMLElement} */ (document.getElementById('alBannerEntitlement'));
+    const warnEl      = /** @type {HTMLElement} */ (document.getElementById('alBannerWarn'));
+    if (!alMember || !banner) return;
     const memberName  = alMember.value;
 
     if (!memberName) {
@@ -790,7 +810,12 @@ saveBtn.addEventListener('click', async () => {
     // Clear any previous row-level errors
     weekGrid.querySelectorAll('.day-row.row-error').forEach(r => r.classList.remove('row-error'));
 
-    const toSave = [], toDelete = [], errors = [];
+    /** @type {any[]} */
+    const toSave = [];
+    /** @type {any[]} */
+    const toDelete = [];
+    /** @type {any[]} */
+    const errors = [];
 
     /** @type {NodeListOf<HTMLElement>} */ (weekGrid.querySelectorAll('.day-row')).forEach(row => {
         if (!row.dataset.type) {
@@ -801,8 +826,8 @@ saveBtn.addEventListener('click', async () => {
         // Pre-filled rows the user hasn't changed don't need re-saving.
         if (row.classList.contains('prefilled-existing')) return;
 
-        const date    = row.dataset.date;
-        const type    = row.dataset.type;
+        const date    = row.dataset.date || '';
+        const type    = row.dataset.type || '';
 
         // Sundays are uncontracted — AL and sick cannot be saved on a Sunday regardless of how it was set
         if (type === 'annual_leave' && isSunday(date)) {
@@ -853,7 +878,7 @@ saveBtn.addEventListener('click', async () => {
     // Annual leave entitlement warning
     const alInBatch = toSave.filter(e => e.type === 'annual_leave');
     if (alInBatch.length > 0) {
-        const member      = teamMembers.find(m => m.name === memberName);
+        const member      = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
         // Use the year of the AL dates being saved, not the current calendar year
         const yearStr     = alInBatch[0].date.substring(0, 4);
         const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
@@ -904,8 +929,8 @@ document.getElementById('stagedDiscardBtn')?.addEventListener('click', () => {
 
 // ── AL / sick — element handles and display helpers referenced by the member picker below ──
 // Declared here because the fieldMember change handler references them.
-const alMember   = /** @type {HTMLSelectElement|null} */ (document.getElementById('alMember'));
-const sickMember = /** @type {HTMLSelectElement|null} */ (document.getElementById('sickMember'));
+const alMember   = /** @type {HTMLSelectElement} */ (document.getElementById('alMember'));
+const sickMember = /** @type {HTMLSelectElement} */ (document.getElementById('sickMember'));
 function syncMemberDisplay() {
     const memberDisplay = document.getElementById('alMemberDisplay');
     if (memberDisplay) memberDisplay.textContent = fieldMember.value || 'Select a staff member above';
@@ -969,8 +994,8 @@ function handleEdit(e) {
     // closest() makes this work both directly and via delegation on tableBody.
     const btn        = /** @type {HTMLElement} */ (/** @type {Element} */ (e.target).closest('.btn-edit'));
     if (!btn) return;
-    const memberName = btn.dataset.member;
-    const date       = btn.dataset.date;
+    const memberName = btn.dataset.member || '';
+    const date       = btn.dataset.date || '';
     const go = () => {
         _setSelectValue(fieldMember, memberName);
         fieldDate.value   = date;
@@ -978,7 +1003,7 @@ function handleEdit(e) {
         lsSet('adminLastMember', memberName);
         lsSet('myb_roster_selected_member', memberName);
         renderWeekGrid();
-        document.querySelector('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        /** @type {HTMLElement} */ (document.querySelector('.card')).scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     if (confirmNavigate(go)) go();
 }
@@ -1015,8 +1040,8 @@ function showInChangeAShift(memberName, date) {
 // ============================================
 
 
-let _toastTimer = null;
-let _feedbackTimer = null;
+/** @type {any} */ let _toastTimer = null;
+/** @type {any} */ let _feedbackTimer = null;
 /** Shows a success message in the week editor feedback area.  @param {string} msg */
 function showSuccess(msg) {
     clearTimeout(_feedbackTimer);
@@ -1049,13 +1074,13 @@ function hideFeedback() {
 }
 
 // ---- AL over-limit confirm bar ----
-let _alPendingSave   = null;
-let _alPendingDelete = [];
-const alConfirmBar       = document.getElementById('alConfirmBar');
-const alConfirmMsg       = document.getElementById('alConfirmMsg');
-const alConfirmSub       = document.getElementById('alConfirmSub');
-const alConfirmSaveBtn   = document.getElementById('alConfirmSaveBtn');
-const alConfirmCancelBtn = document.getElementById('alConfirmCancelBtn');
+/** @type {any} */ let _alPendingSave   = null;
+/** @type {any[]} */ let _alPendingDelete = [];
+const alConfirmBar       = /** @type {HTMLElement} */ (document.getElementById('alConfirmBar'));
+const alConfirmMsg       = /** @type {HTMLElement} */ (document.getElementById('alConfirmMsg'));
+const alConfirmSub       = /** @type {HTMLElement} */ (document.getElementById('alConfirmSub'));
+const alConfirmSaveBtn   = /** @type {HTMLElement} */ (document.getElementById('alConfirmSaveBtn'));
+const alConfirmCancelBtn = /** @type {HTMLElement} */ (document.getElementById('alConfirmCancelBtn'));
 
 /**
  * Shows the AL over-entitlement confirmation bar with a warning and two options.
@@ -1063,7 +1088,7 @@ const alConfirmCancelBtn = document.getElementById('alConfirmCancelBtn');
  * In the AL booking path, pendingSave is null — the bar re-triggers alSaveBtn.click().
  * @param {string}      msg          Main warning line
  * @param {string}      sub          Secondary detail line
- * @param {Array|null}  pendingSave  toSave batch to resume, or null for AL booking path
+ * @param {any[]|null}  pendingSave  toSave batch to resume, or null for AL booking path
  * @param {string[]}    pendingDelete  IDs to delete in the same batch
  */
 function showALConfirm(msg, sub, pendingSave, pendingDelete = []) {
@@ -1166,7 +1191,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
     } catch (err) {
         console.error('[Admin] Period delete failed:', err);
         if (feedbackEl) {
-            const msg = err.code === 'unavailable'
+            const msg = (/** @type {any} */ (err)).code === 'unavailable'
                 ? '⚠ You appear to be offline — reconnect and try again.'
                 : '⚠ Delete failed — check your connection and try again.';
             feedbackEl.textContent = msg;
@@ -1181,12 +1206,20 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
 
 // ── Shared helpers for AL and sick booked-box rendering ──────────────────────
 
+/**
+ * @param {string} dateStr
+ * @param {number} n
+ */
 function _addDays(dateStr, n) {
     const d = new Date(dateStr + 'T12:00:00');
     d.setDate(d.getDate() + n);
     return formatISO(d);
 }
 
+/**
+ * @param {string} dateStr
+ * @param {any} memberObj
+ */
 function _isRestGap(dateStr, memberObj) {
     if (isSunday(dateStr)) return true; // Sunday — uncontracted
     if (!memberObj) return false;
@@ -1194,11 +1227,16 @@ function _isRestGap(dateStr, memberObj) {
     return isRestShift(shift);
 }
 
+/** @param {string} d */
 function _fmtPeriodDate(d) {
     const dt = new Date(d + 'T12:00:00');
     return `${DAY_NAMES[dt.getDay()]} ${dt.getDate()} ${MONTH_ABB[dt.getMonth()]}`;
 }
 
+/**
+ * @param {string} start
+ * @param {string} end
+ */
 function _fmtPeriodRange(start, end) {
     const ds = new Date(start + 'T12:00:00');
     const de = new Date(end   + 'T12:00:00');
@@ -1257,7 +1295,7 @@ function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countC
     }
     periods.push({ start: periodStart, end: periodEnd, count });
 
-    const byMonth = {};
+    const byMonth = /** @type {Record<string, any[]>} */ ({});
     for (const p of periods) {
         const key = p.start.slice(0, 7);
         (byMonth[key] = byMonth[key] || []).push(p);
@@ -1293,7 +1331,7 @@ function _renderBookedPeriods({ type, memberName, boxId, bodyId, countFn, countC
                     }, 5000);
                     return;
                 }
-                deletePeriodOverrides(type, memberName, p.start, p.end, feedbackEl, btn);
+                deletePeriodOverrides(type, memberName, p.start, p.end, /** @type {HTMLElement} */ (feedbackEl), btn);
             });
             meta.appendChild(btn);
             row.appendChild(meta);
@@ -1441,6 +1479,7 @@ async function purgeSundayAL() {
  * Returns without showing if the check is already done on this device,
  * or if the Firestore fetch fails (never blocks the app).
  * Resolves when the user confirms or saves their email.
+ * @param {any} member
  */
 async function _runEmailCheck(member) {
     if (lsGet(`myb_email_check_done_${member}`)) return;
@@ -1448,23 +1487,24 @@ async function _runEmailCheck(member) {
     let existing = null;
     try { existing = await getStaffContact(member); } catch { return; }
 
-    const overlay     = document.getElementById('emailCheckOverlay');
-    const confirmView = document.getElementById('emailCheckConfirmView');
-    const editView    = document.getElementById('emailCheckEditView');
-    const storedEl    = document.getElementById('emailCheckStoredEmail');
+    const overlayEl   = document.getElementById('emailCheckOverlay');
+    if (!overlayEl) return;
+    const overlay     = /** @type {HTMLElement} */ (overlayEl);
+    const confirmView = /** @type {HTMLElement} */ (document.getElementById('emailCheckConfirmView'));
+    const editView    = /** @type {HTMLElement} */ (document.getElementById('emailCheckEditView'));
+    const storedEl    = /** @type {HTMLElement} */ (document.getElementById('emailCheckStoredEmail'));
     const yesBtn      = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckYesBtn'));
-    const changeBtn   = document.getElementById('emailCheckChangeBtn');
-    const backBtn     = document.getElementById('emailCheckBackBtn');
+    const changeBtn   = /** @type {HTMLElement} */ (document.getElementById('emailCheckChangeBtn'));
+    const backBtn     = /** @type {HTMLElement} */ (document.getElementById('emailCheckBackBtn'));
     const input       = /** @type {HTMLInputElement} */ (document.getElementById('emailCheckInput'));
-    const errorEl     = document.getElementById('emailCheckError');
+    const errorEl     = /** @type {HTMLElement} */ (document.getElementById('emailCheckError'));
     const saveBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('emailCheckSaveBtn'));
-    if (!overlay) return;
 
     // Hide the login overlay from assistive tech when the email check stacks on top.
     const loginOverlay = document.getElementById('loginOverlay');
     loginOverlay?.setAttribute('aria-hidden', 'true');
 
-    return new Promise(resolve => {
+    return /** @type {Promise<void>} */ (new Promise(resolve => {
         function _showConfirm() {
             confirmView.hidden = false;
             editView.hidden = true;
@@ -1472,6 +1512,10 @@ async function _runEmailCheck(member) {
             overlay.setAttribute('aria-label', 'Confirm work email');
         }
 
+        /**
+         * @param {any} prefill
+         * @param {any} showBack
+         */
         function _showEdit(prefill, showBack) {
             editView.hidden = false;
             confirmView.hidden = true;
@@ -1484,7 +1528,7 @@ async function _runEmailCheck(member) {
             lsSet(`myb_email_check_done_${member}`, '1');
             loginOverlay?.removeAttribute('aria-hidden');
             overlay.classList.remove('open');
-            const content = document.getElementById('emailCheckContent');
+            const content = /** @type {HTMLElement} */ (document.getElementById('emailCheckContent'));
             const onEnd = () => {
                 overlay.classList.remove('visible');
                 unlockBodyScroll();
@@ -1557,13 +1601,14 @@ async function _runEmailCheck(member) {
                 saveBtn.focus();
             }
         });
-    });
+    }));
 }
 
 /**
  * Called on every admin page load for an authenticated user.
  * Awaits sessionReady so getStaffContact() doesn't run before authentication
  * is restored (returning-user path re-establishes Firebase Auth asynchronously).
+ * @param {any} member
  */
 async function initEmailCheck(member) {
     await sessionReady;
