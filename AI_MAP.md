@@ -13,9 +13,12 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 |------|----------------|
 | Roster logic, team members, bank holidays, pay periods | `roster-data.js` |
 | Raw roster cycle patterns (weeklyRoster, cesRoster, etc.) | `roster-cycle-data.js` |
-| Calendar UI coordinator — event wiring, AL lightbox, sync chip, initial fetch | `calendar-app.js` |
+| Calendar UI coordinator — event wiring, month navigation, Team Week View, notifications | `calendar-app.js` |
 | Calendar display state — getDisplayMonth/Year, setDisplayMonth/Year, changeDisplay, persistViewedMonth | `calendar-state.js` |
 | Calendar swipe carousel — initSwipeHandler, isSwipeCooldown | `calendar-swipe.js` |
+| Calendar AL lightbox + day-detail lightbox — initCalendarLightboxes | `calendar-al-lightbox.js` |
+| Calendar initial 3-month fetch + sync chip — initInitialFetch | `calendar-initial-fetch.js` |
+| Calendar keyboard nav + hover tooltip — initCalendarKeyboard, initCalendarTooltip | `calendar-keyboard.js` |
 | Calendar override cache — rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth | `calendar-overrides.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
@@ -44,6 +47,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Roster PDF upload, review pipeline, cell state logic | `admin-roster-upload.js` |
 | Roster PDF parsing (Cloud Function) | `functions/index.js` + `functions/roster-parse-helpers.js` |
 | Pay calculator coordinator — calculate(), autosave, HPP, back-pay | `paycalc-app.js` + `paycalc.html` |
+| Pay calculator lightboxes — About, Help, Welcome, YTD notice, decimal converter | `paycalc-lightboxes.js` |
 | Pay calculator period arithmetic, select UI, nav | `paycalc-periods.js` |
 | Pay calculator grade helpers, settings save/load | `paycalc-settings.js` |
 | Roster-assist hint bar UI, fill logic, snap persistence | `paycalc-roster-hint.js` |
@@ -107,6 +111,25 @@ Pointer Events swipe carousel for `index.html` — extracted from `calendar-app.
 - `isSwipeCooldown()` — returns true while a swipe animation is in flight; coordinator uses this to suppress button clicks
 - Adjacent panels built in `pointerdown` (not `pointermove`) to avoid mid-swipe jank; setPointerCapture deferred to `pointermove` (iOS Safari fix)
 - RAF-throttled transform writes; haptic feedback on threshold cross
+
+### `calendar-al-lightbox.js`
+AL lightbox and day-detail lightbox for `index.html` — extracted from `calendar-app.js` at v13.86.
+- `initCalendarLightboxes()` — initialises both lightboxes; returns `{ openDayDetail, closeALLightbox }`
+- AL lightbox fetches the current member's `annual_leave` overrides from Firestore on open, computes taken/booked/remaining against `getALEntitlement()`; Dispatcher breakdown shown when applicable
+- Day-detail lightbox surfaces shift label, extras, and override note on touch devices (mirrors hover tooltip content set by `calendar-renderer.js` as `data-detail-*` attributes)
+- Imports: `overlay.js`, `calendar-member.js`, `calendar-state.js`, `firebase-client.js`, `roster-data.js`
+
+### `calendar-initial-fetch.js`
+Initial 3-month Firestore fetch and sync-chip UI for `index.html` — extracted from `calendar-app.js` at v13.86.
+- `initInitialFetch({ isTeamViewMode, renderCalendar })` — kicks off a 3-month date-range query (prev/cur/next), manages the sync chip state machine (hidden → "↻ Updating…" after 800ms → "⚠ Couldn't update" on 10s timeout), handles retry, and wires the `visibilitychange` guard for iOS background suspension
+- Pre-marks all three months as fetched before awaiting to prevent competing per-month fetches from `ensureOverridesCached()` during the initial load
+- Imports: `calendar-overrides.js`, `roster-data.js`
+
+### `calendar-keyboard.js`
+Keyboard navigation and hover tooltip for `index.html` — extracted from `calendar-app.js` at v13.86.
+- `initCalendarTooltip()` — no-op on touch/pointer-coarse devices; creates a single floating `#calTooltip` div, repositions it on `mousemove`; reads `data-tooltip` set per cell by `buildCalendarContainer()`
+- `initCalendarKeyboard({ navigateToPaycalc, openDayDetail })` — arrow-key cell navigation (roving tabindex), PageUp/Down month jump, Enter/Space cell activation (payday → paycalc, cutoff → paycalc, other → day-detail lightbox)
+- Imports: `calendar-swipe.js` (isSwipeCooldown), `roster-data.js` (getPaydaysAndCutoffs, formatISO)
 
 ### `calendar-overrides.js`
 Firestore override cache for `index.html` — extracted from `calendar-app.js` at v13.82.
@@ -263,9 +286,19 @@ Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
 - HPP card, sticky take-home bar, back-pay card
 - `_bpAmount` / `_bpVarAmount` / `_bpPNum` — back pay state (v10.73): `_bpVarAmount` holds the variable-pay portion (overtime, RDW, Sunday, BH, London Allowance uplifts) so `calcHPP()` can include it in the HPP accumulator for the paid-in period
 - `calcBackPay()` — computes both total and variable portions from saved period data by category; mirrors `_varPayForPeriod()` but applied to `rateDiff` instead of `rate`
-- Imports `HELP_CONTENT` from `paycalc-help.js`; imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `runMigrations` from `paycalc-migrations.js`
+- Imports `SK`, `periodKey`, `hppEstKey`, `hppActualKey`, `runMigrations` from `paycalc-migrations.js`; lightbox lifecycle delegated to `paycalc-lightboxes.js`
 - Period select, prev/next, tax-year tabs: delegated to `paycalc-periods.js`
 - Grade cache, settings save/load, rate/YTD fields: delegated to `paycalc-settings.js`
+
+### `paycalc-lightboxes.js`
+Lightbox and overlay initialisation for `paycalc.html` — extracted from `paycalc-app.js` at v13.86.
+- `initPaycalcLightboxes()` — initialises all five overlays; returns `{ openAboutLightbox }` so the nav-panel drawer logo can open the About panel
+- **About panel** — `initAboutLightbox({ appLabel, getUserName })` with header logo wired as back-to-calendar button
+- **Help lightbox** — `HELP_CONTENT`-driven; opened by any `.help-btn[data-help]` button
+- **Welcome lightbox** — first-visit; gated on `WELCOME_KEY = 'myb_pc_pay_welcome_shown'`; populates grade badge on open; closes and sets flag on dismiss
+- **YTD notice** — shown once after welcome has been dismissed; archives via `archiveNotice()` on close; 90-day expiry gate
+- **Decimal hours converter card** — `initCardCollapse` toggle; converts decimal hours to hr/min text on input
+- Imports: `overlay.js`, `about-lightbox.js`, `paycalc-help.js`, `nav-panel.js`, `ls.js`, `paycalc-calc.js`, `paycalc-migrations.js`, `paycalc-settings.js`
 
 ### `paycalc-periods.js`
 Period arithmetic and select UI for `paycalc.html` (v13.80).

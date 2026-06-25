@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v13.84
+// MYB Roster — Service Worker v13.86
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '13.84';
+const APP_VERSION = '13.86';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -26,6 +26,7 @@ const NETWORK_FIRST_FILES = [
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
     'calendar-app.js', 'calendar-state.js', 'calendar-swipe.js',
     'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
+    'calendar-al-lightbox.js', 'calendar-initial-fetch.js', 'calendar-keyboard.js',
     'app-team-view.js', 'app-override-utils.js', 'app-huddle-viewer.js',
     'admin-app.js', 'huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
@@ -39,7 +40,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-help.js', 'paycalc-migrations.js',
     'paycalc-periods.js', 'paycalc-settings.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-backpay.js',
-    'paycalc-roster-suggestions.js', 'paycalc-guide.html',
+    'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
     'railcard-guide.html',
     'railcard-guide.js', 'guide-print.js', 'guide-shell.css',
@@ -69,6 +70,9 @@ const CORE_ASSETS = [
     "./calendar-overrides.js",
     "./calendar-member.js",
     "./calendar-renderer.js",
+    "./calendar-al-lightbox.js",
+    "./calendar-initial-fetch.js",
+    "./calendar-keyboard.js",
     "./app-team-view.js",
     "./app-override-utils.js",
     "./app-huddle-viewer.js",
@@ -107,6 +111,7 @@ const CORE_ASSETS = [
     "./paycalc-hpp.js",
     "./paycalc-backpay.js",
     "./paycalc-roster-suggestions.js",
+    "./paycalc-lightboxes.js",
 ];
 
 // Reference guides and icons — cached individually so a transient network error
