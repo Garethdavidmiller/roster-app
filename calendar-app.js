@@ -12,7 +12,7 @@
 
 import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } from './roster-data.js';
 import { auth, authReady, signInAnonymously } from './firebase-client.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession } from './session.js';
 import { initTeamView } from './app-team-view.js';
 import { initNavPanel } from './nav-panel.js';
