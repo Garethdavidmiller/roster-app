@@ -57,7 +57,7 @@ export function initHuddleNotifications() {
     const _deniedMsg  = /** @type {HTMLElement} */ (deniedMsg);
 
     // peekNotifState reads state without triggering the VAPID-rotation side effect —
-    // app.js runs the full getNotifState() on load; this page only needs to read.
+    // calendar-app.js runs the full getNotifState() on load; this page only needs to read.
     async function refreshUI() {
         const state = await peekNotifState();
         _enableBtn.style.display  = 'none';

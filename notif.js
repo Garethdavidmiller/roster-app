@@ -3,7 +3,7 @@
  * notif.js — Shared Web Push notification state + subscribe/unsubscribe logic.
  *
  * Single source of truth for the VAPID key and the push-subscription lifecycle.
- * Imported by nav-panel.js (footer bell), app.js (silent renewal + one-off prompt),
+ * Imported by nav-panel.js (footer bell), calendar-app.js (silent renewal + one-off prompt),
  * and huddle.js (Notifications card enable/disable UI).
  *
  * Public API:
@@ -116,7 +116,7 @@ export async function getNotifState() {
  * runs the VAPID-rotation migration. Use this for UI that re-reads state often
  * (e.g. the nav-panel bell repaints on every drawer open) so opening the menu
  * doesn't trigger a Firestore write each time. The migration still runs from
- * app.js on page load via getNotifState().
+ * calendar-app.js on page load via getNotifState().
  * @returns {Promise<'on'|'off-default'|'off-lapsed'|'denied'|'unsupported'>}
  */
 export async function peekNotifState() {

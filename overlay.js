@@ -3,7 +3,7 @@
  * overlay.js — Shared scroll lock, Android Back button overlay helpers,
  * and card-collapse toggle.
  *
- * Imported by app.js, admin-app.js, paycalc.js, operations-app.js,
+ * Imported by calendar-app.js, admin-app.js, paycalc-app.js, operations-app.js,
  * settings-app.js, links-app.js, and nav-panel.js.
  *
  * Body scroll lock: iOS Safari ignores overflow:hidden on body, so we pin

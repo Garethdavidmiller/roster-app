@@ -232,7 +232,7 @@ export const MONTH_ABB   = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Au
 export const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 export const TEAM_GRADES = ['CEA', 'CES', 'Dispatcher'];
 
-// Swipe gesture thresholds — shared by app.js and admin-app.js so tuning
+// Swipe gesture thresholds — shared by calendar-app.js and admin-app.js so tuning
 // in one place applies to both pages.
 export const SWIPE_THRESHOLD = 75;   // Minimum px to count as an intentional swipe
 export const SWIPE_VELOCITY  = 0.4;  // px/ms — fast flick commits even below distance threshold
@@ -882,7 +882,7 @@ if (typeof location !== 'undefined' &&
 // ── G. MILLER ACTUAL PAYSLIP DATA ─────────────────────────────────────────────
 // Actual figures from Gareth Miller's 2025/26 payslips, keyed by ISO payday date.
 // gross = post-pension taxable pay (matches "Taxable Pay" line on payslip).
-// Only shown in paycalc.js when 'G. Miller' is the logged-in member.
+// Only shown in paycalc-app.js when 'G. Miller' is the logged-in member.
 export const MILLER_ACTUALS = {
     '2025-04-11': { gross: 4260.01, tax:  736.80, ni: 239.90, sl: 202.00, net: 3081.35, varPay: 1612.73 },
     '2025-05-09': { gross: 4382.88, tax:  786.00, ni: 242.32, sl: 214.00, net: 3140.56, varPay: 1735.59 },

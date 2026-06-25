@@ -1,11 +1,11 @@
 // @ts-check
 // MYB Roster — Pay Calculator core math
 // Pure functions only — no DOM, no Firebase, no browser globals.
-// Imported by paycalc.js (browser) and paycalc.test.mjs (Node test runner).
+// Imported by paycalc-app.js (browser) and paycalc.test.mjs (Node test runner).
 
 export const P_YR = 13; // 13 four-weekly pay periods per year
 
-// Pay-rate multipliers — used by computeGross and imported by paycalc.js.
+// Pay-rate multipliers — used by computeGross and imported by paycalc-app.js.
 export const RATE_125 = 1.25;
 export const RATE_150 = 1.50;
 export const RATE_300 = 3.00;

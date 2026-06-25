@@ -1,6 +1,6 @@
 // @ts-check
 // Override priority, member-start, and shift-classification helpers.
-// Shared by app.js, app-team-view.js, and the admin modules.
+// Shared by calendar-app.js, app-team-view.js, and the admin modules.
 
 /**
  * Returns true if the shift is a non-working rest day (RD or OFF).

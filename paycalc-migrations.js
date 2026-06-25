@@ -2,7 +2,7 @@
 /**
  * paycalc-migrations.js — localStorage storage keys and data migrations for the Pay Calculator.
  *
- * Exports storage key constants (SK, periodKey, etc.) used by paycalc.js for
+ * Exports storage key constants (SK, periodKey, etc.) used by paycalc-app.js for
  * all per-setting and per-period data. Also exports runMigrations(), called
  * once at startup before loadSettings() to rename legacy keys and patch stale values.
  *

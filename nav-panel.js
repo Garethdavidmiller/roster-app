@@ -4,7 +4,7 @@
  *
  * Injects overlay + drawer HTML into document.body, then wires the burger
  * button (#navMenuBtn). Uses the same history.pushState / popstate pattern
- * as the existing overlay helpers in app.js so Android Back closes the panel.
+ * as the existing overlay helpers in calendar-app.js so Android Back closes the panel.
  *
  * Usage (call once, after DOM is ready — ES modules are deferred by default):
  *   import { initNavPanel } from './nav-panel.js';
@@ -362,7 +362,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     /**
      * Re-read and repaint the bell. No-op when the bell is not rendered.
      * Uses peekNotifState (no side effects) — repainting on every panel open
-     * must not write to Firestore. VAPID rotation runs from app.js on load.
+     * must not write to Firestore. VAPID rotation runs from calendar-app.js on load.
      */
     async function _refreshBell() {
         if (!bell) return;

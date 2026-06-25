@@ -24,7 +24,7 @@ Primarily **manual-entry**. Staff enter hours; calculator computes tax, NI, pens
 | CEA | £20.74/hr | 140/period | £147.36 (from P51 May 8 2026) | £276.16 |
 | CES | £21.81/hr | 140/period | £147.36 (from P51 May 8 2026) | £276.16 |
 
-2026/27 rates: not yet confirmed — update `GRADES` in `paycalc-app.js` when announced.
+2026/27 rates: not yet confirmed — update `GRADES` in `paycalc-calc.js` when announced.
 
 **Members with `startDate`:** for the joining period, `calcProRateFactor` scales contracted hours, London Allowance, pension default, and HPP. All subsequent periods use standard amounts automatically.
 

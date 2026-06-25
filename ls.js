@@ -1,6 +1,6 @@
 // @ts-check
 // Safe localStorage wrappers — iOS Safari private mode throws SecurityError on any access.
-// Imported by app.js, admin-app.js, paycalc.js, settings-app.js, notif.js, session.js, paycalc-migrations.js.
+// Imported by calendar-app.js, admin-app.js, paycalc-app.js, settings-app.js, notif.js, session.js, paycalc-migrations.js.
 let _lsWarnFired = false;
 /** @param {any} err */
 function _warnOnce(err) {

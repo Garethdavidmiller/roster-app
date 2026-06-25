@@ -8,7 +8,7 @@
  *
  * Does NOT own: DOM rendering, form filling, tax/NI/gross calculation.
  * Edit here for: overtime split rules, BH detection, override fetch logic.
- * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc.js).
+ * Do not edit here for: pay maths (paycalc-calc.js), UI wiring (paycalc-app.js).
  */
 
 import { getBaseShift, formatISO, getBankHolidays } from './roster-data.js';
@@ -101,7 +101,7 @@ const _fmtOt = (/** @type {any} */ m) => { const h = Math.floor(m / 60), mm = m 
  *   'base-only' — fetch failed; cache remains empty
  *   'cancelled' — a newer period change superseded this fetch; caller must ignore
  *
- * The caller (paycalc.js) is responsible for updating the UI after the Promise
+ * The caller (paycalc-app.js) is responsible for updating the UI after the Promise
  * resolves. This function intentionally has no DOM access.
  *
  * @param {{ start: Date, cutoff: Date }} p
@@ -113,7 +113,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
   try {
     // Query by date range only, then filter memberName client-side. This avoids the
     // composite (memberName + date) index requirement and matches the pattern used by
-    // app.js fetchOverridesForRange — proven to work across the user base. A 28-day
+    // calendar-app.js fetchOverridesForRange — proven to work across the user base. A 28-day
     // period returns at most a few hundred docs across the whole team, which is well
     // within Firestore's per-query limits and adds negligible bandwidth.
     const q = query(
@@ -127,7 +127,7 @@ export async function fetchOverridesForPeriod(p, memberName) {
     snap.forEach(/** @param {any} doc */ doc => {
       const d = doc.data();
       if (!d.date || d.memberName !== memberName) return;
-      // Priority matches app.js calendar: manual always beats roster_import;
+      // Priority matches calendar-app.js: manual always beats roster_import;
       // within the same class, newer createdAt wins.
       const existing     = map.get(d.date);
       const docTs        = d.createdAt?.toMillis?.() ?? 0;
