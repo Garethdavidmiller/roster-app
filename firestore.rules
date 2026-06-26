@@ -75,7 +75,7 @@ service cloud.firestore {
         // hasOnly prevents clients from writing arbitrary extra fields (e.g. injecting
         // script into htmlContent beyond the 250 KB cap). uploadedAt must be a server
         // timestamp so the display order is authoritative.
-        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
         request.resource.data.date is string &&
         request.resource.data.storageUrl is string &&
         request.resource.data.uploadedAt is timestamp &&

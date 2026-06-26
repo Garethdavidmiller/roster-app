@@ -476,7 +476,7 @@ Server-side Firestore security rules — deployed via `firebase deploy --only fi
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `calendar-app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true`; `hasOnly` enforces no extra fields; `uploadedAt` must be a timestamp; optional `htmlContent` capped at 250 000 chars (v10.83+).
-- `staffContact` read: owner (`request.auth.uid == resource.data.memberName`) or admin; write: owner only + requires `name` JWT claim (set by `setupRosterAuth`) to prevent anonymous writes (v12.68).
+- `staffContact` read: owner (`request.auth.token.name == memberName`, where `memberName` is the document ID) or admin; write: owner only + requires `name` JWT claim (set by `setupRosterAuth`) to prevent anonymous writes (v12.68).
 - `pushSubscriptions` create/update: requires auth (`request.auth != null`) + required fields `endpoint`, `keys.p256dh`, `keys.auth`; delete: owner or admin.
 - `clientErrors` write: any authenticated session; read/update/delete: admin only; shape-validated (v13.31).
 - `circulars` / `newsletters` read: open (no auth — `calendar-app.js` has no session, matches Huddle model); write: admin only (v13.58/v13.59).

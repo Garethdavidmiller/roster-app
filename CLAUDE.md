@@ -185,7 +185,7 @@ roster-app/
 ├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
-├── links.html              ← 28-line link design workspace (visible to CONFIG.LINKS_DESIGNERS only)
+├── links.html              ← link design workspace (28-line rotation designer; visible to CONFIG.LINKS_DESIGNERS only)
 ├── links.css               ← CSS for links.html (grid, paint bar, picker chips, compare, heat map)
 ├── links-app.js            ← coordinator for links.html: multi-design Firestore, grid, paint, compare, generator UI
 ├── links-design.js         ← pure link-design maths: classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns, runDesignChecks, dayClass
@@ -202,7 +202,7 @@ roster-app/
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
-├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
+├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md / RESTART_NOTIFICATIONS.md ← docs
 ├── app.test.mjs            ← tests for app-override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
@@ -230,7 +230,9 @@ roster-app/
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
-│   └── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
+│   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
+│   └── typecheck.mjs             ← `npm run typecheck` — type-checks every root JS module via tsc --noEmit using jsconfig.json
+├── jsconfig.json               ← TypeScript project config for `// @ts-check` coverage; drives `npm run typecheck`
 ├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects
 ├── firestore.rules         ← Firestore security rules (deployed via deploy-rules.yml, gated by firestore.rules.test.mjs; tested by firestore.rules.test.mjs)
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
@@ -244,11 +246,15 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test
-# or individually:
-node --test sw-asset-check.test.mjs import-graph.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs overlay.test.mjs
-node --experimental-vm-modules --test module-parse.test.mjs
-node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs calendar-state.test.mjs calendar-member.test.mjs calendar-overrides.test.mjs calendar-renderer.test.mjs calendar-initial-fetch.test.mjs paycalc-periods.test.mjs paycalc-hpp.test.mjs
+npm test              # test:hygiene + test:parse + test:unit (all ~580 unit tests)
+npm run check         # lint + typecheck + npm test (full pre-push gate)
+npm run lint          # ESLint on all JS files
+npm run typecheck     # tsc --noEmit on all root JS modules
+
+# By test runner (same as npm test, useful for --watch or targeting specific files):
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay
+npm run test:parse    # module-parse (--experimental-vm-modules)
+npm run test:unit     # all --experimental-test-module-mocks tests
 
 # Firestore + Storage security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules

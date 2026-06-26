@@ -357,9 +357,8 @@ and link-design pure maths including generator, coverage, and design checks
 (`links-design.test.mjs`, added v12.40).
 
 Not currently tested: DOM rendering in `calendar-app.js` / `admin-app.js`, the Firestore read/write
-layer in all page modules, nav panel injection and overlay lifecycle (`nav-panel.js`,
-`overlay.js`), session management edge cases (`session.js`), push notification subscribe/
-unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration tests).
+layer in all page modules, push notification subscribe/unsubscribe flow (`notif.js`), and Cloud
+Function HTTP endpoints (no integration tests).
 Before adding new untested behaviour in these modules, consider whether a unit or
 integration test can be added first.
 

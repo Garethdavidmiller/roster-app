@@ -227,7 +227,10 @@ exports.ingestHuddle = onRequest(
             : 'application/pdf';
 
         // ---- Upload to Firebase Storage ----
-        const storagePath = `huddles/${date}.${fileType}`;
+        // Versioned suffix prevents a second upload (different file type) for the same
+        // date from silently orphaning the first file in Storage — each gets its own path.
+        const uploadId    = crypto.randomBytes(4).toString('hex');
+        const storagePath = `huddles/${date}-${uploadId}.${fileType}`;
 
         try {
             const bucket = admin.storage().bucket();
@@ -285,6 +288,7 @@ exports.ingestHuddle = onRequest(
             const firestoreDoc = {
                 date,
                 storageUrl,
+                storagePath,
                 fileType,
                 uploadedAt: admin.firestore.FieldValue.serverTimestamp(),
                 uploadedBy: 'power-automate',
@@ -687,6 +691,10 @@ exports.parseRosterPDF = onRequest(
         const STAFF_NAMES = rosterMembers;
 
         const relevantNames = STAFF_NAMES[rosterType];
+        if (!Array.isArray(relevantNames) || relevantNames.length === 0) {
+            res.status(400).json({ error: `No roster members found for type "${rosterType}" — re-run npm run generate:roster-members` });
+            return;
+        }
 
         // ---- Build the Claude prompt ----
         const namesBlock = relevantNames.map(n => `  - ${n}`).join('\n');

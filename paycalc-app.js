@@ -1210,7 +1210,7 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
   // and normalise the field to the absolute value so the ± button is authoritative.
   const _adjEl = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
   const raw = _adjEl.value;
-  const v   = parseFloat(raw);
+  const v   = parseSmartFloat(raw);
   if (v < 0) {
     _adjNegative = true;
     _adjEl.value = Math.abs(v).toFixed(2);
@@ -1228,7 +1228,7 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
   function toggleAdjSign() {
     _adjNegative = !_adjNegative;
     const input = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
-    const val   = parseFloat(input.value) || 0;
+    const val   = parseSmartFloat(input.value);
     // Only negate the value when it is nonzero — when zero, the button marks
     // intent so the next number typed will be shown as negative.
     if (val !== 0) input.value = Math.abs(val).toFixed(2);
