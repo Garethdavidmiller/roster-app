@@ -238,6 +238,40 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     // Guard against repeated taps while a circular/newsletter Firestore fetch is in flight.
     let _docFetching = false;
 
+    /**
+     * Opens the latest Circular or Newsletter PDF in a new tab.
+     * Opens a blank tab synchronously (same event tick = user gesture) so Safari
+     * doesn't classify the later window.open() inside .then() as a popup.
+     * Falls back to the coming-soon lightbox if no document exists or fetch fails.
+     * @param {HTMLElement} triggerEl
+     * @param {() => Promise<any>} fetchFn
+     */
+    function _openLatestDoc(triggerEl, fetchFn) {
+        if (_docFetching) return;
+        _docFetching = true;
+        const newTab = window.open('', '_blank');
+        if (newTab) newTab.opener = null;
+        fetchFn().then(/** @param {any} data */ data => {
+            if (data?.storageUrl) {
+                if (newTab) {
+                    newTab.location.href = data.storageUrl;
+                } else {
+                    // Popup was blocked — fall back to current-tab navigation.
+                    location.href = data.storageUrl;
+                }
+                closePanelForNavigation();
+            } else {
+                if (newTab) newTab.close();
+                _closePanelVisualOnly();
+                _openComingSoon(triggerEl);
+            }
+        }).catch(() => {
+            if (newTab) newTab.close();
+            _closePanelVisualOnly();
+            _openComingSoon(triggerEl, 'Couldn\'t connect — check your signal and try again.');
+        }).finally(() => { _docFetching = false; });
+    }
+
     // Close panel before navigating so the panel doesn't flash behind the new page.
     // "Coming soon" and "App Notices" links are buttons — close the panel and open
     // their lightboxes instead of navigating.
@@ -249,63 +283,9 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             return;
         }
         const circular = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--circular'));
-        if (circular) {
-            if (_docFetching) return;
-            _docFetching = true;
-            // Open a blank tab synchronously (same event tick = user gesture) so
-            // Safari does not classify the later window.open() inside .then() as a
-            // popup and block it. Clear opener to prevent the opened page from
-            // accessing window.opener on this app.
-            const newTab = window.open('', '_blank');
-            if (newTab) newTab.opener = null;
-            getLatestCircular().then(/** @param {any} data */ data => {
-                if (data?.storageUrl) {
-                    if (newTab) {
-                        newTab.location.href = data.storageUrl;
-                    } else {
-                        // Popup was blocked — fall back to current-tab navigation.
-                        location.href = data.storageUrl;
-                    }
-                    closePanelForNavigation();
-                } else {
-                    if (newTab) newTab.close();
-                    _closePanelVisualOnly();
-                    _openComingSoon(circular);
-                }
-            }).catch(() => {
-                if (newTab) newTab.close();
-                _closePanelVisualOnly();
-                _openComingSoon(circular, 'Couldn\'t connect — check your signal and try again.');
-            }).finally(() => { _docFetching = false; });
-            return;
-        }
+        if (circular) { _openLatestDoc(circular, getLatestCircular); return; }
         const newsletter = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--newsletter'));
-        if (newsletter) {
-            if (_docFetching) return;
-            _docFetching = true;
-            const newTab = window.open('', '_blank');
-            if (newTab) newTab.opener = null;
-            getLatestNewsletter().then(/** @param {any} data */ data => {
-                if (data?.storageUrl) {
-                    if (newTab) {
-                        newTab.location.href = data.storageUrl;
-                    } else {
-                        // Popup was blocked — fall back to current-tab navigation.
-                        location.href = data.storageUrl;
-                    }
-                    closePanelForNavigation();
-                } else {
-                    if (newTab) newTab.close();
-                    _closePanelVisualOnly();
-                    _openComingSoon(newsletter);
-                }
-            }).catch(() => {
-                if (newTab) newTab.close();
-                _closePanelVisualOnly();
-                _openComingSoon(newsletter, 'Couldn\'t connect — check your signal and try again.');
-            }).finally(() => { _docFetching = false; });
-            return;
-        }
+        if (newsletter) { _openLatestDoc(newsletter, getLatestNewsletter); return; }
         if (/** @type {Element} */ (e.target).closest('.nav-panel-link--notices')) {
             _closePanelVisualOnly();
             _openNotices();

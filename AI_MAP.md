@@ -53,6 +53,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Roster-assist hint bar UI, fill logic, snap persistence | `paycalc-roster-hint.js` |
 | Holiday Pay Premium estimator, shared period decode helpers | `paycalc-hpp.js` |
 | Back-pay lump sum calculator | `paycalc-backpay.js` |
+| Shared date/currency formatters (pure) | `paycalc-format.js` |
 | Pay calculator help/tooltip text | `paycalc-help.js` |
 | Pay calculator localStorage keys and data migrations | `paycalc-migrations.js` |
 | Pay maths — tax, NI, gross, thresholds, student loan | `paycalc-calc.js` |
@@ -356,7 +357,13 @@ Back-pay lump sum calculator for `paycalc.html` (v13.81).
 - `_bpAwardTaxYear(fromPNum)` — tax year of the back-pay award (derived from "backdated from" period); exported for coordinator's `applyNewRate()`
 - `prefillBackPay()` — pre-fills card inputs (London Allowance defaults, April selector) when the card opens; returns `calcBackPay()` result for coordinator to consume
 - `calcBackPay()` — calculates lump sum from card inputs, renders results, returns `{ bpAmount, bpVarAmount, bpPNum }`; does NOT mutate coordinator state — caller applies the returned values
-- Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `ls.js`
+- Imports from `paycalc-calc.js`, `paycalc-periods.js`, `paycalc-settings.js`, `paycalc-migrations.js`, `paycalc-hpp.js`, `paycalc-format.js`, `ls.js`
+
+### `paycalc-format.js`
+Pure date/currency formatters shared by `paycalc-app.js` and `paycalc-backpay.js` (v14.06). No DOM, no Firebase.
+- `fd(d)` — formats a Date as "1 Apr '26" (day + short month + 2-digit year, Europe/London)
+- `fdShort(d)` — formats a Date as "1 Apr" (day + short month only)
+- `fmt(n)` — formats a number as a currency string, e.g. "£1,234.56"
 
 ### `paycalc-help.js`
 Pure data module — help/tooltip text for the pay calculator (v11.40).

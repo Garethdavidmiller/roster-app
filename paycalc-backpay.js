@@ -22,10 +22,7 @@ import { getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
 import { lsGet } from './ls.js';
 import { SK, periodKey } from './paycalc-migrations.js';
 import { isDataEmpty, _decodeHours } from './paycalc-hpp.js';
-
-const fd      = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'2-digit', timeZone:'Europe/London' });
-const fdShort = /** @param {any} d */ d => d.toLocaleDateString('en-GB', { day:'numeric', month:'short', timeZone:'Europe/London' });
-const fmt     = /** @param {any} n */ n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+import { fd, fdShort, fmt } from './paycalc-format.js';
 
 // ── TAX YEAR HELPER ───────────────────────────────────────────────────────────
 

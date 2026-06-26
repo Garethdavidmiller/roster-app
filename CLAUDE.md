@@ -175,6 +175,7 @@ roster-app/
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster, fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, renderRosterDayList
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
 ├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear
+├── paycalc-format.js       ← shared date/currency formatters (pure, no DOM): fd, fdShort, fmt. Imported by paycalc-app.js and paycalc-backpay.js.
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.) and runMigrations()
