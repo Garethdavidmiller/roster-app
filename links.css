@@ -313,7 +313,7 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .shift-cell-btn:hover { filter: brightness(0.86); }
 }
-.shift-cell-btn:active { transform: scale(0.96); }
+.shift-cell-btn:active { transform: scale(var(--press-scale)); }
 
 /* Cell background by shift type */
 .shift-cell-btn.type-rd    { background: var(--surface-sunken); color: var(--text-light); }
@@ -458,7 +458,7 @@ body.auth-ready .container { display: grid; }
 @media (hover: hover) and (pointer: fine) {
     .brush-chip:hover { filter: brightness(0.88); }
 }
-.brush-chip:active { transform: scale(0.96); }
+.brush-chip:active { transform: scale(var(--press-scale)); }
 
 /* ---- Design checks card ---- */
 .check-rows { display: flex; flex-direction: column; gap: 8px; }

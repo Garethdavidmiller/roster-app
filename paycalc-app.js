@@ -46,6 +46,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, runMigrations } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
+import { fd, fdShort, fmt } from './paycalc-format.js';
 'use strict';
 
 
@@ -90,14 +91,8 @@ function emptyPeriodData() {
   return { satH:0, satM:0, bhH:0, bhM:0, bhOtH:0, bhOtM:0, otH:0, otM:0, rdwH:0, rdwM:0, sunH:0, sunM:0, boxH:0, boxM:0, peer:0, slSkip:false, otherAdj:0 };
 }
 
-// ── DATE HELPERS ──────────────────────────────────────────────────────────────
-const fd = /** @param {Date} d */ d => d.toLocaleDateString('en-GB', {
-  day:'numeric', month:'short', year:'2-digit', timeZone:'Europe/London'
-});
-const fdShort = /** @param {Date} d */ d => d.toLocaleDateString('en-GB', {
-  day:'numeric', month:'short', timeZone:'Europe/London'
-});
-const fmt = /** @param {number} n */ n => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+// ── DATE/CURRENCY HELPERS — imported from paycalc-format.js ──────────────────
+// fd / fdShort / fmt imported at the top of the file.
 
 // ── INPUT HELPERS ─────────────────────────────────────────────────────────────
 /**
@@ -1210,7 +1205,7 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
   // and normalise the field to the absolute value so the ± button is authoritative.
   const _adjEl = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
   const raw = _adjEl.value;
-  const v   = parseFloat(raw);
+  const v   = parseSmartFloat(raw);
   if (v < 0) {
     _adjNegative = true;
     _adjEl.value = Math.abs(v).toFixed(2);
@@ -1228,7 +1223,7 @@ document.querySelectorAll('#satH,#satM,#bhH,#bhM,#bhOtH,#bhOtM,#otH,#otM,#sunH,#
   function toggleAdjSign() {
     _adjNegative = !_adjNegative;
     const input = /** @type {HTMLInputElement} */ (document.getElementById('otherAdj'));
-    const val   = parseFloat(input.value) || 0;
+    const val   = parseSmartFloat(input.value);
     // Only negate the value when it is nonzero — when zero, the button marks
     // intent so the next number typed will be shown as negative.
     if (val !== 0) input.value = Math.abs(val).toFixed(2);

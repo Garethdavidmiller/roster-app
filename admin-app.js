@@ -1160,13 +1160,25 @@ initSickSection({
  * @param {HTMLButtonElement} btn  The delete button (disabled during the request)
  */
 async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
+    // If another AL/sick override of a different type still covers the same Sunday,
+    // keep its correction doc — only remove corrections for Sundays no longer covered
+    // by any remaining AL/sick override after this delete.
+    const otherType = type === 'annual_leave' ? 'sick' : 'annual_leave';
+    const sundaysStillCovered = new Set(
+        getAllOverrides()
+            .filter(o => o.memberName === memberName && o.date >= start && o.date <= end && o.type === otherType)
+            .map(o => o.date)
+    );
+
     const toDelete = getAllOverrides().filter(o =>
         o.memberName === memberName &&
         o.date       >= start &&
         o.date       <= end &&
         // Also delete Sunday RD correction docs that recordRangeOverrides writes
-        // alongside AL/sick overrides — otherwise the Sunday base shift reappears.
-        (o.type === type || (o.type === 'correction' && o.value === 'RD' && isSunday(o.date)))
+        // alongside AL/sick overrides — but only for Sundays no longer covered by any
+        // other AL/sick override; if both types overlap on the same Sunday, deleting one
+        // must not strip the correction the remaining type still relies on.
+        (o.type === type || (o.type === 'correction' && o.value === 'RD' && isSunday(o.date) && !sundaysStillCovered.has(o.date)))
     );
     if (!toDelete.length) return;
     btn.disabled    = true;

@@ -175,6 +175,7 @@ roster-app/
 ├── paycalc-roster-hint.js  ← roster-assist hint bar UI: updateRosterHint, updateJoinerNotice, toggleRosterDays, fillFromRoster, fillCategoryFromRoster, _applyRosterSuggestion, clearRosterSuggestedAll, _restoreRosterSuggested, snapKey, renderRosterDayList
 ├── paycalc-hpp.js          ← Holiday Pay Premium estimator and shared period helpers: isDataEmpty, _decodeHours, _varPayForPeriod, calcHPP, updatePriorHpp
 ├── paycalc-backpay.js      ← back-pay lump sum calculator: prefillBackPay, calcBackPay, _bpAwardTaxYear
+├── paycalc-format.js       ← shared date/currency formatters (pure, no DOM): fd, fdShort, fmt. Imported by paycalc-app.js and paycalc-backpay.js.
 ├── paycalc-calc.js         ← pure pay maths (no DOM/Firebase): tax, NI, SL, gross, GRADES, TAX_YEARS
 ├── paycalc-help.js         ← HELP_CONTENT tooltip data (pure, no DOM)
 ├── paycalc-migrations.js   ← localStorage key constants (SK, periodKey, etc.) and runMigrations()
@@ -185,7 +186,7 @@ roster-app/
 ├── client-errors.js        ← pure error-log ordering/retention: isResolvedErrorExpired, expiredResolvedIds, orderClientErrors
 ├── ls.js                   ← iOS-safe localStorage wrappers: lsGet, lsSet, lsDel
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
-├── links.html              ← 28-line link design workspace (visible to CONFIG.LINKS_DESIGNERS only)
+├── links.html              ← link design workspace (28-line rotation designer; visible to CONFIG.LINKS_DESIGNERS only)
 ├── links.css               ← CSS for links.html (grid, paint bar, picker chips, compare, heat map)
 ├── links-app.js            ← coordinator for links.html: multi-design Firestore, grid, paint, compare, generator UI
 ├── links-design.js         ← pure link-design maths: classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns, runDesignChecks, dayClass
@@ -202,7 +203,7 @@ roster-app/
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
-├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
+├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md / RESTART_NOTIFICATIONS.md ← docs
 ├── app.test.mjs            ← tests for app-override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
@@ -230,7 +231,9 @@ roster-app/
 ├── eslint.config.js        ← flat ESLint config (browser globals); run on staged JS by the pre-commit hook and `npm run check`
 ├── scripts/
 │   ├── bump-version.mjs          ← `npm run bump <version>` — updates APP_VERSION in all 9 locations
-│   └── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
+│   ├── generate-roster-members.mjs ← `npm run generate:roster-members` — rebuilds functions/roster-members.json
+│   └── typecheck.mjs             ← `npm run typecheck` — type-checks every root JS module via tsc --noEmit using jsconfig.json
+├── jsconfig.json               ← TypeScript project config for `// @ts-check` coverage; drives `npm run typecheck`
 ├── firebase.json           ← Firebase Hosting config: CSP headers, cache rules, redirects
 ├── firestore.rules         ← Firestore security rules (deployed via deploy-rules.yml, gated by firestore.rules.test.mjs; tested by firestore.rules.test.mjs)
 ├── storage.rules / firestore.indexes.json ← Firebase Storage rules + Firestore composite indexes
@@ -244,11 +247,15 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test
-# or individually:
-node --test sw-asset-check.test.mjs import-graph.test.mjs links-design.test.mjs admin-rangepicker.test.mjs client-errors.test.mjs overlay.test.mjs
-node --experimental-vm-modules --test module-parse.test.mjs
-node --experimental-test-module-mocks --test roster-data.test.mjs paycalc.test.mjs paycalc-roster-suggestions.test.mjs roster-parse-helpers.test.mjs admin-overrides.test.mjs nav-panel.test.mjs app.test.mjs session.test.mjs calendar-state.test.mjs calendar-member.test.mjs calendar-overrides.test.mjs calendar-renderer.test.mjs calendar-initial-fetch.test.mjs paycalc-periods.test.mjs paycalc-hpp.test.mjs
+npm test              # test:hygiene + test:parse + test:unit (all ~580 unit tests)
+npm run check         # lint + typecheck + npm test (full pre-push gate)
+npm run lint          # ESLint on all JS files
+npm run typecheck     # tsc --noEmit on all root JS modules
+
+# By test runner (same as npm test, useful for --watch or targeting specific files):
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay
+npm run test:parse    # module-parse (--experimental-vm-modules)
+npm run test:unit     # all --experimental-test-module-mocks tests
 
 # Firestore + Storage security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules
@@ -291,7 +298,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day. Never hardcode either list. |
 | **`AL` pill label must stay as `AL`** | Compact mobile layout requires short labels. `AL` is the standard Chiltern abbreviation. Do not expand without discussing layout impact. |
 | **`🪑` is the absence emoji — do not change** | Absence covers sickness, childcare, bereavement, and other reasons. Using 🤒 implies illness — GDPR concern. The reason for absence is never stored. **Always ask Gareth before changing the absence icon.** |
-| `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member, shows dismissible banner on next render. Flag cleared after banner fires. |
+| `_staleMemberName` flag in `calendar-app.js` | When `getSelectedMemberIndex()` can't find a saved name, sets flag, falls back to default member. On the next page open the banner fires via `_showStaleMemberBanner()` — called from the pre-branch init block for team-view users (v14.08), or from inside `renderCalendar()` for calendar-view users. `takeStaleMemberName()` is one-shot so only one path fires. |
 | Sync chip state machine in `calendar-app.js` | hidden → (800ms) → "↻ Updating…" → silent remove on success, or "⚠ Couldn't update" (stays, 10s timeout). "✓ Up to date" removed (v10.19) — noise. Never show raw errors to staff. |
 | App Notices system (v13.36) | `nav-panel.js` owns the archive: `archiveNotice({ id, title, section, date, body })` writes to localStorage `myb_app_notices` (capped at 50 entries, deduped by `id`). "📣 App Notices" in `NAV_INFORMATION` opens the archive panel. Notice lightboxes live on individual pages; see **"One-time notice pattern"** section below for the full creation guide. Current notices are tracked in that section's table — do not duplicate the list here. |
 | `_clearState` / `CONDITIONAL_ROWS` in `paycalc-app.js` | `_clearState` groups destructive-clear state atomically (includes `countdownTimer`). `CONDITIONAL_ROWS` is data-driven: condition → row/field IDs — add a new conditional row by adding one array entry. See `.claude/rules/paycalc.md`. |
@@ -612,6 +619,8 @@ Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 ## Pay calculator — current reality (v8.21+)
 
 Manual-entry. CEA £20.74/hr · CES £21.81/hr · both 140hrs/period · pension £147.36 · London Allowance £276.16 (rates from P51 May 8 2026; 2026/27 not yet confirmed — update `GRADES` in `paycalc-calc.js` when announced). Roster-assist pre-fills Sat/Sun/BH/RDW; standard weekday hours not pre-filled. Full detail (rates, state management, layout, payroll rules) in `.claude/rules/paycalc.md`.
+
+**Example payslips for testing:** `MILLER_ACTUALS` in `roster-data.js` contains 13 real payslip records from G. Miller's 2025/26 tax year (P43–P55) with actual gross, tax, NI, net, and varPay values. `paycalc.test.mjs` uses these to verify tax and NI computations stay within payslip tolerance. When making changes to pay maths (tax, NI, thresholds, variable pay), run the payslip integration tests in `paycalc.test.mjs` and check that existing assertions still hold. Use `paycalc-hpp.test.mjs` for `_varPayForPeriod` regression tests.
 
 ---
 

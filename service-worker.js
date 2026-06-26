@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.03
+// MYB Roster — Service Worker v14.10
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.03';
+const APP_VERSION = '14.10';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -40,7 +40,7 @@ const NETWORK_FIRST_FILES = [
     'paycalc-help.js', 'paycalc-migrations.js',
     'paycalc-periods.js', 'paycalc-settings.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-backpay.js',
-    'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
+    'paycalc-format.js', 'paycalc-roster-suggestions.js', 'paycalc-lightboxes.js', 'paycalc-guide.html',
     'fip.html', 'guide.html',
     'railcard-guide.html',
     'railcard-guide.js', 'guide-print.js', 'guide-shell.css',
@@ -110,6 +110,7 @@ const CORE_ASSETS = [
     "./paycalc-roster-hint.js",
     "./paycalc-hpp.js",
     "./paycalc-backpay.js",
+    "./paycalc-format.js",
     "./paycalc-roster-suggestions.js",
     "./paycalc-lightboxes.js",
 ];
@@ -349,12 +350,24 @@ self.addEventListener("push", event => {
 // Calling navigate() on an unfocused window is silently dropped on iOS.
 // includeUncontrolled is omitted — it can return stale clients on iOS that
 // respond to navigate() but never actually render the new page.
+// Known safe routes the notification payload is permitted to navigate to.
+const SAFE_NOTIFICATION_ROUTES = ['/', '/index.html', '/paycalc.html', '/index.html#huddle'];
+
 self.addEventListener("notificationclick", event => {
     event.notification.close();
-    const targetUrl = new URL(
-        (event.notification.data && event.notification.data.url) || './',
-        self.location.origin
-    ).href;
+    const rawUrl = (event.notification.data && event.notification.data.url) || './';
+    let targetUrl;
+    try {
+        const parsed = new URL(rawUrl, self.location.origin);
+        // Constrain to same origin + known routes; anything unexpected falls back to root.
+        const pathAndHash = parsed.pathname + parsed.hash;
+        targetUrl = (parsed.origin === self.location.origin &&
+            SAFE_NOTIFICATION_ROUTES.some(r => pathAndHash === r || pathAndHash.startsWith(r + '#')))
+            ? parsed.href
+            : self.location.origin + '/';
+    } catch (_) {
+        targetUrl = self.location.origin + '/';
+    }
     event.waitUntil(
         clients.matchAll({ type: 'window' }).then(list => {
             // Find any open window belonging to this app

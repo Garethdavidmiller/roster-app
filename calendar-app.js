@@ -165,6 +165,21 @@ function updateLegend() {
     }
 }
 
+/**
+ * Shows the one-time "stale member removed from roster" error banner.
+ * Called from the pre-branch init block (team-view path) and from renderCalendar()
+ * (calendar-view path). takeStaleMemberName() is one-shot so only one path fires.
+ * @param {string} staleName  The name that was no longer found in the roster.
+ * @param {string} fallbackName  The member now being shown.
+ */
+function _showStaleMemberBanner(staleName, fallbackName) {
+    const banner = document.getElementById('errorBanner');
+    if (!banner) return;
+    banner.textContent = `"${staleName}" is no longer in the roster — showing ${fallbackName}'s calendar. Use the dropdown to select the correct person.`;
+    banner.classList.add('visible');
+    setTimeout(() => banner.classList.remove('visible'), 30000);
+}
+
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
 // Sets data-member-name for print header then builds and inserts fresh container.
 function renderCalendar() {
@@ -173,15 +188,7 @@ function renderCalendar() {
 
         // If the previously-selected member was removed from the roster, show a one-time notice.
         const stale = takeStaleMemberName();
-        if (stale) {
-            const banner = document.getElementById('errorBanner');
-            if (banner) {
-                banner.textContent = `"${stale}" is no longer in the roster — showing ${(/** @type {any} */ (member)).name}'s calendar. Use the dropdown to select the correct person.`;
-                banner.classList.add('visible');
-                // Keep visible for 30s — this is actionable (user needs to re-select).
-                setTimeout(() => banner.classList.remove('visible'), 30000);
-            }
-        }
+        if (stale) _showStaleMemberBanner(stale, (/** @type {any} */ (member)).name);
 
         // Update legend for current member and month (Night, 🎄, 🥚 are conditional)
         updateLegend();
@@ -417,6 +424,13 @@ try {
 
         populateTeamMemberDropdown();
         updateLegend();
+
+        // Show stale-member banner before branching on view mode so team-view
+        // users also see "X removed from roster" on the next open.
+        // takeStaleMemberName() is one-shot; renderCalendar() calls it again safely
+        // (returns null) and won't show a duplicate banner.
+        const staleAtLoad = takeStaleMemberName();
+        if (staleAtLoad) _showStaleMemberBanner(staleAtLoad, (/** @type {any} */ (getCurrentMember())).name);
 
         // Restore team view if the user was in it before the last refresh
         if (lsGet('myb_team_view') === '1') {

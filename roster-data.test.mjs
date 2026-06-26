@@ -348,6 +348,69 @@ test('getWeekNumberForDate: returns a number between 1 and roster cycle length',
     assert.ok(week >= 1 && week <= 20, `Week ${week} out of range for 20-week main roster`);
 });
 
+// Pinned exact-value tests.  The reference date for the main roster is
+// Sun 8 Feb 2026 (G. Miller on Week 3).  The noon helper avoids DST issues.
+
+test('getWeekNumberForDate: G. Miller on the main reference date (8 Feb 2026) → week 3', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller, 'G. Miller not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8), miller), 3);
+});
+
+test('getWeekNumberForDate: G. Miller one week after reference (15 Feb 2026) → week 4', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 15), miller), 4);
+});
+
+test('getWeekNumberForDate: G. Miller one week before reference (1 Feb 2026) → week 2', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 1), miller), 2);
+});
+
+test('getWeekNumberForDate: G. Miller 8 weeks after reference (5 Apr 2026) → week 11', () => {
+    const miller = teamMembers.find(m => m.name === 'G. Miller');
+    assert.ok(miller);
+    assert.equal(getWeekNumberForDate(d(2026, 4, 5), miller), 11);
+});
+
+test('getWeekNumberForDate: T. Nsuala (week 20) advances past cycle end → wraps to week 1', () => {
+    // T. Nsuala is on week 20 as of the reference date.  One week later she wraps to 1.
+    const nsuala = teamMembers.find(m => m.name === 'T. Nsuala');
+    assert.ok(nsuala, 'T. Nsuala not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8),  nsuala), 20); // on reference date
+    assert.equal(getWeekNumberForDate(d(2026, 2, 15), nsuala),  1); // wraps
+});
+
+test('getWeekNumberForDate: L. Springer (week 1) goes back before reference → wraps to week 20', () => {
+    const springer = teamMembers.find(m => m.name === 'L. Springer');
+    assert.ok(springer, 'L. Springer not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8), springer),  1); // on reference date
+    assert.equal(getWeekNumberForDate(d(2026, 2, 1), springer), 20); // wraps backward
+});
+
+// CES roster — separate reference date (Sun 15 Feb 2026, F. Mohamed on CES Week 1)
+
+test('getWeekNumberForDate: F. Mohamed on CES reference date (15 Feb 2026) → week 1', () => {
+    const mohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+    assert.ok(mohamed, 'F. Mohamed not found');
+    assert.equal(getWeekNumberForDate(d(2026, 2, 15), mohamed), 1);
+});
+
+test('getWeekNumberForDate: F. Mohamed one week after CES reference (22 Feb 2026) → week 2', () => {
+    const mohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+    assert.ok(mohamed);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 22), mohamed), 2);
+});
+
+test('getWeekNumberForDate: F. Mohamed one week before CES reference (8 Feb 2026) → wraps to week 10', () => {
+    // CES cycle is 10 weeks.  Week 1 minus 1 = week 10.
+    const mohamed = teamMembers.find(m => m.name === 'F. Mohamed');
+    assert.ok(mohamed);
+    assert.equal(getWeekNumberForDate(d(2026, 2, 8), mohamed), 10);
+});
+
 // ---------------------------------------------------------------------------
 // resolveMemberRoster — scheduled roster transitions
 // ---------------------------------------------------------------------------

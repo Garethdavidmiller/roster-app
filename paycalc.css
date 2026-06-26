@@ -153,7 +153,8 @@
       padding: 2px 0; touch-action: manipulation;
       text-decoration: underline; text-underline-offset: 2px;
     }
-    .clear-btn:active { color: var(--error-red); }
+    .clear-btn:active       { color: var(--error-red); }
+    .clear-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 
     /* ── RESULT CARD ── */
     .result-card {
@@ -231,6 +232,7 @@
       text-decoration: underline; text-underline-offset: 2px;
       cursor: pointer; touch-action: manipulation;
     }
+    .bp-active-banner button:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 
     /* Payslip gross note */
     .payslip-note {
@@ -509,6 +511,7 @@
     .adj-sign-btn.negative {
       background: var(--error-bg); border-color: var(--error-red); color: var(--error-red);
     }
+    .adj-sign-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
     .field-hint { font-size: var(--type-micro); color: var(--text-faint); margin-top: 5px; line-height: 1.4; }
 
     /* First-run banner */
@@ -568,7 +571,8 @@
       font-weight: 600; text-decoration: underline; text-underline-offset: 2px;
       touch-action: manipulation;
     }
-    .disclaimer-toggle:active { color: var(--text-mid); }
+    .disclaimer-toggle:active       { color: var(--text-mid); }
+    .disclaimer-toggle:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
     .disclaimer-extra { display: none; }
     .disclaimer-extra.open { display: inline; }
 

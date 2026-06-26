@@ -349,15 +349,18 @@ describe('computeTax', () => {
     approx(empty, normal, 'empty code fallback');
   });
 
-  test('HMRC floor: G. Miller P20 (01/08/2025) and P28 (26/09/2025) payslip exact match', () => {
-    // P20: sacGross £4,441.60 → payslip tax £809.60
-    // P28: sacGross £4,810.43 → payslip tax £957.20
-    // Without floor: P20 = £809.87 (+27p), P28 = £957.40 (+20p)
-    // With floor:    P20 = £809.60 (exact), P28 = £957.20 (exact)
+  test('HMRC floor: G. Miller P20 (01/08/2025) and P28 (26/09/2025) — Math.floor step applied', () => {
+    // Verifies the HMRC round-down step in the NON-CUMULATIVE tax computation.
+    // P20: sacGross £4,441.60 → without floor £809.87, with floor £809.60
+    // P28: sacGross £4,810.43 → without floor £957.40, with floor £957.20
+    // P28's floored estimate equals the actual payslip (£957.20) exactly. P20's
+    // actual payslip tax was £809.71 (MILLER_ACTUALS, the source of truth) — 11p
+    // above the non-cumulative estimate because real payroll is cumulative. That
+    // drift is expected, not a regression (see the integration block below).
     const { tax: taxP20 } = computeTax(4441.60, '1257L', T25);
     const { tax: taxP28 } = computeTax(4810.43, '1257L', T25);
-    approx(taxP20, 809.60, 'P20 payslip tax', 0.005);
-    approx(taxP28, 957.20, 'P28 payslip tax', 0.005);
+    approx(taxP20, 809.60, 'P20 non-cumulative floored tax', 0.005);
+    approx(taxP28, 957.20, 'P28 non-cumulative floored tax', 0.005);
   });
 });
 
@@ -641,9 +644,11 @@ describe('calcProRateFactor', () => {
 // and some SL values in the actuals don't reconcile exactly from other fields,
 // suggesting minor transcription imprecision). Verify SL plan from your payslip
 // settings and add a test once the plan is confirmed.
-// NOTE: The existing test at line ~366 asserts P20 tax = £809.60 ("payslip exact
-// match"), but MILLER_ACTUALS records £809.71 for the same period. Gareth should
-// verify the actual payslip figure — one of these is a transcription error.
+// NOTE: The HMRC-floor test above asserts P20 NON-CUMULATIVE tax = £809.60, while
+// MILLER_ACTUALS records the actual payslip tax of £809.71 for the same period.
+// These do not conflict: £809.71 is the cumulative payslip figure (the source of
+// truth), £809.60 is the non-cumulative floored estimate, and the 11p gap is the
+// expected cumulative-PAYE drift documented above. Confirmed by Gareth (Jun 2026).
 
 describe('G. Miller 2025/26 payslip integration (non-cumulative estimates)', () => {
   const actuals = [

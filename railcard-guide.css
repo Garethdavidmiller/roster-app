@@ -309,7 +309,9 @@ body {
 .foot strong { color: var(--mid); }
 
 a { color: var(--navy); text-underline-offset: 2px; }
-a:hover { color: var(--amber); }
+@media (hover: hover) and (pointer: fine) {
+    a:hover { color: var(--amber); }
+}
 
 .guide-back-link {
     display: block;

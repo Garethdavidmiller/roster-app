@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart } from './app-override-utils.js';
+import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift } from './app-override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -103,5 +103,41 @@ describe('shouldReplaceOverride', () => {
         const existing = { source: '', createdAt: { toMillis: () => 5000 } };
         const incoming = { source: '', createdAt: { toMillis: () => 6000 } };
         assert.equal(shouldReplaceOverride(existing, incoming), true);
+    });
+});
+
+// ── isRestShift ───────────────────────────────────────────────────────────────
+
+describe('isRestShift', () => {
+    it('returns true for RD', () => {
+        assert.equal(isRestShift('RD'), true);
+    });
+
+    it('returns true for OFF (bilingual rest)', () => {
+        assert.equal(isRestShift('OFF'), true);
+    });
+
+    it('returns false for a worked shift', () => {
+        assert.equal(isRestShift('09:00-17:00'), false);
+    });
+
+    it('returns false for SPARE', () => {
+        assert.equal(isRestShift('SPARE'), false);
+    });
+
+    it('returns false for AL', () => {
+        assert.equal(isRestShift('AL'), false);
+    });
+
+    it('returns false for SICK', () => {
+        assert.equal(isRestShift('SICK'), false);
+    });
+
+    it('returns false for RDW', () => {
+        assert.equal(isRestShift('RDW'), false);
+    });
+
+    it('returns false for empty string', () => {
+        assert.equal(isRestShift(''), false);
     });
 });
