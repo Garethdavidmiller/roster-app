@@ -18,8 +18,7 @@ import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor } from '
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey } from './paycalc-migrations.js';
 import { formatISO, MILLER_ACTUALS, parseSmartFloat } from './roster-data.js';
-
-const fmt = (/** @type {number} */ n) => '£' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+import { fmt } from './paycalc-format.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
 
