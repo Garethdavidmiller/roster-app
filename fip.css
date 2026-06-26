@@ -48,6 +48,8 @@ body {
     margin: 24px 0 12px;
 }
 .section-label:first-child { margin-top: 0; }
+/* Country-jump links scroll to #country-* anchor IDs — add clearance for the sticky header */
+details[id], div[id] { scroll-margin-top: 68px; }
 
 /* ── Plain card ──────────────────────────── */
 .card {
@@ -224,6 +226,8 @@ details[open] > summary { border-bottom: 1px solid var(--border); }
     font-weight: 700;
 }
 .btn-primary:active { background: var(--navy-dark); }
+.btn-primary:focus-visible  { outline: 2px solid var(--navy); outline-offset: 2px; }
+.btn-secondary:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 .btn-secondary {
     background: white;
     color: var(--navy);
@@ -308,7 +312,10 @@ hr { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
     white-space: nowrap;
     touch-action: manipulation;
 }
-.country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
+@media (hover: hover) and (pointer: fine) {
+    .country-jump a:hover { background: var(--navy); color: white; border-color: var(--navy); }
+}
+.country-jump a:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
 .country-jump a.not-fip { opacity: 0.45; }
 
 /* ── Summary warning badge ───────────────── */
