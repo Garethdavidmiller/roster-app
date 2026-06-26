@@ -28,10 +28,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Gate: Firestore security rules tests must pass before any rules ship.
-      # firebase emulators:exec downloads the Firestore emulator binary on first
-      # run (cached in ~/.cache/firebase/emulators between runs).
-      - name: Run Firestore rules tests
+      # Gate: the canonical repo quality gate (lint + typecheck + unit tests) must
+      # pass before rules ship. Without this the Rules workflow could deploy while
+      # the repository gate is red or the client/rules contract has drifted — the
+      # v14.11 review showed a spare_shift/correction rule-vs-app mismatch that this
+      # separation would have let ship independently of the blocked app deploy.
+      - name: Run canonical quality gate
+        run: npm run check
+
+      # Gate: Firestore + Storage security rules tests must pass before any rules ship.
+      # firebase emulators:exec downloads the emulator binaries on first run
+      # (cached in ~/.cache/firebase/emulators between runs).
+      - name: Run Firestore and Storage rules tests
         run: npm run test:rules
 
       - name: Write service account key

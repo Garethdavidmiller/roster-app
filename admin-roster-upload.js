@@ -287,9 +287,12 @@ export function initRosterUpload({ currentUser, currentIsAdmin, parseUrl, getIdT
                     // Strip the internal "RDW|" encoding before saving — Firestore stores
                     // the plain time as the value (e.g. "14:30-22:00"), type field carries 'rdw'
                     let savedValue = isRdwEncoded(value) ? stripRdw(value) : value;
-                    // Backstop for the edited-cell path: a Sunday AL/SICK is reclassified to
-                    // an RD correction (Sundays are non-contracted); keep value consistent.
-                    if (type === 'correction' && (value === 'AL' || value === 'SICK')) savedValue = 'RD';
+                    // A 'correction' override always means "set as Rest Day" — its canonical
+                    // value is 'RD' (TYPES.correction.fixedValue). Normalise every source that
+                    // maps to correction: a bilingual 'OFF', a plain 'RD', or a Sunday AL/SICK
+                    // (Sundays are non-contracted). Without this an imported 'OFF' would be
+                    // written as {type:'correction', value:'OFF'} and rejected by firestore.rules.
+                    if (type === 'correction') savedValue = 'RD';
                     // Replace any existing override for this member/date in the same batch,
                     // so "Use PDF" / a re-import doesn't leave a stale doc beside the new one.
                     if (replaceId) batch.delete(doc(db, COLLECTIONS.overrides, replaceId));

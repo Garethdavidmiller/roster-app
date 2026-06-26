@@ -48,9 +48,14 @@ service cloud.firestore {
         request.resource.data.source in ['manual', 'roster_import'] &&
         // type↔value consistency: value format must match the override type.
         // Prevents any authenticated user writing garbage shift data for other members.
+        // The fixed-value contract mirrors TYPES[*].fixedValue in admin-overrides.js
+        // (spare_shift→SPARE, annual_leave→AL, correction→RD, sick→SICK); only the
+        // timed types (shift, rdw) carry an HH:MM-HH:MM range. The importer normalises
+        // every correction (RD/OFF/Sunday AL/SICK) to 'RD' before writing.
         (
-          (request.resource.data.type in ['shift', 'spare_shift', 'rdw'] &&
+          (request.resource.data.type in ['shift', 'rdw'] &&
            request.resource.data.value.matches('[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}')) ||
+          (request.resource.data.type == 'spare_shift'  && request.resource.data.value == 'SPARE') ||
           (request.resource.data.type == 'annual_leave' && request.resource.data.value == 'AL') ||
           (request.resource.data.type == 'correction'   && request.resource.data.value == 'RD') ||
           (request.resource.data.type == 'sick'         && request.resource.data.value == 'SICK')
