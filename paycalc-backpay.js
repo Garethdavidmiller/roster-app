@@ -12,6 +12,7 @@
  * (paycalc-app.js) compares against its own state and calls calculate() if changed.
  */
 
+import { parseSmartFloat } from './roster-data.js';
 import {
   RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset,
@@ -69,10 +70,10 @@ export function prefillBackPay() {
  * @returns {{ bpAmount: number, bpVarAmount: number, bpPNum: number }}
  */
 export function calcBackPay() {
-  const oldRate   = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldRate')).value);
-  const newRate   = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
-  const oldLondon = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
-  const newLondon = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value);
+  const oldRate   = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldRate')).value);
+  const newRate   = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
+  const oldLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('oldLondon')).value);
+  const newLondon = parseSmartFloat(/** @type {HTMLInputElement} */ (document.getElementById('newLondon')).value);
   const rowsEl       = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
   const totalEl      = /** @type {HTMLElement} */ (document.getElementById('backPayTotal'));
   const totalAmtEl   = /** @type {HTMLElement} */ (document.getElementById('backPayTotalAmt'));

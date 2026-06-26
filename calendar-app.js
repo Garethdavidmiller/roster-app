@@ -351,7 +351,12 @@ function announceMonthChange() {
         for (const payday of paydays) {
             const cutoff = new Date(payday); cutoff.setDate(cutoff.getDate() - 6);
             const start  = new Date(cutoff);  start.setDate(start.getDate() - 27);
-            if (today >= start && today <= payday) { period = { payday, cutoff, start }; break; }
+            // Compare date-only strings: payday is at noon, so today <= payday (timestamp)
+            // would hide the strip from midday onwards on the actual payday. ISO string
+            // comparison is lexicographically correct for zero-padded YYYY-MM-DD.
+            if (formatISO(today) >= formatISO(start) && formatISO(today) <= formatISO(payday)) {
+                period = { payday, cutoff, start }; break;
+            }
         }
         if (period) break;
     }

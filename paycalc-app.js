@@ -150,7 +150,7 @@ function _decHintEl(hId, make) {
 /** @param {string} hId */
 function decPreview(hId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
-  const val = parseFloat(raw);
+  const val = parseSmartFloat(raw);
   if (raw.includes('.') && !isNaN(val) && val >= 0) {
     let h = Math.floor(val);
     let m = Math.round((val - h) * 60);
@@ -173,7 +173,7 @@ function decPreview(hId) {
 function autoDecimalHours(hId, mId) {
   const raw = /** @type {HTMLInputElement} */ (document.getElementById(hId)).value;
   if (!raw.includes('.')) return;
-  const val = parseFloat(raw);
+  const val = parseSmartFloat(raw);
   if (isNaN(val) || val < 0) return;
   let h = Math.floor(val);
   let m = Math.round((val - h) * 60);
@@ -286,7 +286,7 @@ function onPeriodChange() {
     // Confirmed — hide banner, update card header hint with saved values.
     /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.add('hidden');
     const _hdrGrade = getGrade();
-    const rate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('hourlyRate')).value || String(GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
+    const rate = (numVal('hourlyRate') || (GRADES[_hdrGrade]?.rate ?? GRADES.cea.rate)).toFixed(2);
     const code = (/** @type {HTMLInputElement} */ (document.getElementById('taxCode')).value || '1257L').toUpperCase();
     /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
   } else {
@@ -382,8 +382,8 @@ function readFormData() {
     boxH: intVal('boxH'), boxM: intVal('boxM'),
     peer: +(/** @type {HTMLElement} */ (document.getElementById('peerVal'))).textContent,
     slSkip:   /** @type {HTMLInputElement} */ (document.getElementById('slSkipCheck')).checked,
-    otherAdj: (() => { const _r = Math.abs(parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value) || 0); return _adjNegative ? -_r : _r; })(),
-    pension:  parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('pensionAmt')).value) || 0,
+    otherAdj: (() => { const _r = Math.abs(numVal('otherAdj') || 0); return _adjNegative ? -_r : _r; })(),
+    pension:  numVal('pensionAmt') || 0,
   };
 }
 
@@ -658,7 +658,7 @@ function calculate() {
   const bHrs    = hasBoxingDay(_curP)   ? hhmmDec('boxH',  'boxM')   : 0;
 
   const _effContr = getEffectiveContr(_curP);
-  const _adjRaw   = Math.abs(parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('otherAdj')).value) || 0);
+  const _adjRaw   = Math.abs(numVal('otherAdj') || 0);
   const otherAdj  = _adjNegative ? -_adjRaw : _adjRaw;
 
   // Pure gross calculation — all DOM reads done; no more DOM access until UI writes below
@@ -888,7 +888,7 @@ function toggleBpBreakdown() {
 }
 
 function applyNewRate() {
-  const newRate = parseFloat(/** @type {HTMLInputElement} */ (document.getElementById('newRateInput')).value);
+  const newRate = numVal('newRateInput');
   if (!newRate) return;
   // Write the rate against the AWARD's tax year. Going through the rate field +
   // saveSettings() would store it on whichever tax year is being viewed —

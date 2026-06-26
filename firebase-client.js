@@ -423,12 +423,20 @@ function keyToBase64(buffer) {
  * @param {PushSubscription} subscription
  */
 export async function savePushSubscription(subscription) {
+    const p256dh = subscription.getKey('p256dh');
+    const auth   = subscription.getKey('auth');
+    if (!p256dh || !auth) {
+        // Partially-initialised subscription — keys absent on some browsers/edge cases.
+        // Silently skip rather than persisting empty keys that the push fan-out can't use.
+        console.warn('[pushSubscriptions] subscription missing p256dh/auth keys — skipping save');
+        return;
+    }
     const id = await endpointId(subscription.endpoint);
     await setDoc(doc(db, COLLECTIONS.pushSubscriptions, id), {
         endpoint:     subscription.endpoint,
         keys: {
-            p256dh: keyToBase64(subscription.getKey('p256dh')),
-            auth:   keyToBase64(subscription.getKey('auth')),
+            p256dh: keyToBase64(p256dh),
+            auth:   keyToBase64(auth),
         },
         subscribedAt: serverTimestamp(),
     });
