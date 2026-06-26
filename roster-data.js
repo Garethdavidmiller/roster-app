@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.09';
+export const APP_VERSION = '14.10';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -83,7 +83,7 @@ export const teamMembers = [
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA', flags: ['🇱🇹', '🇬🇧'] },
     { name: 'J. Haque',                currentWeek: 12, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
-    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true, flags: ['🇬🇧'] }, // Left
+    { name: 'R. Frimpong',             currentWeek: 13, rosterType: 'main',       role: 'CEA', hidden: true, flags: ['🇬🇧'] },
     { name: 'M. Okeke',                currentWeek: 13, rosterType: 'main',       role: 'CEA', startDate: new Date(2026, 3, 20), proRatedAL: { 2026: 23 }, flags: ['🇬🇧', '🇳🇬'] },
     { name: 'N. Tuck',                 currentWeek: 14, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
     { name: 'R. Forrester-Blackstock', currentWeek: 15, rosterType: 'main',       role: 'CEA', flags: ['🇬🇧'] },
@@ -94,7 +94,7 @@ export const teamMembers = [
     { name: 'T. Nsuala',               currentWeek: 20, rosterType: 'main',       role: 'CEA', flags: ['🇨🇩'] },
     { name: 'D. Irvine',               currentWeek: 3,  rosterType: 'bilingual',  role: 'CEA', flags: ['🇬🇧', '🇨🇳'] },
     { name: 'T. Gherbi',               currentWeek: 6,  rosterType: 'bilingual',  role: 'CEA', flags: ['🇩🇿'] },
-    { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA', flags: ['🇬🇧', '🇵🇭'] },  // Fixed Mon-Fri 12:00-19:00 (reasonable adjustments)
+    { name: 'C. Reen',                 currentWeek: 1,  rosterType: 'fixed',      role: 'CEA', flags: ['🇬🇧', '🇵🇭'] },
 
     // Dispatchers — 10-week rotating cycle, reference week starting 01/02/26
     // currentWeek reflects each person's row in the base roster on that date
@@ -114,10 +114,8 @@ export const teamMembers = [
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
     { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true,
-      // Returned from secondment — not a new starter. startDate suppresses shifts before
-      // June 9 but pay and AL are full-year (noProRate: true; full 34-day CES entitlement).
-      // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link on the
-      // former Vacant week-4 slot from 1 Jul 2026 (rotates automatically thereafter).
+      // noProRate: pay and AL are full-year despite the startDate.
+      // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link.
       // currentWeek:5 is correct: the formula measures from the Feb 15 CES reference date
       // (19 weeks before 1 Jul), so 5+19=24 → week 4 in the 10-week cycle.
       rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 5 }] },
@@ -147,7 +145,7 @@ export const teamMembers = [
 //                    "Worked" means the resolved shift (base roster after Firestore overrides)
 //                    is not RD, OFF, SPARE, AL, or SICK. SPARE does NOT count — only actual
 //                    worked shifts (time-format shifts or RDW) earn a lieu day.
-//   C. Reen        → 34 days (fixed roster / reasonable adjustments)
+//   C. Reen        → 34 days (fixed roster)
 //   All CEAs       → 32 days  (main, bilingual, or any other CEA rosterType)
 
 /**
@@ -209,7 +207,7 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
-    if (member.rosterType === 'fixed') return 34; // C. Reen — reasonable adjustments
+    if (member.rosterType === 'fixed') return 34;
     return 32;
 }
 

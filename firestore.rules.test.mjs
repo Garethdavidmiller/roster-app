@@ -631,8 +631,8 @@ describe('pushSubscriptions', () => {
         await assertFails(getDocs(collection(anonDb(), 'pushSubscriptions')));
     });
 
-    test('auth can read', async () => {
-        await assertSucceeds(getDocs(collection(staffDb(), 'pushSubscriptions')));
+    test('auth cannot read (client read disabled — Cloud Function uses Admin SDK)', async () => {
+        await assertFails(getDocs(collection(staffDb(), 'pushSubscriptions')));
     });
 
     test('unauthenticated cannot delete', async () => {

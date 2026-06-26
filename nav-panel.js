@@ -239,6 +239,23 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     let _docFetching = false;
 
     /**
+     * Returns true only for HTTPS URLs on the Firebase Storage hostname used by this app.
+     * Protects against malformed Firestore data, a compromised admin account, or future
+     * rule mistakes causing an arbitrary URL to be opened in a new tab.
+     * @param {any} url
+     * @returns {boolean}
+     */
+    function _isSafeStorageUrl(url) {
+        if (typeof url !== 'string' || !url) return false;
+        try {
+            const parsed = new URL(url);
+            return parsed.protocol === 'https:' &&
+                (parsed.hostname === 'firebasestorage.googleapis.com' ||
+                 parsed.hostname === 'storage.googleapis.com');
+        } catch (_) { return false; }
+    }
+
+    /**
      * Opens the latest Circular or Newsletter PDF in a new tab.
      * Opens a blank tab synchronously (same event tick = user gesture) so Safari
      * doesn't classify the later window.open() inside .then() as a popup.
@@ -252,12 +269,14 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         const newTab = window.open('', '_blank');
         if (newTab) newTab.opener = null;
         fetchFn().then(/** @param {any} data */ data => {
-            if (data?.storageUrl) {
+            const url = data?.storageUrl;
+            const safeUrl = _isSafeStorageUrl(url) ? url : null;
+            if (safeUrl) {
                 if (newTab) {
-                    newTab.location.href = data.storageUrl;
+                    newTab.location.href = safeUrl;
                 } else {
                     // Popup was blocked — fall back to current-tab navigation.
-                    location.href = data.storageUrl;
+                    location.href = safeUrl;
                 }
                 closePanelForNavigation();
             } else {

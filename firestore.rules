@@ -182,19 +182,23 @@ service cloud.firestore {
     }
 
     match /pushSubscriptions/{docId} {
-      // Push subscriptions require at minimum an anonymous Auth session (index.html
-      // always calls signInAnonymously before subscribing). Requiring auth prevents
-      // unauthenticated flooding of the collection — the fan-out iterates every doc,
-      // so fake subscriptions would degrade every Huddle push notification.
-      allow read: if request.auth != null;
+      // No client read — Cloud Functions fan-out via Admin SDK and bypass these rules.
+      // Removing client read prevents any authenticated/anonymous session from enumerating
+      // push endpoints and encryption keys.
+      allow read: if false;
       allow create, update: if
         request.auth != null &&
-        request.resource.data.keys().hasAll(['endpoint', 'keys', 'subscribedAt']) &&
+        // hasOnly prevents injecting extra fields (e.g. memberName, metadata)
+        request.resource.data.keys().hasOnly(['endpoint', 'keys', 'subscribedAt']) &&
         request.resource.data.endpoint is string &&
         request.resource.data.endpoint.size() > 0 &&
+        request.resource.data.endpoint.size() < 2048 &&
         request.resource.data.keys is map &&
         request.resource.data.keys.p256dh is string &&
-        request.resource.data.keys.auth is string;
+        request.resource.data.keys.p256dh.size() < 256 &&
+        request.resource.data.keys.auth is string &&
+        request.resource.data.keys.auth.size() < 64 &&
+        request.resource.data.subscribedAt is timestamp;
       allow delete: if request.auth != null;
     }
 

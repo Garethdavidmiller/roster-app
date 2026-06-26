@@ -44,10 +44,12 @@ Both `connect-src` and `img-src` explicitly list `https://firebasestorage.google
 
 ### localStorage session can be forged for UI access (#14)
 The `myb_admin_session` localStorage session can be modified via DevTools to
-impersonate another user or gain the admin UI. Since v7.94, Firestore security
-rules are deployed and require a real Firebase Auth session for all writes — so a
-forged localStorage session can see the UI but cannot write to Firestore.
-Practical risk is low for a small known team.
+impersonate another user or gain the admin UI. A forged local session does not by
+itself create a Firebase Auth identity, but the current anonymous-fallback path in
+`session.js` and broad `request.auth != null` Firestore rules mean some writes may
+still succeed under an anonymous identity. Local UI checks are not security controls.
+Practical risk is low for a small known team. Full remediation (named-only sessions +
+role-based rules) is tracked as a dedicated security project — see ROADMAP.md Phase 2.
 
 ### Firebase Auth session is re-established on page load (v10.93)
 A returning user with a valid 30-day localStorage session skips the login click handler on
