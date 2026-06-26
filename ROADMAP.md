@@ -527,6 +527,16 @@ Design review against a 10-point modernisation list. Already well-implemented: s
 
 Each area is independent unless a dependency is noted.
 
+### Deferred: student-loan payslip integration tests
+
+**What:** `computeSL` in `paycalc-calc.js` is tested via internal cross-checks but not against real payslip figures. `MILLER_ACTUALS` in `roster-data.js` includes an `sl` field on each record, so the data exists to add per-period assertions like `assert.ok(Math.abs(computeSL(...) - MILLER_ACTUALS[n].sl) < 0.01)`.
+
+**Blocked on:** Confirming which Student Loan plan is active. The payslip Settings page shows the selected plan; once confirmed, add `computeSL(gross, planCode)` assertions against the 13 real `sl` values in `MILLER_ACTUALS` (P43–P55, 2025/26 tax year).
+
+**When to do it:** In the same commit that confirms/changes the SL plan in `GRADES` or `MILLER_ACTUALS`. There is no point adding assertions before the plan code is known — they would either all be zero (no SL) or wrong.
+
+---
+
 ### Dispatcher pay calculator support
 **What:** Add Dispatcher pay rates to the `GRADES` object in `paycalc-calc.js` so Dispatcher staff can use the pay calculator.
 
