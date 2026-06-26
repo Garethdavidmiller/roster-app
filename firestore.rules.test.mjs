@@ -59,6 +59,7 @@ const VALID_OVERRIDE = () => ({
 const VALID_HUDDLE = () => ({
     date: '2026-06-25',
     storageUrl: 'https://storage.example.com/huddle.pdf',
+    fileType: 'application/pdf',
     uploadedAt: serverTimestamp(), uploadedBy: 'G. Miller',
 });
 
@@ -111,12 +112,38 @@ describe('overrides', () => {
         await assertSucceeds(setDoc(doc(staffDb(), 'overrides', uid()), VALID_OVERRIDE()));
     });
 
-    test('auth can create with all valid type values', async () => {
-        for (const type of ['spare_shift', 'shift', 'rdw', 'annual_leave', 'correction', 'sick']) {
+    test('auth can create with all valid type+value combinations', async () => {
+        const TYPE_VALUE_MAP = {
+            spare_shift: '06:30-14:30',
+            shift:       '14:30-22:30',
+            rdw:         '22:00-06:00',
+            annual_leave: 'AL',
+            correction:  'RD',
+            sick:        'SICK',
+        };
+        for (const [type, value] of Object.entries(TYPE_VALUE_MAP)) {
             await assertSucceeds(
-                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type })
+                setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type, value })
             );
         }
+    });
+
+    test('auth cannot create with mismatched type and value (shift type needs HH:MM-HH:MM)', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'AL' })
+        );
+    });
+
+    test('auth cannot create with mismatched type and value (annual_leave needs AL)', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'annual_leave', value: '09:00-17:00' })
+        );
+    });
+
+    test('auth cannot create with malformed time value for shift type', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: 'garbage' })
+        );
     });
 
     test('auth cannot create with invalid type', async () => {
@@ -197,6 +224,24 @@ describe('huddles', () => {
     test('admin cannot create with missing storageUrl', async () => {
         const { storageUrl: _s, ...missing } = VALID_HUDDLE();
         await assertFails(setDoc(doc(adminDb(), 'huddles', uid()), missing));
+    });
+
+    test('admin can create huddle with optional htmlContent', async () => {
+        await assertSucceeds(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), htmlContent: '<p>Hello</p>' })
+        );
+    });
+
+    test('admin cannot create with uploadedAt as string', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedAt: '2026-06-25' })
+        );
+    });
+
+    test('admin cannot create with extra field (hasOnly violation)', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), extra: 'field' })
+        );
     });
 
     test('admin can delete', async () => {
@@ -547,8 +592,15 @@ describe('newsletters', () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('pushSubscriptions', () => {
-    test('anon can create a valid subscription (no auth required)', async () => {
-        await assertSucceeds(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    test('authenticated user (incl. anonymous session) can create a valid subscription', async () => {
+        // An anonymous Firebase Auth session (signInAnonymously) is represented here by
+        // staffDb() — a user with a UID but no custom claims, matching the anonymous-auth
+        // context that index.html establishes before subscribing.
+        await assertSucceeds(setDoc(doc(staffDb(), 'pushSubscriptions', uid()), VALID_SUB()));
+    });
+
+    test('unauthenticated cannot create subscription', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'pushSubscriptions', uid()), VALID_SUB()));
     });
 
     test('anon cannot create with missing endpoint', async () => {
@@ -583,15 +635,15 @@ describe('pushSubscriptions', () => {
         await assertSucceeds(getDocs(collection(staffDb(), 'pushSubscriptions')));
     });
 
-    test('anon cannot delete', async () => {
+    test('unauthenticated cannot delete', async () => {
         const id = uid();
-        await setDoc(doc(anonDb(), 'pushSubscriptions', id), VALID_SUB());
+        await setDoc(doc(staffDb(), 'pushSubscriptions', id), VALID_SUB());
         await assertFails(deleteDoc(doc(anonDb(), 'pushSubscriptions', id)));
     });
 
     test('auth can delete', async () => {
         const id = uid();
-        await setDoc(doc(anonDb(), 'pushSubscriptions', id), VALID_SUB());
+        await setDoc(doc(staffDb(), 'pushSubscriptions', id), VALID_SUB());
         await assertSucceeds(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
     });
 });

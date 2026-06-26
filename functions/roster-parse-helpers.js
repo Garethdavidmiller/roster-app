@@ -42,7 +42,7 @@ function normaliseShift(raw) {
     // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00".
     // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
     // pad to 2 so a single-digit hour isn't silently lost as a rest day.
-    const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
+    const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})$/);
     if (rdwMatch && validHHMM(rdwMatch[1], rdwMatch[2]) && validHHMM(rdwMatch[3], rdwMatch[4])) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
@@ -58,7 +58,7 @@ function normaliseShift(raw) {
 
     // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130",
     // "6:30-12:30" (single-digit hour). Pad single-digit hours to 2 digits.
-    const match = s.match(/^(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
+    const match = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})$/);
     if (match && validHHMM(match[1], match[2]) && validHHMM(match[3], match[4])) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
