@@ -516,13 +516,18 @@ function renderCompareGrid(tbodyId, tfootId, patterns, otherPatterns) {
 function armBrush(shift) {
     brush = shift;
     document.querySelectorAll('.brush-chip').forEach(c => {
-        c.classList.toggle('brush-chip--active', /** @type {HTMLElement} */ (c).dataset.shift === shift);
+        const on = /** @type {HTMLElement} */ (c).dataset.shift === shift;
+        c.classList.toggle('brush-chip--active', on);
+        c.setAttribute('aria-pressed', String(on));
     });
 }
 
 function dearmBrush() {
     brush = null;
-    document.querySelectorAll('.brush-chip').forEach(c => c.classList.remove('brush-chip--active'));
+    document.querySelectorAll('.brush-chip').forEach(c => {
+        c.classList.remove('brush-chip--active');
+        c.setAttribute('aria-pressed', 'false');
+    });
 }
 
 function renderBrushBar() {
@@ -533,7 +538,7 @@ function renderBrushBar() {
 
     const chip = (/** @type {any} */ shift, /** @type {any} */ label, /** @type {any} */ typeClass, /** @type {any} */ extra = '') =>
         `<button class="brush-chip type-${typeClass}${extra}" data-shift="${escapeHtml(shift)}" ` +
-        `aria-label="Paint: ${escapeHtml(label)}" title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+        `aria-pressed="false" aria-label="Paint: ${escapeHtml(label)}" title="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
 
     bar.innerHTML = [
         '<span class="brush-bar-label">Paint:</span>',
@@ -541,7 +546,7 @@ function renderBrushBar() {
         chip('SPARE', 'SP',     'spare'),
         ...EARLY_SHIFTS.map(s => chip(s, formatShortTime(s), 'early')),
         ...LATE_SHIFTS.map(s  => chip(s, formatShortTime(s), 'late')),
-        `<button class="brush-chip brush-chip--custom" data-shift="__custom__" title="Custom time…">Custom…</button>`,
+        `<button class="brush-chip brush-chip--custom" data-shift="__custom__" aria-pressed="false" title="Custom time…">Custom…</button>`,
     ].join('');
 
     bar.querySelectorAll('.brush-chip').forEach(c => {

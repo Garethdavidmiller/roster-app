@@ -10,7 +10,17 @@ document.querySelector('.chip-bar')?.addEventListener('click', function (e) {
     var chip = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.chip'));
     if (!chip) return;
     var target = document.getElementById(chip.dataset.target ?? '');
-    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!target) return;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Move focus to the jumped-to section and mark the active chip, so keyboard
+    // and screen-reader users land on the target and hear which chip is current
+    // (without this the viewport scrolls but focus stays on the chip).
+    target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+    document.querySelectorAll('.chip-bar .chip[aria-current]').forEach(function (c) {
+        c.removeAttribute('aria-current');
+    });
+    chip.setAttribute('aria-current', 'true');
 });
 
 // Adjust sticky chip-bar top offset to sit directly below the sticky page header,

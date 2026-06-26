@@ -23,6 +23,19 @@ jobs:
         with:
           node-version: '22'
 
+      # Install root dev dependencies so the repo lint/typecheck gate can run here
+      # (the Functions workflow previously skipped it, so a lint failure that blocks
+      # the app deploy could still ship functions/index.js — v14.11 review). Having
+      # the root toolchain installed also pins `npx firebase` to the locked version
+      # rather than letting npx fetch a current release at deploy time.
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Lint and type-check (repo gate)
+        run: |
+          npm run lint
+          npm run typecheck
+
       - name: Syntax check (functions)
         run: |
           node --check functions/index.js

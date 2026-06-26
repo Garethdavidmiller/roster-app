@@ -699,6 +699,57 @@ to include v14, the upgrade can proceed.
 
 ---
 
+## Security project — per-member override write isolation (scoped June 2026, not yet started)
+
+Make `firestore.rules` require `request.auth.token.name == memberName` (admin bypass) for
+`overrides` writes, so a signed-in staff member can only write their own overrides — not anyone
+else's. Currently the rule is `request.auth != null` only (any authenticated session, including
+the anonymous fallback, can write any member's overrides). This is Tier 2 item #1 from the June
+2026 security review and Stage 3 of the password-security plan; it was tried at v10.72 and
+**suspended at v10.94 after a production outage** (post-mortem: KNOWN_LIMITATIONS.md → "The four
+v11 security tasks" → task #2).
+
+**Why it is now much more doable than the v10.94 suspension implies:**
+- The Firestore emulator suite already exists (`firestore.rules.test.mjs`, 90 tests across all 8
+  collections, `npm run test:rules`, gates every rules deploy) — the "Phase 7 prerequisite" is
+  effectively in place.
+- Both outage root-cause bugs are fixed: `setupRosterAuth` now sets the `name` claim (v10.88),
+  and the page-load Firebase Auth session is reliably established (v10.93).
+- The exact rule pattern is **already live and tested in production** on `staffContact`
+  (`firestore.rules` — `request.auth.token.name == memberName || request.auth.token.admin == true`).
+  This is the same mechanism applied to a second collection, not an unproven design.
+
+**The one real remaining risk is rollout, not code — cached tokens.** A staff member with a valid
+30-day localStorage session carries a Firebase token minted *before* the `name` claim existed.
+The moment a rule requiring `token.name == memberName` deploys, every such session's writes fail
+until that person signs out and back in to mint a fresh token. That cached-token lockout is
+essentially what the v10.94 outage was. Any rollout must force/await a token refresh for all
+active sessions before (or as) the rule goes live.
+
+**Note on the admin bypass — it is load-bearing, not optional.** Admin (G. Miller) writes
+overrides for *other* members constantly: staff AL/sick booked on their behalf, and every
+roster-upload override (`source: 'roster_import'`) is written from the admin's session for many
+different members. The rule must keep `|| request.auth.token.admin == true` or roster upload and
+admin booking break.
+
+**Staged plan (do in this order):**
+1. **Branch-safe (no deploy):** add the per-member `overrides` write rule + emulator tests proving
+   both the isolation (member A cannot write member B's override) *and* the admin bypass (admin can
+   write anyone's; roster-import path still works). Fully reversible; pushing the branch does not
+   deploy (deploy-rules.yml runs on merge to `main`).
+2. **Claims audit (needs Firebase Console):** confirm `setupRosterAuth` sets `name` for *every*
+   active account, then run "Set up accounts" so all claims exist server-side.
+3. **Token-refresh rollout:** pick a low-traffic window; force/await a re-auth for all active
+   sessions (transitional rule or forced re-auth) so no one is left on a pre-claim cached token.
+4. **Verify before merge:** a non-admin staff member can write their own AL/sick; admin can still
+   write for others and roster upload still saves; *then* merge to `main` to deploy.
+
+Steps 1 and 4 are code/test work Claude can do on the branch. Steps 2–3 need the owner (Console +
+a chosen window when a brief staff re-auth is acceptable). Recommendation when picked up: do step 1
+first so the change is written and proven before any production window is chosen.
+
+---
+
 ## Maintainability roadmap (added v13.72)
 
 A phased plan to make the codebase easier to maintain and extend without introducing a build system or framework. Each phase is self-contained and safe to defer. Phases are ordered by value-to-effort ratio.

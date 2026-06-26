@@ -113,19 +113,36 @@ describe('overrides', () => {
     });
 
     test('auth can create with all valid type+value combinations', async () => {
+        // These mirror the real client write contract — TYPES[*].fixedValue in
+        // admin-overrides.js (spare_shift→SPARE, annual_leave→AL, correction→RD,
+        // sick→SICK) and the plain HH:MM-HH:MM range that admin-roster-upload.js
+        // writes for the timed types. Do NOT model spare_shift as a time range:
+        // the app never writes that, and doing so masked a rule/app mismatch.
         const TYPE_VALUE_MAP = {
-            spare_shift: '06:30-14:30',
-            shift:       '14:30-22:30',
-            rdw:         '22:00-06:00',
+            spare_shift:  'SPARE',
+            shift:        '14:30-22:30',
+            rdw:          '22:00-06:00',
             annual_leave: 'AL',
-            correction:  'RD',
-            sick:        'SICK',
+            correction:   'RD',
+            sick:         'SICK',
         };
         for (const [type, value] of Object.entries(TYPE_VALUE_MAP)) {
             await assertSucceeds(
                 setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type, value })
             );
         }
+    });
+
+    test('auth cannot create a spare_shift with a time-range value (must be SPARE)', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'spare_shift', value: '06:30-14:30' })
+        );
+    });
+
+    test('auth cannot create a correction with a non-RD value (e.g. OFF)', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'correction', value: 'OFF' })
+        );
     });
 
     test('auth cannot create with mismatched type and value (shift type needs HH:MM-HH:MM)', async () => {

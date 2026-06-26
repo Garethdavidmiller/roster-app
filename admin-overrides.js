@@ -231,11 +231,16 @@ export function buildWeekGridInto(container, dateStr) {
             if (alPill) {
                 alPill.disabled = true;
                 alPill.title    = 'Annual leave cannot be recorded on a Sunday — Sundays are not contracted days';
+                // Disabled buttons drop out of the tab order, so `title` is not reliably
+                // announced — put the reason in the accessible name so a screen reader
+                // reading the row in browse mode hears why the pill is unavailable.
+                alPill.setAttribute('aria-label', 'Annual Leave — unavailable on Sundays (not a contracted day)');
             }
             const sickPill = /** @type {HTMLButtonElement|null} */ (row.querySelector('.pill-sick'));
             if (sickPill) {
                 sickPill.disabled = true;
                 sickPill.title    = 'Absence cannot be recorded on a Sunday — Sundays are not contracted days';
+                sickPill.setAttribute('aria-label', 'Absent — unavailable on Sundays (not a contracted day)');
             }
         }
 

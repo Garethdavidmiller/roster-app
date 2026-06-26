@@ -29,10 +29,8 @@ const { Anthropic }     = require('@anthropic-ai/sdk');
 const mammoth           = require('mammoth');
 const webpush           = require('web-push');
 const {
-    normaliseShift,
     buildWeekDates,
     extractAIJson,
-    HEADER_TO_INDEX,
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
@@ -226,7 +224,7 @@ exports.ingestHuddle = onRequest(
         let fileBuffer;
         try {
             fileBuffer = Buffer.from(base64Content, 'base64');
-        } catch (err) {
+        } catch {
             res.status(400).json({ error: 'Body must be valid base64' });
             return;
         }

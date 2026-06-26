@@ -33,8 +33,27 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
 
   /** @type {HTMLButtonElement|null} */
   let syncChip = null;
+  /** @type {any} */
+  let syncStatus = null;
   let syncResolved = false;
   const calGrid = document.getElementById('calendarDisplay');
+
+  // Announce sync state via a dedicated visually-hidden role="status" region.
+  // The chip itself is a <button> (the retry control); aria-live on a focusable
+  // control is announced unreliably, so the spoken status lives in its own node.
+  /** @param {string} msg */
+  function announceSync(msg) {
+    const header = document.querySelector('.calendar-header');
+    if (!header) return;
+    if (!syncStatus || !(/** @type {Node} */ (syncStatus)).isConnected) {
+      syncStatus = document.createElement('div');
+      syncStatus.className = 'sr-only';
+      syncStatus.setAttribute('role', 'status');
+      syncStatus.setAttribute('aria-live', 'polite');
+      header.appendChild(syncStatus);
+    }
+    syncStatus.textContent = msg;
+  }
 
   // Generation counter — incremented by each doRetry() call so the original
   // slow request can detect that a retry has superseded it and skip modifying
@@ -50,10 +69,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       syncChip = document.createElement('button');
       syncChip.type = 'button';
       syncChip.className = 'sync-chip';
-      syncChip.setAttribute('aria-live', 'polite');
       syncChip.textContent = '↻ Updating your shifts…';
       syncChip.disabled = true;
       header.appendChild(syncChip);
+      announceSync('Updating your shifts');
     }
     if (calGrid) calGrid.classList.add('calendar-fetching');
   }, 800);
@@ -66,6 +85,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       syncChip.className = 'sync-chip sync-chip-error';
       syncChip.disabled = false;
       syncChip.addEventListener('click', doRetry, { once: true });
+      announceSync('Couldn\'t update your shifts. Activate to retry.');
     }
     if (calGrid) calGrid.classList.remove('calendar-fetching');
   }, 10000);
@@ -76,6 +96,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
     syncChip.textContent = '↻ Retrying…';
     syncChip.className = 'sync-chip';
     syncChip.disabled = true;
+    announceSync('Retrying');
 
     addFetchedMonths([
       monthKey(prev.getFullYear(), prev.getMonth()),
@@ -90,6 +111,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       if (syncChip) { syncChip.remove(); syncChip = null; }
+      announceSync('');
       if (!isTeamViewMode()) renderCalendar();
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);
@@ -100,6 +122,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
         syncChip.disabled = false;
         syncChip.addEventListener('click', doRetry, { once: true });
         syncChip.focus();
+        announceSync('Still couldn\'t update your shifts. Activate to retry.');
       }
     }
   }
@@ -114,6 +137,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       if (!isTeamViewMode()) renderCalendar();
 
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
+      announceSync('');
     } catch (err) {
       // A retry may have already succeeded while this original request was still
       // in-flight — if so, the UI is already in a good state; don't clobber it.
@@ -130,7 +154,6 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
           syncChip = document.createElement('button');
           syncChip.type = 'button';
           syncChip.className = 'sync-chip';
-          syncChip.setAttribute('aria-live', 'polite');
           header.appendChild(syncChip);
         }
       }
@@ -139,6 +162,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
         syncChip.className = 'sync-chip sync-chip-error';
         syncChip.disabled = false;
         syncChip.addEventListener('click', doRetry, { once: true });
+        announceSync('Couldn\'t update your shifts. Activate to retry.');
       }
     } finally {
       setInitialFetchInProgress(false);

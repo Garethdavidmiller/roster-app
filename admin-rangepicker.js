@@ -50,7 +50,7 @@ export function buildRangePicker(prefix) {
     let yr = new Date().getFullYear(), mo = new Date().getMonth();
 
     wrap.innerHTML = `
-        <div class="rp-chips">
+        <div class="rp-chips" role="group" aria-label="Selected date range" aria-live="polite">
             <div class="rp-chip" id="${prefix}RpFrom">Choose start</div>
             <span class="rp-sep">→</span>
             <div class="rp-chip" id="${prefix}RpTo">Choose end</div>
@@ -130,6 +130,18 @@ export function buildRangePicker(prefix) {
             el.dataset.iso = iso;
             el.tabIndex    = 0;
             el.setAttribute('role', 'button');
+            // Full-date accessible name — the bare day number alone gives a screen
+            // reader no month/weekday/year context.
+            const isSel = iso === fromISO || iso === toISO;
+            const inRange = !!(fromISO && toISO && iso > fromISO && iso < toISO);
+            const dow = new Date(iso + 'T12:00:00').getDay();
+            let aria = `${DAY_NAMES[dow]} ${d} ${MONTH_NAMES[mo]} ${yr}`;
+            if (iso === fromISO) aria += ', selected start';
+            else if (iso === toISO) aria += ', selected end';
+            else if (inRange) aria += ', in selected range';
+            if (iso === todayISO) aria += ', today';
+            el.setAttribute('aria-label', aria);
+            el.setAttribute('aria-pressed', String(isSel || inRange));
             if (iso === todayISO) el.classList.add('rp-today');
             if (iso === fromISO)  el.classList.add('rp-from');
             if (iso === toISO)    el.classList.add('rp-to');
