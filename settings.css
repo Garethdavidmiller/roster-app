@@ -113,7 +113,9 @@ body {
     cursor: pointer;
     line-height: 1.4;
 }
-.btn-contact-remove:hover { opacity: 0.75; }
+@media (hover: hover) and (pointer: fine) {
+    .btn-contact-remove:hover { opacity: 0.75; }
+}
 .contact-feedback {
     min-height: 18px;
     font-size: var(--type-small);

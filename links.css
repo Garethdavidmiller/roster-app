@@ -409,7 +409,11 @@ body.auth-ready .container { display: grid; }
     text-decoration: underline;
     font-family: inherit;
 }
-.btn-text-link:hover { color: var(--text-dark); }
+@media (hover: hover) and (pointer: fine) {
+    .btn-text-link:hover { color: var(--text-dark); }
+}
+.btn-text-link:active { opacity: 0.6; }
+.btn-text-link:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 2px; }
 
 /* ---- Paint-mode brush bar ---- */
 .brush-bar {
@@ -538,7 +542,11 @@ body.auth-ready .container { display: grid; }
     line-height: 1;
     font-family: inherit;
 }
-.gen-remove-btn:hover { color: var(--error-red); }
+@media (hover: hover) and (pointer: fine) {
+    .gen-remove-btn:hover { color: var(--error-red); }
+}
+.gen-remove-btn:active { opacity: 0.6; }
+.gen-remove-btn:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; border-radius: 2px; }
 .gen-spare-row td { background: rgba(245, 200, 0, 0.10); }
 .gen-total-row td {
     background: var(--surface-sunken);
@@ -665,8 +673,14 @@ body.auth-ready .container { display: grid; }
     line-height: 1;
     flex-shrink: 0;
 }
-.design-chip-rename:hover { color: white; }
-.design-chip-delete:hover { color: var(--accent-gold); }
+@media (hover: hover) and (pointer: fine) {
+    .design-chip-rename:hover { color: white; }
+    .design-chip-delete:hover { color: var(--accent-gold); }
+}
+.design-chip-rename:active,
+.design-chip-delete:active { opacity: 0.6; }
+.design-chip-rename:focus-visible,
+.design-chip-delete:focus-visible { outline: 2px solid rgba(255,255,255,0.6); outline-offset: 2px; border-radius: 2px; }
 .design-chip-delete:disabled { opacity: 0.35; cursor: default; }
 
 .btn-design-new,
@@ -683,8 +697,12 @@ body.auth-ready .container { display: grid; }
     flex-shrink: 0;
     transition: background var(--dur-fast) var(--ease-standard);
 }
-.btn-design-new:hover,
-.btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
+@media (hover: hover) and (pointer: fine) {
+    .btn-design-new:hover,
+    .btn-design-dup:hover { background: var(--surface-sunken); color: var(--text-dark); }
+}
+.btn-design-new:focus-visible,
+.btn-design-dup:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 .btn-design-dup:disabled { opacity: 0.4; cursor: default; }
 
 .btn-design-compare {
@@ -702,7 +720,10 @@ body.auth-ready .container { display: grid; }
     transition: background var(--dur-fast) var(--ease-standard),
                 color var(--dur-fast) var(--ease-standard);
 }
-.btn-design-compare:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-dark); }
+@media (hover: hover) and (pointer: fine) {
+    .btn-design-compare:hover:not(:disabled) { background: var(--surface-sunken); color: var(--text-dark); }
+}
+.btn-design-compare:focus-visible { outline: 2px solid var(--primary-blue); outline-offset: 2px; }
 .btn-design-compare.compare-active {
     background: var(--primary-blue);
     color: white;
