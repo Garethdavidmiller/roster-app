@@ -302,8 +302,10 @@ function isPayCutoffDay(date) {
     const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
     candidate.setUTCHours(12, 0, 0, 0);
     const diff = candidate.getTime() - FIRST_PAYDAY_MS;
-    if (diff < 0) return false;
-    return Math.round(diff / MS_PER_DAY) % INTERVAL_DAYS === 0;
+    // Use abs so the 28-day cycle is detected in both directions from the anchor.
+    // The original `if (diff < 0) return false` guard incorrectly excluded Jan 10
+    // (6 days before the Jan 16 payday, one cycle before the Feb 13 anchor).
+    return Math.round(Math.abs(diff) / MS_PER_DAY) % INTERVAL_DAYS === 0;
 }
 
 // ── Firebase Auth name helpers ───────────────────────────────────────────────

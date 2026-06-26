@@ -685,7 +685,7 @@ to include v14, the upgrade can proceed.
 
 **Profile photo / avatar:** Non-vital. Keep as-is, simplify (auto centre-crop or slider-only — drops the high-risk interactive editor), or revert entirely. See the "Profile photo / avatar" entry above for the assessment and the exact revert checklist.
 
-**GDPR:** Staff shift data is personal data. The `faithCalendar` field stores a religious preference — see KNOWN_LIMITATIONS.md for the note on handling. If the app becomes official infrastructure, data controller status and full retention policies will need documenting.
+**GDPR:** Staff shift data is personal data. The `faithCalendar` field (a religious preference stored in the `memberSettings` Firestore collection) was removed at v13.23 along with the Cultural Calendar feature — see the "Cultural calendar overlay" entry above for full details and the revert checklist if it is ever re-introduced. If the app becomes official infrastructure, data controller status and full retention policies will need documenting.
 
 ---
 

@@ -420,7 +420,7 @@ Shared slide-out navigation panel — imported by all six app pages.
   - `isAdmin: true` enables the Operations pill (hidden from non-admins). `isLinksDesigner: true` enables the Links pill.
   - `onLogoClick` — called when the drawer brand button is tapped; each page passes `() => openAboutLightbox?.()` to open the About lightbox.
 - `NAV_PAGES` — page navigation destinations (Calendar / Admin / Pay / Operations / Links); admin-only and links-designer-only pills filtered by flags. Current page omitted from the pill row.
-- `NAV_INFORMATION` — flat always-open Information section: Workplace (Daily Huddle, Weekly Retail Circular) + Guides (Staff Guide, Pay Guide, Railcard Guide, FIP Guide via `NAV_GUIDES` collapsed submenu, v11.21). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder.
+- `NAV_INFORMATION` — flat always-open Information section: Workplace (Daily Huddle, Weekly Retail Circular, Marylebone Newsletter, App Notices). An entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder. Separate from `NAV_PAGES` pills and the `NAV_GUIDES` collapsed submenu (Staff Guide, Pay Guide, Railcard Guide, FIP Guide — toggled by `#navGuidesToggle`, v11.21).
 - `archiveNotice({ id, title, section, date, body })` — writes a dismissed notice to `localStorage('myb_app_notices')`, deduped by `id`. Entries older than 180 days are pruned automatically on each write. Call in `onClose` (close-only notices) or `onOpen` (notices with a CTA, since the user may navigate away before closing).
 - `isNoticeExpired(dateStr, days = 28)` — returns `true` if the notice's posting date ("D Mon YYYY") is older than `days`. Two standard windows: **28 days** (short — time-bound prompts) and **90 days** (long — tax-year/seasonal notices). Use to silently skip stale notices on a new device: `if (isNoticeExpired(DATE)) { ... }` or `if (isNoticeExpired(DATE, 90)) { ... }`.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
@@ -471,16 +471,21 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
-- `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'` (v10.72). Per-member write isolation (`token.name` claim check) was added at v10.72 but reverted at v10.94 after a production outage — see KNOWN_LIMITATIONS.md task #2.
-- `overrides` delete: any authenticated user (`request.auth != null`). Same deferral as above.
+- `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'`; type↔value consistency enforced (shift types require `HH:MM-HH:MM`; `annual_leave` → `'AL'`; `correction` → `'RD'`; `sick` → `'SICK'`). Per-member write isolation was added at v10.72 but reverted at v10.94 after a production outage — see KNOWN_LIMITATIONS.md task #2.
+- `overrides` delete: any authenticated user (`request.auth != null`).
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `calendar-app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
-- `huddles` write (Firestore): requires auth + `admin == true` (v10.83). Cloud Function writes use Admin SDK (bypasses rules). Browser writes (manual admin upload) must come from an authenticated admin session.
+- `huddles` write (Firestore): requires auth + `admin == true`; `hasOnly` enforces no extra fields; `uploadedAt` must be a timestamp; optional `htmlContent` capped at 250 000 chars (v10.83+).
+- `staffContact` read: owner (`request.auth.uid == resource.data.memberName`) or admin; write: owner only + requires `name` JWT claim (set by `setupRosterAuth`) to prevent anonymous writes (v12.68).
+- `pushSubscriptions` create/update: requires auth (`request.auth != null`) + required fields `endpoint`, `keys.p256dh`, `keys.auth`; delete: owner or admin.
+- `clientErrors` write: any authenticated session; read/update/delete: admin only; shape-validated (v13.31).
+- `circulars` / `newsletters` read: open (no auth — `calendar-app.js` has no session, matches Huddle model); write: admin only (v13.58/v13.59).
 
 ### `storage.rules`
 Firebase Storage security rules.
 - `huddles/{fileName}` read: requires auth.
 - `huddles/{fileName}` write: requires auth + `admin == true` + size < 20 MB + MIME type PDF or DOCX (v10.83). Cloud Function (ingestHuddle) uses Admin SDK — bypasses rules, unaffected. This rule is essential for the manual admin upload path in `huddle.js`.
+- `circulars/{fileName}` / `newsletters/{fileName}` read: open (no auth — matches Huddle model). Write: requires auth + `admin == true` + size ≤ 20 MB + MIME type `application/pdf` (v13.58/v13.59).
 - All other paths: denied.
 
 ### `index.css` / `admin.css` / `paycalc.css` / `operations.css` / `settings.css` / `links.css`
@@ -493,6 +498,11 @@ Shared chrome for the four guide pages (`guide.html`, `paycalc-guide.html`, `rai
 - Holds common header/back-button/PDF-button/print rules and defines shared brand palette tokens (`--navy`, `--navy-dark`, `--navy-mid`, `--gold`) in its own `:root` (v11.85) — guide pages no longer define these themselves
 - This is the one place to change guide chrome — do not re-inline it into the pages
 - NOT the app's `shared.css` (which the guides deliberately don't import) — see CLAUDE.md "Unified guide shell"
+
+### `guide-doc.css`
+Shared styles for the two document-style guides (`guide.html`, `paycalc-guide.html`) — loaded between `guide-shell.css` and page CSS in those two pages. NOT linked by `railcard-guide.html` or `fip.html`.
+- Two-column print layout, info/warning/tip boxes, numbered steps, data tables, callout banners
+- Changes here affect both the Staff & Admin Guide and the Pay Calculator Guide simultaneously; check both in print preview before committing
 
 ### `guide.css` / `paycalc-guide.css` / `railcard-guide.css` / `fip.css`
 Page-specific CSS for each guide page — extracted from inline `<style>` blocks at v12.04.
@@ -542,7 +552,7 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 - `huddleDayLabel(huddleDate, nowLondon)` — "Today's" / "Tomorrow's" / "Thursday's"
 - `isPayCutoffDay(date)` — mirrors isCutoffDate() from roster-data.js
 - `nameToEmail(fullName)` / `nameToPassword(fullName)` — Firebase Auth credential derivation
-- Covered by `roster-parse-helpers.test.mjs` (78 tests)
+- Covered by `roster-parse-helpers.test.mjs` (84 tests)
 
 ---
 
