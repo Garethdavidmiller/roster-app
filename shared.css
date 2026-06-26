@@ -492,7 +492,7 @@ body.lb-open #stickyTotal { display: none !important; }
     width: 100%;
     font-size: 11px;
     line-height: 1.5;
-    color: rgba(255,255,255,0.38);
+    color: rgba(255,255,255,0.6);
     text-align: center;
 }
 

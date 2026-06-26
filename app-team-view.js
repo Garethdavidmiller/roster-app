@@ -72,7 +72,7 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
     /**
      * Returns the effective shift display data for a member on a date,
      * applying any cached Firestore overrides over the base roster.
-     * @returns {{ text: string, cls: string }}
+     * @returns {{ text: string, cls: string, label?: string }}
      */
     function getTeamCellDisplay(/** @type {any} */ member, /** @type {any} */ date) {
         const dateStr  = formatISO(date);
@@ -90,21 +90,25 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             else if (override.value && override.type !== 'sick') shift = override.value;
         }
 
-        if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest' };
-        if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare' };
-        if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al' };
-        if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick' };
-        if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw' };
+        // `label` is the accessible name (used as the cell's aria-label) so meaning
+        // never depends on colour alone (the rest cell is just a coloured "–") and
+        // decorative emoji aren't read out as part of the shift.
+        if (shift === 'RD' || shift === 'OFF') return { text: '–', cls: 'tv-rest', label: 'Rest day' };
+        if (shift === 'SPARE')                 return { text: '📋 Spare', cls: 'tv-spare', label: 'Spare' };
+        if (shift === 'AL')                    return { text: '🏖️ AL', cls: 'tv-al', label: 'Annual leave' };
+        if (shift === 'SICK')                  return { text: '🪑 Absent', cls: 'tv-sick', label: 'Absent' };
+        if (shift === 'RDW')                   return { text: '💼 RDW', cls: 'tv-rdw', label: 'Rest day worked' };
         if (shift.startsWith('RDW|')) {
-            return { text: `💼 ${escapeHtml(shift.slice(4)) || 'RDW'}`, cls: 'tv-rdw' };
+            const t = shift.slice(4);
+            return { text: `💼 ${escapeHtml(t) || 'RDW'}`, cls: 'tv-rdw', label: `Rest day worked${t ? ' ' + t : ''}` };
         }
         if (SHIFT_TIME_REGEX.test(shift)) {
             const shiftKind = getShiftKind(shift, member);
             const EMOJI = { early: '☀️', late: '🌙', night: '🦉' };
-            return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}` };
+            return { text: `${EMOJI[shiftKind]} ${escapeHtml(shift)}`, cls: `tv-${shiftKind}`, label: `${shiftKind} shift ${shift}` };
         }
         if (!_unknownShiftWarned.has(shift)) { _unknownShiftWarned.add(shift); console.warn('[Team view] Unrecognised shift type:', shift); }
-        return { text: escapeHtml(shift), cls: '' };
+        return { text: escapeHtml(shift), cls: '', label: shift };
     }
 
     /** Formats a Sunday-anchored week as "19–25 May 2026" or "28 Apr – 4 May 2026". */
@@ -170,8 +174,9 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             ? `<tr><td colspan="8" class="tv-empty">No staff in this grade</td></tr>`
             : gradeMembers.map(member => {
                 const cells = weekDates.map((date, i) => {
-                    const { text, cls } = getTeamCellDisplay(member, date);
-                    return `<td class="tv-cell ${cls}${i === todayIndex ? ' tv-today-col' : ''}">${text}</td>`;
+                    const { text, cls, label } = getTeamCellDisplay(member, date);
+                    const aria = label ? ` aria-label="${escapeHtml(label)}"` : '';
+                    return `<td class="tv-cell ${cls}${i === todayIndex ? ' tv-today-col' : ''}"${aria}>${text}</td>`;
                 }).join('');
                 const myRow = member.name === myName ? ' class="tv-my-row"' : '';
                 return `<tr${myRow}><th scope="row" class="tv-name-col">${escapeHtml(member.name)}</th>${cells}</tr>`;

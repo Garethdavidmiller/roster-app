@@ -1168,7 +1168,7 @@
         @media (hover: hover) and (pointer: fine) {
             .team-help-btn:hover { color: var(--primary-blue); border-color: var(--primary-blue); }
         }
-        .team-help-btn:active { opacity: 0.75; transform: scale(0.96); }
+        .team-help-btn:active { opacity: 0.75; transform: scale(var(--press-scale)); }
         .team-help-btn:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
@@ -1220,7 +1220,7 @@
         @media (hover: hover) and (pointer: fine) {
             .tv-today-btn:hover { background: var(--primary-blue); color: white; }
         }
-        .tv-today-btn:active { opacity: 0.75; transform: scale(0.96); }
+        .tv-today-btn:active { opacity: 0.75; transform: scale(var(--press-scale)); }
         .tv-today-btn:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
@@ -1257,7 +1257,7 @@
                 color: var(--primary-blue);
             }
         }
-        .grade-tab:active { opacity: 0.75; transform: scale(0.96); }
+        .grade-tab:active { opacity: 0.75; transform: scale(var(--press-scale)); }
         .grade-tab:focus-visible {
             outline: 2px solid var(--primary-blue);
             outline-offset: 2px;
@@ -1310,7 +1310,7 @@
             }
         }
         .tv-week-nav:active {
-            transform: scale(0.96);
+            transform: scale(var(--press-scale));
             opacity: 0.8;
             box-shadow: 0 2px 4px rgba(0, 30, 60, 0.2);
         }
@@ -1974,7 +1974,7 @@
 
         .al-lb-icon   { font-size: 44px; margin-bottom: 4px; }
         .al-lb-title  { color: white; font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
-        .al-lb-year   { color: rgba(255,255,255,0.5); font-size: 13px; font-weight: 500; margin-bottom: 8px; }
+        .al-lb-year   { color: rgba(255,255,255,0.6); font-size: 13px; font-weight: 500; margin-bottom: 8px; }
 
         .al-lb-stats {
             display: flex;
@@ -2010,7 +2010,7 @@
         .al-lb-lbl {
             font-size: 9px;
             font-weight: 600;
-            color: rgba(255,255,255,0.45);
+            color: rgba(255,255,255,0.6);
             text-transform: uppercase;
             letter-spacing: 0.3px;
         }
@@ -2229,7 +2229,7 @@
             border: none;
             transition: background 0.15s, transform 0.1s;
         }
-        .month-jump-actions button:active { transform: scale(0.96); }
+        .month-jump-actions button:active { transform: scale(var(--press-scale)); }
 
         #monthJumpConfirm {
             background: var(--primary-blue);

@@ -127,6 +127,7 @@ initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
         // Summary and list — re-rendered on grade change
         const summaryEl = document.createElement('p');
         summaryEl.className = 'email-count-summary';
+        summaryEl.setAttribute('aria-live', 'polite');
         content.appendChild(summaryEl);
 
         const listContainer = document.createElement('div');
@@ -688,6 +689,14 @@ function initCircularUpload() {
 
         content.innerHTML = '';
 
+        // Visually-hidden live region so resolving an error is announced to AT
+        // (the row just gains a strikethrough class otherwise — a silent change).
+        const errStatus = document.createElement('div');
+        errStatus.className = 'sr-only';
+        errStatus.setAttribute('role', 'status');
+        errStatus.setAttribute('aria-live', 'polite');
+        content.appendChild(errStatus);
+
         if (errors.length === 0) {
             const none = document.createElement('p');
             none.className = 'email-count-done';
@@ -758,6 +767,7 @@ function initCircularUpload() {
                         await resolveClientError(err.id);
                         row.classList.add('error-row--resolved');
                         resolveBtn.remove();
+                        errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
                     } catch {
                         resolveBtn.disabled = false;
                         resolveBtn.textContent = '✗ Failed — tap to retry';
