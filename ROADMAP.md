@@ -750,6 +750,111 @@ first so the change is written and proven before any production window is chosen
 
 ---
 
+## Deferred security/reliability backlog (from the v14.11 external review)
+
+The v14.11 external security review confirmed the release-readiness blockers (fixed in v14.13:
+ESLint gate, the `spare_shift`/`correction` rule-vs-app contract, and the Rules/Functions
+workflows now run the canonical gate). The items below were assessed as **real but not
+deployment blockers** and deliberately deferred. Captured here so they survive between sessions.
+Roughly ordered by value-to-effort.
+
+### Next maintenance release (bug-class, mostly self-contained)
+
+- **Push-subscription writes can race auth.** `calendar-app.js` calls `initNotifications()` (which
+  can reach `savePushSubscription()`) *before* the anonymous/restored Firebase sign-in resolves, so
+  on an already-installed PWA a subscription re-save can run with no authenticated user and be
+  rejected by the `request.auth != null` rule — leaving the bell stuck "off-lapsed" with no retry.
+  Fix: expose a shared `sessionReady`-style promise that resolves only once a usable Firebase user
+  exists (preserving a named account, anonymous only if none), and have every push write `await` it.
+  Add tests for: named session present · anonymous needed · auth delayed · renewal-before-auth ·
+  failed-auth-then-retry.
+- **VAPID rotation may not complete.** `notif.js` (~100–105) calls `subscribe()` with the new key
+  *before* `unsubscribe()`-ing the old one; browsers can reject a new-key subscribe while the old
+  subscription still exists, so on a fingerprint change the old sub stays, the fingerprint never
+  updates, and every state check retries the same failing migration. Fix: detect mismatch →
+  unsubscribe old → subscribe new → save → surface+retry on failure (accept a brief no-subscription
+  window). Needs direct PushManager tests with a mocked existing subscription.
+- **Repeat Huddle uploads orphan Storage files.** `ingestHuddle` now writes a versioned path
+  (`huddles/<date>-<id>.<type>`) but `set()`s the same Firestore doc without reading/deleting the
+  previous `storagePath`, so each re-upload for a date leaves the old object behind (no prune on
+  huddles). Apply the transactional replacement already used for circulars/newsletters
+  (read prev metadata → upload new → write metadata → delete prev `storagePath` on success →
+  delete new object on metadata failure). Then decide whether browser admins may delete Huddles
+  (split the Storage `allow write` into `create, update` vs `delete`) or keep deletion server-only
+  and add+test the actual cleanup. Note: the Storage test currently *asserts* admins cannot delete
+  a Huddle — that encodes today's absence of cleanup, not a desired guarantee.
+- **Paycalc namespace migration can misassign data on a shared device.** `_migrateToNamespace`
+  (`paycalc-migrations.js` ~141–166) gives all legacy shared paycalc data to the *first* member who
+  signs in after v14.11 and deletes the unnamespaced copy — so if Alice used the device and Bob
+  opens it first, Bob inherits Alice's tax code/YTD/pension/periods. Fix: a one-time ownership
+  prompt ("Existing Pay Calculator data was found — does it belong to you?" → move / clear / leave)
+  instead of silently deciding by first access. Migration-only; the namespaced design itself is good.
+- **Validate Huddle download URLs.** `app-huddle-viewer.js` opens the Firestore-provided
+  `storageUrl` directly; apply the same HTTPS + recognised-Storage-host validator that circulars/
+  newsletters now use (ideally narrowed to the actual project bucket).
+- **Overlapping Sunday-correction deletion.** When two AL/sick ranges overlap the same worked
+  Sunday they share one `correction/RD` record; deleting one range may remove the correction the
+  other still needs (the delete logic looks for a separate AL/sick record on the Sunday, which the
+  range writer doesn't create). Add a direct overlapping-range test and scope the correction delete
+  to Sundays no longer covered by any remaining AL/sick override.
+- **Tighten Firestore field schemas.** Overrides still use `hasAll()` (allows arbitrary extra
+  fields — decide on `createdAt`/`changedBy`/`updatedAt`/`updatedBy` and switch to `hasOnly()`);
+  the override `date` is only length-checked (use a `YYYY-MM-DD` regex); the time regex accepts
+  impossible times like `99:99` (bound hours 00–23, minutes 00–59); validate every present
+  Huddle/circular/newsletter field incl. `storagePath` prefix; make the push-subscription nested
+  `keys` map `hasOnly(['p256dh','auth'])`; and enforce the Chiltern work-email domain on
+  `staffContact` after normalisation.
+- **Roster-parse empty-after-filter gap.** The parser checks the raw AI response is non-empty
+  *before* filtering to known staff; if every entry is a hallucinated name, `filteredEntries`
+  becomes empty and the Function can return a successful empty result. Add a second non-empty
+  check after known-member filtering.
+- **File-signature checks (low/med).** Huddle ingest infers type from filename extension and the
+  roster parser doesn't verify the decoded bytes; add lightweight magic-byte checks (`%PDF-` for
+  PDF, ZIP/DOCX signature) and reject extension/content mismatch.
+
+### Dedicated security release (the big authorisation project)
+
+These are interlocking and should ship as one planned release, not piecemeal:
+- **Per-member override + Links write isolation** — the headline authorisation gap (any
+  authenticated identity can write/delete any member's overrides and any Links design). Full staged
+  plan with the cached-token rollout risk is in the "Security project — per-member override write
+  isolation" section above.
+- **Separate named sessions from the anonymous public session** — confine anonymous auth to the
+  genuinely public Calendar reads; require a named session for Admin/Operations/Links/Settings/Pay.
+- **Remove browser-side account creation** — stop the client auto-creating a Firebase account once
+  server-side provisioning + recovery exist (today a missing account would otherwise become a
+  staff-access outage).
+- **Server-owned roster/role lists** — `setupRosterAuth` still trusts the member/admin lists sent
+  by the client; move to server-owned config, with recent-login/revocation-aware checks, dry-run
+  orphan removal, explicit destructive confirmation, and token revocation after demotion/disable.
+- **Surname-password retirement** — the existing five-stage plan (verify work email → change →
+  recovery → migrate → retire) under "Password security improvements"; do not rush, since locking
+  staff out of the core roster is a bigger operational risk than the present small-team model.
+
+### Infrastructure phase
+
+- **App Check (monitor-first)** — register live domains, configure CI/dev debug tokens, observe,
+  then enforce Firestore → Storage → browser-called Functions. (Note: a separate "considered and
+  declined" assessment for the *current* threat model is in KNOWN_LIMITATIONS.md; revisit if the app
+  is advertised more widely or becomes official infrastructure.)
+- **Workload Identity Federation** — replace the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON written
+  to `/tmp/key.json` with keyless GitHub OIDC/WIF. Deferred as a dedicated change because a faulty
+  migration could stop all deploy workflows.
+- **Header-capable staff hosting** — the GitHub Pages staff URL can't receive Firebase Hosting's
+  security headers (CSP etc.); migrate to Firebase Hosting or a header-capable custom domain when
+  auth is redesigned or the app is officially adopted.
+
+### Documentation accuracy fixes (cheap, do alongside the above)
+
+- `pushSubscriptions` delete rule currently allows *any* authenticated identity that knows the doc
+  ID — docs say owner/admin only. Either tighten the rule or correct the docs.
+- Several docs describe circular/newsletter Storage reads as "open"; the Storage rules now require
+  auth (though a tokenised download URL is still a bearer link — note that distinction).
+- The Storage test comment implies Admin-SDK Huddle cleanup exists; it doesn't yet — don't imply a
+  guarantee the code doesn't implement (ties to the Huddle-orphan item above).
+
+---
+
 ## Maintainability roadmap (added v13.72)
 
 A phased plan to make the codebase easier to maintain and extend without introducing a build system or framework. Each phase is self-contained and safe to defer. Phases are ordered by value-to-effort ratio.
