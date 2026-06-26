@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import {
     setDoc, getDoc, addDoc, deleteDoc, updateDoc, getDocs,
-    collection, doc, serverTimestamp,
+    collection, doc, serverTimestamp, increment,
 } from 'firebase/firestore';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -720,5 +720,38 @@ describe('analytics', () => {
         await setDoc(ref, VALID_PV());
         await assertFails(deleteDoc(doc(staffDb(), 'analytics', 'pv_2026-06')));
         await assertFails(deleteDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
+    });
+
+    // These exercise the EXACT FieldValue.increment() payloads the app writes
+    // (recordPageView / recordActiveAccount), not plain numbers — so the rule is
+    // validated against the real client contract, not an invented stand-in.
+    test('real increment() page-view write (merge create) is allowed', async () => {
+        await assertSucceeds(setDoc(
+            doc(staffDb(), 'analytics', 'pv_2026-06'),
+            { month: '2026-06', counts: { calendar: increment(1) } },
+            { merge: true },
+        ));
+    });
+
+    test('real increment() page-view write (merge update onto existing) is allowed', async () => {
+        const ref = doc(staffDb(), 'analytics', 'pv_2026-06');
+        await setDoc(ref, { month: '2026-06', counts: { calendar: increment(1) } }, { merge: true });
+        await assertSucceeds(setDoc(ref, { month: '2026-06', counts: { paycalc: increment(1) } }, { merge: true }));
+    });
+
+    test('real increment() active-account write (both buckets) is allowed', async () => {
+        await assertSucceeds(setDoc(
+            doc(staffDb(), 'analytics', 'activeAccounts'),
+            { months: { '2026-06': increment(1) }, daily: { '2026-06-25': increment(1) } },
+            { merge: true },
+        ));
+    });
+
+    test('real increment() active-account write (month bucket only) is allowed', async () => {
+        await assertSucceeds(setDoc(
+            doc(staffDb(), 'analytics', 'activeAccounts'),
+            { months: { '2026-06': increment(1) } },
+            { merge: true },
+        ));
     });
 });
