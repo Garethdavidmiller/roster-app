@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v14.00 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.10 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -373,11 +373,14 @@ Pure data module — help/tooltip text for the pay calculator (v11.40).
 
 ### `paycalc-migrations.js`
 localStorage key constants and data migration logic for the pay calculator (v11.40).
-- `SK` — object of top-level localStorage key strings
+- `SK` — object of top-level localStorage key strings, rebuilt in place when the namespace changes
+- `pcPrefix()` — the active per-member key prefix (`myb_pc_` or `myb_pc_<slug>_`); every key builder and `SK` derives from it (v14.11)
+- `setPaycalcNamespace(memberName)` — activate the per-member namespace (called from `runMigrations`); falsy name → unnamespaced legacy keys (v14.11)
 - `periodKey(pNum)` — key builder for period data (takes period number)
 - `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`)
-- `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations; receives deps as params to avoid circular imports with `paycalc-app.js`
+- `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations, then migrates this member's shared data into their namespace and activates it; receives deps as params to avoid circular imports with `paycalc-app.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
+- `_migrateToNamespace` — internal one-shot (v14.11): moves member-financial `myb_pc_*` keys into the member segment, leaves device-level keys (migration guards, "seen" flags) unnamespaced; guarded by `myb_pc_ns_migrated`. Covered by `paycalc-migrations.test.mjs`
 
 ### `paycalc-calc.js`
 Pure functions only — no DOM, no Firebase, no localStorage.
@@ -473,6 +476,7 @@ Shared print button handler for `guide.html` and `paycalc-guide.html` (extracted
 ### `ls.js`
 Safe localStorage wrappers for all app pages (iOS Safari private mode compatibility).
 - `lsGet(k)`, `lsSet(k, v)`, `lsDel(k)` — wrap every `localStorage` call in try/catch
+- `lsKeys()` — snapshot of all key names via the `length`/`key(i)` enumeration (safe to delete while iterating); returns `[]` when storage is unavailable (v14.11)
 - On the first failure, emits a single `console.warn` (visible in DevTools) — subsequent failures are silent
 - **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers
 

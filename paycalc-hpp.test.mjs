@@ -45,9 +45,10 @@ mock.module('./paycalc-settings.js', {
 
 mock.module('./ls.js', {
     namedExports: {
-        lsGet: k      => _ls.has(k) ? _ls.get(k) : null,
-        lsSet: (k, v) => { _ls.set(k, String(v)); },
-        lsDel: k      => { _ls.delete(k); },
+        lsGet:  k      => _ls.has(k) ? _ls.get(k) : null,
+        lsSet:  (k, v) => { _ls.set(k, String(v)); },
+        lsDel:  k      => { _ls.delete(k); },
+        lsKeys: ()     => [..._ls.keys()],
     },
 });
 

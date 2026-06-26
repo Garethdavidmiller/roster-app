@@ -11,36 +11,90 @@
  */
 
 import { TAX_YEARS, calcProRateFactor } from './paycalc-calc.js';
-import { lsGet, lsSet, lsDel } from './ls.js';
+import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
 // Keys use the myb_pc_ prefix (previously cea_ — migrated in _migrateCeaKeys below).
+//
+// PER-MEMBER NAMESPACING (v14.11):
+//   On a shared device, two staff members signing into the same browser would
+//   otherwise read each other's pay data (tax code, YTD, grade, period figures).
+//   To isolate them, every per-member key carries a member segment between the
+//   `myb_pc_` prefix and the rest of the key — e.g. `myb_pc_gmiller_rate`. The
+//   segment is set once at startup by setPaycalcNamespace() (called from
+//   runMigrations) and read at call time via pcPrefix(), so all key functions and
+//   the SK object resolve to the logged-in member's namespace.
+//   Device-level keys (migration guards, "seen this notice/welcome" flags) stay
+//   unnamespaced — see DEVICE_KEYS — because they describe the browser, not a member.
+//   With no member (default / unit tests) the segment is empty, so keys are exactly
+//   the legacy `myb_pc_*` names and behaviour is unchanged.
+
+/** Active member segment, e.g. 'gmiller_' or '' (unnamespaced). @type {string} */
+let _nsSeg = '';
+
+/** Slug a member name to a localStorage-safe segment: lowercase, alphanumerics only.
+ *  'G. Miller' → 'gmiller'. teamMembers names are unique, so slugs do not collide. */
+function _memberSlug(/** @type {string=} */ name) {
+    return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** The active per-member key prefix. Every per-member paycalc key starts with this. */
+export function pcPrefix() { return `myb_pc_${_nsSeg}`; }
+
+/** Per-member storage keys. Rebuilt in place (object mutated, binding kept) whenever
+ *  the namespace changes, so every module that imported SK sees the new key names. */
 /** @type {{ rate:string, rates:string, code:string, sl:string, pension:string, setup:string, ytdPay:string, ytdTax:string, grade:string }} */
 export const SK = {
-    rate:    'myb_pc_rate',
-    rates:   'myb_pc_rates',   // JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
-    code:    'myb_pc_code',
-    sl:      'myb_pc_sl',
-    pension: 'myb_pc_pension',
-    setup:   'myb_pc_setup',
-    ytdPay:  'myb_pc_ytd_pay',
-    ytdTax:  'myb_pc_ytd_tax',
-    grade:   'myb_pc_grade',
+    rate: '', rates: '', code: '', sl: '', pension: '', setup: '', ytdPay: '', ytdTax: '', grade: '',
 };
 
-/** @param {number} pNum @returns {string} */
-export function periodKey(pNum)   { return `myb_pc_p${pNum}`; }
-/** @param {{ label:string }} ty @returns {string} */
-export function hppEstKey(ty)     { return `myb_pc_hpp_est_${ty.label.replace('/', '_')}`; }
-/** @param {{ label:string }} ty @returns {string} */
-export function hppActualKey(ty)  { return `myb_pc_hpp_actual_${ty.label.replace('/', '_')}`; }
-/** @param {{ label:string }} ty @returns {string} */
-export function ytdPayKey(ty)     { return `myb_pc_ytd_pay_${ty.label.replace('/', '_')}`; }
-/** @param {{ label:string }} ty @returns {string} */
-export function ytdTaxKey(ty)     { return `myb_pc_ytd_tax_${ty.label.replace('/', '_')}`; }
+/** Recompute the SK key strings from the active namespace. */
+function _rebuildSK() {
+    const p = pcPrefix();
+    SK.rate    = `${p}rate`;
+    SK.rates   = `${p}rates`;   // JSON object: { '2025/26': 20.74, '2026/27': 21.50 }
+    SK.code    = `${p}code`;
+    SK.sl      = `${p}sl`;
+    SK.pension = `${p}pension`;
+    SK.setup   = `${p}setup`;
+    SK.ytdPay  = `${p}ytd_pay`;
+    SK.ytdTax  = `${p}ytd_tax`;
+    SK.grade   = `${p}grade`;
+}
+_rebuildSK(); // initialise to the unnamespaced (legacy) key names at module load
 
-/** localStorage key: YTD notice seen-flag (set when the YTD notice is dismissed). */
+/** Activate the per-member namespace. Pass the logged-in member's name, or a
+ *  falsy value for unnamespaced (legacy) keys. Idempotent. */
+export function setPaycalcNamespace(/** @type {string=} */ memberName) {
+    _nsSeg = memberName ? `${_memberSlug(memberName)}_` : '';
+    _rebuildSK();
+}
+
+/** @param {number} pNum @returns {string} */
+export function periodKey(pNum)   { return `${pcPrefix()}p${pNum}`; }
+/** @param {{ label:string }} ty @returns {string} */
+export function hppEstKey(ty)     { return `${pcPrefix()}hpp_est_${ty.label.replace('/', '_')}`; }
+/** @param {{ label:string }} ty @returns {string} */
+export function hppActualKey(ty)  { return `${pcPrefix()}hpp_actual_${ty.label.replace('/', '_')}`; }
+/** @param {{ label:string }} ty @returns {string} */
+export function ytdPayKey(ty)     { return `${pcPrefix()}ytd_pay_${ty.label.replace('/', '_')}`; }
+/** @param {{ label:string }} ty @returns {string} */
+export function ytdTaxKey(ty)     { return `${pcPrefix()}ytd_tax_${ty.label.replace('/', '_')}`; }
+
+/** localStorage key: YTD notice seen-flag (set when the YTD notice is dismissed).
+ *  Device-level — not namespaced. */
 export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
+
+/** Device-level `myb_pc_*` keys that must NOT be moved into a member namespace:
+ *  one-time migration guards and per-device "seen" flags. Everything else under
+ *  the `myb_pc_` prefix is member-financial data and gets namespaced. */
+const DEVICE_KEYS = new Set([
+    'myb_pc_cea_migrated',
+    'myb_pc_pension_v882_migrated',
+    'myb_pc_pay_welcome_shown',
+    'myb_pc_ytd_notice_shown',
+    'myb_pc_ns_migrated',
+]);
 
 // ── KEY MIGRATION ─────────────────────────────────────────────────────────────
 // Renames all cea_ prefixed localStorage keys to myb_pc_ in one pass.
@@ -82,6 +136,33 @@ function _migrateCeaKeys({ getPeriods }) {
     });
 
     lsSet('myb_pc_cea_migrated', '1');
+}
+
+// ── PER-MEMBER NAMESPACE MIGRATION (v14.11) ───────────────────────────────────
+// One-shot, device-level. The FIRST member to load paycalc after this ships
+// inherits the existing (shared) unnamespaced data under their own namespace;
+// every other member on the same device then starts with a clean calculator and
+// is isolated going forward. This is the intended outcome for a shared device —
+// the pre-migration data was never separated by member, so freezing it under the
+// first signed-in member (and clearing the shared copy) is the safe resolution.
+// Guarded by the device flag myb_pc_ns_migrated so it runs exactly once per device.
+/** @param {string|undefined} memberName */
+function _migrateToNamespace(memberName) {
+    if (lsGet('myb_pc_ns_migrated')) return;     // already run on this device
+    const seg = _memberSlug(memberName);
+    if (!seg) return;                            // no logged-in member — defer until one loads
+    const nsPrefix = `myb_pc_${seg}_`;
+    // Snapshot first: lsKeys() returns a copy, so deleting keys mid-loop is safe.
+    lsKeys().forEach(k => {
+        if (!k.startsWith('myb_pc_')) return;    // not a paycalc key
+        if (DEVICE_KEYS.has(k)) return;          // device-level — keep unnamespaced
+        if (k.startsWith(nsPrefix)) return;      // already namespaced (defensive)
+        const newKey = nsPrefix + k.slice('myb_pc_'.length);
+        const val = lsGet(k);
+        if (val !== null && lsGet(newKey) === null) lsSet(newKey, val);
+        lsDel(k);                                // remove the shared unnamespaced copy
+    });
+    lsSet('myb_pc_ns_migrated', '1');
 }
 
 // ── ALL DATA MIGRATIONS ───────────────────────────────────────────────────────
@@ -168,4 +249,12 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
         });
         lsSet('myb_pc_pension_v882_migrated', '1');
     }
+
+    // Per-member namespacing (v14.11) — runs LAST, after every legacy migration has
+    // normalised the unnamespaced data. _migrateToNamespace moves this member's data
+    // into their namespace (one-shot); setPaycalcNamespace then activates it so
+    // loadSettings() and all later reads/writes resolve to the member's keys.
+    const _nsMember = getLoggedMember();
+    _migrateToNamespace(_nsMember?.name);
+    setPaycalcNamespace(_nsMember?.name);
 }

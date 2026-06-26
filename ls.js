@@ -14,3 +14,16 @@ export function lsGet(k)    { try { return localStorage.getItem(k); }    catch(e
 export function lsSet(k, v) { try { localStorage.setItem(k, v); }        catch(e) { _warnOnce(e); } }
 /** @param {string} k */
 export function lsDel(k)    { try { localStorage.removeItem(k); }        catch(e) { _warnOnce(e); } }
+/** Snapshot of all localStorage key names (empty array if storage is unavailable).
+ *  Uses the standard length/key(i) enumeration so it never clashes with object
+ *  methods, and returns a snapshot so callers can safely delete keys while iterating. */
+export function lsKeys() {
+    try {
+        const out = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k !== null) out.push(k);
+        }
+        return out;
+    } catch(e) { _warnOnce(e); return []; }
+}
