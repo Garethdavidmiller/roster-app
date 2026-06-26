@@ -664,3 +664,61 @@ describe('pushSubscriptions', () => {
         await assertSucceeds(deleteDoc(doc(staffDb(), 'pushSubscriptions', id)));
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// analytics (anonymous usage counters)
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('analytics', () => {
+    const VALID_PV = () => ({ month: '2026-06', counts: { calendar: 1, paycalc: 1 } });
+    const VALID_ACTIVE = () => ({ months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } });
+
+    test('admin can read', async () => {
+        await assertSucceeds(getDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
+    });
+
+    test('staff (non-admin) cannot read', async () => {
+        await assertFails(getDoc(doc(staffDb(), 'analytics', 'pv_2026-06')));
+    });
+
+    test('anon cannot read', async () => {
+        await assertFails(getDoc(doc(anonDb(), 'analytics', 'pv_2026-06')));
+    });
+
+    test('auth can write a page-view counter doc', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
+    });
+
+    test('auth can write an active-accounts doc', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), VALID_ACTIVE()));
+    });
+
+    test('auth can write an active-accounts doc with only one bucket present', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
+    });
+
+    test('anon (no Firebase session) cannot write', async () => {
+        // Real calendar visitors have an anonymous Firebase session (request.auth != null);
+        // a context with no auth at all must be rejected.
+        await assertFails(setDoc(doc(anonDb(), 'analytics', 'pv_2026-06'), VALID_PV()));
+    });
+
+    test('auth cannot write a page-view doc with an extra field', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { ...VALID_PV(), memberName: 'G. Miller' }));
+    });
+
+    test('auth cannot write a page-view doc with non-string month', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: 6, counts: { calendar: 1 } }));
+    });
+
+    test('auth cannot write a doc with unrecognised shape', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'whatever'), { foo: 'bar' }));
+    });
+
+    test('client cannot delete an analytics doc', async () => {
+        const ref = doc(adminDb(), 'analytics', 'pv_2026-06');
+        await setDoc(ref, VALID_PV());
+        await assertFails(deleteDoc(doc(staffDb(), 'analytics', 'pv_2026-06')));
+        await assertFails(deleteDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
+    });
+});

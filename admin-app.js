@@ -29,6 +29,7 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift } from './app-override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { recordUsage } from './usage-reporter.js';
 
 // Allow ?logout in the URL to force-clear session (useful when the sign-out
 // button is unreachable due to a broken or skipped login state).
@@ -1698,7 +1699,7 @@ registerServiceWorker({
         }, { once: true });
     },
 });
-sessionReady.then(() => initErrorReporter());
+sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 initNavPanel({

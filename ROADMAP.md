@@ -855,6 +855,41 @@ These are interlocking and should ship as one planned release, not piecemeal:
 
 ---
 
+## Usage analytics ✓ (v14.14)
+
+Anonymous usage visibility in the Operations page: a **Usage** card (📊) showing how many
+individual accounts have signed in (this calendar month and the rolling last 30 days) and how
+popular each page is. Built first-party in Firestore — **not** Google/Firebase Analytics, which
+would breach the `script-src 'self'` CSP and the no-third-party-CDN rule and ship data to Google.
+
+**Privacy by design — no identity is ever stored server-side.** The server holds only integer
+counters (`analytics/pv_<YYYY-MM>` for page popularity, `analytics/activeAccounts` for unique-
+account counts). Uniqueness is deduped **on the client**: `usage-reporter.js` keeps localStorage
+flags keyed by member name (`myb_usage_m_*` per calendar month, `myb_usage_d30_*` per rolling
+window) that never leave the device, so each account self-suppresses and the server only ever
+receives `increment(1)`. "Last 30 days" = sum of the `daily` buckets over the window (each account
+counted once). This means the bulk of the data is genuinely anonymous aggregate counts — the
+employee-monitoring/GDPR weight of per-person tracking is avoided entirely.
+
+**Shape:**
+- `usage-stats.js` — pure date-bucketing + aggregation (tested by `usage-stats.test.mjs`).
+- `usage-reporter.js` — `recordUsage(page, member?)`, called once per page from each coordinator
+  at the same auth-timing as `initErrorReporter()` (writes need `request.auth != null`). The
+  anonymous calendar records page views only (no member); authenticated pages also count the account.
+- `firebase-client.js` — `recordPageView` / `recordActiveAccount` (increment-only, fire-and-forget)
+  and `getUsageStats` (reads + prunes stale daily buckets).
+- `operations-app.js` / `operations.css` — the admin-only Usage card.
+- `firestore.rules` — `analytics`: admin-only read, authenticated increment write, no client delete.
+
+**Known limits (intentional):** counts are per account-device, so a multi-device user counts more
+than once — it's a usage *trend*, not a precise headcount. Dedup trusts the client (App Check is the
+eventual integrity backstop). Both are acceptable for the small-team, unadvertised threat model.
+
+**Possible later:** per-month page-popularity history/trends; an all-time page total; a true
+device-independent unique count (would require server-side identity — deliberately not done).
+
+---
+
 ## Maintainability roadmap (added v13.72)
 
 A phased plan to make the codebase easier to maintain and extend without introducing a build system or framework. Each phase is self-contained and safe to defer. Phases are ordered by value-to-effort ratio.

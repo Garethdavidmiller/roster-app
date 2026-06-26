@@ -44,6 +44,7 @@ import { initNavPanel } from './nav-panel.js';
 import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { recordUsage } from './usage-reporter.js';
 import { SK, periodKey, hppEstKey, hppActualKey, runMigrations } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
@@ -1292,8 +1293,9 @@ registerServiceWorker();
 // outcome so synchronous init errors are still captured locally.
 (function _initErrorReporting() {
   const name = getSession()?.name;
-  if (name) ensureFirebaseSession(name).catch(() => {/* reporter still starts below */}).finally(initErrorReporter);
-  else initErrorReporter();
+  const afterAuth = () => { initErrorReporter(); recordUsage('paycalc', name ?? null); };
+  if (name) ensureFirebaseSession(name).catch(() => {/* reporter still starts below */}).finally(afterAuth);
+  else afterAuth();
 }());
 
 // ── PRINT HEADER STAMP ────────────────────────────────────────────────────────

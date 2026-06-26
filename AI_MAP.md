@@ -35,6 +35,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Nav-panel footer initials badge | `nav-panel.js` + `avatarInitials`/`avatarHue` in `roster-data.js` |
 | Operations page — Huddle upload, Roster upload, Staff Login Accounts | `operations-app.js` + `operations.html` |
 | Error Log card (ops page) — uncaught error capture, ops card display, Copy for Claude | `error-reporter.js`, `firebase-client.js` (logClientError/getClientErrors/resolveClientError), `client-errors.js` (ordering/retention policy), `operations-app.js`, `operations.css` |
+| Usage card (ops page) — anonymous page popularity + active-account counts | `usage-reporter.js` (recordUsage per page), `firebase-client.js` (recordPageView/recordActiveAccount/getUsageStats), `usage-stats.js` (date/aggregation maths), `operations-app.js`, `operations.css`, `firestore.rules` (`analytics`) |
 | Links design workspace — 28-line design grid, paint mode, hourly coverage heat map, design checks, auto-generator UI | `links-app.js` + `links.html` + `links.css` |
 | Link-design maths — shift classification, custom-time validation, coverage counting (per-type + hour-by-hour), rotating-window generator, design quality checks | `links-design.js` (pure — no DOM/Firebase; tested by `links-design.test.mjs`) · `runDesignChecks(patterns, rotatingLines)` returns `{ weekendsOff, weekendsOffPct, totalWeeks, unfilledLines, turnarounds, longestStretch, balance }` |
 | Annual Leave Booking section | `admin-al.js` |
@@ -410,10 +411,22 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `auth`, `authReady`, `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`, `signInAnonymously`, `signOut`, `onAuthStateChanged`, `nameToEmail`, `normaliseSurname` — Firebase Auth (`authReady` resolves once `onAuthStateChanged` has fired the first time; `normaliseSurname` is the shared surname→password derivation that `getSurname()` in `session.js` delegates to)
 - `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
 - `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`. Ordering/retention policy delegated to `client-errors.js` (v13.48).
+- `recordPageView(pageId)` / `recordActiveAccount({month, day})` / `getUsageStats()` — anonymous `analytics` usage counters (v14.14). `recordPageView`/`recordActiveAccount` are increment-only fire-and-forget, called from `usage-reporter.js`; `getUsageStats` reads the page-view + active-account docs (and prunes stale daily buckets) for the `operations-app.js` Usage card. Date/aggregation maths delegated to `usage-stats.js`. No member identity is stored — uniqueness is deduped client-side in `usage-reporter.js`.
 - `uploadCircular(date, file, uploadedBy)` — writes PDF to `circulars/{date}-{uploadId}.pdf` in Firebase Storage (versioned path; old file deleted after Firestore commit succeeds) and upserts the `circulars/{date}` Firestore doc (includes `storagePath` field for cleanup tracking); also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.58, versioned path v13.99)
 - `getLatestCircular()` — queries `circulars` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (v13.58)
 - `uploadNewsletter(date, file, uploadedBy)` — writes PDF to `newsletters/{date}-{uploadId}.pdf` in Firebase Storage (versioned path; old file deleted after Firestore commit succeeds) and upserts the `newsletters/{date}` Firestore doc (includes `storagePath` field for cleanup tracking); also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.59, versioned path v13.99)
 - `getLatestNewsletter()` — queries `newsletters` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (v13.59)
+
+### `usage-reporter.js`
+Anonymous usage recorder (v14.14) — the usage analogue of `error-reporter.js`. `recordUsage(page, member?)`: records an anonymous page-view counter, and (when a signed-in member is passed) counts that account toward the active-account metric, deduped client-side via localStorage flags keyed by member name (`myb_usage_m_*`, `myb_usage_d30_*`) so the server only ever receives `increment(1)` and never learns who was active. Called once per page from each coordinator at the same point as `initErrorReporter()`. Imports the I/O from `firebase-client.js`, the dedup maths from `usage-stats.js`, and `lsGet`/`lsSet` from `ls.js`. Fire-and-forget — never throws.
+
+### `usage-stats.js`
+Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebase. Imported by `firebase-client.js` and `usage-reporter.js`; tested by `usage-stats.test.mjs`.
+- `monthKey(d)` / `dayKey(d)` — "YYYY-MM" / "YYYY-MM-DD" local-time keys
+- `shouldCountMonth(lastMonth, now)` / `shouldCountRolling(lastMs, now, [windowDays])` — client-side dedup decisions (per calendar month / per rolling 30 days)
+- `recentDayKeys(now, [days])` / `sumDailyWindow(daily, now, [days])` — the rolling-window day keys and their summed counts ("active in last 30 days")
+- `orderPageCounts(counts)` — page-view counts → `[{page, count}]` sorted desc then page-name asc
+- `staleDailyKeys(daily, now, [keepDays])` — daily buckets outside the retention window, for pruning
 
 ### `client-errors.js`
 Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.

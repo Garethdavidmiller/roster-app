@@ -23,6 +23,7 @@ import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overl
 import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { recordUsage } from './usage-reporter.js';
 import { initHuddleViewer } from './app-huddle-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
@@ -705,7 +706,7 @@ initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 authReady
     .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
     .catch(() => {})
-    .finally(() => initErrorReporter());
+    .finally(() => { initErrorReporter(); recordUsage('calendar'); });
 
 const _calendarSession = getSession();
 initNavPanel({
