@@ -36,6 +36,13 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
   let syncResolved = false;
   const calGrid = document.getElementById('calendarDisplay');
 
+  // Generation counter — incremented by each doRetry() call so the original
+  // slow request can detect that a retry has superseded it and skip modifying
+  // the UI (otherwise a retry-success followed by a belated original-rejection
+  // would re-show the error chip even though the data loaded successfully).
+  let _fetchGen = 0;
+  const _origGen = ++_fetchGen;
+
   // Show "↻ Updating your shifts…" chip after 800 ms if Firestore hasn't responded yet.
   const loadingTimer = setTimeout(() => {
     const header = document.querySelector('.calendar-header');
@@ -65,6 +72,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
 
   async function doRetry() {
     if (!syncChip) return;
+    const _retryGen = ++_fetchGen; // supersede any older pending request
     syncChip.textContent = '↻ Retrying…';
     syncChip.className = 'sync-chip';
     syncChip.disabled = true;
@@ -85,6 +93,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       if (!isTeamViewMode()) renderCalendar();
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);
+      if (_retryGen !== _fetchGen) return; // a later retry superseded this one
       if (syncChip) {
         syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
         syncChip.className = 'sync-chip sync-chip-error';
@@ -106,6 +115,9 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
 
       if (syncChip) { /** @type {HTMLButtonElement} */ (syncChip).remove(); syncChip = null; }
     } catch (err) {
+      // A retry may have already succeeded while this original request was still
+      // in-flight — if so, the UI is already in a good state; don't clobber it.
+      if (_origGen !== _fetchGen) return;
       syncResolved = true;
       console.error('[Firestore] Initial override fetch failed — base roster will be used', err);
       // A renderCalendar() call between the fetch start and the catch (e.g. from

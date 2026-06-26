@@ -1444,11 +1444,16 @@ window.addEventListener('beforeprint', stampAdminPrintHeader);
 async function purgeSundayAL() {
     if (lsGet('purgeSundayAL_done') === '1') return;
     try {
-        const toDelete = getAllOverrides().filter(o => o.type === 'annual_leave' && isSunday(o.date));
+        const allOverrides = getAllOverrides();
+        const toDelete = allOverrides.filter(o => o.type === 'annual_leave' && isSunday(o.date));
 
         if (!toDelete.length) {
-            console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
-            lsSet('purgeSundayAL_done', '1');
+            // Only mark done when the cache is non-empty: an empty cache on first load
+            // (offline/slow network) doesn't mean there are no Sunday AL overrides to purge.
+            if (allOverrides.length > 0) {
+                console.log('[purgeSundayAL] No Sunday AL overrides found — nothing to clean up.');
+                lsSet('purgeSundayAL_done', '1');
+            }
             return;
         }
 

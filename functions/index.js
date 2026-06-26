@@ -956,10 +956,16 @@ exports.setupRosterAuth = onRequest(
             return res.status(403).json({ error: 'Forbidden — admin claim required' });
         }
 
-        const body    = req.body || {};
+        // firebase-functions v2 auto-parses req.body only when Content-Type: application/json
+        // is sent. Fall back to rawBody so callers that omit the header still work, and so
+        // admin claims are never silently skipped due to an unparsed body.
+        let body = req.body || {};
+        if (!body.members && req.rawBody) {
+            try { body = JSON.parse(req.rawBody.toString('utf8')); } catch (_e) { /* malformed — caught below */ }
+        }
         const members = body.members;
         if (!Array.isArray(members) || members.length === 0) {
-            return res.status(400).json({ error: '`members` array is required in the request body' });
+            return res.status(400).json({ error: '`members` array is required — send Content-Type: application/json' });
         }
 
         // adminMembers: names that should receive the Firebase Auth admin:true custom claim.

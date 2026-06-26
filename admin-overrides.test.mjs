@@ -128,6 +128,34 @@ describe('buildMemberDateMap', () => {
         const map = buildMemberDateMap('G. Miller');
         assert.deepEqual(map.get('2026-06-15'), entry);
     });
+
+    // Regression: v13.97 — bare .find() returned whichever doc arrived first in
+    // the array; buildMemberDateMap must apply shouldReplaceOverride() so a manual
+    // override always beats a roster_import doc for the same (member, date).
+    test('manual override beats roster_import for the same date (precedence regression)', () => {
+        const importDoc = { memberName: 'G. Miller', date: '2026-06-15', value: '09:00-17:00', source: 'roster_import',
+            createdAt: { seconds: 1000 } };
+        const manualDoc = { memberName: 'G. Miller', date: '2026-06-15', value: 'AL', source: 'manual',
+            createdAt: { seconds: 500 } }; // older timestamp but manual → must win
+        // Both orderings of the array must yield the manual doc.
+        setAllOverrides([importDoc, manualDoc]);
+        assert.equal(buildMemberDateMap('G. Miller').get('2026-06-15')?.value, 'AL',
+            'manual doc should win even when roster_import arrives first in the array');
+        setAllOverrides([manualDoc, importDoc]);
+        assert.equal(buildMemberDateMap('G. Miller').get('2026-06-15')?.value, 'AL',
+            'manual doc should win even when roster_import arrives second in the array');
+    });
+
+    test('among same-source overrides, newer createdAt wins', () => {
+        const older = { memberName: 'G. Miller', date: '2026-06-15', value: '07:00-15:00', source: 'manual',
+            createdAt: { seconds: 100 } };
+        const newer = { memberName: 'G. Miller', date: '2026-06-15', value: '09:00-17:00', source: 'manual',
+            createdAt: { seconds: 200 } };
+        setAllOverrides([older, newer]);
+        assert.equal(buildMemberDateMap('G. Miller').get('2026-06-15')?.value, '09:00-17:00');
+        setAllOverrides([newer, older]);
+        assert.equal(buildMemberDateMap('G. Miller').get('2026-06-15')?.value, '09:00-17:00');
+    });
 });
 
 // ── validateShiftRules ────────────────────────────────────────────────────────

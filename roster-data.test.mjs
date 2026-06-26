@@ -438,6 +438,17 @@ test('getBaseShift: startDate suppression — returns RD before member joins', (
     assert.ok(shiftOn !== undefined, 'Expected a value on startDate');
 });
 
+// Regression: v13.97 — getBaseShift previously accessed member.startDate without
+// a null guard; a null/undefined member would throw TypeError. Sibling helpers
+// (getWeekNumberForDate, getRosterForMember, getALEntitlement) all guard !member.
+test('getBaseShift: null member returns RD without throwing', () => {
+    assert.equal(getBaseShift(null, d(2026, 3, 16)), 'RD');
+});
+
+test('getBaseShift: undefined member returns RD without throwing', () => {
+    assert.equal(getBaseShift(undefined, d(2026, 3, 16)), 'RD');
+});
+
 test('getBaseShift: Christmas Day (Dec 25) always returns RD regardless of roster', () => {
     // isChristmasRD() is applied before base roster lookup — Dec 25 is always RD.
     const member = teamMembers.find(m => m.rosterType === 'main' && !m.hidden);

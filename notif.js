@@ -98,8 +98,11 @@ export async function getNotifState() {
         if (!sub) return 'off-lapsed';
 
         if (lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
-            await sub.unsubscribe();
-            sub = await subscribe();
+            // Subscribe to the new key BEFORE unsubscribing the old one so a network
+            // failure during subscribe() leaves the existing subscription intact.
+            const newSub = await subscribe();
+            await sub.unsubscribe().catch(e => console.warn('[Notifications] Old sub cleanup failed (non-fatal):', /** @type {any} */ (e).message));
+            sub = newSub;
         } else {
             await savePushSubscription(sub);
         }

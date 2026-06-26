@@ -8,6 +8,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'module';
+import { isCutoffDate } from './roster-data.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -435,5 +436,29 @@ describe('nameToPassword', () => {
         // "Li" would be 2 chars — padded
         const pw = nameToPassword('A. Li');
         assert.ok(pw.length >= 6, `expected ≥6 chars, got "${pw}"`);
+    });
+});
+
+// ── isPayCutoffDay vs isCutoffDate cross-check ────────────────────────────────
+// Guards against the two implementations silently drifting out of sync.
+// isPayCutoffDay() uses UTC arithmetic (Cloud Run timezone-safe);
+// isCutoffDate() derives from getPaydaysAndCutoffs() via a Set lookup.
+
+describe('isPayCutoffDay agrees with isCutoffDate over full 2026 calendar year', () => {
+    test('all dates Jan–Dec 2026 agree', () => {
+        const mismatches = [];
+        for (let month = 0; month < 12; month++) {
+            const daysInMonth = new Date(2026, month + 1, 0).getDate();
+            for (let day = 1; day <= daysInMonth; day++) {
+                const d = new Date(2026, month, day);
+                const fromHelper = isPayCutoffDay(d);
+                const fromRoster = isCutoffDate(d);
+                if (fromHelper !== fromRoster) {
+                    const iso = `${2026}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    mismatches.push(`${iso}: isPayCutoffDay=${fromHelper} isCutoffDate=${fromRoster}`);
+                }
+            }
+        }
+        assert.deepEqual(mismatches, [], `Implementations disagree on ${mismatches.length} date(s):\n${mismatches.join('\n')}`);
     });
 });

@@ -1,6 +1,6 @@
 # Operations Reference — MYB Roster App
 
-*Last updated: June 2026 — v13.90 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.00 · Updated every 0.10 version*
 
 Operational detail that is rarely needed in day-to-day development sessions. Referenced from `CLAUDE.md`.
 
@@ -305,11 +305,12 @@ Two independent document-upload flows with identical mechanics: an admin uploads
 2. Selects an upload date using the date input (capped to today — `dateInput.max = formatISO(new Date())`).
 3. Selects a PDF file and clicks **Upload**.
 4. `uploadCircular(date, file, uploadedBy)` / `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`:
-   - Writes the PDF to Firebase Storage: `circulars/{date}.pdf` / `newsletters/{date}.pdf`
-   - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, fileType: "pdf", uploadedAt, uploadedBy }`
+   - Writes the PDF to Firebase Storage at a versioned path: `circulars/{date}-{uploadId}.pdf` / `newsletters/{date}-{uploadId}.pdf` (the random suffix prevents overwriting the existing file before Firestore has committed the new doc)
+   - Upserts the Firestore doc at `circulars/{date}` / `newsletters/{date}` with `{ date, storageUrl, storagePath, fileType: "pdf", uploadedAt, uploadedBy }`; the `storagePath` field records the exact Storage path for cleanup tracking
+   - After a successful Firestore upsert, deletes the previous Storage file at the old `storagePath` (if one existed)
    - Fire-and-forget: calls `_pruneOldDocs()` to delete documents and Storage files older than 6 months
 
-Re-uploading for the same date overwrites both the Storage file and the Firestore doc.
+Re-uploading for the same date overwrites the Firestore doc and replaces the Storage file; the old Storage file is deleted after the new Firestore doc commits. Docs uploaded before v13.99 lack a `storagePath` field — `_pruneOldDocs` falls back to `{collection}/{date}.pdf` for those.
 
 ### 6-month auto-prune
 
@@ -344,9 +345,9 @@ Re-uploading for the same date overwrites both the Storage file and the Firestor
 | Resource | Path |
 |----------|------|
 | Circular Firestore doc | `circulars/{YYYY-MM-DD}` |
-| Circular Storage file | `circulars/{YYYY-MM-DD}.pdf` |
+| Circular Storage file | `circulars/{YYYY-MM-DD}-{uploadId}.pdf` (versioned suffix, added v13.99) |
 | Newsletter Firestore doc | `newsletters/{YYYY-MM-DD}` |
-| Newsletter Storage file | `newsletters/{YYYY-MM-DD}.pdf` |
+| Newsletter Storage file | `newsletters/{YYYY-MM-DD}-{uploadId}.pdf` (versioned suffix, added v13.99) |
 
 ---
 

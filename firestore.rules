@@ -46,8 +46,15 @@ service cloud.firestore {
           'annual_leave', 'correction', 'sick'
         ] &&
         request.resource.data.source in ['manual', 'roster_import'] &&
-        request.resource.data.value is string &&
-        request.resource.data.value.size() > 0 &&
+        // type↔value consistency: value format must match the override type.
+        // Prevents any authenticated user writing garbage shift data for other members.
+        (
+          (request.resource.data.type in ['shift', 'spare_shift', 'rdw'] &&
+           request.resource.data.value.matches('[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}')) ||
+          (request.resource.data.type == 'annual_leave' && request.resource.data.value == 'AL') ||
+          (request.resource.data.type == 'correction'   && request.resource.data.value == 'RD') ||
+          (request.resource.data.type == 'sick'         && request.resource.data.value == 'SICK')
+        ) &&
         request.resource.data.note is string &&
         request.resource.data.note.size() < 500;
       // Any authenticated user may delete their own overrides. Per-member isolation
@@ -65,9 +72,14 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasAll(['date', 'storageUrl', 'uploadedAt', 'uploadedBy']) &&
+        // hasOnly prevents clients from writing arbitrary extra fields (e.g. injecting
+        // script into htmlContent beyond the 250 KB cap). uploadedAt must be a server
+        // timestamp so the display order is authoritative.
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
         request.resource.data.date is string &&
-        request.resource.data.storageUrl is string;
+        request.resource.data.storageUrl is string &&
+        request.resource.data.uploadedAt is timestamp &&
+        (!request.resource.data.keys().hasAll(['htmlContent']) || request.resource.data.htmlContent.size() <= 250000);
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
@@ -143,7 +155,7 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
         request.resource.data.storageUrl is string &&
@@ -159,7 +171,7 @@ service cloud.firestore {
       allow create, update: if
         request.auth != null &&
         request.auth.token.admin == true &&
-        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'fileType', 'uploadedAt', 'uploadedBy']) &&
+        request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
         request.resource.data.storageUrl is string &&
@@ -170,19 +182,19 @@ service cloud.firestore {
     }
 
     match /pushSubscriptions/{docId} {
-      // Push subscriptions are written from index.html (public, no login required).
-      // The stored data is a browser endpoint URL and encryption keys — not PII.
-      // Shape validation ensures only well-formed subscription objects are stored.
+      // Push subscriptions require at minimum an anonymous Auth session (index.html
+      // always calls signInAnonymously before subscribing). Requiring auth prevents
+      // unauthenticated flooding of the collection — the fan-out iterates every doc,
+      // so fake subscriptions would degrade every Huddle push notification.
       allow read: if request.auth != null;
       allow create, update: if
+        request.auth != null &&
         request.resource.data.keys().hasAll(['endpoint', 'keys', 'subscribedAt']) &&
         request.resource.data.endpoint is string &&
         request.resource.data.endpoint.size() > 0 &&
         request.resource.data.keys is map &&
         request.resource.data.keys.p256dh is string &&
         request.resource.data.keys.auth is string;
-      // Anonymous sessions satisfy this — the unsubscribe path in notif.js always has
-      // at least an anonymous Auth session from the push subscription flow.
       allow delete: if request.auth != null;
     }
 

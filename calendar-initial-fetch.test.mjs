@@ -71,6 +71,10 @@ function makeEl(tag) {
         set(v) { _classes.clear(); String(v).split(/\s+/).filter(Boolean).forEach(c => _classes.add(c)); },
         enumerable: true, configurable: true,
     });
+    Object.defineProperty(el, 'isConnected', {
+        get() { return !this._removed; },
+        enumerable: true, configurable: true,
+    });
     return el;
 }
 
@@ -359,6 +363,36 @@ describe('retry', () => {
         assert.ok(chip._classes.has('sync-chip-error'));
         assert.equal(chip.textContent, "⚠ Couldn't update — tap to retry");
         assert.equal(chip.disabled, false);
+    });
+
+    // Regression: v13.97 — the original slow request could reject AFTER a retry
+    // had already succeeded, overwriting the success state with an error chip.
+    test('original request rejection after retry success does not recreate error chip', async (t) => {
+        t.mock.timers.enable({ apis: ['setTimeout'] });
+
+        let resolveOrig, rejectOrig;
+        _fetchImpl = () => new Promise((res, rej) => { resolveOrig = res; rejectOrig = rej; });
+
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        t.mock.timers.tick(800);
+        t.mock.timers.tick(9200);
+
+        // Retry is now shown. Make the retry succeed.
+        const chip = getSyncChip();
+        _fetchImpl = () => Promise.resolve();
+        chip._fire('click');
+        await flushAsync(); // retry resolves → chip removed
+
+        assert.equal(chip._removed, true, 'chip should be removed after retry succeeds');
+
+        // Now the original slow request finally rejects — must NOT recreate the error chip.
+        rejectOrig(new Error('belated original failure'));
+        await flushAsync();
+
+        // Any new chip created would have been appended to _header._children.
+        // The original chip was removed (._removed=true); no new chip should have been added.
+        const visibleChips = _header._children.filter(c => c._classes.has('sync-chip') && !c._removed);
+        assert.equal(visibleChips.length, 0, 'no visible error chip should appear after belated original rejection');
     });
 });
 

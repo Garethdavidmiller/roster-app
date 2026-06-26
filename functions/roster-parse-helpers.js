@@ -42,7 +42,7 @@ function normaliseShift(raw) {
     // RDW with time: "RDW 14:30-22:00" or "RDW 1430-2200" → "RDW|14:30-22:00".
     // Hours may be 1 or 2 digits (OCR sometimes drops the leading zero, e.g. "6:30");
     // pad to 2 so a single-digit hour isn't silently lost as a rest day.
-    const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
+    const rdwMatch = s.match(/^RDW\s+(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})$/);
     if (rdwMatch && validHHMM(rdwMatch[1], rdwMatch[2]) && validHHMM(rdwMatch[3], rdwMatch[4])) {
         return `RDW|${rdwMatch[1].padStart(2, '0')}:${rdwMatch[2]}-${rdwMatch[3].padStart(2, '0')}:${rdwMatch[4]}`;
     }
@@ -58,7 +58,7 @@ function normaliseShift(raw) {
 
     // Plain time range: "0530-1130", "05:30-11:30", "05.30-11.30", "0530 1130",
     // "6:30-12:30" (single-digit hour). Pad single-digit hours to 2 digits.
-    const match = s.match(/^(\d{1,2})[:\.]?(\d{2})[\s\-–]+(\d{1,2})[:\.]?(\d{2})$/);
+    const match = s.match(/^(\d{1,2})[:.]?(\d{2})[\s\-–]+(\d{1,2})[:.]?(\d{2})$/);
     if (match && validHHMM(match[1], match[2]) && validHHMM(match[3], match[4])) {
         return `${match[1].padStart(2, '0')}:${match[2]}-${match[3].padStart(2, '0')}:${match[4]}`;
     }
@@ -302,8 +302,10 @@ function isPayCutoffDay(date) {
     const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
     candidate.setUTCHours(12, 0, 0, 0);
     const diff = candidate.getTime() - FIRST_PAYDAY_MS;
-    if (diff < 0) return false;
-    return Math.round(diff / MS_PER_DAY) % INTERVAL_DAYS === 0;
+    // Use abs so the 28-day cycle is detected in both directions from the anchor.
+    // The original `if (diff < 0) return false` guard incorrectly excluded Jan 10
+    // (6 days before the Jan 16 payday, one cycle before the Feb 13 anchor).
+    return Math.round(Math.abs(diff) / MS_PER_DAY) % INTERVAL_DAYS === 0;
 }
 
 // ── Firebase Auth name helpers ───────────────────────────────────────────────
