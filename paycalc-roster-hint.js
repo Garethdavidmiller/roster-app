@@ -16,6 +16,7 @@ import { getLoggedMember, getEffectiveContr, getContr } from './paycalc-settings
 import { getRosterSuggestion, getOverridesFetchState } from './paycalc-roster-suggestions.js';
 import { escapeHtml } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
+import { pcPrefix } from './paycalc-migrations.js';
 
 // ── RENDER CACHE ──────────────────────────────────────────────────────────────
 // Avoids the parse+layout cost of innerHTML when the rendered string is identical
@@ -105,7 +106,7 @@ function _suggestIfBlank(hId, mId, hVal, mVal) {
  * Per-period localStorage key for the last roster snapshot used for auto-fill.
  * @param {any} pNum
  */
-export const snapKey = pNum => `myb_pc_snap_${pNum}`;
+export const snapKey = pNum => `${pcPrefix()}snap_${pNum}`;
 
 /**
  * Saves the suggestion values that were just applied so that loadPeriodData can restore

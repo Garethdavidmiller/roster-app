@@ -13,7 +13,7 @@
 
 import { GRADES, getTaxYearForOffset, calcProRateFactor, getPensionForPeriod } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum } from './paycalc-periods.js';
-import { SK, periodKey, ytdPayKey, ytdTaxKey } from './paycalc-migrations.js';
+import { SK, periodKey, ytdPayKey, ytdTaxKey, pcPrefix } from './paycalc-migrations.js';
 import { getSession } from './session.js';
 import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet } from './ls.js';
@@ -112,7 +112,7 @@ export function updateYtdForTaxYear(ty) {
 
 /** Per-tax-year localStorage key for the "confirmed" flag. */
 /** @param {any} ty */
-export function settingsKey(ty) { return `myb_pc_setup_${ty.label.replace('/', '_')}`; }
+export function settingsKey(ty) { return `${pcPrefix()}setup_${ty.label.replace('/', '_')}`; }
 
 /** Persist all field values. Called on every input change (auto-save).
  *  Does NOT set the confirmed flag or collapse the card — that's confirmSettings(). */

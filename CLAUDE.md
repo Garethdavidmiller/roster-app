@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v14.00 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.10 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `14.00` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `14.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -306,7 +306,8 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `window.matchMedia('(pointer: coarse)')` in `initSwipeHint()` | Gesture-tutorial UI must only show on touch devices. Always add this guard. |
 | **Do not gate layout on `(hover: hover) and (pointer: fine)` alone** | Some Android devices misreport `hover: hover`. For layout breakpoints, always use `min-width`. Hover/pointer queries are only safe for cosmetic `:hover` transitions. |
 | `paycalc.html` desktop grid on `<main>` | CSS grid applies to direct children only — declare on `main { display: grid }`. `.app` only holds max-width. |
-| `lsGet` / `lsSet` / `lsDel` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers. |
+| `lsGet` / `lsSet` / `lsDel` / `lsKeys` from `ls.js` | iOS Safari private mode throws `SecurityError` on any `localStorage` access. **Never call `localStorage` directly** in `calendar-app.js`, `admin-app.js`, or `paycalc-app.js` — always use these wrappers. `lsKeys()` (v14.11) returns a safe snapshot of all key names for code that must enumerate storage (e.g. the paycalc namespace migration). |
+| Per-member paycalc localStorage namespacing (v14.11) | On a shared device two staff would otherwise read each other's pay data (tax code, YTD, grade, period figures). Every per-member key carries a member segment — `myb_pc_<slug>_…` — between the `myb_pc_` prefix and the rest of the key. `pcPrefix()` in `paycalc-migrations.js` is the single source of the active prefix; `SK` and every `…Key()` builder (incl. `settingsKey` in `paycalc-settings.js` and `snapKey` in `paycalc-roster-hint.js`) derive from it. `setPaycalcNamespace(memberName)` is called once from `runMigrations` (before `loadSettings`), which also runs the **one-shot** `_migrateToNamespace`: the first member to load after this ships inherits the existing shared data under their namespace; everyone else starts clean and is isolated going forward. **Device-level keys stay unnamespaced** (migration guards, `myb_pc_pay_welcome_shown`, `myb_pc_ytd_notice_shown`, `myb_pc_ns_migrated`) — see `DEVICE_KEYS`. With no logged-in member the segment is empty, so keys are exactly the legacy names. Do not namespace device-level flags, and never read/write a paycalc key without going through `pcPrefix()`/`SK`. |
 | VAPID fingerprint migration | Both pages store first 12 chars of VAPID key in `localStorage('myb_vapid_ver')`. On mismatch, silently unsubscribes → re-subscribes. Cloud Function treats 401 same as 410/404. |
 | One-off notification prompt (`#notifPrompt`) | Appears once per device between `</nav>` and pay-period strip. Both Enable and × set `myb_notif_prompt_done`. Do not move below the calendar. |
 | PWA shortcuts in `manifest.json` | Three long-press shortcuts. Changes require reinstall to take effect on existing installs. |
@@ -336,7 +337,6 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | Header logo = back to calendar on sub-pages (v11.21) | On `admin.html` / `paycalc.html` / `operations.html` / `settings.html` the header logo `#appIcon` now navigates to `./index.html` (`title`/`aria-label` = "Back to calendar"). This restores an iOS-friendly back affordance (iOS standalone PWA has no system back) without re-adding a visible back button — kept "invisible" as just the logo. The About lightbox it used to open moved to the **nav-panel drawer logo** (see that entry). The **calendar page keeps its header logo opening About** (`.title-icon` in `calendar-app.js`) — home has no "back" target. Do not wire the calendar header logo to navigate. |
 | `.app-header` brand centering (v10.66) | `admin.html` / `paycalc.html` headers use `display:grid; grid-template-columns:1fr auto 1fr`. Burger sits in col 1 (`justify-self:start`), logo+title in an `.app-header-brand` flex wrapper in col 2 (auto, truly centred), badge in col 3 (`justify-self:end`). Equal `1fr` side columns guarantee the brand is always centred regardless of burger/badge width asymmetry. The calendar uses a different `.header` (balanced spacers), unaffected. |
 | Sign-out in nav panel footer (v10.59) | Sign-out button moved from page headers to the nav panel footer. `initNavPanel({ onSignOut: fn })` — each page passes its own sign-out callback. Footer (member name + Sign out button) renders only when `onSignOut` is supplied. `.btn-signout` CSS removed from `shared.css`. |
-| Nationality flags in nav panel footer (v10.64) | Optional `flags: ['🇬🇧','🇳🇬']` array on a `teamMember` (max 2). `nav-panel.js` imports `teamMembers`, looks up the logged-in member by exact name, and renders the flags between the name and the bell (set via `textContent`). Flag emojis render correctly on Android (primary platform); **hidden on Windows** via UA detection (`/Win/.test(navigator.platform) \|\| /Windows/.test(navigator.userAgent)`) — Windows renders them as 2-letter codes. Adding a member's flags = one array on their `teamMembers` entry. |
 | Notification bell in nav panel footer (v10.61) | `notif.js` is the shared Web Push module; `nav-panel.js` imports it and renders a 🔔/🔕 toggle in the footer (signed-in only, hidden when `notifSupported()` is false — incl. iOS non-standalone). Bell refreshes on every panel open; tap keeps the panel open. States: `on`/`off-default`/`off-lapsed`/`denied`/`unsupported`. `calendar-app.js` and `huddle.js` also import `notif.js` — VAPID key and subscribe/unsubscribe logic live in one place (v10.79). The `#notifPrompt` calendar strip stays on the calendar; the Notifications card lives on settings.html (moved v11.06). |
 | Guide pages back button → index.html (v10.57) | `railcard-guide.html` and `fip.html` back buttons now link to `./index.html` (not `./admin.html`) — guides are accessed from the nav panel, not the admin page. |
 | Maskable icons | 512px entry uses `"purpose": "any maskable"` for Android adaptive shapes. Smaller icons omit this. |
@@ -415,7 +415,6 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
   startDate: new Date(2026, 3, 20), // Optional — midnight local time: new Date(year, month-1, day)
   noProRate: true,                  // Optional — set for secondment returns: startDate suppresses pre-return shifts but pay and AL are full-year (no pro-rating in paycalc; joiner banner hidden)
   proRatedAL: { 2026: 23 }, // Optional — overrides getALEntitlement for joining year only
-  flags: ['🇬🇧', '🇳🇬'], // Optional — up to 2 nationality flag emojis; shown in nav panel footer (v10.64); hidden on Windows (v10.65)
   rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 4 }] // Optional — scheduled roster moves
 }
 ```
