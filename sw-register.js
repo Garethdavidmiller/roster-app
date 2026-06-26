@@ -26,7 +26,11 @@ export function registerServiceWorker({ beforeReload, bfcache = false } = {}) {
         .then(registration => {
             /** @param {ServiceWorker} w */
             function activate(w) { w.postMessage({ type: 'SKIP_WAITING' }); }
-            if (registration.waiting) activate(registration.waiting);
+            // Guard: only activate a waiting SW if a controller already exists.
+            // Without this check, first-install (waiting but no controller) would
+            // call skipWaiting → controllerchange → window.location.reload() — a
+            // spurious reload on the very first page open.
+            if (registration.waiting && navigator.serviceWorker.controller) activate(registration.waiting);
             registration.addEventListener('updatefound', () => {
                 const nw = registration.installing;
                 if (!nw) return;

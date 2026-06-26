@@ -620,6 +620,8 @@ Email/password convention: **see `OPERATIONS_REFERENCE.md`**.
 
 Manual-entry. CEA £20.74/hr · CES £21.81/hr · both 140hrs/period · pension £147.36 · London Allowance £276.16 (rates from P51 May 8 2026; 2026/27 not yet confirmed — update `GRADES` in `paycalc-calc.js` when announced). Roster-assist pre-fills Sat/Sun/BH/RDW; standard weekday hours not pre-filled. Full detail (rates, state management, layout, payroll rules) in `.claude/rules/paycalc.md`.
 
+**Example payslips for testing:** `MILLER_ACTUALS` in `roster-data.js` contains 13 real payslip records from G. Miller's 2025/26 tax year (P43–P55) with actual gross, tax, NI, net, and varPay values. `paycalc.test.mjs` uses these to verify tax and NI computations stay within payslip tolerance. When making changes to pay maths (tax, NI, thresholds, variable pay), run the payslip integration tests in `paycalc.test.mjs` and check that existing assertions still hold. Use `paycalc-hpp.test.mjs` for `_varPayForPeriod` regression tests.
+
 ---
 
 ## Guide pages (railcard, FIP, guide shell)
