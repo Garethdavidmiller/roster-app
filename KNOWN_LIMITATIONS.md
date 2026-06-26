@@ -149,6 +149,29 @@ non-cutoff days (`[payReminder] Not a cutoff date — skipping`).
 **Next live test: Saturday 27 June 2026** (cutoff for the 3 Jul payday). If the notification
 arrives, mark this done. If not, check Firebase Console → Functions → Logs for that date.
 
+### Firebase App Check — considered and declined (June 2026)
+App Check (register the app's hosting domains so only requests from our own pages can reach
+Firestore/Storage) was considered as a defence-in-depth measure and **declined for now**.
+
+**Why declined:**
+- It is **not** a console-only toggle — it requires client-side SDK init in `firebase-client.js`
+  wired to a provider (e.g. reCAPTCHA Enterprise), so it is a real code change with its own
+  outage risk, not a 30-minute setting.
+- It shares the **exact failure mode** that the API-key referrer restriction (task #1) already
+  caused in production: miss a served domain (`web.app`, `firebaseapp.com`,
+  `garethdavidmiller.github.io`) or hit a provider hiccup and writes start failing silently with
+  no visible error in the app. The allowlist must be kept in sync forever.
+- Our biggest data exposure — the `overrides` collection — is **already world-readable by
+  design** (see "Override data is publicly readable" above). App Check gates *which clients*
+  connect, not what an authenticated client may read, so it does not address that exposure.
+- Payoff for this threat model (unadvertised app, small known team) is low: it blocks scripted
+  bulk reads/writes from outside our pages, which is a real but low-probability attack here.
+
+**When to revisit:** if the app is advertised more widely or becomes official Chiltern
+infrastructure. Of the deferred security work, per-member write isolation (task #2 above) has
+the higher real value — but it needs the Firestore emulator suite (ROADMAP Phase 7) in place
+first, because that exact change caused the v10.94 outage.
+
 ---
 
 ## Pay calculator
