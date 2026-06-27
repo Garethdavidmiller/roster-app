@@ -23,7 +23,28 @@ const {
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
+    fileSignatureMatches,
 } = require('./functions/roster-parse-helpers.js');
+
+// ── fileSignatureMatches ──────────────────────────────────────────────────────
+
+describe('fileSignatureMatches', () => {
+    const pdf  = Buffer.from('%PDF-1.7\n%âãÏÓ\n', 'binary');
+    const docx = Buffer.from([0x50, 0x4B, 0x03, 0x04, 0x14, 0x00]); // ZIP local-file header
+
+    test('accepts real PDF bytes claimed as pdf', () => assert.equal(fileSignatureMatches(pdf, 'pdf'), true));
+    test('accepts real DOCX (ZIP) bytes claimed as docx', () => assert.equal(fileSignatureMatches(docx, 'docx'), true));
+    test('rejects PDF bytes claimed as docx', () => assert.equal(fileSignatureMatches(pdf, 'docx'), false));
+    test('rejects DOCX bytes claimed as pdf', () => assert.equal(fileSignatureMatches(docx, 'pdf'), false));
+    test('rejects an empty buffer', () => assert.equal(fileSignatureMatches(Buffer.alloc(0), 'pdf'), false));
+    test('rejects a too-short buffer', () => assert.equal(fileSignatureMatches(Buffer.from([0x25, 0x50]), 'pdf'), false));
+    test('rejects random bytes', () => assert.equal(fileSignatureMatches(Buffer.from([0, 1, 2, 3, 4]), 'pdf'), false));
+    test('rejects null / undefined', () => {
+        assert.equal(fileSignatureMatches(null, 'pdf'), false);
+        assert.equal(fileSignatureMatches(undefined, 'docx'), false);
+    });
+    test('rejects an unknown fileType', () => assert.equal(fileSignatureMatches(pdf, 'txt'), false));
+});
 
 // ── normaliseShift ────────────────────────────────────────────────────────────
 

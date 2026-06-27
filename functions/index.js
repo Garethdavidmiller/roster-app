@@ -38,6 +38,7 @@ const {
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
+    fileSignatureMatches,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -260,11 +261,30 @@ exports.ingestHuddle = onRequest(
             ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
             : 'application/pdf';
 
+        // Verify the decoded bytes actually match the claimed type — a mislabelled
+        // extension or spoofed upload should not reach Storage or the DOCX converter.
+        if (!fileSignatureMatches(fileBuffer, fileType)) {
+            res.status(400).json({ error: `File content does not match its .${fileType} extension` });
+            return;
+        }
+
         // ---- Upload to Firebase Storage ----
         // Versioned suffix prevents a second upload (different file type) for the same
         // date from silently orphaning the first file in Storage — each gets its own path.
         const uploadId    = crypto.randomBytes(4).toString('hex');
         const storagePath = `huddles/${date}-${uploadId}.${fileType}`;
+
+        // Capture the previous version's Storage path (if any) BEFORE overwriting the
+        // Firestore doc, so the orphaned object can be deleted once the new metadata
+        // commits. Versioned paths mean each upload writes a NEW object — without this
+        // the prior file is left behind in Storage on every re-upload for a date.
+        let prevStoragePath = null;
+        try {
+            const prevSnap = await admin.firestore().collection('huddles').doc(date).get();
+            if (prevSnap.exists) prevStoragePath = (prevSnap.data() || {}).storagePath || null;
+        } catch (readErr) {
+            console.warn('[ingestHuddle] Could not read previous huddle metadata (non-fatal):', readErr.message);
+        }
 
         try {
             const bucket = admin.storage().bucket();
@@ -328,7 +348,21 @@ exports.ingestHuddle = onRequest(
                 uploadedBy: 'power-automate',
             };
             if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
-            await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
+            try {
+                await admin.firestore().collection('huddles').doc(date).set(firestoreDoc);
+            } catch (metaErr) {
+                // Metadata write failed after the object uploaded — delete the new object
+                // so it isn't orphaned, then rethrow to the outer handler.
+                await bucket.file(storagePath).delete().catch(() => {});
+                throw metaErr;
+            }
+
+            // New metadata committed — delete the previous version's object (best-effort;
+            // a failure just leaves one stale file, which the next upload supersedes).
+            if (prevStoragePath && prevStoragePath !== storagePath) {
+                await bucket.file(prevStoragePath).delete().catch(delErr =>
+                    console.warn('[ingestHuddle] Old huddle object cleanup failed (non-fatal):', delErr.message));
+            }
 
             console.log(`[ingestHuddle] Uploaded ${fileType} for ${date} (${fileBuffer.length} bytes)`);
 
@@ -702,6 +736,13 @@ exports.parseRosterPDF = onRequest(
             res.status(400).json({ error: 'Decoded PDF is empty' });
             return;
         }
+
+        // Confirm the decoded bytes are actually a PDF (magic-byte "%PDF-") before
+        // spending an AI call on them — rejects a mislabelled or non-PDF upload.
+        if (!fileSignatureMatches(pdfBuffer, 'pdf')) {
+            res.status(400).json({ error: 'Uploaded file is not a valid PDF' });
+            return;
+        }
         if (pdfBuffer.length > 20 * 1024 * 1024) {
             res.status(413).json({ error: 'File exceeds 20 MB limit' });
             return;
@@ -936,6 +977,14 @@ Every column header must appear as a key in every member object.`;
         if (filteredEntries.length < safeEntries.length) {
             const dropped = safeEntries.filter(e => !knownNamesSet.has(e.memberName)).map(e => e.memberName);
             console.warn(`[parseRosterPDF] Dropped ${dropped.length} unknown member(s): ${dropped.join(', ')}`);
+        }
+
+        if (filteredEntries.length === 0) {
+            // safeEntries was non-empty but every entry was a hallucinated name not in the
+            // roster list — returning success here would show a blank review table as if the
+            // roster were empty. Treat it as a parse failure so the admin re-checks and retries.
+            res.status(502).json({ error: 'The AI returned only unrecognised names — check the roster type is correct and try again' });
+            return;
         }
 
         console.log(`[parseRosterPDF] Returning ${filteredEntries.length} parsed members for week ${weekEnding}`);
