@@ -280,7 +280,7 @@ splash never cleared; it also failed the SW precache (`purify.es.mjs` is in
 **Lesson:** any deploy-ignore pattern must exclude *only* dev/test files — never
 match a file the app imports at runtime. When adding a new runtime asset with a
 test-like or tooling-like extension, confirm it is not caught by an `ignore`
-glob in `firebase.json` (and is present in the `deploy-pages.yml` rsync).
+glob in `firebase.json`.
 
 ---
 
