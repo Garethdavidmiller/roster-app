@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.20';
+export const APP_VERSION = '14.21';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -126,12 +126,10 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    { name: 'B. Khalil',               currentWeek: 1,  rosterType: 'fixed',      role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true,
-      // noProRate: pay and AL are full-year despite the startDate.
-      // Fixed 12:00-19:00 Mon-Fri until end of June, then joins the CES link.
-      // currentWeek:5 is correct: the formula measures from the Feb 15 CES reference date
-      // (19 weeks before 1 Jul), so 5+19=24 → week 4 in the 10-week cycle.
-      rosterChanges: [{ from: new Date(2026, 6, 1), rosterType: 'ces', currentWeek: 5 }] },
+    // On the CES rotation from his 9 Jun 2026 start (no bespoke fixed induction line —
+    // currentWeek:5 anchors him from the 15 Feb CES reference so July lands on week 5).
+    // noProRate: pay and AL are full-year (CES 34) despite the mid-year startDate.
+    { name: 'B. Khalil',               currentWeek: 5,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true },
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
     { name: 'L. Webster',              currentWeek: 6,  rosterType: 'ces',        role: 'CES' },
     { name: 'Z. Lewis',                currentWeek: 7,  rosterType: 'ces',        role: 'CES' },
@@ -220,10 +218,9 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
-    // C. Reen's fixed line carries a 34-day (CES-equivalent) entitlement — a named arrangement,
-    // NOT a property of being on a fixed roster. Other fixed CEAs (a temporary adjusted-hours line
-    // or a new-starter induction line) keep the standard CEA 32.
-    if (member.name === 'C. Reen') return 34;
+    // Every CEA — main, bilingual, or fixed (C. Reen, and any temporary adjusted-hours /
+    // new-starter induction line) — gets the standard 32. There is no fixed-roster AL premium
+    // (corrected June 2026: C. Reen is contractually CEA, not CEA-BL, so 32, not 34).
     return 32;
 }
 

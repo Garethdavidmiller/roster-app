@@ -164,9 +164,8 @@ test('getALEntitlement: Dispatcher base entitlement is 22 days (no BH worked)', 
     assert.equal(getALEntitlement({ role: 'Dispatcher', rosterType: 'dispatcher' }), 22);
 });
 
-test('getALEntitlement: C. Reen (fixed) gets 34; other fixed CEAs keep the standard 32', () => {
-    assert.equal(getALEntitlement({ name: 'C. Reen', role: 'CEA', rosterType: 'fixed' }), 34);
-    // A fixed CEA who is NOT C. Reen (temporary adjusted-hours / induction line) → standard 32.
+test('getALEntitlement: all CEAs incl. fixed-line (C. Reen) get the standard 32 — no fixed premium', () => {
+    assert.equal(getALEntitlement({ name: 'C. Reen', role: 'CEA', rosterType: 'fixed' }), 32);
     assert.equal(getALEntitlement({ name: 'K. Jedlinski', role: 'CEA', rosterType: 'fixed' }), 32);
 });
 
@@ -444,7 +443,8 @@ test('resolveMemberRoster: applies the change on the from date (inclusive)', () 
 });
 
 // ---------------------------------------------------------------------------
-// B. Khalil — real new-starter transition (fixed → CES on 1 Jul 2026)
+// B. Khalil — new CES starter on the CES rotation from his 9 Jun 2026 start
+// (no bespoke fixed induction line — corrected June 2026)
 // ---------------------------------------------------------------------------
 
 test('B. Khalil: RD before his 9 Jun 2026 start date', () => {
@@ -453,20 +453,21 @@ test('B. Khalil: RD before his 9 Jun 2026 start date', () => {
     assert.equal(getBaseShift(k, d(2026, 6, 8)), 'RD'); // 8 Jun — day before start
 });
 
-test('B. Khalil: fixed 12:00-19:00 on a June weekday', () => {
+test('B. Khalil: on the CES rotation (not a fixed line) from June', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
-    assert.equal(getBaseShift(k, d(2026, 6, 9)), '12:00-19:00'); // 9 Jun is a Tuesday
+    assert.equal(getRosterForMember(k, d(2026, 6, 10)).type, 'ces'); // June already the CES roster
+    assert.equal(getBaseShift(k, d(2026, 6, 10)), '05:40-14:30');    // Wed 10 Jun — CES week-1 early shift
 });
 
-test('B. Khalil: rests at weekends in June', () => {
+test('B. Khalil: works CES early shifts incl. some Saturdays (not a fixed 12:00-19:00 line)', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
-    assert.equal(getBaseShift(k, d(2026, 6, 13)), 'RD'); // 13 Jun is a Saturday
+    assert.equal(getBaseShift(k, d(2026, 6, 13)), '05:40-15:00'); // Sat 13 Jun — CES week-1 works the Saturday
 });
 
-test('B. Khalil: follows the CES roster from 1 July 2026', () => {
+test('B. Khalil: stays on the CES roster across the 1 July boundary', () => {
     const k = teamMembers.find(m => m.name === 'B. Khalil');
+    assert.equal(getRosterForMember(k, d(2026, 6, 30)).type, 'ces');
     assert.equal(getRosterForMember(k, d(2026, 7, 1)).type, 'ces');
-    assert.equal(getRosterForMember(k, d(2026, 6, 30)).type, 'fixed');
 });
 
 // ---------------------------------------------------------------------------

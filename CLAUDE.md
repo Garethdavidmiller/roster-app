@@ -429,9 +429,8 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 
 | Role / type | Days |
 |-------------|------|
-| CEA (main, bilingual, fixed) | 32/year |
+| CEA (main, bilingual, fixed — incl. C. Reen's fixed line) | 32/year |
 | CES (`ces`) | 34/year |
-| C. Reen (`fixed`) | 34/year |
 | Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) |
 
 ### Roster cycles
