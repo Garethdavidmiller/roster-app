@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v14.10 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.20 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `14.10` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `14.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -429,9 +429,8 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 
 | Role / type | Days |
 |-------------|------|
-| CEA (main, bilingual, fixed) | 32/year |
+| CEA (main, bilingual, fixed — incl. C. Reen's fixed line) | 32/year |
 | CES (`ces`) | 34/year |
-| C. Reen (`fixed`) | 34/year |
 | Dispatcher | 22 + 1 lieu per BH worked (`countDispatcherBankHolidaysWorked`) |
 
 ### Roster cycles
@@ -440,7 +439,7 @@ Full HTML template, JS patterns (close-only and CTA+snooze), rules table, and mo
 |------|-------|
 | main | 20 |
 | bilingual | 8 |
-| fixed | 1 |
+| fixed | 1 per member, no rotation — `currentWeek` selects which fixed pattern in `fixedRoster` (1 = C. Reen 12:00–19:00; 2 = S. Boyle / K. Jedlinski 09:00–16:00) |
 | ces | 10 |
 | dispatcher | 10 |
 
