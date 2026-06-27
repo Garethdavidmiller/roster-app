@@ -16,7 +16,7 @@ import { CONFIG, MONTH_NAMES, computeEaster, getPaydaysAndCutoffs, formatISO } f
 import { auth, authReady, signInAnonymously } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { getSession, clearSession } from './session.js';
-import { initTeamView } from './app-team-view.js';
+import { initTeamView } from './calendar-team-view.js';
 import { initNavPanel } from './nav-panel.js';
 import { notifSupported, getNotifState, enableNotifications } from './notif.js';
 import { _pushOverlayState, _clearOverlayHistory, createLightbox } from './overlay.js';
@@ -24,7 +24,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { initHuddleViewer } from './app-huddle-viewer.js';
+import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
@@ -653,7 +653,7 @@ registerServiceWorker({
 });
 
 // ============================================
-// HUDDLE VIEWER — initialised via app-huddle-viewer.js
+// HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
 initHuddleViewer();
 

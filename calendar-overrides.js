@@ -12,7 +12,7 @@
 
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { getBaseShift, formatISO, isSunday } from './roster-data.js';
-import { shouldReplaceOverride, isBeforeMemberStart } from './app-override-utils.js';
+import { shouldReplaceOverride, isBeforeMemberStart } from './override-utils.js';
 
 // Cache keyed "memberName|YYYY-MM-DD".
 export const rosterOverridesCache = new Map();

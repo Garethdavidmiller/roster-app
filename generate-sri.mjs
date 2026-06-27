@@ -12,7 +12,7 @@
  * DOMPurify is self-hosted at ./purify.es.mjs — it is NOT managed here.
  * To upgrade DOMPurify: `npm pack dompurify@<ver>`, extract
  * package/dist/purify.es.mjs, replace this file, update the version comment
- * in app-huddle-viewer.js.
+ * in calendar-huddle-viewer.js.
  *
  * Requires Node 18+ (global fetch, node:crypto).
  *

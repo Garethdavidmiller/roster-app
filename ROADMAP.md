@@ -199,7 +199,7 @@ The floating card header (white background, drop shadow, rounded corners) was re
 
 Power Automate flow redesigned: old flow used a noon time-of-day condition (before noon = DOCX branch, after noon = PDF branch), meaning afternoon emails always sent PDF even when DOCX was attached. New flow is DOCX-first: filter attachments for DOCX MIME type → if found send DOCX to `ingestHuddle`; else filter for PDF → if found send PDF. No time condition at all.
 
-Viewer code hardened to match: `app-huddle-viewer.js` now uses simple `if (htmlContent) render inline; else show "📄 Open Huddle" button` — eliminating a silent DOCX failure in `_triggerAutoOpen` and an incorrect error message in the manual click handler. The auto-open notification path and manual-click path are now logically identical in their branching.
+Viewer code hardened to match: `calendar-huddle-viewer.js` now uses simple `if (htmlContent) render inline; else show "📄 Open Huddle" button` — eliminating a silent DOCX failure in `_triggerAutoOpen` and an incorrect error message in the manual click handler. The auto-open notification path and manual-click path are now logically identical in their branching.
 
 ---
 
@@ -789,7 +789,7 @@ Roughly ordered by value-to-effort.
   opens it first, Bob inherits Alice's tax code/YTD/pension/periods. Fix: a one-time ownership
   prompt ("Existing Pay Calculator data was found — does it belong to you?" → move / clear / leave)
   instead of silently deciding by first access. Migration-only; the namespaced design itself is good.
-- **Validate Huddle download URLs.** `app-huddle-viewer.js` opens the Firestore-provided
+- **Validate Huddle download URLs.** `calendar-huddle-viewer.js` opens the Firestore-provided
   `storageUrl` directly; apply the same HTTPS + recognised-Storage-host validator that circulars/
   newsletters now use (ideally narrowed to the actual project bucket).
 - **Overlapping Sunday-correction deletion.** When two AL/sick ranges overlap the same worked
@@ -918,7 +918,7 @@ Completed. `sessionReady` (Promise) and `resolveSession()` are exported from `se
 
 Added `// Rule: see CLAUDE.md — "…"` one-liners at each surprising business-logic enforcement site:
 - `getBaseShift()` in `roster-data.js` — `isChristmasRD` ordering
-- `shouldReplaceOverride()` in `app-override-utils.js` — manual-beats-import precedence
+- `shouldReplaceOverride()` in `override-utils.js` — manual-beats-import precedence
 - All four Sunday-enforcement layers in `admin-overrides.js` (pill disable, bulk-bar skip, `recordRangeOverrides` filter) and `calendar-renderer.js` (sick-override display suppression)
 
 ### Phase 4 — Test coverage for DOM wiring ✓ (v13.84)

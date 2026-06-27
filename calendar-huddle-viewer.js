@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * app-huddle-viewer.js — Daily Huddle overlay for index.html.
+ * calendar-huddle-viewer.js — Daily Huddle overlay for index.html.
  *
  * Owns: Huddle viewer overlay, auto-open on notification tap, real-time
  *   Firestore subscription, HTML sanitisation.

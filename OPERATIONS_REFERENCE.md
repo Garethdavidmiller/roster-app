@@ -192,7 +192,7 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 
 ### Huddle notification tap behaviour (v10.71)
 
-When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is the staff-site root with the `#huddle` hash (`https://garethdavidmiller.github.io/#huddle`, from the push payload's `url` field). On load — or via the `hashchange` listener if the page is already open — `app-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `./index.html#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
+When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is the staff-site root with the `#huddle` hash (`https://garethdavidmiller.github.io/#huddle`, from the push payload's `url` field). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `./index.html#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
 
 **Two render paths inside `_triggerAutoOpen` — do not unify:**
 

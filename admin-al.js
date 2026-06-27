@@ -4,7 +4,7 @@
 // and shared functions via initALSection(deps) to avoid circular imports.
 
 import { teamMembers, getALEntitlement, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
-import { isRestShift } from './app-override-utils.js';
+import { isRestShift } from './override-utils.js';
 import { getAllOverrides, recordRangeOverrides, formatDisplay, buildMemberDateMap } from './admin-overrides.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 

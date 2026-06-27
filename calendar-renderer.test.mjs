@@ -75,7 +75,7 @@ mock.module('./calendar-overrides.js', {
     namedExports: { rosterOverridesCache: _overrideCache },
 });
 
-mock.module('./app-override-utils.js', {
+mock.module('./override-utils.js', {
     namedExports: { isBeforeMemberStart: (m, d) => _mockIsBeforeMember(m, d) },
 });
 

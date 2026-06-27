@@ -13,7 +13,7 @@
 
 import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadges,
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
-import { isRestShift, shouldReplaceOverride } from './app-override-utils.js';
+import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
          deleteDoc, doc, serverTimestamp, writeBatch, auth, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
