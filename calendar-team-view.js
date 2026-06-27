@@ -1,6 +1,6 @@
 // @ts-check
 /**
- * app-team-view.js — Team Week View for index.html.
+ * calendar-team-view.js — Team Week View for index.html.
  *
  * Owns: team view state (mode, current week, grade), grid render, Firestore
  *   override fetch, toggle, chrome updates, ARIA week announcement.
@@ -14,7 +14,7 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_NAMES, TEAM_GRADES, getBaseShift,
          SHIFT_TIME_REGEX, getShiftKind, isSunday } from './roster-data.js';
 import { db, collection, query, where, getDocs, COLLECTIONS } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
-import { isBeforeMemberStart, shouldReplaceOverride } from './app-override-utils.js';
+import { isBeforeMemberStart, shouldReplaceOverride } from './override-utils.js';
 
 // Warn at most once per session per unknown shift type — avoids console spam on every render.
 const _unknownShiftWarned = new Set();

@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.14
+// MYB Roster — Service Worker v14.16
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.14';
+const APP_VERSION = '14.16';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -27,7 +27,7 @@ const NETWORK_FIRST_FILES = [
     'calendar-app.js', 'calendar-state.js', 'calendar-swipe.js',
     'calendar-overrides.js', 'calendar-member.js', 'calendar-renderer.js',
     'calendar-al-lightbox.js', 'calendar-initial-fetch.js', 'calendar-keyboard.js',
-    'app-team-view.js', 'app-override-utils.js', 'app-huddle-viewer.js',
+    'calendar-team-view.js', 'override-utils.js', 'calendar-huddle-viewer.js',
     'admin-app.js', 'huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js',
@@ -49,7 +49,9 @@ const NETWORK_FIRST_FILES = [
     'purify.es.mjs',
 ];
 
-// Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
+// Critical app files — precached on install. Each is fetched individually and the
+// batch is wrapped in Promise.allSettled (see the install handler), so a single 404
+// or network blip skips that one file and logs it rather than aborting the install.
 const CORE_ASSETS = [
     "./index.html",
     "./admin.html",
@@ -74,9 +76,9 @@ const CORE_ASSETS = [
     "./calendar-al-lightbox.js",
     "./calendar-initial-fetch.js",
     "./calendar-keyboard.js",
-    "./app-team-view.js",
-    "./app-override-utils.js",
-    "./app-huddle-viewer.js",
+    "./calendar-team-view.js",
+    "./override-utils.js",
+    "./calendar-huddle-viewer.js",
     "./admin-app.js",
     "./huddle.js",
     "./admin-auth.js",
@@ -245,7 +247,10 @@ self.addEventListener("fetch", event => {
                 ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
                 ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
             ];
-            const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.includes(seg));
+            // Match the page by its exact path segment, not a substring — a substring
+            // test (path.includes('admin')) would mis-route a future '/admin-report.html'
+            // to the wrong fallback (the same class as the historical /admin-app.js MIME bug).
+            const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`) || path.endsWith(`/${seg}`));
             const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
             const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
             // iOS can evict the entire Cache Storage under storage pressure —

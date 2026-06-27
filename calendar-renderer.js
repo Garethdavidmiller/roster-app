@@ -16,7 +16,7 @@ import {
     getWeekNumberForDate, getRosterForMember, getBaseShift, formatISO, isSunday,
     SWIPE_THRESHOLD, SWIPE_VELOCITY, getPaydaysAndCutoffs,
 } from './roster-data.js';
-import { isBeforeMemberStart } from './app-override-utils.js';
+import { isBeforeMemberStart } from './override-utils.js';
 import { getCurrentMember } from './calendar-member.js';
 import { rosterOverridesCache } from './calendar-overrides.js';
 

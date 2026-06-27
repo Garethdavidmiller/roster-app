@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift } from './app-override-utils.js';
+import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 

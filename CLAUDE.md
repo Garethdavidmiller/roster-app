@@ -135,7 +135,7 @@ See `AI_MAP.md` for full module descriptions and export lists.
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Staff Login Accounts
+├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Usage, Staff Login Accounts
 ├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring
@@ -147,7 +147,7 @@ roster-app/
 ├── calendar-overrides.js   ← Firestore override cache for index.html: rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth, monthKey
 ├── calendar-member.js      ← team member selection for index.html: getSelectedMemberIndex, getCurrentMember, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html: buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection
-├── app-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
+├── calendar-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
 ├── nav-panel.js            ← shared nav drawer: initNavPanel, NAV_PAGES/INFORMATION/GUIDES, archiveNotice, isNoticeExpired
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
@@ -158,8 +158,8 @@ roster-app/
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
 ├── usage-reporter.js       ← shared anonymous usage recorder: recordUsage(page, member?) — page popularity + active-account counts (client-side dedup; no identity stored)
 ├── usage-stats.js          ← pure usage maths: monthKey, dayKey, shouldCountMonth, shouldCountRolling, recentDayKeys, sumDailyWindow, orderPageCounts, staleDailyKeys
-├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
-├── app-override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
+├── calendar-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
+├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
 ├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog
 ├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email
@@ -206,7 +206,7 @@ roster-app/
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md / RESTART_NOTIFICATIONS.md ← docs
-├── app.test.mjs            ← tests for app-override-utils.js
+├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
@@ -221,7 +221,8 @@ roster-app/
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
-├── firestore.rules.test.mjs ← Firestore security rules integration tests (90 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
+├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
@@ -249,13 +250,13 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test              # test:hygiene + test:parse + test:unit (all ~580 unit tests)
+npm test              # test:hygiene + test:parse + test:unit (~600 unit tests)
 npm run check         # lint + typecheck + npm test (full pre-push gate)
 npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay, usage-stats
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 
@@ -347,7 +348,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | SW synthesised offline page uses status 200 | Some browsers suppress 5xx response bodies. `Cache-Control: no-store` prevents caching the synthesised page. |
 | SW offline fallback only for navigation requests (v10.15) | Only `event.request.destination === 'document'` requests get the offline HTML page. JS/CSS get `Response.error()`. Without this, `/admin-app.js` matched `'admin'` in the fallback logic and got HTML for a JS request — MIME-type error. Fallback routing chain (v11.87): `paycalc` → `paycalc.html` · `operations` → `operations.html` · `settings` → `settings.html` · `admin` → `admin.html` · otherwise → `index.html`. |
 | Huddle notification → `#huddle` hash pattern | SW navigates to `#huddle`; `calendar-app.js` `hashchange` handler triggers the viewer (`_autoOpen` is `let` so it can reset). **Two viewer paths — do not unify, do not revert notification path to direct `window.open`/`location.href`:** `htmlContent` present (DOCX converted server-side) → renders inline in both paths. No `htmlContent` (PDF or failed conversion) → the viewer shows an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`); its click is a real gesture (a direct `window.open`/`location.href` on a hash-open would be pop-up-blocked or knock the PWA out of standalone). The viewer is opened **only** via the `#huddle` hash — from both the nav-panel "Daily Huddle" link and notification taps (the old `#huddleBtn` was removed at v12.57). `huddles` Firestore reads are open (no auth) — `calendar-app.js` has no Auth session, so requiring auth would break auto-open on fresh visits. Full rationale: **OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour"**. |
-| `isBeforeMemberStart(member, date)` in `app-override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
+| `isBeforeMemberStart(member, date)` in `override-utils.js` (v10.16) | Returns true if `date` is before the member's `startDate`. Always use this helper — never inline the date comparison. |
 | `navigateToPaycalc(paydayStr)` in `calendar-app.js` (v10.17) | Encapsulates session-check-then-navigate for payday and cutoff cell clicks. Always call this helper — never duplicate the navigation logic. |
 | SW `new Request(url)` fetch pattern (v10.16) | `new Request(event.request.url, { cache: 'no-store', ... })` instead of passing opts to an existing Request. Passing opts alongside a Request doesn't reliably override cache mode on older Safari/Chromium. |
 | `initErrorReporter()` call pattern (v13.78) | Writes to Firestore `clientErrors`, so a valid auth token is required. Three canonical call sites: (1) **`calendar-app.js`** — wait for auth persistence to load, then sign in anonymously only if no named user is already present: `authReady.then(()=>auth.currentUser?null:signInAnonymously(auth).catch(()=>{})).catch(()=>{}).finally(()=>initErrorReporter())` — this preserves a named identity (e.g. admin opened admin.html first) instead of racing with or replacing it; (2) **Authenticated pages with `sessionReady`** (`admin-app.js`, `settings-app.js`, `operations-app.js`, `links-app.js`) — call `sessionReady.then(()=>initErrorReporter())`; (3) **`paycalc-app.js`** (no `sessionReady`, uses `ensureFirebaseSession` directly) — call `ensureFirebaseSession(name).catch(()=>{}).finally(initErrorReporter)`. Never call `initErrorReporter()` bare without an auth context — writes will be silently rejected by Firestore rules. |
@@ -450,7 +451,7 @@ date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
 type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick"
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
-value        "HH:MM-HH:MM" for spare_shift/shift/rdw; "AL" for annual_leave; "RD" for correction; "SICK" for sick
+value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick
 note         Free text — "" if none. Field must always be present.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 createdAt    Firestore server timestamp

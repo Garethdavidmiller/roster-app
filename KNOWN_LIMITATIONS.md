@@ -273,7 +273,7 @@ referrer allowlist, or the hosting setup.
 **Root cause of the June 2026 splash outage (fixed v12.34):** `firebase.json`'s
 hosting `ignore` list contained `**/*.mjs` — intended to skip the `*.test.mjs`
 test files, but it also dropped the **runtime** `purify.es.mjs` from every
-Firebase deploy. The import is static (`index.html → calendar-app.js → app-huddle-viewer.js
+Firebase deploy. The import is static (`index.html → calendar-app.js → calendar-huddle-viewer.js
 → import './purify.es.mjs'`), so the 404 broke the whole module graph and the
 splash never cleared; it also failed the SW precache (`purify.es.mjs` is in
 `CORE_ASSETS`). Fixed by narrowing the ignore to `**/*.test.mjs` + `generate-sri.mjs`.
@@ -374,16 +374,17 @@ for now:
   A field-level merge is not worth the complexity for a 2-person beta tool.
 
 ### Test coverage gaps
-Current test suites cover: override priority logic (`app.test.mjs`), roster data / bank
+Current test suites cover: override priority logic (`override-utils.test.mjs`), roster data / bank
 holidays / paydays / AL (`roster-data.test.mjs`), pay maths (`paycalc.test.mjs`),
 roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse helpers
 (`roster-parse-helpers.test.mjs`), SW asset completeness (`sw-asset-check.test.mjs`),
 and link-design pure maths including generator, coverage, and design checks
 (`links-design.test.mjs`, added v12.40).
 
-Not currently tested: DOM rendering in `calendar-app.js` / `admin-app.js`, the Firestore read/write
-layer in all page modules, push notification subscribe/unsubscribe flow (`notif.js`), and Cloud
-Function HTTP endpoints (no integration tests).
+Not currently tested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
+`calendar-renderer.js` and `calendar-*` state modules now have unit tests; the coordinators
+themselves do not), the Firestore read/write layer in all page modules, push notification
+subscribe/unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration tests).
 Before adding new untested behaviour in these modules, consider whether a unit or
 integration test can be added first.
 

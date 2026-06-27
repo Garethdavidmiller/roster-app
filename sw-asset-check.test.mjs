@@ -22,7 +22,7 @@ function toHundredths(v) {
     return parseInt(maj, 10) * 100 + parseInt(min.padEnd(2, '0').slice(0, 2), 10);
 }
 
-test('every root JS module is referenced in service-worker.js', () => {
+test('every root JS module is in BOTH the SW network-first list and a precache list', () => {
     const sw = readFileSync(join(ROOT, 'service-worker.js'), 'utf8');
 
     // All root .js files except the SW itself, dev config files, and test files.
@@ -31,16 +31,33 @@ test('every root JS module is referenced in service-worker.js', () => {
         f => f.endsWith('.js') && !SW_EXCLUDED.has(f) && !f.includes('.test.')
     );
 
-    // Each file must appear in the SW either as 'filename.js' or './filename.js'
-    // (NETWORK_FIRST_FILES uses bare names; CORE_ASSETS uses the ./ prefix).
-    const missing = rootModules.filter(f =>
-        !sw.includes(`'${f}'`)   && !sw.includes(`"${f}"`) &&
-        !sw.includes(`'./${f}'`) && !sw.includes(`"./${f}"`)
-    );
+    // Extract a named array-literal's contents from the SW source so we can check
+    // membership of each list SEPARATELY. The old check only required a module to
+    // appear *somewhere* in the file, so a module that was network-first but never
+    // precached (or vice-versa) passed silently — exactly the half-listed-module gap.
+    const arrayOf = (name) => {
+        const m = sw.match(new RegExp(`const ${name}\\s*=\\s*\\[([\\s\\S]*?)\\];`));
+        return m ? m[1] : '';
+    };
+    const networkFirst = arrayOf('NETWORK_FIRST_FILES');
+    // A module is "precached" if it is in CORE_ASSETS (core app) or SUPPLEMENTARY_ASSETS
+    // (the guides, cached individually). Both are required to be offline-available.
+    const precache     = arrayOf('CORE_ASSETS') + arrayOf('SUPPLEMENTARY_ASSETS');
+
+    const inList = (list, f) =>
+        list.includes(`'${f}'`)   || list.includes(`"${f}"`) ||
+        list.includes(`'./${f}'`) || list.includes(`"./${f}"`);
+
+    const missingNetworkFirst = rootModules.filter(f => !inList(networkFirst, f));
+    const missingPrecache     = rootModules.filter(f => !inList(precache, f));
 
     assert.deepEqual(
-        missing, [],
-        `Files present in root but missing from service-worker.js:\n  ${missing.join('\n  ')}`
+        missingNetworkFirst, [],
+        `Root JS modules missing from NETWORK_FIRST_FILES:\n  ${missingNetworkFirst.join('\n  ')}`
+    );
+    assert.deepEqual(
+        missingPrecache, [],
+        `Root JS modules missing from a precache list (CORE_ASSETS / SUPPLEMENTARY_ASSETS):\n  ${missingPrecache.join('\n  ')}`
     );
 });
 

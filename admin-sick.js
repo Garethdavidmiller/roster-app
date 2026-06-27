@@ -5,7 +5,7 @@
 
 import { teamMembers, getBaseShift, isSunday, escapeHtml } from './roster-data.js';
 import { recordRangeOverrides, formatDisplay, buildMemberDateMap } from './admin-overrides.js';
-import { isRestShift } from './app-override-utils.js';
+import { isRestShift } from './override-utils.js';
 import { buildRangePicker, getDateRange } from './admin-rangepicker.js';
 
 const esc = escapeHtml;

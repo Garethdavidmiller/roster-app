@@ -26,7 +26,7 @@ import { initNavPanel } from './nav-panel.js';
 import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { isRestShift } from './app-override-utils.js';
+import { isRestShift } from './override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';

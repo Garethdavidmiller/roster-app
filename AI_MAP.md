@@ -22,9 +22,9 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar override cache — rosterOverridesCache, fetchOverridesForRange, ensureOverridesCached, getShiftTypesInMonth | `calendar-overrides.js` |
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
-| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `app-huddle-viewer.js` |
-| Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `app-team-view.js` |
-| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `app-override-utils.js` |
+| Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `calendar-huddle-viewer.js` |
+| Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `calendar-team-view.js` |
+| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `override-utils.js` |
 | Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
@@ -160,7 +160,7 @@ Calendar cell and grid building for `index.html` — extracted from `calendar-ap
 - `createDayCell(date, shift, permanentShift, isWorkedDay, rdwTime)` — pure; returns HTML string for a single day cell's interior
 - `getSwipeDirection(startX, startY, endX, endY, elapsed)` — pure math; returns `'left'`, `'right'`, or `null`
 
-### `app-huddle-viewer.js`
+### `calendar-huddle-viewer.js`
 Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Only export is `initHuddleViewer()` (the old `applyHuddleButtonState()` export was removed at v12.57 — the `#huddleBtn` it updated no longer exists; the viewer is opened solely via the `#huddle` hash).
 - `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler (used by both the nav-panel "Daily Huddle" link and notification taps)
 - `sanitiseHtml(html)` — internal; DOMPurify sanitisation for DOCX huddles
@@ -406,7 +406,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
 - `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — writes to Firebase Storage + Firestore `huddles` collection; `htmlContent` is the converted HTML string for DOCX uploads (null for PDFs)
-- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `app-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
+- `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `authReady`, `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`, `signInAnonymously`, `signOut`, `onAuthStateChanged`, `nameToEmail`, `normaliseSurname` — Firebase Auth (`authReady` resolves once `onAuthStateChanged` has fired the first time; `normaliseSurname` is the shared surname→password derivation that `getSurname()` in `session.js` delegates to)
 - `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
@@ -449,7 +449,6 @@ Shared slide-out navigation panel — imported by all six app pages.
 - Sign-out footer (v10.59): shown only when `onSignOut` is supplied. Each page passes its own sign-out logic as a callback — nav-panel.js only calls it.
 - Notification bell (v10.61): footer 🔔/🔕 toggle, rendered only when `notifSupported()` (from `notif.js`) is true. Refreshes on every panel open via `peekNotifState()` (read-only — no Firestore write per open, v11.49); tap toggles via `enable/disableNotifications()` and keeps the panel open. `denied` state shows an inline "change in browser settings" hint. This file owns only the bell UI — all push logic is in `notif.js`.
 - Initials badge (v12.22): 26px circle (`#navPanelAvatar`) before the member name in the footer. Painted with `avatarInitials(memberName)` and `avatarHue(memberName)` from `roster-data.js` — no fetch, no cache, no event listeners. Profile photo feature removed at v12.22; spec in ROADMAP.md.
-- Nationality flags (v10.64): imports `teamMembers` from `roster-data.js`, looks up the logged-in member by exact name, renders their optional `flags` array (max 2 emoji) between the name and the bell. Set via `textContent`. Windows detection (v10.65) uses `navigator.userAgentData?.platform ?? navigator.platform` (modern API with legacy fallback) — flags are skipped on Windows where flag emoji render as two-letter codes.
 - **`_docFetching` tap-guard (v13.63):** module-level `let _docFetching = false` prevents a duplicate concurrent Firestore fetch if the Weekly Retail Circular or Marylebone Newsletter link is tapped repeatedly before the first response arrives; set to `true` at the start of each fetch, reset to `false` in `.finally()`.
 - Android back-button pattern: pushes `{ mybNavPanel: true }` history state on open; closes on popstate. `closePanelForNavigation()` (visual-only, no `history.back()`) is used for link/sign-out clicks to avoid racing hash navigation.
 - **Focus trap (v10.69):** a `document` keydown listener (active only while `_panelOpen`) cycles Tab/Shift+Tab within the panel's focusable elements. Escape closes the panel.
@@ -467,13 +466,13 @@ Shared Web Push module — single source of truth for the VAPID key and subscrip
 - Imports `savePushSubscription`/`deletePushSubscription` from `firebase-client.js`, `lsGet`/`lsSet` from `ls.js`
 - `calendar-app.js` and `huddle.js` both import from `notif.js` (v10.79). VAPID key and subscribe/unsubscribe logic live in one place — if you change them, change only `notif.js`.
 
-### `app-override-utils.js`
-Override priority, member-start, and shift-classification helpers — shared by `calendar-app.js`, `app-team-view.js`, and admin modules.
+### `override-utils.js`
+Override priority, member-start, and shift-classification helpers — shared by `calendar-app.js`, `calendar-team-view.js`, and admin modules.
 - `tsToMillis(ts)` — converts Firestore Timestamp or `{seconds}` object to milliseconds
 - `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
 - `isRestShift(shift)` — returns true if the shift is `'RD'` or `'OFF'`. Use everywhere instead of repeating the two-value check. Imported by `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-app.js`.
-- Covered by `app.test.mjs`
+- Covered by `override-utils.test.mjs`
 
 ### `railcard-guide.js`
 Interactive behaviours for `railcard-guide.html` (extracted v10.84 — CSP compliance).
@@ -495,13 +494,13 @@ Safe localStorage wrappers for all app pages (iOS Safari private mode compatibil
 
 ### `firestore.rules`
 Server-side Firestore security rules — deployed via `firebase deploy --only firestore:rules`.
-- `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'`; type↔value consistency enforced (shift types require `HH:MM-HH:MM`; `annual_leave` → `'AL'`; `correction` → `'RD'`; `sick` → `'SICK'`). Per-member write isolation was added at v10.72 but reverted at v10.94 after a production outage — see KNOWN_LIMITATIONS.md task #2.
+- `overrides` create/update: any authenticated user (`request.auth != null`); required fields: `date`, `memberName`, `type`, `value`, `note`, `source`; `source` must be `'manual'` or `'roster_import'`; type↔value consistency enforced (the timed types `shift` and `rdw` require `HH:MM-HH:MM`; `spare_shift` → `'SPARE'`; `annual_leave` → `'AL'`; `correction` → `'RD'`; `sick` → `'SICK'`). Per-member write isolation was added at v10.72 but reverted at v10.94 after a production outage — see KNOWN_LIMITATIONS.md task #2.
 - `overrides` delete: any authenticated user (`request.auth != null`).
 - Admin custom claim (`request.auth.token.admin == true`) is set by `setupRosterAuth` Cloud Function with `adminMembers=['G. Miller']`. The admin bypass is essential for roster upload (G. Miller writes overrides for all team members).
 - `huddles` read: open (`allow read;`) — `calendar-app.js` (index.html) reads huddles without a Firebase Auth session; requiring auth broke notification auto-open on fresh first visits (v10.76).
 - `huddles` write (Firestore): requires auth + `admin == true`; `hasOnly` enforces no extra fields; `uploadedAt` must be a timestamp; optional `htmlContent` capped at 250 000 chars (v10.83+).
-- `staffContact` read: owner (`request.auth.token.name == memberName`, where `memberName` is the document ID) or admin; write: owner only + requires `name` JWT claim (set by `setupRosterAuth`) to prevent anonymous writes (v12.68).
-- `pushSubscriptions` create/update: requires auth (`request.auth != null`) + required fields `endpoint`, `keys.p256dh`, `keys.auth`; delete: owner or admin.
+- `staffContact` read: owner (`request.auth.token.name == memberName`, where `memberName` is the document ID) or admin; write: owner or admin, and requires the `name` JWT claim (set by `setupRosterAuth`) so anonymous fallback sessions cannot write (v12.68).
+- `pushSubscriptions` create/update: requires auth (`request.auth != null`) + required fields `endpoint`, `keys.p256dh`, `keys.auth`; delete: any authenticated session (`request.auth != null` — no per-owner check; documented as a hardening gap in ROADMAP's deferred backlog).
 - `clientErrors` write: any authenticated session; read/update/delete: admin only; shape-validated (v13.31).
 - `circulars` / `newsletters` read: open (no auth — `calendar-app.js` has no session, matches Huddle model); write: admin only (v13.58/v13.59).
 
@@ -536,8 +535,8 @@ Page-specific CSS for each guide page — extracted from inline `<style>` blocks
 
 ### `purify.es.mjs`
 Self-hosted DOMPurify ES module (v3.4.8) — extracted from CDN at v12.04.
-- Imported by `app-huddle-viewer.js` for Huddle HTML sanitisation
-- To upgrade: `npm pack dompurify@<ver>`, extract `package/dist/purify.es.mjs`, replace this file, update version comment in `app-huddle-viewer.js`
+- Imported by `calendar-huddle-viewer.js` for Huddle HTML sanitisation
+- To upgrade: `npm pack dompurify@<ver>`, extract `package/dist/purify.es.mjs`, replace this file, update version comment in `calendar-huddle-viewer.js`
 - Precached by the service worker (network-first)
 
 ### `shared.css`

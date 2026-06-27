@@ -1,14 +1,10 @@
 ---
 paths:
   - "paycalc.html"
-  - "paycalc-app.js"
-  - "paycalc-calc.js"
-  - "paycalc-help.js"
-  - "paycalc-migrations.js"
-  - "paycalc-roster-suggestions.js"
+  - "paycalc-*.js"
   - "paycalc.css"
   - "paycalc.test.mjs"
-  - "paycalc-roster-suggestions.test.mjs"
+  - "paycalc-*.test.mjs"
 ---
 
 # Pay calculator — full reference
