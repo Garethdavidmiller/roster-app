@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.25
+// MYB Roster — Service Worker v14.26
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,7 +22,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.25';
+const APP_VERSION = '14.26';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS. HTML docs
@@ -395,28 +395,35 @@ self.addEventListener("push", event => {
 // Calling navigate() on an unfocused window is silently dropped on iOS.
 // includeUncontrolled is omitted — it can return stale clients on iOS that
 // respond to navigate() but never actually render the new page.
-// Known safe routes the notification payload is permitted to navigate to.
-const SAFE_NOTIFICATION_ROUTES = ['/', '/index.html', '/paycalc.html', '/index.html#huddle'];
+// The SW's own scope = the app ROOT, NOT the bare origin. On GitHub Pages the app is
+// served from a sub-path (…/roster-app/), so the bare origin is a DIFFERENT, empty site
+// that 404s. Notification taps must always land within scope. (registration.scope ends in '/'.)
+const APP_SCOPE = self.registration.scope;
+// Pages a push payload may open, RELATIVE to APP_SCOPE ('' = the app root). The Cloud
+// Function hardcodes one absolute URL, but installs live on different origins/paths
+// (…/roster-app/ vs myb-roster.web.app), so we take only the page + query + hash from the
+// payload and RE-BASE it onto this install's scope — never trusting the payload's origin
+// or path. This was the cause of the "notification opens a 404" bug: the old allowlist used
+// bare-root routes (/index.html#huddle), so the real /roster-app/#huddle never matched and
+// it fell back to the bare origin (a 404). Re-basing fixes it for any origin/sub-path.
+const SAFE_NOTIFICATION_PAGES = ['', 'index.html', 'paycalc.html'];
 
 self.addEventListener("notificationclick", event => {
     event.notification.close();
-    const rawUrl = (event.notification.data && event.notification.data.url) || './';
-    let targetUrl;
+    const rawUrl = (event.notification.data && event.notification.data.url) || APP_SCOPE;
+    let targetUrl = APP_SCOPE;   // safe default: the app root within scope (never the bare origin → 404)
     try {
-        const parsed = new URL(rawUrl, self.location.origin);
-        // Constrain to same origin + known routes; anything unexpected falls back to root.
-        const pathAndHash = parsed.pathname + parsed.hash;
-        targetUrl = (parsed.origin === self.location.origin &&
-            SAFE_NOTIFICATION_ROUTES.some(r => pathAndHash === r || pathAndHash.startsWith(r + '#')))
-            ? parsed.href
-            : self.location.origin + '/';
-    } catch (_) {
-        targetUrl = self.location.origin + '/';
-    }
+        const parsed = new URL(rawUrl, APP_SCOPE);
+        const page   = parsed.pathname.split('/').pop() || '';   // 'paycalc.html' | '' (app root)
+        if (SAFE_NOTIFICATION_PAGES.includes(page)) {
+            // Re-base onto THIS scope, e.g. …/roster-app/#huddle or …/roster-app/paycalc.html?payday=…
+            targetUrl = APP_SCOPE + page + parsed.search + parsed.hash;
+        }
+    } catch (_) { /* keep the APP_SCOPE default */ }
     event.waitUntil(
         clients.matchAll({ type: 'window' }).then(list => {
             // Find any open window belonging to this app
-            const win = list.find(c => c.url.startsWith(self.location.origin));
+            const win = list.find(c => c.url.startsWith(APP_SCOPE));
             if (win) {
                 // Focus first (iOS requirement), then navigate if on a different page.
                 // If focus() rejects (iOS can leave matchAll returning a stale handle
