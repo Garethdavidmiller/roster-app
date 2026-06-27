@@ -710,8 +710,8 @@ the anonymous fallback, can write any member's overrides). This is Tier 2 item #
 v11 security tasks" → task #2).
 
 **Why it is now much more doable than the v10.94 suspension implies:**
-- The Firestore emulator suite already exists (`firestore.rules.test.mjs`, 90 tests across all 8
-  collections, `npm run test:rules`, gates every rules deploy) — the "Phase 7 prerequisite" is
+- The Firestore emulator suite already exists (`firestore.rules.test.mjs`, all 9 collections incl.
+  analytics, `npm run test:rules`, gates every rules deploy) — the "Phase 7 prerequisite" is
   effectively in place.
 - Both outage root-cause bugs are fixed: `setupRosterAuth` now sets the `name` claim (v10.88),
   and the page-load Firebase Auth session is reliably established (v10.93).

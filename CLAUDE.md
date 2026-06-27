@@ -135,7 +135,7 @@ See `AI_MAP.md` for full module descriptions and export lists.
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Staff Login Accounts
+├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Usage, Staff Login Accounts
 ├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring
@@ -221,7 +221,8 @@ roster-app/
 ├── calendar-initial-fetch.test.mjs ← tests for initInitialFetch: pre-fetch setup, success/failure paths, sync-chip state machine, retry, visibilitychange (--experimental-test-module-mocks)
 ├── paycalc-periods.test.mjs ← tests for getPeriods, hasBoxingDay, hasBankHoliday, _setSelectPeriod, prevPeriod/nextPeriod; also getEffectiveContr, getProRateFactor, settingsKey, _bpAwardTaxYear (--experimental-test-module-mocks)
 ├── paycalc-hpp.test.mjs    ← tests for isDataEmpty, _decodeHours, _varPayForPeriod from paycalc-hpp.js (--experimental-test-module-mocks)
-├── firestore.rules.test.mjs ← Firestore security rules integration tests (90 tests, all 8 collections); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
+├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
+├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
@@ -249,13 +250,13 @@ roster-app/
 
 **Run all tests:**
 ```
-npm test              # test:hygiene + test:parse + test:unit (all ~580 unit tests)
+npm test              # test:hygiene + test:parse + test:unit (~600 unit tests)
 npm run check         # lint + typecheck + npm test (full pre-push gate)
 npm run lint          # ESLint on all JS files
 npm run typecheck     # tsc --noEmit on all root JS modules
 
 # By test runner (same as npm test, useful for --watch or targeting specific files):
-npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay
+npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay, usage-stats
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
 
@@ -450,7 +451,7 @@ date         "YYYY-MM-DD"
 memberName   Must match teamMembers[n].name exactly — one char mismatch = silent failure
 type         "spare_shift" | "shift" | "rdw" | "annual_leave" | "correction" | "sick"
              Legacy (still in data, not creatable): "allocated" | "overtime" | "swap"
-value        "HH:MM-HH:MM" for spare_shift/shift/rdw; "AL" for annual_leave; "RD" for correction; "SICK" for sick
+value        "HH:MM-HH:MM" for shift/rdw; "SPARE" for spare_shift; "AL" for annual_leave; "RD" for correction; "SICK" for sick
 note         Free text — "" if none. Field must always be present.
 source       "manual" | "roster_import" — required by Firestore rules; written by all override save paths
 createdAt    Firestore server timestamp

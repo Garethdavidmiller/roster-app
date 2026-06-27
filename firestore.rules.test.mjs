@@ -4,9 +4,9 @@
  * Run:  npm run test:rules
  *       (firebase emulators:exec starts the Firestore emulator, runs these tests, stops it)
  *
- * Covers all 8 collections in firestore.rules:
+ * Covers all 9 collections in firestore.rules:
  *   overrides, huddles, linkDesigns, staffContact,
- *   clientErrors, circulars, newsletters, pushSubscriptions
+ *   clientErrors, circulars, newsletters, pushSubscriptions, analytics
  *
  * Each collection tests: auth boundaries, field validation, enum/format guards.
  */

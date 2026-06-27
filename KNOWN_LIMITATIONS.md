@@ -381,9 +381,10 @@ roster suggestions (`paycalc-roster-suggestions.test.mjs`), Cloud Function parse
 and link-design pure maths including generator, coverage, and design checks
 (`links-design.test.mjs`, added v12.40).
 
-Not currently tested: DOM rendering in `calendar-app.js` / `admin-app.js`, the Firestore read/write
-layer in all page modules, push notification subscribe/unsubscribe flow (`notif.js`), and Cloud
-Function HTTP endpoints (no integration tests).
+Not currently tested: the coordinator wiring in `calendar-app.js` / `admin-app.js` (the extracted
+`calendar-renderer.js` and `calendar-*` state modules now have unit tests; the coordinators
+themselves do not), the Firestore read/write layer in all page modules, push notification
+subscribe/unsubscribe flow (`notif.js`), and Cloud Function HTTP endpoints (no integration tests).
 Before adding new untested behaviour in these modules, consider whether a unit or
 integration test can be added first.
 
