@@ -15,7 +15,7 @@ import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
 import { GRADES } from './paycalc-calc.js';
-import { SK, NOTICE_YTD_KEY } from './paycalc-migrations.js';
+import { SK, NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
 
 // Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
@@ -161,6 +161,34 @@ export function initPaycalcLightboxes() {
     }
 
     input.addEventListener('input', convert);
+  })();
+
+  // ── SHARED-DEVICE DATA OWNERSHIP PROMPT (v14.25) ────────────────────────────
+  // If the device has unclaimed legacy/shared paycalc data and the signed-in member
+  // hasn't resolved ownership, ask before any of it is assigned (replaces the old
+  // silent "first member to load inherits it" behaviour — wrong on a shared phone).
+  // The ✕ ("decide later") leaves the data untouched and the prompt reappears next load.
+  // Runs after loadSettings (initPaycalcLightboxes is the last init step), so the
+  // calculator already shows the member's own namespaced view behind the prompt.
+  (function () {
+    const memberName = getLoggedMember()?.name;
+    if (!hasPendingLegacyMigration(memberName)) return;
+    const lb = document.getElementById('dataOwnerLightbox');
+    if (!lb) return;
+    const owner = createLightbox({
+      overlay:  lb,
+      content:  /** @type {Element|undefined} */ (document.getElementById('dataOwnerContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('dataOwnerClose') ?? undefined),
+    });
+    document.getElementById('dataOwnerMine')?.addEventListener('click', () => {
+      resolveLegacyMigration(memberName, 'mine');
+      window.location.reload();   // reload so loadSettings reads the just-moved data
+    });
+    document.getElementById('dataOwnerFresh')?.addEventListener('click', () => {
+      resolveLegacyMigration(memberName, 'fresh');
+      window.location.reload();
+    });
+    owner.open();
   })();
 
   return { openAboutLightbox };

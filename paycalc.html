@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v14.24 -->
+<!-- MYB Roster — Pay Calculator v14.25 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -678,6 +678,18 @@
     <p class="welcome-desc">Enter your hours for any pay period — regular, Saturday, bank holidays, overtime and rest day working — and get an instant estimate of your take-home pay.</p>
     <div class="lightbox-privacy">🔒 Your pay data is saved on this device only — never sent to any server or visible to anyone else.</div>
     <a class="welcome-guide-link" href="./paycalc-guide.html" target="_blank" rel="noopener">📖 View the Pay Guide →</a>
+  </div>
+</div>
+
+<!-- Shared-device data ownership prompt (one-time; v14.25). ✕ = decide later. -->
+<div id="dataOwnerLightbox" class="lb-overlay" role="dialog" aria-label="Is this your pay data?" aria-modal="true">
+  <div id="dataOwnerContent" class="lb-content notice-lb-content">
+    <button id="dataOwnerClose" class="lb-close" type="button" aria-label="Decide later">✕</button>
+    <div class="notice-badge notice-badge--pay">💷 Pay</div>
+    <div class="lightbox-app-name">Is this your pay data?</div>
+    <p class="notice-body">This device already has saved Pay Calculator data (tax code, YTD figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
+    <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
+    <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
   </div>
 </div>
 
