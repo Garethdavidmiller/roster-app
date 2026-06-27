@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.15
+// MYB Roster — Service Worker v14.16
 // Strategy:
 //   All JS modules, HTML pages, and shared.css
 //               → Network-first: always fetch fresh so roster updates reach
@@ -15,7 +15,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.15';
+const APP_VERSION = '14.16';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
@@ -245,7 +245,10 @@ self.addEventListener("fetch", event => {
                 ['links',      './links.html',       'Links is not available offline. Please reconnect and reload.'],
                 ['admin',      './admin.html',       'Admin is not available offline. Please reconnect and reload.'],
             ];
-            const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.includes(seg));
+            // Match the page by its exact path segment, not a substring — a substring
+            // test (path.includes('admin')) would mis-route a future '/admin-report.html'
+            // to the wrong fallback (the same class as the historical /admin-app.js MIME bug).
+            const match      = isDoc && PAGE_FALLBACKS.find(([seg]) => path.endsWith(`/${seg}.html`) || path.endsWith(`/${seg}`));
             const fallback   = match ? match[1] : (isDoc ? './index.html' : null);
             const offlineMsg = match ? match[2] : 'The roster is not available offline. Please reconnect and reload.';
             // iOS can evict the entire Cache Storage under storage pressure —
