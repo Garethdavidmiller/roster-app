@@ -21,7 +21,14 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '22'
+          # Run the deploy TOOL (firebase-tools) on Node 20 to match deploy-hosting.yml,
+          # which authenticates fine with the same service-account key. Functions deploys
+          # were failing with a bare "Failed to authenticate" on Node 22 while Hosting (Node
+          # 20) succeeded — same key, same GOOGLE_APPLICATION_CREDENTIALS mechanism, so the
+          # only structural difference was the deploy-tool Node version. The deployed function
+          # RUNTIME is still Node 22 (set by functions/package.json `engines`); this only
+          # changes the Node that runs firebase-tools in CI.
+          node-version: '20'
 
       # Install root dev dependencies so the repo lint/typecheck gate can run here
       # (the Functions workflow previously skipped it, so a lint failure that blocks
