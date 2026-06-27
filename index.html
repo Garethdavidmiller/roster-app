@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v14.16 -->
+<!-- MYB Roster — Calendar v14.17 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -25,6 +25,12 @@
     <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
+    <!-- Warm the Firebase connections early: the SDK loads from gstatic, data from
+         firestore.googleapis.com. preconnect overlaps DNS/TLS with HTML parsing so the
+         (deferred) Firebase load starts from an already-open connection. -->
+    <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
     <link rel="modulepreload" href="./calendar-app.js">
     <link rel="modulepreload" href="./nav-panel.js">
@@ -35,8 +41,6 @@
     <link rel="preload" href="fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
     <!-- Shared styles: CSS variables, global reset, icon lightbox -->
     <link rel="stylesheet" href="shared.css">
-    <!-- DOMPurify self-hosted at ./purify.es.mjs (v3.4.8). modulepreload speeds up initial load. -->
-    <link rel="modulepreload" href="./purify.es.mjs">
 
     <link rel="stylesheet" href="./index.css">
 </head>

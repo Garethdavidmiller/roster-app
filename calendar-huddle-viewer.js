@@ -22,10 +22,17 @@
  * Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
  */
 
-// Self-hosted at ./purify.es.mjs (v3.4.8). To upgrade: npm pack dompurify@<new>, extract
-// package/dist/purify.es.mjs, replace the file, update the version comment here, and
-// re-run `node generate-sri.mjs --apply` to update the <link rel="modulepreload"> SRI in index.html.
-import DOMPurify from './purify.es.mjs';
+// DOMPurify is self-hosted at ./purify.es.mjs (v3.4.8) and loaded LAZILY — it is only
+// needed when a DOCX-converted huddle's HTML is rendered, which most calendar opens never
+// do, so a static import would put ~45 KB on every cold calendar load for nothing. The
+// dynamic import below pulls it in on first render and memoises the module. (Still precached
+// by the service worker, so it loads from cache offline.) To upgrade: npm pack dompurify@<new>,
+// extract package/dist/purify.es.mjs, replace the file, update the version comment here.
+/** @type {Promise<any>|null} */
+let _purifyPromise = null;
+function _loadPurify() {
+    return (_purifyPromise ||= import('./purify.es.mjs').then(m => m.default));
+}
 import { subscribeToLatestHuddle } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
 
@@ -53,9 +60,10 @@ let _huddleState = 'loading'; // 'loading' | 'ready' | 'none' | 'error'
  *     attribute out is the safe default.
  * No SVG, no script, no event-handler attributes.
  * @param {string} html
- * @returns {string}
+ * @returns {Promise<string>}
  */
-function sanitiseHtml(html) {
+async function sanitiseHtml(html) {
+    const DOMPurify = await _loadPurify();
     return DOMPurify.sanitize(html, {
         ALLOWED_TAGS: ['p','h1','h2','h3','h4','h5','h6','ul','ol','li','strong','em','b','i','br','table','thead','tbody','tr','th','td'],
         ALLOWED_ATTR: ['colspan','rowspan'],
@@ -117,14 +125,20 @@ export function initHuddleViewer() {
     // Render a DOCX-converted huddle inline — memoises sanitised HTML per storageUrl
     // so DOMPurify doesn't re-parse the same document on every reopen.
     /** @param {any} huddle */
-    function showInlineHuddle(huddle) {
-        if (huddle.storageUrl !== _sanitisedUrl) {
-            _sanitisedHtml = sanitiseHtml(huddle.htmlContent);
-            _sanitisedUrl  = huddle.storageUrl;
+    async function showInlineHuddle(huddle) {
+        try {
+            if (huddle.storageUrl !== _sanitisedUrl) {
+                _sanitisedHtml = await sanitiseHtml(huddle.htmlContent);
+                _sanitisedUrl  = huddle.storageUrl;
+            }
+            body.innerHTML = _sanitisedHtml;
+            openViewer();
+            close?.focus();
+        } catch (err) {
+            // DOMPurify failed to load (offline + evicted) or sanitise threw — never
+            // render unsanitised HTML; leave the viewer in its prior state.
+            console.error('[Huddle] inline render failed:', err);
         }
-        body.innerHTML = _sanitisedHtml;
-        openViewer();
-        close?.focus();
     }
 
     if (close) {
