@@ -49,7 +49,9 @@ const NETWORK_FIRST_FILES = [
     'purify.es.mjs',
 ];
 
-// Critical app files — cached with addAll() (all-or-nothing, abort install if any fail).
+// Critical app files — precached on install. Each is fetched individually and the
+// batch is wrapped in Promise.allSettled (see the install handler), so a single 404
+// or network blip skips that one file and logs it rather than aborting the install.
 const CORE_ASSETS = [
     "./index.html",
     "./admin.html",
