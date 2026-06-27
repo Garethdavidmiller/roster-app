@@ -890,6 +890,63 @@ device-independent unique count (would require server-side identity — delibera
 
 ---
 
+## Performance (load speed)
+
+A deep, code-grounded performance pass (June 2026). **Measure cold loads with Lighthouse
+mobile (throttled Slow-4G + 4× CPU) in a private window** before/after — the installed PWA
+loads from the SW cache and hides the cold-load cost real first-time staff pay (same lesson as
+"the installed PWA masks live-site breakage").
+
+### Shipped
+
+- **Batch 1 (v14.17) — preconnect + lazy DOMPurify + immutable icon caching.** All 6 app pages
+  `preconnect` to `gstatic.com` (Firebase SDK) and `firestore.googleapis.com` (data) so DNS/TLS
+  overlaps HTML parse. DOMPurify (~45 KB) is now dynamically imported only when a DOCX huddle's
+  HTML is rendered (was static + modulepreloaded on every calendar load). PNG icons get immutable
+  1-year caching. *Deliberately did NOT eager-`modulepreload` the Firebase SDK URLs — that would
+  hard-code the SDK version into 6 HTML files with no test guard.*
+- **Batch 3 (v14.18) — stale-while-revalidate for JS/CSS.** The SW was network-first for all app
+  files, so every online load waited on ~30+ per-file round trips (cache was offline-only). JS/CSS
+  are now served instantly from the version-pinned cache and refreshed in the background; HTML
+  stays network-first. This is the biggest perceived-load win for the common case (returning
+  installed-PWA staff). Verify on a real device once (online → instant; offline → reload still works).
+
+### Deferred — lazy-load the Firebase SDK off the calendar's first paint
+
+**What:** `firebase-client.js` statically imports the 3 gstatic Firebase modules (firestore is the
+single largest payload), and `calendar-app.js` reaches Firebase through *eight* static paths
+(firebase-client, calendar-overrides, calendar-initial-fetch, calendar-huddle-viewer,
+calendar-team-view, error-reporter, usage-reporter, **and nav-panel** — on every page). So the
+calendar can't execute until the whole SDK downloads+parses, even though first paint only needs
+local roster data. A true fix splits `calendar-overrides.js` (pure cache vs Firebase fetch — its
+`rosterOverridesCache`/`getShiftTypesInMonth` are render-critical), makes `nav-panel.js`
+lazy-import Firebase, and restructures the calendar init to paint first, then dynamically
+`import()` the Firebase-dependent modules.
+
+**Why deferred (not just unstarted):**
+1. **Diminished benefit after Batches 1+3.** Returning installed-PWA users now get app code
+   instantly from the SWR cache, and the Firebase SDK from gstatic is browser-HTTP-cached
+   (long TTL) — so they're already fast. Lazy Firebase mainly helps *first-time / cache-evicted*
+   loads, which are rare for staff who install once. Preconnect (Batch 1) already trims the
+   cold-connection cost.
+2. **High risk on the two most-used surfaces** (calendar + nav-panel), with subtle failure modes
+   (overrides silently not loading, auth race, sync chip stuck).
+3. **The automated gates can't validate it** — the e2e suite stubs Firebase at the network layer,
+   so it would pass even if the deferred-Firebase timing were broken. It needs real-device
+   cold-load + real-data verification.
+
+**Decision:** only pursue if a cold-load Lighthouse profile shows the Firebase SDK dominating TTI
+*and* it's worth a dedicated branch with real-device verification. Otherwise leave as-is.
+
+### Minor / not worth it now
+- `paycalc.calculate()` runs on every keystroke (a few `lsGet`s per call; `getGrade` already
+  cached) — a short rAF/debounce would smooth rapid typing on low-end phones. Marginal.
+- Font is already optimal (one variable woff2, preloaded, `font-display: swap`, immutable).
+- Vite build step (bundle the ~52 modules, tree-shake Firebase) — the "nuclear option"; Batches
+  1+3 capture most of the benefit without a build step. Stays deferred (see "Build tooling — Vite").
+
+---
+
 ## Maintainability roadmap (added v13.72)
 
 A phased plan to make the codebase easier to maintain and extend without introducing a build system or framework. Each phase is self-contained and safe to defer. Phases are ordered by value-to-effort ratio.
