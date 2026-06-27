@@ -10,7 +10,14 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v12.79 — staffContact create/update hardened: hasOnly (not hasAll) so
+// Last updated: v14.24 — schema tightening (deferred v14.11-review bug-class backlog):
+//   overrides hasAll→hasOnly (verified 8-field allowlist incl. createdAt/changedBy; no path
+//   writes other fields), date must match YYYY-MM-DD, shift/rdw time bounded to 00-23:00-59
+//   (rejects impossible times like 99:99), createdAt required-as-timestamp; pushSubscriptions
+//   nested keys map restricted to exactly p256dh+auth. DEFERRED (need owner input): staffContact
+//   work-email DOMAIN enforcement (exact Chiltern domain unconfirmed → lockout risk) and the
+//   circular/newsletter/huddle storagePath prefix check (low value).
+// v12.79 — staffContact create/update hardened: hasOnly (not hasAll) so
 //   clients can't add extra fields (e.g. a future server-only `verified`); updatedAt must be a timestamp.
 // v12.68 — staffContact collection added (owner-only read/write via name claim).
 // v12.04 — overrides read required auth (reverted); pushSubscriptions delete requires auth;
@@ -33,11 +40,18 @@ service cloud.firestore {
       allow read;
       allow create, update: if
         request.auth != null &&
-        request.resource.data.keys().hasAll(
-          ['date', 'memberName', 'type', 'value', 'note', 'source']
+        // hasOnly (not hasAll) — reject any field beyond the known override shape.
+        // The complete set written by every path is verified: manual saves and the
+        // AL/sick range writer add changedBy; roster_import omits it; all paths write
+        // createdAt. No path writes updatedAt/updatedBy. (Field PRESENCE of the six core
+        // fields is still enforced by the `is string` checks below — a missing field is
+        // null, and `null is string` is false.)
+        request.resource.data.keys().hasOnly(
+          ['date', 'memberName', 'type', 'value', 'note', 'source', 'createdAt', 'changedBy']
         ) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
+        request.resource.data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') &&
         request.resource.data.memberName is string &&
         request.resource.data.memberName.size() > 0 &&
         request.resource.data.memberName.size() < 100 &&
@@ -54,14 +68,20 @@ service cloud.firestore {
         // every correction (RD/OFF/Sunday AL/SICK) to 'RD' before writing.
         (
           (request.resource.data.type in ['shift', 'rdw'] &&
-           request.resource.data.value.matches('[0-9]{2}:[0-9]{2}-[0-9]{2}:[0-9]{2}')) ||
+           // Bounded HH:MM-HH:MM — hours 00-23, minutes 00-59 (rejects impossible times
+           // like 99:99 that the unbounded [0-9]{2} pattern previously accepted).
+           request.resource.data.value.matches('([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]')) ||
           (request.resource.data.type == 'spare_shift'  && request.resource.data.value == 'SPARE') ||
           (request.resource.data.type == 'annual_leave' && request.resource.data.value == 'AL') ||
           (request.resource.data.type == 'correction'   && request.resource.data.value == 'RD') ||
           (request.resource.data.type == 'sick'         && request.resource.data.value == 'SICK')
         ) &&
         request.resource.data.note is string &&
-        request.resource.data.note.size() < 500;
+        request.resource.data.note.size() < 500 &&
+        // createdAt is written by every path (serverTimestamp); changedBy only by the
+        // manual/AL/sick paths — validate its type when present without requiring it.
+        request.resource.data.createdAt is timestamp &&
+        (!request.resource.data.keys().hasAny(['changedBy']) || request.resource.data.changedBy is string);
       // Any authenticated user may delete their own overrides. Per-member isolation
       // (limiting deletes to the owning member) is deferred — see KNOWN_LIMITATIONS.md.
       allow delete: if request.auth != null;
@@ -199,6 +219,9 @@ service cloud.firestore {
         request.resource.data.endpoint.size() > 0 &&
         request.resource.data.endpoint.size() < 2048 &&
         request.resource.data.keys is map &&
+        // Restrict the nested keys map to exactly p256dh + auth — savePushSubscription
+        // writes only these two (from PushSubscription.getKey).
+        request.resource.data.keys.keys().hasOnly(['p256dh', 'auth']) &&
         request.resource.data.keys.p256dh is string &&
         request.resource.data.keys.p256dh.size() < 256 &&
         request.resource.data.keys.auth is string &&

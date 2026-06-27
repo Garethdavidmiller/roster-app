@@ -54,6 +54,7 @@ function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid
 const VALID_OVERRIDE = () => ({
     date: '2026-06-25', memberName: 'G. Miller',
     type: 'annual_leave', value: 'AL', note: '', source: 'manual',
+    createdAt: serverTimestamp(),
 });
 
 const VALID_HUDDLE = () => ({
@@ -184,6 +185,42 @@ describe('overrides', () => {
     test('auth cannot create with missing required field', async () => {
         const { note: _n, ...missing } = VALID_OVERRIDE();
         await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), missing));
+    });
+
+    test('auth can create with changedBy (manual / AL / sick path)', async () => {
+        await assertSucceeds(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 'G. Miller' })
+        );
+    });
+
+    test('auth cannot create with an unknown extra field (hasOnly)', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), injected: 'x' })
+        );
+    });
+
+    test('auth cannot create with changedBy of the wrong type', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), changedBy: 123 })
+        );
+    });
+
+    test('auth cannot create with a 10-char but malformed date', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026/06/25' })
+        );
+    });
+
+    test('auth cannot create a shift with an impossible time (99:99)', async () => {
+        await assertFails(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '99:99-10:00' })
+        );
+    });
+
+    test('auth can create a shift with a valid bounded time (overnight)', async () => {
+        await assertSucceeds(
+            setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), type: 'shift', value: '23:00-05:30' })
+        );
     });
 
     test('auth cannot create with note over 499 chars', async () => {
@@ -629,6 +666,14 @@ describe('pushSubscriptions', () => {
         await assertFails(
             setDoc(doc(anonDb(), 'pushSubscriptions', uid()), {
                 ...VALID_SUB(), keys: { auth: 'xyz789' },
+            })
+        );
+    });
+
+    test('anon cannot create with an extra field in the keys map (hasOnly)', async () => {
+        await assertFails(
+            setDoc(doc(anonDb(), 'pushSubscriptions', uid()), {
+                ...VALID_SUB(), keys: { p256dh: 'abc123', auth: 'xyz789', injected: 'x' },
             })
         );
     });
