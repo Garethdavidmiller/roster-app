@@ -53,7 +53,13 @@ const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
 const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
 // Staff-facing URL — change here when the domain changes, push payloads update automatically.
-const STAFF_SITE_URL = 'https://garethdavidmiller.github.io';
+// IMPORTANT: the app is served from the `/roster-app` PATH on GitHub Pages (the roster-app
+// repo's own Pages site, built from `main`), NOT the bare `garethdavidmiller.github.io` origin
+// — that bare origin is a separate, empty repo that returns 404. Omitting `/roster-app` sent
+// every notification tap to that 404 page; this was the real cause of the 16 Jun 2026 pause
+// (mis-recorded at the time as "the site is down" — the site was fine, the URL was wrong).
+// No trailing slash: the payloads below append `/#huddle` and `/paycalc.html`.
+const STAFF_SITE_URL = 'https://garethdavidmiller.github.io/roster-app';
 
 // Allowed browser origins for admin Cloud Functions (parseRosterPDF, setupRosterAuth).
 // Firebase ID token auth is the real security control; this CORS allowlist is defence-in-depth
@@ -67,7 +73,9 @@ const ADMIN_FUNCTION_ORIGINS = [
 
 // Set to true to silence all Huddle push notifications (e.g. while the staff
 // site is down). See RESTART_NOTIFICATIONS.md for the re-enable checklist.
-const HUDDLE_PUSH_PAUSED = true;
+// Re-enabled now that the real cause (STAFF_SITE_URL missing the `/roster-app`
+// path → notification taps hit a 404) is fixed above.
+const HUDDLE_PUSH_PAUSED = false;
 
 /**
  * Returns {year, month(0-based), day} in London local time, derived directly from
