@@ -268,8 +268,9 @@ npm run test:e2e
 ```
 
 **Service worker caching:**
-- Network-first: all JS, HTML, CSS — must always be fresh
-- Cache-first: icons, `manifest.json` — stable assets
+- Network-first: HTML documents (navigations) — freshest entry point when online, cache fallback offline
+- Stale-while-revalidate: all JS + CSS (v14.18) — served instantly from cache, refreshed in the background. Code freshness is preserved by the version-bump → new SW → new cache lifecycle (each deploy precaches fresh assets and the new SW claims immediately); roster DATA is always live from Firestore regardless of cached JS version
+- Cache-first: icons, fonts, `manifest.json` — stable assets
 - Cache name: `myb-roster-v{APP_VERSION}` — version bump auto-invalidates
 
 ---
@@ -295,7 +296,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | Motion vocabulary (v11.56) | `--ease-standard/emphasized/spring`, `--dur-fast/base` in `shared.css :root`. Every primary button uses `:active { transform: scale(var(--press-scale)) }` (`0.97`; `1` under reduced-motion). Nav-drawer pills keep opacity-based press. See `.claude/rules/css-tokens.md`. |
 | Typography scale (v11.77) | `--type-micro` 10px · `--type-small` 12px · `--type-body` 14px · `--type-medium` 16px (also prevents iOS focus-zoom — never below 16px on focusable fields) · `--type-large` 18px. Consistent sizes across sub-pages. See `.claude/rules/css-tokens.md`. |
 | Semantic elements (`<nav>`, `<header>`, `<main>`) | Screen readers depend on these landmarks. Do not revert to `<div>`. |
-| Network-first SW for app files | Ensures staff always receive roster updates on next open. |
+| SW caching: network-first HTML, stale-while-revalidate JS/CSS (v14.18) | HTML documents are network-first (fresh entry point). JS/CSS are stale-while-revalidate — instant from cache, refreshed in the background — so online loads don't wait on a per-file network round trip. Code freshness still propagates via the version-bump → new SW → new cache lifecycle (skipWaiting + claim); roster DATA is live from Firestore, never from cached JS. Do not revert JS/CSS to network-first without discussion — it reinstates a network wait on every load. |
 | `isChristmasRD()` applied before Firestore overrides | Forces Dec 25 and Dec 26 to RD first; Firestore can then override Dec 26 to RDW for overtime. Never reorder this. |
 | `getBaseShift(member, date)` for all base shift lookups | Direct access to `roster.data[week][day]` bypasses `startDate` suppression, Christmas rules, and future base-shift logic. Always call `getBaseShift()`, never read `roster.data` directly. |
 | Type pills in admin — single source of truth (v13.48) | `PILL_TYPES` in `admin-overrides.js` is the one authoritative list. `renderWeekGrid()` generates per-row pills from it; `admin-app.js` generates the bulk-bar pills from it at init (the `#bulkTypePills` div in `admin.html` is empty — populated at runtime). Order: AL · Spare · Shift · RDW · Absent · Rest Day. Never hardcode either list. |
