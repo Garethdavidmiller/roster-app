@@ -783,12 +783,12 @@ Roughly ordered by value-to-effort.
   (split the Storage `allow write` into `create, update` vs `delete`) or keep deletion server-only
   and add+test the actual cleanup. Note: the Storage test currently *asserts* admins cannot delete
   a Huddle — that encodes today's absence of cleanup, not a desired guarantee.
-- **Paycalc namespace migration can misassign data on a shared device.** `_migrateToNamespace`
-  (`paycalc-migrations.js` ~141–166) gives all legacy shared paycalc data to the *first* member who
-  signs in after v14.11 and deletes the unnamespaced copy — so if Alice used the device and Bob
-  opens it first, Bob inherits Alice's tax code/YTD/pension/periods. Fix: a one-time ownership
-  prompt ("Existing Pay Calculator data was found — does it belong to you?" → move / clear / leave)
-  instead of silently deciding by first access. Migration-only; the namespaced design itself is good.
+- **Paycalc namespace migration can misassign data on a shared device. ✓ FIXED (v14.25).**
+  `runMigrations` no longer silently claims shared data for the first member to load. It only
+  activates the member's namespace; `hasPendingLegacyMigration()` detects unclaimed shared data and
+  `paycalc-lightboxes.js` shows a one-time ownership prompt — **mine** (`resolveLegacyMigration('mine')`
+  moves it), **fresh** (`'fresh'` discards it), or ✕ (decide later). Guarded one-shot by
+  `myb_pc_ns_migrated`. Tested in `paycalc-migrations.test.mjs`.
 - **Validate Huddle download URLs.** `calendar-huddle-viewer.js` opens the Firestore-provided
   `storageUrl` directly; apply the same HTTPS + recognised-Storage-host validator that circulars/
   newsletters now use (ideally narrowed to the actual project bucket).

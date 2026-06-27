@@ -81,6 +81,25 @@ export const COLLECTIONS = {
     analytics:         'analytics',
 };
 
+/**
+ * Returns true only for HTTPS URLs on a Firebase Storage hostname this app uses.
+ * Single source of truth for "is this download URL safe to open in a new tab" —
+ * guards against malformed Firestore data, a compromised admin account, or a future
+ * rule mistake causing an arbitrary URL to be opened. Used by the nav-panel
+ * Circular/Newsletter openers and the Huddle viewer's "Open Huddle" button.
+ * @param {any} url
+ * @returns {boolean}
+ */
+export function isSafeStorageUrl(url) {
+    if (typeof url !== 'string' || !url) return false;
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'https:' &&
+            (parsed.hostname === 'firebasestorage.googleapis.com' ||
+             parsed.hostname === 'storage.googleapis.com');
+    } catch (_) { return false; }
+}
+
 // ---- Firebase Authentication ----
 
 /** Shared Firebase Auth instance. */

@@ -33,7 +33,7 @@ let _purifyPromise = null;
 function _loadPurify() {
     return (_purifyPromise ||= import('./purify.es.mjs').then(m => m.default));
 }
-import { subscribeToLatestHuddle } from './firebase-client.js';
+import { subscribeToLatestHuddle, isSafeStorageUrl } from './firebase-client.js';
 import { lockBodyScroll, _pushOverlayState, dismissOverlay, trapFocus } from './overlay.js';
 
 // Module-level state — set once at startup and survives the page lifetime.
@@ -169,7 +169,16 @@ export function initHuddleViewer() {
                     + '</div>';
                 openViewer();
                 const openBtn = document.getElementById('huddleOpenFileBtn');
-                openBtn?.addEventListener('click', () => window.open(huddle.storageUrl, '_blank', 'noopener'));
+                openBtn?.addEventListener('click', () => {
+                    // Defence-in-depth: only open a recognised Firebase Storage HTTPS URL
+                    // (same validator the Circular/Newsletter openers use). Guards against
+                    // malformed Firestore data or a compromised write opening an arbitrary URL.
+                    if (isSafeStorageUrl(huddle.storageUrl)) {
+                        window.open(huddle.storageUrl, '_blank', 'noopener');
+                    } else {
+                        body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact your manager.</p>';
+                    }
+                });
                 openBtn?.focus();
             }
         } catch (err) {

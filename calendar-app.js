@@ -658,6 +658,19 @@ registerServiceWorker({
 initHuddleViewer();
 
 
+// Resolves once a usable Firebase Auth user exists: a named account if one is already
+// signed in (e.g. Admin/Paycalc opened first — an existing user already has a token, so
+// signInAnonymously would race or replace them), otherwise a fresh anonymous session.
+// EVERY Firestore write on the calendar — error reporter, usage counter, AND the push-
+// subscription renewal — awaits this so none runs before request.auth is set. Without it,
+// an already-installed PWA re-saved its push subscription with no auth user → the write was
+// rejected by the `request.auth != null` rule → the bell stuck "off-lapsed" with no retry.
+// See ROADMAP "Push-subscription writes can race auth".
+const calendarAuthReady = authReady
+    .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
+    .catch(() => {});
+
+
 // ============================================
 // PUSH NOTIFICATIONS — silent subscription renewal
 // ============================================
@@ -668,7 +681,7 @@ initHuddleViewer();
     // Already granted — getNotifState() handles VAPID rotation and keeps the
     // subscription fresh. Early-return avoids showing the prompt.
     if (Notification.permission === 'granted') {
-        getNotifState().catch(err => console.warn('[Notifications] Renewal failed:', err.message));
+        calendarAuthReady.then(() => getNotifState()).catch((/** @type {any} */ err) => console.warn('[Notifications] Renewal failed:', err.message));
         return;
     }
 
@@ -688,7 +701,7 @@ initHuddleViewer();
 
     enableBtn.addEventListener('click', async () => {
         hide();
-        enableNotifications().catch(err => console.warn('[Notifications] Enable failed:', err.message));
+        calendarAuthReady.then(() => enableNotifications()).catch((/** @type {any} */ err) => console.warn('[Notifications] Enable failed:', err.message));
     });
 
     dismissBtn.addEventListener('click', () => {
@@ -700,13 +713,9 @@ initHuddleViewer();
 // Tooltip and keyboard navigation — see calendar-keyboard.js.
 initCalendarTooltip();
 initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
-// Wait for auth persistence to load, then sign in anonymously only if no named user
-// is already signed in (e.g. someone who opened Admin/Paycalc first). An existing
-// user already has a token; calling signInAnonymously would race or replace them.
-authReady
-    .then(() => auth.currentUser ? null : signInAnonymously(auth).catch(() => {}))
-    .catch(() => {})
-    .finally(() => { initErrorReporter(); recordUsage('calendar'); });
+// Error reporter + usage counter both write to Firestore (need request.auth) — gate them
+// on the shared auth promise defined above, the same one the push renewal awaits.
+calendarAuthReady.finally(() => { initErrorReporter(); recordUsage('calendar'); });
 
 const _calendarSession = getSession();
 initNavPanel({

@@ -381,7 +381,7 @@ localStorage key constants and data migration logic for the pay calculator (v11.
 - `hppEstKey(ty)`, `hppActualKey(ty)`, `ytdPayKey(ty)`, `ytdTaxKey(ty)` — key builders that take a tax-year object `ty` (with `.label` property, e.g. `'2025/26'`)
 - `runMigrations({ getPeriods, getLoggedMember, getPensionDefault })` — runs all one-time data migrations, then migrates this member's shared data into their namespace and activates it; receives deps as params to avoid circular imports with `paycalc-app.js`
 - `_migrateCeaKeys` — internal migration (old CEA keys → grade-neutral format)
-- `_migrateToNamespace` — internal one-shot (v14.11): moves member-financial `myb_pc_*` keys into the member segment, leaves device-level keys (migration guards, "seen" flags) unnamespaced; guarded by `myb_pc_ns_migrated`. Covered by `paycalc-migrations.test.mjs`
+- `hasPendingLegacyMigration(name)` / `resolveLegacyMigration(name, 'mine'|'fresh')` — shared-device ownership prompt (v14.25): `runMigrations` only activates the namespace; legacy/shared `myb_pc_*` data is claimed (`'mine'` moves it into the member segment) or discarded (`'fresh'`) only when the member resolves the `paycalc-lightboxes.js` prompt (✕ = decide later). Device-level keys (migration guards, "seen" flags) stay unnamespaced; the `myb_pc_ns_migrated` guard makes the prompt one-shot. Covered by `paycalc-migrations.test.mjs`
 
 ### `paycalc-calc.js`
 Pure functions only — no DOM, no Firebase, no localStorage.

@@ -338,10 +338,33 @@ function nameToPassword(fullName) {
     return surname.length >= 6 ? surname : surname.padEnd(6, surname);
 }
 
+/**
+ * Lightweight magic-byte ("file signature") check: confirm a decoded upload's
+ * leading bytes match the type claimed by its filename extension. Guards against a
+ * mislabelled or spoofed upload reaching Storage or the AI parser.
+ *   PDF  → starts with "%PDF-"           (25 50 44 46 2D)
+ *   DOCX → ZIP local-file header "PK\x03\x04" (50 4B 03 04) — all OOXML is a ZIP
+ * @param {Buffer} buf - decoded file bytes
+ * @param {'pdf'|'docx'} fileType - the type claimed by the extension
+ * @returns {boolean} true when the signature matches the claimed type
+ */
+function fileSignatureMatches(buf, fileType) {
+    if (!buf || buf.length < 4) return false;
+    if (fileType === 'pdf') {
+        return buf.length >= 5 &&
+            buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46 && buf[4] === 0x2D;
+    }
+    if (fileType === 'docx') {
+        return buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04;
+    }
+    return false;
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
     normaliseShift,
+    fileSignatureMatches,
     buildWeekDates,
     extractAIJson,
     HEADER_TO_INDEX,

@@ -138,30 +138,72 @@ function _migrateCeaKeys({ getPeriods }) {
     lsSet('myb_pc_cea_migrated', '1');
 }
 
-// ── PER-MEMBER NAMESPACE MIGRATION (v14.11) ───────────────────────────────────
-// One-shot, device-level. The FIRST member to load paycalc after this ships
-// inherits the existing (shared) unnamespaced data under their own namespace;
-// every other member on the same device then starts with a clean calculator and
-// is isolated going forward. This is the intended outcome for a shared device —
-// the pre-migration data was never separated by member, so freezing it under the
-// first signed-in member (and clearing the shared copy) is the safe resolution.
-// Guarded by the device flag myb_pc_ns_migrated so it runs exactly once per device.
-/** @param {string|undefined} memberName */
-function _migrateToNamespace(memberName) {
-    if (lsGet('myb_pc_ns_migrated')) return;     // already run on this device
+// ── PER-MEMBER NAMESPACE MIGRATION (v14.11; ownership prompt v14.25) ───────────
+// Device-level, one-shot. There may be legacy unnamespaced ("shared") paycalc data
+// from before per-member namespacing. We must NOT silently assign it to whoever loads
+// first — on a shared device that could be another member's tax code / YTD / pension.
+// So runMigrations only ACTIVATES the member's namespace; the shared data is left in
+// place until the member explicitly resolves ownership via resolveLegacyMigration
+// ('mine' → move it into their namespace; 'fresh' → discard it). The device flag
+// myb_pc_ns_migrated is set on resolution, so the prompt appears at most once.
+
+/** Any non-device paycalc data that is NOT in this member's own namespace — i.e.
+ *  unclaimed shared/legacy data. @param {string|undefined} memberName */
+function _hasUnnamespacedPaycalcData(memberName) {
     const seg = _memberSlug(memberName);
-    if (!seg) return;                            // no logged-in member — defer until one loads
+    const ownPrefix = seg ? `myb_pc_${seg}_` : null;
+    return lsKeys().some(k =>
+        k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && !(ownPrefix && k.startsWith(ownPrefix)));
+}
+
+/** Move all shared (non-device, non-own-namespace) paycalc keys into memberName's
+ *  namespace. Used by the 'mine' choice. @param {string|undefined} memberName */
+function _moveLegacyToNamespace(memberName) {
+    const seg = _memberSlug(memberName);
+    if (!seg) return;
     const nsPrefix = `myb_pc_${seg}_`;
-    // Snapshot first: lsKeys() returns a copy, so deleting keys mid-loop is safe.
-    lsKeys().forEach(k => {
-        if (!k.startsWith('myb_pc_')) return;    // not a paycalc key
-        if (DEVICE_KEYS.has(k)) return;          // device-level — keep unnamespaced
-        if (k.startsWith(nsPrefix)) return;      // already namespaced (defensive)
+    lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
+        if (!k.startsWith('myb_pc_')) return;
+        if (DEVICE_KEYS.has(k)) return;
+        if (k.startsWith(nsPrefix)) return;       // already this member's
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
         const val = lsGet(k);
         if (val !== null && lsGet(newKey) === null) lsSet(newKey, val);
-        lsDel(k);                                // remove the shared unnamespaced copy
+        lsDel(k);
     });
+}
+
+/** Delete all shared (non-device, non-own-namespace) paycalc keys. Used by the
+ *  'fresh' choice — the shared data is not this member's. @param {string|undefined} memberName */
+function _clearLegacyData(memberName) {
+    const seg = _memberSlug(memberName);
+    const ownPrefix = seg ? `myb_pc_${seg}_` : null;
+    lsKeys().forEach(k => {
+        if (!k.startsWith('myb_pc_')) return;
+        if (DEVICE_KEYS.has(k)) return;
+        if (ownPrefix && k.startsWith(ownPrefix)) return;  // keep the member's own data
+        lsDel(k);
+    });
+}
+
+/** True when a logged-in member should be asked whether the device's shared paycalc
+ *  data is theirs: shared data exists and ownership hasn't been resolved yet.
+ *  @param {string|undefined} memberName @returns {boolean} */
+export function hasPendingLegacyMigration(memberName) {
+    if (lsGet('myb_pc_ns_migrated')) return false;
+    if (!_memberSlug(memberName)) return false;
+    return _hasUnnamespacedPaycalcData(memberName);
+}
+
+/** Resolve the shared-data ownership prompt. 'mine' moves the data into memberName's
+ *  namespace; 'fresh' discards it. Either way the namespace is (re)activated and the
+ *  one-shot guard is set so the prompt never reappears.
+ *  @param {string|undefined} memberName @param {'mine'|'fresh'} choice */
+export function resolveLegacyMigration(memberName, choice) {
+    if (choice === 'mine') _moveLegacyToNamespace(memberName);
+    else if (choice === 'fresh') _clearLegacyData(memberName);
+    else return;                                  // unknown choice — leave undecided
+    setPaycalcNamespace(memberName);
     lsSet('myb_pc_ns_migrated', '1');
 }
 
@@ -250,11 +292,11 @@ export function runMigrations({ getPeriods, getLoggedMember, getPensionDefault }
         lsSet('myb_pc_pension_v882_migrated', '1');
     }
 
-    // Per-member namespacing (v14.11) — runs LAST, after every legacy migration has
-    // normalised the unnamespaced data. _migrateToNamespace moves this member's data
-    // into their namespace (one-shot); setPaycalcNamespace then activates it so
-    // loadSettings() and all later reads/writes resolve to the member's keys.
+    // Per-member namespacing (v14.11) — runs LAST, after the legacy migrations have
+    // normalised the unnamespaced data. Only ACTIVATE the member's namespace here; any
+    // pre-existing shared data is NOT silently claimed (it might be another member's on a
+    // shared device). paycalc-app.js calls hasPendingLegacyMigration() after load and, if
+    // true, prompts the member to resolve ownership via resolveLegacyMigration().
     const _nsMember = getLoggedMember();
-    _migrateToNamespace(_nsMember?.name);
     setPaycalcNamespace(_nsMember?.name);
 }
