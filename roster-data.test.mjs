@@ -38,6 +38,7 @@ import {
     getSpecialDayBadges,
     isSunday,
     CONFIG,
+    fixedRoster,
 } from './roster-data.js';
 
 // ---------------------------------------------------------------------------
@@ -163,8 +164,10 @@ test('getALEntitlement: Dispatcher base entitlement is 22 days (no BH worked)', 
     assert.equal(getALEntitlement({ role: 'Dispatcher', rosterType: 'dispatcher' }), 22);
 });
 
-test('getALEntitlement: fixed roster (C. Reen) gets 34 days', () => {
-    assert.equal(getALEntitlement({ role: 'CEA', rosterType: 'fixed' }), 34);
+test('getALEntitlement: C. Reen (fixed) gets 34; other fixed CEAs keep the standard 32', () => {
+    assert.equal(getALEntitlement({ name: 'C. Reen', role: 'CEA', rosterType: 'fixed' }), 34);
+    // A fixed CEA who is NOT C. Reen (temporary adjusted-hours / induction line) → standard 32.
+    assert.equal(getALEntitlement({ name: 'K. Jedlinski', role: 'CEA', rosterType: 'fixed' }), 32);
 });
 
 test('getALEntitlement: null member returns default 32 days', () => {
@@ -763,7 +766,10 @@ test('isSunday: returns false for a mid-week day', () => {
 const ROSTER_CYCLE_LENGTHS = {
     main:       CONFIG.MAIN_ROSTER_WEEKS,
     bilingual:  CONFIG.BILINGUAL_ROSTER_WEEKS,
-    fixed:      1,
+    // Fixed rosters don't rotate, but `currentWeek` selects which fixed pattern a member sits
+    // on, so the valid range is the number of defined fixed patterns (derive it so adding a
+    // pattern auto-updates the bound).
+    fixed:      Object.keys(fixedRoster).length,
     ces:        CONFIG.CES_ROSTER_WEEKS,
     dispatcher: CONFIG.DISPATCHER_ROSTER_WEEKS,
 };

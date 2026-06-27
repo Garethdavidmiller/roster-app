@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.19
+// MYB Roster — Service Worker v14.20
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,7 +22,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.19';
+const APP_VERSION = '14.20';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS. HTML docs
