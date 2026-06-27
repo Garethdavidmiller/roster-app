@@ -1,10 +1,17 @@
-// MYB Roster — Service Worker v14.17
+// MYB Roster — Service Worker v14.18
 // Strategy:
-//   All JS modules, HTML pages, and shared.css
-//               → Network-first: always fetch fresh so roster updates reach
-//                 staff on next open. Falls back to cache when offline.
-//   Icons, manifests → Cache-first: stable assets served instantly; fetched on miss.
-//   Reference guides → Network-first: guides can be updated and staff should get fresh wording promptly.
+//   HTML documents (navigations)
+//               → Network-first: a returning user always lands on the freshest
+//                 entry point when online; falls back to cache offline.
+//   JS modules + CSS
+//               → Stale-while-revalidate: served INSTANTLY from cache, then the
+//                 cache is refreshed in the background. This removes the per-file
+//                 network wait that network-first imposed on every online load.
+//                 Code freshness is preserved by the version-bump → new SW → new
+//                 cache lifecycle (each deploy precaches fresh assets and the new
+//                 SW claims immediately); roster DATA is always live from Firestore,
+//                 independent of which JS version is cached.
+//   Icons, fonts, manifest → Cache-first: stable assets served instantly; fetched on miss.
 //
 // self.skipWaiting() on install activates the new SW immediately.
 // self.clients.claim() makes the new SW take control of all open tabs at once.
@@ -15,12 +22,15 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.17';
+const APP_VERSION = '14.18';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
-// All JS modules, HTML pages, and CSS — always fetched fresh (network-first).
-// Note: matching uses `path === '/' + f` — an exact root-path check.
-// All network-first files live at the origin root, so this is always correct.
+// The "managed" same-origin app files: HTML pages, JS modules, and CSS. HTML docs
+// are served network-first; JS/CSS are served stale-while-revalidate (see the fetch
+// handler). Everything here is precached so SWR can serve it instantly from cache.
+// Note: matching uses `path === '/' + f` — an exact root-path check. All managed
+// files live at the origin root, so this is always correct. (Name kept for the
+// sw-asset-check test that parses this array; it is no longer "network-first only".)
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html',
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
@@ -162,9 +172,9 @@ const ICON_ASSETS = [
 self.addEventListener("install", event => {
     console.log(`[SW ${APP_VERSION}] Installing`);
     // skipWaiting here (not inside event.waitUntil) so the new SW activates
-    // and the page reloads immediately — without waiting for pre-caching to finish.
-    // All app files are network-first anyway, so offline pre-caching is a convenience
-    // that must not delay activation.
+    // immediately — without waiting for pre-caching to finish. Precaching populates the
+    // new version's cache so the stale-while-revalidate JS/CSS path serves instantly;
+    // it must not delay activation, hence skipWaiting runs first.
     self.skipWaiting();
     // event.waitUntil keeps the SW alive while background pre-caching completes.
     // allSettled means a single 404 / network blip on one file does not abort the
@@ -204,7 +214,7 @@ self.addEventListener("activate", event => {
 });
 
 // ============================================
-// FETCH — network-first for HTML, cache-first for assets
+// FETCH — network-first for HTML docs, stale-while-revalidate for JS/CSS, cache-first for assets
 // ============================================
 self.addEventListener("fetch", event => {
     // Only handle same-origin GET requests
@@ -213,11 +223,12 @@ self.addEventListener("fetch", event => {
     if (url.origin !== self.location.origin) return;
 
     const path = url.pathname;
-    const isNetworkFirst = path === '/'
-        || path.endsWith('/')
-        || NETWORK_FIRST_FILES.some(f => path === '/' + f);
+    // HTML documents stay network-first (freshest entry point); JS/CSS use
+    // stale-while-revalidate (instant from cache, refreshed in the background).
+    const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
+    const isManagedAsset = NETWORK_FIRST_FILES.some(f => path === '/' + f);
 
-    if (isNetworkFirst) {
+    if (isDoc) {
         // Network-first: revalidate against the server (304 if unchanged → no body download),
         // update SW cache, fall back to cached copy if offline or the network hangs past 2 seconds.
         // AbortController ensures the underlying fetch is actually cancelled on timeout
@@ -288,6 +299,32 @@ self.addEventListener("fetch", event => {
                     return serveFallback('Offline/timeout — serving from cache:');
                 })
         );
+    } else if (isManagedAsset) {
+        // Stale-while-revalidate for JS/CSS: respond from cache immediately when present and
+        // refresh the cache in the background; on a cold cache, wait for the network. The
+        // version-pinned CACHE_NAME means the cache only ever holds the current version's
+        // assets, so "stale" is at most one version behind during the brief window before a
+        // newly-installed SW claims (skipWaiting + clients.claim on activate).
+        event.respondWith((async () => {
+            const cache   = await caches.open(CACHE_NAME);
+            const cached  = await cache.match(event.request);
+            const network = fetch(event.request)
+                .then(response => {
+                    if (response && response.status === 200) {
+                        cache.put(event.request, response.clone())
+                            .catch(err => console.warn(`[SW ${APP_VERSION}] SWR cache.put failed (quota?):`, err));
+                    }
+                    return response;
+                })
+                .catch(() => null);
+            if (cached) {
+                // Keep the background revalidation alive after we return the cached copy.
+                // Guarded: calling waitUntil after the event settles throws on some browsers.
+                try { event.waitUntil(network); } catch (_e) { /* event already settled */ }
+                return cached;
+            }
+            return (await network) || Response.error();
+        })());
     } else {
         // Cache-first: icons/manifest served from cache instantly, fetched if missing
         event.respondWith(
