@@ -98,11 +98,17 @@ export async function getNotifState() {
         if (!sub) return 'off-lapsed';
 
         if (lsGet(VAPID_VER_KEY) !== VAPID_FINGERPRINT) {
-            // Subscribe to the new key BEFORE unsubscribing the old one so a network
-            // failure during subscribe() leaves the existing subscription intact.
-            const newSub = await subscribe();
+            // The Push API rejects subscribe() with a NEW applicationServerKey while a
+            // subscription for the OLD key still exists (InvalidStateError), so the old
+            // subscription must be removed FIRST — accepting a brief no-subscription
+            // window. The reverse order (subscribe new, then unsubscribe old) can never
+            // succeed when the key actually changes: subscribe() throws, the new
+            // fingerprint is never recorded, and the migration retries on every state
+            // check — leaving the bell stuck. If subscribe() now fails after the
+            // unsubscribe, getSubscription() returns null next time → 'off-lapsed', and
+            // the user can re-enable (no infinite retry). See ROADMAP "VAPID rotation".
             await sub.unsubscribe().catch(e => console.warn('[Notifications] Old sub cleanup failed (non-fatal):', /** @type {any} */ (e).message));
-            sub = newSub;
+            sub = await subscribe();
         } else {
             await savePushSubscription(sub);
         }

@@ -18,6 +18,14 @@ mock.module('./firebase-client.js', {
     namedExports: {
         getLatestCircular:    async () => null,
         getLatestNewsletter:  async () => null,
+        isSafeStorageUrl: (url) => {
+            if (typeof url !== 'string' || !url) return false;
+            try {
+                const p = new URL(url);
+                return p.protocol === 'https:' &&
+                    (p.hostname === 'firebasestorage.googleapis.com' || p.hostname === 'storage.googleapis.com');
+            } catch { return false; }
+        },
     },
 });
 mock.module('./notif.js', {

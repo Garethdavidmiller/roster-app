@@ -20,7 +20,7 @@ import { notifSupported, peekNotifState, enableNotifications, disableNotificatio
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
-import { getLatestCircular, getLatestNewsletter } from './firebase-client.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl } from './firebase-client.js';
 
 /**
  * Page navigation destinations. The current page is omitted from the pill row.
@@ -239,23 +239,6 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     let _docFetching = false;
 
     /**
-     * Returns true only for HTTPS URLs on the Firebase Storage hostname used by this app.
-     * Protects against malformed Firestore data, a compromised admin account, or future
-     * rule mistakes causing an arbitrary URL to be opened in a new tab.
-     * @param {any} url
-     * @returns {boolean}
-     */
-    function _isSafeStorageUrl(url) {
-        if (typeof url !== 'string' || !url) return false;
-        try {
-            const parsed = new URL(url);
-            return parsed.protocol === 'https:' &&
-                (parsed.hostname === 'firebasestorage.googleapis.com' ||
-                 parsed.hostname === 'storage.googleapis.com');
-        } catch (_) { return false; }
-    }
-
-    /**
      * Opens the latest Circular or Newsletter PDF in a new tab.
      * Opens a blank tab synchronously (same event tick = user gesture) so Safari
      * doesn't classify the later window.open() inside .then() as a popup.
@@ -270,7 +253,7 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
         if (newTab) newTab.opener = null;
         fetchFn().then(/** @param {any} data */ data => {
             const url = data?.storageUrl;
-            const safeUrl = _isSafeStorageUrl(url) ? url : null;
+            const safeUrl = isSafeStorageUrl(url) ? url : null;
             if (safeUrl) {
                 if (newTab) {
                     newTab.location.href = safeUrl;
