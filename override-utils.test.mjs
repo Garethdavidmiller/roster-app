@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift } from './override-utils.js';
+import { tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds } from './override-utils.js';
 
 // ── isBeforeMemberStart ───────────────────────────────────────────────────────
 
@@ -139,5 +139,57 @@ describe('isRestShift', () => {
 
     it('returns false for empty string', () => {
         assert.equal(isRestShift(''), false);
+    });
+});
+
+// ── computePeriodDeleteIds ────────────────────────────────────────────────────
+
+describe('computePeriodDeleteIds', () => {
+    const M = 'G. Miller';
+    // 2026-06-21 is a Sunday (2026-06-28 is the known Sunday in this roster cycle);
+    // 2026-06-20 is the Saturday before, 2026-06-22 the Monday after.
+    const range1AL = [
+        { id: 'a15', memberName: M, date: '2026-06-15', type: 'annual_leave', value: 'AL' },
+        { id: 'a16', memberName: M, date: '2026-06-16', type: 'annual_leave', value: 'AL' },
+        { id: 'a20', memberName: M, date: '2026-06-20', type: 'annual_leave', value: 'AL' },
+    ];
+    const sunCorrection = { id: 'c21', memberName: M, date: '2026-06-21', type: 'correction', value: 'RD' };
+    const params = { type: 'annual_leave', memberName: M, start: '2026-06-15', end: '2026-06-21' };
+
+    it('non-overlap: deletes the leave days AND the Sunday correction', () => {
+        const ids = computePeriodDeleteIds([...range1AL, sunCorrection], params);
+        assert.deepEqual(new Set(ids), new Set(['a15', 'a16', 'a20', 'c21']));
+    });
+
+    it('overlapping same-type ranges keep the shared Sunday correction', () => {
+        // A second AL range [Sun 21 .. Fri 26] leaves AL on Mon 22 — adjacent to the Sunday.
+        const range2AL = [
+            { id: 'b22', memberName: M, date: '2026-06-22', type: 'annual_leave', value: 'AL' },
+            { id: 'b23', memberName: M, date: '2026-06-23', type: 'annual_leave', value: 'AL' },
+        ];
+        const ids = computePeriodDeleteIds([...range1AL, sunCorrection, ...range2AL], params);
+        assert.ok(!ids.includes('c21'), 'shared Sunday correction must be kept for the remaining range');
+        assert.deepEqual(new Set(ids), new Set(['a15', 'a16', 'a20']));
+    });
+
+    it('overlapping cross-type (AL + adjacent sick) keeps the shared Sunday correction', () => {
+        const sickAdjacent = { id: 's22', memberName: M, date: '2026-06-22', type: 'sick', value: 'SICK' };
+        const ids = computePeriodDeleteIds([...range1AL, sunCorrection, sickAdjacent], params);
+        assert.ok(!ids.includes('c21'), 'correction kept because an adjacent sick override remains');
+    });
+
+    it('ignores other members and out-of-range dates', () => {
+        const all = [
+            ...range1AL,
+            { id: 'x', memberName: 'S. Silva', date: '2026-06-16', type: 'annual_leave', value: 'AL' },
+            { id: 'y', memberName: M, date: '2026-07-01', type: 'annual_leave', value: 'AL' },
+        ];
+        const ids = computePeriodDeleteIds(all, params);
+        assert.ok(!ids.includes('x') && !ids.includes('y'));
+        assert.deepEqual(new Set(ids), new Set(['a15', 'a16', 'a20']));
+    });
+
+    it('returns empty when nothing matches', () => {
+        assert.deepEqual(computePeriodDeleteIds([sunCorrection], { type: 'annual_leave', memberName: 'Nobody', start: '2026-06-15', end: '2026-06-21' }), []);
     });
 });

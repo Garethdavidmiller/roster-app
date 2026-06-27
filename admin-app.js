@@ -26,7 +26,7 @@ import { initNavPanel } from './nav-panel.js';
 import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
-import { isRestShift } from './override-utils.js';
+import { isRestShift, computePeriodDeleteIds } from './override-utils.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
@@ -1161,35 +1161,24 @@ initSickSection({
  * @param {HTMLButtonElement} btn  The delete button (disabled during the request)
  */
 async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, btn) {
-    // If another AL/sick override of a different type still covers the same Sunday,
-    // keep its correction doc — only remove corrections for Sundays no longer covered
-    // by any remaining AL/sick override after this delete.
-    const otherType = type === 'annual_leave' ? 'sick' : 'annual_leave';
-    const sundaysStillCovered = new Set(
-        getAllOverrides()
-            .filter(o => o.memberName === memberName && o.date >= start && o.date <= end && o.type === otherType)
-            .map(o => o.date)
-    );
-
-    const toDelete = getAllOverrides().filter(o =>
-        o.memberName === memberName &&
-        o.date       >= start &&
-        o.date       <= end &&
-        // Also delete Sunday RD correction docs that recordRangeOverrides writes
-        // alongside AL/sick overrides — but only for Sundays no longer covered by any
-        // other AL/sick override; if both types overlap on the same Sunday, deleting one
-        // must not strip the correction the remaining type still relies on.
-        (o.type === type || (o.type === 'correction' && o.value === 'RD' && isSunday(o.date) && !sundaysStillCovered.has(o.date)))
-    );
-    if (!toDelete.length) return;
+    // Scope the delete so an overlapping range's shared Sunday RD-correction is not
+    // stripped. The previous check looked for an AL/sick record ON the Sunday, which the
+    // range writer never creates (Sundays are non-contracted) — so it always removed the
+    // correction, even when another overlapping range still needed it. The pure helper
+    // keeps a Sunday correction whenever a remaining AL/sick override is adjacent to it.
+    const allForDelete = getAllOverrides();
+    const deleteIds = computePeriodDeleteIds(allForDelete, { type, memberName, start, end });
+    if (!deleteIds.length) return;
+    const idSet = new Set(deleteIds);
+    // User-facing count = leave days only (exclude the Sunday RD corrections from the tally).
+    const leaveCount = allForDelete.filter(o => idSet.has(o.id) && o.type === type).length;
     btn.disabled    = true;
     btn.textContent = '…';
     try {
         const batch = writeBatch(db);
-        toDelete.forEach(o => batch.delete(doc(db, COLLECTIONS.overrides, o.id)));
+        deleteIds.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
         await batch.commit();
-        const ids = new Set(toDelete.map(o => o.id));
-        setAllOverrides(getAllOverrides().filter(o => !ids.has(o.id)));
+        setAllOverrides(getAllOverrides().filter(o => !idSet.has(o.id)));
         renderTable();
         updateALBanner();
         updateALBookedBox();
@@ -1197,7 +1186,7 @@ async function deletePeriodOverrides(type, memberName, start, end, feedbackEl, b
         if (fieldMember.value && fieldDate.value) renderWeekGrid();
         if (feedbackEl) {
             const noun = type === 'annual_leave' ? 'AL day' : 'absence day';
-            feedbackEl.textContent = `✓ Deleted ${toDelete.length} ${noun}${toDelete.length !== 1 ? 's' : ''} for ${memberName}`;
+            feedbackEl.textContent = `✓ Deleted ${leaveCount} ${noun}${leaveCount !== 1 ? 's' : ''} for ${memberName}`;
             feedbackEl.className = 'feedback success';
             setTimeout(() => { feedbackEl.className = 'feedback'; }, 6000);
         }
