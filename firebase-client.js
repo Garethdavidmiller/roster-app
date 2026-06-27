@@ -15,7 +15,7 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField, FieldPath } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
@@ -611,14 +611,20 @@ export async function getUsageStats() {
     const aa = aaSnap.exists() ? /** @type {any} */ (aaSnap.data()) : { months: {}, daily: {} };
     const daily = aa.daily || {};
 
-    // Best-effort prune of daily buckets past the retention window.
-    const stale = staleDailyKeys(daily, now);
-    if (stale.length) {
-        /** @type {Record<string, any>} */
-        const upd = {};
-        stale.forEach(k => { upd[`daily.${k}`] = deleteField(); });
-        updateDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts'), upd).catch(() => {/* best-effort */});
-    }
+    // Best-effort prune of daily buckets past the retention window. Wrapped in try/catch
+    // and using FieldPath (literal segments) — NOT a `daily.<key>` dotted string. A day key
+    // like "2026-06-25" is an INVALID dotted field path (a segment may not start with a digit
+    // or contain hyphens), so updateDoc would throw SYNCHRONOUSLY, bypass the `.catch`, and
+    // reject getUsageStats — breaking the whole Usage card. The prune must never do that.
+    try {
+        const stale = staleDailyKeys(daily, now);
+        if (stale.length) {
+            const ref = doc(db, COLLECTIONS.analytics, 'activeAccounts');
+            stale.forEach(k => {
+                updateDoc(ref, new FieldPath('daily', k), deleteField()).catch(() => {/* best-effort */});
+            });
+        }
+    } catch (_e) { /* prune is best-effort — never let it break the usage read */ }
 
     return {
         month: m,
