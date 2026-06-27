@@ -52,7 +52,10 @@ export const getDocs = () => Promise.resolve({ empty: true, size: 0, docs: [], f
 export const getDoc = () => Promise.resolve({ exists: () => false, data: () => ({}) });
 export const addDoc = () => Promise.resolve(marker('docRef'));
 export const setDoc = () => Promise.resolve();
+export const updateDoc = () => Promise.resolve();
 export const deleteDoc = () => Promise.resolve();
+export const increment = () => marker('increment');   // FieldValue sentinel (usage counters)
+export const deleteField = () => marker('deleteField'); // FieldValue sentinel (usage prune)
 export const onSnapshot = () => noop; // returns the unsubscribe fn; never fires in tests
 
 // ---- auth ----

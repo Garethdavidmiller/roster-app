@@ -630,3 +630,86 @@ select:focus-visible, input:focus-visible {
         color: var(--text-dark);
     }
 }
+
+/* ── Usage card ─────────────────────────────────────────────────────────────
+   Anonymous usage analytics (accounts active + page popularity). Uses the shared
+   surface/text/type tokens so it reads as part of the same card family. */
+.usage-stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.usage-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 12px 10px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 12px;
+}
+.usage-stat-num {
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.5px;
+    color: var(--primary-blue);
+    font-variant-numeric: tabular-nums;
+}
+.usage-stat-lbl {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-top: 4px;
+}
+.usage-section-label {
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: var(--text-mid);
+    margin: 0 0 8px;
+}
+.usage-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+.usage-bar-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 38%) 1fr auto;
+    align-items: center;
+    gap: 10px;
+}
+.usage-bar-label {
+    font-size: var(--type-small);
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.usage-bar-track {
+    height: 8px;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.usage-bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--primary-blue);
+    border-radius: 999px;
+}
+.usage-bar-count {
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: var(--primary-blue);
+    font-variant-numeric: tabular-nums;
+    min-width: 2.5ch;
+    text-align: right;
+}
+.usage-note {
+    font-size: var(--type-micro);
+    color: var(--text-mid);
+    margin: 12px 0 0;
+}

@@ -15,12 +15,13 @@
 // @ts-ignore
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js';
 // @ts-ignore
-import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
+import { initializeFirestore, getFirestore, persistentLocalCache, collection, query, where, orderBy, limit, getDocs, getDoc, addDoc, setDoc, deleteDoc, doc, serverTimestamp, writeBatch, onSnapshot, increment, updateDoc, deleteField } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js';
 // firebase-storage (~30 kB) is dynamically imported inside uploadHuddle() — only
 // operations.html actually uploads files, so index.html, admin.html, and paycalc.html avoid the cost.
 // @ts-ignore
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
+import { monthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
 
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
@@ -77,6 +78,7 @@ export const COLLECTIONS = {
     clientErrors:      'clientErrors',
     overrides:         'overrides',
     linkDesigns:       'linkDesigns',
+    analytics:         'analytics',
 };
 
 // ---- Firebase Authentication ----
@@ -553,4 +555,76 @@ export async function getClientErrors() {
  */
 export async function resolveClientError(id) {
     await setDoc(doc(db, COLLECTIONS.clientErrors, id), { resolved: true, resolvedAt: serverTimestamp() }, { merge: true });
+}
+
+// ── Anonymous usage analytics ──────────────────────────────────────────────────
+// Aggregate integer counters only — no member identity is ever stored. Page popularity
+// lives in one doc per month (analytics/pv_<YYYY-MM>); active-account counts live in a
+// single analytics/activeAccounts doc. Uniqueness of active accounts is deduped on the
+// client (usage-reporter.js) so these writes only ever carry "+1". All writes are
+// fire-and-forget — usage tracking must never affect the app. Decision math is the pure
+// usage-stats.js module; this is just the Firestore I/O. See ROADMAP → "Usage analytics".
+
+/**
+ * Increment the anonymous page-view counter for the current month.
+ * @param {string} pageId - stable page id ('calendar', 'admin', 'paycalc', …)
+ */
+export function recordPageView(pageId) {
+    const m = monthKey(new Date());
+    setDoc(
+        doc(db, COLLECTIONS.analytics, `pv_${m}`),
+        { month: m, counts: { [pageId]: increment(1) } },
+        { merge: true },
+    ).catch(() => {/* best-effort analytics */});
+}
+
+/**
+ * Increment the anonymous active-account counters. The caller (usage-reporter.js) has
+ * already decided, from client-side dedup, whether this account is new this month
+ * and/or new within the rolling window — pass the bucket key for each that should tick.
+ * @param {{ month?: string|null, day?: string|null }} buckets
+ */
+export function recordActiveAccount({ month = null, day = null } = {}) {
+    /** @type {Record<string, any>} */
+    const data = {};
+    if (month) data.months = { [month]: increment(1) };
+    if (day)   data.daily  = { [day]:   increment(1) };
+    if (!month && !day) return;
+    setDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts'), data, { merge: true })
+        .catch(() => {/* best-effort analytics */});
+}
+
+/**
+ * Read the usage figures for the Operations "Usage" card (admin-only). Also prunes
+ * daily buckets outside the retention window, fire-and-forget, so the rolling doc
+ * stays bounded (mirrors the resolved-error prune in getClientErrors).
+ * @returns {Promise<{ month: string, pageCounts: Array<{page: string, count: number}>, accountsThisMonth: number, accountsLast30: number, monthsHistory: Record<string, number> }>}
+ */
+export async function getUsageStats() {
+    const now = new Date();
+    const m = monthKey(now);
+    const [pvSnap, aaSnap] = await Promise.all([
+        getDoc(doc(db, COLLECTIONS.analytics, `pv_${m}`)),
+        getDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts')),
+    ]);
+    const pv = pvSnap.exists() ? /** @type {any} */ (pvSnap.data()) : { counts: {} };
+    const aa = aaSnap.exists() ? /** @type {any} */ (aaSnap.data()) : { months: {}, daily: {} };
+    const daily = aa.daily || {};
+
+    // Best-effort prune of daily buckets past the retention window.
+    const stale = staleDailyKeys(daily, now);
+    if (stale.length) {
+        /** @type {Record<string, any>} */
+        const upd = {};
+        stale.forEach(k => { upd[`daily.${k}`] = deleteField(); });
+        updateDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts'), upd).catch(() => {/* best-effort */});
+    }
+
+    return {
+        month: m,
+        pageCounts: orderPageCounts(pv.counts || {}),
+        accountsThisMonth: Number((aa.months || {})[m]) || 0,
+        accountsLast30: sumDailyWindow(daily, now),
+        monthsHistory: aa.months || {},
+    };
 }

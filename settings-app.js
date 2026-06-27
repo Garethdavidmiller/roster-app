@@ -18,6 +18,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
+import { recordUsage } from './usage-reporter.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
 const currentSession   = getSession();
@@ -54,7 +55,7 @@ if (isAuthenticated) {
     resolveSession(false); // fulfil sessionReady on the non-auth path (initErrorReporter runs on both paths)
 }
 registerServiceWorker();
-sessionReady.then(() => initErrorReporter());
+sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); });
 
 // ── Login overlay ─────────────────────────────────────────────────────────────
 function initLoginOverlay() {

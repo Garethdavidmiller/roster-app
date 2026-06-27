@@ -9,9 +9,10 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, formatISO, isValidEmail } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter } from './firebase-client.js';
+import { CONFIG, teamMembers, formatISO, isValidEmail, escapeHtml } from './roster-data.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats } from './firebase-client.js';
 import { initErrorReporter } from './error-reporter.js';
+import { recordUsage } from './usage-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
@@ -85,6 +86,7 @@ initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUplo
 initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
 initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
 initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
+initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
 
 // ============================================
 // WORK EMAIL PROGRESS
@@ -654,6 +656,19 @@ function initCircularUpload() {
                 ]},
             ],
         },
+        'usage': {
+            title: 'Usage',
+            sections: [
+                { heading: 'What it shows', items: [
+                    { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts have signed in this calendar month and over the last 30 days' },
+                    { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month' },
+                ]},
+                { heading: 'Privacy', items: [
+                    { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored' },
+                    { icon: '📱', html: 'Counts are per account-device, so someone using both a phone and a laptop may count twice — treat the numbers as a usage trend, not an exact headcount' },
+                ]},
+            ],
+        },
         'error-log': {
             title: 'Error Log',
             sections: [
@@ -787,6 +802,91 @@ function initCircularUpload() {
     }
 })();
 
+// ============================================
+// USAGE CARD
+// ============================================
+(async function initUsageCard() {
+    const content = document.getElementById('usageContent');
+    if (!content) return;
+
+    // Page id → emoji + label, matching the app's nav vocabulary (📅 Calendar,
+    // 📝 Admin, 💷 Pay, 🔧 Ops, ⚙ Settings, 🔗 Links).
+    /** @type {Record<string, {emoji: string, label: string}>} */
+    const PAGE_META = {
+        calendar:   { emoji: '📅', label: 'Calendar' },
+        admin:      { emoji: '📝', label: 'Admin' },
+        paycalc:    { emoji: '💷', label: 'Pay calculator' },
+        operations: { emoji: '🔧', label: 'Operations' },
+        settings:   { emoji: '⚙️', label: 'Settings' },
+        links:      { emoji: '🔗', label: 'Links' },
+    };
+
+    try {
+        await sessionReady;
+        const stats = await getUsageStats();
+        content.innerHTML = '';
+
+        // Active-account headline numbers.
+        const accounts = document.createElement('div');
+        accounts.className = 'usage-stats';
+        accounts.innerHTML =
+            `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsThisMonth}</span>` +
+            `<span class="usage-stat-lbl"><span aria-hidden="true">👥</span> accounts this month</span></div>` +
+            `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
+            `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
+        content.appendChild(accounts);
+
+        // Page popularity (this month).
+        const heading = document.createElement('p');
+        heading.className = 'usage-section-label';
+        heading.textContent = `Page popularity — ${_usageMonthLabel(stats.month)}`;
+        content.appendChild(heading);
+
+        if (!stats.pageCounts.length) {
+            const none = document.createElement('p');
+            none.className = 'auth-desc';
+            none.textContent = 'No page views recorded yet this month.';
+            content.appendChild(none);
+        } else {
+            const max = stats.pageCounts[0].count || 1;
+            const list = document.createElement('div');
+            list.className = 'usage-bars';
+            stats.pageCounts.forEach(({ page, count }) => {
+                const meta  = PAGE_META[page];
+                const emoji = meta ? meta.emoji : '📄';
+                // Known labels are static/safe; an unknown page key (a tampered client
+                // could write one) is escaped before it reaches innerHTML.
+                const label = meta ? meta.label : escapeHtml(page);
+                const pct   = Math.max(4, Math.round((count / max) * 100));
+                const row = document.createElement('div');
+                row.className = 'usage-bar-row';
+                row.innerHTML =
+                    `<span class="usage-bar-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                    `<span class="usage-bar-track"><span class="usage-bar-fill" style="width:${pct}%"></span></span>` +
+                    `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
+                list.appendChild(row);
+            });
+            content.appendChild(list);
+        }
+
+        const note = document.createElement('p');
+        note.className = 'usage-note';
+        note.textContent = 'Anonymous counts only — never who did what.';
+        content.appendChild(note);
+
+    } catch (e) {
+        content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load usage — check your connection and reload.</p>';
+        console.error('[Usage]', e);
+    }
+})();
+
+/** "2026-06" → "June 2026" for the Usage card heading. */
+function _usageMonthLabel(/** @type {string} */ ym) {
+    const [y, m] = String(ym).split('-').map(Number);
+    if (!y || !m) return ym;
+    return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
+}
+
 /** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23". */
 function _relativeTime(/** @type {Date} */ date) {
     const secs = Math.floor((Date.now() - date.getTime()) / 1000);
@@ -827,4 +927,4 @@ function _formatForClaude(/** @type {any} */ err) {
 
 // ============================================
 registerServiceWorker();
-sessionReady.then(() => initErrorReporter());
+sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); });

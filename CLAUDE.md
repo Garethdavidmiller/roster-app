@@ -156,6 +156,8 @@ roster-app/
 ├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession
 ├── sw-register.js          ← shared SW registration + update lifecycle: registerServiceWorker()
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
+├── usage-reporter.js       ← shared anonymous usage recorder: recordUsage(page, member?) — page popularity + active-account counts (client-side dedup; no identity stored)
+├── usage-stats.js          ← pure usage maths: monthKey, dayKey, shouldCountMonth, shouldCountRolling, recentDayKeys, sumDailyWindow, orderPageCounts, staleDailyKeys
 ├── app-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
 ├── app-override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
@@ -208,7 +210,7 @@ roster-app/
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
 ├── paycalc-roster-suggestions.test.mjs ← (--experimental-test-module-mocks)
-├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs
+├── roster-parse-helpers.test.mjs / links-design.test.mjs / admin-rangepicker.test.mjs / client-errors.test.mjs / usage-stats.test.mjs
 ├── import-graph.test.mjs   ← detects circular imports across all root ES modules (regex-based, no build step)
 ├── admin-overrides.test.mjs ← tests for getEffectiveShift, validateShiftRules, buildMemberDateMap (--experimental-test-module-mocks)
 ├── nav-panel.test.mjs      ← tests for isNoticeExpired, archiveNotice, initNavPanel DOM guard (--experimental-test-module-mocks)
@@ -503,6 +505,17 @@ Write: any authenticated session (`request.auth != null`); shape-validated by Fi
 Read/update/delete: admin only (`request.auth.token.admin == true`).
 Written by: `logClientError` in `firebase-client.js`, called fire-and-forget from `error-reporter.js`.
 Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.js`, called from `operations-app.js` Error Log card. `getClientErrors` queries unresolved and resolved separately (single-field equality, no composite index) so unresolved records are always prioritised — within expected operational volume (< 100 unresolved at once) a backlog of resolved records cannot hide them. Prunes resolved records 90 days past `resolvedAt`.
+
+**analytics** (v14.14) — anonymous usage counters; **no member identity is ever stored**
+```
+Document  analytics/pv_<YYYY-MM>   { month: "YYYY-MM", counts: { <pageId>: <int> } }  — page popularity per month
+Document  analytics/activeAccounts { months: { "YYYY-MM": <int> }, daily: { "YYYY-MM-DD": <int> } } — unique active-account counts
+```
+Page ids: `calendar` | `admin` | `paycalc` | `operations` | `settings` | `links`.
+Uniqueness of "active accounts" is deduped **client-side** (localStorage flags keyed by member name, which never leave the device) so the server only ever receives `increment(1)` — it stores *how many* accounts were active, never *which*. "Last 30 days" = sum of the `daily` buckets over the rolling window (each account self-suppresses for the window, so the sum is a true unique count). Counts are per account-device (multi-device users count more than once) — a usage trend, not an exact headcount.
+Write: any authenticated session (`request.auth != null`), including the calendar's anonymous Firebase session. Values aren't individually validatable (Firestore can't restrict to increment-only) — App Check is the eventual integrity control; the data is non-sensitive aggregate counts. No client delete.
+Read: admin only (`request.auth.token.admin == true`).
+Written by: `recordPageView` / `recordActiveAccount` in `firebase-client.js`, called from `usage-reporter.js` (`recordUsage`) on every page. Read by: `getUsageStats` in `firebase-client.js`, called from `operations-app.js` Usage card (which also prunes daily buckets past ~35 days). Decision/aggregation maths is the pure `usage-stats.js` module.
 
 **circulars** (v13.58)
 ```

@@ -207,5 +207,30 @@ service cloud.firestore {
       allow delete: if request.auth != null;
     }
 
+    match /analytics/{docId} {
+      // Anonymous aggregate usage counters only — NO member identity is ever stored.
+      // Page popularity lives in analytics/pv_<YYYY-MM> ({ month, counts{} }); active-
+      // account counts live in analytics/activeAccounts ({ months{}, daily{} }). Uniqueness
+      // is deduped client-side (usage-reporter.js) so the server only ever sees "+1".
+      // Read is admin-only. Any authenticated session may increment — including the
+      // calendar's anonymous Firebase session (request.auth != null after signInAnonymously),
+      // which is why writes are not gated on a name/admin claim. Firestore rules can't
+      // restrict an update to increment-only, so values aren't individually validated;
+      // the data is non-sensitive aggregate counts and App Check is the eventual integrity
+      // control. No client delete — daily-bucket pruning is a field-level update.
+      allow read: if request.auth != null && request.auth.token.admin == true;
+      allow create, update: if
+        request.auth != null &&
+        (
+          (request.resource.data.keys().hasOnly(['month', 'counts']) &&
+           request.resource.data.month is string &&
+           request.resource.data.counts is map) ||
+          (request.resource.data.keys().hasOnly(['months', 'daily']) &&
+           (!request.resource.data.keys().hasAny(['months']) || request.resource.data.months is map) &&
+           (!request.resource.data.keys().hasAny(['daily'])  || request.resource.data.daily  is map))
+        );
+      allow delete: if false;
+    }
+
   }
 }
