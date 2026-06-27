@@ -72,10 +72,10 @@ const ADMIN_FUNCTION_ORIGINS = [
     'https://myb-roster.firebaseapp.com',
 ];
 
-// Set to true to silence all Huddle push notifications (e.g. while the staff
-// site is down). See RESTART_NOTIFICATIONS.md for the re-enable checklist.
-// Re-enabled now that the real cause (STAFF_SITE_URL missing the `/roster-app`
-// path → notification taps hit a 404) is fixed above.
+// Set to true to silence all Huddle push notifications (e.g. while the staff site
+// is genuinely down). Re-enabled after fixing the real cause of the 16 Jun 2026 pause:
+// STAFF_SITE_URL was missing the `/roster-app` path, so notification taps hit a 404
+// (mis-recorded at the time as "the site is down"). To pause again: set true, redeploy.
 const HUDDLE_PUSH_PAUSED = false;
 
 /**
@@ -486,7 +486,7 @@ async function fanOutPush(payload, logTag) {
  */
 async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     if (HUDDLE_PUSH_PAUSED) {
-        console.log(`[push] HUDDLE_PUSH_PAUSED=true — skipping notifications for ${huddleDate}. See RESTART_NOTIFICATIONS.md`);
+        console.log(`[push] HUDDLE_PUSH_PAUSED=true — skipping notifications for ${huddleDate}.`);
         return;
     }
     setupWebPush(vapidPrivate);

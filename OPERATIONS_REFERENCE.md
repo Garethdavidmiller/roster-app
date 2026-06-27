@@ -211,7 +211,7 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 **Important:** Both triggers (nav-panel link and notification tap) reach the viewer through the `#huddle` hash and the single `_triggerAutoOpen` path, so the no-`htmlContent` case always opens the file via the in-overlay button — never a direct `window.open`/`location.href` at open time. A notification tap carries no user activation (direct `window.open` would be pop-up-blocked; a `location.href` to the cross-origin file would knock the PWA out of standalone mode), and routing both triggers through the explicit button avoids relying on activation that may not be present. DOCX files with `htmlContent` bypass this entirely — they render inline.
 
-**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent. See `RESTART_NOTIFICATIONS.md` in the repo root for the re-enable checklist.
+**Push notifications paused?** If `HUDDLE_PUSH_PAUSED` is `true` in `functions/index.js`, Huddle ingestion succeeds but no push is sent. To re-enable: set it back to `false`, redeploy Functions, and verify `STAFF_SITE_URL` ends with the served `/roster-app` path so notification taps open the app rather than a 404 (that mismatch was the real cause of the 16 Jun 2026 pause).
 
 ---
 

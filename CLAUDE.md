@@ -13,7 +13,7 @@
 | Firebase project region | `europe-west2` (London) |
 | Current app version | `14.20` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
-| Staff-facing URL | `https://garethdavidmiller.github.io` (GitHub Pages — see API key note below) |
+| Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting). A GitHub Pages mirror is served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s). `STAFF_SITE_URL` in `functions/index.js` MUST include `/roster-app`. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF` |
 | | `https://europe-west2-myb-roster.cloudfunctions.net/setupRosterAuth` |
@@ -28,7 +28,7 @@
 | `ANTHROPIC_API_KEY` | Claude AI key for `parseRosterPDF` — Firebase Secret Manager only |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push keys — Firebase Secret Manager only |
 
-**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting, added v8.14) · `deploy-rules.yml` (Firestore/Storage rules) · `deploy-pages.yml` (PWA → staff GitHub Pages site `garethdavidmiller.github.io`, added v12.33 — requires the `PAGES_DEPLOY_TOKEN` secret; see the workflow header for one-time setup)
+**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting, added v8.14) · `deploy-rules.yml` (Firestore/Storage rules). The GitHub Pages staff mirror at `garethdavidmiller.github.io/roster-app/` is served by the **roster-app repo's own native Pages** ("pages build and deployment" — Settings → Pages → Deploy from `main`/root), so there is **no Pages workflow file**. (The old cross-repo `deploy-pages.yml` + `PAGES_DEPLOY_TOKEN` secret were removed v14.25: redundant — they pushed a copy to a separate bare-origin `garethdavidmiller.github.io` repo that nothing used, and failed on every run.)
 
 **⚠️ Firebase API key referrer restriction — add every domain the app is served from:**
 The Firebase web API key is restricted to specific HTTP referrers in GCP Console → APIs & Services → Credentials. If a domain is missing, **every Firebase Auth call silently fails** — sign-ins, Firestore writes, and push subscriptions all break with no visible error in the app UI. Current allowlist must include:
@@ -53,7 +53,7 @@ If a new custom domain is ever added, update the GCP allowlist in the same chang
 **Verify the LIVE URLs in a fresh browser / private window (no cache, no SW):**
 
 - [ ] `https://myb-roster.web.app` — loads *past* the splash to the calendar
-- [ ] `https://garethdavidmiller.github.io` — loads (not `404`); this is the staff URL
+- [ ] `https://garethdavidmiller.github.io/roster-app/` — loads (not `404`); the GitHub Pages staff mirror (**note the `/roster-app/` path** — the bare origin is a separate empty repo that 404s)
 - [ ] A sub-page deep-link works (`/admin.html`, `/paycalc.html`) — not just the root
 - [ ] DevTools → Console on each shows **no red errors** (CSP / failed module / `404` / `api-key-not-valid` / referrer-blocked)
 
@@ -205,7 +205,7 @@ roster-app/
 ├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
-├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md / RESTART_NOTIFICATIONS.md ← docs
+├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
 ├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
