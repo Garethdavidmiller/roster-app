@@ -2069,6 +2069,17 @@
         }
         #huddleViewerTitle { font-weight: 600; font-size: 1rem; flex: 1; }
         #huddleViewerClose {
+            /* THE NOTCH FIX — do not remove. The huddle viewer is a FULL-BLEED panel
+               (#huddleViewer is position:fixed; inset:0), NOT a centred .lb-content card.
+               The shared .lb-close class (which this button also carries) sets
+               position:absolute; top:14px — on a full-bleed panel that anchors the ✕ to the
+               very top of the SCREEN, under the iOS notch / Dynamic Island, completely
+               escaping #huddleViewerHeader's safe-area padding-top. Forcing position:static
+               returns the ✕ to the in-flow flex row inside the header, so the header's
+               safe-area-aware padding governs it too. This is why earlier "fix the header
+               padding" attempts never stuck — the absolutely-positioned button ignored that
+               padding. See CLAUDE.md → canonical lightbox lifecycle (huddle = full-bleed). */
+            position: static;
             background: none;
             border: none;
             color: rgba(255,255,255,0.7);
