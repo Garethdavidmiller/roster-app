@@ -14,6 +14,7 @@
 
 import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
+import { CONFIG } from './roster-data.js';
 
 export const AUTH_KEY    = 'myb_admin_session';
 export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days — absolute outer bound
@@ -156,7 +157,10 @@ export async function ensureFirebaseSession(name) {
         const _e = /** @type {any} */ (e);
         firstError = _e.code;
         console.warn('[Auth] signIn failed:', _e.code, 'for', email);
-        if (_e.code === 'auth/user-not-found') {
+        // Self-heal a missing account by creating it — UNLESS the B1 named-session
+        // requirement is on, in which case accounts must be provisioned server-side
+        // (Operations → Set up accounts) and the client must never mint one itself.
+        if (_e.code === 'auth/user-not-found' && !CONFIG.ENFORCE_NAMED_SESSION) {
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
                 console.warn('[Auth] Created Firebase Auth account for', name);
@@ -170,7 +174,22 @@ export async function ensureFirebaseSession(name) {
         }
         // auth/invalid-credential means the account exists with a different password —
         // attempting createUser would fail with auth/email-already-in-use.
-        // Fall through to anonymous sign-in directly.
+        // Fall through to the fallback below.
+    }
+
+    _fbAuthError = firstError;
+    // window guard: ensureFirebaseSession is a browser path, but the typeof check lets the
+    // unit tests exercise the fallback branch under Node (no window) without throwing.
+    if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
+
+    // B1 (SECURITY_RELEASE_PLAN.md): when the named-session requirement is on, do NOT fall
+    // back to an anonymous session — a write page must carry the member's OWN identity. Return
+    // failure so the page can prompt a re-login instead of silently writing as a nameless guest.
+    // Default (flag off): keep today's anonymous fallback so nothing changes until you flip it on.
+    if (CONFIG.ENFORCE_NAMED_SESSION) {
+        console.warn('[Auth] Named session not established; anonymous fallback disabled (ENFORCE_NAMED_SESSION). Error:', firstError);
+        _fbIdentity = 'none';
+        return false;
     }
 
     // Fallback: anonymous sign-in satisfies `request.auth != null`.
@@ -178,10 +197,6 @@ export async function ensureFirebaseSession(name) {
     // password mismatch on an existing account (auth/email-already-in-use),
     // and any other persistent email/password failure.
     console.warn('[Auth] Falling back to anonymous sign-in. Original error:', firstError);
-    _fbAuthError = firstError;
-    // window guard: ensureFirebaseSession is a browser path, but the typeof check lets the
-    // unit tests exercise the anonymous-fallback branch under Node (no window) without throwing.
-    if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
     try {
         await signInAnonymously(auth);
         console.warn('[Auth] Anonymous session established for', name);

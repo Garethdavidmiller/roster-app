@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v14.30 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.40 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -221,7 +221,7 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - Constants: `AUTH_KEY`, `SESSION_MS` (30 days absolute), `IDLE_MS` (7 days inactivity), `SESSION_VER`
 - `getSurname(name)` — derives Firebase Auth password from display name
 - `getSession()` / `saveSession(name)` / `clearSession()` — session object accessors. **Passive expiry** (the absolute-expiry / version-stale / idle branches of `getSession()`) only clears the localStorage key — it does **NOT** sign Firebase out, because `getSession()` runs synchronously at module eval on the calendar and an async signout would race `calendarAuthReady`'s `currentUser` check (v14.34). **`clearSession()`** is the explicit user-logout path and DOES call `firebaseSignOut(auth)`, so local and Firebase state align on a deliberate logout.
-- `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`, else falls back to an anonymous session. Returns `Promise<boolean>` (true if any session is active). Called only by the write pages — the calendar uses its own anonymous `calendarAuthReady` bootstrap.
+- `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`, else falls back to an anonymous session. Returns `Promise<boolean>` (true if any session is active). Called only by the write pages — the calendar uses its own anonymous `calendarAuthReady` bootstrap. **B1.1 (v14.40):** the self-heal create and the anonymous fallback are gated behind `CONFIG.ENFORCE_NAMED_SESSION` (default **false** = unchanged). When true, neither runs and a failed named sign-in returns `false`/`'none'` so the page can prompt a re-login — see SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope".
 - `getFirebaseIdentity()` → `'named' | 'anonymous' | 'none'` · `firebaseSessionIsNamed()` → boolean · `getFirebaseAuthError()` → error code. **B0** (SECURITY_RELEASE_PLAN.md): expose whether `ensureFirebaseSession` established the member's own named account or only the anonymous fallback. `firebaseSessionIsNamed()` is the signal per-member write isolation (B2) will depend on — the anonymous fallback satisfies `request.auth != null` today but carries no `name` claim. **Observability only — no behaviour change in B0.** (v14.39)
 - `sessionReady` — module-level `Promise<boolean>` that resolves once the page coordinator calls `resolveSession()`. Feature modules `await sessionReady` instead of reading `window._mybSession`. (v13.74)
 - `resolveSession(result)` — fulfils `sessionReady`; pass the return value of `ensureFirebaseSession()` (a `Promise<boolean>`) on the auth path, or `false` on the non-auth path. Call exactly once per page-load from the page coordinator. (v13.74)

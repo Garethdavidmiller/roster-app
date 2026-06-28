@@ -1,7 +1,9 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39;
-B1 scoped in detail (see "Appendix: B1 detailed scope") and not yet implemented.*
+*Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39.
+B1.1 (remove anonymous fallback + browser account-creation, behind the default-OFF
+`CONFIG.ENFORCE_NAMED_SESSION` kill-switch) shipped v14.40 — production behaviour unchanged until
+the flag is flipped. B1.2 (per-page enforcement) is next. See "Appendix: B1 detailed scope".*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -427,8 +429,12 @@ session forgeable" + anonymous-fallback entries, this plan).
 4. **Paycalc soft vs hard** — recommendation: **soft** (don't block a localStorage tool on Firebase auth).
 
 ### Sub-phase order + go/no-go
-1. **B1.1** (`session.js` remove fallback/create + rewrite tests) — Claude, branch-safe.
-2. **B1.2** (per-page gating behind the kill-switch, default-off) — Claude, branch-safe.
+1. **B1.1** ✓ DONE (v14.40) — `session.js` gates the self-heal account creation and the anonymous
+   fallback behind `CONFIG.ENFORCE_NAMED_SESSION` (default **false** = today's behaviour exactly).
+   When true: no `createUser`, no anonymous fallback; a failed named sign-in returns `false`/`'none'`.
+   11 unit tests across both flag states (4 new for the flag-on path assert `createUser`/anonymous are
+   NOT called). No production behaviour change until the flag is flipped.
+2. **B1.2** (per-page gating behind the same kill-switch, default-off) — Claude, branch-safe. **NEXT.**
 3. **Owner**: provisioning audit + `/new-starter` wording.
 4. **Verify** in a private window across the role matrix + an unprovisioned account.
 5. **Enable** the flag (low-traffic check; client-side reversible) — then it's ready for B2.
