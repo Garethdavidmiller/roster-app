@@ -40,7 +40,7 @@ const isLinksDesigner = CONFIG.LINKS_DESIGNERS.includes(currentUser);
 const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
 
 if (!currentUser || !isLinksDesigner) {
-    window.location.replace('./admin.html');
+    window.location.replace('./admin.html?redirect=links');
     throw new Error('Not authorised — redirecting');
 }
 
@@ -51,7 +51,7 @@ resolveSession(_linksAuth);
 _linksAuth.then(named => {
     if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
         clearSession();
-        window.location.replace('./admin.html');
+        window.location.replace('./admin.html?redirect=links');
     }
 });
 
@@ -71,7 +71,7 @@ initNavPanel({
     onSignOut: () => {
         if (dirty && !confirm('You have unsaved changes. Sign out anyway?')) return;
         clearSession();
-        window.location.href = './admin.html';
+        window.location.href = './index.html';
     },
 });
 

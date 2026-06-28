@@ -270,9 +270,9 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
 test('operations: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/operations.html');
-    // operations-app.js redirects immediately when no admin session exists —
-    // landing on admin.html proves the module loaded and executed without crashing.
-    await expect(page).toHaveURL(/admin\.html/);
+    // operations-app.js redirects immediately when no admin session exists — landing on admin.html
+    // with the return param proves the module ran AND that the divert is consistent (returns you).
+    await expect(page).toHaveURL(/admin\.html\?redirect=operations/);
     expect(errors, 'Uncaught JS exceptions triggering operations redirect').toHaveLength(0);
 });
 
@@ -359,9 +359,9 @@ test('operations: Work Email rows keep Edit/Remove on-screen at 375px (long emai
 test('links: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/links.html');
-    // links-app.js redirects immediately when the user is not a links designer —
-    // landing on admin.html proves the module loaded and executed without crashing.
-    await expect(page).toHaveURL(/admin\.html/);
+    // links-app.js redirects immediately when the user is not a links designer — landing on
+    // admin.html with the return param proves the module ran AND the divert returns you.
+    await expect(page).toHaveURL(/admin\.html\?redirect=links/);
     expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
 
@@ -491,13 +491,13 @@ test('B1 flag ON: settings re-shows the login overlay when the named session can
 test('B1 flag ON: operations clears the session and redirects to admin on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/operations.html');
-    await expect(page).toHaveURL(/admin\.html/);
+    await expect(page).toHaveURL(/admin\.html\?redirect=operations/);
 });
 
 test('B1 flag ON: links clears the session and redirects to admin on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/links.html');
-    await expect(page).toHaveURL(/admin\.html/);
+    await expect(page).toHaveURL(/admin\.html\?redirect=links/);
 });
 
 test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {

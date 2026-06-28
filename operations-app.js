@@ -33,7 +33,7 @@ const isAdmin        = CONFIG.ADMIN_NAMES.includes(currentUser);
 
 // Guard: must be signed in AND be an admin — redirect otherwise
 if (!currentUser || !isAdmin) {
-    window.location.replace('./admin.html');
+    window.location.replace('./admin.html?redirect=operations');
     // Throw to halt module execution immediately — location.replace is async and JS continues otherwise.
     throw new Error('Not authorised — redirecting');
 }
@@ -49,7 +49,7 @@ resolveSession(_opsAuth);
 _opsAuth.then(named => {
     if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
         clearSession();
-        window.location.replace('./admin.html');
+        window.location.replace('./admin.html?redirect=operations');
     }
 });
 
@@ -70,7 +70,7 @@ initNavPanel({
     isAdmin:         true,
     isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
     onLogoClick: () => openAboutLightbox?.(),
-    onSignOut:   () => { clearSession(); window.location.href = './admin.html'; },
+    onSignOut:   () => { clearSession(); window.location.href = './index.html'; },
 });
 
 initHuddleUpload({ currentIsAdmin: true, currentUser });

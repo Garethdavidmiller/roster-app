@@ -172,7 +172,11 @@ function initLoginOverlay() {
         const redirect = new URLSearchParams(location.search).get('redirect');
         // Whitelist redirect values to prevent open-redirect. New redirect targets
         // require an entry here — the pattern catches them at compile time.
-        const REDIRECT_MAP = /** @type {Record<string, string>} */ ({ paycalc: './paycalc.html' });
+        const REDIRECT_MAP = /** @type {Record<string, string>} */ ({
+            paycalc:    './paycalc.html',
+            operations: './operations.html',
+            links:      './links.html',
+        });
         if (redirect && REDIRECT_MAP[redirect]) {
             window.location.replace(REDIRECT_MAP[redirect]);
         } else {
