@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.29';
+export const APP_VERSION = '14.30';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -43,7 +43,7 @@ export const CONFIG = {
     DEFAULT_MEMBER_NAME:              'G. Miller',                               // Default selection in index.html
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
     LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva'],                  // Names with access to the Links design workspace
-    MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
+    MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
@@ -142,6 +142,7 @@ export const teamMembers = [
     { name: 'D. Watts',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'D. Harris',  currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
     { name: 'S. Gumbo',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
+    { name: 'N. Bedingfield', currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true }, // started 15 Jun 2026; managerOnly has no roster, so no startDate/proRatedAL needed
     { name: 'H. Croft',   currentWeek: 1, rosterType: 'main', role: 'Management', hidden: true, managerOnly: true },
 ];
 
