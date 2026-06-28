@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Admin v14.45 -->
+<!-- MYB Roster — Admin v14.46 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -39,33 +39,7 @@
         <button type="button" class="unsaved-keep-btn"    id="unsavedKeepBtn">Keep editing</button>
     </div>
 </div>
-<!-- Login overlay — shown when no valid session exists -->
-<div id="loginOverlay" role="dialog" aria-label="Sign in to Admin" aria-modal="true">
-    <div id="loginCard">
-        <img src="icon-192.png" alt="MYB Roster">
-        <div class="login-app-name">Marylebone Roster</div>
-        <div class="login-subtitle">Admin · Sign in</div>
-        <div class="login-field">
-            <label for="loginGrade">Grade</label>
-            <select id="loginGrade">
-                <option value="">— Select grade —</option>
-            </select>
-        </div>
-        <div class="login-field">
-            <label for="loginName">Your name</label>
-            <select id="loginName" disabled>
-                <option value="">— Select grade first —</option>
-            </select>
-        </div>
-        <div class="login-field">
-            <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
-        </div>
-        <div id="loginError" class="login-error" aria-live="polite"></div>
-        <button type="button" id="loginSubmit">Sign in →</button>
-        <a href="index.html" class="login-back">← Back to roster</a>
-    </div>
-</div>
+<!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
 
 <!-- One-time email check — shown once per device, triggered by a fresh login -->
 <div id="emailCheckOverlay" role="dialog" aria-label="Work email" aria-modal="true">

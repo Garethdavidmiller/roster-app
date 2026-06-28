@@ -14,16 +14,17 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade, isValidEmail } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail } from './roster-data.js';
 import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
-import { getSurname, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { initLoginOverlay } from './login-overlay.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
 
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
-import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { isRestShift, computePeriodDeleteIds } from './override-utils.js';
@@ -45,150 +46,31 @@ const currentUser     = currentSession?.name ?? null;
 const currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
 const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
-// ---- Login overlay (shown when not authenticated) ----
-function initLoginOverlay() {
-    const overlay       = document.getElementById('loginOverlay');
-    const gradeSelect   = /** @type {HTMLSelectElement} */ (document.getElementById('loginGrade'));
-    const nameSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('loginName'));
-    const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('loginPassword'));
-    const submitBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('loginSubmit'));
-    const errorEl       = /** @type {HTMLElement} */ (document.getElementById('loginError'));
-
-    if (!overlay) return;
-    overlay.classList.add('visible');
-    lockBodyScroll();
-
-    overlay.addEventListener('keydown', e => {
-        if (e.key === 'Escape') { window.location.href = './index.html'; return; }
-        trapFocus(overlay, e);
-    });
-
-    // Grade order — defines display sequence; Management always last
-    const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
-    const GRADE_KEY   = 'myb_login_grade';
-
-    // Populate grade dropdown
-    GRADE_ORDER.forEach(g => gradeSelect.appendChild(new Option(g, g)));
-
-    // Repopulate name dropdown whenever grade changes
-    /** @param {string} grade */
-    function populateNames(grade) {
-        nameSelect.innerHTML = '';
-        if (!grade) {
-            nameSelect.appendChild(new Option('— Select grade first —', ''));
-            nameSelect.disabled = true;
-            return;
-        }
-        nameSelect.appendChild(new Option('— Select your name —', ''));
-        getMembersForGrade(grade).forEach(m => nameSelect.appendChild(new Option((/** @type {any} */ (m)).name, (/** @type {any} */ (m)).name)));
-        nameSelect.disabled = false;
-    }
-
-    // Restore last-used grade so returning users go straight to name → password
-    const savedGrade = lsGet(GRADE_KEY);
-    if (savedGrade && GRADE_ORDER.includes(savedGrade)) {
-        gradeSelect.value = savedGrade;
-        populateNames(savedGrade);
-    } else {
-        populateNames('');
-    }
-
-    gradeSelect.addEventListener('change', () => {
-        errorEl.classList.remove('visible');
-        passwordInput.value = '';
-        nameSelect.value = '';
-        populateNames(gradeSelect.value);
-        if (gradeSelect.value) nameSelect.focus();
-    });
-
-    nameSelect.addEventListener('change', () => {
-        errorEl.classList.remove('visible');
-        passwordInput.value = '';
-        if (nameSelect.value) passwordInput.focus();
-    });
-
-    let _failCount = 0;
-    let _lockedUntil = 0;
-    let _attempting = false;
-    // Note: this client-side lockout is a UX measure only — it resets on page reload.
-    // Real rate limiting is enforced server-side by Firebase Auth.
-
-    async function attempt() {
-        if (_attempting || Date.now() < _lockedUntil) return;
-        _attempting = true;
-        const name = nameSelect.value;
-        // Strip non-alpha and lowercase to match normaliseSurname() in firebase-client.js
-        const pw   = passwordInput.value.toLowerCase().replace(/[^a-z]/g, '');
-        errorEl.classList.remove('visible');
-
-        if (!gradeSelect.value) {
-            errorEl.textContent = 'Please select your grade.';
-            errorEl.classList.add('visible');
-            gradeSelect.focus();
-            return;
-        }
-        if (!name) {
-            errorEl.textContent = 'Please select your name.';
-            errorEl.classList.add('visible');
-            return;
-        }
-        if (pw !== getSurname(name)) {
-            _failCount++;
-            if (_failCount >= 3) {
-                _lockedUntil = Date.now() + 30_000;
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Try again in 30s';
-                setTimeout(() => {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Sign in →';
-                    _failCount = 0;
-                    _lockedUntil = 0;
-                }, 30_000);
+// ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
+/** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in: honour a
+ *  ?redirect= return target (a page that bounced here to log in) or run the inline work-email
+ *  check then reload. */
+function showAdminLogin() {
+    initLoginOverlay({
+        pageLabel: 'Admin',
+        onSuccess: async (/** @type {string} */ name) => {
+            const redirect = new URLSearchParams(location.search).get('redirect');
+            // Whitelist redirect values to prevent open-redirect.
+            const REDIRECT_MAP = /** @type {Record<string, string>} */ ({
+                paycalc:    './paycalc.html',
+                operations: './operations.html',
+                links:      './links.html',
+            });
+            if (redirect && REDIRECT_MAP[redirect]) {
+                window.location.replace(REDIRECT_MAP[redirect]);
+            } else {
+                // Inline work-email check on top of the overlay, then reload (no jarring
+                // reload between sign-in and the email prompt — v13.68).
+                await _runEmailCheck(name);
+                window.location.reload();
             }
-            errorEl.textContent = 'Incorrect password. Please try again.';
-            errorEl.classList.add('visible');
-            passwordInput.value = '';
-            passwordInput.focus();
-            return;
-        }
-        lsSet(GRADE_KEY, gradeSelect.value);
-        saveSession(name);
-        // Authenticate with Firebase Auth so Firestore Security Rules can verify the session.
-        // Must await before reloading — the page reload would otherwise cancel the async
-        // network request before Firebase can save the auth token to IndexedDB.
-        const named = await ensureNamedSession(name);
-        if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
-            // Surname matched locally but the member's own Firebase session couldn't be
-            // established. Don't leave a local session that can't write; show why. Persistent
-            // failure is almost always an unprovisioned account (createUser is disabled when
-            // enforcing), so point them at admin break-glass. Flag OFF → never reaches here.
-            clearSession();
-            errorEl.textContent = isTransientAuthError(getFirebaseAuthError())
-                ? 'Couldn’t reach sign-in — check your connection and try again.'
-                : 'Couldn’t complete sign-in. Ask your manager to set up your account.';
-            errorEl.classList.add('visible');
-            return;
-        }
-        const redirect = new URLSearchParams(location.search).get('redirect');
-        // Whitelist redirect values to prevent open-redirect. New redirect targets
-        // require an entry here — the pattern catches them at compile time.
-        const REDIRECT_MAP = /** @type {Record<string, string>} */ ({
-            paycalc:    './paycalc.html',
-            operations: './operations.html',
-            links:      './links.html',
-        });
-        if (redirect && REDIRECT_MAP[redirect]) {
-            window.location.replace(REDIRECT_MAP[redirect]);
-        } else {
-            // Show email check inline (on top of the login overlay) before reloading.
-            await _runEmailCheck(name);
-            window.location.reload();
-        }
-        // _attempting stays true — page is reloading; no need to reset.
-    }
-
-    submitBtn.addEventListener('click', () => { attempt().finally(() => { _attempting = false; }); });
-    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().finally(() => { _attempting = false; }); });
+        },
+    });
 }
 
 // ---- Lightbox ----
@@ -1640,7 +1522,7 @@ async function initEmailCheck(member) {
 
 if (!isAuthenticated) {
     // Show login overlay; do not load any Firestore data
-    initLoginOverlay();
+    showAdminLogin();
 } else {
     // Returning user with a valid localStorage session never passes through the
     // login click handler, so re-establish the Firebase Auth session here.
@@ -1653,7 +1535,7 @@ if (!isAuthenticated) {
     // confirmed as this member's OWN Firebase identity is cleared and re-authenticated via the
     // login overlay. Flag OFF → resolves true (anonymous fallback), so this never fires.
     _adminAuth.then(named => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); initLoginOverlay(); }
+        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); showAdminLogin(); }
     });
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
