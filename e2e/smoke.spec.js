@@ -216,6 +216,19 @@ test('settings: login overlay renders with JS-populated grade options', async ({
     expect(errors, 'Uncaught JS exceptions on settings.html').toHaveLength(0);
 });
 
+// Regression: the settings login fields must be STYLED (full-width, like admin), not raw browser
+// controls. They fell back to defaults because the field CSS lived in admin.css's generic
+// `select, input {}` rule, which settings.css doesn't have — fixed by styling `.login-field`
+// fields in shared.css (v14.43). A raw <select> renders at its tiny intrinsic width (~120px);
+// the styled one fills the card (~280px).
+test('settings login fields are styled full-width, not raw browser defaults', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/settings.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    const w = await page.locator('#loginGrade').evaluate(el => el.getBoundingClientRect().width);
+    expect(w, 'settings login GRADE select should be full-width (styled), not a raw control').toBeGreaterThan(200);
+});
+
 test('settings (signed in): card "?" button opens the Tips lightbox, not the card', async ({ page }) => {
     // Regression guard for the per-card Tips wiring. The logged-out tests above
     // never run initApp(), so a break in the signed-in path (e.g. a throw before
