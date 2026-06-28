@@ -843,3 +843,42 @@ test('every rosterChanges entry has a valid rosterType and currentWeek', () => {
     }
     assert.deepEqual(bad, [], `Invalid rosterChanges entries:\n  ${bad.join('\n  ')}`);
 });
+
+// ── Pinned roster transitions (live roster facts — June/July 2026) ─────────────
+// Pin the exact K. Jedlinski / S. Boyle / B. Khalil transitions so a future roster-data
+// edit can't silently shift them. getBaseShift / resolveMemberRoster take Date objects
+// (month 0-based). fixedRoster[2] = 09:00–16:00 Mon–Fri, RD weekends.
+
+test('K. Jedlinski: pre-start RD, fixed pattern 2 (3–27 Jun), then main wk10 (28 Jun+)', () => {
+    const m = teamMembers.find(x => x.name === 'K. Jedlinski');
+    assert.ok(m, 'K. Jedlinski not found');
+    assert.equal(getBaseShift(m, new Date(2026, 5, 2)),  'RD');           // 2 Jun — before startDate (3 Jun)
+    assert.equal(getBaseShift(m, new Date(2026, 5, 10)), '09:00-16:00');  // Wed 10 Jun — fixed pattern 2
+    assert.equal(getBaseShift(m, new Date(2026, 5, 13)), 'RD');           // Sat 13 Jun — fixed pattern 2 weekend
+    const r = resolveMemberRoster(m, new Date(2026, 5, 28));              // 28 Jun onward
+    assert.equal(r.rosterType, 'main');
+    assert.equal(r.currentWeek, 10);
+});
+
+test('S. Boyle: main wk10 until 27 Jun, then fixed pattern 2 (28 Jun+)', () => {
+    const m = teamMembers.find(x => x.name === 'S. Boyle');
+    assert.ok(m, 'S. Boyle not found');
+    const before = resolveMemberRoster(m, new Date(2026, 5, 27));
+    assert.equal(before.rosterType, 'main');
+    assert.equal(before.currentWeek, 10);
+    const after = resolveMemberRoster(m, new Date(2026, 5, 28));
+    assert.equal(after.rosterType, 'fixed');
+    assert.equal(after.currentWeek, 2);
+    assert.equal(getBaseShift(m, new Date(2026, 5, 29)), '09:00-16:00');  // Mon 29 Jun — fixed pattern 2
+    assert.equal(getBaseShift(m, new Date(2026, 6, 4)),  'RD');           // Sat 4 Jul — fixed pattern 2 weekend
+});
+
+test('B. Khalil: pre-start RD, then CES rotation from 9 Jun and across 1 Jul', () => {
+    const m = teamMembers.find(x => x.name === 'B. Khalil');
+    assert.ok(m, 'B. Khalil not found');
+    assert.equal(getBaseShift(m, new Date(2026, 5, 8)), 'RD');                       // 8 Jun — before startDate (9 Jun)
+    assert.equal(resolveMemberRoster(m, new Date(2026, 5, 9)).rosterType,  'ces');   // on start
+    const jul = resolveMemberRoster(m, new Date(2026, 6, 1));                        // across 1 Jul — still CES
+    assert.equal(jul.rosterType,  'ces');
+    assert.equal(jul.currentWeek, 5);
+});

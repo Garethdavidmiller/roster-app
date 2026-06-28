@@ -237,20 +237,35 @@ service cloud.firestore {
       // is deduped client-side (usage-reporter.js) so the server only ever sees "+1".
       // Read is admin-only. Any authenticated session may increment — including the
       // calendar's anonymous Firebase session (request.auth != null after signInAnonymously),
-      // which is why writes are not gated on a name/admin claim. Firestore rules can't
-      // restrict an update to increment-only, so values aren't individually validated;
-      // the data is non-sensitive aggregate counts and App Check is the eventual integrity
-      // control. No client delete — daily-bucket pruning is a field-level update.
+      // which is why writes are not gated on a name/admin claim. The SHAPE is validated:
+      // pv_ docs are pinned to a pv_YYYY-MM id with month == the id suffix, counts keys are
+      // limited to the six known page ids, and each count value must be an int; activeAccounts
+      // is pinned to that id with months/daily maps. Firestore rules still can't enforce
+      // increment-ONLY (a write could set an int to any value) or validate the date-keyed
+      // sub-map keys — App Check is the eventual integrity control; the data is non-sensitive
+      // aggregate counts. No client delete — daily-bucket pruning is a field-level update.
       allow read: if request.auth != null && request.auth.token.admin == true;
       allow create, update: if
         request.auth != null &&
         (
-          (request.resource.data.keys().hasOnly(['month', 'counts']) &&
+          // Page popularity: analytics/pv_YYYY-MM = { month: 'YYYY-MM', counts: { <pageId>: int } }
+          (docId.matches('pv_[0-9]{4}-[0-9]{2}') &&
+           request.resource.data.keys().hasOnly(['month', 'counts']) &&
            request.resource.data.month is string &&
-           request.resource.data.counts is map) ||
-          (request.resource.data.keys().hasOnly(['months', 'daily']) &&
-           (!request.resource.data.keys().hasAny(['months']) || request.resource.data.months is map) &&
-           (!request.resource.data.keys().hasAny(['daily'])  || request.resource.data.daily  is map))
+           docId == 'pv_' + request.resource.data.month &&
+           request.resource.data.counts is map &&
+           request.resource.data.counts.keys().hasOnly(['calendar', 'admin', 'paycalc', 'operations', 'settings', 'links']) &&
+           (!('calendar'   in request.resource.data.counts) || request.resource.data.counts.calendar   is int) &&
+           (!('admin'      in request.resource.data.counts) || request.resource.data.counts.admin      is int) &&
+           (!('paycalc'    in request.resource.data.counts) || request.resource.data.counts.paycalc    is int) &&
+           (!('operations' in request.resource.data.counts) || request.resource.data.counts.operations is int) &&
+           (!('settings'   in request.resource.data.counts) || request.resource.data.counts.settings   is int) &&
+           (!('links'      in request.resource.data.counts) || request.resource.data.counts.links      is int)) ||
+          // Active-account counters: analytics/activeAccounts = { months?: {…}, daily?: {…} }
+          (docId == 'activeAccounts' &&
+           request.resource.data.keys().hasOnly(['months', 'daily']) &&
+           (!('months' in request.resource.data) || request.resource.data.months is map) &&
+           (!('daily'  in request.resource.data) || request.resource.data.daily  is map))
         );
       allow delete: if false;
     }

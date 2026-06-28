@@ -760,6 +760,26 @@ describe('analytics', () => {
         await assertFails(setDoc(doc(staffDb(), 'analytics', 'whatever'), { foo: 'bar' }));
     });
 
+    test('auth cannot write a page-view doc whose id is not pv_YYYY-MM', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-6'), { month: '2026-6', counts: { calendar: 1 } }));
+    });
+
+    test('auth cannot write a page-view doc whose month != the doc id', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: '2026-07', counts: { calendar: 1 } }));
+    });
+
+    test('auth cannot write a page-view doc with an unknown counts key', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { hacker: 1 } }));
+    });
+
+    test('auth cannot write a page-view doc with a non-int count value', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'pv_2026-06'), { month: '2026-06', counts: { calendar: 'evil' } }));
+    });
+
+    test('auth cannot write an active-accounts shape under any other doc id', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'aa_2026'), VALID_ACTIVE()));
+    });
+
     test('client cannot delete an analytics doc', async () => {
         const ref = doc(adminDb(), 'analytics', 'pv_2026-06');
         await setDoc(ref, VALID_PV());

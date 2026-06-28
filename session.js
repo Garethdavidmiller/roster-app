@@ -146,22 +146,31 @@ export async function ensureFirebaseSession(name) {
     }
 }
 
+/** Clear the local session AND sign out of Firebase, keeping the two in lockstep so an
+ *  expired / version-stale / idle local session never leaves a live Firebase identity
+ *  behind (previously only the manual clearSession() signed Firebase out). */
+function _endSession() {
+    lsDel(AUTH_KEY);
+    firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
+}
+
 /**
  * Read and validate the current localStorage session. Returns null if
  * missing, absolutely expired (30 days), version-stale, or idle (7 days).
  * Auto-touches lastActivity on every valid call so opening the app resets
- * the idle clock — no separate touchSession() needed.
+ * the idle clock — no separate touchSession() needed. Any expiry path also
+ * signs out of Firebase (via _endSession) so local + Firebase state stay aligned.
  */
 export function getSession() {
     try {
         const raw = lsGet(AUTH_KEY);
         if (!raw) return null;
         const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
-        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
+        if (Date.now() > s.expiry) { _endSession(); return null; }
+        if ((s.ver || 1) < SESSION_VER) { _endSession(); return null; }
         // Idle check. Missing lastActivity: Date.now() - undefined = NaN, NaN > IDLE_MS = false → kept active.
         if (Date.now() - s.lastActivity > IDLE_MS) {
-            lsDel(AUTH_KEY); return null;
+            _endSession(); return null;
         }
         // Refresh lastActivity on every valid page-load check.
         s.lastActivity = Date.now();
@@ -186,6 +195,5 @@ export function saveSession(name) {
 
 /** Clear the session from localStorage and sign out of Firebase Auth. */
 export function clearSession() {
-    lsDel(AUTH_KEY);
-    firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
+    _endSession();
 }
