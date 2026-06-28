@@ -139,6 +139,69 @@ test('paycalc (signed in): pay period selector is populated', async ({ page }) =
     expect(errors, 'Uncaught JS exceptions on paycalc.html').toHaveLength(0);
 });
 
+// Desktop layout regression: the two-column grid must keep the right-column card
+// stack compact. The bug (fixed v14.32): #hoursCard shared grid row 4 with the
+// short #settingsCard, so the tall Hours card inflated row 4 and left a large
+// blank gap under Settings before Payslip could appear. A passing maths/unit
+// suite never caught it — only a rendered desktop viewport does.
+for (const width of [1280, 1440]) {
+    test(`paycalc desktop @${width}px: compact right column, no horizontal overflow`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 1000 });
+        await seedSession(page);
+        // Suppress the one-time notices so we measure the underlying layout.
+        await page.addInitScript(() => {
+            localStorage.setItem('myb_pc_pay_welcome_shown', '1');
+            localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+            localStorage.setItem('myb_pc_ns_migrated', '1');
+        });
+        await page.goto('/paycalc.html');
+        await expect(page.locator('#settingsCard')).toBeVisible();
+        // The roster-assist hint loads asynchronously and changes the Hours card
+        // height, which redistributes the spanning grid; let the layout settle so
+        // the measurement is stable rather than catching a mid-render frame.
+        await page.waitForTimeout(800);
+
+        const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow, 'no horizontal overflow on desktop').toBeLessThanOrEqual(1);
+
+        // The gap between Settings and the next right-column card guards the v14.32
+        // bug: #hoursCard sharing a single grid row with #settingsCard inflated that
+        // row to the tall Hours card's height, leaving ~530px of dead space under
+        // Settings. The row-span fix keeps it small. Threshold is deliberately loose
+        // (catches the half-screen bug, tolerates the small content-dependent
+        // distribution inherent to spanning a tall card across the right stack).
+        const gap = await page.evaluate(() => {
+            const s = document.getElementById('settingsCard').getBoundingClientRect();
+            const p = document.getElementById('payslipCard').getBoundingClientRect();
+            return p.top - (s.top + s.height);
+        });
+        expect(gap, 'no half-screen gap under Settings (the v14.32 grid bug)').toBeLessThan(160);
+
+        // The sticky result card is the primary desktop output — must be on-screen.
+        await expect(page.locator('.result-card')).toBeInViewport();
+    });
+}
+
+// One-time notices must not stack: with legacy data pending AND the welcome notice
+// unseen, only the data-ownership prompt (highest priority) should open — not both.
+test('paycalc: one-time notices do not stack (data-ownership prompt wins)', async ({ page }) => {
+    await seedSession(page);   // signs in as a real member (G. Miller)
+    await page.addInitScript(() => {
+        // Genuine unnamespaced legacy pay data → migration pending. Welcome unseen →
+        // without the priority guard, both the welcome AND data-ownership lightboxes
+        // would call .open() in the same startup tick.
+        localStorage.setItem('myb_pc_rate', '20.74');
+        localStorage.removeItem('myb_pc_pay_welcome_shown');
+        localStorage.removeItem('myb_pc_ns_migrated');
+    });
+    await page.goto('/paycalc.html');
+
+    await expect(page.locator('#dataOwnerLightbox.visible')).toBeVisible();
+    await expect(page.locator('.lb-overlay.visible'), 'exactly one overlay open').toHaveCount(1);
+    await expect(page.locator('#welcomeLightbox.visible'), 'welcome suppressed').toHaveCount(0);
+});
+
 // ── SETTINGS (settings.html) ──────────────────────────────────────────────
 
 test('settings: login overlay renders with JS-populated grade options', async ({ page }) => {

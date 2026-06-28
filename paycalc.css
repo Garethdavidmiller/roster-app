@@ -697,9 +697,18 @@
       .guide-footer-link       { grid-column: 1 / -1; grid-row: 9; }
       .disclaimer              { grid-column: 1 / -1; grid-row: 10; }
 
-      /* Left column */
+      /* Left column.
+         #hoursCard spans rows 4–8 so its tall content sits ALONGSIDE the whole
+         right-column card stack (settings → payslip → HPP → back-pay → decimal),
+         instead of sharing only row 4 with the short Settings card. Without the
+         span, CSS Grid sized row 4 to the tall Hours card, leaving a large blank
+         gap under Settings before Payslip (row 5) could appear. align-self:start
+         keeps Hours top-aligned within the span. (A true masonry layout isn't
+         possible here: the explicit grid rows exist to give a different mobile
+         source order — Settings appears first on mobile — so the columns can't be
+         split into independent container stacks.) */
       .period-controls { grid-column: 1; grid-row: 3; }
-      #hoursCard       { grid-column: 1; grid-row: 4; }
+      #hoursCard       { grid-column: 1; grid-row: 4 / 9; align-self: start; }
 
       /* Right column: result card tops the column (sticky), settings below it,
          then detail cards. All explicit rows prevent them landing in free gaps. */
