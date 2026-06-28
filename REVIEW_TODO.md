@@ -16,15 +16,17 @@ Tracking branch: `claude/review-claude-md-mKJbK`. Remove this file once every it
   behavioural assertions on the real (CommonJS) `nameToPassword` across teamMembers + edge
   cases, plus a source-equivalence assertion so editing the regex in one file fails the test.
 
-## ⏳ Next — easy / contained (suggested order)
+## ✅ Easy / contained — DONE (v14.37 follow-up pass)
 
-- [ ] **L1 — `storage.rules` read comment** overstates access (files are read via the
-  bearer download URL, not the SDK). Comment-only alignment with the `circulars` wording.
-  *Trivial, zero risk, no bump (docs/comment).*
-- [ ] **Non-blocking `functions/` npm-audit CI step** so the 9 transitive moderate advisories
-  stay visible without gating deploys. *Small, CI-only.*
-- [ ] **L2 unit test** — assert a `hidden: true` leaver's slug stays in `_MEMBER_SLUGS` so
-  their paycalc data is never offered as claimable legacy. *Small, test-only.*
+- [x] **L1 — `storage.rules` read comment** clarified: the `request.auth != null` read rule
+  gates only direct SDK reads; staff open the tokenised bearer download URL (which bypasses
+  Storage rules). Reworded all three read comments (huddles/circulars/newsletters). Comment-only.
+- [x] **L2 unit test** — `paycalc-migrations.test.mjs`: a hidden (leaver) member's namespaced
+  key is recognised as owned, not legacy; genuinely unnamespaced data still triggers the prompt.
+- [x] **Non-blocking `functions/` npm-audit CI** — already present: `.github/workflows/
+  functions-audit.yml` (scheduled weekly + manual, pinned actions, read-only). Uses
+  `--audit-level=high` so it stays green on the current unfixable moderates and only alerts
+  on high/critical. No change needed.
 
 ## ⏳ Time-boxed maintenance (deadlines, not bugs)
 
