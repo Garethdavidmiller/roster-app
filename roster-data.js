@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.26';
+export const APP_VERSION = '14.27';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -80,11 +80,10 @@ export const teamMembers = [
     { name: 'A. Panchal',              currentWeek: 7,  rosterType: 'main',       role: 'CEA' },
     { name: 'C. Francisco-Charles',    currentWeek: 8,  rosterType: 'main',       role: 'CEA' },
     { name: 'O. Mylla',                currentWeek: 9,  rosterType: 'main',       role: 'CEA' },
-    // Long-term absence (June 2026): from Sun 28 Jun she moves to fixed pattern 2 (09:00–16:00
-    // Mon–Fri) via rosterChanges — base stays main wk10 until then, so she only leaves the link
-    // from 28 Jun (vacating wk10, the slot after O. Mylla — taken by new starter K. Jedlinski).
-    // Marked absent via admin overrides until she returns. AL stays the standard CEA 32 (base
-    // rosterType is 'main', so getALEntitlement returns 32). To restore her: delete rosterChanges.
+    // Temporary move to fixed pattern 2 (09:00–16:00 Mon–Fri) from Sun 28 Jun 2026 via
+    // rosterChanges — base stays main wk10 until then, so she only leaves the link from
+    // 28 Jun (vacating wk10, the slot after O. Mylla — taken by new starter K. Jedlinski).
+    // AL stays the standard CEA 32 (base rosterType 'main'). To revert: delete rosterChanges.
     { name: 'S. Boyle',                currentWeek: 10, rosterType: 'main',       role: 'CEA',
       rosterChanges: [{ from: new Date(2026, 5, 28), rosterType: 'fixed', currentWeek: 2 }] },
     { name: 'L. Atrakimaviciene',      currentWeek: 11, rosterType: 'main',       role: 'CEA' },
@@ -126,8 +125,8 @@ export const teamMembers = [
     { name: 'F. Mohamed',              currentWeek: 1,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Lloyd',                currentWeek: 2,  rosterType: 'ces',        role: 'CES' },
     { name: 'P. Prashanthan',          currentWeek: 3,  rosterType: 'ces',        role: 'CES' },
-    // On the CES rotation from his 9 Jun 2026 start (no bespoke fixed induction line —
-    // currentWeek:5 anchors him from the 15 Feb CES reference so July lands on week 5).
+    // On the CES rotation from his 9 Jun 2026 start (currentWeek:5 anchors him from the
+    // 15 Feb CES reference so July lands on week 5).
     // noProRate: pay and AL are full-year (CES 34) despite the mid-year startDate.
     { name: 'B. Khalil',               currentWeek: 5,  rosterType: 'ces',        role: 'CES', startDate: new Date(2026, 5, 9), noProRate: true },
     { name: 'G. Rotaru',               currentWeek: 5,  rosterType: 'ces',        role: 'CES' },
@@ -218,8 +217,8 @@ export function getALEntitlement(member, year = new Date().getFullYear(), overri
     if (member.proRatedAL && member.proRatedAL[year] !== undefined) return member.proRatedAL[year];
     if (member.role === 'Dispatcher') return 22 + countDispatcherBankHolidaysWorked(member, year, overrides);
     if (member.role === 'CES') return 34;
-    // Every CEA — main, bilingual, or fixed (C. Reen, and any temporary adjusted-hours /
-    // new-starter induction line) — gets the standard 32. There is no fixed-roster AL premium
+    // Every CEA — main, bilingual, or fixed (C. Reen, plus any temporary fixed line) — gets
+    // the standard 32. There is no fixed-roster AL premium
     // (corrected June 2026: C. Reen is contractually CEA, not CEA-BL, so 32, not 34).
     return 32;
 }

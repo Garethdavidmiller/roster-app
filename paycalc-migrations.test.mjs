@@ -167,4 +167,49 @@ describe('per-member namespace ownership', () => {
         assert.equal(global.localStorage.getItem('myb_pc_rate'), '20.74');
         assert.equal(global.localStorage.getItem('myb_pc_ns_migrated'), null);
     });
+
+    // ── Regression: must never touch ANOTHER member's namespaced data (v14.27 review) ──
+    // G. Miller and A. Panchal are both real teamMembers, so their slugs are recognised
+    // and their namespaced keys are never mistaken for unclaimed legacy data.
+
+    test("another member's namespaced data does NOT trigger the prompt", () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate': '20.74',      // G. Miller's own namespaced data
+            'myb_pc_gmiller_p43':  '{"std":140}',
+            'myb_pc_cea_migrated': '1',
+            'myb_pc_pension_v882_migrated': '1',
+        });
+        // A. Panchal opens the calc on the same device — must NOT be asked to claim it.
+        assert.equal(hasPendingLegacyMigration('A. Panchal'), false);
+    });
+
+    test("'fresh' never deletes another member's namespaced data", () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate': '20.74',      // belongs to G. Miller
+            'myb_pc_rate':         '99',         // genuine unnamespaced legacy
+        });
+        resolveLegacyMigration('A. Panchal', 'fresh');
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_rate'), '20.74'); // preserved
+        assert.equal(global.localStorage.getItem('myb_pc_rate'), null);            // legacy cleared
+    });
+
+    test("'mine' moves only genuine legacy, never another member's namespaced data", () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate': '20.74',      // belongs to G. Miller
+            'myb_pc_rate':         '99',         // genuine legacy
+        });
+        resolveLegacyMigration('A. Panchal', 'mine');
+        assert.equal(global.localStorage.getItem('myb_pc_apanchal_rate'), '99');   // legacy → Panchal
+        assert.equal(global.localStorage.getItem('myb_pc_gmiller_rate'), '20.74'); // Miller untouched
+        assert.equal(global.localStorage.getItem('myb_pc_rate'), null);
+    });
+
+    test('a device with multiple member namespaces stays intact (no false prompt)', () => {
+        global.localStorage = makeLocalStorage({
+            'myb_pc_gmiller_rate':  '20.74',
+            'myb_pc_apanchal_rate': '21.81',
+        });
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+        assert.equal(hasPendingLegacyMigration('A. Panchal'), false);
+    });
 });

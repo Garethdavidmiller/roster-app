@@ -58,6 +58,7 @@ mock.module('./roster-data.js', {
             `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
         MILLER_ACTUALS:  {},
         parseSmartFloat: /** @param {any} v */ v => parseFloat(String(v)),
+        teamMembers:     [],   // paycalc-migrations.js imports this for member-slug classification
     },
 });
 

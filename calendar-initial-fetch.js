@@ -84,7 +84,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
       syncChip.className = 'sync-chip sync-chip-error';
       syncChip.disabled = false;
-      syncChip.addEventListener('click', doRetry, { once: true });
+      syncChip.onclick = doRetry;   // assignment is idempotent — never accumulates handlers
       announceSync('Couldn\'t update your shifts. Activate to retry.');
     }
     if (calGrid) calGrid.classList.remove('calendar-fetching');
@@ -120,7 +120,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
         syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
         syncChip.className = 'sync-chip sync-chip-error';
         syncChip.disabled = false;
-        syncChip.addEventListener('click', doRetry, { once: true });
+        syncChip.onclick = doRetry;   // assignment is idempotent — never accumulates handlers
         syncChip.focus();
         announceSync('Still couldn\'t update your shifts. Activate to retry.');
       }
@@ -161,7 +161,7 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
         syncChip.textContent = '⚠ Couldn\'t update — tap to retry';
         syncChip.className = 'sync-chip sync-chip-error';
         syncChip.disabled = false;
-        syncChip.addEventListener('click', doRetry, { once: true });
+        syncChip.onclick = doRetry;   // assignment is idempotent — never accumulates handlers
         announceSync('Couldn\'t update your shifts. Activate to retry.');
       }
     } finally {
