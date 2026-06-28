@@ -60,11 +60,18 @@ export class FieldPath {}                               // literal field path (u
 export const onSnapshot = () => noop; // returns the unsubscribe fn; never fires in tests
 
 // ---- auth ----
+// Sign-in normally resolves. A test can set window.__E2E = { failSignIn: true } (via
+// addInitScript, before page scripts) to make every sign-in path reject — used by the B1
+// named-session enforcement tests. The rejection carries a persistent (non-transient) code so
+// ensureNamedSession does not retry. Reads the flag at CALL time so it is honoured after init.
+const _e2eFail = (code) => () => (globalThis.__E2E && globalThis.__E2E.failSignIn)
+    ? Promise.reject(Object.assign(new Error('e2e'), { code }))
+    : Promise.resolve({ user: { uid: 'test' } });
 export const getAuth = () => ({ currentUser: null });
 export const onAuthStateChanged = (_auth, cb) => { Promise.resolve().then(() => cb && cb(null)); return noop; };
-export const signInWithEmailAndPassword = () => Promise.resolve({ user: { uid: 'test' } });
-export const createUserWithEmailAndPassword = () => Promise.resolve({ user: { uid: 'test' } });
-export const signInAnonymously = () => Promise.resolve({ user: { uid: 'anon' } });
+export const signInWithEmailAndPassword = _e2eFail('auth/invalid-credential');
+export const createUserWithEmailAndPassword = _e2eFail('auth/operation-not-allowed');
+export const signInAnonymously = _e2eFail('auth/operation-not-allowed');
 export const signOut = () => Promise.resolve();
 export const setPersistence = () => Promise.resolve();
 export const indexedDBLocalPersistence = marker('idb');
@@ -88,5 +95,20 @@ export const test = base.extend({
         await use(page);
     },
 });
+
+/**
+ * Turn the B1 named-session kill-switch ON for one test by rewriting roster-data.js as it is
+ * served — flips `ENFORCE_NAMED_SESSION: false` to `true` without touching the real file or the
+ * production default. Call BEFORE page.goto(). Pair with `window.__E2E = { failSignIn: true }`
+ * (set via addInitScript) to exercise the enforcement paths.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function enforceNamedSession(page) {
+    await page.route('**/roster-data.js', async route => {
+        const res  = await route.fetch();
+        const body = (await res.text()).replace(/ENFORCE_NAMED_SESSION:\s*false/, 'ENFORCE_NAMED_SESSION: true');
+        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+    });
+}
 
 export { expect };
