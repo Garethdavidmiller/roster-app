@@ -153,6 +153,7 @@ roster-app/
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
+├── login-overlay.js        ← shared in-place sign-in overlay for all 5 protected pages: initLoginOverlay({ pageLabel, onSuccess }). Injects its own markup; owns grade/name dropdowns, surname-password check, client rate-limit, ensureNamedSession (B1). No page redirects elsewhere to log in.
 ├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession, getFirebaseIdentity/firebaseSessionIsNamed/getFirebaseAuthError (B0 named-vs-anonymous signal)
 ├── sw-register.js          ← shared SW registration + update lifecycle: registerServiceWorker()
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors

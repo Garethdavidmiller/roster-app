@@ -7,13 +7,13 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, getMembersForGrade, isValidEmail } from './roster-data.js';
+import { CONFIG, isValidEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
-import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
-import { getSurname, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
-import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
+import { initLoginOverlay } from './login-overlay.js';
+import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
@@ -54,120 +54,15 @@ if (isAuthenticated) {
     // session, clear it and show the login overlay to re-authenticate. Flag OFF → resolves
     // true (anonymous fallback), so this never fires and behaviour is unchanged.
     _setAuth.then(named => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); initLoginOverlay(); }
+        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
     });
     initApp();
 } else {
-    initLoginOverlay();
+    initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() });
     resolveSession(false); // fulfil sessionReady on the non-auth path (initErrorReporter runs on both paths)
 }
 registerServiceWorker();
 sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); });
-
-// ── Login overlay ─────────────────────────────────────────────────────────────
-function initLoginOverlay() {
-    const overlay       = document.getElementById('loginOverlay');
-    const gradeSelect   = /** @type {HTMLSelectElement} */ (document.getElementById('loginGrade'));
-    const nameSelect    = /** @type {HTMLSelectElement} */ (document.getElementById('loginName'));
-    const passwordInput = /** @type {HTMLInputElement} */ (document.getElementById('loginPassword'));
-    const submitBtn     = /** @type {HTMLButtonElement} */ (document.getElementById('loginSubmit'));
-    const errorEl       = /** @type {HTMLElement} */ (document.getElementById('loginError'));
-
-    if (!overlay) return;
-    overlay.classList.add('visible');
-    lockBodyScroll();
-
-    overlay.addEventListener('keydown', e => {
-        // Ignore Escape while a sign-in is in progress — navigating mid-submit
-        // would leave the user neither signed in nor on the calendar.
-        if (e.key === 'Escape') { if (!submitBtn.disabled) window.location.href = './index.html'; return; }
-        trapFocus(overlay, e);
-    });
-
-    const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher'];
-    const GRADE_KEY   = 'myb_login_grade';
-
-    GRADE_ORDER.forEach(g => gradeSelect.appendChild(new Option(g, g)));
-
-    const savedGrade = lsGet(GRADE_KEY);
-    if (savedGrade) { gradeSelect.value = savedGrade; populateNames(savedGrade); }
-
-    function populateNames(/** @type {any} */ grade) {
-        const members = getMembersForGrade(grade);
-        nameSelect.innerHTML = '<option value="">— Select name —</option>';
-        members.forEach(m => nameSelect.appendChild(new Option(/** @type {any} */ (m).name, /** @type {any} */ (m).name)));
-        nameSelect.disabled = members.length === 0;
-    }
-
-    gradeSelect.addEventListener('change', () => {
-        lsSet(GRADE_KEY, gradeSelect.value);
-        populateNames(gradeSelect.value);
-        passwordInput.value = '';
-        errorEl.classList.remove('visible');
-    });
-
-    let _failCount = 0;
-    let _lockedUntil = 0;
-    // Note: client-side lockout is a UX measure only — resets on reload.
-    // Real rate limiting is enforced server-side by Firebase Auth.
-
-    async function attemptLogin() {
-        if (Date.now() < _lockedUntil) return;
-        const name = nameSelect.value;
-        const pw   = passwordInput.value.trim().toLowerCase().replace(/[^a-z]/g, '');
-        if (!name) { showError('Please select your name.'); return; }
-        if (!pw)   { showError('Please enter your password.'); return; }
-        if (pw !== getSurname(name)) {
-            _failCount++;
-            if (_failCount >= 3) {
-                _lockedUntil = Date.now() + 30_000;
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Try again in 30s';
-                setTimeout(() => {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Sign in →';
-                    _failCount = 0;
-                    _lockedUntil = 0;
-                }, 30_000);
-                errorEl.textContent = 'Too many attempts. Try again in 30 seconds.';
-                errorEl.classList.add('visible');
-                return;
-            }
-            showError('Incorrect password. Your password is your surname (lowercase).');
-            return;
-        }
-
-        submitBtn.disabled  = true;
-        submitBtn.textContent = 'Signing in…';
-        errorEl.classList.remove('visible');
-
-        const named = await ensureNamedSession(name);
-        if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
-            // Password matched locally but the member's own Firebase session couldn't be
-            // established. Transient → ask them to retry; persistent → likely an unprovisioned
-            // account, so point them at their manager (admin break-glass).
-            showError(isTransientAuthError(getFirebaseAuthError())
-                ? 'Couldn’t reach sign-in — check your connection and try again.'
-                : 'Couldn’t complete sign-in. Ask your manager to set up your account.');
-            return;
-        }
-        if (!named) console.warn('[Auth] Firebase session not established — Firestore writes may fail');
-        saveSession(name);
-        /** @type {HTMLElement} */ (overlay).classList.remove('visible');
-        unlockBodyScroll();
-        window.location.reload();
-    }
-
-    function showError(/** @type {any} */ msg) {
-        errorEl.textContent = msg;
-        errorEl.classList.add('visible');
-        submitBtn.disabled    = false;
-        submitBtn.textContent = 'Sign in →';
-    }
-
-    submitBtn.addEventListener('click', attemptLogin);
-    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attemptLogin(); });
-}
 
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
