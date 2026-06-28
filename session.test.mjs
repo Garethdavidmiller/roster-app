@@ -108,10 +108,28 @@ describe('getSession', () => {
         return s;
     }
 
-    beforeEach(() => store.clear());
+    beforeEach(() => { store.clear(); _signOutCalled = false; });
 
     test('returns null when nothing is stored', () => {
         assert.equal(getSession(), null);
+    });
+
+    // Regression guard: passive expiry must NOT sign Firebase out. getSession() runs
+    // synchronously at module eval on the calendar; an async signOut here would race
+    // calendarAuthReady's currentUser check and could leave the page unauthenticated
+    // (push/usage/error writes rejected). Firebase signout belongs to clearSession only.
+    test('does NOT sign Firebase out on passive expiry (absolute / stale / idle)', () => {
+        writeSession({ expiry: Date.now() - 1 });
+        getSession();
+        assert.equal(_signOutCalled, false, 'absolute expiry must not call signOut');
+
+        writeSession({ ver: SESSION_VER - 1 });
+        getSession();
+        assert.equal(_signOutCalled, false, 'version-stale must not call signOut');
+
+        writeSession({ lastActivity: Date.now() - IDLE_MS - 1 });
+        getSession();
+        assert.equal(_signOutCalled, false, 'idle expiry must not call signOut');
     });
 
     test('returns null when stored value is not valid JSON', () => {
