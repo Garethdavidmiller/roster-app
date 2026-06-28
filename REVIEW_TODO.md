@@ -55,11 +55,17 @@ Tracking branch: `claude/review-claude-md-mKJbK`. Remove this file once every it
 
 ## ⏳ Dedicated security release (when password / Power-Automate work resumes)
 
-- [ ] Firebase **App Check** (integrity control for analytics + override writes).
-- [ ] Re-introduce **per-member Firestore write isolation** (documented re-introduction checklist).
-- [ ] **Workload Identity Federation** to retire the long-lived service-account JSON.
-- [ ] Clear the **9 transitive moderate Functions advisories** (needs `firebase-admin`/`-functions` upgrade).
-- [ ] Password-model upgrade (paired with Power-Automate work).
+**Now scoped + phased in `SECURITY_RELEASE_PLAN.md`** (created v14.38) — dependency graph,
+permissive→strict token-refresh migration (avoids the v10.94 outage), the "never enforce App
+Check during the isolation rollout" constraint, per-phase risk/rollback, and the owner-decision
+checklist. The items below are the scope; that file is the order — start there.
+
+- [ ] **B0** `ensureFirebaseSession` hardening (foundation for isolation + password change).
+- [ ] **B1–B4** per-member write isolation + named-session separation + server-owned lists.
+- [ ] **C2–C5** password-model upgrade (verify email → reset → change → retire surname).
+- [ ] **D1–D2** Firebase **App Check** (monitor-first, then enforce).
+- [ ] **A2** **Workload Identity Federation** to retire the long-lived service-account JSON.
+- [ ] **A1** Clear the **9 transitive moderate Functions advisories** (firebase-admin v14, upstream-blocked).
 
 ## ✔️ Verified FALSE during review (no action)
 
