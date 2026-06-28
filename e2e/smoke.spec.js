@@ -499,3 +499,32 @@ test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redire
     await expect(page).toHaveURL(/paycalc\.html$/);                       // NOT redirected away
     await expect(page.locator('#periodSelect option').first()).toBeAttached();  // calculator works
 });
+
+// HAPPY PATH — switch ON *and* sign-in SUCCEEDS (the provisioned, enabled state). Proves that
+// once accounts exist and the flag is flipped, every page behaves completely normally — nothing
+// is forced to re-login or redirected. Same fixture, real flag untouched (default sign-in resolves).
+
+test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async ({ page }) => {
+    await enforceNamedSession(page);   // switch ON; no __E2E.failSignIn → sign-in resolves → named
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeHidden();
+    await expect(page.locator('#fieldMember')).toBeVisible();
+});
+
+test('B1 flag ON + sign-in OK: operations loads (not redirected)', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page).toHaveURL(/operations\.html$/);
+    await expect(page.locator('#huddleUploadCard')).toBeVisible();
+});
+
+test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', async ({ page }) => {
+    await enforceNamedSession(page);
+    await seedSession(page, 'G. Miller');   // G. Miller is a links designer
+    await page.goto('/links.html');
+    await expect(page).toHaveURL(/links\.html$/);
+});
