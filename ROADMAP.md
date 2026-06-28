@@ -828,11 +828,13 @@ These are interlocking and should ship as one planned release, not piecemeal:
 
 ### Documentation accuracy fixes (cheap)
 
-- **(Open)** `pushSubscriptions` delete rule still allows *any* authenticated identity that knows the
-  doc id — docs say owner/admin only. Either tighten the rule or correct the docs.
-- **(Open)** Several docs describe circular/newsletter reads as "open" — the *Firestore metadata* read
-  is open, but the *Storage object* requires auth (a tokenised download URL is still a bearer link).
-  Note that distinction.
+- ✓ **Docs corrected (v14.38)** — `pushSubscriptions` delete rule allows *any* authenticated identity
+  that knows the doc id. AI_MAP already noted this; CLAUDE.md now states it explicitly too, so no doc
+  overclaims owner/admin-only. The remaining work is to *tighten the rule itself*, which is folded into
+  the per-member isolation phase (B2) in `SECURITY_RELEASE_PLAN.md` — not a standalone doc fix.
+- ✓ **Docs corrected (v14.37)** — the bearer-URL read distinction (Firestore metadata read is open;
+  the Storage object is reached via a tokenised bearer download URL that bypasses Storage rules) is now
+  stated in `storage.rules` and the `circulars`/`huddles` rule comments.
 - ✓ Resolved — the Storage test comment implied Admin-SDK Huddle cleanup that didn't exist;
   `ingestHuddle` now prunes the previous object (v14.23), so the described cleanup is real.
 

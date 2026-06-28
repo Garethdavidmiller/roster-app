@@ -57,7 +57,7 @@ surface to debug when something goes silent.
   Track A — standalone infra (any time, parallelisable)
     A1 firebase-admin v14 ........ (blocked on upstream peer range; mechanical when freed)
     A2 Workload Identity Fed ..... (isolated CI change; SA-JSON kept as fallback during cutover)
-    A3 cheap rule/doc accuracy ... (pushSubscriptions delete; bearer-URL doc notes)
+    A3 doc-only accuracy ✓ DONE .. (pushSubscriptions delete posture + bearer-URL notes; rule-tighten → B2)
 
   Track B — authorization release (interlocking; ONE planned release)
     B0 ensureFirebaseSession rework ──┬─► B1 named-session separation
@@ -90,18 +90,25 @@ surface to debug when something goes silent.
 
 ## Recommended sequence (value-to-risk ordered)
 
-1. **A3** — cheap rule/doc accuracy fixes. Minutes, no runtime risk. Clears the books.
-2. **B0** — `ensureFirebaseSession` hardening. Branch + unit tests. Foundation for everything.
-3. **A2** — Workload Identity Federation. Isolated, removes standing credential risk, doesn't
+> **A3 was split (v14.38).** Its only genuinely-free part was a *documentation* correction
+> (the `pushSubscriptions` delete posture), which is **done**. The *rule-tighten* it implied is
+> not a freebie — it's a Firestore rule change with the same silent-failure class as the rest of
+> Track B and a real correctness consideration (it must not break the legitimate unsubscribe
+> path). So it's **folded into B2**, where the rules + emulator-test work already lives. There is
+> no standalone "A3 first" step; **B0 is the first substantive phase.**
+
+1. **B0** — `ensureFirebaseSession` hardening. Branch + unit tests. The foundation everything
+   depends on, and the first substantive phase.
+2. **A2** — Workload Identity Federation. Isolated, removes standing credential risk, doesn't
    touch runtime. Do it while B0 is in review.
-4. **B1 → B2** — named-session separation + per-member isolation rule, all branch-safe with
-   emulator tests (no deploy until merge).
-5. **B3** — claims audit + permissive→strict token-refresh rollout in a low-traffic window.
+3. **B1 → B2** — named-session separation + per-member isolation rule (B2 also tightens the
+   `pushSubscriptions` delete rule), all branch-safe with emulator tests (no deploy until merge).
+4. **B3** — claims audit + permissive→strict token-refresh rollout in a low-traffic window.
    **The single highest-risk step in the entire plan.**
-6. **B4** — server-owned roster/role lists.
-7. **C2 → C4 → C3 → C5** — password release.
-8. **D1 → D2** — App Check monitor-then-enforce, once B is stable.
-9. **A1** — firebase-admin v14 whenever `firebase-functions` widens its peer range.
+5. **B4** — server-owned roster/role lists.
+6. **C2 → C4 → C3 → C5** — password release.
+7. **D1 → D2** — App Check monitor-then-enforce, once B is stable.
+8. **A1** — firebase-admin v14 whenever `firebase-functions` widens its peer range.
 
 ---
 
@@ -133,19 +140,20 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 - **Rollback:** revert the workflow to the secret-based auth step (secret still present).
 - **Gate:** the migrated workflow completes a real deploy via OIDC with no SA JSON in the job.
 
-### A3 — cheap rule/doc accuracy fixes
-- **Goal:** close the two open doc/rule mismatches in ROADMAP → "Documentation accuracy fixes".
-- **Who:** Claude.
-- **Items:**
-  - `pushSubscriptions` **delete** rule is `request.auth != null` (any authenticated identity
-    that knows the doc id can delete) while docs imply owner/admin-only. The id is a SHA-256 of
-    the endpoint, so exploitation needs the endpoint — low risk. **Decide:** tighten the rule
-    (delete only via a Cloud Function / add an owner check) **or** correct the docs to match the
-    rule. Lowest-effort correct option: document the actual posture; revisit tightening in B2.
-  - Bearer-URL read note for circular/newsletter Storage — **already done** in the v14.37 L1
-    pass (`storage.rules` comments + this distinction). Confirm and tick off.
-- **Risk/rollback:** negligible (comment/rule text). Emulator tests cover any rule edit.
-- **Gate:** `npm run test:rules` green if a rule is touched; otherwise none.
+### A3 — doc-only accuracy fixes ✓ DONE (v14.38)
+- **Goal:** make the docs state the actual posture; defer any *rule* change to B2.
+- **Who:** Claude. **Status: done, doc-only, no rule changed.**
+- **What was done:**
+  - `pushSubscriptions` **delete** posture: the rule is `request.auth != null` (any authenticated
+    identity that knows the doc id can delete). AI_MAP already noted this; CLAUDE.md now states it
+    explicitly too, so no doc overclaims owner/admin-only. The id is a SHA-256 of the endpoint, so
+    exploitation needs the endpoint — low risk. **Tightening the rule is folded into B2** (it is a
+    rule change with the same silent-failure class, and must not break the legitimate
+    `deletePushSubscription` unsubscribe path — so it belongs with the emulator-test work, not here).
+  - Bearer-URL read distinction for huddle/circular/newsletter Storage — done in the v14.37 L1 pass
+    (`storage.rules` + rule comments). ROADMAP "Documentation accuracy fixes" updated to reflect both.
+- **Why it is NOT a "phase 1":** ordering by easiness conflated a free doc edit with a real rule
+  change. Only the doc edit was free; the rule edit moved to B2. **B0 is the first substantive phase.**
 
 ### B0 — `ensureFirebaseSession` hardening (FOUNDATION)
 - **Goal:** stop the silent anonymous fallback on pages that write. Classify the failure
@@ -183,15 +191,20 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 ### B2 — per-member override + Links write isolation (the headline gap)
 - **Goal:** `overrides` (and `linkDesigns`) writes require `request.auth.token.name == memberName`
   with the **load-bearing** admin bypass `|| request.auth.token.admin == true` (admin writes for
-  others constantly: AL/sick on behalf, every `source:'roster_import'` row).
+  others constantly: AL/sick on behalf, every `source:'roster_import'` row). **Also tighten the
+  `pushSubscriptions` delete rule here** (folded in from A3) — add an owner/admin check, verifying
+  the legitimate `deletePushSubscription` unsubscribe path still works under emulator test.
 - **Who:** Claude (branch — rule + emulator tests). **Branch push does not deploy** (deploy-rules.yml
   runs on merge to `main`).
-- **Risk:** the rule is correct but rollout locks out cached-token sessions (see B3).
-- **Mitigation:** this phase ships **only** the permissive interim rule + tests; the strict
+- **Risk:** the rule is correct but rollout locks out cached-token sessions (see B3); a too-tight
+  `pushSubscriptions` delete rule could break a device unsubscribing.
+- **Mitigation:** this phase ships **only** the permissive interim isolation rule + tests; the strict
   tighten happens in B3 after the re-auth sweep. Mirror the pattern already live on `staffContact`.
+  For pushSubscriptions, prove the unsubscribe path under emulator test before tightening.
 - **Rollback:** revert the rule; `request.auth != null` restored.
 - **Gate:** emulator tests prove (a) member A cannot write member B's override, (b) admin can
-  write anyone's, (c) the `roster_import` path still saves, (d) Links isolation + admin bypass.
+  write anyone's, (c) the `roster_import` path still saves, (d) Links isolation + admin bypass,
+  (e) a device can still delete its own push subscription under the tightened delete rule.
 
 ### B3 — claims audit + token-refresh rollout (HIGHEST RISK)
 - **Goal:** every active session carries a fresh `name` claim, then tighten the interim rule to strict.
@@ -288,8 +301,8 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 
 ## Progress checklist (tick as shipped)
 
-- [ ] A3 — rule/doc accuracy (pushSubscriptions delete decision; bearer-URL notes confirmed)
-- [ ] B0 — `ensureFirebaseSession` hardening (foundation)
+- [x] A3 — doc-only accuracy ✓ (v14.38: pushSubscriptions delete posture stated; bearer-URL notes confirmed; rule-tighten moved into B2)
+- [ ] B0 — `ensureFirebaseSession` hardening (foundation — first substantive phase)
 - [ ] A2 — Workload Identity Federation (one workflow first)
 - [ ] B1 — named-session separation + remove browser account-creation
 - [ ] B2 — per-member override + Links isolation rule (permissive) + emulator tests
