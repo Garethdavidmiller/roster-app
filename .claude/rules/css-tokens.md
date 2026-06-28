@@ -42,17 +42,20 @@ Nav-drawer pills/links keep their opacity-based press (the flat-drawer aesthetic
 One type scale in `shared.css :root`:
 - `--type-micro` 10px
 - `--type-small` 12px
+- `--type-label` 13px (card headers, dense row text)
 - `--type-body` 14px
+- `--type-button` 15px (primary action buttons)
 - `--type-medium` 16px
 - `--type-large` 18px
+- `--type-xl` 24px
 
 The four sub-pages (admin, paycalc, operations, settings) use **identical sizes for the same conceptual element**:
 - `body` base → `--type-body`
-- card-header `h2` → 13px/700
-- card `.hint` → 12px
+- card-header `h2` → `--type-label` (13px/700)
+- card `.hint` → `--type-small`
 - form/eyebrow labels → `--type-small`
 - inputs/selects → `--type-medium` (16px also stops iOS focus-zoom — **never go below 16px on a focusable field**)
-- primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) → 15px
+- primary action buttons (`.btn-action`/`.btn-primary`/`.btn-save`) → `--type-button` (15px)
 
 Genuinely distinct components (nav drawer pills, dense roster-review rows, badges, lightbox text) keep their own sizes — they are not "the same element rendered differently", so do not force them onto the shared values. When adding a card/field/button to any sub-page, reuse these sizes rather than inventing new ones.
 

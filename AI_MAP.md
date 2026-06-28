@@ -24,7 +24,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `calendar-huddle-viewer.js` |
 | Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `calendar-team-view.js` |
-| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift | `override-utils.js` |
+| Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds | `override-utils.js` |
 | Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
 | About panel content (version, update status, bug link, print button) | `about-lightbox.js` |
 | Per-card ? tips lightbox lifecycle/renderer (content data stays per page) | `tips-lightbox.js` |
@@ -65,7 +65,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Shared CSS — colours, typography, badges, layout | `shared.css` |
 | Service worker — caching strategy, version bump | `service-worker.js` |
 | Firebase init and Firestore helpers | `firebase-client.js` |
-| localStorage wrappers (lsGet, lsSet, lsDel) | `ls.js` |
+| localStorage wrappers (lsGet, lsSet, lsDel, lsKeys) | `ls.js` |
 | Push notifications, Huddle ingest, auth setup | `functions/index.js` |
 | Railcard at-work reference — cards, GroupSave, season tickets, gateline checks | `railcard-guide.html` + `railcard-guide.js` + `railcard-guide.css` |
 | Print button for guide.html and paycalc-guide.html | `guide-print.js` |
@@ -87,6 +87,12 @@ The single source of truth for all roster data.
 - `getBankHolidays(year)` — algorithmic UK bank holiday list
 - `getPaydaysAndCutoffs(year)`, `isPayday()`, `isCutoffDate()`
 - `parseSmartFloat(str)` — number parse that strips iOS smart hyphens/curly quotes first; single source for paycalc `numVal()` and the HPP rate read in `paycalc-hpp.js`
+- `resolveMemberRoster(member, date)` — applies `rosterChanges` (latest `from` ≤ date wins); the basis for `getBaseShift`/`getWeekNumberForDate`. Never special-case rosterType at a call site — go through this.
+- `getWeekNumberForDate(member, date)` · `getALEntitlement(member, year)` · `getMembersForGrade(grade)` · `isSunday(dateStr)`
+- `avatarInitials(name)` / `avatarHue(name)` — initials + stable per-name colour for the nav-panel footer badge (called directly in `nav-panel.js`; no fetch/storage)
+- `escapeHtml(s)` / `formatISO(date)` / `isValidEmail(s)` — shared string/date/validation utilities used app-wide
+- `CONFIG` (incl. `ADMIN_NAMES`, `LINKS_DESIGNERS`, `MIN_YEAR`/`MAX_YEAR`, payday anchors), `MILLER_ACTUALS` (real payslip records for `paycalc.test.mjs`), and the re-exported raw roster arrays from `roster-cycle-data.js`
+- (This module exports ~50 symbols — the above are the cross-referenced, load-bearing ones; see the file for the full list.)
 ### `calendar-app.js`
 Coordinator for `index.html`. Delegates state, swipe, rendering, override cache, and member selection to sub-modules.
 - `changeMonth(delta)` — thin wrapper: calls `changeDisplay()` then `dismissSwipeHint()`
@@ -191,6 +197,7 @@ Shared overlay helpers — singleton module, imported by every page that shows a
 - `createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` — returns `{ open, close }`. Implements focus save/restore, `.visible` → rAF `.open` + focus, scroll lock, Android Back, Escape, and the Tab focus trap. Backdrop and closeBtn click-to-close are wired automatically (v12.50).
 - `_pushOverlayState(closeHandler)` / `_clearOverlayHistory()` — Android back-button support: pushes `{ mybOverlay: true }` history state on overlay open; registers `closeHandler` to fire on `popstate`. Module-level `popstate` listener is registered once (singleton) — multiple overlays on the same page are safe.
 - `trapFocus(container, e)` — call from a lightbox keydown handler; traps Tab/Shift+Tab within the container's focusable elements. No-op if key is not Tab. (createLightbox calls this internally.)
+- `dismissOverlay(overlay, { onClose })` — the shared close routine `createLightbox` uses: removes `.open`, restores focus synchronously, then removes `.visible` + `unlockBodyScroll()` on `transitionend` with a mandatory 500ms `setTimeout` fallback (iOS suppresses `transitionend` on a backgrounded tab). Exported for the rare overlay that isn't built via `createLightbox`.
 - `initCardCollapse(headerId, bodyId, chevronId, onToggle)` — wires a collapsible card header. Safe to call early; no-op if elements not found.
 - Imported by: `calendar-app.js`, `admin-app.js`, `paycalc-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`, `nav-panel.js`
 
@@ -213,7 +220,7 @@ Shared service worker registration + update lifecycle (v12.28). All six app page
 Shared auth/session module — canonical source for session logic (v11.40).
 - Constants: `AUTH_KEY`, `SESSION_MS` (30 days absolute), `IDLE_MS` (7 days inactivity), `SESSION_VER`
 - `getSurname(name)` — derives Firebase Auth password from display name
-- `getSession()` / `saveSession(name)` / `clearSession()` — localStorage wrappers for the session object
+- `getSession()` / `saveSession(name)` / `clearSession()` — session object accessors. `clearSession()` and the expiry/version/idle-invalidation branches of `getSession()` now route through an internal `_endSession()` that also calls `firebaseSignOut(auth)` (v14.28) — so tearing down the local session also drops the Firebase Auth session, keeping local and Firebase state aligned (no stale signed-in Firebase identity after a logout/expiry).
 - `ensureFirebaseSession(name)` — re-establishes Firebase Auth on every page load; waits for `onAuthStateChanged`, signs in if no existing session, self-heals a missing account via `createUserWithEmailAndPassword`. Returns `Promise<boolean>`.
 - `sessionReady` — module-level `Promise<boolean>` that resolves once the page coordinator calls `resolveSession()`. Feature modules `await sessionReady` instead of reading `window._mybSession`. (v13.74)
 - `resolveSession(result)` — fulfils `sessionReady`; pass the return value of `ensureFirebaseSession()` (a `Promise<boolean>`) on the auth path, or `false` on the non-auth path. Call exactly once per page-load from the page coordinator. (v13.74)
@@ -250,6 +257,9 @@ The Change a Shift module. Owns the week grid and override list entirely.
 - `updateSaveBtn()` — exported so swipe carousel can call it
 - State accessors: `getAllOverrides()` / `setAllOverrides()` — used by `admin-al.js` and `admin-sick.js`
 - `recordRangeOverrides({ type, value, memberName, dates, changedBy })` — shared batch-write helper used by both `admin-al.js` and `admin-sick.js`; filters out Sundays and RD days, writes Sunday RD corrections alongside AL/sick overrides, updates `_allOverrides` cache, and re-renders the week grid and override list
+- `formatDisplay(value, type)` — shared shift/override display formatter; imported by `admin-al.js` and `admin-sick.js`
+- `getEffectiveShift(member, date, overrides)` / `validateShiftRules(...)` / `buildMemberDateMap(overrides)` — pure shift-resolution + validation helpers, covered by `admin-overrides.test.mjs`
+- Also exported (grid/bulk internals reused across the module and by `admin-app.js`): `resetTableMemberFilter()`, `updateWeekNavLabel()`, `buildWeekGridInto(container)`, `resetBulkPills()`
 
 ### `admin-rangepicker.js`
 Inline date-range calendar widget — extracted from `admin-app.js` at v11.36.
@@ -313,6 +323,7 @@ Period arithmetic and select UI for `paycalc.html` (v13.80).
 - `buildBackPayPeriodSelect()` — populates back-pay period selectors
 - `updateTyTabs()` — highlights the active tax-year tab
 - `jumpToTaxYear(tyIndex, onPeriodChange)` / `prevPeriod(onPeriodChange)` / `nextPeriod(onPeriodChange)` — navigation; accept coordinator's `onPeriodChange` callback to avoid circular dependency
+- `_setSelectPeriod(sel, pNum)` — internal `<select>` value setter (test-exposed; covered by `paycalc-periods.test.mjs`)
 - Imports `P_YR, TAX_YEARS, getTaxYearForOffset` from `paycalc-calc.js`; imports `bhsForYear` from `paycalc-roster-suggestions.js`
 
 ### `paycalc-settings.js`
@@ -396,7 +407,9 @@ Owns the override cache and the suggestion engine. No DOM access.
 - `resetOverrides(newState)` — called by `onPeriodChange` on every period switch
 - `fetchOverridesForPeriod(p, memberName)` — async Firestore fetch, returns Promise
 - `getRosterSuggestion(p, member)` — merges base roster + overrides, returns categorised totals; member is passed by caller (no localStorage access)
-- `_setOverridesForTest(map)` — test-only hook to inject overrides without Firestore
+- `getOverridesFetchState()` — returns the current async-fetch state (`idle`/`loading`/`done`/`error`) for the suggestion UI
+- `bhsForYear(year)` — bank-holiday date set for a year; also imported by `paycalc-periods.js`
+- `_setOverridesForTest(map)` / `_addBhDateForTest(d)` / `_removeBhDateForTest(d)` — test-only hooks to inject overrides / adjust the BH set without Firestore
 - Edit here for: overtime split rules, BH detection logic, override fetch behaviour
 - Covered by `paycalc-roster-suggestions.test.mjs` — run with `node --experimental-test-module-mocks --test paycalc-roster-suggestions.test.mjs`
 
@@ -405,7 +418,7 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `db` — initialised with `persistentLocalCache()` so all queries are backed by IndexedDB offline storage
 - `COLLECTIONS` — frozen object mapping logical names to Firestore collection strings (`circulars`, `newsletters`, `clientErrors`, etc.). Use this instead of bare string literals to prevent typo-silent failures.
 - Standard exports re-exported: `collection`, `query`, `where`, `orderBy`, `limit`, `getDocs`, `getDoc`, `addDoc`, `setDoc`, `deleteDoc`, `doc`, `serverTimestamp`, `writeBatch`, `onSnapshot`
-- `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — writes to Firebase Storage + Firestore `huddles` collection; `htmlContent` is the converted HTML string for DOCX uploads (null for PDFs)
+- `uploadHuddle(date, file, uploadedBy, htmlContent = null)` — transactional manual-upload path (mirrors the Cloud Function ingest + circular/newsletter `_uploadPdf`): writes a **versioned** Storage object `huddles/{date}-{uploadId}.{ext}`, records its path in the `storagePath` field, writes the `huddles/{date}` Firestore doc, then deletes the previous object only after the commit (rolls the new object back on failure) so a re-upload never orphans the old file. `htmlContent` is the converted HTML for DOCX uploads (null for PDFs). Browser delete requires the admin-delete `/huddles` Storage rule (v14.29). Age-based pruning is handled server-side by `pruneOldHuddles()` (3-month), not here.
 - `subscribeToLatestHuddle(onData, onError)` — real-time `onSnapshot` listener; returns an unsubscribe function. Used by `calendar-huddle-viewer.js` (initialised from `calendar-app.js`) to keep the Huddle viewer content live without a page refresh. Logs a `console.warn` if a huddle document is missing its `storageUrl` (data integrity signal).
 - `savePushSubscription` / `deletePushSubscription` — Web Push subscription management. `deletePushSubscription` guards against empty endpoint (no-ops silently).
 - `auth`, `authReady`, `signInWithEmailAndPassword`, `createUserWithEmailAndPassword`, `signInAnonymously`, `signOut`, `onAuthStateChanged`, `nameToEmail`, `normaliseSurname` — Firebase Auth (`authReady` resolves once `onAuthStateChanged` has fired the first time; `normaliseSurname` is the shared surname→password derivation that `getSurname()` in `session.js` delegates to)
@@ -427,6 +440,7 @@ Pure date-bucketing + aggregation for the usage analytics — no DOM, no Firebas
 - `recentDayKeys(now, [days])` / `sumDailyWindow(daily, now, [days])` — the rolling-window day keys and their summed counts ("active in last 30 days")
 - `orderPageCounts(counts)` — page-view counts → `[{page, count}]` sorted desc then page-name asc
 - `staleDailyKeys(daily, now, [keepDays])` — daily buckets outside the retention window, for pruning
+- Constants `ROLLING_WINDOW_DAYS` (30) and `DAILY_RETENTION_DAYS` — the default rolling-window and daily-bucket retention sizes the functions above fall back to
 
 ### `client-errors.js`
 Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.
@@ -472,6 +486,7 @@ Override priority, member-start, and shift-classification helpers — shared by 
 - `shouldReplaceOverride(existing, incoming)` — priority logic: manual beats import; newer wins within same class
 - `isBeforeMemberStart(member, date)` — returns true if `date` is before the member's `startDate`; used to suppress overrides before a member joined. Always call this — never inline the date comparison.
 - `isRestShift(shift)` — returns true if the shift is `'RD'` or `'OFF'`. Use everywhere instead of repeating the two-value check. Imported by `admin-al.js`, `admin-sick.js`, `admin-overrides.js`, `admin-app.js`.
+- `computePeriodDeleteIds(allOverrides, { type, memberName, start, end })` (v14.24) — returns the override doc IDs to delete when re-saving an AL/absence range, including overlapping Sunday `correction/RD` overrides, so a re-save can't leave a stale Sunday correction behind. Pure; used by the admin save paths.
 - Covered by `override-utils.test.mjs`
 
 ### `railcard-guide.js`
@@ -558,10 +573,13 @@ All CSS shared across all six app pages (index, admin, paycalc, operations, sett
 Raw roster cycle arrays only — `weeklyRoster`, `bilingualRoster`, `fixedRoster`, `cesRoster`, `dispatcherRoster`. Imported by `roster-data.js` only. Edit here when the actual cycle patterns change (very rare). Do not import this file directly from app code — always go through `roster-data.js`.
 
 ### `functions/index.js`
-Three Cloud Functions (Firebase-dependent shell — pure logic lives in `roster-parse-helpers.js`):
-- `ingestHuddle` — Power Automate → Firebase Storage + Firestore
+Five Cloud Functions (Firebase-dependent shell — pure logic lives in `roster-parse-helpers.js`):
+- `ingestHuddle` — Power Automate → Firebase Storage + Firestore; sends push fan-out; awaits `pruneOldHuddles()` (3-month retention) before responding
+- `onHuddleCreated` — Firestore `onDocumentCreated` trigger; fires the push fan-out for **manual** admin uploads (skips `uploadedBy === 'power-automate'`, which `ingestHuddle` already notified, to avoid double-notifying)
 - `parseRosterPDF` — admin upload → Claude AI → parsed shifts JSON
 - `setupRosterAuth` — creates Firebase Auth accounts for all roster members
+- `sendPayReminderNotification` — scheduled (daily 08:00 London); on pay-cutoff Saturdays pushes a Pay Calculator reminder
+- Internal helper `pruneOldHuddles(excludeDate)` — deletes huddle Firestore docs + Storage objects older than `HUDDLE_RETENTION_MONTHS` (3); best-effort, awaited inside `ingestHuddle`
 
 ### `functions/roster-parse-helpers.js`
 Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with Node's built-in test runner.
@@ -575,7 +593,8 @@ Pure helper functions — no Firebase, no HTTP, no secrets. Fully testable with 
 - `huddleDayLabel(huddleDate, nowLondon)` — "Today's" / "Tomorrow's" / "Thursday's"
 - `isPayCutoffDay(date)` — mirrors isCutoffDate() from roster-data.js
 - `nameToEmail(fullName)` / `nameToPassword(fullName)` — Firebase Auth credential derivation
-- Covered by `roster-parse-helpers.test.mjs` (84 tests)
+- `fileSignatureMatches(buffer, fileType)` (v14.24) — magic-byte/file-signature check: verifies an uploaded buffer's leading bytes match its declared type (PDF `%PDF`, DOCX ZIP `PK`) before processing, so a mislabelled or hostile upload is rejected early
+- Covered by `roster-parse-helpers.test.mjs`
 
 ---
 
