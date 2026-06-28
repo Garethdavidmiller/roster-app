@@ -788,7 +788,7 @@ export function renderTable() {
             <td style="white-space:nowrap;font-weight:600">${formatDisplay(o.date)}</td>
             <td>${ename}</td>
             <td><span class="list-type-pill lpill-${etype}">${typeMeta ? typeMeta.label : etype}</span>${isLegacyType ? '<span class="legacy-pill">legacy</span>' : ''}${o.source === 'roster_import' ? '<span class="source-pill">PDF upload</span>' : ''}</td>
-            <td style="font-family:monospace;font-size:12px">${escapeHtml(o.value)}</td>
+            <td style="font-family:monospace;font-size:12px">${escapeHtml(o.value)}${o.note ? `<span class="override-note" title="${escapeHtml(o.note)}">${escapeHtml(o.note)}</span>` : ''}</td>
             <td><button class="btn-edit" data-member="${ename}" data-date="${edate}" aria-label="Edit ${ename} ${edate}">Edit</button></td>
             <td><button class="btn-delete" data-id="${eid}" aria-label="Delete ${ename} ${edate}">Delete</button></td>`;
         if (tableBody) tableBody.appendChild(tr);

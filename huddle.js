@@ -208,13 +208,24 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
                 htmlContent = html && html.length < 200_000 ? html : null;
             } catch (convErr) {
                 console.error('[Huddle] DOCX conversion failed:', convErr);
-                _feedback.textContent = (/** @type {any} */ (convErr)).message === 'load'
-                    ? "Couldn't load Word converter — check your connection and try again"
-                    : "Couldn't read the Word file — make sure it is a valid .docx";
-                _feedback.className = 'huddle-feedback huddle-feedback--err';
-                _uploadBtn.disabled = false;
-                _uploadBtn.textContent = 'Upload Huddle';
-                return;
+                if ((/** @type {any} */ (convErr)).message === 'load') {
+                    // The converter CDN was unreachable — but the .docx itself is fine.
+                    // Don't block the upload: proceed with htmlContent = null so the file
+                    // still reaches Storage and the viewer falls back to its "Open Huddle"
+                    // download button (exactly the PDF path). Better a download-only Huddle
+                    // than no Huddle when the admin is on a poor connection.
+                    console.warn('[Huddle] Word converter unavailable — uploading DOCX without inline preview.');
+                    htmlContent = null;
+                    // fall through to the upload step
+                } else {
+                    // A real parse failure: the file could not be read as a valid .docx.
+                    // Abort rather than store a file that may be corrupt or mislabelled.
+                    _feedback.textContent = "Couldn't read the Word file — make sure it is a valid .docx";
+                    _feedback.className = 'huddle-feedback huddle-feedback--err';
+                    _uploadBtn.disabled = false;
+                    _uploadBtn.textContent = 'Upload Huddle';
+                    return;
+                }
             }
         }
 
