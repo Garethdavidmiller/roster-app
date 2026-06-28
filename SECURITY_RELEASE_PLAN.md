@@ -1,6 +1,7 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: planning only — nothing here is implemented yet. Created v14.38 (June 2026).*
+*Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39;
+B1 scoped in detail (see "Appendix: B1 detailed scope") and not yet implemented.*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -61,8 +62,7 @@ surface to debug when something goes silent.
 
   Track B — authorization release (interlocking; ONE planned release)
     B0 fb-identity signal ✓ DONE ─────┬─► B1 named-session separation (consumes B0 signal;
-        (FOUNDATION; enforce → B1)     │      enforces re-login on claim-less session)
-        (FOUNDATION)                   │      (+ remove browser account-creation)
+        (FOUNDATION; enforce → B1)     │      enforces re-login; removes browser account-creation)
                                        └─► B2 per-member override + Links write isolation
                                               │
                                               └─► B3 claims audit + token-refresh rollout ◄── highest risk
@@ -183,6 +183,8 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - **Gate:** ✓ unit tests prove the identity is reported correctly for every path; full suite + e2e green.
 
 ### B1 — named-session separation + remove browser account-creation
+> **Detailed scope: see "Appendix: B1 detailed scope" at the foot of this file** — call-site map,
+> the soft/hard per-page enforcement matrix, re-auth UX, the kill-switch, and the testing plan.
 - **Goal:** anonymous auth confined to the public Calendar read path; Admin/Operations/Links/
   Settings/Pay require a genuine named session. Stop the client auto-creating Firebase accounts
   (`createUserWithEmailAndPassword` self-heal) once server provisioning is the source of truth.
@@ -325,3 +327,110 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - [ ] D1 — App Check monitor-first
 - [ ] D2 — App Check enforce (Firestore → Storage → Functions)
 - [ ] A1 — firebase-admin v14 (when upstream peer range allows)
+
+---
+
+## Appendix: B1 detailed scope (scoped v14.39, not yet implemented)
+
+B1 turns the B0 *signal* (`firebaseSessionIsNamed()`) into *enforcement*: the write pages stop
+accepting a claim-less session, anonymous auth is confined to the public Calendar, and the client
+stops self-creating Firebase accounts. B1 ships **while the Firestore rules are still
+`request.auth != null`** (B2's strict rule comes later), so **B1 cannot lock anyone out via
+rules** — its only lockout surface is client-side and reversible with a one-line flag flip. That
+makes B1 the safe precursor that *removes the claim-less write sessions* B2 would otherwise reject.
+
+### Why B1 is much lower risk than B2/B3
+- No rule changes ship in B1 — a regression is a client-JS revert, not a Firestore rollback.
+- In steady state almost nobody hits the anonymous fallback today: named sign-in succeeds for any
+  provisioned member. The fallback only fires for an *unprovisioned* account, a password mismatch
+  (no custom passwords exist yet), or a disabled provider (misconfig). So once provisioning is
+  confirmed, B1's availability impact is ~nil.
+- The whole enforcement sits behind a kill-switch (below).
+
+### The three coordinated changes
+
+**B1.1 — `ensureFirebaseSession`: delete the anonymous fallback and the self-heal account creation.**
+Because the function is write-pages-only, on a failed named sign-in it now returns `false` /
+`_fbIdentity = 'none'` with the error code (B0 already tracks identity). No `signInAnonymously`, no
+`createUserWithEmailAndPassword`. **Useful consequence:** the boolean return regains a crisp meaning
+— `true` ⇔ named session active — so most of B1.2 is simply "stop ignoring the return value."
+
+**B1.2 — Enforce a named session on each write page** (consume the boolean / `firebaseSessionIsNamed()`).
+Current call sites and the change each needs:
+
+| File | Today | B1 change |
+|------|-------|-----------|
+| `admin-app.js:159` (login `attempt`) | `await ensureFirebaseSession(name)` — **result ignored**, reloads anyway | gate: on `false`, show the login error (don't `saveSession`/reload) |
+| `admin-app.js:1634` (returning init) | `resolveSession(ensureFirebaseSession(currentUser))` fire-and-forget | await + on non-named show the login overlay (local session alone no longer suffices) |
+| `settings-app.js:137` (login) | checks `authOk` but only `console.warn`s | gate: on `false`, block + show error |
+| `settings-app.js:51` (returning) | fire-and-forget | await + gate to overlay |
+| `operations-app.js:43` | fire-and-forget (page already redirects non-admins) | await + on non-named, clear session → redirect to admin login |
+| `links-app.js:47` | fire-and-forget (already redirects non-designers) | await + on non-named, clear session → redirect to admin login |
+| `paycalc-app.js:1297` | fire-and-forget | **SOFT** — log the degraded identity; do NOT block (see matrix) |
+
+**Per-page enforcement matrix — strength matches what the page WRITES** (the key refinement; the
+plan's blanket "Pay requires a named session" was too strong):
+
+| Page | Writes isolated/admin data? | Enforcement |
+|------|------------------------------|-------------|
+| admin | Yes — `overrides` for all members; admin ops | **Hard** — overlay, block the app |
+| operations | Yes — admin-only huddle/circular/newsletter/roster/auth writes | **Hard** — redirect to admin login |
+| settings | Yes — `staffContact` (already needs the `name` claim) | **Hard** — overlay, block writes |
+| links | Yes — `linkDesigns` | **Hard** — redirect to admin login |
+| paycalc | **No** — only `clientErrors`/`analytics` (non-isolated, accept any auth) | **Soft** — log only; the calculator is localStorage-based and must keep working |
+
+**B1.3 — Remove browser-side account creation** (the `createUser` removal in B1.1) **+ provisioning
+prerequisite.** Owner runs "Set up accounts" and reconciles against `teamMembers` so every active
+member (incl. managers) has a server account *before* B1 enables. `/new-starter` already lists "Set
+up accounts" — strengthen its wording to **mandatory before the new starter's first login** (the
+client no longer self-heals). Admin break-glass (reset to surname default) stays as recovery until
+self-service recovery (C4) lands.
+
+### Re-auth UX (the real design question)
+When a returning user has a valid *local* session but the *named Firebase* session can't be
+established, reuse the existing login overlay, pre-filled with their name, and branch on
+`getFirebaseAuthError()`:
+- **Transient** (`network-request-failed` / timeout): auto-retry once or twice; if still failing,
+  "Couldn't reach sign-in — check your connection" + a Retry button. Do **not** force a full
+  re-login or clear the local session (so paycalc's offline calculator keeps working).
+- **Persistent** (`invalid-credential` / `user-not-found` / `operation-not-allowed`): "Couldn't
+  sign you in — ask your manager to reset your access" (break-glass). Re-entering the same password
+  would just fail again.
+
+### Kill-switch (the single most important mitigation)
+Gate all B1 enforcement behind one flag (e.g. `CONFIG.ENFORCE_NAMED_SESSION` in `roster-data.js`).
+Ship **default-off**, verify in a fresh private window across every role (admin, manager, CEA, CES,
+dispatcher, links designer) **and** a deliberately-unprovisioned account, then flip on in a low-traffic
+check. If anything locks out, flip off — a one-line deploy, no rules involved. (Verify on the live
+URLs in a private window, never an installed phone.)
+
+### Testing
+- **Unit** (`session.test.mjs`): the B0 tests asserting an `'anonymous'` outcome are rewritten to
+  assert `'none'` + `false` (no fallback); add a "no self-heal on `user-not-found`" test; named-success
+  paths unchanged.
+- **e2e**: extend `e2e/fixtures.js` so sign-in can be configured to fail, then assert admin/settings
+  show the login overlay, operations/links redirect to admin, and **paycalc still renders the
+  calculator** (soft path). Today the fixture always resolves sign-in, so this is new fixture work.
+- **Manual**: private-window matrix above + the unprovisioned-account re-auth message.
+
+### Files touched (estimate)
+`session.js` (−~20 lines: drop fallback/create), `session.test.mjs`, `admin-app.js`,
+`settings-app.js`, `operations-app.js`, `links-app.js`, `paycalc-app.js` (soft), `roster-data.js`
+(kill-switch flag), `e2e/fixtures.js` + `e2e/smoke.spec.js`, `.claude/skills/new-starter/SKILL.md`
+(provisioning wording), and docs (CLAUDE.md Auth section, AI_MAP, KNOWN_LIMITATIONS' "localStorage
+session forgeable" + anonymous-fallback entries, this plan).
+
+### Owner decisions before enabling
+1. **Provisioning audit** — confirm every active account exists server-side (the gating prerequisite).
+2. **Re-auth aggressiveness** — auto-retry count; keep-vs-clear local session on persistent failure.
+3. **Kill-switch default** — recommend ship-off → verify → enable.
+4. **Paycalc soft vs hard** — recommendation: **soft** (don't block a localStorage tool on Firebase auth).
+
+### Sub-phase order + go/no-go
+1. **B1.1** (`session.js` remove fallback/create + rewrite tests) — Claude, branch-safe.
+2. **B1.2** (per-page gating behind the kill-switch, default-off) — Claude, branch-safe.
+3. **Owner**: provisioning audit + `/new-starter` wording.
+4. **Verify** in a private window across the role matrix + an unprovisioned account.
+5. **Enable** the flag (low-traffic check; client-side reversible) — then it's ready for B2.
+- **Gate to start B2:** B1 enabled and stable for a few days with no re-auth complaints, so no
+  claim-less write sessions remain when B2's strict rule lands.
