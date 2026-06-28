@@ -248,6 +248,32 @@ until the user reinstalls the PWA (removes and re-adds to home screen).
 `self.skipWaiting()` means a new SW takes over all open tabs at once.
 In the rare case this causes a mid-session race, a hard reload resolves it.
 
+### Dual hosting: web.app primary, github.io kept for existing installs (v14.29)
+The app is served, identically, from **two** live origins:
+
+- **`https://myb-roster.web.app`** (+ its alias `myb-roster.firebaseapp.com`) — Firebase
+  Hosting. **Canonical and primary** since v14.29: this is the URL to hand staff for any
+  *new* install, and the origin written into Cloud Function notification payloads
+  (`STAFF_SITE_URL`).
+- **`https://garethdavidmiller.github.io/roster-app/`** — the GitHub Pages mirror (the
+  roster-app repo's own native Pages). **Still live and not retired** — kept so the phones
+  that already installed from it keep updating. Note the `/roster-app/` sub-path.
+
+**Why both can coexist safely:** push *delivery* is origin-independent (every subscription in
+`pushSubscriptions` is fanned out regardless of which origin it came from). The notification
+*tap-through* is made origin-correct by the service worker, which discards the payload's origin
+and re-bases the target page onto its **own** `registration.scope` (see `notificationclick` in
+`service-worker.js`). So a github.io install taps through to github.io, a web.app install to
+web.app — `STAFF_SITE_URL`'s origin only supplies the path + hash.
+
+**Both origins must stay in the GCP API-key referrer allowlist** (`web.app`,
+`firebaseapp.com`, `garethdavidmiller.github.io`) until github.io is deliberately retired —
+dropping one silently breaks all Firebase Auth on that origin (see security task #1 below).
+
+**Retiring github.io later** (optional, no deadline): confirm all staff have reinstalled from
+web.app, remove the github.io entry from the allowlist, and turn off Pages in repo Settings.
+There is no code dependency on it once nobody has it installed.
+
 ### ⚠️ The installed PWA masks live-site breakage — verify the URLs, not your phone
 Because the app is offline-first, an installed PWA launches (and updates) from
 the service-worker cache. It keeps working even when the **live deployment is

@@ -54,13 +54,15 @@ const VAPID_PRIVATE_KEY  = defineSecret('VAPID_PRIVATE_KEY');
 const VAPID_PUBLIC_KEY = 'BDycpNlvciF7kfUv3yxSQ0iRzWdi3BDZipNf-vk7QYaOSsbbIgb5FRSW9GrJlZJlmThoyQrbK0t9sd3hEdmhgSg';
 
 // Staff-facing URL — change here when the domain changes, push payloads update automatically.
-// IMPORTANT: the app is served from the `/roster-app` PATH on GitHub Pages (the roster-app
-// repo's own Pages site, built from `main`), NOT the bare `garethdavidmiller.github.io` origin
-// — that bare origin is a separate, empty repo that returns 404. Omitting `/roster-app` sent
-// every notification tap to that 404 page; this was the real cause of the 16 Jun 2026 pause
-// (mis-recorded at the time as "the site is down" — the site was fine, the URL was wrong).
+// CANONICAL: Firebase Hosting at the bare web.app origin (no sub-path). The app is also still
+// served from the GitHub Pages mirror at `garethdavidmiller.github.io/roster-app/`, but web.app
+// is now the primary install/notification target (v14.29).
+// This only sets the payload's path + hash; each device's service worker discards the origin and
+// re-bases the trailing page onto its OWN registration scope (see notificationclick in
+// service-worker.js). So a tap from a github.io install still lands on github.io, and a tap from
+// a web.app install lands on web.app — both resolve correctly regardless of this value's origin.
 // No trailing slash: the payloads below append `/#huddle` and `/paycalc.html`.
-const STAFF_SITE_URL = 'https://garethdavidmiller.github.io/roster-app';
+const STAFF_SITE_URL = 'https://myb-roster.web.app';
 
 // Allowed browser origins for admin Cloud Functions (parseRosterPDF, setupRosterAuth).
 // Firebase ID token auth is the real security control; this CORS allowlist is defence-in-depth
@@ -377,6 +379,16 @@ exports.ingestHuddle = onRequest(
                 console.warn('[ingestHuddle] Push notifications failed (non-fatal):', pushErr.message);
             }
 
+            // Bound the collection: huddles are daily and would otherwise grow without limit.
+            // Best-effort prune of anything older than 3 months. Awaited (not fire-and-forget)
+            // so it completes within the request — Cloud Run may reclaim the container the
+            // moment res.json() returns. Never blocks success: failures are swallowed.
+            try {
+                await pruneOldHuddles(date);
+            } catch (pruneErr) {
+                console.warn('[ingestHuddle] Huddle prune failed (non-fatal):', pruneErr.message);
+            }
+
             res.status(200).json({ success: true, date, storageUrl });
 
         } catch (err) {
@@ -472,6 +484,49 @@ async function fanOutPush(payload, logTag) {
 
     await Promise.allSettled(sends);
     console.log(`${logTag} Fan-out complete — attempted ${snapshot.size} subscription(s)`);
+}
+
+// Number of months of Huddle history to retain. Huddles are daily and short-lived in
+// usefulness; older ones are pruned so the collection and Storage stay bounded. Circulars
+// and newsletters keep 6 months (browser-side _pruneOldDocs); huddles are higher-volume and
+// less referenced after the day, so 3 months is enough.
+const HUDDLE_RETENTION_MONTHS = 3;
+
+/**
+ * Delete Huddle Firestore docs (and their Storage objects) older than
+ * HUDDLE_RETENTION_MONTHS. Each huddle doc's ID is its "YYYY-MM-DD" date and the same value
+ * is stored in the `date` field, so a string range query on `date` finds the stale ones
+ * (ISO date strings sort lexicographically the same as chronologically). Firestore is deleted
+ * first, then Storage — a partial failure leaves an orphaned Storage object (invisible to
+ * staff) rather than a Firestore doc pointing at a deleted file (a user-facing broken link).
+ *
+ * @param {string} excludeDate  The date just written — never pruned even if the clock is odd.
+ * @returns {Promise<void>}
+ */
+async function pruneOldHuddles(excludeDate) {
+    const cutoff = new Date();
+    cutoff.setMonth(cutoff.getMonth() - HUDDLE_RETENTION_MONTHS);
+    const cutoffISO = cutoff.toISOString().slice(0, 10);   // "YYYY-MM-DD"
+
+    const db     = admin.firestore();
+    const bucket = admin.storage().bucket();
+    const stale  = await db.collection('huddles').where('date', '<', cutoffISO).get();
+    if (stale.empty) return;
+
+    await Promise.allSettled(stale.docs.map(async docSnap => {
+        if (docSnap.id === excludeDate) return;
+        const data        = docSnap.data();
+        // Pre-v13.99 docs may lack storagePath — fall back to the legacy fixed path.
+        const storagePath = data.storagePath || `huddles/${docSnap.id}.${data.fileType || 'pdf'}`;
+        try {
+            await docSnap.ref.delete();
+            await bucket.file(storagePath).delete().catch(e =>
+                console.warn(`[pruneOldHuddles] Storage delete ${docSnap.id} failed (orphaned):`, e.message));
+        } catch (e) {
+            console.error(`[pruneOldHuddles] Firestore delete ${docSnap.id} failed:`, e.message);
+        }
+    }));
+    console.log(`[pruneOldHuddles] Pruned huddles older than ${cutoffISO}`);
 }
 
 /**

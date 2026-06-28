@@ -131,12 +131,25 @@ describe('huddles', () => {
         );
     });
 
-    // Admin delete of huddles is intentionally NOT allowed by the rules: the
-    // `allow write` rule checks request.resource.size/contentType, which are
-    // undefined for delete operations, causing the rule to evaluate to false.
-    // Huddle files are only removed via the Admin SDK (Cloud Functions).
-    test('admin cannot delete a huddle file', async () => {
-        await assertFails(deleteObject(ref(adminStorage(), 'huddles/seed.pdf')));
+    // Admin delete IS allowed (split create/update + delete, mirroring circulars):
+    // uploadHuddle() performs browser-side old-file cleanup when replacing a date's
+    // file, so the delete must succeed for an authenticated admin session.
+    test('admin can delete a huddle file', async () => {
+        const p = upath('huddles');
+        await seedFile(p);
+        await assertSucceeds(deleteObject(ref(adminStorage(), p)));
+    });
+
+    test('non-admin staff cannot delete', async () => {
+        const p = upath('huddles');
+        await seedFile(p);
+        await assertFails(deleteObject(ref(staffStorage(), p)));
+    });
+
+    test('unauthenticated cannot delete', async () => {
+        const p = upath('huddles');
+        await seedFile(p);
+        await assertFails(deleteObject(ref(anonStorage(), p)));
     });
 });
 

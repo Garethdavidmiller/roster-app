@@ -192,7 +192,7 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 
 ### Huddle notification tap behaviour (v10.71)
 
-When a push notification is tapped, the service worker (`notificationclick` handler) calls `clients.openWindow(targetUrl)` where `targetUrl` is the staff-site root with the `#huddle` hash (`https://garethdavidmiller.github.io/#huddle`, from the push payload's `url` field). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `./index.html#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
+When a push notification is tapped, the service worker (`notificationclick` handler) **re-bases the payload's route onto its OWN scope** (`registration.scope`) and opens it via `focusedClient.navigate()` or `clients.openWindow()` — e.g. `https://garethdavidmiller.github.io/roster-app/#huddle` on the GitHub Pages install (or `https://myb-roster.web.app/#huddle` on Firebase Hosting). It deliberately ignores the payload's origin — the Cloud Function hardcodes one `STAFF_SITE_URL`, but installs live on different origins/paths, so a bare-origin fallback was the cause of the 16 Jun 2026 notification 404 (fixed v14.26). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
 
 **Two render paths inside `_triggerAutoOpen` — do not unify:**
 

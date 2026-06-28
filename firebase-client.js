@@ -195,7 +195,7 @@ function _getStorageSdk() {
  * @returns {Promise<string>} Publicly accessible download URL of the stored file
  */
 export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
-    const { storage, ref, uploadBytes, getDownloadURL } = await _getStorageSdk();
+    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
     // Explicitly set the content type rather than relying on the browser to report it.
     // On Android, .docx files sometimes arrive as 'application/zip' or 'application/octet-stream'
@@ -203,17 +203,45 @@ export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
     const mimeType   = fileType === 'docx'
         ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         : 'application/pdf';
-    const storageRef = ref(storage, `huddles/${date}.${fileType}`);
-    await uploadBytes(storageRef, file, { contentType: mimeType });
-    // getDownloadURL returns a permanent tokenised URL (never expires). Note: huddles
-    // ingested by the Cloud Function use a 1-year signed URL instead — so manual-upload
-    // and PA-ingest huddles have different URL lifetimes. Both work; the difference is
-    // documented so a future unification decision is deliberate.
-    const storageUrl = await getDownloadURL(storageRef);
-    /** @type {Record<string, any>} */
-    const firestoreDoc = { date, storageUrl, fileType, uploadedAt: serverTimestamp(), uploadedBy };
-    if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
-    await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
+
+    // Transactional replacement (mirrors the Cloud-Function ingestHuddle path and the
+    // circular/newsletter _uploadPdf helper). Read the previous storagePath first, write
+    // a VERSIONED object, then delete the old one only after Firestore commits — so a
+    // re-upload (including a PDF↔DOCX swap, which changes the path) never orphans the old
+    // file. Requires the admin-delete Storage rule on /huddles (v14.29).
+    const oldSnap = await getDoc(doc(db, COLLECTIONS.huddles, date));
+    const oldData = oldSnap.exists() ? /** @type {any} */ (oldSnap.data()) : null;
+    const oldStoragePath = oldData ? (oldData.storagePath ?? `huddles/${date}.${oldData.fileType ?? 'pdf'}`) : null;
+
+    const uploadId = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const newStoragePath = `huddles/${date}-${uploadId}.${fileType}`;
+    const storageRef = ref(storage, newStoragePath);
+
+    let storageUrl;
+    try {
+        await uploadBytes(storageRef, file, { contentType: mimeType });
+        // Permanent tokenised (bearer) URL — never expires. (Cloud-Function ingest uses a
+        // 1-year signed URL; both work, the lifetime difference is intentional.)
+        storageUrl = await getDownloadURL(storageRef);
+        /** @type {Record<string, any>} */
+        const firestoreDoc = {
+            date, storageUrl, storagePath: newStoragePath, fileType,
+            uploadedAt: serverTimestamp(), uploadedBy,
+        };
+        if (htmlContent !== null) firestoreDoc.htmlContent = htmlContent;
+        await setDoc(doc(db, COLLECTIONS.huddles, date), firestoreDoc);
+    } catch (err) {
+        // Old file is unaffected — roll back the new upload on any failure.
+        deleteObject(storageRef).catch(/** @param {any} e */ e => console.warn('[uploadHuddle] rollback failed:', e));
+        throw err;
+    }
+
+    // Firestore committed: asynchronously remove the superseded old object (best-effort).
+    if (oldStoragePath && oldStoragePath !== newStoragePath) {
+        deleteObject(ref(storage, oldStoragePath)).catch(
+            /** @param {any} e */ e => console.warn('[uploadHuddle] old-file cleanup failed (orphaned):', e)
+        );
+    }
     return storageUrl;
 }
 
