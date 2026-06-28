@@ -12,7 +12,7 @@ import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebas
 import { lsGet, lsSet } from './ls.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
-import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { getSurname, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { lockBodyScroll, unlockBodyScroll, initCardCollapse, trapFocus } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -48,7 +48,14 @@ if (isAuthenticated) {
     // an immediate Firestore write would fail the request.auth rule.
     // resolveSession() fulfils sessionReady so feature modules (initApp handlers)
     // can import sessionReady instead of reading window._mybSession.
-    resolveSession(ensureFirebaseSession(currentUser));
+    const _setAuth = ensureNamedSession(currentUser);
+    resolveSession(_setAuth);
+    // B1.2: if the named-session requirement is on and we can't confirm this member's OWN
+    // session, clear it and show the login overlay to re-authenticate. Flag OFF → resolves
+    // true (anonymous fallback), so this never fires and behaviour is unchanged.
+    _setAuth.then(named => {
+        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); initLoginOverlay(); }
+    });
     initApp();
 } else {
     initLoginOverlay();
@@ -134,8 +141,17 @@ function initLoginOverlay() {
         submitBtn.textContent = 'Signing in…';
         errorEl.classList.remove('visible');
 
-        const authOk = await ensureFirebaseSession(name);
-        if (!authOk) console.warn('[Auth] Firebase session not established — Firestore writes may fail');
+        const named = await ensureNamedSession(name);
+        if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
+            // Password matched locally but the member's own Firebase session couldn't be
+            // established. Transient → ask them to retry; persistent → likely an unprovisioned
+            // account, so point them at their manager (admin break-glass).
+            showError(isTransientAuthError(getFirebaseAuthError())
+                ? 'Couldn’t reach sign-in — check your connection and try again.'
+                : 'Couldn’t complete sign-in. Ask your manager to set up your account.');
+            return;
+        }
+        if (!named) console.warn('[Auth] Firebase session not established — Firestore writes may fail');
         saveSession(name);
         /** @type {HTMLElement} */ (overlay).classList.remove('visible');
         unlockBodyScroll();

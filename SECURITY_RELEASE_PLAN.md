@@ -1,7 +1,11 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39;
-B1 scoped in detail (see "Appendix: B1 detailed scope") and not yet implemented.*
+*Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39.
+B1.1 (remove anonymous fallback + browser account-creation) shipped v14.40; B1.2 (per-page
+enforcement) shipped v14.41 — both behind the default-OFF `CONFIG.ENFORCE_NAMED_SESSION`
+kill-switch, so production behaviour is unchanged until the flag is flipped. Remaining before
+enabling: an e2e flag-ON test (needs a fixture that fails sign-in) + the owner provisioning audit.
+See "Appendix: B1 detailed scope".*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -316,7 +320,9 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - [x] A3 — doc-only accuracy ✓ (v14.38: pushSubscriptions delete posture stated; bearer-URL notes confirmed; rule-tighten moved into B2)
 - [x] B0 (observability) — ✓ (v14.39: named-vs-anonymous identity exposed + tested; no behaviour change). Enforce half folded into B1.
 - [ ] A2 — Workload Identity Federation (one workflow first)
-- [ ] B1 — named-session separation + remove browser account-creation
+- [~] B1 — named-session separation + remove browser account-creation. **Code DONE behind the
+      default-OFF kill-switch** (B1.1 v14.40, B1.2 v14.41). Before enabling: e2e flag-ON test + owner
+      provisioning audit + private-window role check. Flip `CONFIG.ENFORCE_NAMED_SESSION` to enable.
 - [ ] B2 — per-member override + Links isolation rule (permissive) + emulator tests
 - [ ] B3 — claims audit + permissive→strict token-refresh rollout
 - [ ] B4 — server-owned roster/role lists
@@ -427,8 +433,21 @@ session forgeable" + anonymous-fallback entries, this plan).
 4. **Paycalc soft vs hard** — recommendation: **soft** (don't block a localStorage tool on Firebase auth).
 
 ### Sub-phase order + go/no-go
-1. **B1.1** (`session.js` remove fallback/create + rewrite tests) — Claude, branch-safe.
-2. **B1.2** (per-page gating behind the kill-switch, default-off) — Claude, branch-safe.
+1. **B1.1** ✓ DONE (v14.40) — `session.js` gates the self-heal account creation and the anonymous
+   fallback behind `CONFIG.ENFORCE_NAMED_SESSION` (default **false** = today's behaviour exactly).
+   When true: no `createUser`, no anonymous fallback; a failed named sign-in returns `false`/`'none'`.
+   11 unit tests across both flag states (4 new for the flag-on path assert `createUser`/anonymous are
+   NOT called). No production behaviour change until the flag is flipped.
+2. **B1.2** ✓ DONE (v14.41) — per-page gating behind the same kill-switch (default-off). New
+   `ensureNamedSession(name)` helper (transient-only retry via `isTransientAuthError`, then returns
+   whether the named session is genuinely active; flag-off → passes through unchanged). Wired into
+   all five pages per the matrix: admin/settings show the login overlay (login path shows an inline
+   error and routes persistent failures to admin break-glass); operations/links clear + redirect to
+   admin; **paycalc soft (log only, never blocks)**. 5 new unit tests for the helper + retry logic.
+   All gating is `if (CONFIG.ENFORCE_NAMED_SESSION && !named)`, so flag-off is verified unchanged by
+   the existing 48 e2e. **Remaining before enabling:** (a) an e2e flag-ON test — needs a fixture that
+   makes sign-in fail, to assert admin/settings overlay, operations/links redirect, paycalc still
+   renders; (b) the owner provisioning audit (Operations → Set up accounts) + private-window role check.
 3. **Owner**: provisioning audit + `/new-starter` wording.
 4. **Verify** in a private window across the role matrix + an unprovisioned account.
 5. **Enable** the flag (low-traffic check; client-side reversible) — then it's ready for B2.

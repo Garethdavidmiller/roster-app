@@ -16,7 +16,7 @@
 
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, getMembersForGrade, isValidEmail } from './roster-data.js';
 import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
-import { getSurname, ensureFirebaseSession, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { getSurname, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, getSession, saveSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
@@ -156,7 +156,19 @@ function initLoginOverlay() {
         // Authenticate with Firebase Auth so Firestore Security Rules can verify the session.
         // Must await before reloading — the page reload would otherwise cancel the async
         // network request before Firebase can save the auth token to IndexedDB.
-        await ensureFirebaseSession(name);
+        const named = await ensureNamedSession(name);
+        if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
+            // Surname matched locally but the member's own Firebase session couldn't be
+            // established. Don't leave a local session that can't write; show why. Persistent
+            // failure is almost always an unprovisioned account (createUser is disabled when
+            // enforcing), so point them at admin break-glass. Flag OFF → never reaches here.
+            clearSession();
+            errorEl.textContent = isTransientAuthError(getFirebaseAuthError())
+                ? 'Couldn’t reach sign-in — check your connection and try again.'
+                : 'Couldn’t complete sign-in. Ask your manager to set up your account.';
+            errorEl.classList.add('visible');
+            return;
+        }
         const redirect = new URLSearchParams(location.search).get('redirect');
         // Whitelist redirect values to prevent open-redirect. New redirect targets
         // require an entry here — the pattern catches them at compile time.
@@ -1631,7 +1643,14 @@ if (!isAuthenticated) {
     // Without this, auth.currentUser stays null and every Firestore write fails.
     // resolveSession() fulfils sessionReady so feature modules (admin-auth.js,
     // admin-overrides.js, huddle.js) can import sessionReady instead of window._mybSession.
-    resolveSession(ensureFirebaseSession(currentUser));
+    const _adminAuth = ensureNamedSession(currentUser);
+    resolveSession(_adminAuth);
+    // B1.2: when the named-session requirement is on, a returning local session that can't be
+    // confirmed as this member's OWN Firebase identity is cleared and re-authenticated via the
+    // login overlay. Flag OFF → resolves true (anonymous fallback), so this never fires.
+    _adminAuth.then(named => {
+        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); initLoginOverlay(); }
+    });
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');
     applyPermissions();

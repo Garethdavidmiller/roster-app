@@ -20,7 +20,7 @@ import {
 } from './paycalc-calc.js';
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
-import { getSession, clearSession, ensureFirebaseSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession } from './session.js';
 import {
   CONFIG, getPeriods, currentPeriodNum,
   hasBoxingDay, hasBankHoliday,
@@ -1294,7 +1294,14 @@ registerServiceWorker();
 (function _initErrorReporting() {
   const name = getSession()?.name;
   const afterAuth = () => { initErrorReporter(); recordUsage('paycalc', name ?? null); };
-  if (name) ensureFirebaseSession(name).catch(() => {/* reporter still starts below */}).finally(afterAuth);
+  // SOFT enforcement (B1.2): the pay calculator is localStorage-based and writes no isolated
+  // data, so a degraded/anonymous session must NEVER block it — we only log if the named-session
+  // requirement is on and we couldn't establish the member's own session. (ROSTER_CONFIG is
+  // roster-data's CONFIG, imported as ROSTER_CONFIG to avoid the paycalc-periods CONFIG clash.)
+  if (name) ensureNamedSession(name)
+      .then(named => { if (ROSTER_CONFIG.ENFORCE_NAMED_SESSION && !named) console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
+      .catch(() => {/* reporter still starts below */})
+      .finally(afterAuth);
   else afterAuth();
 }());
 

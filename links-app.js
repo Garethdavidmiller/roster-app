@@ -12,7 +12,7 @@
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
-import { getSession, clearSession, ensureFirebaseSession, sessionReady, resolveSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -44,7 +44,16 @@ if (!currentUser || !isLinksDesigner) {
     throw new Error('Not authorised — redirecting');
 }
 
-resolveSession(ensureFirebaseSession(currentUser));
+// B1.2: require the member's OWN named session when the flag is on; otherwise clear and route to
+// sign-in. Flag OFF → ensureNamedSession resolves true (anonymous fallback), so this never fires.
+const _linksAuth = ensureNamedSession(currentUser);
+resolveSession(_linksAuth);
+_linksAuth.then(named => {
+    if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
+        clearSession();
+        window.location.replace('./admin.html');
+    }
+});
 
 // ============================================
 // PAGE INIT

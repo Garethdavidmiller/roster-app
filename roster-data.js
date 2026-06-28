@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.39';
+export const APP_VERSION = '14.41';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -44,6 +44,15 @@ export const CONFIG = {
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
     LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva'],                  // Names with access to the Links design workspace
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
+    // Security release B1 kill-switch (SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope").
+    // false (default) = today's behaviour exactly: ensureFirebaseSession self-heals a missing
+    //   account and falls back to an anonymous session so write pages keep working.
+    // true = the write pages require the member's OWN named Firebase session — no anonymous
+    //   fallback and no browser-side account creation. Do NOT flip to true until every active
+    //   account is provisioned server-side (Operations → Set up accounts) and the per-page
+    //   enforcement (B1.2) has been verified in a private window across every role. Reversible:
+    //   flipping back to false is a one-line deploy.
+    ENFORCE_NAMED_SESSION:            false,
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
