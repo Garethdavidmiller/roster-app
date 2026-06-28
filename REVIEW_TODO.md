@@ -60,7 +60,7 @@ permissive→strict token-refresh migration (avoids the v10.94 outage), the "nev
 Check during the isolation rollout" constraint, per-phase risk/rollback, and the owner-decision
 checklist. The items below are the scope; that file is the order — start there.
 
-- [ ] **B0** `ensureFirebaseSession` hardening (foundation for isolation + password change).
+- [x] **B0 (observability)** `ensureFirebaseSession` exposes named-vs-anonymous identity (v14.39, tested, no behaviour change). Enforce half folded into B1.
 - [ ] **B1–B4** per-member write isolation + named-session separation + server-owned lists.
 - [ ] **C2–C5** password-model upgrade (verify email → reset → change → retire surname).
 - [ ] **D1–D2** Firebase **App Check** (monitor-first, then enforce).

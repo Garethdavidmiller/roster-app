@@ -14,16 +14,27 @@ import assert from 'node:assert/strict';
 const store = new Map();
 let _signOutCalled = false;
 
+// Controllable Firebase Auth mock state for the ensureFirebaseSession tests below.
+// onAuthStateChanged yields _existingUser; each sign-in fn resolves when its behavior is
+// 'ok', otherwise rejects with an Error carrying that string as `.code`.
+let _existingUser  = null;   // null | { isAnonymous, email }
+let _signInBehavior = 'ok';  // 'ok' | error code string
+let _createBehavior = 'ok';
+let _anonBehavior   = 'ok';
+const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
+
 mock.module('./firebase-client.js', {
     namedExports: {
         auth:                           { currentUser: null },
         authReady:                      Promise.resolve(),
-        onAuthStateChanged:             () => () => {},
+        // Invoke the callback asynchronously with the configured existing user, then return
+        // the unsubscribe fn (matching the real onAuthStateChanged contract session.js relies on).
+        onAuthStateChanged:             (_auth, cb) => { Promise.resolve().then(() => cb(_existingUser)); return () => {}; },
         nameToEmail:                    name => name.toLowerCase().replace(/\s+/g, '.') + '@myb.test',
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
-        signInWithEmailAndPassword:     async () => {},
-        createUserWithEmailAndPassword: async () => {},
-        signInAnonymously:              async () => {},
+        signInWithEmailAndPassword:     async () => { if (_signInBehavior !== 'ok') _authThrow(_signInBehavior); },
+        createUserWithEmailAndPassword: async () => { if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
+        signInAnonymously:              async () => { if (_anonBehavior   !== 'ok') _authThrow(_anonBehavior); },
         signOut:                        async () => { _signOutCalled = true; },
     },
 });
@@ -40,7 +51,9 @@ const {
     AUTH_KEY, SESSION_MS, IDLE_MS, SESSION_VER,
     sessionReady, resolveSession,
     getSurname, getSession, saveSession, clearSession,
+    ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
 } = await import('./session.js');
+const { nameToEmail } = await import('./firebase-client.js');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -175,6 +188,81 @@ describe('getSession', () => {
     test('a session expiring in 1 ms is valid until it has elapsed', () => {
         writeSession({ expiry: Date.now() + 1 });
         assert.ok(getSession() !== null);
+    });
+});
+
+// ── ensureFirebaseSession identity tracking (B0) ──────────────────────────────
+// B0 (SECURITY_RELEASE_PLAN.md): ensureFirebaseSession now records whether it established
+// the member's NAMED identity or only the anonymous fallback, without changing behaviour.
+// firebaseSessionIsNamed() is the signal per-member write isolation (B2) will depend on.
+
+describe('ensureFirebaseSession identity tracking', () => {
+    beforeEach(() => {
+        _existingUser   = null;
+        _signInBehavior = 'ok';
+        _createBehavior = 'ok';
+        _anonBehavior   = 'ok';
+        _signOutCalled  = false;
+    });
+
+    test("reuses an existing NAMED session for the same member → 'named'", async () => {
+        _existingUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.equal(firebaseSessionIsNamed(), true);
+        assert.equal(_signOutCalled, false, 'a matching named session must not be torn down');
+    });
+
+    test("signs in with email/password when there is no existing session → 'named'", async () => {
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+    });
+
+    test("self-heals a missing account via createUser → 'named'", async () => {
+        _signInBehavior = 'auth/user-not-found';
+        _createBehavior = 'ok';
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+    });
+
+    test("falls back to anonymous on invalid-credential → 'anonymous', NOT named", async () => {
+        _signInBehavior = 'auth/invalid-credential';
+        _anonBehavior   = 'ok';
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true, 'a session exists…');
+        assert.equal(getFirebaseIdentity(), 'anonymous', '…but it is the anonymous fallback');
+        assert.equal(firebaseSessionIsNamed(), false);
+        assert.equal(getFirebaseAuthError(), 'auth/invalid-credential');
+    });
+
+    test("returns false and 'none' when even anonymous sign-in fails", async () => {
+        _signInBehavior = 'auth/invalid-credential';
+        _anonBehavior   = 'auth/operation-not-allowed';
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, false);
+        assert.equal(getFirebaseIdentity(), 'none');
+        assert.equal(firebaseSessionIsNamed(), false);
+    });
+
+    test('replaces an existing ANONYMOUS session with a named sign-in', async () => {
+        _existingUser   = { isAnonymous: true };
+        _signInBehavior = 'ok';
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(_signOutCalled, true, 'the stale anonymous session must be signed out first');
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.ok(ok);
+    });
+
+    test('replaces a DIFFERENT named member’s session (shared device) with the new member', async () => {
+        _existingUser   = { isAnonymous: false, email: nameToEmail('A. Panchal') };
+        _signInBehavior = 'ok';
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(_signOutCalled, true, 'the other member’s session must be signed out first');
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.ok(ok);
     });
 });
 

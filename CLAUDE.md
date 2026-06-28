@@ -153,7 +153,7 @@ roster-app/
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
-├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession
+├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession, getFirebaseIdentity/firebaseSessionIsNamed/getFirebaseAuthError (B0 named-vs-anonymous signal)
 ├── sw-register.js          ← shared SW registration + update lifecycle: registerServiceWorker()
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
 ├── usage-reporter.js       ← shared anonymous usage recorder: recordUsage(page, member?) — page popularity + active-account counts (client-side dedup; no identity stored)
@@ -497,6 +497,12 @@ keys.auth    base64url-encoded auth secret
 Written by `savePushSubscription`, deleted by `deletePushSubscription` in `firebase-client.js`.
 Each document ID is a SHA-256 hash of the endpoint URL (first 16 hex chars). One doc per subscribed browser/device.
 Read by the `ingestHuddle` Cloud Function (Admin SDK) when fanning out push notifications.
+Client read: denied (`allow read: if false`) — no client may enumerate endpoints/keys. Create/update:
+any authenticated session, shape-validated (`endpoint`, `keys.p256dh`, `keys.auth` only). **Delete:
+any authenticated session (`request.auth != null`) — there is no per-owner check, so an authenticated
+identity that knows a doc id could delete that subscription.** Low risk (the id is a hash of the
+endpoint, so it must be known) but a real hardening gap — tightening the delete rule is folded into
+the per-member isolation phase (B2) in `SECURITY_RELEASE_PLAN.md`.
 
 **clientErrors** (v13.31)
 ```
