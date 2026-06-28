@@ -94,9 +94,14 @@ export function isSafeStorageUrl(url) {
     if (typeof url !== 'string' || !url) return false;
     try {
         const parsed = new URL(url);
-        return parsed.protocol === 'https:' &&
-            (parsed.hostname === 'firebasestorage.googleapis.com' ||
-             parsed.hostname === 'storage.googleapis.com');
+        if (parsed.protocol !== 'https:') return false;
+        // Narrowed to THIS project's bucket (covers both myb-roster.appspot.com and
+        // myb-roster.firebasestorage.app) so a malformed/compromised write can't point a
+        // Huddle/Circular button at an unrelated Google Storage object. Firebase download
+        // URLs are …/v0/b/<bucket>/o/<path>; GCS URLs are storage.googleapis.com/<bucket>/<path>.
+        if (parsed.hostname === 'firebasestorage.googleapis.com') return parsed.pathname.startsWith('/v0/b/myb-roster');
+        if (parsed.hostname === 'storage.googleapis.com')         return parsed.pathname.startsWith('/myb-roster');
+        return false;
     } catch (_) { return false; }
 }
 

@@ -11,6 +11,7 @@
  */
 
 import { TAX_YEARS, calcProRateFactor } from './paycalc-calc.js';
+import { teamMembers } from './roster-data.js';
 import { lsGet, lsSet, lsDel, lsKeys } from './ls.js';
 
 // ── STORAGE KEYS ──────────────────────────────────────────────────────────────
@@ -36,6 +37,22 @@ let _nsSeg = '';
  *  'G. Miller' → 'gmiller'. teamMembers names are unique, so slugs do not collide. */
 function _memberSlug(/** @type {string=} */ name) {
     return String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Slugs of every known member — used to tell a member's namespaced key
+ *  (`myb_pc_<slug>_…`) apart from genuinely unnamespaced legacy data. */
+const _MEMBER_SLUGS = new Set(teamMembers.map(m => _memberSlug(m.name)));
+
+/** The member slug that OWNS a paycalc key, or null when the key has no member-slug
+ *  segment (i.e. genuinely unnamespaced legacy data). `myb_pc_<slug>_<tail>` belongs to
+ *  <slug> only when <slug> is a real member; legacy keys (`myb_pc_rate`, `myb_pc_p43`,
+ *  `myb_pc_setup_2025_26`, `myb_pc_ytd_pay_2026_27`) have a non-member first segment (or
+ *  none) and classify as null. This is what stops the ownership prompt from ever treating
+ *  ANOTHER member's namespaced data as claimable legacy data (v14.27 review fix).
+ *  @param {string} key @returns {string|null} */
+function _keyOwnerSlug(key) {
+    const m = key.match(/^myb_pc_([a-z0-9]+)_/);
+    return m && _MEMBER_SLUGS.has(m[1]) ? m[1] : null;
 }
 
 /** The active per-member key prefix. Every per-member paycalc key starts with this. */
@@ -147,17 +164,17 @@ function _migrateCeaKeys({ getPeriods }) {
 // ('mine' → move it into their namespace; 'fresh' → discard it). The device flag
 // myb_pc_ns_migrated is set on resolution, so the prompt appears at most once.
 
-/** Any non-device paycalc data that is NOT in this member's own namespace — i.e.
- *  unclaimed shared/legacy data. @param {string|undefined} memberName */
-function _hasUnnamespacedPaycalcData(memberName) {
-    const seg = _memberSlug(memberName);
-    const ownPrefix = seg ? `myb_pc_${seg}_` : null;
+/** True when the device holds genuinely-unnamespaced legacy paycalc data — a key with NO
+ *  known-member slug segment (and not a device key). Another member's namespaced data
+ *  (owner = their slug) is explicitly NOT legacy, so it never triggers the prompt. */
+function _hasUnnamespacedPaycalcData() {
     return lsKeys().some(k =>
-        k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && !(ownPrefix && k.startsWith(ownPrefix)));
+        k.startsWith('myb_pc_') && !DEVICE_KEYS.has(k) && _keyOwnerSlug(k) === null);
 }
 
-/** Move all shared (non-device, non-own-namespace) paycalc keys into memberName's
- *  namespace. Used by the 'mine' choice. @param {string|undefined} memberName */
+/** Move only genuinely-unnamespaced legacy keys into memberName's namespace. Keys owned by
+ *  ANY member (this one or another) are left untouched. Used by the 'mine' choice.
+ *  @param {string|undefined} memberName */
 function _moveLegacyToNamespace(memberName) {
     const seg = _memberSlug(memberName);
     if (!seg) return;
@@ -165,7 +182,7 @@ function _moveLegacyToNamespace(memberName) {
     lsKeys().forEach(k => {                       // lsKeys() is a copy — safe to mutate in loop
         if (!k.startsWith('myb_pc_')) return;
         if (DEVICE_KEYS.has(k)) return;
-        if (k.startsWith(nsPrefix)) return;       // already this member's
+        if (_keyOwnerSlug(k) !== null) return;    // belongs to a member — never move it
         const newKey = nsPrefix + k.slice('myb_pc_'.length);
         const val = lsGet(k);
         if (val !== null && lsGet(newKey) === null) lsSet(newKey, val);
@@ -173,15 +190,13 @@ function _moveLegacyToNamespace(memberName) {
     });
 }
 
-/** Delete all shared (non-device, non-own-namespace) paycalc keys. Used by the
- *  'fresh' choice — the shared data is not this member's. @param {string|undefined} memberName */
-function _clearLegacyData(memberName) {
-    const seg = _memberSlug(memberName);
-    const ownPrefix = seg ? `myb_pc_${seg}_` : null;
+/** Delete only genuinely-unnamespaced legacy keys. Every member's namespaced data (the
+ *  current member AND any other member on a shared device) is preserved. 'fresh' choice. */
+function _clearLegacyData() {
     lsKeys().forEach(k => {
         if (!k.startsWith('myb_pc_')) return;
         if (DEVICE_KEYS.has(k)) return;
-        if (ownPrefix && k.startsWith(ownPrefix)) return;  // keep the member's own data
+        if (_keyOwnerSlug(k) !== null) return;    // belongs to a member — keep it
         lsDel(k);
     });
 }
@@ -192,7 +207,7 @@ function _clearLegacyData(memberName) {
 export function hasPendingLegacyMigration(memberName) {
     if (lsGet('myb_pc_ns_migrated')) return false;
     if (!_memberSlug(memberName)) return false;
-    return _hasUnnamespacedPaycalcData(memberName);
+    return _hasUnnamespacedPaycalcData();
 }
 
 /** Resolve the shared-data ownership prompt. 'mine' moves the data into memberName's
@@ -201,7 +216,7 @@ export function hasPendingLegacyMigration(memberName) {
  *  @param {string|undefined} memberName @param {'mine'|'fresh'} choice */
 export function resolveLegacyMigration(memberName, choice) {
     if (choice === 'mine') _moveLegacyToNamespace(memberName);
-    else if (choice === 'fresh') _clearLegacyData(memberName);
+    else if (choice === 'fresh') _clearLegacyData();
     else return;                                  // unknown choice — leave undecided
     setPaycalcNamespace(memberName);
     lsSet('myb_pc_ns_migrated', '1');

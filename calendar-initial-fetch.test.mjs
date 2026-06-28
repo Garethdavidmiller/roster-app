@@ -58,8 +58,13 @@ function makeEl(tag) {
             if (!_listeners[evt]) _listeners[evt] = [];
             _listeners[evt].push(fn);
         },
-        /** Invoke all registered listeners for evt synchronously. */
-        _fire(evt)         { (_listeners[evt] || []).forEach(fn => fn()); },
+        /** Invoke addEventListener listeners AND the on<evt> handler property (e.g. onclick),
+         *  so the test exercises whichever the production code uses. */
+        _fire(evt)         {
+            (_listeners[evt] || []).forEach(fn => fn());
+            const on = /** @type {any} */ (el)['on' + evt];
+            if (typeof on === 'function') on();
+        },
         classList: {
             add(...cls)    { cls.forEach(c => _classes.add(c)); },
             remove(...cls) { cls.forEach(c => _classes.delete(c)); },
@@ -207,6 +212,24 @@ describe('failure path', () => {
         initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
         await flushAsync();
         assert.equal(getSyncChip()?.textContent, "⚠ Couldn't update — tap to retry");
+    });
+
+    test('retry is wired via onclick — one click issues exactly one request', async () => {
+        let calls = 0;
+        // First call (initial fetch) rejects; subsequent calls (the retry) resolve.
+        _fetchImpl = () => { calls++; return calls === 1 ? Promise.reject(new Error('x')) : Promise.resolve(); };
+        initInitialFetch({ isTeamViewMode: () => false, renderCalendar: () => {} });
+        await flushAsync();
+        const chip = getSyncChip();
+        assert.ok(chip, 'error chip appears on failure');
+        // Wired via the idempotent onclick PROPERTY (not addEventListener): assigning replaces,
+        // so handlers can never accumulate the way {once} listeners did across the timeout +
+        // rejection paths and fire a single click as two retries.
+        assert.equal(typeof chip.onclick, 'function');
+        const before = calls;
+        chip._fire('click');     // exactly one user click
+        await flushAsync();
+        assert.equal(calls - before, 1, 'one click must issue exactly one retry request');
     });
 
     test('renderCalendar() NOT called when fetch fails', async () => {

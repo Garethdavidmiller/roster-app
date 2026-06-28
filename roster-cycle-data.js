@@ -41,14 +41,13 @@ export const bilingualRoster = {
     8: { sun: 'SPARE',       mon: 'SPARE',       tue: 'SPARE',       wed: 'SPARE',       thu: 'SPARE',       fri: 'SPARE',       sat: 'SPARE'       },
 };
 
-// Fixed rosters — per-member bespoke patterns, one constant week each (no rotation).
+// Fixed rosters — per-member fixed patterns, one constant week each (no rotation).
 // A fixed member's `currentWeek` selects WHICH pattern they sit on; it does not advance.
-// Used for reasonable adjustments / bespoke arrangements.
 //   1 — C. Reen                      12:00–19:00 Mon–Fri, RD weekends
 //   2 — S. Boyle / K. Jedlinski      09:00–16:00 Mon–Fri, RD weekends — same shape as C. Reen
-//                 with a 9am start. Shared by K. Jedlinski (new-starter induction line, 3–27 Jun
-//                 2026) and S. Boyle (adjusted-hours during long-term absence, from 28 Jun 2026);
-//                 each references it during their fixed period via rosterChanges (June 2026).
+//                 with a 9am start. Used by K. Jedlinski (new-starter line, 3–27 Jun 2026) and
+//                 S. Boyle (temporary, from 28 Jun 2026); each references it during their fixed
+//                 period via rosterChanges (June 2026).
 export const fixedRoster = {
     1: { sun: 'RD', mon: '12:00-19:00', tue: '12:00-19:00', wed: '12:00-19:00', thu: '12:00-19:00', fri: '12:00-19:00', sat: 'RD' },
     2: { sun: 'RD', mon: '09:00-16:00', tue: '09:00-16:00', wed: '09:00-16:00', thu: '09:00-16:00', fri: '09:00-16:00', sat: 'RD' },
