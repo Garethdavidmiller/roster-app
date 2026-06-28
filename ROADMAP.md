@@ -758,59 +758,35 @@ workflows now run the canonical gate). The items below were assessed as **real b
 deployment blockers** and deliberately deferred. Captured here so they survive between sessions.
 Roughly ordered by value-to-effort.
 
-### Next maintenance release (bug-class, mostly self-contained)
+### Next maintenance release (bug-class) — ✓ SHIPPED (v14.23–v14.28)
 
-- **Push-subscription writes can race auth.** `calendar-app.js` calls `initNotifications()` (which
-  can reach `savePushSubscription()`) *before* the anonymous/restored Firebase sign-in resolves, so
-  on an already-installed PWA a subscription re-save can run with no authenticated user and be
-  rejected by the `request.auth != null` rule — leaving the bell stuck "off-lapsed" with no retry.
-  Fix: expose a shared `sessionReady`-style promise that resolves only once a usable Firebase user
-  exists (preserving a named account, anonymous only if none), and have every push write `await` it.
-  Add tests for: named session present · anonymous needed · auth delayed · renewal-before-auth ·
-  failed-auth-then-retry.
-- **VAPID rotation may not complete.** `notif.js` (~100–105) calls `subscribe()` with the new key
-  *before* `unsubscribe()`-ing the old one; browsers can reject a new-key subscribe while the old
-  subscription still exists, so on a fingerprint change the old sub stays, the fingerprint never
-  updates, and every state check retries the same failing migration. Fix: detect mismatch →
-  unsubscribe old → subscribe new → save → surface+retry on failure (accept a brief no-subscription
-  window). Needs direct PushManager tests with a mocked existing subscription.
-- **Repeat Huddle uploads orphan Storage files.** `ingestHuddle` now writes a versioned path
-  (`huddles/<date>-<id>.<type>`) but `set()`s the same Firestore doc without reading/deleting the
-  previous `storagePath`, so each re-upload for a date leaves the old object behind (no prune on
-  huddles). Apply the transactional replacement already used for circulars/newsletters
-  (read prev metadata → upload new → write metadata → delete prev `storagePath` on success →
-  delete new object on metadata failure). Then decide whether browser admins may delete Huddles
-  (split the Storage `allow write` into `create, update` vs `delete`) or keep deletion server-only
-  and add+test the actual cleanup. Note: the Storage test currently *asserts* admins cannot delete
-  a Huddle — that encodes today's absence of cleanup, not a desired guarantee.
-- **Paycalc namespace migration can misassign data on a shared device. ✓ FIXED (v14.25).**
-  `runMigrations` no longer silently claims shared data for the first member to load. It only
-  activates the member's namespace; `hasPendingLegacyMigration()` detects unclaimed shared data and
-  `paycalc-lightboxes.js` shows a one-time ownership prompt — **mine** (`resolveLegacyMigration('mine')`
-  moves it), **fresh** (`'fresh'` discards it), or ✕ (decide later). Guarded one-shot by
-  `myb_pc_ns_migrated`. Tested in `paycalc-migrations.test.mjs`.
-- **Validate Huddle download URLs.** `calendar-huddle-viewer.js` opens the Firestore-provided
-  `storageUrl` directly; apply the same HTTPS + recognised-Storage-host validator that circulars/
-  newsletters now use (ideally narrowed to the actual project bucket).
-- **Overlapping Sunday-correction deletion.** When two AL/sick ranges overlap the same worked
-  Sunday they share one `correction/RD` record; deleting one range may remove the correction the
-  other still needs (the delete logic looks for a separate AL/sick record on the Sunday, which the
-  range writer doesn't create). Add a direct overlapping-range test and scope the correction delete
-  to Sundays no longer covered by any remaining AL/sick override.
-- **Tighten Firestore field schemas.** Overrides still use `hasAll()` (allows arbitrary extra
-  fields — decide on `createdAt`/`changedBy`/`updatedAt`/`updatedBy` and switch to `hasOnly()`);
-  the override `date` is only length-checked (use a `YYYY-MM-DD` regex); the time regex accepts
-  impossible times like `99:99` (bound hours 00–23, minutes 00–59); validate every present
-  Huddle/circular/newsletter field incl. `storagePath` prefix; make the push-subscription nested
-  `keys` map `hasOnly(['p256dh','auth'])`; and enforce the Chiltern work-email domain on
-  `staffContact` after normalisation.
-- **Roster-parse empty-after-filter gap.** The parser checks the raw AI response is non-empty
-  *before* filtering to known staff; if every entry is a hallucinated name, `filteredEntries`
-  becomes empty and the Function can return a successful empty result. Add a second non-empty
-  check after known-member filtering.
-- **File-signature checks (low/med).** Huddle ingest infers type from filename extension and the
-  roster parser doesn't verify the decoded bytes; add lightweight magic-byte checks (`%PDF-` for
-  PDF, ZIP/DOCX signature) and reject extension/content mismatch.
+All nine items shipped across v14.23–v14.28, each with tests:
+
+- **Push-subscription auth race** ✓ — shared `calendarAuthReady` promise; the error reporter, usage
+  counter, and push renewal/enable all await it before writing (v14.23).
+- **VAPID rotation** ✓ — `notif.js` now unsubscribes the old key before subscribing the new one (v14.23).
+- **Repeat Huddle uploads orphan Storage files** ✓ — `ingestHuddle` reads the previous `storagePath`,
+  uploads, writes metadata, deletes the new object on metadata failure, then deletes the previous
+  object on success (v14.23). Browser-admin Huddle deletion deliberately stays server-only.
+- **Paycalc namespace migration** ✓ (v14.25, hardened v14.27) — silent first-loader claim replaced by
+  a one-time ownership prompt; keys are classified by known member slug so another member's namespace
+  is never claimed/cleared. Tested in `paycalc-migrations.test.mjs`.
+- **Validate Huddle download URLs** ✓ — shared `isSafeStorageUrl`, later narrowed to the project
+  bucket (`/v0/b/myb-roster…` · `/myb-roster…`) (v14.23, v14.28).
+- **Overlapping Sunday-correction deletion** ✓ — pure `computePeriodDeleteIds` keeps a Sunday
+  correction a neighbouring AL/sick range still needs (v14.24).
+- **Tighten Firestore field schemas** ✓ — overrides `hasOnly` + `YYYY-MM-DD` date + bounded `HH:MM`
+  time, `createdAt` required; push-sub nested `keys` `hasOnly`; analytics shape pinned (id pattern,
+  known page ids, int counts) (v14.24, v14.28). **Two sub-parts deferred:** Chiltern work-email
+  DOMAIN on `staffContact` (needs the confirmed domain) and the `storagePath` prefix check (low value).
+- **Roster-parse empty-after-filter check** ✓ — second non-empty check after known-member filtering (v14.23).
+- **File-signature (magic-byte) checks** ✓ — `%PDF-` / ZIP-DOCX signature; reject extension/content
+  mismatch (v14.23).
+
+Also shipped from the v14.26 delta review: `isSafeStorageUrl` bucket-narrowing (above), `getSession()`
+expiry now signs out of Firebase too, pinned K. Jedlinski / S. Boyle / B. Khalil roster-transition
+tests, HR/absence context removed from public roster source, and the Calendar duplicate-retry-listener
+fix.
 
 ### Dedicated security release (the big authorisation project)
 
@@ -844,14 +820,15 @@ These are interlocking and should ship as one planned release, not piecemeal:
   security headers (CSP etc.); migrate to Firebase Hosting or a header-capable custom domain when
   auth is redesigned or the app is officially adopted.
 
-### Documentation accuracy fixes (cheap, do alongside the above)
+### Documentation accuracy fixes (cheap)
 
-- `pushSubscriptions` delete rule currently allows *any* authenticated identity that knows the doc
-  ID — docs say owner/admin only. Either tighten the rule or correct the docs.
-- Several docs describe circular/newsletter Storage reads as "open"; the Storage rules now require
-  auth (though a tokenised download URL is still a bearer link — note that distinction).
-- The Storage test comment implies Admin-SDK Huddle cleanup exists; it doesn't yet — don't imply a
-  guarantee the code doesn't implement (ties to the Huddle-orphan item above).
+- **(Open)** `pushSubscriptions` delete rule still allows *any* authenticated identity that knows the
+  doc id — docs say owner/admin only. Either tighten the rule or correct the docs.
+- **(Open)** Several docs describe circular/newsletter reads as "open" — the *Firestore metadata* read
+  is open, but the *Storage object* requires auth (a tokenised download URL is still a bearer link).
+  Note that distinction.
+- ✓ Resolved — the Storage test comment implied Admin-SDK Huddle cleanup that didn't exist;
+  `ingestHuddle` now prunes the previous object (v14.23), so the described cleanup is real.
 
 ---
 
@@ -996,15 +973,12 @@ Eight sub-modules extracted over v13.82–v13.86: `calendar-renderer.js`, `calen
 **paycalc-app.js** ✓ Complete (v13.x–v13.86)
 `paycalc-settings.js`, `paycalc-periods.js`, `paycalc-roster-hint.js`, `paycalc-hpp.js`, `paycalc-backpay.js` (earlier), then `paycalc-lightboxes.js` (v13.86). Coordinator dropped from ~1,950 → ~1,270 lines. `calculate()` stays in coordinator and is passed as a callback to modules that need to trigger it (avoids circular imports).
 
-### Phase 7 — Firestore emulator test suite
+### Phase 7 — Firestore emulator test suite ✓ Done
 
-Prerequisite for Password security Stages 2–4 being safe to ship.
-
-- Wire `@firebase/rules-unit-testing` (Firestore emulator) into `npm test`
-- Cover: Firestore security rules for all collections (overrides, staffContact, clientErrors, circulars, newsletters, pushSubscriptions)
-- Cover: override write paths (spare_shift, annual_leave, correction, sick) with member-isolation logic
-- Cover: circular/newsletter prune side-effect in `_pruneOldDocs()`
-- Currently zero automated coverage for any of this; any rules change ships blind
+`firestore.rules.test.mjs` + `storage.rules.test.mjs` cover every collection (153 tests via
+`npm run test:rules`, run on the Firebase emulator and gated in `deploy-rules.yml` before any rules
+ship). Run as a dedicated command rather than folded into `npm test` (which needs no emulator binary).
+This was the prerequisite for Password security Stages 2–4 — now satisfied.
 
 ### Phase 8 — Password security Stages 2–4
 
