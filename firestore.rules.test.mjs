@@ -60,7 +60,9 @@ const VALID_OVERRIDE = () => ({
 const VALID_HUDDLE = () => ({
     date: '2026-06-25',
     storageUrl: 'https://storage.example.com/huddle.pdf',
-    fileType: 'application/pdf',
+    storagePath: 'huddles/2026-06-25-abc123.pdf',
+    // Short form — matches what uploadHuddle() actually writes (not a MIME type).
+    fileType: 'pdf',
     uploadedAt: serverTimestamp(), uploadedBy: 'G. Miller',
 });
 
@@ -295,6 +297,25 @@ describe('huddles', () => {
     test('admin cannot create with extra field (hasOnly violation)', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), extra: 'field' })
+        );
+    });
+
+    test('admin cannot create with an invalid fileType', async () => {
+        // A MIME type (the old fixture value) or anything outside ['pdf','docx'] is rejected.
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), fileType: 'application/pdf' })
+        );
+    });
+
+    test('admin cannot create with non-string uploadedBy', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), uploadedBy: 12345 })
+        );
+    });
+
+    test('admin cannot create with non-string htmlContent', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'huddles', uid()), { ...VALID_HUDDLE(), htmlContent: 12345 })
         );
     });
 

@@ -10,7 +10,11 @@ rules_version = '2';
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v14.24 — schema tightening (deferred v14.11-review bug-class backlog):
+// Last updated: v14.29 — huddles create/update brought to parity with circulars/newsletters:
+//   fileType constrained to ['pdf','docx'], uploadedBy required-as-string, and htmlContent
+//   type-checked (`is string`) before its 250 KB size cap. staffContact + pushSubscriptions
+//   were already fully hardened (hasOnly + field types) in v14.24 — no change needed there.
+// v14.24 — schema tightening (deferred v14.11-review bug-class backlog):
 //   overrides hasAll→hasOnly (verified 8-field allowlist incl. createdAt/changedBy; no path
 //   writes other fields), date must match YYYY-MM-DD, shift/rdw time bounded to 00-23:00-59
 //   (rejects impossible times like 99:99), createdAt required-as-timestamp; pushSubscriptions
@@ -103,8 +107,15 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy', 'htmlContent']) &&
         request.resource.data.date is string &&
         request.resource.data.storageUrl is string &&
+        // Browser writes (uploadHuddle) set fileType to the short form 'pdf'|'docx'.
+        // The Cloud Function ingest path uses the Admin SDK and bypasses these rules.
+        request.resource.data.fileType in ['pdf', 'docx'] &&
+        request.resource.data.uploadedBy is string &&
         request.resource.data.uploadedAt is timestamp &&
-        (!request.resource.data.keys().hasAll(['htmlContent']) || request.resource.data.htmlContent.size() <= 250000);
+        // htmlContent is optional; when present it must be a string AND within the 250 KB cap.
+        // Checking `is string` first guards .size() from being called on a non-string value.
+        (!('htmlContent' in request.resource.data) ||
+         (request.resource.data.htmlContent is string && request.resource.data.htmlContent.size() <= 250000));
       allow delete: if request.auth != null && request.auth.token.admin == true;
     }
 
