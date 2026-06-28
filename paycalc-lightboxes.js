@@ -30,6 +30,15 @@ const WELCOME_KEY = 'myb_pc_pay_welcome_shown';
  * @returns {{ openAboutLightbox: (() => void)|null }}
  */
 export function initPaycalcLightboxes() {
+  // One-time notices must not stack — overlay.js manages a single active overlay
+  // (history entry + focus trap), so two open at once fight over Back/Escape/Tab.
+  // The data-ownership prompt is highest priority (it guards another member's pay
+  // data and forces a reload on resolution), so when it's pending we suppress the
+  // welcome and YTD notices this load; they reappear next load once it's resolved.
+  // (welcome and YTD are already mutually exclusive — YTD only shows after welcome
+  // has been dismissed — so this guard is the only coordination needed.)
+  const _ownerPending = hasPendingLegacyMigration(getLoggedMember()?.name);
+
   // ── ABOUT LIGHTBOX ──────────────────────────────────────────────────────────
   // Lifecycle, SW status, bug link, and print button are the shared about-lightbox.js.
   // Header logo is a back-to-calendar button — About opens from the drawer logo.
@@ -100,7 +109,7 @@ export function initPaycalcLightboxes() {
 
     lb.querySelector('.welcome-guide-link')?.addEventListener('click', () => welcome.close());
 
-    if (!lsGet(WELCOME_KEY)) welcome.open();
+    if (!lsGet(WELCOME_KEY) && !_ownerPending) welcome.open();
   })();
 
   // ── YTD NOTICE ──────────────────────────────────────────────────────────────
@@ -109,6 +118,7 @@ export function initPaycalcLightboxes() {
     const NOTICE_DATE = '6 Apr 2026';
     if (isNoticeExpired(NOTICE_DATE, 90) && !lsGet(NOTICE_YTD_KEY)) { lsSet(NOTICE_YTD_KEY, '1'); return; }
     if (!lsGet(WELCOME_KEY) || lsGet(NOTICE_YTD_KEY)) return;
+    if (_ownerPending) return;   // data-ownership prompt takes priority this load
 
     const lb = document.getElementById('noticeYtdLightbox');
     if (!lb) return;
