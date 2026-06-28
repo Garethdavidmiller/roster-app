@@ -274,6 +274,17 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
   `LINKS_DESIGNERS` names and gate writes on `admin || linksDesigner`. Do **not** fold `linkDesigns`
   into the override member-name model. (Recommendation: (a) — defer the designer claim unless/until
   the workspace opens to more people.)
+- **Goal (date validation hardening) — folded in from an external v14.51 review.** The `overrides`
+  date rule validates *shape* only (`matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')`), so an impossible date
+  like `2026-99-99` or `2026-02-31` passes; the `circulars`/`newsletters` date rules are weaker
+  still (`size() == 10`, no regex at all). Tighten all three to bound month `01-12` and day `01-31`
+  via `matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])')` — the same bounded-alternation
+  style already proven on the `HH:MM-HH:MM` value check in the same file. (Full leap-year/Feb-30
+  validation belongs server-side; rules can at least reject month/day out of range.) This is pure
+  hardening with no migration risk — the client never generates impossible dates — but it is a
+  `firestore.rules` change with emulator tests, so it rides with B2's rule work rather than shipping
+  as a casual standalone rules deploy. Add emulator cases: `2026-00-10`, `2026-13-01`, `2026-02-31`
+  denied; `2026-02-28` / `2028-02-29` accepted.
 - **Goal (`pushSubscriptions` delete) — framing corrected.** The doc has **no member identity**
   (keyed by a SHA-256 of the endpoint; fields are only `endpoint`, `keys.p256dh`, `keys.auth`), so
   an "owner check by name" is **structurally impossible** without first adding a stored owner field.
@@ -301,7 +312,8 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
   (b) **a manager CAN write and delete any member's override**, (c) admin can write/delete anyone's,
   (d) the `roster_import` path still saves, (e) a **manager is still rejected** by the master-admin
   collections (huddles/circulars/newsletters/roster/auth) — tier separation holds, (f) `linkDesigns`
-  behaves per the chosen option, (g) a device can still delete its own push subscription.
+  behaves per the chosen option, (g) a device can still delete its own push subscription,
+  (h) impossible dates (`2026-13-01`, `2026-99-99`) are denied while real dates still save.
 
 ### B3 — claims audit + token-refresh rollout (HIGHEST RISK)
 - **Goal:** every active session carries a fresh claim **of its correct tier** (`admin`, `manager`,

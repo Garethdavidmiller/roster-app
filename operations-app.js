@@ -549,7 +549,9 @@ function _initDocUpload(cfg) {
             fileLabel.classList.remove('visible');
         } catch (err) {
             console.error(`[${cfg.logPrefix}] Upload failed:`, err);
-            feedback.textContent = 'Upload failed — please try again';
+            feedback.textContent = (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH'
+                ? "That file isn't a valid PDF — please choose the original file"
+                : 'Upload failed — please try again';
             feedback.className = 'huddle-feedback huddle-feedback--err';
             uploadBtn.disabled = false;
         } finally {

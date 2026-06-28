@@ -879,8 +879,13 @@ function _runCalcBackPay() { _applyBpState(calcBackPay()); }
 
 function toggleBpBreakdown() {
   const btn  = /** @type {HTMLElement} */ (document.getElementById('bpBreakdownBtn'));
+  const body = /** @type {HTMLElement} */ (document.getElementById('backPayRows'));
   const open = btn.classList.toggle('open');
-  /** @type {HTMLElement} */ (document.getElementById('backPayRows')).classList.toggle('open', open);
+  body.classList.toggle('open', open);
+  // Drive max-height from the actual rendered height so a long back-pay breakdown (many
+  // periods, or large text/zoom) is never clipped by the fixed CSS `.bd-body.open` cap.
+  // Cleared on close so the CSS collapse (max-height:0) animates the panel shut.
+  body.style.maxHeight = open ? `${body.scrollHeight}px` : '';
   btn.setAttribute('aria-expanded', String(open));
 }
 
