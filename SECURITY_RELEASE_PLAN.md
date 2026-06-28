@@ -9,7 +9,13 @@ enforcement) shipped v14.41; the flag-ON e2e coverage shipped v14.41 too (10 tes
 per-page matrix) — all behind the default-OFF `CONFIG.ENFORCE_NAMED_SESSION` kill-switch, so
 production behaviour is unchanged until the flag is flipped. **B1 is now code-complete and tested;
 the only remaining step before enabling is the OWNER provisioning audit** (Operations → Set up
-accounts + private-window role check), then flip the flag. See "Appendix: B1 detailed scope".*
+accounts + private-window role check), then flip the flag. See "Appendix: B1 detailed scope".
+**B2 scope corrected v14.51** after a tier sweep: the original "`name == memberName` + admin bypass"
+ignored the **Management tier** (6 managers who edit staff data on behalf and would have been
+silently locked out), wrongly treated `linkDesigns` as member-owned (it is keyed by design name;
+designer S. Silva is a CEA), and assumed `pushSubscriptions` carries an owner identity (it does
+not). B2 now introduces a **`manager: true` claim** and a three-tier override rule (incl. delete);
+see "The identity tiers the rules must respect" and the rewritten B2/B3/B4 phases.*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -52,6 +58,39 @@ PWA masks live-site breakage"). Three consequences shape the sequencing:
    *permissive* form that accepts both old and new sessions, then tightens after a forced
    re-auth sweep. This converts the v10.94 hard-cutover lockout into a two-step migration with
    no lockout window. (Detail in Phase B3.)
+
+---
+
+## The identity tiers the rules must respect (READ BEFORE B2/B3/B4)
+
+The app has **three** privilege tiers, defined in `roster-data.js`. Any isolation rule that only
+thinks in "owner vs. admin" will silently lock out the middle tier — this is the manager-lockout
+gap found while scoping B2, and it recurs in B3 and B4. State the tiers once, here, and have every
+B-track phase reference them.
+
+| Tier | Source list | Firebase claim they must carry | What they legitimately write |
+|------|-------------|-------------------------------|------------------------------|
+| **Master admin** | `CONFIG.ADMIN_NAMES` (`['G. Miller']`) | `{ admin: true, name }` | Everything — overrides for any member, huddle/circular/newsletter, roster upload, auth setup |
+| **Management** | `CONFIG.MANAGER_NAMES` (6 names) | **`{ manager: true, name }`** ← does not exist yet | Overrides (AL/sick/shift) **on behalf of any staff member** — but NOT the master-admin uploads/auth-setup |
+| **Staff** | everyone else | `{ name }` | Only their **own** overrides (`token.name == memberName`) |
+| *Links designer* | `CONFIG.LINKS_DESIGNERS` (`['G. Miller', 'S. Silva']`) | *cross-cuts the above* — S. Silva is a **CEA**, not a manager | `linkDesigns` (designs are **not** member-owned) |
+
+**Today:** only `ADMIN_NAMES` is sent to `setupRosterAuth` as `adminMembers`, so only G. Miller
+carries `admin: true`. Managers carry just `{ name }`; the *client* (`admin-app.js`
+`applyPermissions`) grants them full edit access, but **the Firestore rules cannot tell a manager
+from ordinary staff.** That is fine while the rule is `request.auth != null`, and a silent lockout
+the moment a rule needs a claim. So:
+
+- **B2 introduces a `manager: true` claim** (set by `setupRosterAuth` for `MANAGER_NAMES`) and the
+  override/Links rules check `name == memberName || admin == true || manager == true`. The
+  master-admin-only collections (huddles, circulars, newsletters, roster upload, auth setup) stay
+  `admin == true` only — do **not** grant managers `admin: true`, which would let them reach those
+  APIs directly and dissolve the very tier separation `MANAGER_NAMES` exists to enforce.
+- **B3's claims audit + token-refresh sweep must cover all three tiers** — a manager on a token
+  minted before the `manager` claim existed is rejected by the strict rule exactly like a staff
+  member on a pre-`name` token.
+- **B4's server-owned lists must carry all three tiers** (admin + manager + designer), generated
+  from `roster-data.js` so they cannot drift.
 
 ---
 
@@ -209,51 +248,105 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - **Gate:** every active `teamMembers` account verified present server-side; break-glass reset tested.
 
 ### B2 — per-member override + Links write isolation (the headline gap)
-- **Goal:** `overrides` (and `linkDesigns`) writes require `request.auth.token.name == memberName`
-  with the **load-bearing** admin bypass `|| request.auth.token.admin == true` (admin writes for
-  others constantly: AL/sick on behalf, every `source:'roster_import'` row). **Also tighten the
-  `pushSubscriptions` delete rule here** (folded in from A3) — add an owner/admin check, verifying
-  the legitimate `deletePushSubscription` unsubscribe path still works under emulator test.
-- **Who:** Claude (branch — rule + emulator tests). **Branch push does not deploy** (deploy-rules.yml
-  runs on merge to `main`).
-- **Risk:** the rule is correct but rollout locks out cached-token sessions (see B3); a too-tight
-  `pushSubscriptions` delete rule could break a device unsubscribing.
+> **Read "The identity tiers the rules must respect" first.** The original one-line scope here
+> ("`overrides`/`linkDesigns` require `name == memberName` with an admin bypass") was wrong in three
+> ways, each a silent lockout: it ignored the **manager** tier, it assumed `linkDesigns` is
+> member-owned (it is not), and it assumed `pushSubscriptions` carries an owner identity (it does
+> not). The corrected scope below is the result of the v14.51 sweep.
+
+- **Goal (overrides):** add a **`manager: true`** claim (`setupRosterAuth` sets it for
+  `MANAGER_NAMES`, mirroring how `admin` is set for `ADMIN_NAMES`), then gate `overrides`
+  **create, update, AND delete** on:
+  `request.auth.token.name == memberName || request.auth.token.admin == true || request.auth.token.manager == true`.
+  - The `admin` bypass is **load-bearing** (admin writes for others constantly: AL/sick on behalf,
+    every `source:'roster_import'` row). The `manager` bypass is **equally load-bearing** — the 6
+    managers edit staff AL/absence/shifts on behalf every day; without it B2 silently locks them out.
+  - **Tighten the delete rule too.** Today `overrides` delete is `request.auth != null` (any
+    authenticated user can delete any override). It must get the **same three-tier check** as
+    create/update, or isolation on writes is pointless (anyone could still delete anyone's data).
+- **Goal (`linkDesigns`) — NOT member-isolated.** Link designs are keyed by **design name, not
+  member**, so `token.name == memberName` is meaningless, and the designer **S. Silva is a CEA**
+  (no admin/manager claim). Member-name isolation does not fit this collection. **Decision needed
+  (owner):** either (a) **leave `linkDesigns` at `request.auth != null`** — its current rule, whose
+  comment already says "per-designer isolation is not needed here"; the real access control is the
+  client redirect on `CONFIG.LINKS_DESIGNERS`, and the blast radius is one niche internal design
+  tool — **recommended**; or (b) add a dedicated **`linksDesigner: true`** claim for the
+  `LINKS_DESIGNERS` names and gate writes on `admin || linksDesigner`. Do **not** fold `linkDesigns`
+  into the override member-name model. (Recommendation: (a) — defer the designer claim unless/until
+  the workspace opens to more people.)
+- **Goal (`pushSubscriptions` delete) — framing corrected.** The doc has **no member identity**
+  (keyed by a SHA-256 of the endpoint; fields are only `endpoint`, `keys.p256dh`, `keys.auth`), so
+  an "owner check by name" is **structurally impossible** without first adding a stored owner field.
+  Realistic options: (a) **keep `request.auth != null`** and document that the id already requires
+  knowing the endpoint (mild obscurity, low risk — the current posture); or (b) add an
+  `ownerName`/`uid` field on create and check it on delete (a schema change + a `savePushSubscription`
+  change, not just a rule edit). **Recommended: (a)** — the gain from (b) is small and it widens the
+  change surface. Either way, the prior plan text "add an owner/admin check" is not directly
+  implementable and is corrected here.
+- **Who:** Claude (branch — `setupRosterAuth` `manager` claim + rules + emulator tests). **Branch
+  push does not deploy** (deploy-rules.yml runs on merge to `main`; `setupRosterAuth` deploys via
+  deploy-functions.yml on merge).
+- **Provisioning dependency (new):** the `manager: true` claim only lands when **"Set up accounts"
+  is re-run** after `setupRosterAuth` ships, and only takes effect on each manager's **next token
+  refresh** (custom claims are read at token mint). So managers need a re-provision + re-auth before
+  the strict rule (B3) — fold this into B3's sweep. Until then the permissive rule keeps them working.
+- **Risk:** the rule is correct but rollout locks out cached-token sessions — for **managers too**,
+  now (see B3).
 - **Mitigation:** this phase ships **only** the permissive interim isolation rule + tests; the strict
-  tighten happens in B3 after the re-auth sweep. Mirror the pattern already live on `staffContact`.
-  For pushSubscriptions, prove the unsubscribe path under emulator test before tightening.
-- **Rollback:** revert the rule; `request.auth != null` restored.
-- **Gate:** emulator tests prove (a) member A cannot write member B's override, (b) admin can
-  write anyone's, (c) the `roster_import` path still saves, (d) Links isolation + admin bypass,
-  (e) a device can still delete its own push subscription under the tightened delete rule.
+  tighten happens in B3 after the re-auth sweep. Mirror the pattern already live on `staffContact`
+  (which is already three-tier-correct: `name == memberName || admin`).
+- **Rollback:** revert the rule; `request.auth != null` restored. The `manager` claim is additive
+  (an extra claim on a token harms nothing if the rule is rolled back).
+- **Gate:** emulator tests prove (a) staff member A cannot write or delete member B's override,
+  (b) **a manager CAN write and delete any member's override**, (c) admin can write/delete anyone's,
+  (d) the `roster_import` path still saves, (e) a **manager is still rejected** by the master-admin
+  collections (huddles/circulars/newsletters/roster/auth) — tier separation holds, (f) `linkDesigns`
+  behaves per the chosen option, (g) a device can still delete its own push subscription.
 
 ### B3 — claims audit + token-refresh rollout (HIGHEST RISK)
-- **Goal:** every active session carries a fresh `name` claim, then tighten the interim rule to strict.
+- **Goal:** every active session carries a fresh claim **of its correct tier** (`admin`, `manager`,
+  or plain `name`), then tighten the interim rule to strict.
 - **Who:** Owner (Console + chosen window) + Claude (the two rule versions + verification script).
 - **The risk, stated plainly:** a member on a valid 30-day localStorage session holds a Firebase
-  token minted *before* the `name` claim existed. A strict `token.name == memberName` rule rejects
-  that token until they sign out/in. Doing this as a hard cutover **is** the v10.94 outage.
-- **Mitigation — permissive→strict migration:**
-  1. Deploy the **permissive** rule: allow the write if `token.name == memberName` **OR** the
-     token has no `name` claim yet (legacy/anonymous). Isolation applies to claim-carrying
-     sessions; legacy sessions keep working — same posture as today, no lockout.
-  2. Force/await a token refresh for all active sessions (forced re-auth, or a short
-     `getIdToken(true)` sweep triggered on next app open) so every live token gains the claim.
+  token minted *before* its claim existed. A strict `token.name == memberName` rule rejects a
+  staff member on a pre-`name` token; the strict three-tier rule **also** rejects a **manager on a
+  pre-`manager`-claim token** (their on-behalf write needs `token.manager == true`, which an old
+  token lacks). Doing this as a hard cutover **is** the v10.94 outage — and now with a second class
+  of victim (managers), which is easy to forget because there are only six of them.
+- **Mitigation — permissive→strict migration (all three tiers):**
+  1. Deploy the **permissive** rule: allow the write if `token.name == memberName` **OR**
+     `token.admin == true` **OR** `token.manager == true` **OR** the token has no `name` claim yet
+     (legacy/anonymous). Claim-carrying sessions are isolated; legacy sessions keep working — same
+     posture as today, no lockout.
+  2. **Re-provision first:** run "Set up accounts" so the new `manager` claim is set on all six
+     manager accounts (and every `name`/`admin` claim is reasserted). Then force/await a token
+     refresh for all active sessions (forced re-auth, or a short `getIdToken(true)` sweep on next
+     app open) so every live token gains its correct-tier claim.
   3. After the window, deploy the **strict** rule (drop the `|| no-name` branch).
   - Pick a low-traffic window. **Verify in a fresh private window, never your installed phone.**
 - **Rollback:** redeploy the permissive rule (instant), or revert to `request.auth != null`.
-- **Gate:** in a private window, a non-admin writes their own AL/sick AND cannot write another
-  member's; admin still writes for others; roster upload still saves — *then* tighten to strict.
+- **Gate:** in a private window — a **staff** member writes their own AL/sick AND cannot write/delete
+  another member's; a **manager** writes AND deletes another member's AL/sick (on-behalf works) but
+  is still blocked from huddle/circular/newsletter/roster/auth; **admin** still writes for others;
+  roster upload still saves — *then* tighten to strict.
 
 ### B4 — server-owned roster/role lists
 - **Goal:** `setupRosterAuth` stops trusting the member/admin lists sent by the client; move to
   server-owned config with recent-login/revocation-aware checks, **dry-run** orphan removal,
   explicit destructive confirmation, and token revocation after demote/disable.
+- **All three tier lists move server-side, not just the member + admin lists.** Today the client
+  sends `members` (`ACTIVE_MEMBERS`) and `adminMembers` (`CONFIG.ADMIN_NAMES`); B2 adds a manager
+  list. B4 must own **`ADMIN_NAMES` + `MANAGER_NAMES` + `LINKS_DESIGNERS`** server-side so none of
+  the three claim tiers can be elevated by a tampered client payload (a client that adds itself to
+  `adminMembers`/`managerMembers` today would self-promote). This is the actual security win of B4 —
+  do not let the manager/designer lists stay client-supplied while only the admin list is locked down.
 - **Who:** Claude (function) + owner deploy.
 - **Risk:** a server-owned list that drifts from `teamMembers` could disable a real account, or
   orphan-removal could delete a needed account.
-- **Mitigation:** generate the server list from `roster-data.js` via the existing
-  `generate-roster-members.mjs` pipeline (single source of truth); dry-run + explicit confirm on
-  any destructive op; revocation is additive.
+- **Mitigation:** generate all three role lists from `roster-data.js` via the existing
+  `generate-roster-members.mjs` pipeline (single source of truth — extend it to emit the admin/
+  manager/designer designations, not just names); dry-run + explicit confirm on any destructive op;
+  revocation is additive.
 - **Rollback:** revert the function; provisioning returns to client-list behaviour.
 - **Gate:** dry-run output reviewed before any destructive run; token revocation tested on a demo account.
 
@@ -298,7 +391,9 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 | Confirmed Chiltern **work-email domain** | staffContact domain validation; C2/C4 email recovery | Deferred in v14.24 for exactly this reason (lockout risk if wrong). |
 | Email relay choice — Power Automate vs Firebase Trigger Email | C2, C4 | Power Automate relay already exists (Huddle ingest). |
 | Code expiry / retry-rate-limit policy | C2, C4 | 10-minute expiry + 3-attempt lockout is the documented default. |
-| A low-traffic **re-auth window** | B3 | The single highest-risk step; pick when a brief staff re-login is acceptable. |
+| A low-traffic **re-auth window** | B3 | The single highest-risk step; pick when a brief staff re-login is acceptable. **The window must re-provision + refresh tokens for the 6 managers too** (new `manager` claim) — not just staff. |
+| `linkDesigns` isolation: leave open vs. add a `linksDesigner` claim | B2 | Recommendation: leave at `request.auth != null` (designs aren't member-owned; S. Silva is a CEA; client redirect on `LINKS_DESIGNERS` is the real control). |
+| `pushSubscriptions` delete: keep `request.auth != null` vs. add a stored owner field | B2 | Recommendation: keep as-is (no member identity on the doc; the id already requires knowing the endpoint). |
 | GCP **Workload Identity Pool** setup | A2 | Owner GCP work; Claude does the workflow YAML. |
 | reCAPTCHA Enterprise provider | D1/D2 | Required before App Check can attest. |
 | Is the app **official Chiltern infrastructure**? | App Check priority; header-capable hosting | If yes, App Check and Firebase-Hosting-only (drop github.io) rise in priority. |
@@ -315,6 +410,12 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
   `ensureFirebaseSession` — that path is a deliberate public-read surface.
 - **Do not** drop the `|| token.admin == true` bypass from the isolation rule — admin writes for
   other members are load-bearing (roster import + on-behalf booking).
+- **Do not** drop (or forget to add) the `|| token.manager == true` bypass — the 6 managers write
+  staff AL/absence/shifts on behalf every day; without it, B2/B3 silently lock them out. Equally,
+  **do not grant managers `admin: true`** as a shortcut — that would let them reach the
+  master-admin-only collections (huddles/circulars/newsletters/roster/auth) the tier exists to deny.
+- **Do not** isolate `linkDesigns` by `token.name == memberName` — designs are keyed by design name,
+  not member, and a designer (S. Silva) may be ordinary staff with no admin/manager claim.
 - **Do not** verify any of this from an installed phone — always a fresh private window.
 
 ---
@@ -327,9 +428,10 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - [x] B1 — named-session separation + remove browser account-creation. **ENABLED v14.42**
       (`CONFIG.ENFORCE_NAMED_SESSION = true`) after the owner provisioning audit. Revert = flip back
       to false. Watch for any "bounced to re-login and can't get back in" reports in the first days.
-- [ ] B2 — per-member override + Links isolation rule (permissive) + emulator tests
-- [ ] B3 — claims audit + permissive→strict token-refresh rollout
-- [ ] B4 — server-owned roster/role lists
+- [ ] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
+      + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests
+- [ ] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**)
+- [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
 - [ ] C2 — email verification
 - [ ] C4 — forgotten-password reset
 - [ ] C3 — self-service password change
