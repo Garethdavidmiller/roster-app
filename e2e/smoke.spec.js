@@ -32,7 +32,8 @@ function collectFatalErrors(page) {
             msg.includes('auth/') ||
             msg.toLowerCase().includes('network request failed') ||
             msg.toLowerCase().includes('failed to fetch') ||
-            msg.includes('Not authorised — redirecting')  // intentional throw to halt module after location.replace
+            msg.includes('Not authorised — redirecting') ||  // intentional throw to halt module after location.replace
+            msg.includes('Not signed in — showing login overlay')  // intentional throw to halt module after showing the in-place login
         ) return;
         errors.push(msg);
     });
@@ -115,12 +116,20 @@ test('admin: login overlay renders with JS-populated grade options', async ({ pa
 
 // ── PAY CALCULATOR (paycalc.html) ─────────────────────────────────────────
 
+test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/paycalc.html');
+    // Option B: paycalc no longer redirects to admin to sign in — the shared overlay is in place.
+    await expect(page).toHaveURL(/paycalc\.html/);
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    expect(errors, 'Uncaught JS exceptions on paycalc login').toHaveLength(0);
+});
+
 test('paycalc (signed in): pay period selector is populated', async ({ page }) => {
     const errors = collectFatalErrors(page);
 
-    // paycalc.html has a session guard that redirects unsigned-in users to
-    // admin.html?redirect=paycalc (added after this suite was first written).
-    // Seed a session so the page runs its own init and builds the period <select>.
+    // paycalc.html requires a session (per-member pay data); seed one so the page runs its
+    // own init and builds the period <select> instead of showing the in-place login.
     await seedSession(page);
     await page.goto('/paycalc.html');
 
@@ -267,12 +276,12 @@ test('settings (signed in): card "?" button opens the Tips lightbox, not the car
 
 // ── OPERATIONS (operations.html) ──────────────────────────────────────────
 
-test('operations: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
+test('operations: shows the in-place login when not signed in', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/operations.html');
-    // operations-app.js redirects immediately when no admin session exists — landing on admin.html
-    // with the return param proves the module ran AND that the divert is consistent (returns you).
-    await expect(page).toHaveURL(/admin\.html\?redirect=operations/);
+    // No redirect any more (Option B) — the shared login overlay is injected in place.
+    await expect(page).toHaveURL(/operations\.html/);
+    await expect(page.locator('#loginOverlay')).toBeVisible();
     expect(errors, 'Uncaught JS exceptions triggering operations redirect').toHaveLength(0);
 });
 
@@ -356,12 +365,12 @@ test('operations: Work Email rows keep Edit/Remove on-screen at 375px (long emai
 
 // ── LINKS (links.html) ────────────────────────────────────────────────────
 
-test('links: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
+test('links: shows the in-place login when not signed in', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.goto('/links.html');
-    // links-app.js redirects immediately when the user is not a links designer — landing on
-    // admin.html with the return param proves the module ran AND the divert returns you.
-    await expect(page).toHaveURL(/admin\.html\?redirect=links/);
+    // No redirect any more (Option B) — the shared login overlay is injected in place.
+    await expect(page).toHaveURL(/links\.html/);
+    await expect(page.locator('#loginOverlay')).toBeVisible();
     expect(errors, 'Uncaught JS exceptions triggering links redirect').toHaveLength(0);
 });
 
@@ -488,16 +497,18 @@ test('B1 flag ON: settings re-shows the login overlay when the named session can
     await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: operations clears the session and redirects to admin on a failed named session', async ({ page }) => {
+test('B1 flag ON: operations clears the session and shows the in-place login on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/operations.html');
-    await expect(page).toHaveURL(/admin\.html\?redirect=operations/);
+    // B1 re-auth now shows the in-place login (clears the session, no redirect to admin).
+    await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
-test('B1 flag ON: links clears the session and redirects to admin on a failed named session', async ({ page }) => {
+test('B1 flag ON: links clears the session and shows the in-place login on a failed named session', async ({ page }) => {
     await armEnforcementWithFailingSignIn(page);
     await page.goto('/links.html');
-    await expect(page).toHaveURL(/admin\.html\?redirect=links/);
+    // B1 re-auth now shows the in-place login (clears the session, no redirect to admin).
+    await expect(page.locator('#loginOverlay')).toBeVisible();
 });
 
 test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {

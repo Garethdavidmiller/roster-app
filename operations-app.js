@@ -18,6 +18,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
+import { initLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -31,10 +32,18 @@ const currentSession = getSession();
 const currentUser    = currentSession?.name ?? null;
 const isAdmin        = CONFIG.ADMIN_NAMES.includes(currentUser);
 
-// Guard: must be signed in AND be an admin — redirect otherwise
-if (!currentUser || !isAdmin) {
-    window.location.replace('./admin.html?redirect=operations');
-    // Throw to halt module execution immediately — location.replace is async and JS continues otherwise.
+// Not signed in → show the shared in-place sign-in (no redirect elsewhere). After a successful
+// sign-in, reload; the reloaded page re-checks admin access below. Throw to halt the rest of
+// module init (which assumes a session) — the overlay is already shown.
+if (!currentUser) {
+    initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
+    resolveSession(false);
+    throw new Error('Not signed in — showing login overlay');
+}
+// Signed in but NOT an admin — Operations is admin-only (this is access control, not a login
+// divert). Send them to a page they can use.
+if (!isAdmin) {
+    window.location.replace('./admin.html');
     throw new Error('Not authorised — redirecting');
 }
 
@@ -42,14 +51,13 @@ if (!currentUser || !isAdmin) {
 // import sessionReady and await it instead of reading window._mybSession.
 const _opsAuth = ensureNamedSession(currentUser);
 resolveSession(_opsAuth);
-// B1.2 (SECURITY_RELEASE_PLAN.md): when the named-session requirement is on, a session that
-// can't be confirmed as this member's OWN named identity is not allowed to use the admin tools.
-// Clear it and send them to sign in. Flag OFF → ensureNamedSession resolves true (the anonymous
-// fallback still satisfies it), so this branch never fires and behaviour is unchanged.
+// B1.2: when the named-session requirement is on and we can't confirm this member's OWN named
+// identity, clear the session and show the in-place sign-in. Flag OFF → ensureNamedSession
+// resolves true (anonymous fallback), so this never fires and behaviour is unchanged.
 _opsAuth.then(named => {
     if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
         clearSession();
-        window.location.replace('./admin.html?redirect=operations');
+        initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
     }
 });
 

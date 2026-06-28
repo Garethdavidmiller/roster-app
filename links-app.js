@@ -12,6 +12,7 @@
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
+import { initLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
@@ -39,19 +40,27 @@ const currentUser     = currentSession?.name ?? null;
 const isLinksDesigner = CONFIG.LINKS_DESIGNERS.includes(currentUser);
 const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
 
-if (!currentUser || !isLinksDesigner) {
-    window.location.replace('./admin.html?redirect=links');
+// Not signed in → show the shared in-place sign-in (no redirect). After sign-in, reload; the
+// reloaded page re-checks designer access below.
+if (!currentUser) {
+    initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
+    resolveSession(false);
+    throw new Error('Not signed in — showing login overlay');
+}
+// Signed in but not a Links designer — access control, not a login divert.
+if (!isLinksDesigner) {
+    window.location.replace('./admin.html');
     throw new Error('Not authorised — redirecting');
 }
 
-// B1.2: require the member's OWN named session when the flag is on; otherwise clear and route to
-// sign-in. Flag OFF → ensureNamedSession resolves true (anonymous fallback), so this never fires.
+// B1.2: require the member's OWN named session when the flag is on; otherwise clear and show the
+// in-place sign-in. Flag OFF → ensureNamedSession resolves true (anonymous fallback), never fires.
 const _linksAuth = ensureNamedSession(currentUser);
 resolveSession(_linksAuth);
 _linksAuth.then(named => {
     if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
         clearSession();
-        window.location.replace('./admin.html?redirect=links');
+        initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
     }
 });
 

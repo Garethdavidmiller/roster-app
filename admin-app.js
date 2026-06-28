@@ -47,28 +47,16 @@ const currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
 const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
 // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
-/** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in: honour a
- *  ?redirect= return target (a page that bounced here to log in) or run the inline work-email
- *  check then reload. */
+/** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in, run the inline
+ *  work-email check on top of the overlay (no jarring reload between sign-in and the email prompt
+ *  — v13.68), then reload. Every page now signs in in place, so there is no ?redirect= return
+ *  hop to honour any more. */
 function showAdminLogin() {
     initLoginOverlay({
         pageLabel: 'Admin',
         onSuccess: async (/** @type {string} */ name) => {
-            const redirect = new URLSearchParams(location.search).get('redirect');
-            // Whitelist redirect values to prevent open-redirect.
-            const REDIRECT_MAP = /** @type {Record<string, string>} */ ({
-                paycalc:    './paycalc.html',
-                operations: './operations.html',
-                links:      './links.html',
-            });
-            if (redirect && REDIRECT_MAP[redirect]) {
-                window.location.replace(REDIRECT_MAP[redirect]);
-            } else {
-                // Inline work-email check on top of the overlay, then reload (no jarring
-                // reload between sign-in and the email prompt — v13.68).
-                await _runEmailCheck(name);
-                window.location.reload();
-            }
+            await _runEmailCheck(name);
+            window.location.reload();
         },
     });
 }
