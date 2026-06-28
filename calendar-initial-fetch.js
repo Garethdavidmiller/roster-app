@@ -111,7 +111,10 @@ export function initInitialFetch({ isTeamViewMode, renderCalendar }) {
       await fetchOverridesForRange(startStr, endStr);
       syncResolved = true;
       if (syncChip) { syncChip.remove(); syncChip = null; }
-      announceSync('');
+      // A user-initiated retry succeeded — confirm it to screen readers, then clear.
+      // (The initial silent fetch below stays silent so it isn't announced on every load.)
+      announceSync('Shifts updated');
+      setTimeout(() => announceSync(''), 3000);
       if (!isTeamViewMode()) renderCalendar();
     } catch (err) {
       console.error('[Firestore] Retry failed:', err);

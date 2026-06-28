@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.28
+// MYB Roster — Service Worker v14.29
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,15 +22,20 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.28';
+const APP_VERSION = '14.29';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
+
+// The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
+// install. Managed-asset matching and notification icon/URL resolution all resolve
+// relative to this, so the app behaves correctly under a sub-path, not just the root.
+const SCOPE_PATH = new URL(self.registration.scope).pathname;
 
 // The "managed" same-origin app files: HTML pages, JS modules, and CSS. HTML docs
 // are served network-first; JS/CSS are served stale-while-revalidate (see the fetch
 // handler). Everything here is precached so SWR can serve it instantly from cache.
-// Note: matching uses `path === '/' + f` — an exact root-path check. All managed
-// files live at the origin root, so this is always correct. (Name kept for the
-// sw-asset-check test that parses this array; it is no longer "network-first only".)
+// Matching is SCOPE-RELATIVE (the fetch handler strips SCOPE_PATH before lookup), so
+// these names match under both '/' (Firebase) and '/roster-app/' (GitHub Pages). (Name
+// kept for the sw-asset-check test that parses this array; not "network-first only".)
 const NETWORK_FIRST_FILES = [
     'index.html', 'admin.html', 'operations.html', 'settings.html', 'links.html',
     'index.css', 'admin.css', 'paycalc.css', 'operations.css', 'settings.css', 'links.css',
@@ -226,7 +231,9 @@ self.addEventListener("fetch", event => {
     // HTML documents stay network-first (freshest entry point); JS/CSS use
     // stale-while-revalidate (instant from cache, refreshed in the background).
     const isDoc          = path === '/' || path.endsWith('/') || path.endsWith('.html');
-    const isManagedAsset = NETWORK_FIRST_FILES.some(f => path === '/' + f);
+    // Scope-relative so JS/CSS match under a sub-path (/roster-app/) too, not just root.
+    const relPath        = path.startsWith(SCOPE_PATH) ? path.slice(SCOPE_PATH.length) : path.replace(/^\//, '');
+    const isManagedAsset = NETWORK_FIRST_FILES.includes(relPath);
 
     if (isDoc) {
         // Network-first: revalidate against the server (304 if unchanged → no body download),
@@ -378,8 +385,11 @@ self.addEventListener("push", event => {
             body:    data.body,
             // iOS Notification Centre uses 'icon' when the notification is reviewed
             // later — without it, iOS shows a generic globe glyph.
-            icon:    `${self.location.origin}/icon-192.png`,
-            badge:   `${self.location.origin}/icon-192.png`,
+            // Resolve against the SW scope, not the bare origin: on the /roster-app/
+            // GitHub Pages install, origin/icon-192.png 404s (bare origin = a different,
+            // empty site). registration.scope ends in '/'.
+            icon:    `${self.registration.scope}icon-192.png`,
+            badge:   `${self.registration.scope}icon-192.png`,
             tag,
             renotify: true,           // still vibrates/sounds even if replacing
             data:     { url },

@@ -173,8 +173,11 @@ service cloud.firestore {
     match /circulars/{date} {
       // Open read: calendar-app.js reads Circular metadata without a Firebase Auth
       // session (the Calendar deliberately supports anonymous use, matching Huddles).
-      // The download URL itself is a permanent tokenised Firebase Storage URL —
-      // access to the metadata does not bypass Storage security.
+      // The stored URL is a BEARER download URL (a permanent tokenised Storage link):
+      // anyone who obtains it can fetch the file while the token is valid — it is NOT
+      // re-checked against Storage rules at click time. Don't store confidential documents
+      // here unless the delivery model changes. (Metadata read being open is acceptable
+      // because the bearer URL is the real access control, not the Firestore doc.)
       // Only admin may write; hasOnly (not hasAll) prevents extra fields.
       allow read;
       allow create, update: if
