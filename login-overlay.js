@@ -187,9 +187,10 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 return;
             }
             await onSuccess(name);
-            // Page is reloading/navigating from onSuccess; leave _attempting true.
+            // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } finally {
-            // Reset only if onSuccess did NOT navigate away (e.g. an error path returned early).
+            // Don't reset during the 30s lockout (submit is disabled) so a queued click can't slip
+            // through; otherwise allow the next attempt. The click handler also resets as a backstop.
             if (!submitBtn.disabled) _attempting = false;
         }
     }
