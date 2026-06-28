@@ -504,9 +504,15 @@ const HUDDLE_RETENTION_MONTHS = 3;
  * @returns {Promise<void>}
  */
 async function pruneOldHuddles(excludeDate) {
-    const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - HUDDLE_RETENTION_MONTHS);
-    const cutoffISO = cutoff.toISOString().slice(0, 10);   // "YYYY-MM-DD"
+    // Clamp the day to the last valid day of the target month — a bare
+    // setMonth(getMonth() - N) overflows on a month-end run (e.g. 31 May → 31 Feb →
+    // 3 Mar), which would over-prune by a few days. Mirrors _pruneOldDocs in
+    // firebase-client.js (the browser circular/newsletter prune).
+    const now = new Date();
+    const tm  = now.getMonth() - HUDDLE_RETENTION_MONTHS;
+    const daysInTargetMonth = new Date(now.getFullYear(), tm + 1, 0).getDate();
+    const cutoff = new Date(now.getFullYear(), tm, Math.min(now.getDate(), daysInTargetMonth));
+    const cutoffISO = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`;   // "YYYY-MM-DD"
 
     const db     = admin.firestore();
     const bucket = admin.storage().bucket();

@@ -146,31 +146,35 @@ export async function ensureFirebaseSession(name) {
     }
 }
 
-/** Clear the local session AND sign out of Firebase, keeping the two in lockstep so an
- *  expired / version-stale / idle local session never leaves a live Firebase identity
- *  behind (previously only the manual clearSession() signed Firebase out). */
-function _endSession() {
-    lsDel(AUTH_KEY);
-    firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
-}
-
 /**
  * Read and validate the current localStorage session. Returns null if
  * missing, absolutely expired (30 days), version-stale, or idle (7 days).
  * Auto-touches lastActivity on every valid call so opening the app resets
- * the idle clock — no separate touchSession() needed. Any expiry path also
- * signs out of Firebase (via _endSession) so local + Firebase state stay aligned.
+ * the idle clock — no separate touchSession() needed.
+ *
+ * ⚠️ Passive expiry only clears localStorage — it does NOT sign Firebase out.
+ * getSession() runs synchronously at module eval on every page (incl. the
+ * calendar). The calendar's `calendarAuthReady` checks `auth.currentUser` to
+ * decide whether to sign in anonymously; if getSession() fired an async
+ * firebaseSignOut here it would race that check and could leave the page with
+ * no Firebase identity, so its best-effort writes (push-subscription renewal,
+ * usage, error reporter) get rejected by the `request.auth != null` rule — the
+ * exact "bell stuck off-lapsed" bug calendarAuthReady prevents. A lingering
+ * identity is harmless: the rules already accept any authenticated session
+ * (anonymous included), so leaving it grants no extra access. Firebase is signed
+ * out only on an EXPLICIT clearSession() (user-initiated logout), and
+ * ensureFirebaseSession() replaces a mismatched identity on the next login.
  */
 export function getSession() {
     try {
         const raw = lsGet(AUTH_KEY);
         if (!raw) return null;
         const s = JSON.parse(raw);
-        if (Date.now() > s.expiry) { _endSession(); return null; }
-        if ((s.ver || 1) < SESSION_VER) { _endSession(); return null; }
+        if (Date.now() > s.expiry) { lsDel(AUTH_KEY); return null; }
+        if ((s.ver || 1) < SESSION_VER) { lsDel(AUTH_KEY); return null; }
         // Idle check. Missing lastActivity: Date.now() - undefined = NaN, NaN > IDLE_MS = false → kept active.
         if (Date.now() - s.lastActivity > IDLE_MS) {
-            _endSession(); return null;
+            lsDel(AUTH_KEY); return null;
         }
         // Refresh lastActivity on every valid page-load check.
         s.lastActivity = Date.now();
@@ -193,7 +197,11 @@ export function saveSession(name) {
     }));
 }
 
-/** Clear the session from localStorage and sign out of Firebase Auth. */
+/** Clear the session from localStorage AND sign out of Firebase Auth. This is the
+ *  user-initiated logout path — unlike passive expiry in getSession(), an explicit
+ *  logout should fully tear down the Firebase identity too. (No anon-auth bootstrap
+ *  races this: the page reloads immediately after, starting auth cleanly.) */
 export function clearSession() {
-    _endSession();
+    lsDel(AUTH_KEY);
+    firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
 }

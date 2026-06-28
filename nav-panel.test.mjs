@@ -18,12 +18,17 @@ mock.module('./firebase-client.js', {
     namedExports: {
         getLatestCircular:    async () => null,
         getLatestNewsletter:  async () => null,
+        // Mirror the PRODUCTION isSafeStorageUrl (firebase-client.js), which was
+        // narrowed to this project's bucket — keep this stub in lockstep so the test
+        // exercises the same bucket-path constraint the real opener enforces.
         isSafeStorageUrl: (url) => {
             if (typeof url !== 'string' || !url) return false;
             try {
                 const p = new URL(url);
-                return p.protocol === 'https:' &&
-                    (p.hostname === 'firebasestorage.googleapis.com' || p.hostname === 'storage.googleapis.com');
+                if (p.protocol !== 'https:') return false;
+                if (p.hostname === 'firebasestorage.googleapis.com') return p.pathname.startsWith('/v0/b/myb-roster');
+                if (p.hostname === 'storage.googleapis.com')         return p.pathname.startsWith('/myb-roster');
+                return false;
             } catch { return false; }
         },
     },
