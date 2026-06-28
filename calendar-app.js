@@ -113,11 +113,10 @@ function dismissSwipeHint() {
 // Always call this helper — never duplicate the navigation logic at a call site.
 /** @param {any} paydayStr */
 function navigateToPaycalc(paydayStr) {
-    if (getSession()?.name) {
-        window.location.href = `./paycalc.html?payday=${paydayStr}`;
-    } else {
-        window.location.href = './admin.html?redirect=paycalc';
-    }
+    // paycalc handles its own in-place sign-in for unsigned users (Option B, v14.45+), so go
+    // there directly — the ?payday= param survives the post-login reload. (Previously this
+    // bounced unsigned users to admin?redirect=paycalc, which no longer returns here.)
+    window.location.href = `./paycalc.html?payday=${paydayStr}`;
 }
 
 
@@ -333,12 +332,9 @@ function announceMonthChange() {
 // Pay button — navigates to paycalc.html for any signed-in staff member.
 // If no session exists, sends the user to admin.html to sign in, then redirects back.
 (/** @type {HTMLElement} */ (document.getElementById('payBtn'))).addEventListener('click', () => {
-    if (getSession()?.name) {
-        const m = String(getDisplayMonth() + 1).padStart(2, '0');
-        window.location.href = `./paycalc.html?month=${getDisplayYear()}-${m}`;
-    } else {
-        window.location.href = './admin.html?redirect=paycalc';
-    }
+    // paycalc shows its own in-place login for unsigned users — navigate there directly.
+    const m = String(getDisplayMonth() + 1).padStart(2, '0');
+    window.location.href = `./paycalc.html?month=${getDisplayYear()}-${m}`;
 });
 
 // lightboxPrintBtn is wired by the shared about-lightbox.js (initAboutLightbox below).

@@ -211,6 +211,12 @@ Shared per-card Tips panel for `#tipsLightbox` (v12.50).
 - `initTipsLightbox(CARD_TIPS, { getIsAdmin })` — wires every `.btn-card-tips` button, renders sections/items (filtering `adminOnly`/`staffOnly` entries via `getIsAdmin`, read at open time), updates the dialog `aria-label` to the card title, and runs the canonical lifecycle.
 - Pages own only their `CARD_TIPS` content data. Imported by `admin-app.js`, `operations-app.js`, `settings-app.js`, `links-app.js`.
 
+### `login-overlay.js`
+Shared **in-place** sign-in overlay for every protected page (v14.45). Replaces the duplicated login code in admin/settings and the redirect-to-admin pattern on operations/links/paycalc — every page now signs in on the spot, none redirect elsewhere to authenticate.
+- `initLoginOverlay({ pageLabel, onSuccess })` — call only when NOT signed in. Injects the overlay markup (like `nav-panel.js`), populates the grade dropdown (CEA/CES/Dispatcher/Management) and the name dropdown via `getMembersForGrade`, restores the last-used grade (`myb_login_grade`), checks the surname password locally, runs the client-side 3-strike 30s rate-limit, then `saveSession` + `ensureNamedSession` (B1: on enforce-failure it `clearSession()`s and shows a transient/persistent message). On a confirmed named sign-in it calls `onSuccess(name)` — typically `() => location.reload()`; admin passes an inline email-check + reload.
+- Per-page ACCESS control (admin-only Operations, designer-only Links) stays in each coordinator, applied after sign-in — the overlay itself lists every grade.
+- Imported by `admin-app.js`, `settings-app.js`, `operations-app.js`, `links-app.js`, `paycalc-app.js`.
+
 ### `sw-register.js`
 Shared service worker registration + update lifecycle (v12.28). All six app pages import this instead of duplicating the register/activate/reload pattern.
 - `registerServiceWorker({ beforeReload, bfcache })` — registers `./service-worker.js`, activates any waiting worker immediately, sets up an hourly update-check via `visibilitychange`. On `controllerchange`, calls `beforeReload()` if provided, otherwise `window.location.reload()`. `bfcache: true` adds `pagehide`/`pageshow` handlers (used by `calendar-app.js` only).

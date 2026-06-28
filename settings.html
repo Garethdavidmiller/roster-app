@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Settings v14.43 -->
+<!-- MYB Roster — Settings v14.48 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -25,33 +25,7 @@
 </head>
 <body>
 
-<!-- Login overlay (shown only when no active session) -->
-<div id="loginOverlay" role="dialog" aria-label="Sign in to Settings" aria-modal="true">
-    <div id="loginCard">
-        <img src="icon-192.png" alt="MYB Roster">
-        <div class="login-app-name">Marylebone Roster</div>
-        <div class="login-subtitle">Settings · Sign in</div>
-        <div class="login-field">
-            <label for="loginGrade">Grade</label>
-            <select id="loginGrade">
-                <option value="">— Select grade —</option>
-            </select>
-        </div>
-        <div class="login-field">
-            <label for="loginName">Your name</label>
-            <select id="loginName" disabled>
-                <option value="">— Select grade first —</option>
-            </select>
-        </div>
-        <div class="login-field">
-            <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
-        </div>
-        <div id="loginError" class="login-error" aria-live="polite"></div>
-        <button type="button" id="loginSubmit">Sign in →</button>
-        <a href="index.html" class="login-back">← Back to roster</a>
-    </div>
-</div>
+<!-- Login overlay is injected by login-overlay.js (shared in-place sign-in) when not signed in. -->
 
 <!-- Tips lightbox -->
 <div id="tipsLightbox" class="lb-overlay" role="dialog" aria-label="Tips" aria-modal="true">

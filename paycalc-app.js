@@ -21,6 +21,7 @@ import {
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';
+import { initLoginOverlay } from './login-overlay.js';
 import {
   CONFIG, getPeriods, currentPeriodNum,
   hasBoxingDay, hasBankHoliday,
@@ -52,14 +53,14 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
 
 
 // ── SESSION GUARD ─────────────────────────────────────────────────────────────
-// Redirect unsigned-in users to admin.html to sign in, then return here.
-// Uses window.location.replace so the back button skips this page (avoids loops).
-// getSession() (session.js) enforces the 30-day absolute / 7-day idle expiry and
-// refreshes the idle clock — a raw localStorage read would treat an expired
-// session as valid forever.
+// Not signed in → show the shared in-place sign-in (no redirect elsewhere). After sign-in,
+// reload back into the calculator. getSession() (session.js) enforces the 30-day absolute /
+// 7-day idle expiry and refreshes the idle clock — a raw localStorage read would treat an
+// expired session as valid forever. Throw to halt the rest of module init (overlay is shown).
 (function () {
   if (!getSession()?.name) {
-    window.location.replace('./admin.html?redirect=paycalc');
+    initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess: () => window.location.reload() });
+    throw new Error('Not signed in — showing login overlay');
   }
 })();
 
