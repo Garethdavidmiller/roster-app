@@ -28,6 +28,20 @@ Tracking branch: `claude/review-claude-md-mKJbK`. Remove this file once every it
   `--audit-level=high` so it stays green on the current unfixable moderates and only alerts
   on high/critical. No change needed.
 
+## ✅ Accessibility + desktop-test polish — DONE (v14.38)
+
+- [x] **Emoji text equivalents** — `getShiftBadge()` (roster-data.js) now marks every badge
+  emoji `aria-hidden="true"` (matching the sibling early/late badges in calendar-renderer.js);
+  the text label (AL/Absent/Rest/…) carries the meaning. Also applied to the index.html Team
+  View colour-key legend. Reduces screen-reader noise in the admin week grid + roster-review
+  table, which render the badge without an overriding cell `aria-label`. Test mirror updated.
+- [x] **Guide chip `aria-current`** — already implemented (railcard-guide.js sets/clears
+  `aria-current` on the active chip; it's the only chip-bar). No change needed.
+- [x] **Team View cell names** — already accessible (each cell has an `aria-label`). No change.
+- [x] **Desktop-geometry e2e** — extended smoke.spec.js: calendar @1024/1280/1440 + 1024×720
+  short height; team view (internal scroll, no page overflow); signed-in admin @1024/1280/1440;
+  paycalc @1280×720 short height. 48 e2e tests now pass (was 30).
+
 ## ⏳ Time-boxed maintenance (deadlines, not bugs)
 
 - [ ] **H3 — 2026/27 pay rates.** Currently `rateUnconfirmed` placeholders (UI warns).

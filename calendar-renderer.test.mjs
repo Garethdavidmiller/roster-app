@@ -51,12 +51,12 @@ mock.module('./roster-data.js', {
             return 'early-shift';
         },
         getShiftBadge(s) {
-            if (!s || s === 'RD' || s === 'OFF') return '<span class="shift-badge badge-rest"><span>🏠</span><span>Rest</span></span>';
-            if (s === 'SPARE') return '<span class="shift-badge badge-spare"><span>📋</span><span>Spare</span></span>';
-            if (s === 'RDW')   return '<span class="shift-badge badge-rdw"><span>💼</span><span>RDW</span></span>';
-            if (s === 'AL')    return '<span class="shift-badge badge-al"><span>🏖️</span><span>AL</span></span>';
-            if (s === 'SICK')  return '<span class="shift-badge badge-sick"><span>🪑</span><span>Absent</span></span>';
-            return '<span class="shift-badge badge-early"><span>☀️</span><span>Early</span></span>';
+            if (!s || s === 'RD' || s === 'OFF') return '<span class="shift-badge badge-rest"><span aria-hidden="true">🏠</span><span>Rest</span></span>';
+            if (s === 'SPARE') return '<span class="shift-badge badge-spare"><span aria-hidden="true">📋</span><span>Spare</span></span>';
+            if (s === 'RDW')   return '<span class="shift-badge badge-rdw"><span aria-hidden="true">💼</span><span>RDW</span></span>';
+            if (s === 'AL')    return '<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>';
+            if (s === 'SICK')  return '<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>';
+            return '<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>';
         },
         getWeekNumberForDate: () => 3,
         getRosterForMember:   () => ({ weekPrefix: 'CEA Week' }),

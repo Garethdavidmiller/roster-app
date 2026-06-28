@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.37';
+export const APP_VERSION = '14.38';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -652,16 +652,16 @@ export function getShiftClass(timeStr) {
  * @returns {string}  HTML string (safe — no user data interpolated)
  */
 export function getShiftBadge(timeStr) {
-    if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return `<span class="shift-badge badge-rest"><span>🏠</span><span>Rest</span></span>`;
-    if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare"><span>📋</span><span>Spare</span></span>`;
-    if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span>💼</span><span>RDW</span></span>`;
-    if (timeStr === 'AL')    return `<span class="shift-badge badge-al"><span>🏖️</span><span>AL</span></span>`;
-    if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick"><span>🪑</span><span>Absent</span></span>`;
-    if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-other"><span>❓</span><span>Unknown</span></span>`;
-    if (isNightShift(timeStr)) return `<span class="shift-badge badge-night"><span>🦉</span><span>Night</span></span>`;
+    if (!timeStr || timeStr === 'RD' || timeStr === 'OFF') return `<span class="shift-badge badge-rest"><span aria-hidden="true">🏠</span><span>Rest</span></span>`;
+    if (timeStr === 'SPARE') return `<span class="shift-badge badge-spare"><span aria-hidden="true">📋</span><span>Spare</span></span>`;
+    if (timeStr === 'RDW')   return `<span class="shift-badge badge-rdw" title="Rest day worked — extra shift on your rostered day off"><span aria-hidden="true">💼</span><span>RDW</span></span>`;
+    if (timeStr === 'AL')    return `<span class="shift-badge badge-al"><span aria-hidden="true">🏖️</span><span>AL</span></span>`;
+    if (timeStr === 'SICK')  return `<span class="shift-badge badge-sick"><span aria-hidden="true">🪑</span><span>Absent</span></span>`;
+    if (!SHIFT_TIME_REGEX.test(timeStr)) return `<span class="shift-badge badge-other"><span aria-hidden="true">❓</span><span>Unknown</span></span>`;
+    if (isNightShift(timeStr)) return `<span class="shift-badge badge-night"><span aria-hidden="true">🦉</span><span>Night</span></span>`;
     return isEarlyShift(timeStr)
-        ? `<span class="shift-badge badge-early"><span>☀️</span><span>Early</span></span>`
-        : `<span class="shift-badge badge-late"><span>🌙</span><span>Late</span></span>`;
+        ? `<span class="shift-badge badge-early"><span aria-hidden="true">☀️</span><span>Early</span></span>`
+        : `<span class="shift-badge badge-late"><span aria-hidden="true">🌙</span><span>Late</span></span>`;
 }
 
 // ============================================
