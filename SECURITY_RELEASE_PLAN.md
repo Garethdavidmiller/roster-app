@@ -1,6 +1,9 @@
 # SECURITY_RELEASE_PLAN.md — Phased plan for the security hardening work
 
-*Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39.
+*Status: in progress. Created v14.38. **B1 ENABLED v14.42** (`CONFIG.ENFORCE_NAMED_SESSION = true`)
+after the owner confirmed every active account is provisioned and the list matches current staff —
+write pages now require the member's own named session; kill-switch revert is a one-line flip back
+to false. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39.
 B1.1 (remove anonymous fallback + browser account-creation) shipped v14.40; B1.2 (per-page
 enforcement) shipped v14.41; the flag-ON e2e coverage shipped v14.41 too (10 tests proving the
 per-page matrix) — all behind the default-OFF `CONFIG.ENFORCE_NAMED_SESSION` kill-switch, so
@@ -321,9 +324,9 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - [x] A3 — doc-only accuracy ✓ (v14.38: pushSubscriptions delete posture stated; bearer-URL notes confirmed; rule-tighten moved into B2)
 - [x] B0 (observability) — ✓ (v14.39: named-vs-anonymous identity exposed + tested; no behaviour change). Enforce half folded into B1.
 - [ ] A2 — Workload Identity Federation (one workflow first)
-- [~] B1 — named-session separation + remove browser account-creation. **Code-complete + tested
-      behind the default-OFF kill-switch** (B1.1 v14.40, B1.2 + flag-ON e2e v14.41). Only the owner
-      provisioning audit + private-window role check remain. Flip `CONFIG.ENFORCE_NAMED_SESSION` to enable.
+- [x] B1 — named-session separation + remove browser account-creation. **ENABLED v14.42**
+      (`CONFIG.ENFORCE_NAMED_SESSION = true`) after the owner provisioning audit. Revert = flip back
+      to false. Watch for any "bounced to re-login and can't get back in" reports in the first days.
 - [ ] B2 — per-member override + Links isolation rule (permissive) + emulator tests
 - [ ] B3 — claims audit + permissive→strict token-refresh rollout
 - [ ] B4 — server-owned roster/role lists
