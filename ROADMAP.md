@@ -111,7 +111,7 @@ A shared slide-out nav panel (`nav-panel.js`) replaced the ad-hoc per-page navig
 - **v10.59** — Sign-out button moved from page headers to nav panel footer. `initNavPanel({ onSignOut })` pattern — each page passes its own callback.
 - **v10.61** — Notification bell 🔔/🔕 added to nav panel footer. States: on / off-default / off-lapsed / denied / unsupported. All push logic stays in `notif.js`; nav-panel.js owns only the UI.
 - **v10.63** — Header back buttons removed from `admin.html` and `paycalc.html` (duplicate nav paradigm; conflicted visually with the grid layout). Navigation back to the calendar is now via the nav panel's Calendar pill.
-- **v10.64** — Nationality flags added to nav panel footer. Optional `flags: ['🇬🇧', '🇳🇬']` array on a `teamMembers` entry; `nav-panel.js` looks up the logged-in member and renders up to 2 emoji between the name and the bell.
+- **v10.64** — Nationality flags added to nav panel footer. Optional `flags: ['🇬🇧', '🇳🇬']` array on a `teamMembers` entry; `nav-panel.js` looks up the logged-in member and renders up to 2 emoji between the name and the bell. **⚠️ Historical only — this feature was removed at v12.22** (footer now shows an initials avatar via `avatarInitials`/`avatarHue`; see "Profile photo / avatar" below). There is no `flags` field on `teamMembers` today and no flag-rendering code in `nav-panel.js`. The v10.64/v10.65/v10.67 entries below describe removed code.
 - **v10.65** — Flags hidden on Windows (flag emoji render as two-letter codes on Windows). Detection uses `navigator.userAgentData?.platform ?? navigator.platform` with a `navigator.userAgent` fallback.
 - **v10.66** — `admin.html` / `paycalc.html` headers switched to CSS grid (`1fr auto 1fr`). `<div class="app-header-brand">` wrapper holds icon + title in the `auto` centre column. Equal `1fr` side columns guarantee true geometric centring regardless of burger/badge width asymmetry.
 - **v10.67** — All remaining CEA members given flags arrays (UK flag by default; heritage flags where known).
@@ -137,7 +137,7 @@ Progress on the four v11 security tasks. Authoritative current status and the re
 
 ### Railcard reference guide ✓ (v10.30–v10.48)
 
-`railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from admin.html; no JS module (static page, served network-first).
+`railcard-guide.html` — a standalone at-work reference sheet for staff checking and selling railcard-discounted tickets at the gateline. Linked from the nav panel (Guides section, via `NAV_GUIDES` in `nav-panel.js`) — the old admin.html link was dropped in the v10.57–v10.71 nav overhaul. JS in `railcard-guide.js` (print + chip-bar nav); static page, served network-first.
 
 - **v10.30–v10.33**: Initial guide added, collapse/lightbox interaction fixes.
 - **v10.34–v10.40**: Rewritten as a quick-glance at-work sheet — colour-coded stripe per card (green / amber / red morning rule), weekend-and-bank-holiday rule banner, page-wide plain-English pass.
@@ -310,8 +310,8 @@ right way to decouple page-load correctness from Firebase availability, and any 
 that supports request interception can implement the same thing.
 
 The full test code is preserved in the git history on branch
-`claude/review-claude-md-mKJbK` at commit just before v12.75. The stub design is
-documented in KNOWN_LIMITATIONS.md → "E2E smoke tests removed".
+`claude/review-claude-md-mKJbK` at commit just before v12.75. The history is
+documented in KNOWN_LIMITATIONS.md → "E2E smoke tests — REMOVED v12.75, RESTORED v13.95".
 
 ---
 
@@ -975,19 +975,32 @@ Eight sub-modules extracted over v13.82–v13.86: `calendar-renderer.js`, `calen
 
 ### Phase 7 — Firestore emulator test suite ✓ Done
 
-`firestore.rules.test.mjs` + `storage.rules.test.mjs` cover every collection (153 tests via
+`firestore.rules.test.mjs` + `storage.rules.test.mjs` cover every collection (150+ tests via
 `npm run test:rules`, run on the Firebase emulator and gated in `deploy-rules.yml` before any rules
 ship). Run as a dedicated command rather than folded into `npm test` (which needs no emulator binary).
-This was the prerequisite for Password security Stages 2–4 — now satisfied.
+This was the prerequisite for the password-security stages and the per-member write-isolation
+project — now satisfied.
 
-### Phase 8 — Password security Stages 2–4
+### Phase 8 — Password security (Stages 2–5)
 
-**Depends on Phase 7 (Firestore emulator) being in place first** — auth changes are high-risk without it.
+**Depends on Phase 7 (Firestore emulator) being in place first** — auth changes are high-risk
+without it. Phase 7 is now done.
 
-Stage 1 ✓ (v12.68): Work email collection via staffContact.
-Stage 2: Email-based password reset flow (send verification link, user resets).
-Stage 3: Per-member write isolation in Firestore rules (`request.auth.token.name == memberName`) — suspended at v10.94 after a production outage; re-introduction checklist in KNOWN_LIMITATIONS.md task #2.
-Stage 4: Account recovery using verified work email.
+This phase is the canonical five-stage plan described in full under **"Password security
+improvements — staged plan"** below — do not re-number the stages here. In brief:
+
+- Stage 1 ✓ (v12.68): Work-email registration via `staffContact`.
+- Stage 2: Email verification.
+- Stage 3: Self-service password change (while logged in).
+- Stage 4: Forgotten-password reset (self-service, via verified work email).
+- Stage 5: Retire the surname-derived password.
+
+Stages 2–5 are parked pending the owner setting up Power Automate (the email-delivery channel).
+
+**Note:** per-member Firestore write isolation (`request.auth.token.name == memberName`,
+suspended at v10.94) is a **separate** security project — see "Security project — per-member
+override write isolation" below and KNOWN_LIMITATIONS.md task #2. It is *not* a stage of the
+password plan; earlier drafts of this section conflated the two.
 
 ### Phase 9 — TypeScript zero-diagnostic baseline ✓ (all sub-phases complete June 2026)
 

@@ -49,7 +49,9 @@ itself create a Firebase Auth identity, but the current anonymous-fallback path 
 `session.js` and broad `request.auth != null` Firestore rules mean some writes may
 still succeed under an anonymous identity. Local UI checks are not security controls.
 Practical risk is low for a small known team. Full remediation (named-only sessions +
-role-based rules) is tracked as a dedicated security project — see ROADMAP.md Phase 2.
+role-based rules) is tracked as a dedicated security project — see ROADMAP.md →
+"Security project — per-member override write isolation" (and the related "Deferred
+security release"), and task #2 below for the suspended first attempt.
 
 ### Firebase Auth session is re-established on page load (v10.93)
 A returning user with a valid 30-day localStorage session skips the login click handler on
@@ -171,8 +173,11 @@ Firestore/Storage) was considered as a defence-in-depth measure and **declined f
 
 **When to revisit:** if the app is advertised more widely or becomes official Chiltern
 infrastructure. Of the deferred security work, per-member write isolation (task #2 above) has
-the higher real value — but it needs the Firestore emulator suite (ROADMAP Phase 7) in place
-first, because that exact change caused the v10.94 outage.
+the higher real value. Its old blocker — the Firestore emulator test suite (ROADMAP Phase 7) —
+is now **in place** (`firestore.rules.test.mjs` + `storage.rules.test.mjs`, run via
+`npm run test:rules`, gating `deploy-rules.yml`), so the rules change could finally be tested
+before shipping. The remaining barrier is the operational fragility of the multi-step claim
+recovery (that exact change caused the v10.94 outage), not a missing test harness.
 
 ---
 
@@ -287,8 +292,10 @@ phone carried on fine).
 
 **Therefore: never treat "my phone works" as evidence the site is up.** Always
 test the **live URLs in a fresh browser / private window** (no SW, no cache):
-- `https://myb-roster.web.app` — must load *past* the splash to the calendar
-- `https://garethdavidmiller.github.io` — must load (not `404`); the staff URL
+- `https://myb-roster.web.app` — must load *past* the splash to the calendar (canonical)
+- `https://garethdavidmiller.github.io/roster-app/` — must load (not `404`); the GitHub Pages
+  mirror. **Note the `/roster-app/` sub-path** — the bare `garethdavidmiller.github.io` origin is
+  a separate empty repo that 404s *by design*, so don't test that.
 - Deep-link a sub-page (`/admin.html`, `/paycalc.html`) — not just the root
 - DevTools → Console on each: no red errors (CSP / failed module / `404` /
   `api-key-not-valid` / referrer-blocked)
@@ -328,20 +335,22 @@ extension, not from `Content-Type`.
 ## Roster data
 
 ### Cloud Function payday constant duplicated from `roster-data.js`
-`functions/index.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS` constants
-for the pay-reminder scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY`
-and `CONFIG.PAYDAY_INTERVAL_DAYS` in `roster-data.js`. If the pay schedule ever changes,
-both files must be updated. The correct long-term fix is a shared JSON config consumed by
-both, but the no-build constraint makes this awkward. For now: if you change payday config,
-search for `FIRST_PAYDAY_MS` in `functions/index.js` and update it in the same commit.
+`functions/roster-parse-helpers.js` contains its own `FIRST_PAYDAY_MS` and `INTERVAL_DAYS`
+constants (inside `isPayCutoffDay()`, which `functions/index.js` imports) for the pay-reminder
+scheduled notification. These must stay in sync with `CONFIG.FIRST_PAYDAY` and
+`CONFIG.PAYDAY_INTERVAL_DAYS` in `roster-data.js`. If the pay schedule ever changes, both files
+must be updated. The correct long-term fix is a shared JSON config consumed by both, but the
+no-build constraint makes this awkward. For now: if you change payday config, search for
+`FIRST_PAYDAY_MS` in `functions/roster-parse-helpers.js` and update it in the same commit.
 
 ### Cloud Function staff list duplicated from `roster-data.js`
-`functions/index.js` contains a hardcoded `STAFF_NAMES` object used by `parseRosterPDF`
-to name-match the AI-parsed roster output. This must stay in sync with `teamMembers` in
-`roster-data.js`. Every new starter or leaver needs updating in both files. The code
-comment in `functions/index.js` acknowledges this. For now: when adding or removing a
-member, search `functions/index.js` for `STAFF_NAMES` and update the relevant grade array
-in the same commit.
+`parseRosterPDF` name-matches the AI-parsed roster output against a `STAFF_NAMES` list, which is
+**generated**, not hand-maintained: `functions/index.js` does `require('./roster-members.json')`
+and `roster-members.json` is produced from `teamMembers` in `roster-data.js` by
+`scripts/generate-roster-members.mjs` (`npm run generate:roster-members`). It is marked
+"do NOT hand-edit". So a new starter/leaver does NOT need a manual edit in `functions/` —
+update `teamMembers` in `roster-data.js`, then run `npm run generate:roster-members` to rebuild
+the JSON in the same commit. (The `/new-starter` skill already includes this step.)
 
 ### firebase-admin upgrade to v14 blocked on firebase-functions compatibility (June 2026)
 

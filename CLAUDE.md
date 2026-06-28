@@ -259,6 +259,7 @@ npm run typecheck     # tsc --noEmit on all root JS modules
 npm run test:hygiene  # sw-asset-check, import-graph, links-design, admin-rangepicker, client-errors, overlay, usage-stats
 npm run test:parse    # module-parse (--experimental-vm-modules)
 npm run test:unit     # all --experimental-test-module-mocks tests
+npm run test:functions # Cloud Functions pure-helper tests (roster-parse-helpers.test.mjs) — not part of npm test
 
 # Firestore + Storage security rules tests (requires Firebase emulator binary — starts automatically):
 npm run test:rules
@@ -325,7 +326,7 @@ Full hex table and "never hardcode" rule: see `.claude/rules/css-tokens.md` → 
 | `persistentLocalCache()` in `firebase-client.js` | Firestore stores queries in IndexedDB. Do not revert to `getFirestore()` — Huddle viewer and override cache depend on instant load. |
 | `subscribeToLatestHuddle` in `firebase-client.js` | Persistent `onSnapshot` — Huddle viewer updates automatically when a new Huddle arrives. Do not replace with one-time fetch. |
 | `normaliseSurname()` in `firebase-client.js` (v12.04) | Shared surname derivation for Firebase Auth: lowercases, strips non-alpha, pads to 6 chars. Exported from `firebase-client.js`; `getSurname()` in `session.js` delegates to it. A deliberate duplicate also exists in `functions/roster-parse-helpers.js` — Cloud Functions are CommonJS and cannot import browser ES modules, so unification requires a build step. If the rule ever changes, update both locations. |
-| `cors: true` on `parseRosterPDF` and `setupRosterAuth` | firebase-functions v6 `cors: [array]` doesn't consistently set `Access-Control-Allow-Headers` on preflight. Both functions use Firebase ID token auth, so wildcard origin adds no attack surface. `ingestHuddle` keeps `cors: false` (server-to-server). |
+| `cors: ADMIN_FUNCTION_ORIGINS` on `parseRosterPDF` and `setupRosterAuth` | Both functions restrict CORS to an explicit origin allowlist (`ADMIN_FUNCTION_ORIGINS` in `functions/index.js`: `garethdavidmiller.github.io`, `myb-roster.web.app`, `myb-roster.firebaseapp.com`) — defence-in-depth on top of the real control, which is Firebase ID token + admin claim. Add any new hosting domain to that array. `ingestHuddle` keeps `cors: false` (server-to-server). |
 | Android Back button overlay pattern | Overlays push `history.pushState({ mybOverlay: true })` when opening, close on `popstate`. `_pushOverlayState(handler)` / `_clearOverlayHistory()` helpers in all six app pages. |
 | Canonical lightbox lifecycle (standardised v11.50, factored into `createLightbox` v12.50) | Every `.lb-overlay` lightbox (About `#iconLightbox`, AL, Team info, Month jump, per-card Tips, paycalc Help/Welcome, links Beta) is built with **`createLightbox({ overlay, content, closeBtn, initialFocus, onOpen, onClose })` in `overlay.js`** — do NOT hand-write the lifecycle in a page module. The factory implements: focus save → `.visible` → rAF `.open` + focus close button (or `initialFocus`) → `lockBodyScroll()` → `_pushOverlayState(close)` → Escape keydown + **`trapFocus` Tab trap** → close via `dismissOverlay` (which removes `.open`, restores focus synchronously, then `transitionend` **with a 500ms `setTimeout` fallback** removes `.visible` + `unlockBodyScroll()` — the fallback is mandatory: iOS suppresses `transitionend` on a backgrounded tab; under `prefers-reduced-motion` it finishes synchronously because the transition is disabled). Backdrop click (`e.target === overlay`) and closeBtn click are wired by the factory; callers prepare dynamic content before `open()` or in `onOpen`. Close controls are `<button class="lb-close">` (never `<span>` — spans aren't keyboard-focusable). The About panel is the shared `about-lightbox.js`; per-card Tips is the shared `tips-lightbox.js`. The coming-soon lightbox is owned **only** by `nav-panel.js` (it shares the drawer's history entry) — never re-wire `#navComingSoonLightbox` from a page module and do not migrate it to `createLightbox`. The huddle viewer (`#huddleViewer`) is a full-bleed panel, not a centred `.lb-content` card, so it has no overlay-click-to-close — that difference is intentional. |
 | Nav panel on all 6 pages (v10.57, extended v10.99 + v11.06 + v12.07) | `nav-panel.js` injects overlay + drawer. Burger button `#navMenuBtn` in each page header. `NAV_PAGES` drives the pill row (current page omitted). `NAV_INFORMATION` drives the flat always-open section (Workplace: Daily Huddle, Weekly Retail Circular, Marylebone Newsletter, App Notices). `NAV_GUIDES` (v11.21) drives a separate **expanded-by-default** "📖 Guides" submenu (Staff & Admin Guide, Pay Calculator Guide, Railcard Guide, FIP Travel Guide) — toggled by `#navGuidesToggle`, list is `#navGuidesList` (change to `hidden` and `aria-expanded="false"` if the section becomes too long to show open). Adding a guide = one entry in `NAV_GUIDES`; adding a live doc = one `links` entry in `NAV_INFORMATION`. A `NAV_INFORMATION` entry with `comingSoon: true` (instead of `url`) renders as a `<button>` that opens the injected `#navComingSoonLightbox` placeholder instead of navigating. |
@@ -459,11 +460,15 @@ createdAt    Firestore server timestamp
 
 **huddles**
 ```
-date         "YYYY-MM-DD"
+date         "YYYY-MM-DD" — also the document ID
 storageUrl   Permanent tokenised download URL (manual upload) or 1-year signed URL (Cloud Function ingest)
-fileType     MIME type string
+storagePath  Firebase Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf" — versioned suffix
+             prevents overwriting the old file before Firestore commits; absent on docs written before
+             versioned paths — uploadHuddle/pruneOldHuddles fall back to "huddles/{date}.{fileType}"
+fileType     "pdf" | "docx" — short form on browser writes (rule-constrained to ['pdf','docx'] since v14.29);
+             the Cloud Function ingest path uses the Admin SDK and may store a MIME string
 uploadedAt   Firestore server timestamp
-uploadedBy   Member name string (manual upload only)
+uploadedBy   Member name string (manual upload) or "power-automate" (Cloud Function ingest)
 htmlContent  Converted HTML string — present when a DOCX was uploaded/ingested; absent for PDFs
 ```
 Reads: open (no auth required — calendar-app.js has no session; see Huddle notification tap behaviour in OPERATIONS_REFERENCE.md).

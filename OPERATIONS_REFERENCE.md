@@ -10,7 +10,12 @@ Operational detail that is rarely needed in day-to-day development sessions. Ref
 
 ### Firebase Storage
 
-Files stored at: `huddles/YYYY-MM-DD.pdf` or `huddles/YYYY-MM-DD.docx`
+Files stored at a **versioned** path: `huddles/YYYY-MM-DD-{uploadId}.pdf` (or `.docx`), where
+`{uploadId}` is a short random suffix. The versioned suffix lets a re-upload for the same date
+write the new object before the old one is deleted, so a re-upload (incl. a PDF↔DOCX swap) never
+orphans the previous file or races the Firestore commit. The exact path is recorded in the
+`storagePath` field. (Docs written before versioned paths have no `storagePath`; the cleanup/prune
+code falls back to the legacy fixed `huddles/{date}.{fileType}`.)
 
 Storage URL strategy (v9.53+): `ingestHuddle` generates a time-limited v4 signed URL (1 year).
 Falls back to a permanent `firebaseStorageDownloadTokens` download URL if the service account
@@ -18,13 +23,19 @@ lacks `iam.serviceAccountTokenCreator` role. Either way the URL lands in `storag
 
 Signed URL format:
 ```
-https://storage.googleapis.com/myb-roster.firebasestorage.app/huddles%2FYYYY-MM-DD.pdf?X-Goog-...
+https://storage.googleapis.com/myb-roster.firebasestorage.app/huddles%2FYYYY-MM-DD-{uploadId}.pdf?X-Goog-...
 ```
 
 Download token fallback format:
 ```
-https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD.pdf?alt=media&token={uuid}
+https://firebasestorage.googleapis.com/v0/b/{bucket}/o/huddles%2FYYYY-MM-DD-{uploadId}.pdf?alt=media&token={uuid}
 ```
+
+**Auto-prune (3 months):** at the end of every `ingestHuddle` run, `pruneOldHuddles()` deletes
+huddle Firestore docs *and* their Storage objects older than 3 months (`HUDDLE_RETENTION_MONTHS`).
+It is awaited (so it runs before Cloud Run reclaims the container) but best-effort — failures are
+swallowed and never block the upload response. Circulars/newsletters keep 6 months; huddles are
+higher-volume and rarely referenced after the day, so retention is shorter.
 
 ### Firestore — `huddles` collection
 
@@ -33,7 +44,9 @@ Document ID = `YYYY-MM-DD` (the London date of the huddle).
 ```
 date         string     "YYYY-MM-DD"
 storageUrl   string     Signed URL or download-token URL (see above)
-fileType     string     "pdf" | "docx"
+storagePath  string     Versioned Storage object path, e.g. "huddles/2026-06-25-lv9kab12.pdf"
+                        (absent on docs written before versioned paths — prune falls back to "huddles/{date}.{fileType}")
+fileType     string     "pdf" | "docx" (browser writes are rule-constrained to these since v14.29)
 uploadedAt   timestamp  Firestore server timestamp
 uploadedBy   string     "power-automate" (Cloud Function) | member name string (manual admin upload)
 htmlContent  string     (optional) DOCX converted to HTML by mammoth.js at upload time.
@@ -192,7 +205,7 @@ Storage rule (`storage.rules`) also requires the admin claim for huddle file wri
 
 ### Huddle notification tap behaviour (v10.71)
 
-When a push notification is tapped, the service worker (`notificationclick` handler) **re-bases the payload's route onto its OWN scope** (`registration.scope`) and opens it via `focusedClient.navigate()` or `clients.openWindow()` — e.g. `https://garethdavidmiller.github.io/roster-app/#huddle` on the GitHub Pages install (or `https://myb-roster.web.app/#huddle` on Firebase Hosting). It deliberately ignores the payload's origin — the Cloud Function hardcodes one `STAFF_SITE_URL`, but installs live on different origins/paths, so a bare-origin fallback was the cause of the 16 Jun 2026 notification 404 (fixed v14.26). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
+When a push notification is tapped, the service worker (`notificationclick` handler) **re-bases the payload's route onto its OWN scope** (`registration.scope`) and opens it via `focusedClient.navigate()` or `clients.openWindow()` — e.g. `https://myb-roster.web.app/#huddle` on a Firebase Hosting install (or `https://garethdavidmiller.github.io/roster-app/#huddle` on the GitHub Pages mirror). It deliberately ignores the payload's origin: the Cloud Function sets one `STAFF_SITE_URL` (now the canonical `https://myb-roster.web.app` since v14.29), but installs live on different origins/paths, so only the payload's trailing page + hash are used and the origin is taken from the SW's own scope. A bare-origin fallback was the cause of the 16 Jun 2026 notification 404 (fixed v14.26). On load — or via the `hashchange` listener if the page is already open — `calendar-huddle-viewer.js` fires `_triggerAutoOpen(huddle)`. The nav-panel **Daily Huddle** link points at the same `#huddle` hash, so it runs the identical path; there is no separate button trigger (the old `#huddleBtn` was removed at v12.57).
 
 **Two render paths inside `_triggerAutoOpen` — do not unify:**
 
@@ -221,7 +234,7 @@ Tapping the in-overlay "📄 Open Huddle" button IS a real user gesture. `window
 
 - **Region:** `europe-west2` (London)
 - **Auth:** Firebase ID token — browser sends `Authorization: Bearer <idToken>` where idToken comes from `auth.currentUser.getIdToken()`. The function validates via Firebase Admin SDK. `ROSTER_SECRET` is no longer used anywhere — both `parseRosterPDF` and `setupRosterAuth` use Firebase ID token auth with an admin custom claim.
-- **CORS:** `cors: true` — all origins allowed (v9.69). Previously restricted to `[firebaseapp.com, web.app]` (v9.53–v9.68), but firebase-functions v6 with `cors: [array]` does not consistently set `Access-Control-Allow-Headers` on OPTIONS preflight responses, causing browsers to block the POST. Because auth is handled entirely by the Firebase ID token + admin claim, open CORS adds no attack surface. `setupRosterAuth` uses the same `cors: true` setting for the same reason.
+- **CORS:** `cors: ADMIN_FUNCTION_ORIGINS` — an explicit origin allowlist (`functions/index.js`): `https://garethdavidmiller.github.io`, `https://myb-roster.web.app`, `https://myb-roster.firebaseapp.com`. This is defence-in-depth; the real control is the Firebase ID token + admin claim, so a browser from an unlisted origin is blocked at preflight *and* would fail auth. `setupRosterAuth` uses the same allowlist. Add any new hosting domain to the `ADMIN_FUNCTION_ORIGINS` array. (`ingestHuddle` keeps `cors: false` — server-to-server.)
 - **AI model:** the `CLAUDE_MODEL` constant in `functions/index.js` — currently `claude-sonnet-4-6`, `max_tokens: 8192`. Note this is an unversioned alias (it tracks the latest Sonnet 4.6 snapshot), not a dated pin; switch to a dated snapshot if reproducibility matters.
 - **Why direct PDF input:** Text extraction (pdf-parse) destroys table column structure and causes day-column misalignment. Claude reads the visual layout directly.
 
