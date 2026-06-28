@@ -18,7 +18,7 @@
  * Run: npx playwright test
  */
 
-import { test, expect } from './fixtures.js';
+import { test, expect, enforceNamedSession } from './fixtures.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -445,4 +445,86 @@ test('paycalc desktop @1280×720 (short height): result card renders, no horizon
     const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     expect(overflow, 'no horizontal overflow on a short-height paycalc').toBeLessThanOrEqual(1);
+});
+
+// ── B1 NAMED-SESSION ENFORCEMENT (flag ON) ────────────────────────────────────
+// These run with the kill-switch flipped on (roster-data.js rewritten by enforceNamedSession)
+// AND sign-in forced to fail (window.__E2E.failSignIn). They prove the per-page matrix:
+// admin/settings re-show the login overlay even though a valid LOCAL session was seeded;
+// operations/links redirect to admin; paycalc stays soft (calculator still renders). The
+// default-off behaviour is covered by every other test in this file (which never flips the flag).
+
+/** Flip the kill-switch on and force every sign-in to fail, then seed a valid local session. */
+async function armEnforcementWithFailingSignIn(page, name = 'G. Miller') {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
+    await seedSession(page, name);
+}
+
+test('B1 flag ON: admin re-shows the login overlay when the named session cannot be established', async ({ page }) => {
+    await armEnforcementWithFailingSignIn(page);
+    await page.goto('/admin.html');
+    // A valid local session was seeded, yet the overlay must appear because the member's OWN
+    // Firebase session could not be confirmed (the silent claim-less-session case B1 closes).
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
+test('B1 flag ON: settings re-shows the login overlay when the named session cannot be established', async ({ page }) => {
+    await armEnforcementWithFailingSignIn(page);
+    await page.goto('/settings.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+});
+
+test('B1 flag ON: operations clears the session and redirects to admin on a failed named session', async ({ page }) => {
+    await armEnforcementWithFailingSignIn(page);
+    await page.goto('/operations.html');
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
+test('B1 flag ON: links clears the session and redirects to admin on a failed named session', async ({ page }) => {
+    await armEnforcementWithFailingSignIn(page);
+    await page.goto('/links.html');
+    await expect(page).toHaveURL(/admin\.html/);
+});
+
+test('B1 flag ON: paycalc stays SOFT — the calculator still renders, no redirect', async ({ page }) => {
+    await armEnforcementWithFailingSignIn(page);
+    // Suppress the one-time notices so nothing overlays the calculator.
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_pay_welcome_shown', '1');
+        localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    await expect(page).toHaveURL(/paycalc\.html$/);                       // NOT redirected away
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();  // calculator works
+});
+
+// HAPPY PATH — switch ON *and* sign-in SUCCEEDS (the provisioned, enabled state). Proves that
+// once accounts exist and the flag is flipped, every page behaves completely normally — nothing
+// is forced to re-login or redirected. Same fixture, real flag untouched (default sign-in resolves).
+
+test('B1 flag ON + sign-in OK: admin loads normally, no forced re-login', async ({ page }) => {
+    await enforceNamedSession(page);   // switch ON; no __E2E.failSignIn → sign-in resolves → named
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeHidden();
+    await expect(page.locator('#fieldMember')).toBeVisible();
+});
+
+test('B1 flag ON + sign-in OK: operations loads (not redirected)', async ({ page }) => {
+    await enforceNamedSession(page);
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+    await seedSession(page, 'G. Miller');
+    await page.goto('/operations.html');
+    await expect(page).toHaveURL(/operations\.html$/);
+    await expect(page.locator('#huddleUploadCard')).toBeVisible();
+});
+
+test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', async ({ page }) => {
+    await enforceNamedSession(page);
+    await seedSession(page, 'G. Miller');   // G. Miller is a links designer
+    await page.goto('/links.html');
+    await expect(page).toHaveURL(/links\.html$/);
 });

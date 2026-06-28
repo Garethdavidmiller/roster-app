@@ -2,10 +2,11 @@
 
 *Status: in progress. Created v14.38. A3 (doc-only) + B0 (identity signal) shipped v14.38–v14.39.
 B1.1 (remove anonymous fallback + browser account-creation) shipped v14.40; B1.2 (per-page
-enforcement) shipped v14.41 — both behind the default-OFF `CONFIG.ENFORCE_NAMED_SESSION`
-kill-switch, so production behaviour is unchanged until the flag is flipped. Remaining before
-enabling: an e2e flag-ON test (needs a fixture that fails sign-in) + the owner provisioning audit.
-See "Appendix: B1 detailed scope".*
+enforcement) shipped v14.41; the flag-ON e2e coverage shipped v14.41 too (10 tests proving the
+per-page matrix) — all behind the default-OFF `CONFIG.ENFORCE_NAMED_SESSION` kill-switch, so
+production behaviour is unchanged until the flag is flipped. **B1 is now code-complete and tested;
+the only remaining step before enabling is the OWNER provisioning audit** (Operations → Set up
+accounts + private-window role check), then flip the flag. See "Appendix: B1 detailed scope".*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -320,9 +321,9 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - [x] A3 — doc-only accuracy ✓ (v14.38: pushSubscriptions delete posture stated; bearer-URL notes confirmed; rule-tighten moved into B2)
 - [x] B0 (observability) — ✓ (v14.39: named-vs-anonymous identity exposed + tested; no behaviour change). Enforce half folded into B1.
 - [ ] A2 — Workload Identity Federation (one workflow first)
-- [~] B1 — named-session separation + remove browser account-creation. **Code DONE behind the
-      default-OFF kill-switch** (B1.1 v14.40, B1.2 v14.41). Before enabling: e2e flag-ON test + owner
-      provisioning audit + private-window role check. Flip `CONFIG.ENFORCE_NAMED_SESSION` to enable.
+- [~] B1 — named-session separation + remove browser account-creation. **Code-complete + tested
+      behind the default-OFF kill-switch** (B1.1 v14.40, B1.2 + flag-ON e2e v14.41). Only the owner
+      provisioning audit + private-window role check remain. Flip `CONFIG.ENFORCE_NAMED_SESSION` to enable.
 - [ ] B2 — per-member override + Links isolation rule (permissive) + emulator tests
 - [ ] B3 — claims audit + permissive→strict token-refresh rollout
 - [ ] B4 — server-owned roster/role lists
@@ -445,9 +446,12 @@ session forgeable" + anonymous-fallback entries, this plan).
    error and routes persistent failures to admin break-glass); operations/links clear + redirect to
    admin; **paycalc soft (log only, never blocks)**. 5 new unit tests for the helper + retry logic.
    All gating is `if (CONFIG.ENFORCE_NAMED_SESSION && !named)`, so flag-off is verified unchanged by
-   the existing 48 e2e. **Remaining before enabling:** (a) an e2e flag-ON test — needs a fixture that
-   makes sign-in fail, to assert admin/settings overlay, operations/links redirect, paycalc still
-   renders; (b) the owner provisioning audit (Operations → Set up accounts) + private-window role check.
+   the existing e2e. **Flag-ON e2e coverage shipped (v14.41):** `enforceNamedSession(page)` in
+   `e2e/fixtures.js` rewrites roster-data.js to flip the switch on, and `window.__E2E.failSignIn`
+   forces sign-in to fail — 10 tests prove admin/settings re-show the login overlay (despite a valid
+   local session), operations/links redirect to admin, and paycalc still renders (soft).
+   **Only remaining before enabling:** the owner provisioning audit (Operations → Set up accounts) +
+   a private-window role check, then flip the flag.
 3. **Owner**: provisioning audit + `/new-starter` wording.
 4. **Verify** in a private window across the role matrix + an unprovisioned account.
 5. **Enable** the flag (low-traffic check; client-side reversible) — then it's ready for B2.
