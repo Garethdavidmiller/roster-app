@@ -790,6 +790,12 @@ fix.
 
 ### Dedicated security release (the big authorisation project)
 
+> **Master sequencing + risk doc: `SECURITY_RELEASE_PLAN.md`.** The items below are the
+> *scope*; that file is the *order* — the dependency graph, the permissive→strict token-refresh
+> migration that avoids re-creating the v10.94 outage, the hard "never enforce App Check during
+> the isolation rollout" constraint, and the owner-decision checklist. Read it before starting
+> any item here.
+
 These are interlocking and should ship as one planned release, not piecemeal:
 - **Per-member override + Links write isolation** — the headline authorisation gap (any
   authenticated identity can write/delete any member's overrides and any Links design). Full staged

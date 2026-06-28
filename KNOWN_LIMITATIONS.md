@@ -8,6 +8,12 @@ These are documented decisions, not oversights. Read before filing a bug or sugg
 
 ## Security
 
+> **Forward plan:** the deferred security work in this section (per-member write isolation,
+> named-session separation, App Check, password retirement, Workload Identity Federation, the
+> firebase-admin bump) is sequenced into a phased release with per-phase risk/rollback in
+> **`SECURITY_RELEASE_PLAN.md`**. The entries below remain the authoritative *post-mortems and
+> rationale*; that file is the *ordering* that keeps a fix from re-creating the v10.94 outage.
+
 ### Override data is publicly readable (intentional trade-off)
 The `overrides` Firestore collection — which contains AL dates, sick days, and shift
 changes for all staff members — is readable without any authentication. Anyone who

@@ -206,6 +206,7 @@ roster-app/
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs
+├── SECURITY_RELEASE_PLAN.md ← master sequencing/risk plan for the deferred security release (per-member isolation, named sessions, App Check, password retirement, WIF, firebase-admin bump). Not version-stamped; not a runtime asset.
 ├── override-utils.test.mjs            ← tests for override-utils.js
 ├── roster-data.test.mjs    ← tests for roster-data.js
 ├── paycalc.test.mjs        ← tests for paycalc-calc.js
