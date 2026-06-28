@@ -312,29 +312,25 @@ select:focus-visible, input:focus-visible {
     .app-header { margin-bottom: 0; }
 }
 
-/* ── Desktop: 1024px — two-column grid ──
-   Left column: Huddle upload (top) + Auth setup (below) — action cards.
-   Right column: Roster upload — the main work area (review table grows here). */
+/* ── Desktop: 1024px — balanced two-column grid ──
+   The page now has 8 independent collapsible cards. The old narrow-left/wide-right
+   split only placed 4 of them explicitly, so the four added later (Circular,
+   Newsletter, Error Log, Usage) auto-flowed into mismatched widths and a ragged
+   layout. Equal columns with natural auto-flow keeps every card the same width and
+   fills both columns evenly — the conventional admin-dashboard pattern. */
 @media (min-width: 1024px) {
     body.auth-ready .container {
         /* 1100px matches paycalc.css and settings.css — keeps all three
-           sub-pages a consistent width. var(--page-max-width) (1400px) let the
-           right column sprawl to ~956px, stretching the roster form controls. */
+           sub-pages a consistent width. */
         max-width: 1100px;
-        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
         column-gap: 24px;
         align-items: start;
     }
     /* Header spans both columns */
-    .app-header       { grid-column: 1 / -1; }
-    /* Left column: action cards */
-    #huddleUploadCard { grid-column: 1; grid-row: 2; }
-    #authSetupCard    { grid-column: 1; grid-row: 3; }
-    #workEmailCard    { grid-column: 1; grid-row: 4; }
-    /* Right column: roster spans the full column height */
-    #rosterUploadCard { grid-column: 2; grid-row: 2 / 5; }
+    .app-header { grid-column: 1 / -1; }
 
-    /* Full-width upload button looks wrong inside a 420px column */
+    /* Full-width upload button looks wrong inside a ~530px column */
     .huddle-upload-btn { max-width: 280px; }
 }
 
