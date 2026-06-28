@@ -407,12 +407,15 @@ select:focus-visible, input:focus-visible {
 }
 .email-chip-name {
     font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 .email-chip-email {
     font-size: 10px;
     font-weight: 400;
     opacity: 0.8;
-    max-width: 200px;
+    max-width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -429,6 +432,15 @@ select:focus-visible, input:focus-visible {
     display: flex;
     align-items: center;
     gap: 8px;
+}
+/* Let the name/email chip take the remaining width and shrink, so the fixed-width
+   Edit/Remove buttons (flex-shrink: 0) always stay on-screen instead of overflowing
+   the card edge. min-width: 0 lets the long email inside ellipsise rather than forcing
+   the row wider than the viewport. */
+.email-missing-row .email-count-chip,
+.email-added-row .email-count-chip {
+    flex: 1 1 auto;
+    min-width: 0;
 }
 .email-set-btn {
     font-size: 11px;
