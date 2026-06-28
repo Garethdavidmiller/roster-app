@@ -61,9 +61,9 @@ self-heals a missing account). Full description and the "do not remove this call
 
 ### ⏰ The four v11 security tasks — current status
 
-Originally pencilled in for v10.50, deferred to v11. Status as of v11.39:
+Originally pencilled in for v10.50, deferred to v11. Status as of v14.29:
 **#1 done** (with a critical allowlist caveat — see below) · **#2 suspended** (caused a
-production outage) · **#3 done** · **#4 awaiting verification on a real payday**.
+production outage) · **#3 done** · **#4 done** (verified live 27 June 2026).
 
 **1. Firebase web API key — restrict to HTTP referrers ✓ DONE (May 2026) ⚠️ SEE NOTE**
 The key is visible in page source (normal for client-side Firebase). Without a GCP referrer
@@ -135,7 +135,7 @@ was needed — `calcBackPay()` already iterates saved period data by category, s
 `_bpVarAmount` is computed automatically. `calcHPP()` now adds `_bpVarAmount` to
 `totalVar` for the paid-in period so the HPP estimate is correct after a back pay event.
 
-**4. Pay reminder push notification — infrastructure fixed May 2026 ✓ AWAITING LIVE VERIFICATION**
+**4. Pay reminder push notification — ✓ DONE (verified live 27 June 2026)**
 `sendPayReminderNotification` did not fire on 30 May 2026 because the Cloud Scheduler job
 had never been created. Root causes (both fixed in May 2026):
 - The `FIREBASE_SERVICE_ACCOUNT` lacked `roles/cloudscheduler.admin` — deployment failed
@@ -146,8 +146,10 @@ had never been created. Root causes (both fixed in May 2026):
 The Cloud Scheduler job `firebase-schedule-sendPayReminderNotification-europe-west2` now
 exists. A force-run on 31 May confirmed the function executes and correctly skips on
 non-cutoff days (`[payReminder] Not a cutoff date — skipping`).
-**Next live test: Saturday 27 June 2026** (cutoff for the 3 Jul payday). If the notification
-arrives, mark this done. If not, check Firebase Console → Functions → Logs for that date.
+**✓ Verified live on Saturday 27 June 2026** (cutoff for the 3 Jul payday): the reminder
+push arrived on a real device. The full scheduled path — Cloud Scheduler trigger →
+cutoff-date detection → fan-out — now works end to end. All four v11 security tasks are
+resolved or consciously deferred (#1 done, #2 suspended, #3 done, #4 done).
 
 ### Firebase App Check — considered and declined (June 2026)
 App Check (register the app's hosting domains so only requests from our own pages can reach
