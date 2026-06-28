@@ -23,6 +23,7 @@ let _createBehavior = 'ok';
 let _anonBehavior   = 'ok';
 let _createCalled  = false;  // did the code attempt browser-side account creation?
 let _anonCalled    = false;  // did the code attempt an anonymous fallback?
+let _signInCalls   = 0;      // how many times email/password sign-in was attempted (for retry tests)
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
 
 mock.module('./firebase-client.js', {
@@ -34,7 +35,7 @@ mock.module('./firebase-client.js', {
         onAuthStateChanged:             (_auth, cb) => { Promise.resolve().then(() => cb(_existingUser)); return () => {}; },
         nameToEmail:                    name => name.toLowerCase().replace(/\s+/g, '.') + '@myb.test',
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
-        signInWithEmailAndPassword:     async () => { if (_signInBehavior !== 'ok') _authThrow(_signInBehavior); },
+        signInWithEmailAndPassword:     async () => { _signInCalls++; if (_signInBehavior !== 'ok') _authThrow(_signInBehavior); },
         createUserWithEmailAndPassword: async () => { _createCalled = true; if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
         signInAnonymously:              async () => { _anonCalled = true; if (_anonBehavior !== 'ok') _authThrow(_anonBehavior); },
         signOut:                        async () => { _signOutCalled = true; },
@@ -54,6 +55,7 @@ const {
     sessionReady, resolveSession,
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
+    ensureNamedSession, isTransientAuthError,
 } = await import('./session.js');
 const { nameToEmail } = await import('./firebase-client.js');
 const { CONFIG } = await import('./roster-data.js');
@@ -323,6 +325,64 @@ describe('ensureFirebaseSession with ENFORCE_NAMED_SESSION on', () => {
         const ok = await ensureFirebaseSession('G. Miller');
         assert.equal(ok, true);
         assert.equal(getFirebaseIdentity(), 'named');
+    });
+});
+
+// ── ensureNamedSession + isTransientAuthError (B1.2) ──────────────────────────
+describe('isTransientAuthError', () => {
+    test('true for connectivity-style codes, false otherwise', () => {
+        assert.equal(isTransientAuthError('auth/network-request-failed'), true);
+        assert.equal(isTransientAuthError('auth/timeout'), true);
+        assert.equal(isTransientAuthError('auth/too-many-requests'), true);
+        assert.equal(isTransientAuthError('auth/invalid-credential'), false);
+        assert.equal(isTransientAuthError('auth/user-not-found'), false);
+        assert.equal(isTransientAuthError(undefined), false);
+    });
+});
+
+describe('ensureNamedSession', () => {
+    beforeEach(() => {
+        _existingUser   = null;
+        _signInBehavior = 'ok';
+        _createBehavior = 'ok';
+        _anonBehavior   = 'ok';
+        _signOutCalled  = false;
+        _createCalled   = false;
+        _anonCalled     = false;
+        _signInCalls    = 0;
+    });
+    afterEach(() => { CONFIG.ENFORCE_NAMED_SESSION = false; });
+
+    test('flag OFF: returns ensureFirebaseSession result unchanged (anonymous fallback still counts as ok)', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+        _signInBehavior = 'auth/invalid-credential';   // named fails → anonymous fallback
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(ok, true, 'flag off → the anonymous fallback keeps it true, no gating');
+        assert.equal(_anonCalled, true);
+    });
+
+    test('flag ON: a named sign-in succeeds → true, no retries', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(ok, true);
+        assert.equal(_signInCalls, 1);
+    });
+
+    test('flag ON: a PERSISTENT failure is not retried → false, one attempt', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        _signInBehavior = 'auth/invalid-credential';
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
+        assert.equal(ok, false);
+        assert.equal(_signInCalls, 1, 'a credential/account error must not be retried');
+        assert.equal(_anonCalled, false);
+    });
+
+    test('flag ON: a TRANSIENT failure is retried, then gives up → false after retries+1 attempts', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        _signInBehavior = 'auth/network-request-failed';
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
+        assert.equal(ok, false);
+        assert.equal(_signInCalls, 3, 'initial attempt + 2 retries');
     });
 });
 

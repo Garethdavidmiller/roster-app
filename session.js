@@ -212,6 +212,43 @@ export async function ensureFirebaseSession(name) {
     }
 }
 
+/** Auth error codes worth a quiet retry — a momentary connectivity blip rather than a real
+ *  credential/account problem. A persistent code (user-not-found / invalid-credential) is not
+ *  retried; it needs a human (re-login or admin break-glass). @type {Set<string>} */
+const _TRANSIENT_AUTH_CODES = new Set([
+    'auth/network-request-failed', 'auth/timeout', 'auth/too-many-requests', 'auth/internal-error',
+]);
+
+/** @param {string|undefined} code @returns {boolean} */
+export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CODES.has(code); }
+
+/**
+ * Ensure the member's OWN named Firebase session for a write page (B1.2).
+ *
+ * - When `CONFIG.ENFORCE_NAMED_SESSION` is **off** (default): returns exactly what
+ *   `ensureFirebaseSession` returns (true if any session — incl. the anonymous fallback — is
+ *   active), so callers behave identically to today.
+ * - When **on**: a failed named sign-in is retried a couple of times ONLY if the error looks
+ *   transient (a network blip), then returns whether the named session is genuinely active.
+ *   Persistent failures (no account / wrong password) are not retried — the caller prompts a
+ *   re-login or routes to admin break-glass.
+ *
+ * @param {string} name
+ * @param {{ retries?: number, delayMs?: number }} [opts]
+ * @returns {Promise<boolean>} true if it is safe to proceed (named session, or flag off)
+ */
+export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = {}) {
+    let ok = await ensureFirebaseSession(name);
+    if (!CONFIG.ENFORCE_NAMED_SESSION) return ok;   // flag off → legacy behaviour, no gating
+    let attempt = 0;
+    while (!ok && attempt < retries && isTransientAuthError(getFirebaseAuthError())) {
+        attempt++;
+        await new Promise(r => setTimeout(r, delayMs * attempt));
+        ok = await ensureFirebaseSession(name);
+    }
+    return ok && firebaseSessionIsNamed();
+}
+
 /**
  * Read and validate the current localStorage session. Returns null if
  * missing, absolutely expired (30 days), version-stale, or idle (7 days).

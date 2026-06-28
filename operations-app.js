@@ -18,7 +18,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
-import { getSession, clearSession, ensureFirebaseSession, sessionReady, resolveSession } from './session.js';
+import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -40,7 +40,18 @@ if (!currentUser || !isAdmin) {
 
 // Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
 // import sessionReady and await it instead of reading window._mybSession.
-resolveSession(ensureFirebaseSession(currentUser));
+const _opsAuth = ensureNamedSession(currentUser);
+resolveSession(_opsAuth);
+// B1.2 (SECURITY_RELEASE_PLAN.md): when the named-session requirement is on, a session that
+// can't be confirmed as this member's OWN named identity is not allowed to use the admin tools.
+// Clear it and send them to sign in. Flag OFF → ensureNamedSession resolves true (the anonymous
+// fallback still satisfies it), so this branch never fires and behaviour is unchanged.
+_opsAuth.then(named => {
+    if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
+        clearSession();
+        window.location.replace('./admin.html');
+    }
+});
 
 
 // ============================================
