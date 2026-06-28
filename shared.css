@@ -1696,7 +1696,9 @@ button.nav-panel-link--notices {
     align-items: flex-start;
     gap: 3px;
 }
-.card-header h2 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
+/* h2 OR h3 — operations groups its cards under section headings, so its card titles are h3
+   (page h1 → group h2 → card h3); admin/settings keep h2. Same look either way. */
+.card-header h2, .card-header h3 { font-size: var(--type-label); font-weight: 700; color: var(--primary-blue); margin: 0; }
 .card-header .hint { font-size: var(--type-small); color: var(--text-light); display: block; }
 .card-body { padding: 12px 16px; }
 
@@ -1710,7 +1712,8 @@ button.nav-panel-link--notices {
     user-select: none;
     -webkit-user-select: none;
 }
-.card-collapsible-header h2               { grid-column: 1; grid-row: 1; }
+.card-collapsible-header h2,
+.card-collapsible-header h3               { grid-column: 1; grid-row: 1; }
 .card-collapsible-header .hint            { grid-column: 1; grid-row: 2; }
 .card-collapsible-header .collapse-chevron { grid-column: 2; grid-row: 1 / 3; align-self: center; }
 .card-collapsible-body          { display: none; padding: 12px 16px; }

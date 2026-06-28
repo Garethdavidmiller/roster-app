@@ -1,0 +1,30 @@
+import { chromium } from '@playwright/test';
+const STUB = `
+const noop=()=>{};const m=t=>({__stub:t});
+export const initializeApp=()=>m('a');export const initializeFirestore=()=>m('d');export const getFirestore=()=>m('d');
+export const persistentLocalCache=()=>m('c');export const collection=()=>m('x');export const query=()=>m('x');export const where=()=>m('x');
+export const orderBy=()=>m('x');export const limit=()=>m('x');export const doc=()=>m('x');export const serverTimestamp=()=>m('x');
+export const writeBatch=()=>({set:noop,update:noop,delete:noop,commit:()=>Promise.resolve()});
+export const getDocs=()=>Promise.resolve({empty:true,size:0,docs:[],forEach:noop});export const getDoc=()=>Promise.resolve({exists:()=>false,data:()=>({})});
+export const addDoc=()=>Promise.resolve(m('r'));export const setDoc=()=>Promise.resolve();export const updateDoc=()=>Promise.resolve();export const deleteDoc=()=>Promise.resolve();
+export const increment=()=>m('i');export const deleteField=()=>m('i');export class FieldPath{};export const onSnapshot=()=>noop;
+export const getAuth=()=>({currentUser:null});export const onAuthStateChanged=(a,cb)=>{Promise.resolve().then(()=>cb&&cb(null));return noop;};
+export const signInWithEmailAndPassword=()=>Promise.resolve({user:{uid:'t'}});export const createUserWithEmailAndPassword=()=>Promise.resolve({user:{uid:'t'}});
+export const signInAnonymously=()=>Promise.resolve({user:{uid:'a'}});export const signOut=()=>Promise.resolve();export const setPersistence=()=>Promise.resolve();
+export const indexedDBLocalPersistence=m('p');export const browserLocalPersistence=m('p');export const browserSessionPersistence=m('p');
+export const getStorage=()=>m('s');export const ref=()=>m('r');export const uploadBytes=()=>Promise.resolve();export const getDownloadURL=()=>Promise.resolve('about:blank');export const deleteObject=()=>Promise.resolve();
+`;
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 1100 } });
+const page = await ctx.newPage();
+await page.route('https://www.gstatic.com/firebasejs/**', r => r.fulfill({ contentType:'text/javascript', body: STUB }));
+await page.addInitScript(() => {
+  localStorage.setItem('myb_admin_session', JSON.stringify({ name:'G. Miller', ver:2, expiry:Date.now()+30*864e5, lastActivity:Date.now() }));
+  localStorage.setItem('myb_email_check_done_G. Miller','1');
+});
+await page.goto('http://127.0.0.1:4001/operations.html');
+await page.locator('#huddleUploadCard').waitFor({ state:'visible', timeout:5000 }).catch(()=>{});
+await page.waitForTimeout(500);
+await page.screenshot({ path: '/tmp/claude-0/-home-user-roster-app/9e42d677-7249-576d-ab5f-6dfc85e0d0f2/scratchpad/ops-grouped.png' });
+console.log('ops shot done');
+await browser.close();

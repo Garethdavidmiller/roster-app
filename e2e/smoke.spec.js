@@ -298,6 +298,14 @@ for (const width of [1280, 1440]) {
         await expect(page).toHaveURL(/operations\.html$/);   // admin was NOT redirected out
         await expect(page.locator('#huddleUploadCard')).toBeVisible();
 
+        // Visual grouping: the "Workplace" section heading renders and sits ABOVE the Huddle card
+        // (it groups Huddle/Circular/Newsletter, mirroring the ☰ nav's Workplace section).
+        const wh = page.locator('.ops-section-heading', { hasText: 'Workplace' });
+        await expect(wh).toBeVisible();
+        const headingBottom = await wh.evaluate(el => el.getBoundingClientRect().bottom);
+        const huddleTop = await page.locator('#huddleUploadCard').evaluate(el => el.getBoundingClientRect().top);
+        expect(headingBottom, 'Workplace heading sits above the Huddle card').toBeLessThanOrEqual(huddleTop + 1);
+
         const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         expect(overflow, 'no horizontal overflow on desktop').toBeLessThanOrEqual(1);

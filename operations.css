@@ -322,6 +322,19 @@ select:focus-visible, input:focus-visible {
 .ops-left-column,
 .ops-right-column { display: contents; }
 
+/* Group heading above a set of cards — page h1 → group h2 (this) → card h3. An eyebrow label
+   (small/uppercase/muted), matching the nav drawer's "Workplace" section treatment, so it reads
+   as a grouping label rather than competing with the 13px card titles. Mirrors the icons/labels
+   staff already see in the ☰ nav. */
+.ops-section-heading {
+    font-size: var(--type-small);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-mid);
+    margin: 14px 0 6px 2px;
+}
+
 @media (min-width: 1024px) {
     body.auth-ready .container {
         /* 1100px matches paycalc.css and settings.css — keeps all three
