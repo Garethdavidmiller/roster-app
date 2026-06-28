@@ -300,6 +300,47 @@ for (const width of [1280, 1440]) {
     });
 }
 
+// Work Email Progress rows must not overflow the card on a narrow phone. The bug
+// (v14.35): each row is a flex item inside the --added flex COLUMN, which inherited
+// flex-wrap:wrap, so a long-email row sized to its content (~388px) and overflowed
+// the ~291px list — the card's overflow:hidden then clipped the Remove button.
+test('operations: Work Email rows keep Edit/Remove on-screen at 375px (long emails ellipsise)', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 760 });
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+    await page.goto('/operations.html');
+    await expect(page.locator('#workEmailCard')).toBeVisible();
+
+    // Inject a row with a deliberately long email (Firestore is stubbed empty in e2e),
+    // matching operations-app.js's row markup, into the expanded card.
+    const res = await page.evaluate(() => {
+        const body = document.getElementById('emailStatusContent');
+        const row = document.createElement('div'); row.className = 'email-added-row';
+        const chip = document.createElement('span'); chip.className = 'email-count-chip email-count-chip--added';
+        const nm = document.createElement('span'); nm.className = 'email-chip-name'; nm.textContent = 'C. Francisco-Charles';
+        const em = document.createElement('span'); em.className = 'email-chip-email'; em.textContent = 'csherrice.francisco-charles@chilternrailways.co.uk';
+        chip.append(nm, em);
+        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'email-set-btn'; edit.textContent = 'Edit';
+        const rem = document.createElement('button'); rem.type = 'button'; rem.className = 'email-set-btn email-set-btn--remove'; rem.textContent = 'Remove';
+        row.append(chip, edit, rem);
+        const list = document.createElement('div'); list.className = 'email-count-list email-count-list--added';
+        list.appendChild(row); body.innerHTML = ''; body.appendChild(list);
+        document.getElementById('workEmailBody')?.classList.add('open');
+        const cardRight = document.getElementById('workEmailCard').getBoundingClientRect().right;
+        return {
+            removeRight: rem.getBoundingClientRect().right,
+            cardRight,
+            emailEllipsized: em.scrollWidth > em.clientWidth,
+        };
+    });
+    // The Remove button (rightmost element) must sit within the card, not clipped.
+    expect(res.removeRight, 'Remove button must be inside the card').toBeLessThanOrEqual(res.cardRight + 1);
+    expect(res.emailEllipsized, 'a long email must ellipsise, not force the row wide').toBe(true);
+    const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(overflow, 'no horizontal overflow').toBeLessThanOrEqual(1);
+});
+
 // ── LINKS (links.html) ────────────────────────────────────────────────────
 
 test('links: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
