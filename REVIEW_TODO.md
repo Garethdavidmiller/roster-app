@@ -61,9 +61,8 @@ Check during the isolation rollout" constraint, per-phase risk/rollback, and the
 checklist. The items below are the scope; that file is the order — start there.
 
 - [x] **B0 (observability)** `ensureFirebaseSession` exposes named-vs-anonymous identity (v14.39, tested, no behaviour change). Enforce half folded into B1.
-- [~] **B1** named-session separation — code-complete + tested behind the default-OFF
-  `ENFORCE_NAMED_SESSION` switch (v14.40–v14.41, incl. flag-ON e2e). Enable after the owner
-  provisioning audit (Operations → Set up accounts) + a private-window role check.
+- [x] **B1** named-session separation — **ENABLED v14.42** (`ENFORCE_NAMED_SESSION = true`) after the
+  owner provisioning audit. Kill-switch revert = flip back to false (one-line deploy).
 - [ ] **B2–B4** per-member write isolation + server-owned lists.
 - [ ] **C2–C5** password-model upgrade (verify email → reset → change → retire surname).
 - [ ] **D1–D2** Firebase **App Check** (monitor-first, then enforce).

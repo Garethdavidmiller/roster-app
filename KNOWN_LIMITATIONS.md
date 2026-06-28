@@ -51,13 +51,16 @@ Both `connect-src` and `img-src` explicitly list `https://firebasestorage.google
 ### localStorage session can be forged for UI access (#14)
 The `myb_admin_session` localStorage session can be modified via DevTools to
 impersonate another user or gain the admin UI. A forged local session does not by
-itself create a Firebase Auth identity, but the current anonymous-fallback path in
-`session.js` and broad `request.auth != null` Firestore rules mean some writes may
-still succeed under an anonymous identity. Local UI checks are not security controls.
-Practical risk is low for a small known team. Full remediation (named-only sessions +
-role-based rules) is tracked as a dedicated security project — see ROADMAP.md →
-"Security project — per-member override write isolation" (and the related "Deferred
-security release"), and task #2 below for the suspended first attempt.
+itself create a Firebase Auth identity. **B1 (v14.42, `ENFORCE_NAMED_SESSION = true`)
+closed the anonymous-fallback write path:** the write pages (admin/operations/settings/links)
+now require the member's OWN named Firebase session — a session that can't establish one is
+bounced to re-login rather than proceeding as a nameless guest, so anonymous writes from a
+forged UI session no longer occur there. Firestore rules are still `request.auth != null`
+(per-member isolation is B2, not yet shipped), and the named password is still surname-derived,
+so this is hardening, not full remediation. Local UI checks remain non-security controls.
+Practical risk is low for a small known team. Remaining remediation (per-member role-based
+rules) is tracked in `SECURITY_RELEASE_PLAN.md` → B2, and task #2 below for the suspended
+first attempt.
 
 ### Firebase Auth session is re-established on page load (v10.93)
 A returning user with a valid 30-day localStorage session skips the login click handler on
