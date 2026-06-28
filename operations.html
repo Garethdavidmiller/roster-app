@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Operations v14.34 -->
+<!-- MYB Roster — Operations v14.35 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -61,6 +61,11 @@
         <span class="badge-page" id="opsBadge"><span class="badge-glyph" aria-hidden="true">🔧</span> Ops</span>
     </header>
 
+    <!-- Desktop column wrappers (like admin.html): the narrow left column holds the
+         short publishing cards; the wide right column holds the width-hungry roster
+         review table + monitoring/admin cards. On mobile the wrappers are display:contents
+         so cards stack in source order. -->
+    <section class="ops-left-column">
     <!-- ==================== DAILY HUDDLE UPLOAD ==================== -->
     <div class="card" id="huddleUploadCard">
         <div class="card-header card-collapsible-header" id="huddleToggleHeader">
@@ -123,7 +128,9 @@
             </div>
         </div>
     </div>
+    </section><!-- /ops-left-column -->
 
+    <section class="ops-right-column">
     <!-- ==================== ROSTER UPLOAD ==================== -->
     <div class="card" id="rosterUploadCard">
         <div class="card-header card-collapsible-header" id="rosterUploadToggleHeader">
@@ -240,6 +247,7 @@
             </div>
         </div>
     </div>
+    </section><!-- /ops-right-column -->
 
 </main>
 
