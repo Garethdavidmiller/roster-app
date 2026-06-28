@@ -632,10 +632,20 @@ without the page-load sign-in, `auth.currentUser` stays null and all Firestore w
 (to detect any IndexedDB-persisted session), then signs in if none exists, self-healing a
 missing account via `createUserWithEmailAndPassword` if needed. Do not remove this call.
 
-**Per-member write isolation (suspended at v10.94):** `firestore.rules` previously required
-`request.auth.token.name == memberName` for override writes (v10.72 / v11 task #2). This was
-reverted after it caused a production outage — see KNOWN_LIMITATIONS.md task #2 for full
-details and the re-introduction checklist.
+**Per-member write isolation (REINTRODUCED — B2, built v14.53):** `overrides` create/update/delete
+require the member's own `name` claim, OR an `admin`/`manager` claim (both write on behalf), in the
+**PERMISSIVE interim form** — a token with no `name` claim is still allowed so legacy/anonymous
+sessions never lock out (this avoids the v10.94 hard-cutover outage; B3 drops that escape and goes
+strict after a re-auth sweep). **Three claim tiers**, all set by `setupRosterAuth`:
+`{ admin: true, name }` for `ADMIN_NAMES`, `{ manager: true, name }` for `MANAGER_NAMES`, `{ name }`
+for everyone else (admin outranks manager). The `manager` tier is load-bearing: managers edit staff
+AL/sick/shifts on behalf daily — without the `manager` bypass the isolation rule silently locks
+them out. Master-admin collections (huddles/circulars/newsletters/roster/auth) stay `admin`-only —
+do NOT grant managers `admin: true`. **Deploy prerequisite:** managers must be re-provisioned
+(Operations → Set up accounts, which now sets the `manager` claim) AND token-refreshed before the
+isolation rule is relied upon — a stale manager token has `name` but not `manager`. Full scope,
+runbook, and the B3 strict step: `SECURITY_RELEASE_PLAN.md` → B2; history: KNOWN_LIMITATIONS.md
+task #2.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 

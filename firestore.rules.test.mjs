@@ -46,8 +46,10 @@ function anonDb()                      { return testEnv.unauthenticatedContext()
 function staffDb(uid = 'uid_staff')    { return testEnv.authenticatedContext(uid).firestore(); }
 /** Authenticated admin (admin custom claim). */
 function adminDb()                     { return testEnv.authenticatedContext('uid_admin', { admin: true }).firestore(); }
-/** Authenticated user with a name claim (for staffContact). */
+/** Authenticated user with a name claim (for staffContact + override isolation). */
 function namedDb(name, uid = 'uid_n')  { return testEnv.authenticatedContext(uid, { name }).firestore(); }
+/** Authenticated manager (manager + name claims) — writes overrides on behalf of any member (B2). */
+function managerDb(name, uid = 'uid_mgr') { return testEnv.authenticatedContext(uid, { manager: true, name }).firestore(); }
 
 // ── Data builders ─────────────────────────────────────────────────────────────
 
@@ -253,6 +255,72 @@ describe('overrides', () => {
         const id = uid();
         await setDoc(doc(staffDb(), 'overrides', id), VALID_OVERRIDE());
         await assertFails(deleteDoc(doc(anonDb(), 'overrides', id)));
+    });
+
+    // ── B2 date hardening: shape was validated but not real month/day ranges ──
+    test('auth cannot create with impossible month (2026-13-01)', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-13-01' }));
+    });
+    test('auth cannot create with impossible date (2026-99-99)', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-99-99' }));
+    });
+    test('auth cannot create with month 00 / day 00 (2026-00-00)', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-00-00' }));
+    });
+    test('auth CAN create with a real edge date (2026-12-31)', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'overrides', uid()), { ...VALID_OVERRIDE(), date: '2026-12-31' }));
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// overrides — B2 per-member write isolation (PERMISSIVE 3-tier)
+// namedDb(name) carries a `name` claim (models a real provisioned member, whose token's
+// `name` mirrors the memberName); managerDb carries manager:true; adminDb carries admin:true;
+// staffDb carries NO claim (models the legacy/anonymous no-name escape, removed in B3).
+// ─────────────────────────────────────────────────────────────────────────────
+describe('overrides — B2 per-member isolation (permissive)', () => {
+    const OWN = (name) => ({ ...VALID_OVERRIDE(), memberName: name });
+
+    test('named staff CAN write their OWN override', async () => {
+        await assertSucceeds(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()), OWN('S. Boyle')));
+    });
+    test('named staff CANNOT write another member\'s override', async () => {
+        await assertFails(setDoc(doc(namedDb('S. Boyle'), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('admin CAN write another member\'s override (on-behalf bypass)', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('manager CAN write another member\'s override (on-behalf bypass)', async () => {
+        await assertSucceeds(setDoc(doc(managerDb('S. Stewart'), 'overrides', uid()), OWN('G. Miller')));
+    });
+    test('admin roster_import write for another member still saves', async () => {
+        await assertSucceeds(setDoc(doc(adminDb(), 'overrides', uid()),
+            { ...OWN('G. Miller'), source: 'roster_import', type: 'shift', value: '06:30-14:30' }));
+    });
+    test('a name-less (legacy) session is still permitted — permissive escape, removed in B3', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'overrides', uid()), OWN('G. Miller')));
+    });
+
+    // deletes mirror the same three-tier check against the EXISTING doc's memberName
+    test('named staff CANNOT delete another member\'s override', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertFails(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', id)));
+    });
+    test('named staff CAN delete their OWN override', async () => {
+        const id = uid();
+        await setDoc(doc(namedDb('S. Boyle'), 'overrides', id), OWN('S. Boyle'));
+        await assertSucceeds(deleteDoc(doc(namedDb('S. Boyle'), 'overrides', id)));
+    });
+    test('manager CAN delete another member\'s override', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertSucceeds(deleteDoc(doc(managerDb('S. Stewart'), 'overrides', id)));
+    });
+    test('admin CAN delete another member\'s override', async () => {
+        const id = uid();
+        await setDoc(doc(adminDb(), 'overrides', id), OWN('G. Miller'));
+        await assertSucceeds(deleteDoc(doc(adminDb(), 'overrides', id)));
     });
 });
 
@@ -564,6 +632,12 @@ describe('circulars', () => {
     test('admin cannot create with date not 10 chars', async () => {
         await assertFails(
             setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), date: '2026-6-25' })
+        );
+    });
+
+    test('admin cannot create with impossible date (2026-13-01) — B2 date bounding', async () => {
+        await assertFails(
+            setDoc(doc(adminDb(), 'circulars', uid()), { ...VALID_CIRCULAR(), date: '2026-13-01' })
         );
     });
 

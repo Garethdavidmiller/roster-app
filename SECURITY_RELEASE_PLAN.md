@@ -15,7 +15,12 @@ ignored the **Management tier** (6 managers who edit staff data on behalf and wo
 silently locked out), wrongly treated `linkDesigns` as member-owned (it is keyed by design name;
 designer S. Silva is a CEA), and assumed `pushSubscriptions` carries an owner identity (it does
 not). B2 now introduces a **`manager: true` claim** and a three-tier override rule (incl. delete);
-see "The identity tiers the rules must respect" and the rewritten B2/B3/B4 phases.*
+see "The identity tiers the rules must respect" and the rewritten B2/B3/B4 phases.
+**B2 BUILT v14.53** (branch, not deployed): `setupRosterAuth` sets the `manager` claim for
+`MANAGER_NAMES`; `firestore.rules` enforces the permissive 3-tier override isolation (create/update/
+delete) + bounded date validation; `linkDesigns` deliberately left open; `pushSubscriptions`
+unchanged. 13 new emulator tests (3-tier matrix, delete, date denial) — full `test:rules` suite
+green (173). **Before it can be relied upon, see the B2 deploy runbook below.**\*
 
 This is the **master sequencing and risk document** for the deferred security work. The
 detailed designs already live elsewhere and are NOT duplicated here — this file ties them
@@ -299,8 +304,10 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
   deploy-functions.yml on merge).
 - **Provisioning dependency (new):** the `manager: true` claim only lands when **"Set up accounts"
   is re-run** after `setupRosterAuth` ships, and only takes effect on each manager's **next token
-  refresh** (custom claims are read at token mint). So managers need a re-provision + re-auth before
-  the strict rule (B3) — fold this into B3's sweep. Until then the permissive rule keeps them working.
+  refresh** (custom claims are read at token mint). **Correction to an earlier draft:** because the
+  *permissive* rule already requires the `manager` claim for on-behalf writes (a stale token has
+  `name` but not `manager`, so the `!('name' in token)` escape does NOT cover it), managers must be
+  re-provisioned + refreshed **in the B2 window — not deferred to B3.** See the B2 deploy runbook below.
 - **Risk:** the rule is correct but rollout locks out cached-token sessions — for **managers too**,
   now (see B3).
 - **Mitigation:** this phase ships **only** the permissive interim isolation rule + tests; the strict
@@ -314,6 +321,23 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
   collections (huddles/circulars/newsletters/roster/auth) — tier separation holds, (f) `linkDesigns`
   behaves per the chosen option, (g) a device can still delete its own push subscription,
   (h) impossible dates (`2026-13-01`, `2026-99-99`) are denied while real dates still save.
+
+#### B2 deploy runbook (the order matters — a stale manager token has `name` but not `manager`)
+The permissive rule already requires the `manager` claim for on-behalf writes, so managers must be
+migrated **in the B2 window** (not deferred to B3). Both `deploy-functions.yml` and `deploy-rules.yml`
+fire on the same merge to `main`, so to avoid a brief manager lockout window do this in order:
+1. **Merge B2.** `setupRosterAuth` (with the `manager` claim) and the new rules both deploy.
+2. **Immediately** run Operations → **Set up accounts** — this sets `{ manager: true, name }` on the
+   6 manager accounts. (Until this runs, managers have only `name`.)
+3. **Refresh manager tokens:** have each manager sign out/in, or just wait — Firebase ID tokens
+   auto-refresh hourly and on next app open, so the window is short and self-healing.
+4. **Verify in a private window** (never an installed phone): a manager saves another member's AL;
+   a non-manager staff member cannot; admin still can; roster upload still saves.
+- **Residual window:** between step 1 and a given manager's token refresh, that manager's on-behalf
+  writes are rejected (a soft, recoverable failure — re-open the app — not data loss). Admin
+  break-glass covers anything urgent. **Zero-window alternative:** merge the `setupRosterAuth` change
+  first, run Set up accounts + manager refresh, *then* merge the rules in a follow-up — ask if you
+  want B2 split into two merges.
 
 ### B3 — claims audit + token-refresh rollout (HIGHEST RISK)
 - **Goal:** every active session carries a fresh claim **of its correct tier** (`admin`, `manager`,
@@ -440,8 +464,10 @@ B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
 - [x] B1 — named-session separation + remove browser account-creation. **ENABLED v14.42**
       (`CONFIG.ENFORCE_NAMED_SESSION = true`) after the owner provisioning audit. Revert = flip back
       to false. Watch for any "bounced to re-login and can't get back in" reports in the first days.
-- [ ] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
-      + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests
+- [~] B2 — per-member override isolation (permissive, **3-tier: name/admin/manager**, incl. delete)
+      + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests.
+      **BUILT v14.53** (branch; 173 rules tests green). Not deployed — see the B2 deploy runbook
+      (re-provision + manager token refresh required before the rule is relied upon).
 - [ ] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**)
 - [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
 - [ ] C2 — email verification

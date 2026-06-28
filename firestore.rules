@@ -1,16 +1,23 @@
 rules_version = '2';
 // MYB Roster — Firestore Security Rules
 //
-// Write policy: any signed-in staff member may write (request.auth != null).
-// Field validation is still enforced for data integrity, but per-member
-// isolation (v10.72 / v11 task #2) is suspended because it requires custom JWT
-// claims that were never reliably deployed, causing a production outage.
-// Re-introduce per-member isolation once claims are reliably set via setupRosterAuth.
+// Write policy: PER-MEMBER ISOLATION is being reintroduced via the B2 phase (see
+// SECURITY_RELEASE_PLAN.md). `overrides` create/update/delete now require the member's own
+// `name` claim, OR an `admin`/`manager` claim (both write on behalf), in the PERMISSIVE interim
+// form — a token with no `name` claim is still allowed so legacy/anonymous sessions never lock
+// out (the v10.94 outage was caused by a hard cutover). B3 drops that escape hatch (STRICT) after
+// a forced re-auth sweep. All other collections keep their existing posture; field validation is
+// enforced everywhere for data integrity. NOTE the claim prerequisite: managers must be
+// provisioned (Operations → Set up accounts, which sets the `manager` claim) AND token-refreshed
+// before this isolation rule is relied upon.
 //
 // To re-deploy rules: push a change to this file on main; deploy-rules.yml runs
 // automatically. Or: GitHub → Actions → "Deploy Firestore Rules" → Run workflow.
 //
-// Last updated: v14.29 — huddles create/update brought to parity with circulars/newsletters:
+// Last updated: v14.53 — B2 per-member override isolation (permissive 3-tier: name/admin/manager
+//   + no-name escape), override delete tightened to match, override/circular/newsletter dates
+//   bounded to real month/day ranges. linkDesigns deliberately left open (see its block).
+// v14.29 — huddles create/update brought to parity with circulars/newsletters:
 //   fileType constrained to ['pdf','docx'], uploadedBy required-as-string, and htmlContent
 //   type-checked (`is string`) before its 250 KB size cap. staffContact + pushSubscriptions
 //   were already fully hardened (hasOnly + field types) in v14.24 — no change needed there.
@@ -55,7 +62,10 @@ service cloud.firestore {
         ) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
-        request.resource.data.date.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}') &&
+        // Bounded YYYY-MM-DD: month 01-12, day 01-31 (matches() is full-string in RE2, so this
+        // is anchored). Rejects impossible ISO-shaped dates like 2026-99-99 / 2026-13-01 that the
+        // old unbounded [0-9]{2} pattern accepted. Full leap-year/Feb-30 validation is server-side.
+        request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.memberName is string &&
         request.resource.data.memberName.size() > 0 &&
         request.resource.data.memberName.size() < 100 &&
@@ -85,10 +95,32 @@ service cloud.firestore {
         // createdAt is written by every path (serverTimestamp); changedBy only by the
         // manual/AL/sick paths — validate its type when present without requiring it.
         request.resource.data.createdAt is timestamp &&
-        (!request.resource.data.keys().hasAny(['changedBy']) || request.resource.data.changedBy is string);
-      // Any authenticated user may delete their own overrides. Per-member isolation
-      // (limiting deletes to the owning member) is deferred — see KNOWN_LIMITATIONS.md.
-      allow delete: if request.auth != null;
+        (!request.resource.data.keys().hasAny(['changedBy']) || request.resource.data.changedBy is string) &&
+        // ── Per-member write isolation (B2, PERMISSIVE interim form) ──────────────────────
+        // A staff member may write only their OWN override (token.name == the doc's memberName).
+        // Two load-bearing bypasses: ADMIN writes for everyone (AL/sick on behalf + every
+        // source:'roster_import' row) and MANAGER does the same on-behalf editing daily. The
+        // final `!('name' in token)` branch is the migration safety net — a legacy/anonymous
+        // token minted before the name claim keeps working (same posture as today, no lockout).
+        // B3 drops that branch (STRICT) after a forced re-auth sweep. Managers must be
+        // provisioned (Set up accounts) AND token-refreshed before this rule is relied upon —
+        // a stale manager token has name but not manager, so it would be isolated to its own
+        // (non-existent) roster. See SECURITY_RELEASE_PLAN.md → B2.
+        (
+          request.auth.token.name == request.resource.data.memberName ||
+          request.auth.token.admin == true ||
+          request.auth.token.manager == true ||
+          !('name' in request.auth.token)
+        );
+      // Delete mirrors the same three-tier permissive check against the EXISTING doc's
+      // memberName (request.resource is null on delete). Previously any authenticated user
+      // could delete any override — isolation on writes is moot without it.
+      allow delete: if request.auth != null && (
+        request.auth.token.name == resource.data.memberName ||
+        request.auth.token.admin == true ||
+        request.auth.token.manager == true ||
+        !('name' in request.auth.token)
+      );
     }
 
     match /huddles/{date} {
@@ -123,6 +155,13 @@ service cloud.firestore {
       // Link design workspace data — read/write restricted to authenticated users.
       // Client-side: links-app.js redirects anyone not in CONFIG.LINKS_DESIGNERS
       // before any Firestore call is made, so per-designer isolation is not needed here.
+      // B2 DECISION (v14.53): deliberately NOT folded into the override member-name model.
+      // Designs are keyed by design name, not member, so token.name == memberName is
+      // meaningless here, and a designer (e.g. S. Silva) may be ordinary staff with no
+      // admin/manager claim — member-name isolation would lock them out. The real access
+      // control is the LINKS_DESIGNERS client redirect; the blast radius is one niche
+      // internal design tool. Revisit (a dedicated linksDesigner claim) only if the
+      // workspace opens to more people. See SECURITY_RELEASE_PLAN.md → B2.
       allow read, write: if request.auth != null;
     }
 
@@ -197,6 +236,8 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
+        // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
+        request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
         request.resource.data.fileType == 'pdf' &&
         request.resource.data.uploadedAt is timestamp &&
@@ -213,6 +254,8 @@ service cloud.firestore {
         request.resource.data.keys().hasOnly(['date', 'storageUrl', 'storagePath', 'fileType', 'uploadedAt', 'uploadedBy']) &&
         request.resource.data.date is string &&
         request.resource.data.date.size() == 10 &&
+        // Bounded YYYY-MM-DD (month 01-12, day 01-31) — rejects impossible ISO-shaped dates.
+        request.resource.data.date.matches('[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])') &&
         request.resource.data.storageUrl is string &&
         request.resource.data.fileType == 'pdf' &&
         request.resource.data.uploadedAt is timestamp &&

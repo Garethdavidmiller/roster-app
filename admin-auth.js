@@ -85,9 +85,10 @@ export function initAuthSetup({ currentIsAdmin }) {
                     'Content-Type':  'application/json',
                 },
                 body: JSON.stringify({
-                    members:       ACTIVE_MEMBERS,
-                    adminMembers:  CONFIG.ADMIN_NAMES,
-                    removeOrphans: /** @type {HTMLInputElement} */ (orphansCb).checked,
+                    members:        ACTIVE_MEMBERS,
+                    adminMembers:   CONFIG.ADMIN_NAMES,
+                    managerMembers: CONFIG.MANAGER_NAMES,   // B2: managers get the manager:true claim (write on behalf, not admin)
+                    removeOrphans:  /** @type {HTMLInputElement} */ (orphansCb).checked,
                 }),
             });
 
