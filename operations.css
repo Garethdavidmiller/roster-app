@@ -322,13 +322,6 @@ select:focus-visible, input:focus-visible {
 .ops-left-column,
 .ops-right-column { display: contents; }
 
-/* Group heading above a set of cards — page h1 → group h2 (this) → card h3. DESKTOP-ONLY: the
-   two-column desktop layout benefits from section labels, but on a single-column phone they just
-   add clutter (the cards already stack in sensible grouped order, each with its own h3 title), so
-   they are hidden below 1024px. Shown as an eyebrow label (small/uppercase/muted) matching the nav
-   drawer's "Workplace" section treatment. */
-.ops-section-heading { display: none; }
-
 @media (min-width: 1024px) {
     body.auth-ready .container {
         /* 1100px matches paycalc.css and settings.css — keeps all three
@@ -351,17 +344,6 @@ select:focus-visible, input:focus-visible {
     }
     .ops-left-column  { grid-column: 1; }
     .ops-right-column { grid-column: 2; }
-
-    /* Section headings appear only here (desktop), where they organise the two columns. */
-    .ops-section-heading {
-        display: block;
-        font-size: var(--type-small);
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 0.6px;
-        color: var(--text-mid);
-        margin: 2px 0 -4px 2px;
-    }
 
     /* Full-width upload button looks wrong inside the narrow left column */
     .huddle-upload-btn { max-width: 280px; }
