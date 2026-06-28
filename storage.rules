@@ -2,7 +2,13 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
     match /huddles/{fileName} {
-      // Huddle files are internal staff briefings — only authenticated staff may read.
+      // NOTE: this `allow read: if request.auth != null` rule gates only DIRECT
+      // Storage SDK reads. Staff don't read Huddle files that way — they open the
+      // tokenised bearer download URL saved in the Firestore huddles doc, which
+      // carries its own access token and bypasses these rules, so even the anonymous
+      // calendar session can open a Huddle. The bearer URL is the real access control
+      // (same model as firestore.rules /circulars). Don't store confidential files
+      // here unless that delivery model changes.
       // Writes come from two paths:
       //   1. ingestHuddle Cloud Function — uses Admin SDK, bypasses these rules entirely.
       //   2. Manual admin upload in operations.html — uses the browser Firebase Storage SDK;
@@ -24,7 +30,9 @@ service firebase.storage {
           && request.auth.token.admin == true;
     }
     match /circulars/{fileName} {
-      // Weekly Retail Circular PDFs — readable by any authenticated session.
+      // Weekly Retail Circular PDFs. As with huddles, this read rule only gates direct
+      // SDK reads; staff open the tokenised bearer download URL from the Firestore doc,
+      // which bypasses these rules. Don't store confidential files here.
       // create/update validates size + MIME; delete omits request.resource checks
       // because request.resource is undefined for delete operations and those
       // conditions would always evaluate to false, blocking legitimate pruning.
@@ -37,7 +45,7 @@ service firebase.storage {
           && request.auth.token.admin == true;
     }
     match /newsletters/{fileName} {
-      // Marylebone Newsletter PDFs — same split as circulars.
+      // Marylebone Newsletter PDFs — same split (and same bearer-URL read model) as circulars.
       allow read:           if request.auth != null;
       allow create, update: if request.auth != null
           && request.auth.token.admin == true

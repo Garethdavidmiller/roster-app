@@ -20,6 +20,10 @@ import {
     periodKey, hppEstKey, hppActualKey, ytdPayKey, ytdTaxKey,
     runMigrations, hasPendingLegacyMigration, resolveLegacyMigration,
 } from './paycalc-migrations.js';
+import { teamMembers } from './roster-data.js';
+
+// Mirror of the private _memberSlug() in paycalc-migrations.js: lowercase, alphanumerics only.
+const slug = (/** @type {string} */ name) => name.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 // ── localStorage stub ─────────────────────────────────────────────────────────
 function makeLocalStorage(initial = {}) {
@@ -211,5 +215,27 @@ describe('per-member namespace ownership', () => {
         });
         assert.equal(hasPendingLegacyMigration('G. Miller'), false);
         assert.equal(hasPendingLegacyMigration('A. Panchal'), false);
+    });
+});
+
+// Leavers are kept in teamMembers with hidden: true (never hard-deleted). Their slug
+// therefore stays in the known-member set, so their namespaced paycalc data on a shared
+// device is still recognised as OWNED — never offered to the next person as claimable
+// "legacy" data. This pins the one migration edge case surfaced in the v14.36 review:
+// hard-deleting a member from teamMembers would silently reclassify their data as legacy.
+describe('hidden (leaver) member data is never treated as claimable legacy', () => {
+    test("a hidden member's namespaced key is recognised as owned, not legacy", () => {
+        const hidden = teamMembers.find(m => m.hidden);
+        assert.ok(hidden, 'expected at least one hidden member in teamMembers');
+        global.localStorage = makeLocalStorage({
+            [`myb_pc_${slug(hidden.name)}_rate`]: '20.74',   // owned by a hidden leaver
+        });
+        // No genuinely-unnamespaced data exists, so no member should be prompted.
+        assert.equal(hasPendingLegacyMigration('G. Miller'), false);
+    });
+
+    test('genuinely unnamespaced data still triggers the prompt (contrast)', () => {
+        global.localStorage = makeLocalStorage({ 'myb_pc_rate': '20.74' }); // no owner slug
+        assert.equal(hasPendingLegacyMigration('G. Miller'), true);
     });
 });
