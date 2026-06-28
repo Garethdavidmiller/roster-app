@@ -866,7 +866,7 @@
             .calendar-grid { grid-auto-rows: minmax(72px, auto); }
         }
 
-        @media (max-width: 1024px) {
+        @media (max-width: 1023px) {
             .calendar-grid {
                 gap: 8px;
             }
@@ -1028,8 +1028,9 @@
         }
 
         /* ── Mobile landscape (phones on their side) ─────────────────────── */
-        /* max-width: 1024px prevents this firing on a short desktop browser window */
-        @media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) {
+        /* max-width: 1023px prevents this firing on a short desktop browser window
+           (1024px is unambiguously the desktop breakpoint) */
+        @media (orientation: landscape) and (max-height: 500px) and (max-width: 1023px) {
             body {
                 padding-top:    max(6px, env(safe-area-inset-top));
                 padding-bottom: max(6px, env(safe-area-inset-bottom));
@@ -1105,7 +1106,7 @@
             display: flex;
             flex-direction: column;
         }
-        @media (min-width: 900px) and (max-width: 1024px) {
+        @media (min-width: 900px) and (max-width: 1023px) {
             /* On tablet widths cap the team table so 7 columns don't stretch too wide. */
             .team-view-container { width: 100%; max-width: 1040px; margin: 0 auto; }
         }

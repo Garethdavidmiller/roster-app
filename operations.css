@@ -312,25 +312,40 @@ select:focus-visible, input:focus-visible {
     .app-header { margin-bottom: 0; }
 }
 
-/* ── Desktop: 1024px — balanced two-column grid ──
-   The page now has 8 independent collapsible cards. The old narrow-left/wide-right
-   split only placed 4 of them explicitly, so the four added later (Circular,
-   Newsletter, Error Log, Usage) auto-flowed into mismatched widths and a ragged
-   layout. Equal columns with natural auto-flow keeps every card the same width and
-   fills both columns evenly — the conventional admin-dashboard pattern. */
+/* ── Desktop: 1024px — wrapper-column layout (mirrors admin.html's col-main/col-side) ──
+   Each column is its own independent flex stack, so a tall card (the roster review
+   table) never couples row heights with the other column — no auto-placement and no
+   masonry gaps. Narrow left = the three short publishing cards (Huddle / Circular /
+   Newsletter); wide right = the width-hungry cards (roster review table, Work Email
+   list, Error Log, Usage, Auth). On mobile the wrappers are display:contents so the
+   cards remain direct grid children and stack in source order with the normal gap. */
+.ops-left-column,
+.ops-right-column { display: contents; }
+
 @media (min-width: 1024px) {
     body.auth-ready .container {
         /* 1100px matches paycalc.css and settings.css — keeps all three
            sub-pages a consistent width. */
         max-width: 1100px;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
         column-gap: 24px;
         align-items: start;
     }
     /* Header spans both columns */
     .app-header { grid-column: 1 / -1; }
 
-    /* Full-width upload button looks wrong inside a ~530px column */
+    /* Wrappers become independent flex stacks placed in the two grid columns. */
+    .ops-left-column,
+    .ops-right-column {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        min-width: 0;
+    }
+    .ops-left-column  { grid-column: 1; }
+    .ops-right-column { grid-column: 2; }
+
+    /* Full-width upload button looks wrong inside the narrow left column */
     .huddle-upload-btn { max-width: 280px; }
 }
 

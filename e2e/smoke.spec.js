@@ -263,6 +263,43 @@ test('operations: JS runs and redirects unauthenticated users to admin.html', as
     expect(errors, 'Uncaught JS exceptions triggering operations redirect').toHaveLength(0);
 });
 
+// Desktop layout contract: the wrapper-column grid (v14.35) must keep the three
+// publishing cards in the narrow LEFT column and the width-hungry cards (roster +
+// monitoring) in the wide RIGHT column — not auto-placed into mismatched positions.
+for (const width of [1280, 1440]) {
+    test(`operations desktop @${width}px: cards land in the right columns, no overflow`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await seedSession(page, 'G. Miller');   // admin — passes the operations guard
+        // Suppress the one-time work-email overlay so it doesn't cover the cards.
+        await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', '1'));
+        await page.goto('/operations.html');
+        await expect(page).toHaveURL(/operations\.html$/);   // admin was NOT redirected out
+        await expect(page.locator('#huddleUploadCard')).toBeVisible();
+
+        const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(overflow, 'no horizontal overflow on desktop').toBeLessThanOrEqual(1);
+
+        // The two columns must not overlap horizontally: every left-column (publishing)
+        // card's right edge sits left of every right-column (roster + monitoring) card's
+        // left edge. Comparing the columns to EACH OTHER (not the viewport centre) is
+        // robust to the centred max-width:1100 container + narrow-left/wide-right split.
+        // An auto-placement regression (the v14.31 symptom) would break this separation.
+        const leftIds  = ['#huddleUploadCard', '#circularUploadCard', '#newsletterUploadCard'];
+        const rightIds = ['#rosterUploadCard', '#workEmailCard', '#errorLogCard', '#usageCard', '#authSetupCard'];
+        const boxesOf = async ids => Promise.all(ids.map(id => page.locator(id).boundingBox()));
+        const leftBoxes  = await boxesOf(leftIds);
+        const rightBoxes = await boxesOf(rightIds);
+        const leftColumnRight = Math.max(...leftBoxes.map(b => b.x + b.width));
+        const rightColumnLeft = Math.min(...rightBoxes.map(b => b.x));
+        expect(leftColumnRight, 'left column must sit entirely left of the right column')
+            .toBeLessThanOrEqual(rightColumnLeft + 1);
+        // And the right (wide) column should genuinely be wider than the left (narrow) one.
+        const rightWidth = rightBoxes[0].width, leftWidth = leftBoxes[0].width;
+        expect(rightWidth, 'roster column should be wider than the publishing column').toBeGreaterThan(leftWidth);
+    });
+}
+
 // ── LINKS (links.html) ────────────────────────────────────────────────────
 
 test('links: JS runs and redirects unauthenticated users to admin.html', async ({ page }) => {
