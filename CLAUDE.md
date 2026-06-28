@@ -153,7 +153,7 @@ roster-app/
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
-├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession
+├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession, getFirebaseIdentity/firebaseSessionIsNamed/getFirebaseAuthError (B0 named-vs-anonymous signal)
 ├── sw-register.js          ← shared SW registration + update lifecycle: registerServiceWorker()
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
 ├── usage-reporter.js       ← shared anonymous usage recorder: recordUsage(page, member?) — page popularity + active-account counts (client-side dedup; no identity stored)

@@ -61,6 +61,47 @@ export const sessionReady = /** @type {Promise<boolean>} */ (new Promise(r => (_
 export function resolveSession(result) { _sessionResolve(result); }
 
 /**
+ * The Firebase Auth identity that `ensureFirebaseSession` last established on a WRITE
+ * page (admin / operations / settings / links / paycalc). The calendar's anonymous read
+ * bootstrap (`calendarAuthReady` in calendar-app.js) is a separate path and never touches
+ * this — `ensureFirebaseSession` is only called by the write pages.
+ *
+ *   'named'     — signed in as the member's own account (email === nameToEmail(name)).
+ *   'anonymous' — degraded fallback. Satisfies `request.auth != null` today, but carries NO
+ *                 `name` claim, so per-member write isolation (SECURITY_RELEASE_PLAN.md → B2)
+ *                 will reject its writes. B1 will use this signal to prompt a re-login instead
+ *                 of letting a claim-less session write silently.
+ *   'none'      — no Firebase session could be established at all.
+ *
+ * B0 (SECURITY_RELEASE_PLAN.md) makes this distinction observable and tested without changing
+ * any runtime behaviour — the anonymous fallback still happens, so nothing regresses yet.
+ * @type {'named' | 'anonymous' | 'none'}
+ */
+let _fbIdentity = 'none';
+
+/** @type {string | undefined} The auth error code behind the last non-'named' outcome, for diagnostics. */
+let _fbAuthError;
+
+/**
+ * The Firebase identity `ensureFirebaseSession` last established on a write page.
+ * @returns {'named' | 'anonymous' | 'none'}
+ */
+export function getFirebaseIdentity() { return _fbIdentity; }
+
+/**
+ * True only when the active write-page Firebase session is the member's own named account —
+ * NOT the anonymous fallback. This is the signal per-member write isolation (B2) depends on.
+ * @returns {boolean}
+ */
+export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
+
+/**
+ * The auth error code behind the last non-'named' `ensureFirebaseSession` outcome, or undefined.
+ * @returns {string | undefined}
+ */
+export function getFirebaseAuthError() { return _fbAuthError; }
+
+/**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
  * Firestore Security Rules require `request.auth != null` for every write.
@@ -82,6 +123,8 @@ export function resolveSession(result) { _sessionResolve(result); }
  * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
  */
 export async function ensureFirebaseSession(name) {
+    _fbIdentity  = 'none';        // reset; set to 'named'/'anonymous' on the path that wins
+    _fbAuthError = undefined;
     await authReady;
     // auth.currentUser is null synchronously even when a session exists in
     // IndexedDB. Wait for the first onAuthStateChanged to get the real state.
@@ -93,7 +136,7 @@ export async function ensureFirebaseSession(name) {
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
     if (existing) {
-        if (!existing.isAnonymous && existing.email === nameToEmail(name)) return true;
+        if (!existing.isAnonymous && existing.email === nameToEmail(name)) { _fbIdentity = 'named'; return true; }
         await firebaseSignOut(auth);
     }
 
@@ -107,6 +150,7 @@ export async function ensureFirebaseSession(name) {
 
     try {
         await signInWithEmailAndPassword(auth, email, fbPassword);
+        _fbIdentity = 'named';
         return true;
     } catch (e) {
         const _e = /** @type {any} */ (e);
@@ -116,6 +160,7 @@ export async function ensureFirebaseSession(name) {
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
                 console.warn('[Auth] Created Firebase Auth account for', name);
+                _fbIdentity = 'named';
                 return true;
             } catch (createErr) {
                 const _ce = /** @type {any} */ (createErr);
@@ -133,15 +178,21 @@ export async function ensureFirebaseSession(name) {
     // password mismatch on an existing account (auth/email-already-in-use),
     // and any other persistent email/password failure.
     console.warn('[Auth] Falling back to anonymous sign-in. Original error:', firstError);
-    /** @type {any} */ (window)._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
+    _fbAuthError = firstError;
+    // window guard: ensureFirebaseSession is a browser path, but the typeof check lets the
+    // unit tests exercise the anonymous-fallback branch under Node (no window) without throwing.
+    if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
     try {
         await signInAnonymously(auth);
         console.warn('[Auth] Anonymous session established for', name);
+        _fbIdentity = 'anonymous';
         return true;
     } catch (anonErr) {
         const _ae = /** @type {any} */ (anonErr);
         console.error('[Auth] Anonymous sign-in failed:', _ae.code);
-        /** @type {any} */ (window)._mybAuthError = `${firstError} + anon:${_ae.code}`;
+        _fbIdentity  = 'none';
+        _fbAuthError = `${firstError} + anon:${_ae.code}`;
+        if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = `${firstError} + anon:${_ae.code}`;
         return false;
     }
 }

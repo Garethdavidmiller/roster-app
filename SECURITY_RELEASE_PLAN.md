@@ -60,7 +60,8 @@ surface to debug when something goes silent.
     A3 doc-only accuracy ✓ DONE .. (pushSubscriptions delete posture + bearer-URL notes; rule-tighten → B2)
 
   Track B — authorization release (interlocking; ONE planned release)
-    B0 ensureFirebaseSession rework ──┬─► B1 named-session separation
+    B0 fb-identity signal ✓ DONE ─────┬─► B1 named-session separation (consumes B0 signal;
+        (FOUNDATION; enforce → B1)     │      enforces re-login on claim-less session)
         (FOUNDATION)                   │      (+ remove browser account-creation)
                                        └─► B2 per-member override + Links write isolation
                                               │
@@ -156,21 +157,30 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
   change. Only the doc edit was free; the rule edit moved to B2. **B0 is the first substantive phase.**
 
 ### B0 — `ensureFirebaseSession` hardening (FOUNDATION)
-- **Goal:** stop the silent anonymous fallback on pages that write. Classify the failure
-  (`auth/wrong-password` / `auth/invalid-credential` = custom password set elsewhere;
-  `auth/user-not-found` = provisioning gap; provider disabled) and surface a "please sign in
-  again" state instead of a claim-less anonymous session.
-- **Who:** Claude (branch + unit tests in `session.test.mjs`).
-- **Why first:** prerequisite for B1, B2 and C3. Also the documented Stage-3 prerequisite
-  (ROADMAP → Password Stage 3, "ensureFirebaseSession rework").
-- **Risk:** over-aggressive removal of the anonymous path could break the **calendar's**
-  legitimate anonymous read/usage/error-report writes (which intentionally use anonymous auth).
-- **Mitigation:** scope the change to the **write/named pages** (admin, operations, settings,
-  links, paycalc); leave the calendar's anonymous bootstrap (`calendarAuthReady`) untouched —
-  it is a *read* surface with best-effort analytics writes, governed separately.
-- **Rollback:** revert `session.js`; behaviour returns to today's silent fallback.
-- **Gate:** unit tests prove each error code routes to re-login, not anonymous, on named pages;
-  e2e still green; calendar anonymous path unaffected.
+Split into two safe increments (same discipline as A3 — don't bundle a zero-risk change with a
+behavioural one):
+
+**B0 (observability) — ✓ DONE (v14.39).** `ensureFirebaseSession` now records and exposes whether
+it established the member's **named** account or only the **anonymous** fallback:
+`getFirebaseIdentity()` → `'named'|'anonymous'|'none'`, `firebaseSessionIsNamed()`,
+`getFirebaseAuthError()`. **No runtime behaviour change** — the anonymous fallback still happens,
+so nothing regresses. `firebaseSessionIsNamed()` is the exact signal B2 needs. 7 unit tests in
+`session.test.mjs` cover named reuse, email/password sign-in, self-heal create, anonymous fallback,
+total failure, and stale-session (anonymous / other-member) replacement. The `window._mybAuthError`
+writes are now `typeof window` guarded so the path is node-testable. (Also fixed stale AI_MAP text
+that still described the reverted v14.28 `_endSession` behaviour.)
+
+**B0-enforce — folded into B1.** The behavioural half (refuse to proceed on a claim-less session /
+prompt re-login instead of writing silently) is multi-page UX that belongs with B1's named-session
+separation. Doing it before B1 would either regress (silent write loss with no prompt) or require
+B1's per-page work anyway. It consumes `firebaseSessionIsNamed()` from B0.
+- **Why first:** the B0 signal is the prerequisite for B1, B2 and C3 (also the documented Stage-3
+  prerequisite — ROADMAP → Password Stage 3, "ensureFirebaseSession rework").
+- **Risk (of the enforce half, in B1):** over-aggressive blocking could break the **calendar's**
+  legitimate anonymous reads — but the calendar uses `calendarAuthReady`, not `ensureFirebaseSession`,
+  so the split is automatic; leave the calendar bootstrap untouched.
+- **Rollback:** B0 is purely additive (new exports); revert `session.js` to drop them.
+- **Gate:** ✓ unit tests prove the identity is reported correctly for every path; full suite + e2e green.
 
 ### B1 — named-session separation + remove browser account-creation
 - **Goal:** anonymous auth confined to the public Calendar read path; Admin/Operations/Links/
@@ -302,7 +312,7 @@ Each phase: **Goal · Who · Risk · Mitigation · Rollback · Go/no-go gate.**
 ## Progress checklist (tick as shipped)
 
 - [x] A3 — doc-only accuracy ✓ (v14.38: pushSubscriptions delete posture stated; bearer-URL notes confirmed; rule-tighten moved into B2)
-- [ ] B0 — `ensureFirebaseSession` hardening (foundation — first substantive phase)
+- [x] B0 (observability) — ✓ (v14.39: named-vs-anonymous identity exposed + tested; no behaviour change). Enforce half folded into B1.
 - [ ] A2 — Workload Identity Federation (one workflow first)
 - [ ] B1 — named-session separation + remove browser account-creation
 - [ ] B2 — per-member override + Links isolation rule (permissive) + emulator tests
