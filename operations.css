@@ -432,10 +432,15 @@ select:focus-visible, input:focus-visible {
     white-space: nowrap;
 }
 
-/* Admin rows — vertical list for both added and still-to-add */
+/* Admin rows — vertical list for both added and still-to-add.
+   flex-wrap: nowrap overrides the base .email-count-list wrap: in a column-direction
+   flex container, an inherited `wrap` lets rows size to their own content width
+   instead of the container's, so a long email row grew past the card edge (clipping
+   the Remove button under the card's overflow:hidden). */
 .email-count-list--missing,
 .email-count-list--added {
     flex-direction: column;
+    flex-wrap: nowrap;
     gap: 3px;
 }
 .email-missing-row,
@@ -443,6 +448,12 @@ select:focus-visible, input:focus-visible {
     display: flex;
     align-items: center;
     gap: 8px;
+    /* Constrain the row to the list width and allow it to shrink below its content's
+       intrinsic width — without these, the row (a flex item in the column) sizes to
+       its 388px content and overflows the ~291px list, pushing Edit/Remove off-screen. */
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
 }
 /* Let the name/email chip take the remaining width and shrink, so the fixed-width
    Edit/Remove buttons (flex-shrink: 0) always stay on-screen instead of overflowing
