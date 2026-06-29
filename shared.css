@@ -306,6 +306,23 @@ html {
     text-size-adjust: 100%;
 }
 
+/* Typographic refinement (v14.54, low-risk): balance headings and avoid orphan
+   lines in prose. Additive only — text-wrap is set nowhere else — and degrades
+   gracefully (ignored) on engines that don't support it. :where() keeps heading
+   specificity at 0 so no existing heading rule's cascade is disturbed. */
+:where(h1, h2, h3, h4, h5, h6) { text-wrap: balance; }
+p { text-wrap: pretty; }
+
+/* Focus-visible safety net (v14.54): a zero-specificity fallback so any
+   interactive element lacking its own focus rule still shows a visible ring.
+   :where() = 0 specificity, so every existing component focus style overrides
+   this — it can only ADD a ring where one is missing, never weaken one. Form
+   fields are excluded (they use the brighten-to-white + glow focus system). */
+:where(a, button, [role="button"], [tabindex="0"]):focus-visible {
+    outline: 2px solid var(--accent-gold);
+    outline-offset: 2px;
+}
+
 /* Safe-area padding — keeps content clear of the iOS notch and home indicator.
    Uses 16px as the minimum fallback. Individual pages override with 20px in their
    own <style> block; the cascade ensures page-specific values always win. */
