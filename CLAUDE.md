@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v14.50 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.60 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `14.50` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `14.60` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -158,6 +158,7 @@ roster-app/
 ├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession, getFirebaseIdentity/firebaseSessionIsNamed/getFirebaseAuthError (B0 named-vs-anonymous signal)
 ├── auth-state-core.js      ← PURE identity state machine (ARCHITECTURE_PLAN.md Track 1, Phase 1): reduceAuthState(state, event)→state + INITIAL_STATE. No DOM/Firebase/localStorage. Tested by auth-state-core.test.mjs.
 ├── auth-state.js           ← auth STORE (Phase 2): getAuthSnapshot/subscribeAuth/dispatchAuth over the reducer. Imports ONLY auth-state-core.js (no session/firebase — acyclic). session.js FEEDS it (observing only; sessionReady untouched). Phase 4+ coordinators subscribe. Tested by auth-state.test.mjs.
+├── auth-policy.js          ← page-AUTHORISATION (Phase 3): PAGE_POLICIES map + pure requirePageAuth(snapshot, policy, roles)→{decision,reason} (allow/soft-allow/login/forbidden/pending) + rolesFor(member) (CONFIG glue) + requirePage(snapshot, page) convenience. CLIENT UX only — server rules are the real boundary. NOT wired in yet (Phase 4+ coordinators will consume it). Tested by auth-policy.test.mjs.
 ├── sw-register.js          ← shared SW registration + update lifecycle: registerServiceWorker()
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
 ├── usage-reporter.js       ← shared anonymous usage recorder: recordUsage(page, member?) — page popularity + active-account counts (client-side dedup; no identity stored)
@@ -224,6 +225,7 @@ roster-app/
 ├── session.test.mjs        ← tests for constants, getSession, saveSession, clearSession, sessionReady/resolveSession, getSurname (--experimental-test-module-mocks)
 ├── auth-state-core.test.mjs ← tests for reduceAuthState (pure identity state machine; no mocks; part of test:hygiene)
 ├── auth-state.test.mjs     ← tests for the auth store: getAuthSnapshot/subscribeAuth/dispatchAuth, no-op/listener isolation (no mocks; part of test:hygiene). The session.js→store bridge is tested in session.test.mjs.
+├── auth-policy.test.mjs    ← tests for requirePageAuth/requirePage/rolesFor: the page×status×role decision matrix + invariants (degraded never allows, soft never blocks, public always allows, fail-closed on unknown page). No mocks; part of test:hygiene.
 ├── overlay.test.mjs        ← tests for lockBodyScroll, unlockBodyScroll, trapFocus, initCardCollapse (no mocks; runs in test:hygiene)
 ├── calendar-state.test.mjs / calendar-member.test.mjs / calendar-overrides.test.mjs ← tests for calendar-state.js, calendar-member.js, calendar-overrides.js (--experimental-test-module-mocks)
 ├── calendar-renderer.test.mjs   ← tests for createCalendarHeader, createDayCell, getSwipeDirection, buildCalendarContainer (fake DOM; --experimental-test-module-mocks)

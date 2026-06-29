@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v14.50 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.60 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -251,6 +251,11 @@ The PURE identity state machine — `ARCHITECTURE_PLAN.md` Track 1, **Phase 1** 
 The auth STORE — `ARCHITECTURE_PLAN.md` Track 1, **Phase 2** (v14.59). Holds the single identity state (reduced by `auth-state-core.js`) and exposes `getAuthSnapshot()`, `subscribeAuth(listener)` (immediate call + on-change; listener errors isolated), `dispatchAuth(event)`, and `_resetAuthState()` (test-only). Imports **only** `auth-state-core.js` — NOT `session.js` or `firebase-client.js` — so the graph stays acyclic (`session.js → auth-state.js → auth-state-core.js`).
 - **The shell-adapter role is fulfilled by the existing `session.js`**, which FEEDS this store (reusing the proven auth path rather than re-wrapping Firebase). `ensureNamedSession` dispatches `RESOLVE_START` → (retry: `TRANSIENT`/`RETRY`) → a terminal `NAMED`/`ANONYMOUS`/`NONE`/`FATAL` from the B0 signals; `clearSession` dispatches `SIGN_OUT`. Every feed is wrapped (`_feedAuth`) so a store error can never break auth.
 - **Phase 2 is OBSERVING ONLY** — nothing consumes the store yet, `sessionReady` is untouched, and the store + `sessionReady` are both driven by the same `ensureNamedSession` resolution (so they cannot diverge → the plan's single-source goal without re-routing `sessionReady`). Phase 4+ coordinators will subscribe; the policy layer (Phase 3) will read it. Bridge tested in `session.test.mjs` ("auth-store bridge (Phase 2)"); store tested in `auth-state.test.mjs`.
+
+### `auth-policy.js`
+The page-AUTHORISATION layer — `ARCHITECTURE_PLAN.md` Track 1, **Phase 3** (v14.60). Authentication ("who are you?") is the store; this answers the separate "is this identity allowed on THIS page?". **CLIENT UX only — Firestore Rules + Functions claim checks are the real boundary** (the role check here, name ∈ CONFIG.ADMIN_NAMES/MANAGER_NAMES/LINKS_DESIGNERS, is an optimisation, never enforcement).
+- `PAGE_POLICIES` — declarative per-page map, grounded in the coordinators' actual gates: operations = admin-only (managers redirected), links = designer-only, admin/settings = any named user (the admin/manager split gates ACTIONS not page access), paycalc = soft (never blocked), calendar = public/anonymous, guides = open.
+- `requirePageAuth(snapshot, policy, roles)` → `{ decision, reason }` — PURE. Decisions: `allow` / `soft-allow` (paycalc local-first) / `login` (terminal no-named: signedOut/anonymous/error) / `forbidden` (named but wrong role) / `pending` (initialising/resolving/degraded — degraded grants no authority but is retryable, so "pending" not "login"). `rolesFor(member)` derives role flags from CONFIG; `requirePage(snapshot, page)` is the coordinator convenience (fails CLOSED on an unknown page). The read-vs-write distinction is an ACTION-level concern for Phase 4 (the policy keys can grow `page→page.action` without touching the reducer). NOT wired in yet. 42 tests in `auth-policy.test.mjs`.
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).

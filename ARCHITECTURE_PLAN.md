@@ -5,9 +5,10 @@ claim layer (`firestore.rules.test.mjs` B2) pin current intended behaviour; page
 by flag-ON e2e, completes per-coordinator in Track 3. Phase 1: `auth-state-core.js` — the pure
 `reduceAuthState` machine (24 tests). **Phase 2 (v14.59): the `auth-state.js` store + the `session.js`
 feed bridge — OBSERVING ONLY, `sessionReady` left untouched, 43 pre-existing session tests pass
-unchanged.** Next: Phase 3 (the `auth-policy.js` page-auth map + `requirePageAuth`), then Phases 4–7
-migrate coordinators (Operations first) to actually CONSUME the store. Companion to
-`SECURITY_RELEASE_PLAN.md`.
+unchanged. Phase 3 (v14.60): `auth-policy.js` — the pure page-auth map + `requirePageAuth`, 42
+tests, not wired in.** All three pure/observing phases are now done; **Phases 4–7 are next — the
+first behaviour-adjacent step**, migrating coordinators (Operations first) to actually CONSUME the
+store + policy. Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
 auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
@@ -239,8 +240,18 @@ property 2.5 was for, achieved with **zero change to `sessionReady`**. Phase 2 i
 re-route is therefore dropped, not deferred — the goal is already met. (Calendar's anonymous bootstrap
 and paycalc's direct `ensureFirebaseSession` feed the store when those pages migrate, Phase 7.)
 
-### Phase 3 — Policy map + `requirePageAuth` guards
-Author `auth-policy.js` (the table above) and the pure decision function.
+### Phase 3 — Policy map + `requirePageAuth` guards — ✅ DONE (v14.60)
+`auth-policy.js`: `PAGE_POLICIES` (the table above, **grounded in the coordinators' real gates** —
+operations admin-only, links designer-only, admin/settings any-named, paycalc soft, calendar public,
+guides open) + the **pure** `requirePageAuth(snapshot, policy, roles) → { decision, reason }` with
+five decisions `allow / soft-allow / login / forbidden / pending` + `rolesFor(member)` (CONFIG glue)
++ `requirePage(snapshot, page)` (coordinator convenience, fails closed on unknown page). Encodes the
+invariants: degraded never grants authority (→ pending, not allow), soft never blocks, public always
+allows, server is the boundary. 42 tests. Not wired in — behaviour unchanged. **Decision deviation
+from the plan's four outcomes:** added `pending` for the resolving/degraded states (a "not yet"
+outcome the coordinator shows as loading/reconnecting) — necessary because `subscribeAuth` fires on
+those transient states. The read-vs-write distinction is left as the documented `page→page.action`
+seam for Phase 4.
 
 ### Phases 4–7 — Migrate coordinators (this is Track 3)
 Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap; replace top-level
