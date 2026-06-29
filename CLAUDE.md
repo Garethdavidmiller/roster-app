@@ -166,7 +166,8 @@ roster-app/
 ├── calendar-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
 ├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
 ├── admin-app.js            ← coordinator for admin.html: login, AL/absence, Team Week View, module wiring
-├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog
+├── operations-app.js       ← coordinator for operations.html: session guard, initHuddleUpload/RosterUpload/AuthSetup/ErrorLog. Body is an exported `init()` (Phase 4a.2) invoked by operations-boot.js — early-return access gate, no top-level throw
+├── operations-boot.js      ← 2-line bootstrap for operations.html: imports `init` from operations-app.js and calls it (CSP `script-src 'self'` blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── settings-app.js         ← coordinator for settings.html: session, login, initHuddleNotifications, work email
 ├── huddle.js               ← initHuddleUpload (→ operations) + initHuddleNotifications (→ settings)
 ├── admin-auth.js           ← Staff Firebase Auth account setup card: initAuthSetup()
