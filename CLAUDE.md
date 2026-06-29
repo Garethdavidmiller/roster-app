@@ -176,7 +176,8 @@ roster-app/
 ├── admin-overrides.js      ← Change a Shift: PILL_TYPES, week grid, bulk bar, override list, recordRangeOverrides()
 ├── admin-rangepicker.js    ← Inline date-range calendar: buildRangePicker(prefix), getDateRange()
 ├── admin-roster-upload.js  ← Weekly Roster Upload: computeCellStates, renderReviewTable, shiftDisplay
-├── paycalc-app.js          ← coordinator for paycalc.html (UI, DOM, autosave, HPP, sticky bar, back-pay)
+├── paycalc-app.js          ← coordinator for paycalc.html (UI, DOM, autosave, HPP, sticky bar, back-pay). Body is an exported `init()` (Phase 4a.2) invoked by paycalc-boot.js — local-identity gate early-returns, no top-level throw
+├── paycalc-boot.js         ← 2-line bootstrap for paycalc.html: imports `init` from paycalc-app.js and calls it (CSP blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── paycalc-lightboxes.js   ← lightbox and overlay initialisation for paycalc.html: initPaycalcLightboxes() → { openAboutLightbox }
 ├── paycalc-periods.js      ← period arithmetic and select UI: CONFIG, getPeriods, buildPeriodSelect, updateTyTabs, jumpToTaxYear, prevPeriod, nextPeriod, hasBankHoliday, hasBoxingDay, CONDITIONAL_ROWS, updateBhRows
 ├── paycalc-settings.js     ← grade/contracted-hours helpers and settings persistence: getGrade, getEffectiveContr, getLoggedMember, getProRateFactor, getPensionDefault, updateRateForPeriod, updateYtdForTaxYear, settingsKey, saveSettings, confirmSettings, setSettingsCardOpen, loadSettings
@@ -196,7 +197,8 @@ roster-app/
 ├── index.css / admin.css / paycalc.css / operations.css / settings.css ← page-specific CSS
 ├── links.html              ← link design workspace (28-line rotation designer; visible to CONFIG.LINKS_DESIGNERS only)
 ├── links.css               ← CSS for links.html (grid, paint bar, picker chips, compare, heat map)
-├── links-app.js            ← coordinator for links.html: multi-design Firestore, grid, paint, compare, generator UI
+├── links-app.js            ← coordinator for links.html: multi-design Firestore, grid, paint, compare, generator UI. Body is an exported `init()` (Phase 4a.2) invoked by links-boot.js — early-return access gate, no top-level throw
+├── links-boot.js           ← 2-line bootstrap for links.html: imports `init` from links-app.js and calls it (CSP blocks inline module scripts; keeps init() importable without auto-running, for tests)
 ├── links-design.js         ← pure link-design maths: classifyShift, normaliseCustomShift, calcCoverage, calcHourlyCoverage, generatePatterns, runDesignChecks, dayClass
 ├── shared.css              ← CSS shared by all six app pages (nav panel, lightbox, login, card-header, btn-action) — NOT the guides
 ├── guide-shell.css         ← shared chrome for all 4 guide pages (header, .btn-back, .btn-pdf, print, palette tokens)

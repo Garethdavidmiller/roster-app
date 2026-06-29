@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.65
+// MYB Roster — Service Worker v14.67
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,7 +22,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.65';
+const APP_VERSION = '14.67';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -46,13 +46,13 @@ const NETWORK_FIRST_FILES = [
     'admin-app.js', 'huddle.js', 'admin-auth.js', 'ls.js', 'nav-panel.js', 'notif.js',
     'admin-roster-upload.js', 'admin-overrides.js', 'admin-rangepicker.js',
     'admin-al.js', 'admin-sick.js',
-    'operations-app.js', 'operations-boot.js', 'settings-app.js', 'links-app.js', 'links-design.js',
+    'operations-app.js', 'operations-boot.js', 'settings-app.js', 'links-app.js', 'links-boot.js', 'links-design.js',
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js',
     'usage-reporter.js', 'usage-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'client-errors.js',
     'shared.css',
-    'paycalc.html', 'paycalc-app.js', 'paycalc-calc.js',
+    'paycalc.html', 'paycalc-app.js', 'paycalc-boot.js', 'paycalc-calc.js',
     'paycalc-help.js', 'paycalc-migrations.js',
     'paycalc-periods.js', 'paycalc-settings.js',
     'paycalc-roster-hint.js', 'paycalc-hpp.js', 'paycalc-backpay.js',
@@ -80,6 +80,7 @@ const CORE_ASSETS = [
     "./settings.css",
     "./links.css",
     "./links-app.js",
+    "./links-boot.js",
     "./links-design.js",
     "./settings-app.js",
     "./calendar-app.js",
@@ -128,6 +129,7 @@ const CORE_ASSETS = [
     "./manifest.json",
     "./paycalc.html",
     "./paycalc-app.js",
+    "./paycalc-boot.js",
     "./paycalc-calc.js",
     "./paycalc-help.js",
     "./paycalc-migrations.js",

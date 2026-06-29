@@ -1,14 +1,16 @@
 # ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
 
-*Status: **Phases 0–2 complete (v14.57–v14.59).** Phase 0: identity layer (`session.test.mjs`, 43) +
-claim layer (`firestore.rules.test.mjs` B2) pin current intended behaviour; page-policy layer pinned
-by flag-ON e2e, completes per-coordinator in Track 3. Phase 1: `auth-state-core.js` — the pure
-`reduceAuthState` machine (24 tests). **Phase 2 (v14.59): the `auth-state.js` store + the `session.js`
-feed bridge — OBSERVING ONLY, `sessionReady` left untouched, 43 pre-existing session tests pass
-unchanged. Phase 3 (v14.60): `auth-policy.js` — the pure page-auth map + `requirePageAuth`, 42
-tests, not wired in.** All three pure/observing phases are now done; **Phases 4–7 are next — the
-first behaviour-adjacent step**, migrating coordinators (Operations first) to actually CONSUME the
-store + policy. Companion to `SECURITY_RELEASE_PLAN.md`.
+*Status: **Track 1 COMPLETE (v14.57–v14.67) — all coordinator migrations landed; only B3 (Phase 8,
+behaviour change, owner-gated in `SECURITY_RELEASE_PLAN.md`) remains.** Phase 0: characterisation
+net (`session.test.mjs`, `firestore.rules.test.mjs` B2, flag-ON e2e) pins current behaviour. Phase 1
+(v14.58): `auth-state-core.js` pure `reduceAuthState` machine. Phase 2 (v14.59): `auth-state.js`
+store + `session.js` feed bridge (observing only; `sessionReady` untouched). Phase 3 (v14.60):
+`auth-policy.js` pure page-auth map + `requirePageAuth`. Phases 4–7 (v14.61–v14.66): every write/named
+coordinator now CONSUMES the store + policy — Operations (4a) + self-healing admin reads (4b, v14.62),
+Links (5), Admin (6), Settings + Pay Calculator (7). Phase 4a.2 (v14.65/14.67): the HALT-style
+coordinators (Operations, Links, Paycalc) wrapped in an exported `init()` + `*-boot.js` bootstrap
+(branch-style Admin/Settings intentionally left inline). The whole refactor is behaviour-preserving
+(665 unit + 173 rules + 68 e2e pass unchanged throughout). Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
 auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
@@ -274,7 +276,19 @@ Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap;
    optimistic 'named', preserving the exact prior trigger. Behaviour-preserving: 665 unit + 68 e2e
    pass unchanged (incl. admin signed-in render + B1 `failSignIn` re-show-login).
 4. **Settings / Pay Calculator** — Settings matters for push + work-email; Pay Calculator stays
-   **soft** (calculator works locally even if Firebase fails).
+   **soft** (calculator works locally even if Firebase fails). **DONE (Phase 7, v14.66):**
+   - *Settings* — mirrors Admin: the `if (!isAuthenticated)` gate routes through
+     `requirePage(..., 'settings')` (policy `role: null` → any named user; no 'forbidden'), and the
+     `!named` B1 check through `requirePage(getAuthSnapshot(), 'settings')`.
+   - *Pay Calculator* — the soft Firebase-confirmation path (`_initErrorReporting`) now decides via
+     `requirePage(getAuthSnapshot(), 'paycalc')` — being `soft` it returns only `allow`/`soft-allow`,
+     never `login`, so the calculator is never blocked (warn-only on `soft-allow`). **Gate #1 (no
+     local session → login overlay) is DELIBERATELY left outside the policy**: paycalc needs a local
+     member identity to namespace its per-member localStorage, a precondition stricter than the
+     page-soft policy (whose tested invariant is "soft never yields login"). Documented in-code so it
+     is never "simplified" into requirePage (which would regress to rendering with no identity).
+   - Behaviour-preserving: 665 unit + 68 e2e pass unchanged (incl. settings login + B1 re-show-login,
+     and "paycalc stays SOFT — calculator renders, no redirect").
 - **Calendar** is left until last (or untouched) unless B3 requires it — it is the most
   staff-visible page.
 
@@ -392,13 +406,23 @@ settled:
   the `throw`s (kept — see 4a.2). Small diff at the top of `operations-app.js`; imports
   `requirePage` + `getAuthSnapshot`.
 
-### 4a.2 — testable `init()` wrap + `throw`→`return` (DEFERRED, separable)
+### 4a.2 — testable `init()` wrap + `throw`→`return` — BUILT (Operations v14.65; Links + Paycalc v14.67)
 The plan's "wrap each coordinator in an exported `init()`, remove the top-level throws" is a real
-goal but is an **~880-line re-indent** of `operations-app.js` and needs ~17 import-mocks (or full
-dep-injection) to unit-test the wiring — high-risk for the first migration, and **independent of the
-store/policy consumption** above. Deferred so 4a stays a small, reviewable, behaviour-preserving
-diff. (It also needs a `operations-boot.js` 2-line bootstrap because CSP `script-src 'self'` blocks
-inline module scripts.) Pick it up once 4a has proven the consumption pattern.
+goal but is a large re-indent and needs import-mocks (or full dep-injection) to unit-test the wiring
+— so it was deferred from 4a (kept that diff small) and picked up once the consumption pattern was
+proven. Each wrapped coordinator's body is `export function init()`, invoked by a `<page>-boot.js`
+2-line bootstrap (CSP `script-src 'self'` blocks an inline call; the boot file also keeps `init`
+importable without auto-running, for tests). The transform is mechanical and behaviour-preserving
+(`git diff -w` shows only the wrapper + `throw`→`return` + brace); nothing imports these coordinators,
+so function-scoping their module-level symbols breaks no consumer.
+
+**Scope decision — wrap the HALT-style coordinators, not the BRANCH-style ones.** The wrap's
+load-bearing benefit is turning a module-aborting top-level `throw` into a clean early `return`.
+- **Operations, Links, Paycalc** HALT on a failed gate (top-level `throw`) → wrapped. Paycalc's gate
+  was an IIFE-with-throw; it was de-IIFE'd to a plain `if (...) return;` inside `init()`.
+- **Admin, Settings** BRANCH instead (`if (authed) { init } else { showLogin }`) and have **no
+  top-level throw**, so the wrap would be a large re-indent (Admin ~1620 lines) for only *latent*
+  testability — not worth the risk. Left inline by design. (Revisit if/when their wiring is unit-tested.)
 
 ### 4b — self-healing admin reads (the one beneficial behaviour change) — BUILT v14.62
 The three admin read cards (work-email / error-log / usage) read admin-gated collections. The
