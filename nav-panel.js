@@ -17,6 +17,7 @@
  */
 
 import { notifSupported, peekNotifState, enableNotifications, disableNotifications } from './notif.js';
+import { getLatestCircular, getLatestNewsletter, isSafeStorageUrl } from './firebase-client.js';
 import { APP_VERSION, avatarInitials, avatarHue } from './roster-data.js';
 import { lockBodyScroll, unlockBodyScroll } from './overlay.js';
 import { lsGet, lsSet } from './ls.js';
@@ -47,8 +48,8 @@ const NAV_INFORMATION = [
         heading: 'Workplace',
         links: [
             { icon: '📋', label: 'Daily Huddle',           url: './index.html#huddle' },
-            { icon: '📰', label: 'Weekly Retail Circular', url: './index.html#circular' },
-            { icon: '🗞️', label: 'Marylebone Newsletter',  url: './index.html#newsletter' },
+            { icon: '📰', label: 'Weekly Retail Circular', circular: true, body: 'No circular has been uploaded yet — it\'s usually available on Friday.' },
+            { icon: '🗞️', label: 'Marylebone Newsletter',  newsletter: true, body: 'No newsletter has been uploaded yet — check back soon.' },
             { icon: '📣', label: 'App Notices', notices: true },
         ],
     },
@@ -234,12 +235,51 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
     closeBtn?.addEventListener('click', closePanel);
     overlay.addEventListener('click', closePanel);
 
+    // Guard against repeated taps while a circular/newsletter Firestore fetch is in flight.
+    let _docFetching = false;
+
+    /**
+     * Opens the latest Circular or Newsletter PDF in a new tab — DIRECTLY, in one tap.
+     * The nav link is a real user gesture, so window.open is allowed (unlike a
+     * notification tap, which has no activation and must route through the in-app
+     * #circular/#newsletter viewer's Open button — calendar-doc-viewer.js).
+     * Opens a blank tab synchronously (same event tick = user gesture) so Safari
+     * doesn't classify the later window.open() inside .then() as a popup.
+     * Falls back to the coming-soon lightbox if no document exists or fetch fails.
+     * @param {HTMLElement} triggerEl
+     * @param {() => Promise<any>} fetchFn
+     */
+    function _openLatestDoc(triggerEl, fetchFn) {
+        if (_docFetching) return;
+        _docFetching = true;
+        const newTab = window.open('', '_blank');
+        if (newTab) newTab.opener = null;
+        fetchFn().then(/** @param {any} data */ data => {
+            const url = data?.storageUrl;
+            const safeUrl = isSafeStorageUrl(url) ? url : null;
+            if (safeUrl) {
+                if (newTab) {
+                    newTab.location.href = safeUrl;
+                } else {
+                    // Popup was blocked — fall back to current-tab navigation.
+                    location.href = safeUrl;
+                }
+                closePanelForNavigation();
+            } else {
+                if (newTab) newTab.close();
+                _closePanelVisualOnly();
+                _openComingSoon(triggerEl);
+            }
+        }).catch(() => {
+            if (newTab) newTab.close();
+            _closePanelVisualOnly();
+            _openComingSoon(triggerEl, 'Couldn\'t connect — check your signal and try again.');
+        }).finally(() => { _docFetching = false; });
+    }
+
     // Close panel before navigating so the panel doesn't flash behind the new page.
-    // The Circular / Newsletter links are now plain hash links (./index.html#circular,
-    // #newsletter) — exactly like Daily Huddle (#huddle) — so they navigate to the
-    // calendar's in-app viewer (calendar-doc-viewer.js) via the catch-all below; no
-    // bespoke fetch/new-tab handling here. "Coming soon" and "App Notices" links are
-    // buttons — close the panel and open their lightboxes instead of navigating.
+    // "Coming soon" and "App Notices" links are buttons — close the panel and open
+    // their lightboxes instead of navigating.
     panel.addEventListener('click', e => {
         const comingSoon = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--coming-soon'));
         if (comingSoon) {
@@ -247,6 +287,10 @@ export function initNavPanel({ currentPage = 'calendar', memberName = null, onSi
             _openComingSoon(comingSoon);
             return;
         }
+        const circular = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--circular'));
+        if (circular) { _openLatestDoc(circular, getLatestCircular); return; }
+        const newsletter = /** @type {HTMLElement|null} */ (/** @type {Element} */ (e.target).closest('.nav-panel-link--newsletter'));
+        if (newsletter) { _openLatestDoc(newsletter, getLatestNewsletter); return; }
         if (/** @type {Element} */ (e.target).closest('.nav-panel-link--notices')) {
             _closePanelVisualOnly();
             _openNotices();
@@ -589,6 +633,8 @@ function _inject(currentPage, memberName, onSignOut, isAdmin, isLinksDesigner) {
         <ul class="nav-panel-links">
             ${group.links.map(/** @param {any} link */ link => {
                 if (link.comingSoon) return `<li><button type="button" class="nav-panel-link nav-panel-link--coming-soon" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
+                if (link.circular)    return `<li><button type="button" class="nav-panel-link nav-panel-link--circular" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
+                if (link.newsletter)  return `<li><button type="button" class="nav-panel-link nav-panel-link--newsletter" data-cs-title="${link.label}" data-cs-icon="${link.icon}" data-cs-body="${link.body ?? ''}">${link.icon} ${link.label}</button></li>`;
                 if (link.notices)   return `<li><button type="button" class="nav-panel-link nav-panel-link--notices">${link.icon} ${link.label}</button></li>`;
                 return `<li><a href="${link.url}" class="nav-panel-link">${link.icon} ${link.label}</a></li>`;
             }).join('')}
