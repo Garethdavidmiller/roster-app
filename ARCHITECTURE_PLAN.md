@@ -332,16 +332,22 @@ tests, and docs — but the *client* change becomes a policy edit, not six coord
 
 ---
 
-## MILLER_ACTUALS — privacy task — ✅ RESOLVED (Option A, v14.68)
+## MILLER_ACTUALS — privacy task — ✅ RESOLVED (Option A privacy + Option B feature, v14.68–v14.69)
 
 **Done as Track 2 step 1.** `MILLER_ACTUALS` (13 periods of real payslip figures) was moved OUT of
 the served `roster-data.js` into `test-fixtures/miller-actuals.js`, which is **excluded from Firebase
-Hosting** (`firebase.json` `ignore` → `test-fixtures/**`) so it is no longer fetchable. The former
-in-app "Actual Take-Home" comparison feature (gated to G. Miller in `paycalc-app.js`/`paycalc-hpp.js`)
-was removed — the test suite already validates the pay maths against these figures, and `paycalc.test.mjs`
+Hosting** (`firebase.json` `ignore` → `test-fixtures/**`) so it is no longer fetchable. `paycalc.test.mjs`
 now **imports the fixture** as its single source of truth (the previously-duplicated inline array was
 deleted). This closes the (small) privacy exposure: in a no-build app any served JS file is publicly
 fetchable, and these were real payslip figures.
+
+**The in-app "Actual Take-Home" comparison feature was kept, made DEVICE-LOCAL (Option B, v14.69).**
+The figures are no longer compiled into any served module — instead the owner imports them once per
+device via an owner-only paste box in paycalc (Settings → "Import payslip actuals"), stored under the
+member-namespaced localStorage key `myb_pc_<slug>_actuals` (`payslipActualsKey`/`readPayslipActuals`/
+`writePayslipActuals`/`clearPayslipActuals` in `paycalc-migrations.js`). `paycalc-app.js` and
+`paycalc-hpp.js` read the actuals from there (gated to G. Miller), so the comparison + HPP-actuals
+basis work exactly as before on a seeded device, and degrade to the normal estimate everywhere else.
 
 The three options considered (kept for the record): **A — test-only fixture (chosen)**; B — device-local
 localStorage (keeps the in-app feature but needs a one-time owner import); C — owner-only Firestore doc
