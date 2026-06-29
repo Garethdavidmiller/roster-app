@@ -404,13 +404,23 @@ settled:
   the `throw`s (kept — see 4a.2). Small diff at the top of `operations-app.js`; imports
   `requirePage` + `getAuthSnapshot`.
 
-### 4a.2 — testable `init()` wrap + `throw`→`return` (DEFERRED, separable)
+### 4a.2 — testable `init()` wrap + `throw`→`return` — BUILT (Operations v14.65; Links + Paycalc v14.67)
 The plan's "wrap each coordinator in an exported `init()`, remove the top-level throws" is a real
-goal but is an **~880-line re-indent** of `operations-app.js` and needs ~17 import-mocks (or full
-dep-injection) to unit-test the wiring — high-risk for the first migration, and **independent of the
-store/policy consumption** above. Deferred so 4a stays a small, reviewable, behaviour-preserving
-diff. (It also needs a `operations-boot.js` 2-line bootstrap because CSP `script-src 'self'` blocks
-inline module scripts.) Pick it up once 4a has proven the consumption pattern.
+goal but is a large re-indent and needs import-mocks (or full dep-injection) to unit-test the wiring
+— so it was deferred from 4a (kept that diff small) and picked up once the consumption pattern was
+proven. Each wrapped coordinator's body is `export function init()`, invoked by a `<page>-boot.js`
+2-line bootstrap (CSP `script-src 'self'` blocks an inline call; the boot file also keeps `init`
+importable without auto-running, for tests). The transform is mechanical and behaviour-preserving
+(`git diff -w` shows only the wrapper + `throw`→`return` + brace); nothing imports these coordinators,
+so function-scoping their module-level symbols breaks no consumer.
+
+**Scope decision — wrap the HALT-style coordinators, not the BRANCH-style ones.** The wrap's
+load-bearing benefit is turning a module-aborting top-level `throw` into a clean early `return`.
+- **Operations, Links, Paycalc** HALT on a failed gate (top-level `throw`) → wrapped. Paycalc's gate
+  was an IIFE-with-throw; it was de-IIFE'd to a plain `if (...) return;` inside `init()`.
+- **Admin, Settings** BRANCH instead (`if (authed) { init } else { showLogin }`) and have **no
+  top-level throw**, so the wrap would be a large re-indent (Admin ~1620 lines) for only *latent*
+  testability — not worth the risk. Left inline by design. (Revisit if/when their wiring is unit-tested.)
 
 ### 4b — self-healing admin reads (the one beneficial behaviour change) — BUILT v14.62
 The three admin read cards (work-email / error-log / usage) read admin-gated collections. The

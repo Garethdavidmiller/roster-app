@@ -270,6 +270,12 @@ Coordinator for `operations.html` (admin-only, v10.99).
 ### `operations-boot.js`
 2-line bootstrap for `operations.html` (Phase 4a.2, v14.65). Imports `init` from `operations-app.js` and calls it. Exists because CSP `script-src 'self'` blocks an inline `init()` call, and because keeping the call out of the coordinator lets a test `import { init }` without auto-running the page. No logic of its own.
 
+### `links-boot.js`
+2-line bootstrap for `links.html` (Phase 4a.2, v14.67). Imports `init` from `links-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
+
+### `paycalc-boot.js`
+2-line bootstrap for `paycalc.html` (Phase 4a.2, v14.67). Imports `init` from `paycalc-app.js` and calls it. Same rationale as `operations-boot.js` (CSP + testability). No logic of its own.
+
 ### `admin-al.js`
 Annual Leave Booking section (extracted v9.93).
 - `initALSection(deps)` — sets up date picker, preview, entitlement check, and Firestore save. Receives DOM handles and callbacks via `deps` to avoid circular imports.
@@ -326,6 +332,8 @@ The Weekly Roster Upload pipeline.
 
 ### `paycalc-app.js`
 Coordinator for `paycalc.html`. No pure pay maths, no period arithmetic here.
+- **Exported `init()` wrap (Phase 4a.2, v14.67):** the whole body is `export function init()`, called by `paycalc-boot.js` (the page loads the boot file — CSP blocks an inline call). The local-identity gate (no local session → login overlay) early-`return`s instead of throwing; importing the module no longer auto-runs it.
+- **SOFT auth (Phase 7, v14.66):** gate #1 (local-identity precondition) is intentionally NOT routed through `requirePage` — paycalc needs a local member to namespace its localStorage. The Firebase-confirmation path (`_initErrorReporting`) decides via `requirePage(getAuthSnapshot(), 'paycalc')`, which being `soft` returns only `allow`/`soft-allow`, never `login`, so the calculator is never blocked.
 - `calculate()` — main calculation engine (calls paycalc-calc.js pure functions)
 - `onPeriodChange()` — orchestrates all period-level updates; calls helpers from paycalc-periods.js and paycalc-settings.js
 - `autosave()` — saves hours data per period to localStorage
