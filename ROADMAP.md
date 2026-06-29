@@ -521,11 +521,60 @@ Note: the press-scale fix alone (`scale(0.94)` → `scale(var(--press-scale))`) 
 
 Design review against a 10-point modernisation list. Already well-implemented: shadows (minimal, 10% opacity), 5-tier type scale (`--type-micro` → `--type-large`), motion tokens, WCAG AA colour contrast across all shift types, touch targets, safe-area padding, and reduced-motion support. Navigation was the one real gap — addressed by the nav panel overhaul (v10.57). **Shipped from this audit:** Pay result hierarchy (v7.67) — period line and hint text brightened from 72%/48% to 88%/62% opacity.
 
+### Design — low-risk visual wins (planned, June 2026)
+
+A short batch of **no/low-risk, additive-CSS** polish items. None changes layout, behaviour, or JS;
+each is verifiable by eye plus the existing e2e geometry checks (no horizontal overflow). Sequenced
+cheapest-first. Higher-effort/higher-risk ideas (View Transitions on the swipe carousel, `:has()`
+state refactors, container queries, an SVG icon set, dark mode) are deliberately **excluded** from
+this batch — they're tracked separately under Future capabilities / UX experiments.
+
+1. **Tabular numerals on data** — `font-variant-numeric: tabular-nums` on the Pay Calculator
+   figures, shift times, and AL counts so digits align in columns. **No risk** (Inter supports it;
+   no layout shift). Highest perceptual payoff for the effort.
+2. **`text-wrap: balance` on headings, `text-wrap: pretty` on paragraphs** — kills ragged headings
+   and orphan lines. **No risk** (degrades gracefully on older engines).
+3. **Display-heading typography** — fluid `clamp()` on `--type-xl` only (small/body/input sizes stay
+   fixed — the iOS-zoom floor logic is deliberate) + a slight `letter-spacing: -0.01em` on large
+   headings (Inter benefits from tighter tracking at display sizes). **Low risk**, scoped to display
+   headings.
+4. **Motion completeness audit** — confirm every animation (e.g. `today-pulse`) honours
+   `prefers-reduced-motion`; optional `scroll-behavior: smooth` behind the same guard. **Low risk**,
+   accessibility-positive.
+5. **Focus-visible / tap-target consistency audit** — ensure every interactive element has a visible
+   focus ring and meets the ~44px touch-target minimum; fix only clear gaps (no blanket size
+   changes, which could shift layout). **Low risk** (audit-led).
+
+Each ships as its own small commit with a version bump, so any one can be reverted independently.
+
 ---
 
 ## Future capabilities — not committed, no fixed sequence
 
 Each area is independent unless a dependency is noted.
+
+### Dark mode (toggleable) — idea only, not scoped
+
+**What:** A true dark theme. Especially relevant to *this* user base — staff work early/late/night
+shifts and check the roster at 04:30 in dim mess rooms, on platforms before dawn, or in bed the
+night before. A dark theme is an ergonomic fit for the actual use context, not just a trend.
+
+**Why it's tractable here:** the canvas is already brand navy (half-way conceptually), and the
+palette is **oklch**, so a dark theme is mostly inverting the lightness channel of the surface
+tokens and nudging a few accents — far easier than it would be with hex. The three-surface model
+(canvas → card → sunken) maps cleanly onto dark (canvas darkest → card lighter → sunken between).
+
+**Important — a toggle is essential, initially.** Do **not** ship dark mode as a silent
+`prefers-color-scheme` switch on day one. Ship it behind an explicit **on/off (and ideally
+on/off/auto) toggle** in Settings, defaulting to today's light theme, so staff opt in and nobody is
+surprised by a changed app. Today the app forces `color-scheme: light` in `shared.css` — that opt-out
+is what a dark theme would replace, gated behind the toggle.
+
+**Effort/risk when scoped:** medium effort (every surface/text token needs a dark counterpart, AA
+re-verified in both themes), low risk (additive, behind the toggle). Not scoped yet — this entry is
+a placeholder so the idea isn't lost.
+
+---
 
 ### Deferred: student-loan payslip integration tests
 
