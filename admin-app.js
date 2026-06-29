@@ -1379,8 +1379,19 @@ async function purgeSundayAL() {
 async function _runEmailCheck(member) {
     if (lsGet(`myb_email_check_done_${member}`)) return;
 
+    // Time-box the Firestore read. The email check runs on the login path BEFORE the
+    // post-login reload, so a slow/hung getStaffContact would otherwise freeze the user
+    // on the login overlay even though their session is already saved (the v14.72 login
+    // freeze). On timeout (or any error) we skip the check this time and let login
+    // proceed — it simply re-appears on the next load. The check is a one-time nudge,
+    // never load-bearing, so skipping it is harmless.
     let existing = null;
-    try { existing = await getStaffContact(member); } catch { return; }
+    try {
+        existing = await Promise.race([
+            getStaffContact(member),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('email-check read timed out')), 4000)),
+        ]);
+    } catch { return; }
 
     const overlayEl   = document.getElementById('emailCheckOverlay');
     if (!overlayEl) return;
