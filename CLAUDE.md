@@ -148,6 +148,7 @@ roster-app/
 ├── calendar-member.js      ← team member selection for index.html: getSelectedMemberIndex, getCurrentMember, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html: buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection
 ├── calendar-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
+├── calendar-doc-viewer.js  ← Circular/Newsletter in-app viewer (index.html): initDocViewer — opens a #circular/#newsletter notification deep link in a centred lightbox with an "Open" button (PDF). Reuses createLightbox; separate from the Huddle viewer.
 ├── nav-panel.js            ← shared nav drawer: initNavPanel, NAV_PAGES/INFORMATION/GUIDES, archiveNotice, isNoticeExpired
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse

@@ -25,6 +25,7 @@ import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
+import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
@@ -652,6 +653,11 @@ registerServiceWorker({
 // HUDDLE VIEWER — initialised via calendar-huddle-viewer.js
 // ============================================
 initHuddleViewer();
+
+// ============================================
+// CIRCULAR / NEWSLETTER VIEWER — opened from a #circular/#newsletter notification deep link
+// ============================================
+initDocViewer();
 
 
 // Resolves once a usable Firebase Auth user exists: a named account if one is already

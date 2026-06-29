@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v14.54 -->
+<!-- MYB Roster — Calendar v14.55 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -184,6 +184,17 @@
         </div>
         <div id="huddleViewerBody">
             <p id="huddleViewerLoading">Loading…</p>
+        </div>
+    </div>
+
+    <!-- Circular / Newsletter viewer — a centred lightbox opened from a #circular /
+         #newsletter notification deep link (calendar-doc-viewer.js). Both are PDFs,
+         so it shows an "Open" button (the Huddle's PDF pattern). -->
+    <div id="docViewer" class="lb-overlay" role="dialog" aria-label="Document" aria-modal="true">
+        <div id="docViewerContent" class="lb-content">
+            <button id="docViewerClose" type="button" class="lb-close" aria-label="Close">✕</button>
+            <div id="docViewerTitle" class="doc-viewer-title"></div>
+            <div id="docViewerBody" class="doc-viewer-body"></div>
         </div>
     </div>
 

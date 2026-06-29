@@ -438,6 +438,47 @@ exports.onHuddleCreated = onDocumentCreated(
     }
 );
 
+// ============================================================================
+// onCircularCreated / onNewsletterCreated — Firestore triggers
+// ============================================================================
+// Circulars and newsletters are browser-upload-only (no Power Automate path), so
+// unlike the Huddle there is no double-send concern — the create trigger is the
+// single notification source. Fires on CREATE only, so re-uploading a correction
+// to the same date (setDoc overwrite = UPDATE) does not re-notify.
+
+/** Fan out a document-arrival push for a circular/newsletter, to the design language. */
+async function sendDocPushNotifications(feature, body, vapidPrivate) {
+    setupWebPush(vapidPrivate);
+    await fanOutPush(buildPushPayload({ feature, body, baseUrl: STAFF_SITE_URL }), `[${feature}]`);
+    console.log(`[${feature}] notification sent`);
+}
+
+exports.onCircularCreated = onDocumentCreated(
+    { document: 'circulars/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
+    async event => {
+        const date = event.params.date;
+        console.log(`[onCircularCreated] ${date} — fanning out push`);
+        try {
+            await sendDocPushNotifications('circular', "Tap to read this week's retail update.", VAPID_PRIVATE_KEY);
+        } catch (err) {
+            console.warn('[onCircularCreated] Push fan-out error:', err.message);
+        }
+    }
+);
+
+exports.onNewsletterCreated = onDocumentCreated(
+    { document: 'newsletters/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
+    async event => {
+        const date = event.params.date;
+        console.log(`[onNewsletterCreated] ${date} — fanning out push`);
+        try {
+            await sendDocPushNotifications('newsletter', 'Tap to read the latest newsletter.', VAPID_PRIVATE_KEY);
+        } catch (err) {
+            console.warn('[onNewsletterCreated] Push fan-out error:', err.message);
+        }
+    }
+);
+
 // Module-level flag so setVapidDetails() is only called once per warm instance.
 // Secrets are not available at module init, so we defer to first call.
 let _vapidConfigured = false;
