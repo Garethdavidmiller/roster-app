@@ -34,11 +34,11 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
-    huddleDayLabel,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
     fileSignatureMatches,
+    buildPushPayload,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -552,20 +552,15 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     }
     setupWebPush(vapidPrivate);
 
-    // Build smart day label — compare huddle date to today in London timezone.
-    // nowInLondon() reads parts directly via Intl so the result is independent
-    // of the server's local TZ setting (Cloud Run is UTC but the code shouldn't
-    // rely on that).
-    const { year, month, day } = nowInLondon();
-    const dayLabel = huddleDayLabel(huddleDate, new Date(year, month, day));
-
-    await fanOutPush({
-        title: 'Marylebone Roster',
-        body:  `${dayLabel} Huddle is ready`,
-        tag:   'huddle',
-        url:   `${STAFF_SITE_URL}/#huddle`,
-    }, '[push]');
-    console.log(`[push] "${dayLabel} Huddle is ready" sent`);
+    // Notification design language (.claude/rules/notifications.md): "📋 Latest Huddle".
+    // "Latest" (not "Today's") because the Huddle is the next-day plan sent the evening
+    // before, so a day-relative label is inaccurate by the time staff read it.
+    await fanOutPush(buildPushPayload({
+        feature: 'huddle',
+        body:    'Tap to read the latest day plan.',
+        baseUrl: STAFF_SITE_URL,
+    }), '[push]');
+    console.log(`[push] Huddle notification sent for ${huddleDate}`);
 }
 
 /**
@@ -585,12 +580,14 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
     const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
     const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
 
-    await fanOutPush({
-        title: `💷 Payday is ${paydayDay}!`,
-        body:  `Hours cutoff today — open the Pay Calculator to estimate your ${paydayFmt} pay`,
-        tag:   'pay-reminder',
-        url:   `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
-    }, '[payReminder]');
+    // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",
+    // calm/no-exclamation tone, action in the body.
+    await fanOutPush(buildPushPayload({
+        feature:  'pay',
+        headline: `Payday ${paydayDay} — hours cutoff today`,
+        body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
+        url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
+    }), '[payReminder]');
     console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
 }
 
