@@ -549,7 +549,7 @@ uploadedBy   Member name string
 ```
 Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestCircular()` in `firebase-client.js`, called from `calendar-doc-viewer.js` when the `#circular` viewer opens (the ☰ → Weekly Retail Circular link and Circular notification taps both deep-link to `index.html#circular`).
+Read by: `getLatestCircular()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Weekly Retail Circular — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#circular` in-app viewer used by **notification taps only**, which have no user gesture to open the file directly).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 **newsletters** (v13.59)
@@ -564,7 +564,7 @@ uploadedBy   Member name string
 ```
 Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestNewsletter()` in `firebase-client.js`, called from `calendar-doc-viewer.js` when the `#newsletter` viewer opens (the ☰ → Marylebone Newsletter link and Newsletter notification taps both deep-link to `index.html#newsletter`).
+Read by: `getLatestNewsletter()` in `firebase-client.js`, called from **`nav-panel.js`** (☰ → Marylebone Newsletter — opens the PDF **directly** in a new tab, one tap) and from **`calendar-doc-viewer.js`** (the `#newsletter` in-app viewer used by **notification taps only**).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 Override cache key: `"memberName|YYYY-MM-DD"`

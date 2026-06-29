@@ -2184,8 +2184,23 @@
         }
 
         /* ---- Circular / Newsletter viewer (#docViewer) ---- */
-        /* Inherits the centred lightbox chrome from .lb-overlay/.lb-content; only the
-           inner title/body/button need styling. Always-PDF, so it shows an Open button. */
+        /* .lb-content is structural only — the card theme (background/padding/width)
+           lives here in the ID, per the lightbox convention. Reached ONLY from a
+           #circular/#newsletter notification tap (the nav-drawer links open the PDF
+           directly); always-PDF, so it shows an Open button. */
+        #docViewerContent {
+            background: white;
+            width: min(420px, 88vw);
+            margin: auto;
+            padding: 26px 24px max(24px, env(safe-area-inset-bottom));
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-3);
+            text-align: center;
+        }
+        #docViewerContent .lb-close { color: var(--text-mid); }
+        @media (hover: hover) and (pointer: fine) {
+            #docViewerContent .lb-close:hover { color: var(--text-dark); }
+        }
         .doc-viewer-title {
             font-size: var(--type-large);
             font-weight: 700;
