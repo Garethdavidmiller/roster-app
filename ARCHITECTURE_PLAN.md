@@ -1,11 +1,13 @@
 # ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
 
-*Status: **Phase 0 (characterisation net) + Phase 1 (pure reducer) complete (v14.57–v14.58).**
-Phase 0: identity layer (`session.test.mjs`, 43) + claim layer (`firestore.rules.test.mjs` B2) pin
-current intended behaviour; page-policy layer pinned by flag-ON e2e, completes per-coordinator in
-Track 3. Phase 1: `auth-state-core.js` — the pure `reduceAuthState` state machine, 24 tests, not yet
-wired in. **Phase 2 (the `auth-state.js` Firebase/localStorage shell + the `sessionReady` re-impl on
-top of it) is the next step.** Companion to `SECURITY_RELEASE_PLAN.md`.
+*Status: **Phases 0–2 complete (v14.57–v14.59).** Phase 0: identity layer (`session.test.mjs`, 43) +
+claim layer (`firestore.rules.test.mjs` B2) pin current intended behaviour; page-policy layer pinned
+by flag-ON e2e, completes per-coordinator in Track 3. Phase 1: `auth-state-core.js` — the pure
+`reduceAuthState` machine (24 tests). **Phase 2 (v14.59): the `auth-state.js` store + the `session.js`
+feed bridge — OBSERVING ONLY, `sessionReady` left untouched, 43 pre-existing session tests pass
+unchanged.** Next: Phase 3 (the `auth-policy.js` page-auth map + `requirePageAuth`), then Phases 4–7
+migrate coordinators (Operations first) to actually CONSUME the store. Companion to
+`SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
 auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
@@ -217,13 +219,25 @@ frozen object, never mutates prev. Maps 1:1 onto the Phase-0 outcomes. 24 tests 
 and realistic lifecycles incl. transient-recover). **Not wired into anything** — behaviour
 unchanged. Listed in the SW precache lists + CLAUDE.md/AI_MAP so it ships ready for Phase 2.
 
-### Phase 2 — Shell adapter (`auth-state.js`)
-Wrap Firebase/localStorage; internally delegate to today's `session.js` functions at first (safe).
+### Phase 2 — The auth STORE (`auth-state.js`) — ✅ DONE (v14.59)
+The store holds the single identity state (`getAuthSnapshot` / `subscribeAuth` / `dispatchAuth` over
+the reducer), importing only `auth-state-core.js`. **Refinement vs the original plan (deliberate, for
+safety):** rather than build a NEW shell that re-wraps Firebase/localStorage — which would duplicate
+`session.js` and add risk — the **existing `session.js` is the adapter** and FEEDS the store:
+`ensureNamedSession` dispatches `RESOLVE_START → (TRANSIENT/RETRY) → NAMED/ANONYMOUS/NONE/FATAL` from
+the B0 signals, and `clearSession` dispatches `SIGN_OUT`. Acyclic: `session.js → auth-state.js →
+auth-state-core.js`. Store: `auth-state.test.mjs` (9); bridge: `session.test.mjs` "auth-store bridge"
+(6). The 43 pre-existing session tests pass unchanged → behaviour preserved.
 
-### Phase 2.5 — Re-implement `sessionReady` ON TOP of the new machine
-Bidirectional shim: un-migrated pages keep importing `sessionReady` and behave identically, but it
-is now sourced from the one machine — a single source of truth **even mid-migration**, so the old
-and new models are never both authoritative at once. (This is "migrate, don't cut over.")
+### Phase 2.5 — `sessionReady` is left UNTOUCHED (the safe realisation of "single source")
+The original 2.5 re-routed `sessionReady` through the machine. On reflection that is **risk for zero
+benefit**: `sessionReady` is awaited by every write page, so re-sourcing it could change its value or
+timing. Instead, the store and `sessionReady` are **both driven by the same `ensureNamedSession`
+resolution**, so they cannot diverge — which IS the "single source / never two authoritative models"
+property 2.5 was for, achieved with **zero change to `sessionReady`**. Phase 2 is OBSERVING ONLY
+(every feed wrapped so a store error can't break auth; nothing consumes the store yet). The literal
+re-route is therefore dropped, not deferred — the goal is already met. (Calendar's anonymous bootstrap
+and paycalc's direct `ensureFirebaseSession` feed the store when those pages migrate, Phase 7.)
 
 ### Phase 3 — Policy map + `requirePageAuth` guards
 Author `auth-policy.js` (the table above) and the pure decision function.

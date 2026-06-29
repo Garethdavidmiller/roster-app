@@ -15,6 +15,28 @@
 import { auth, authReady, onAuthStateChanged, nameToEmail, normaliseSurname, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut as firebaseSignOut } from './firebase-client.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { CONFIG } from './roster-data.js';
+import { dispatchAuth } from './auth-state.js';
+
+/**
+ * Feed the auth STORE (ARCHITECTURE_PLAN.md Phase 2) — OBSERVING ONLY. This is a pure
+ * side-effect: nothing consumes the store yet, so it cannot change any page's behaviour,
+ * and it is wrapped so a store error can NEVER break the auth path. `sessionReady` and
+ * every existing flow are untouched. (Phase 4+ coordinators will subscribe to the store.)
+ * @param {{ type: string, member?: string|null, error?: string|null }} event
+ */
+function _feedAuth(event) {
+    try { dispatchAuth(event); } catch (e) { console.error('[Auth] store feed failed', e); }
+}
+
+/** Translate the resolved Firebase identity (the B0 signals) into a terminal store event. */
+function _syncAuthTerminal(/** @type {string} */ name) {
+    const id  = getFirebaseIdentity();              // 'named' | 'anonymous' | 'none'
+    const err = getFirebaseAuthError() ?? null;
+    if (id === 'named')                       _feedAuth({ type: 'NAMED', member: name });
+    else if (id === 'anonymous')              _feedAuth({ type: 'ANONYMOUS' });
+    else if (err && err.includes('anon:'))    _feedAuth({ type: 'FATAL', error: err });  // even anonymous failed
+    else                                      _feedAuth({ type: 'NONE', error: err });
+}
 
 export const AUTH_KEY    = 'myb_admin_session';
 export const SESSION_MS  = 30 * 24 * 60 * 60 * 1000; // 30 days — absolute outer bound
@@ -238,14 +260,18 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
  * @returns {Promise<boolean>} true if it is safe to proceed (named session, or flag off)
  */
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = {}) {
+    _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
     let ok = await ensureFirebaseSession(name);
-    if (!CONFIG.ENFORCE_NAMED_SESSION) return ok;   // flag off → legacy behaviour, no gating
+    if (!CONFIG.ENFORCE_NAMED_SESSION) { _syncAuthTerminal(name); return ok; }   // flag off → legacy behaviour, no gating
     let attempt = 0;
     while (!ok && attempt < retries && isTransientAuthError(getFirebaseAuthError())) {
+        _feedAuth({ type: 'TRANSIENT', error: getFirebaseAuthError() ?? null });   // store: degraded
         attempt++;
         await new Promise(r => setTimeout(r, delayMs * attempt));
+        _feedAuth({ type: 'RETRY' });   // store: resolving again
         ok = await ensureFirebaseSession(name);
     }
+    _syncAuthTerminal(name);
     return ok && firebaseSessionIsNamed();
 }
 
@@ -307,4 +333,5 @@ export function saveSession(name) {
 export function clearSession() {
     lsDel(AUTH_KEY);
     firebaseSignOut(auth).catch((/** @type {any} */ err) => console.warn('[Auth] signOut failed:', err));
+    _feedAuth({ type: 'SIGN_OUT' });   // store: signedOut (observing only — Phase 2)
 }

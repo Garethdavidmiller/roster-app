@@ -247,6 +247,11 @@ The PURE identity state machine — `ARCHITECTURE_PLAN.md` Track 1, **Phase 1** 
 - Events: `RESOLVE_START{member}` (member null = anonymous bootstrap), `NAMED{member}`, `ANONYMOUS`, `NONE{error}`→signedOut, `TRANSIENT{error}`→degraded (member preserved), `RETRY` (degraded→resolving only; no-op otherwise), `FATAL{error}`→error, `SIGN_OUT`→signedOut. Unknown event → state unchanged. Every result is a new frozen object; never mutates prev.
 - Maps 1:1 onto the Phase-0 characterisation outcomes (`session.test.mjs`). Tested by `auth-state-core.test.mjs` (24 tests).
 
+### `auth-state.js`
+The auth STORE — `ARCHITECTURE_PLAN.md` Track 1, **Phase 2** (v14.59). Holds the single identity state (reduced by `auth-state-core.js`) and exposes `getAuthSnapshot()`, `subscribeAuth(listener)` (immediate call + on-change; listener errors isolated), `dispatchAuth(event)`, and `_resetAuthState()` (test-only). Imports **only** `auth-state-core.js` — NOT `session.js` or `firebase-client.js` — so the graph stays acyclic (`session.js → auth-state.js → auth-state-core.js`).
+- **The shell-adapter role is fulfilled by the existing `session.js`**, which FEEDS this store (reusing the proven auth path rather than re-wrapping Firebase). `ensureNamedSession` dispatches `RESOLVE_START` → (retry: `TRANSIENT`/`RETRY`) → a terminal `NAMED`/`ANONYMOUS`/`NONE`/`FATAL` from the B0 signals; `clearSession` dispatches `SIGN_OUT`. Every feed is wrapped (`_feedAuth`) so a store error can never break auth.
+- **Phase 2 is OBSERVING ONLY** — nothing consumes the store yet, `sessionReady` is untouched, and the store + `sessionReady` are both driven by the same `ensureNamedSession` resolution (so they cannot diverge → the plan's single-source goal without re-routing `sessionReady`). Phase 4+ coordinators will subscribe; the policy layer (Phase 3) will read it. Bridge tested in `session.test.mjs` ("auth-store bridge (Phase 2)"); store tested in `auth-state.test.mjs`.
+
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
 - Session guard: reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; redirects to `admin.html` if not authenticated or not in `CONFIG.ADMIN_NAMES`
