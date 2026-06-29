@@ -35,7 +35,9 @@ mock.module('./firebase-client.js', {
         onAuthStateChanged:             (_auth, cb) => { Promise.resolve().then(() => cb(_existingUser)); return () => {}; },
         nameToEmail:                    name => name.toLowerCase().replace(/\s+/g, '.') + '@myb.test',
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
-        signInWithEmailAndPassword:     async () => { _signInCalls++; if (_signInBehavior !== 'ok') _authThrow(_signInBehavior); },
+        // _signInBehavior may be a string (same every call) OR a function (callNumber → code),
+        // which lets a test model a transient blip that clears on a later retry.
+        signInWithEmailAndPassword:     async () => { _signInCalls++; const b = typeof _signInBehavior === 'function' ? _signInBehavior(_signInCalls) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
         createUserWithEmailAndPassword: async () => { _createCalled = true; if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
         signInAnonymously:              async () => { _anonCalled = true; if (_anonBehavior !== 'ok') _authThrow(_anonBehavior); },
         signOut:                        async () => { _signOutCalled = true; },
@@ -174,6 +176,16 @@ describe('getSession', () => {
     test('returns null when the session is idle-expired', () => {
         writeSession({ lastActivity: Date.now() - IDLE_MS - 1 });
         assert.equal(getSession(), null);
+    });
+
+    test('keeps a session with no lastActivity field (NaN idle check stays active)', () => {
+        // Documented edge: Date.now() - undefined = NaN, and NaN > IDLE_MS is false, so a
+        // session predating the lastActivity field is treated as active, not idle-expired.
+        // (JSON.stringify drops an `undefined` field, so this writes a session without it.)
+        writeSession({ lastActivity: undefined });
+        const s = getSession();
+        assert.ok(s !== null, 'a session without lastActivity must be kept, not purged');
+        assert.equal(s.name, 'G. Miller');
     });
 
     test('returns the session object for a valid, fresh session', () => {
@@ -383,6 +395,14 @@ describe('ensureNamedSession', () => {
         const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
         assert.equal(ok, false);
         assert.equal(_signInCalls, 3, 'initial attempt + 2 retries');
+    });
+
+    test('flag ON: a TRANSIENT failure that CLEARS on retry → true (recovery path)', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        _signInBehavior = /** @param {number} call */ (call) => (call === 1 ? 'auth/network-request-failed' : 'ok');
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
+        assert.equal(ok, true, 'a momentary blip that clears on the first retry yields a named session');
+        assert.equal(_signInCalls, 2, 'failed once, succeeded on the first retry');
     });
 });
 

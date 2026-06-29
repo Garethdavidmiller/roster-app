@@ -1,8 +1,13 @@
 # ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
 
-*Status: proposed (not started). Companion to `SECURITY_RELEASE_PLAN.md`. This plan is a
-**behaviour-preserving structural refactor** of how the app reasons about identity and page
-access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
+*Status: **Phase 0 (characterisation net) + Phase 1 (pure reducer) complete (v14.57–v14.58).**
+Phase 0: identity layer (`session.test.mjs`, 43) + claim layer (`firestore.rules.test.mjs` B2) pin
+current intended behaviour; page-policy layer pinned by flag-ON e2e, completes per-coordinator in
+Track 3. Phase 1: `auth-state-core.js` — the pure `reduceAuthState` state machine, 24 tests, not yet
+wired in. **Phase 2 (the `auth-state.js` Firebase/localStorage shell + the `sessionReady` re-impl on
+top of it) is the next step.** Companion to `SECURITY_RELEASE_PLAN.md`.
+This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
+page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
 auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
 version-stamped; not a runtime asset.*
 
@@ -176,20 +181,41 @@ Formalise it as a load-bearing comment so future maintainers (human or AI) can't
 
 ## Phased migration
 
-### Phase 0 — Characterisation tests first (safety net)
+### Phase 0 — Characterisation tests first (safety net) — ✅ IDENTITY + CLAIM LAYERS DONE (v14.57)
 Pin **current intended** behaviour *before* changing structure. Matrix: no / expired / valid local
 session; Firebase already same-user / different-user (shared-device switch) / anonymous / none;
 named sign-in success / transient-fail / permanent-fail; `ENFORCE_NAMED_SESSION` on/off; admin /
 manager / designer claim present / missing / stale.
 - Pin **intended** behaviour, **not** known bugs: the Operations-card hang and the
   degraded inconsistencies are defects to fix in migration, not behaviour to lock in.
-- Note the split: the **identity layer** (`session.js`) is unit-testable now; the **page-policy
-  outcomes** are partly covered by existing flag-ON e2e and partly only become unit-testable as
-  each coordinator is refactored (Track 3). So Phase 0 lands in two parts — identity-layer
-  characterisation now, page-policy characterisation rolling in per coordinator.
+- **Status:** the net was already ~90% in place from the B0/B1/B2 test discipline. As of v14.57:
+  - **Identity layer (`session.test.mjs`, 43 tests) — COMPLETE.** Whole matrix pinned:
+    getSession (none / invalid-JSON / absolute-expired / version-stale / idle-expired / valid-fresh /
+    1ms-edge / **missing-lastActivity NaN edge** / refreshes-lastActivity / **no-signOut-on-passive-
+    expiry**); ensureFirebaseSession (reuse-named / sign-in / self-heal / anon-fallback / all-fail /
+    replace-anon / **replace-different-member shared-device switch**); flag-ON (named-success /
+    user-not-found-no-heal / invalid-cred-no-anon / matching-reused); ensureNamedSession (flag-off
+    passthrough / flag-on success / persistent-no-retry / transient-then-fail / **transient-then-
+    recover**). The two bolded `lastActivity` and transient-recover cases were the only genuine gaps,
+    added v14.57.
+  - **Claim layer (`firestore.rules.test.mjs`) — COMPLETE** via the B2 3-tier tests
+    (staff / manager / admin / no-name write + delete isolation; this is the "claim present/missing"
+    characterisation — claims are token/rules-level, not in `session.js`).
+  - **Page-policy layer — partial, by design.** The per-page enforcement matrix is pinned by the
+    10 flag-ON e2e tests (admin/settings re-show login, operations/links redirect, paycalc soft).
+    Deeper *unit* characterisation of each coordinator's policy outcome only becomes possible once
+    that coordinator is wrapped in a testable `init()` — so it **rolls in per coordinator during
+    Track 3 (Phases 4–7)**, not up front. This is the documented two-part split, now resolved:
+    nothing further is needed before Phase 1.
 
-### Phase 1 — Pure reducer (`auth-state-core.js`)
-The functional core: `reduceAuthState(prev, event)`. No I/O. Heavily unit-tested. Not yet wired in.
+### Phase 1 — Pure reducer (`auth-state-core.js`) — ✅ DONE (v14.58)
+The functional core: `reduceAuthState(prev, event) → next` + `INITIAL_STATE` + `AUTH_STATUSES`. No
+I/O (no DOM/Firebase/localStorage). Seven identity states; eight events (RESOLVE_START / NAMED /
+ANONYMOUS / NONE / TRANSIENT / RETRY / FATAL / SIGN_OUT); unknown events inert; every result a new
+frozen object, never mutates prev. Maps 1:1 onto the Phase-0 outcomes. 24 tests in
+`auth-state-core.test.mjs` (each event, the RETRY-only-from-degraded guard, purity/immutability,
+and realistic lifecycles incl. transient-recover). **Not wired into anything** — behaviour
+unchanged. Listed in the SW precache lists + CLAUDE.md/AI_MAP so it ships ready for Phase 2.
 
 ### Phase 2 — Shell adapter (`auth-state.js`)
 Wrap Firebase/localStorage; internally delegate to today's `session.js` functions at first (safe).
