@@ -14,10 +14,10 @@ import {
   getTaxYearForOffset, getLondonAllowanceForPeriod,
 } from './paycalc-calc.js';
 import { CONFIG, getPeriods, currentPeriodNum, hasBankHoliday, hasBoxingDay } from './paycalc-periods.js';
-import { getGrade, getLoggedMember, getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
+import { getGrade, getEffectiveContr, getProRateFactor } from './paycalc-settings.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { periodKey, hppEstKey, hppActualKey } from './paycalc-migrations.js';
-import { formatISO, MILLER_ACTUALS, parseSmartFloat } from './roster-data.js';
+import { parseSmartFloat } from './roster-data.js';
 import { fmt } from './paycalc-format.js';
 
 // ── SHARED HELPERS ────────────────────────────────────────────────────────────
@@ -117,7 +117,6 @@ export function calcHPP(bpVarAmount, bpPNum) {
 
   let totalVar    = 0;
   let pCount      = 0;
-  let usingActuals = false;
 
   periods.forEach(/** @param {any} p */ p => {
     try {
@@ -125,16 +124,6 @@ export function calcHPP(bpVarAmount, bpPNum) {
       // Added before the saved-data check so it still counts when the lump-sum
       // period itself has no hours entered yet.
       if (bpVarAmount > 0 && p.num === bpPNum) totalVar += bpVarAmount;
-
-      const _hppActualKey = formatISO(p.payday);
-      const _hppActual = getLoggedMember()?.name === 'G. Miller'
-        ? (/** @type {Record<string, any>} */ (MILLER_ACTUALS))[_hppActualKey] : null;
-      if (_hppActual?.varPay != null) {
-        totalVar += _hppActual.varPay;
-        pCount++;
-        usingActuals = true;
-        return;
-      }
 
       const raw = lsGet(periodKey(p.num));
       if (!raw) return;
@@ -163,9 +152,7 @@ export function calcHPP(bpVarAmount, bpPNum) {
   } else {
     if (labelEl) labelEl.textContent = `Estimated ${ty.label} Holiday Pay Premium`;
     if (amountEl) amountEl.textContent = fmt(hpp);
-    if (basisEl)  basisEl.textContent  = usingActuals
-      ? `All ${pCount} periods of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · from your payslips · due January ${ty.hppPaidJan}`
-      : `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
+    if (basisEl)  basisEl.textContent  = `${pCount} period${pCount > 1 ? 's' : ''} of ${ty.label} · ${fmt(totalVar)} extra pay × 7.69% · due January ${ty.hppPaidJan}`;
   }
 
   const noteEl = document.getElementById('hppNote');
@@ -208,27 +195,19 @@ export function updatePriorHpp(ty) {
       return o >= priorTy.first && o <= priorTy.last;
     });
 
-    if (getLoggedMember()?.name === 'G. Miller') {
-      const _priorVar = _priorPeriods.reduce((/** @type {number} */ sum, /** @type {any} */ p) => {
-        const a = (/** @type {Record<string, any>} */ (MILLER_ACTUALS))[formatISO(p.payday)];
-        return a?.varPay != null ? sum + a.varPay : sum;
-      }, 0);
-      if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
-    } else {
-      const _hppGrade = getGrade();
-      const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
-      let _priorVar = 0;
-      _priorPeriods.forEach(/** @param {any} p */ p => {
-        try {
-          const raw = lsGet(periodKey(p.num));
-          if (!raw) return;
-          const d = JSON.parse(raw);
-          if (isDataEmpty(d)) return;
-          _priorVar += _varPayForPeriod(p, d, rate);
-        } catch {}
-      });
-      if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
-    }
+    const _hppGrade = getGrade();
+    const rate = GRADES[_hppGrade]?.rate ?? GRADES.cea.rate;
+    let _priorVar = 0;
+    _priorPeriods.forEach(/** @param {any} p */ p => {
+      try {
+        const raw = lsGet(periodKey(p.num));
+        if (!raw) return;
+        const d = JSON.parse(raw);
+        if (isDataEmpty(d)) return;
+        _priorVar += _varPayForPeriod(p, d, rate);
+      } catch {}
+    });
+    if (_priorVar > 0) est = _priorVar * HPP_FRACTION;
 
     if (est > 0) lsSet(hppEstKey(priorTy), est.toFixed(2));
   }

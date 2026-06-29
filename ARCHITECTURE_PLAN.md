@@ -332,25 +332,21 @@ tests, and docs — but the *client* change becomes a policy edit, not six coord
 
 ---
 
-## MILLER_ACTUALS — separate privacy task (owner decision needed)
+## MILLER_ACTUALS — privacy task — ✅ RESOLVED (Option A, v14.68)
 
-**Not part of the auth refactor's critical path.** Tracked here only so it isn't forgotten.
+**Done as Track 2 step 1.** `MILLER_ACTUALS` (13 periods of real payslip figures) was moved OUT of
+the served `roster-data.js` into `test-fixtures/miller-actuals.js`, which is **excluded from Firebase
+Hosting** (`firebase.json` `ignore` → `test-fixtures/**`) so it is no longer fetchable. The former
+in-app "Actual Take-Home" comparison feature (gated to G. Miller in `paycalc-app.js`/`paycalc-hpp.js`)
+was removed — the test suite already validates the pay maths against these figures, and `paycalc.test.mjs`
+now **imports the fixture** as its single source of truth (the previously-duplicated inline array was
+deleted). This closes the (small) privacy exposure: in a no-build app any served JS file is publicly
+fetchable, and these were real payslip figures.
 
-`MILLER_ACTUALS` (13 periods of real payslip figures — gross/tax/NI/net/varPay) currently lives in
-`roster-data.js` and is imported by **production** modules (`paycalc-app.js`, `paycalc-hpp.js`) for
-G. Miller's actual-payslip comparison and HPP basis. In a no-build app, **any served JS file is
-fetchable by anyone who knows the URL** — so this is a real (small) privacy exposure, not bloat.
-Three honest options (owner picks):
-
-- **A — remove the production feature:** move the data to `test-fixtures/`, imported by tests only.
-- **B — keep the feature, device-local:** figures live only in the owner's browser `localStorage`,
-  fitting the Pay Calculator's existing local/private model. **Likely best for current use.**
-- **C — owner-only Firestore doc:** robust across devices, but needs owner-only rules, claim
-  correctness, no public reads, import UI, and deletion/export controls.
-
-**Anti-patterns (do none):** move it to another public JS file, hide behind an obscure filename,
-rely on URL obscurity, or leave it in `roster-data.js`. Decoupling it from `roster-data.js` (Track
-2) reduces coupling but does **not** by itself fix the exposure.
+The three options considered (kept for the record): **A — test-only fixture (chosen)**; B — device-local
+localStorage (keeps the in-app feature but needs a one-time owner import); C — owner-only Firestore doc
+(cross-device but heavy: owner-only rules + import/export UI). **Anti-patterns avoided:** moving it to
+another *served* JS file, obscure-filename/URL-obscurity, or leaving it in `roster-data.js`.
 
 ---
 

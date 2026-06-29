@@ -7,6 +7,7 @@ import {
   calcBandedTax, getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
   computeGross, computeTax, computeNI, computeSL, calcProRateFactor, getPensionForPeriod,
 } from './paycalc-calc.js';
+import { MILLER_ACTUALS } from './test-fixtures/miller-actuals.js';
 
 // Floating-point helper — within 1p is close enough for payroll
 function approx(actual, expected, msg, tol = 0.01) {
@@ -634,7 +635,7 @@ describe('calcProRateFactor', () => {
 });
 
 // ── G. Miller 2025/26 payslip integration ─────────────────────────────────────
-// Actual payslip figures from MILLER_ACTUALS in roster-data.js.
+// Actual payslip figures from MILLER_ACTUALS in test-fixtures/miller-actuals.js.
 // gross = post-pension sacGross (matches "Taxable Pay" on payslip).
 // Tax and NI are tested non-cumulatively: actual payroll uses cumulative PAYE,
 // so small per-period differences (up to ~£1 tax, ~20p NI) are expected and
@@ -651,21 +652,12 @@ describe('calcProRateFactor', () => {
 // expected cumulative-PAYE drift documented above. Confirmed by Gareth (Jun 2026).
 
 describe('G. Miller 2025/26 payslip integration (non-cumulative estimates)', () => {
-  const actuals = [
-    { date:'2025-04-11', gross:4260.01, tax: 736.80, ni:239.90 },
-    { date:'2025-05-09', gross:4382.88, tax: 786.00, ni:242.32 },
-    { date:'2025-06-06', gross:4340.23, tax: 769.34, ni:241.46 },
-    { date:'2025-07-04', gross:4883.78, tax: 986.40, ni:252.33 },
-    { date:'2025-08-01', gross:4441.60, tax: 809.71, ni:243.49 },
-    { date:'2025-08-29', gross:5145.55, tax:1090.80, ni:257.57 },
-    { date:'2025-09-26', gross:4810.43, tax: 957.20, ni:250.87 },
-    { date:'2025-10-24', gross:5477.49, tax:1224.00, ni:264.21 },
-    { date:'2025-11-21', gross:4756.74, tax: 935.60, ni:249.79 },
-    { date:'2025-12-19', gross:5245.44, tax:1131.20, ni:259.71 },
-    { date:'2026-01-16', gross:5048.39, tax:1052.40, ni:255.63 },
-    { date:'2026-02-13', gross:5188.84, tax:1108.40, ni:258.44 },
-    { date:'2026-03-13', gross:4572.71, tax: 862.00, ni:246.11 },
-  ];
+  // Derived from the real payslip fixture (test-fixtures/miller-actuals.js) — the single
+  // source of truth for this regression net. These figures lived in MILLER_ACTUALS in the
+  // served roster-data.js until v14.68, when they were moved to a hosting-excluded fixture
+  // for privacy (Track 2, Option A). Object insertion order is payday-ascending, preserved.
+  const actuals = Object.entries(MILLER_ACTUALS)
+    .map(([date, v]) => ({ date, gross: v.gross, tax: v.tax, ni: v.ni }));
 
   for (const p of actuals) {
     test(`${p.date}: tax within £1 of payslip`, () => {
