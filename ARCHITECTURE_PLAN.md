@@ -1,14 +1,16 @@
 # ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
 
-*Status: **Phases 0–2 complete (v14.57–v14.59).** Phase 0: identity layer (`session.test.mjs`, 43) +
-claim layer (`firestore.rules.test.mjs` B2) pin current intended behaviour; page-policy layer pinned
-by flag-ON e2e, completes per-coordinator in Track 3. Phase 1: `auth-state-core.js` — the pure
-`reduceAuthState` machine (24 tests). **Phase 2 (v14.59): the `auth-state.js` store + the `session.js`
-feed bridge — OBSERVING ONLY, `sessionReady` left untouched, 43 pre-existing session tests pass
-unchanged. Phase 3 (v14.60): `auth-policy.js` — the pure page-auth map + `requirePageAuth`, 42
-tests, not wired in.** All three pure/observing phases are now done; **Phases 4–7 are next — the
-first behaviour-adjacent step**, migrating coordinators (Operations first) to actually CONSUME the
-store + policy. Companion to `SECURITY_RELEASE_PLAN.md`.
+*Status: **Track 1 COMPLETE (v14.57–v14.67) — all coordinator migrations landed; only B3 (Phase 8,
+behaviour change, owner-gated in `SECURITY_RELEASE_PLAN.md`) remains.** Phase 0: characterisation
+net (`session.test.mjs`, `firestore.rules.test.mjs` B2, flag-ON e2e) pins current behaviour. Phase 1
+(v14.58): `auth-state-core.js` pure `reduceAuthState` machine. Phase 2 (v14.59): `auth-state.js`
+store + `session.js` feed bridge (observing only; `sessionReady` untouched). Phase 3 (v14.60):
+`auth-policy.js` pure page-auth map + `requirePageAuth`. Phases 4–7 (v14.61–v14.66): every write/named
+coordinator now CONSUMES the store + policy — Operations (4a) + self-healing admin reads (4b, v14.62),
+Links (5), Admin (6), Settings + Pay Calculator (7). Phase 4a.2 (v14.65/14.67): the HALT-style
+coordinators (Operations, Links, Paycalc) wrapped in an exported `init()` + `*-boot.js` bootstrap
+(branch-style Admin/Settings intentionally left inline). The whole refactor is behaviour-preserving
+(665 unit + 173 rules + 68 e2e pass unchanged throughout). Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
 auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
