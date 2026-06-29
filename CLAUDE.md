@@ -607,6 +607,8 @@ Daily Huddle PDF/DOCX → Power Automate → `ingestHuddle` → Firebase Storage
 
 Full flow diagram, request format, gotchas, and Security Rules: **see `OPERATIONS_REFERENCE.md`**.
 
+**Push notification design language:** all Web Push payloads (Huddle, Pay, and future Circular/Newsletter) must follow `.claude/rules/notifications.md` — leading emoji = the feature's in-app icon, "Latest X" for document arrivals, calm/no-exclamation tone, monochrome badge, and a single `buildPushPayload` builder. Never hand-write a payload literal.
+
 ---
 
 ## Weekly Roster Upload
