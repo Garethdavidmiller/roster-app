@@ -266,7 +266,13 @@ Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap;
    (incl. the links designer-load + B1 `failSignIn` redirect cases). 4b's stale-claim retry does NOT
    apply: links reads `linkDesigns` (`request.auth != null`), not an admin-claim-gated collection.
 3. **Admin** — bigger and more sensitive (override writes are core data); migrate after the pattern
-   is proven.
+   is proven. **DONE (Phase 6, v14.64):** the page gate `if (!isAuthenticated)` routes through
+   `requirePage(..., 'admin')` (policy `role: null` → any named user; no 'forbidden' path) and the
+   `!named` B1 check through `requirePage(getAuthSnapshot(), 'admin')`. STRICTLY page-access only —
+   `applyPermissions()` (the admin/manager-vs-staff ACTION/UI restriction) and every override write
+   path are untouched. The snapshot maps the local session-existence flag (`!!currentSession`) to an
+   optimistic 'named', preserving the exact prior trigger. Behaviour-preserving: 665 unit + 68 e2e
+   pass unchanged (incl. admin signed-in render + B1 `failSignIn` re-show-login).
 4. **Settings / Pay Calculator** — Settings matters for push + work-email; Pay Calculator stays
    **soft** (calculator works locally even if Firebase fails).
 - **Calendar** is left until last (or untouched) unless B3 requires it — it is the most
