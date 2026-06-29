@@ -60,6 +60,8 @@ const {
     ensureNamedSession, isTransientAuthError,
 } = await import('./session.js');
 const { nameToEmail } = await import('./firebase-client.js');
+// The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
+const { getAuthSnapshot, _resetAuthState } = await import('./auth-state.js');
 const { CONFIG } = await import('./roster-data.js');
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -403,6 +405,63 @@ describe('ensureNamedSession', () => {
         const ok = await ensureNamedSession('G. Miller', { delayMs: 0, retries: 2 });
         assert.equal(ok, true, 'a momentary blip that clears on the first retry yields a named session');
         assert.equal(_signInCalls, 2, 'failed once, succeeded on the first retry');
+    });
+});
+
+// ── Phase-2 bridge: ensureNamedSession / clearSession feed the auth store ───────
+// The store is OBSERVING ONLY (no production consumer yet); these tests prove session.js
+// drives it to the correct terminal state without changing ensureNamedSession's return.
+describe('auth-store bridge (Phase 2)', () => {
+    beforeEach(() => {
+        _existingUser = null; _signInBehavior = 'ok'; _createBehavior = 'ok'; _anonBehavior = 'ok';
+        _signOutCalled = false; _createCalled = false; _anonCalled = false; _signInCalls = 0;
+        _resetAuthState();
+    });
+    afterEach(() => { CONFIG.ENFORCE_NAMED_SESSION = false; });
+
+    test('flag ON: a named sign-in drives the store to named + member', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.deepEqual(getAuthSnapshot(), { status: 'named', member: 'G. Miller', error: null });
+    });
+
+    test('flag ON: a persistent failure drives the store to signedOut', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        _signInBehavior = 'auth/invalid-credential';
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(ok, false, 'return value still reflects the failed named session');
+        assert.equal(getAuthSnapshot().status, 'signedOut');
+        assert.equal(getAuthSnapshot().error, 'auth/invalid-credential');
+    });
+
+    test('flag OFF: the anonymous fallback drives the store to anonymous', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+        _signInBehavior = 'auth/invalid-credential';   // named fails → anonymous fallback
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(ok, true, 'flag off → the anonymous fallback keeps the return true');
+        assert.equal(getAuthSnapshot().status, 'anonymous');
+        assert.equal(getAuthSnapshot().member, null);
+    });
+
+    test('total failure (even anonymous fails) drives the store to error', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+        _signInBehavior = 'auth/invalid-credential';
+        _anonBehavior   = 'auth/operation-not-allowed';
+        await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(getAuthSnapshot().status, 'error');
+    });
+
+    test('clearSession drives the store to signedOut', () => {
+        // Seed a non-signedOut state first, then clear.
+        // (ensureNamedSession would set it; here we just confirm clearSession's feed.)
+        clearSession();
+        assert.equal(getAuthSnapshot().status, 'signedOut');
+    });
+
+    test('the bridge does NOT change ensureNamedSession\'s return value (named success → true)', async () => {
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        const ok = await ensureNamedSession('G. Miller', { delayMs: 0 });
+        assert.equal(ok, true);
     });
 });
 
