@@ -258,10 +258,21 @@ Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap;
 `throw new Error('Not signed in')` with explicit guard/early-return; route through
 `requirePageAuth`. Order and rationale:
 1. **Operations** — admin-only, recently raced, many async cards, touches Functions+Firestore+
-   Storage, lower staff-facing blast radius than Calendar.
-2. **Links** — currently client-side designer gating; benefits most from the policy map.
+   Storage, lower staff-facing blast radius than Calendar. **DONE** (4a v14.61, 4b v14.62).
+2. **Links** — currently client-side designer gating; benefits most from the policy map. **DONE
+   (Phase 5, v14.63):** the two-gate `!currentUser` / `!isLinksDesigner` block and the `!named` B1
+   check both route through `requirePage(..., 'links')` now (designer-only policy); the inline
+   `CONFIG.LINKS_DESIGNERS` test moved into `rolesFor`. Behaviour-preserving — 68 e2e pass unchanged
+   (incl. the links designer-load + B1 `failSignIn` redirect cases). 4b's stale-claim retry does NOT
+   apply: links reads `linkDesigns` (`request.auth != null`), not an admin-claim-gated collection.
 3. **Admin** — bigger and more sensitive (override writes are core data); migrate after the pattern
-   is proven.
+   is proven. **DONE (Phase 6, v14.64):** the page gate `if (!isAuthenticated)` routes through
+   `requirePage(..., 'admin')` (policy `role: null` → any named user; no 'forbidden' path) and the
+   `!named` B1 check through `requirePage(getAuthSnapshot(), 'admin')`. STRICTLY page-access only —
+   `applyPermissions()` (the admin/manager-vs-staff ACTION/UI restriction) and every override write
+   path are untouched. The snapshot maps the local session-existence flag (`!!currentSession`) to an
+   optimistic 'named', preserving the exact prior trigger. Behaviour-preserving: 665 unit + 68 e2e
+   pass unchanged (incl. admin signed-in render + B1 `failSignIn` re-show-login).
 4. **Settings / Pay Calculator** — Settings matters for push + work-email; Pay Calculator stays
    **soft** (calculator works locally even if Firebase fails).
 - **Calendar** is left until last (or untouched) unless B3 requires it — it is the most
@@ -351,3 +362,59 @@ rely on URL obscurity, or leave it in `roster-data.js`. Decoupling it from `rost
 - **Migrate one coordinator at a time**, Operations → Links → Admin → Settings/Paycalc.
 - **Keep the `sessionReady` shim until every page is migrated.**
 - **The server is the security boundary** — never treat client auth state as enforcement.
+
+---
+
+## Appendix: Phase 4 detailed scope (Operations first) — scoped v14.61
+
+Phase 4 makes the FIRST coordinator actually CONSUME the store + policy. Two owner decisions are
+settled:
+
+1. **Split 4a / 4b.** Ship the structural consumption first (4a), the read-latency improvement
+   second (4b) — so the riskiest change lands with reads behaving exactly as today.
+2. **No write-gating UI change.** Every Operations write handler ALREADY `await sessionReady`
+   before executing (huddle.js, operations-app.js circular/newsletter + roster, admin-auth.js), and
+   the buttons gate on file-selection (which outlasts sign-in). So a premature tap simply waits then
+   writes — the reviewer's M1 is adequately handled, and the server is the boundary regardless.
+   Adding a visible "confirming…" disabled state would be a behaviour change with ~zero benefit.
+   **Therefore 4a is behaviour-PRESERVING**, not behaviour-adjacent.
+
+### 4a — consume `requirePage` + the store (behaviour-preserving)
+- **Access gate:** replace the two top-level `if (!currentUser)` / `if (!isAdmin)` blocks with ONE
+  `requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations')`
+  decision — `login` → overlay (was Gate A), `forbidden` → redirect to admin (was Gate B), `allow`
+  → continue. The synthesised "local-derived" snapshot preserves today's fast render from
+  localStorage (it treats a present local session as `named`, exactly today's optimism).
+- **B1 enforcement:** the existing `_opsAuth.then(...)` keeps its once-only timing but now decides
+  via `requirePage(getAuthSnapshot(), 'operations') === 'login'` (the store reflects the terminal
+  Firebase identity by then, fed by the Phase-2 bridge). `clearSession()` + overlay unchanged.
+- **Unchanged:** `sessionReady`, every write handler, the read cards, all chrome/card behaviour,
+  the `throw`s (kept — see 4a.2). Small diff at the top of `operations-app.js`; imports
+  `requirePage` + `getAuthSnapshot`.
+
+### 4a.2 — testable `init()` wrap + `throw`→`return` (DEFERRED, separable)
+The plan's "wrap each coordinator in an exported `init()`, remove the top-level throws" is a real
+goal but is an **~880-line re-indent** of `operations-app.js` and needs ~17 import-mocks (or full
+dep-injection) to unit-test the wiring — high-risk for the first migration, and **independent of the
+store/policy consumption** above. Deferred so 4a stays a small, reviewable, behaviour-preserving
+diff. (It also needs a `operations-boot.js` 2-line bootstrap because CSP `script-src 'self'` blocks
+inline module scripts.) Pick it up once 4a has proven the consumption pattern.
+
+### 4b — self-healing admin reads (the one beneficial behaviour change) — BUILT v14.62
+The three admin read cards (work-email / error-log / usage) read admin-gated collections. The
+observed latency was NOT the `sessionReady` await (which resolves on the same `onAuthStateChanged`
+the reads would optimistically start from — so an "optimistic start" that skips it buys nothing);
+it was a **stale-claim `permission-denied`**. Immediately after "Set up accounts" the freshly-minted
+token has no `admin` claim yet (Firebase refreshes ID tokens only ~hourly), so the first read fails
+even though the account IS an admin. So 4b is **retry-only**, not optimistic-start: keep
+`await sessionReady`, then run each read through `adminReadWithRetry(readFn)` in `operations-app.js`
+— on `permission-denied` with a live user it `getIdToken(true)` once (force-refresh → pick up the
+claim) and retries once; any other error re-throws to the card's existing silent-fallback catch.
+The optimistic-start idea was dropped as no-benefit. Separate + revertible.
+
+### Tests & safety net
+- **Behaviour preservation is proven by the EXISTING e2e passing UNCHANGED**: admin loads (not
+  redirected), non-admin redirected, not-signed-in shows the overlay, B1 `failSignIn` re-shows
+  login. `requirePage` itself is already unit-tested (auth-policy.test.mjs).
+- **Rollback:** revert the single `operations-app.js` commit — isolated to one coordinator, no
+  shared-module change. **Verify in a private window, never an installed phone.**

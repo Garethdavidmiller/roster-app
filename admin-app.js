@@ -18,6 +18,8 @@ import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShi
 import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay } from './login-overlay.js';
+import { requirePage } from './auth-policy.js';
+import { getAuthSnapshot } from './auth-state.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
 import { initALSection, triggerConfirmedALSave } from './admin-al.js';
 import { initSickSection } from './admin-sick.js';
@@ -1508,10 +1510,19 @@ async function initEmailCheck(member) {
     await _runEmailCheck(member);
 }
 
-if (!isAuthenticated) {
-    // Show login overlay; do not load any Firestore data
+// Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 6).
+// Admin's policy is "any named user" (role null) — staff get self-service; the admin/manager split
+// gates ACTIONS (applyPermissions below), NOT page access, so there is no 'forbidden' path here.
+// The snapshot maps the LOCAL session-existence flag (isAuthenticated = !!currentSession) to an
+// optimistic 'named' status — preserving the exact prior trigger — so requirePage returns 'login'
+// iff there is no local session (decision identical to the old `if (!isAuthenticated)`). member is
+// irrelevant to the decision because Admin requires no role.
+const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
+if (_access.decision === 'login') {
+    // Not signed in → show login overlay; do not load any Firestore data.
     showAdminLogin();
 } else {
+    // _access.decision === 'allow' (a named user; Admin requires no role).
     // Returning user with a valid localStorage session never passes through the
     // login click handler, so re-establish the Firebase Auth session here.
     // Without this, auth.currentUser stays null and every Firestore write fails.
@@ -1521,9 +1532,13 @@ if (!isAuthenticated) {
     resolveSession(_adminAuth);
     // B1.2: when the named-session requirement is on, a returning local session that can't be
     // confirmed as this member's OWN Firebase identity is cleared and re-authenticated via the
-    // login overlay. Flag OFF → resolves true (anonymous fallback), so this never fires.
-    _adminAuth.then(named => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); showAdminLogin(); }
+    // login overlay. Decided via the policy now: once the named session resolves, the store (fed
+    // by the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
+    // `requirePage(getAuthSnapshot(), 'admin')` returns 'login' exactly when the member's OWN named
+    // session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
+    // resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
+    _adminAuth.then(() => {
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'admin').decision === 'login') { clearSession(); showAdminLogin(); }
     });
     // All dropdowns are now populated — apply permissions then load data
     document.body.classList.add('auth-ready');

@@ -20,6 +20,8 @@ import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
 import { initLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
+import { requirePage } from './auth-policy.js';
+import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -30,36 +32,72 @@ import { registerServiceWorker } from './sw-register.js';
 // ============================================
 const currentSession = getSession();
 const currentUser    = currentSession?.name ?? null;
-const isAdmin        = CONFIG.ADMIN_NAMES.includes(currentUser);
 
-// Not signed in → show the shared in-place sign-in (no redirect elsewhere). After a successful
-// sign-in, reload; the reloaded page re-checks admin access below. Throw to halt the rest of
-// module init (which assumes a session) — the overlay is already shown.
-if (!currentUser) {
+// Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 4a).
+// The "local-derived" snapshot maps the localStorage session to an identity status — present →
+// 'named' (today's optimistic fast render from local), absent → 'signedOut' — and requirePage
+// applies the Operations policy (admin-only). Behaviour is identical to the prior two-gate form;
+// this routes the same decision through the shared authz layer instead of inline checks.
+const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
+if (_access.decision === 'login') {
+    // Not signed in → show the shared in-place sign-in (no redirect). Reload on success; the
+    // reloaded page re-checks access. Throw to halt the rest of module init — overlay is shown.
     initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
     resolveSession(false);
     throw new Error('Not signed in — showing login overlay');
 }
-// Signed in but NOT an admin — Operations is admin-only (this is access control, not a login
-// divert). Send them to a page they can use.
-if (!isAdmin) {
+if (_access.decision === 'forbidden') {
+    // Signed in but NOT an admin — Operations is admin-only (access control, not a login divert).
     window.location.replace('./admin.html');
     throw new Error('Not authorised — redirecting');
 }
+// _access.decision === 'allow' → proceed (signed-in admin).
 
 // Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
 // import sessionReady and await it instead of reading window._mybSession.
 const _opsAuth = ensureNamedSession(currentUser);
 resolveSession(_opsAuth);
-// B1.2: when the named-session requirement is on and we can't confirm this member's OWN named
-// identity, clear the session and show the in-place sign-in. Flag OFF → ensureNamedSession
-// resolves true (anonymous fallback), so this never fires and behaviour is unchanged.
-_opsAuth.then(named => {
-    if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
+// B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
+// the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
+// `requirePage(getAuthSnapshot(), 'operations')` returns 'login' exactly when the member's OWN
+// named session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
+// the snapshot is 'named'/'anonymous' and the decision is 'allow', so this never fires (unchanged).
+_opsAuth.then(() => {
+    if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'operations').decision === 'login') {
         clearSession();
         initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
     }
 });
+
+/**
+ * Run an admin-only Firestore read, self-healing a stale auth token (Phase 4b,
+ * ARCHITECTURE_PLAN.md). The three Operations read cards (Work Email, Error Log,
+ * Usage) all read admin-gated collections. Immediately after "Set up accounts"
+ * the freshly-minted token does not yet carry the `admin` claim — Firebase only
+ * refreshes ID tokens ~hourly — so the first read fails `permission-denied` even
+ * though the account IS an admin. Rather than make the admin wait (or reload),
+ * we force a token refresh once and retry, picking up the claim immediately.
+ *
+ * Fail-safe: only retries on `permission-denied` with a live user; any other
+ * error (offline, etc.) is re-thrown so the card's existing catch shows its
+ * silent-fallback message. Retries at most once — a genuinely non-admin token
+ * still throws on the second attempt and falls through to the card's catch.
+ * @template T
+ * @param {() => Promise<T>} readFn  The admin-gated read (e.g. getClientErrors).
+ * @returns {Promise<T>}
+ */
+async function adminReadWithRetry(readFn) {
+    try {
+        return await readFn();
+    } catch (err) {
+        const user = auth.currentUser;
+        if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
+            await user.getIdToken(true);   // force refresh → pick up the admin claim
+            return await readFn();          // retry once with the fresh token
+        }
+        throw err;
+    }
+}
 
 
 // ============================================
@@ -121,7 +159,7 @@ initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     try {
         // Wait for the Firebase Auth session so Firestore rules pass.
         await sessionReady;
-        const contacts = await getAllStaffContacts();
+        const contacts = await adminReadWithRetry(getAllStaffContacts);
 
         // Mutable maps — updated in-place after an admin saves an email.
         const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
@@ -721,7 +759,7 @@ function initCircularUpload() {
 
     try {
         await sessionReady;
-        const errors = await getClientErrors();
+        const errors = await adminReadWithRetry(getClientErrors);
 
         content.innerHTML = '';
 
@@ -844,7 +882,7 @@ function initCircularUpload() {
 
     try {
         await sessionReady;
-        const stats = await getUsageStats();
+        const stats = await adminReadWithRetry(getUsageStats);
         content.innerHTML = '';
 
         // Active-account headline numbers.

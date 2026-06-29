@@ -14,6 +14,8 @@ import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, server
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { initLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
+import { requirePage } from './auth-policy.js';
+import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse, createLightbox } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -37,28 +39,38 @@ import {
 // ============================================
 const currentSession  = getSession();
 const currentUser     = currentSession?.name ?? null;
-const isLinksDesigner = CONFIG.LINKS_DESIGNERS.includes(currentUser);
 const isAdmin         = CONFIG.ADMIN_NAMES.includes(currentUser);
 
-// Not signed in → show the shared in-place sign-in (no redirect). After sign-in, reload; the
-// reloaded page re-checks designer access below.
-if (!currentUser) {
+// Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 5).
+// The "local-derived" snapshot maps the localStorage session to an identity status — present →
+// 'named' (optimistic fast render from local), absent → 'signedOut' — and requirePage applies the
+// Links policy (designer-only). Behaviour is identical to the prior two-gate form; this routes the
+// same decision (the LINKS_DESIGNERS membership test now lives in rolesFor) through the shared
+// authz layer instead of an inline CONFIG.LINKS_DESIGNERS check.
+const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
+if (_access.decision === 'login') {
+    // Not signed in → show the shared in-place sign-in (no redirect). Reload on success; the
+    // reloaded page re-checks access. Throw to halt the rest of module init — overlay is shown.
     initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
     resolveSession(false);
     throw new Error('Not signed in — showing login overlay');
 }
-// Signed in but not a Links designer — access control, not a login divert.
-if (!isLinksDesigner) {
+if (_access.decision === 'forbidden') {
+    // Signed in but NOT a Links designer — access control, not a login divert.
     window.location.replace('./admin.html');
     throw new Error('Not authorised — redirecting');
 }
+// _access.decision === 'allow' → proceed (signed-in designer).
 
-// B1.2: require the member's OWN named session when the flag is on; otherwise clear and show the
-// in-place sign-in. Flag OFF → ensureNamedSession resolves true (anonymous fallback), never fires.
+// B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
+// the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
+// `requirePage(getAuthSnapshot(), 'links')` returns 'login' exactly when the designer's OWN named
+// session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF → the
+// snapshot is 'named'/'anonymous' and the decision is 'allow', so this never fires (unchanged).
 const _linksAuth = ensureNamedSession(currentUser);
 resolveSession(_linksAuth);
-_linksAuth.then(named => {
-    if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
+_linksAuth.then(() => {
+    if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'links').decision === 'login') {
         clearSession();
         initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
     }
