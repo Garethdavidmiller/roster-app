@@ -242,9 +242,14 @@ export function initPaycalcLightboxes() {
         setStatus('Expected a JSON object keyed by payday date.'); return;
       }
       const keys = Object.keys(parsed);
+      // Require the numeric fields the result display reads (gross/tax/ni/net), so a
+      // malformed paste can never reach fmt(undefined) and TypeError inside calculate().
+      // sl/varPay are optional (treated as absent when missing).
+      const _num = ['gross', 'tax', 'ni', 'net'];
       const ok = keys.length > 0 && keys.every(k =>
-        /^\d{4}-\d{2}-\d{2}$/.test(k) && parsed[k] && typeof parsed[k] === 'object');
-      if (!ok) { setStatus('Each key must be a YYYY-MM-DD date with an object value.'); return; }
+        /^\d{4}-\d{2}-\d{2}$/.test(k) && parsed[k] && typeof parsed[k] === 'object' &&
+        _num.every(f => typeof parsed[k][f] === 'number' && isFinite(parsed[k][f])));
+      if (!ok) { setStatus('Each key must be a YYYY-MM-DD date with numeric gross, tax, ni and net.'); return; }
       const n = writePayslipActuals(parsed);
       setStatus(`Imported ${n} period${n !== 1 ? 's' : ''}. Reloading…`);
       window.location.reload();
