@@ -101,7 +101,20 @@ domain the app is served from. Current allowlist must include:
 If you ever add a custom domain, add it here too — or ALL Firebase Auth and API calls
 will silently fail for users on that domain, with no visible error in the app UI.
 
-**2. Firestore security rules — member write isolation ⚠️ SUSPENDED (v10.94)**
+**2. Firestore security rules — member write isolation ✅ REBUILT as B2 (v14.53, pending deploy)**
+> **Status update:** the original suspended isolation has been reintroduced the *cautious* way as
+> phase **B2** (`SECURITY_RELEASE_PLAN.md`). `overrides` create/update/delete now check
+> `token.name == memberName || token.admin || token.manager || !('name' in token)` — the **permissive
+> 3-tier** form. The two v10.94 root causes are both fixed years ago (the `name` claim is set for
+> everyone by `setupRosterAuth`; the page-load Firebase session is reliably established via
+> `ensureFirebaseSession`, B1). The new design avoids the original outage by (a) keeping the
+> `!('name' in token)` escape so no legacy/anonymous token is ever hard-rejected (B3 removes it after
+> a re-auth sweep), and (b) adding the **`manager` tier** the original lacked — the 6 managers edit
+> staff data on behalf and would otherwise be locked out. Emulator-tested (3-tier matrix + delete +
+> date bounding, all green). **Deploy prerequisite:** re-run "Set up accounts" so managers gain the
+> `manager` claim, and have them token-refresh, before relying on the rule. The historical
+> post-mortem below is retained for context.
+
 Originally implemented in v10.72 (`firestore.rules`). Per-member write isolation required
 every write to carry a custom JWT claim (`request.auth.token.name` = memberName,
 `request.auth.token.admin` = true for G. Miller), set server-side by `setupRosterAuth`.

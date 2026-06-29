@@ -227,6 +227,7 @@ roster-app/
 ├── paycalc-migrations.test.mjs ← tests for pcPrefix, setPaycalcNamespace, SK rebuild, one-shot namespace migration (--experimental-test-module-mocks)
 ├── firestore.rules.test.mjs ← Firestore security rules integration tests (all 9 collections incl. analytics); run with `npm run test:rules` — starts/stops Firestore + Storage emulators automatically via firebase emulators:exec; NOT part of npm test (requires Firebase emulator binary); runs as a gate in deploy-rules.yml before any rules ship
 ├── storage.rules.test.mjs  ← Firebase Storage security rules integration tests (huddles, circulars, newsletters, catch-all); run with `npm run test:rules` alongside firestore.rules.test.mjs
+├── storage-rules-static.test.mjs ← static (no-emulator) hygiene guard: asserts the 20 MB `request.resource.size` cap is present in all 3 upload blocks (the emulator suite can't practically test the size cap); part of `npm test` (test:hygiene)
 ├── sw-asset-check.test.mjs ← deployment hygiene: SW asset lists, APP_VERSION sync, roster-members.json sync, all 5 doc "Last updated" stamps current to latest 0.10 milestone
 ├── module-parse.test.mjs   ← verifies every root JS module parses as valid ES module (--experimental-vm-modules) — guards against the settings-app.js incident where a fatal SyntaxError shipped undetected because node --check silently misses ES module errors
 ├── e2e/                    ← Playwright smoke suite (restored v13.95). `npm run test:e2e`. Real headless Chromium loads every page; Firebase SDK stubbed at the network layer so the suite never touches the gstatic CDN. Catches blank-page breaks (SyntaxError, missing import, broken module graph, auth redirects) that pass all unit tests. Does NOT catch CSP header violations — the local http-server doesn't apply Firebase Hosting headers (use the Firebase Hosting emulator for CSP testing). NOT part of `npm test`. See ROADMAP → "E2E smoke tests".
@@ -631,10 +632,20 @@ without the page-load sign-in, `auth.currentUser` stays null and all Firestore w
 (to detect any IndexedDB-persisted session), then signs in if none exists, self-healing a
 missing account via `createUserWithEmailAndPassword` if needed. Do not remove this call.
 
-**Per-member write isolation (suspended at v10.94):** `firestore.rules` previously required
-`request.auth.token.name == memberName` for override writes (v10.72 / v11 task #2). This was
-reverted after it caused a production outage — see KNOWN_LIMITATIONS.md task #2 for full
-details and the re-introduction checklist.
+**Per-member write isolation (REINTRODUCED — B2, built v14.53):** `overrides` create/update/delete
+require the member's own `name` claim, OR an `admin`/`manager` claim (both write on behalf), in the
+**PERMISSIVE interim form** — a token with no `name` claim is still allowed so legacy/anonymous
+sessions never lock out (this avoids the v10.94 hard-cutover outage; B3 drops that escape and goes
+strict after a re-auth sweep). **Three claim tiers**, all set by `setupRosterAuth`:
+`{ admin: true, name }` for `ADMIN_NAMES`, `{ manager: true, name }` for `MANAGER_NAMES`, `{ name }`
+for everyone else (admin outranks manager). The `manager` tier is load-bearing: managers edit staff
+AL/sick/shifts on behalf daily — without the `manager` bypass the isolation rule silently locks
+them out. Master-admin collections (huddles/circulars/newsletters/roster/auth) stay `admin`-only —
+do NOT grant managers `admin: true`. **Deploy prerequisite:** managers must be re-provisioned
+(Operations → Set up accounts, which now sets the `manager` claim) AND token-refreshed before the
+isolation rule is relied upon — a stale manager token has `name` but not `manager`. Full scope,
+runbook, and the B3 strict step: `SECURITY_RELEASE_PLAN.md` → B2; history: KNOWN_LIMITATIONS.md
+task #2.
 
 **New starter:** invoke `/new-starter` — the skill has the full 3-step checklist, mid-year field reference, and pro-rata formula invariant.
 

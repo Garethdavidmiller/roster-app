@@ -1124,6 +1124,12 @@ exports.setupRosterAuth = onRequest(
         // adminMembers: names that should receive the Firebase Auth admin:true custom claim.
         // This claim gates parseRosterPDF — it is set here so there is one place to manage membership.
         const adminMembers   = Array.isArray(body.adminMembers) ? new Set(body.adminMembers) : new Set();
+        // managerMembers: names that should receive the manager:true custom claim (B2). Managers
+        // write overrides on behalf of staff (AL/sick/shift) but are NOT admins — the Firestore
+        // override isolation rule accepts admin||manager, while master-admin collections
+        // (huddles/circulars/newsletters/roster/auth) stay admin-only. Sent by the (admin-only)
+        // client today; B4 moves this list server-side. admin outranks manager (set below).
+        const managerMembers = Array.isArray(body.managerMembers) ? new Set(body.managerMembers) : new Set();
         const removeOrphans  = body.removeOrphans === true;
         const created  = [];
         const skipped  = [];
@@ -1185,16 +1191,24 @@ exports.setupRosterAuth = onRequest(
                 }
             }
 
-            // Set or clear the admin custom claim — applies to both new and existing accounts.
-            // Also sets the name claim for all members — required by Firestore rules
-            // for staffContact owner-isolation (staffContact/{name}: token.name == name).
+            // Set or clear the admin/manager custom claim — applies to both new and existing
+            // accounts. Also sets the name claim for all members — required by Firestore rules
+            // for staffContact owner-isolation and override per-member isolation (B2).
+            // setCustomUserClaims REPLACES all claims, so a demoted member (removed from the
+            // admin/manager list) automatically loses the elevated claim on the next run.
+            // admin outranks manager: an admin is never also given manager (admin already
+            // satisfies every rule the manager claim would).
             if (uid) {
-                const isAdmin = adminMembers.has(name);
-                const claims  = isAdmin ? { admin: true, name } : { name };
+                const isAdmin   = adminMembers.has(name);
+                const isManager = !isAdmin && managerMembers.has(name);
+                /** @type {Record<string, any>} */
+                const claims = { name };
+                if (isAdmin)        claims.admin   = true;
+                else if (isManager) claims.manager = true;
                 try {
                     await admin.auth().setCustomUserClaims(uid, claims);
-                    if (isAdmin) console.log(`[setupRosterAuth] Set admin+name claim: ${email}`);
-                    else         console.log(`[setupRosterAuth] Set name claim: ${email}`);
+                    const tier = isAdmin ? 'admin+name' : isManager ? 'manager+name' : 'name';
+                    console.log(`[setupRosterAuth] Set ${tier} claim: ${email}`);
                 } catch (claimErr) {
                     failed.push(`${name} (claim-failed: ${claimErr.message})`);
                     console.error(`[setupRosterAuth] Failed to set claim for ${name}: ${claimErr.message}`);

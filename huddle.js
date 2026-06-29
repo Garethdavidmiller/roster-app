@@ -245,7 +245,9 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
             _fileLabel.classList.remove('visible');
         } catch (err) {
             console.error('[Huddle] Upload failed:', err);
-            _feedback.textContent = 'Upload failed — please try again';
+            _feedback.textContent = (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH'
+                ? "That file isn't a valid PDF or Word document — please choose the original file"
+                : 'Upload failed — please try again';
             _feedback.className = 'huddle-feedback huddle-feedback--err';
             _uploadBtn.disabled = false;
         }

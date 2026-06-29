@@ -180,6 +180,41 @@ function _getStorageSdk() {
 }
 
 /**
+ * Verify a chosen file's leading bytes (magic number) actually match its declared
+ * type before it is uploaded. Browser uploads otherwise trust only the file
+ * extension / reported MIME, so a renamed non-PDF (e.g. a `.txt` saved as `.pdf`)
+ * would be stored behind a trusted in-app document link. This mirrors the
+ * server-side `fileSignatureMatches` check the Cloud Function ingest path already
+ * performs (`functions/roster-parse-helpers.js`) — PDF must start with `%PDF-`,
+ * DOCX (a ZIP container) with `PK\x03\x04`.
+ *
+ * **Fails OPEN on a read error** (an unreadable slice resolves silently) so a
+ * defensive read hiccup can never block a genuine upload — the daily Huddle path
+ * must stay reliable. It throws only on a *positive* content mismatch, which a real
+ * PDF/DOCX can never trigger.
+ *
+ * @param {File}            file - the chosen file
+ * @param {'pdf'|'docx'}    expectedType - the type derived from the filename
+ * @returns {Promise<void>} resolves when valid or unverifiable; throws `Error('SIGNATURE_MISMATCH')` on a clear mismatch
+ */
+export async function assertFileSignature(file, expectedType) {
+    let bytes;
+    try {
+        bytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+    } catch {
+        return; // can't read the file — fail open, never block a real upload
+    }
+    if (bytes.length < 5) return; // too short to judge (and too short to be a real doc) — fail open
+    // %PDF-  → 25 50 44 46 2D
+    const isPdfSig = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 &&
+                     bytes[3] === 0x46 && bytes[4] === 0x2D;
+    // PK\x03\x04 → 50 4B 03 04 (ZIP container; DOCX is a ZIP)
+    const isZipSig = bytes[0] === 0x50 && bytes[1] === 0x4B && bytes[2] === 0x03 && bytes[3] === 0x04;
+    if (expectedType === 'pdf'  && !isPdfSig) throw new Error('SIGNATURE_MISMATCH');
+    if (expectedType === 'docx' && !isZipSig) throw new Error('SIGNATURE_MISMATCH');
+}
+
+/**
  * Upload a Huddle file (PDF or Word .docx) for a given date.
  *
  * Stores the file at huddles/YYYY-MM-DD.pdf or huddles/YYYY-MM-DD.docx in
@@ -195,8 +230,9 @@ function _getStorageSdk() {
  * @returns {Promise<string>} Publicly accessible download URL of the stored file
  */
 export async function uploadHuddle(date, file, uploadedBy, htmlContent = null) {
-    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     const fileType   = file.name.toLowerCase().endsWith('.docx') ? 'docx' : 'pdf';
+    await assertFileSignature(file, fileType);   // reject a renamed non-PDF/DOCX before it reaches Storage
+    const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
     // Explicitly set the content type rather than relying on the browser to report it.
     // On Android, .docx files sometimes arrive as 'application/zip' or 'application/octet-stream'
     // because DOCX is a ZIP archive — which can cause Firebase Storage rule mismatches.
@@ -321,6 +357,7 @@ const _RETRIABLE_FIRESTORE_CODES = new Set(['unavailable', 'deadline-exceeded', 
  * @returns {Promise<string>} Download URL of the stored file
  */
 async function _uploadPdf(collectionName, date, file, uploadedBy) {
+    await assertFileSignature(file, 'pdf');   // reject a renamed non-PDF before it reaches Storage
     const { storage, ref, uploadBytes, getDownloadURL, deleteObject } = await _getStorageSdk();
 
     // Read the existing doc (if any) to obtain the old storagePath for post-commit cleanup.
