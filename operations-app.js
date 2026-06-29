@@ -27,963 +27,975 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 
-// ============================================
-// SESSION — read from localStorage (shared with admin-app.js via session.js)
-// ============================================
-const currentSession = getSession();
-const currentUser    = currentSession?.name ?? null;
 
-// Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 4a).
-// The "local-derived" snapshot maps the localStorage session to an identity status — present →
-// 'named' (today's optimistic fast render from local), absent → 'signedOut' — and requirePage
-// applies the Operations policy (admin-only). Behaviour is identical to the prior two-gate form;
-// this routes the same decision through the shared authz layer instead of inline checks.
-const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
-if (_access.decision === 'login') {
-    // Not signed in → show the shared in-place sign-in (no redirect). Reload on success; the
-    // reloaded page re-checks access. Throw to halt the rest of module init — overlay is shown.
-    initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
-    resolveSession(false);
-    throw new Error('Not signed in — showing login overlay');
-}
-if (_access.decision === 'forbidden') {
-    // Signed in but NOT an admin — Operations is admin-only (access control, not a login divert).
-    window.location.replace('./admin.html');
-    throw new Error('Not authorised — redirecting');
-}
-// _access.decision === 'allow' → proceed (signed-in admin).
+/**
+ * Phase 4a.2 (ARCHITECTURE_PLAN.md): the coordinator body is an exported init()
+ * called by operations-boot.js (a 2-line bootstrap — CSP `script-src 'self'`
+ * blocks inline module scripts). This replaces the former top-level `throw`s
+ * (which aborted module evaluation on the login/forbidden paths) with explicit
+ * early `return`s, and lets a test import this module WITHOUT auto-running it.
+ * Body unchanged otherwise — same statements, same order, one indent level in.
+ */
+export function init() {
+    // ============================================
+    // SESSION — read from localStorage (shared with admin-app.js via session.js)
+    // ============================================
+    const currentSession = getSession();
+    const currentUser    = currentSession?.name ?? null;
 
-// Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
-// import sessionReady and await it instead of reading window._mybSession.
-const _opsAuth = ensureNamedSession(currentUser);
-resolveSession(_opsAuth);
-// B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
-// the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
-// `requirePage(getAuthSnapshot(), 'operations')` returns 'login' exactly when the member's OWN
-// named session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
-// the snapshot is 'named'/'anonymous' and the decision is 'allow', so this never fires (unchanged).
-_opsAuth.then(() => {
-    if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'operations').decision === 'login') {
-        clearSession();
+    // Page-access decision via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 4a).
+    // The "local-derived" snapshot maps the localStorage session to an identity status — present →
+    // 'named' (today's optimistic fast render from local), absent → 'signedOut' — and requirePage
+    // applies the Operations policy (admin-only). Behaviour is identical to the prior two-gate form;
+    // this routes the same decision through the shared authz layer instead of inline checks.
+    const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
+    if (_access.decision === 'login') {
+        // Not signed in → show the shared in-place sign-in (no redirect). Reload on success; the
+        // reloaded page re-checks access. Throw to halt the rest of module init — overlay is shown.
         initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
+        resolveSession(false);
+        return;
     }
-});
-
-/**
- * Run an admin-only Firestore read, self-healing a stale auth token (Phase 4b,
- * ARCHITECTURE_PLAN.md). The three Operations read cards (Work Email, Error Log,
- * Usage) all read admin-gated collections. Immediately after "Set up accounts"
- * the freshly-minted token does not yet carry the `admin` claim — Firebase only
- * refreshes ID tokens ~hourly — so the first read fails `permission-denied` even
- * though the account IS an admin. Rather than make the admin wait (or reload),
- * we force a token refresh once and retry, picking up the claim immediately.
- *
- * Fail-safe: only retries on `permission-denied` with a live user; any other
- * error (offline, etc.) is re-thrown so the card's existing catch shows its
- * silent-fallback message. Retries at most once — a genuinely non-admin token
- * still throws on the second attempt and falls through to the card's catch.
- * @template T
- * @param {() => Promise<T>} readFn  The admin-gated read (e.g. getClientErrors).
- * @returns {Promise<T>}
- */
-async function adminReadWithRetry(readFn) {
-    try {
-        return await readFn();
-    } catch (err) {
-        const user = auth.currentUser;
-        if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
-            await user.getIdToken(true);   // force refresh → pick up the admin claim
-            return await readFn();          // retry once with the fresh token
-        }
-        throw err;
+    if (_access.decision === 'forbidden') {
+        // Signed in but NOT an admin — Operations is admin-only (access control, not a login divert).
+        window.location.replace('./admin.html');
+        return;
     }
-}
+    // _access.decision === 'allow' → proceed (signed-in admin).
 
-
-// ============================================
-// PAGE INIT
-// ============================================
-document.body.classList.add('auth-ready');
-
-// Assigned by the About-lightbox IIFE further down; the closure below only reads
-// it when the drawer logo is tapped, by which point it is set.
-/** @type {any} */
-let openAboutLightbox = null;
-
-initNavPanel({
-    currentPage: 'operations',
-    memberName:  currentUser,
-    isAdmin:         true,
-    isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-    onLogoClick: () => openAboutLightbox?.(),
-    onSignOut:   () => { clearSession(); window.location.href = './index.html'; },
-});
-
-initHuddleUpload({ currentIsAdmin: true, currentUser });
-initCircularUpload();
-initNewsletterUpload();
-
-initRosterUpload({
-    currentUser,
-    currentIsAdmin: true,
-    parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
-    getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
-    loadOverrides,
-});
-
-initAuthSetup({ currentIsAdmin: true });
-
-// ============================================
-// COLLAPSIBLE CARD HEADERS
-// ============================================
-initCardCollapse('huddleToggleHeader',         'huddleBody',         'huddleChevron');
-initCardCollapse('circularUploadToggleHeader',    'circularUploadBody',    'circularUploadChevron');
-initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
-initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
-initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
-initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
-initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
-initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
-
-// ============================================
-// WORK EMAIL PROGRESS
-// ============================================
-(async function initWorkEmailStatus() {
-    // All active accounts — excludes leavers (hidden:true without managerOnly).
-    // Management accounts (hidden:true + managerOnly:true) are included: the admin
-    // sets their emails here since they have no Settings page of their own.
-    const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
-    const content  = document.getElementById('emailStatusContent');
-    if (!content) return;
-
-    try {
-        // Wait for the Firebase Auth session so Firestore rules pass.
-        await sessionReady;
-        const contacts = await adminReadWithRetry(getAllStaffContacts);
-
-        // Mutable maps — updated in-place after an admin saves an email.
-        const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
-        const savedNames = new Set(emailMap.keys());
-
-        content.innerHTML = '';
-
-        // Grade filter
-        const filterRow = document.createElement('div');
-        filterRow.className = 'email-filter-row';
-        const filterSelect = document.createElement('select');
-        filterSelect.id = 'emailGradeFilter';
-        filterSelect.className = 'email-filter-select';
-        filterSelect.setAttribute('aria-label', 'Filter by grade');
-        [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher'], ['Management', 'Management']].forEach(([val, lbl]) => {
-            const opt = document.createElement('option');
-            opt.value = val;
-            opt.textContent = lbl;
-            filterSelect.appendChild(opt);
-        });
-        filterRow.appendChild(filterSelect);
-        content.appendChild(filterRow);
-
-        // Summary and list — re-rendered on grade change
-        const summaryEl = document.createElement('p');
-        summaryEl.className = 'email-count-summary';
-        summaryEl.setAttribute('aria-live', 'polite');
-        content.appendChild(summaryEl);
-
-        const listContainer = document.createElement('div');
-        content.appendChild(listContainer);
-
-        function renderForGrade(/** @type {string} */ grade) {
-            const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
-            const total    = pool.length;
-            const added    = pool.filter(m =>  savedNames.has(m.name));
-            const notAdded = pool.filter(m => !savedNames.has(m.name));
-            const gradeLabel = grade || 'staff';
-
-            summaryEl.innerHTML = `<strong class="email-count-num">${added.length}</strong> of <strong>${total}</strong> ${gradeLabel} have added their work email`;
-
-            listContainer.innerHTML = '';
-
-            // Who has added — show name + email for easy verification
-            if (added.length > 0) {
-                const addedLabel = document.createElement('p');
-                addedLabel.className = 'email-count-added-label';
-                addedLabel.textContent = `Added (${added.length}):`;
-                listContainer.appendChild(addedLabel);
-
-                const addedList = document.createElement('div');
-                addedList.className = 'email-count-list email-count-list--added';
-                added.forEach(m => {
-                    const rowEl = document.createElement('div');
-                    rowEl.className = 'email-added-row';
-
-                    const chip = document.createElement('span');
-                    chip.className = 'email-count-chip email-count-chip--added';
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'email-chip-name';
-                    nameSpan.textContent = m.name;
-                    const emailSpan = document.createElement('span');
-                    emailSpan.className = 'email-chip-email';
-                    emailSpan.textContent = emailMap.get(m.name) || '';
-                    chip.appendChild(nameSpan);
-                    chip.appendChild(emailSpan);
-
-                    const editBtn = document.createElement('button');
-                    editBtn.type = 'button';
-                    editBtn.className = 'email-set-btn';
-                    editBtn.textContent = 'Edit';
-                    editBtn.setAttribute('aria-label', `Edit email for ${m.name}`);
-
-                    const removeBtn = document.createElement('button');
-                    removeBtn.type = 'button';
-                    removeBtn.className = 'email-set-btn email-set-btn--remove';
-                    removeBtn.textContent = 'Remove';
-                    removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
-
-                    rowEl.appendChild(chip);
-                    rowEl.appendChild(editBtn);
-                    rowEl.appendChild(removeBtn);
-                    addedList.appendChild(rowEl);
-
-                    editBtn.addEventListener('click', () => {
-                        // Check this row's state BEFORE the close-others loop so the
-                        // loop's reset of editBtn.textContent to 'Edit' doesn't make
-                        // the subsequent check always false (Cancel → Edit → not Cancel → opens form again).
-                        if (editBtn.textContent === 'Cancel') {
-                            editBtn.textContent = 'Edit';
-                            rowEl.nextElementSibling?.classList.contains('email-set-form')
-                                && rowEl.nextElementSibling.remove();
-                            return;
-                        }
-                        // Close any other open edit form in the list
-                        addedList.querySelectorAll('.email-set-form').forEach(f => {
-                            const prevRow = f.previousElementSibling;
-                            f.remove();
-                            if (prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel') {
-                                const setBtn = prevRow.querySelector('.email-set-btn');
-                                if (setBtn) setBtn.textContent = 'Edit';
-                            }
-                        });
-                        editBtn.textContent = 'Cancel';
-
-                        const form = document.createElement('div');
-                        form.className = 'email-set-form';
-                        form.setAttribute('role', 'group');
-                        form.setAttribute('aria-label', `Edit email for ${m.name}`);
-
-                        const input = document.createElement('input');
-                        input.type = 'email';
-                        input.className = 'email-set-input';
-                        input.placeholder = 'firstname.surname';
-                        input.autocomplete = 'off';
-                        input.autocapitalize = 'off';
-                        input.spellcheck = false;
-                        input.value = emailMap.get(m.name) || '';
-                        input.setAttribute('aria-label', `Work email address for ${m.name}`);
-                        input.enterKeyHint = 'done';
-                        input.addEventListener('blur', () => {
-                            const v = input.value.trim();
-                            if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
-                        });
-
-                        const saveBtn = document.createElement('button');
-                        saveBtn.type = 'button';
-                        saveBtn.className = 'email-set-save';
-                        saveBtn.textContent = 'Save';
-
-                        const errorEl = document.createElement('span');
-                        errorEl.className = 'email-set-error';
-                        errorEl.setAttribute('role', 'alert');
-                        errorEl.setAttribute('aria-live', 'polite');
-
-                        form.appendChild(input);
-                        form.appendChild(saveBtn);
-                        form.appendChild(errorEl);
-                        rowEl.after(form);
-                        input.select();
-
-                        saveBtn.addEventListener('click', async () => {
-                            const rawVal = input.value.trim();
-                            if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
-                            const email = input.value.trim();
-                            if (!isValidEmail(email)) {
-                                errorEl.textContent = 'Please enter a valid email address';
-                                input.focus();
-                                return;
-                            }
-                            saveBtn.disabled = true;
-                            saveBtn.textContent = 'Saving…';
-                            errorEl.textContent = '';
-                            try {
-                                await saveStaffContact(m.name, email);
-                                emailMap.set(m.name, email);
-                                renderForGrade(filterSelect.value);
-                                filterSelect.focus();
-                            } catch (e) {
-                                console.error('[WorkEmailStatus] edit failed', e);
-                                errorEl.textContent = 'Couldn\'t save — check your connection and try again';
-                                saveBtn.disabled = false;
-                                saveBtn.textContent = 'Save';
-                            }
-                        });
-
-                        input.addEventListener('keydown', e => {
-                            if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                            if (e.key === 'Escape') { form.remove(); editBtn.textContent = 'Edit'; }
-                        });
-                    });
-
-                    removeBtn.addEventListener('click', async () => {
-                        if (removeBtn.dataset.confirm !== 'pending') {
-                            removeBtn.dataset.confirm = 'pending';
-                            removeBtn.textContent = 'Confirm?';
-                            setTimeout(() => {
-                                if (removeBtn.dataset.confirm === 'pending') {
-                                    removeBtn.dataset.confirm = '';
-                                    removeBtn.textContent = 'Remove';
-                                }
-                            }, 3000);
-                            return;
-                        }
-                        removeBtn.disabled = true;
-                        removeBtn.textContent = 'Removing…';
-                        try {
-                            await deleteStaffContact(m.name);
-                            emailMap.delete(m.name);
-                            savedNames.delete(m.name);
-                            renderForGrade(filterSelect.value);
-                            filterSelect.focus();
-                        } catch (e) {
-                            console.error('[WorkEmailStatus] remove failed', e);
-                            removeBtn.disabled = false;
-                            removeBtn.dataset.confirm = '';
-                            removeBtn.textContent = 'Remove';
-                        }
-                    });
-                });
-                listContainer.appendChild(addedList);
-            }
-
-            // Who hasn't yet — each row has a "Set email" button for admin entry
-            if (notAdded.length === 0) {
-                const done = document.createElement('p');
-                done.className = 'email-count-done';
-                done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for the next step'}.`;
-                listContainer.appendChild(done);
-            } else {
-                const missingLabel = document.createElement('p');
-                missingLabel.className = 'email-count-missing-label';
-                missingLabel.textContent = `Still to add (${notAdded.length}):`;
-                listContainer.appendChild(missingLabel);
-
-                const list = document.createElement('div');
-                list.className = 'email-count-list email-count-list--missing';
-
-                notAdded.forEach(m => {
-                    const rowEl = document.createElement('div');
-                    rowEl.className = 'email-missing-row';
-
-                    const nameSpan = document.createElement('span');
-                    nameSpan.className = 'email-count-chip';
-                    nameSpan.textContent = m.name;
-
-                    const setBtn = document.createElement('button');
-                    setBtn.type = 'button';
-                    setBtn.className = 'email-set-btn';
-                    setBtn.textContent = 'Set email';
-                    setBtn.setAttribute('aria-label', `Set work email for ${m.name}`);
-                    setBtn.dataset.member = m.name;
-
-                    rowEl.appendChild(nameSpan);
-                    rowEl.appendChild(setBtn);
-                    list.appendChild(rowEl);
-
-                    setBtn.addEventListener('click', () => {
-                        // Toggle: if this row's form is already open, close it
-                        const existing = rowEl.nextElementSibling?.classList.contains('email-set-form')
-                            ? rowEl.nextElementSibling : null;
-                        if (existing) {
-                            existing.remove();
-                            setBtn.textContent = 'Set email';
-                            return;
-                        }
-
-                        // Close any other open form in the list first
-                        list.querySelectorAll('.email-set-form').forEach(f => {
-                            const prevRow = f.previousElementSibling;
-                            f.remove();
-                            const btn = prevRow?.querySelector('.email-set-btn');
-                            if (btn) btn.textContent = 'Set email';
-                        });
-
-                        setBtn.textContent = 'Cancel';
-
-                        const form = document.createElement('div');
-                        form.className = 'email-set-form';
-                        form.setAttribute('role', 'group');
-                        form.setAttribute('aria-label', `Set email for ${m.name}`);
-
-                        const input = document.createElement('input');
-                        input.type = 'email';
-                        input.className = 'email-set-input';
-                        input.placeholder = 'firstname.surname';
-                        input.autocomplete = 'off';
-                        input.autocapitalize = 'off';
-                        input.spellcheck = false;
-                        input.setAttribute('aria-label', `Work email address for ${m.name}`);
-                        input.enterKeyHint = 'done';
-                        input.addEventListener('blur', () => {
-                            const v = input.value.trim();
-                            if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
-                        });
-
-                        const saveBtn = document.createElement('button');
-                        saveBtn.type = 'button';
-                        saveBtn.className = 'email-set-save';
-                        saveBtn.textContent = 'Save';
-
-                        const errorEl = document.createElement('span');
-                        errorEl.className = 'email-set-error';
-                        errorEl.setAttribute('role', 'alert');
-                        errorEl.setAttribute('aria-live', 'polite');
-
-                        form.appendChild(input);
-                        form.appendChild(saveBtn);
-                        form.appendChild(errorEl);
-                        rowEl.after(form);
-                        input.focus();
-
-                        saveBtn.addEventListener('click', async () => {
-                            const rawVal = input.value.trim();
-                            if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
-                            const email = input.value.trim();
-                            if (!isValidEmail(email)) {
-                                errorEl.textContent = 'Please enter a valid email address';
-                                input.focus();
-                                return;
-                            }
-                            saveBtn.disabled = true;
-                            saveBtn.textContent = 'Saving…';
-                            errorEl.textContent = '';
-                            try {
-                                await saveStaffContact(m.name, email);
-                                emailMap.set(m.name, email);
-                                savedNames.add(m.name);
-                                renderForGrade(filterSelect.value);
-                                // The saved member moved to "Added" chips — no set-email button
-                                // remains. Return focus to the grade filter so the user can continue.
-                                filterSelect.focus();
-                            } catch (e) {
-                                console.error('[WorkEmailStatus] save failed', e);
-                                errorEl.textContent = 'Couldn\'t save — check your connection and try again';
-                                saveBtn.disabled = false;
-                                saveBtn.textContent = 'Save';
-                            }
-                        });
-
-                        input.addEventListener('keydown', e => {
-                            if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
-                            if (e.key === 'Escape') {
-                                form.remove();
-                                setBtn.textContent = 'Set email';
-                            }
-                        });
-                    });
-                });
-
-                listContainer.appendChild(list);
-            }
+    // Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
+    // import sessionReady and await it instead of reading window._mybSession.
+    const _opsAuth = ensureNamedSession(currentUser);
+    resolveSession(_opsAuth);
+    // B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
+    // the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
+    // `requirePage(getAuthSnapshot(), 'operations')` returns 'login' exactly when the member's OWN
+    // named session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag OFF →
+    // the snapshot is 'named'/'anonymous' and the decision is 'allow', so this never fires (unchanged).
+    _opsAuth.then(() => {
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'operations').decision === 'login') {
+            clearSession();
+            initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
         }
-
-        renderForGrade('');
-        filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
-
-    } catch (err) {
-        content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
-        console.error('[WorkEmailStatus]', err);
-    }
-})();
-
-// Show a banner if Firebase Auth couldn't establish a real admin session.
-// Anonymous fallback still resolves the Promise so the page renders, but
-// Cloud Functions and Storage both require a valid admin token — they'll
-// reject silently without this warning.
-sessionReady.then(ok => {
-    if (!ok || /** @type {any} */ (window)._mybAuthError) {
-        const main   = document.querySelector('.container');
-        if (!main) return;
-        const banner = document.createElement('p');
-        banner.className   = 'ops-auth-warning';
-        banner.textContent = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
-        main.prepend(banner);
-    }
-});
-
-// ============================================
-// SHARED PDF UPLOAD HELPER (Newsletter + Circular)
-// ============================================
-/**
- * Wires file validation, date init, and upload for a PDF-upload card.
- * @param {{ dateId: string, fileId: string, fileLabelId: string, uploadBtnId: string,
- *           feedbackId: string, uploadFn: Function, successMsg: (date: string) => string,
- *           btnLabel: string, logPrefix: string }} cfg
- */
-function _initDocUpload(cfg) {
-    const dateInput = /** @type {HTMLInputElement} */ (document.getElementById(cfg.dateId));
-    const fileInput = /** @type {HTMLInputElement} */ (document.getElementById(cfg.fileId));
-    const fileLabel = document.getElementById(cfg.fileLabelId);
-    const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById(cfg.uploadBtnId));
-    const feedback  = document.getElementById(cfg.feedbackId);
-    if (!dateInput || !fileInput || !uploadBtn || !feedback || !fileLabel) return;
-
-    dateInput.value = formatISO(new Date());
-    dateInput.max   = formatISO(new Date());
-
-    fileInput.addEventListener('change', () => {
-        const file = (fileInput.files || [])[0];
-        feedback.textContent = '';
-        feedback.className = 'huddle-feedback';
-        if (!file) {
-            fileLabel.classList.remove('visible');
-            uploadBtn.disabled = true;
-            return;
-        }
-        const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-        if (!isPdf) {
-            fileLabel.classList.remove('visible');
-            uploadBtn.disabled = true;
-            feedback.textContent = 'Please choose a PDF file';
-            feedback.className = 'huddle-feedback huddle-feedback--err';
-            fileInput.value = '';
-            return;
-        }
-        if (file.size > 20 * 1024 * 1024) {
-            fileLabel.classList.remove('visible');
-            uploadBtn.disabled = true;
-            feedback.textContent = 'File too large — maximum 20 MB';
-            feedback.className = 'huddle-feedback huddle-feedback--err';
-            fileInput.value = '';
-            return;
-        }
-        fileLabel.textContent = file.name;
-        fileLabel.classList.add('visible');
-        uploadBtn.disabled = false;
     });
 
-    uploadBtn.addEventListener('click', async () => {
-        const date = dateInput.value;
-        const file = (fileInput.files || [])[0];
-        if (!date || !file) return;
-        uploadBtn.disabled = true;
-        uploadBtn.textContent = 'Uploading…';
-        feedback.textContent = '';
-        feedback.className = 'huddle-feedback';
+    /**
+     * Run an admin-only Firestore read, self-healing a stale auth token (Phase 4b,
+     * ARCHITECTURE_PLAN.md). The three Operations read cards (Work Email, Error Log,
+     * Usage) all read admin-gated collections. Immediately after "Set up accounts"
+     * the freshly-minted token does not yet carry the `admin` claim — Firebase only
+     * refreshes ID tokens ~hourly — so the first read fails `permission-denied` even
+     * though the account IS an admin. Rather than make the admin wait (or reload),
+     * we force a token refresh once and retry, picking up the claim immediately.
+     *
+     * Fail-safe: only retries on `permission-denied` with a live user; any other
+     * error (offline, etc.) is re-thrown so the card's existing catch shows its
+     * silent-fallback message. Retries at most once — a genuinely non-admin token
+     * still throws on the second attempt and falls through to the card's catch.
+     * @template T
+     * @param {() => Promise<T>} readFn  The admin-gated read (e.g. getClientErrors).
+     * @returns {Promise<T>}
+     */
+    async function adminReadWithRetry(readFn) {
+        try {
+            return await readFn();
+        } catch (err) {
+            const user = auth.currentUser;
+            if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
+                await user.getIdToken(true);   // force refresh → pick up the admin claim
+                return await readFn();          // retry once with the fresh token
+            }
+            throw err;
+        }
+    }
+
+
+    // ============================================
+    // PAGE INIT
+    // ============================================
+    document.body.classList.add('auth-ready');
+
+    // Assigned by the About-lightbox IIFE further down; the closure below only reads
+    // it when the drawer logo is tapped, by which point it is set.
+    /** @type {any} */
+    let openAboutLightbox = null;
+
+    initNavPanel({
+        currentPage: 'operations',
+        memberName:  currentUser,
+        isAdmin:         true,
+        isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
+        onLogoClick: () => openAboutLightbox?.(),
+        onSignOut:   () => { clearSession(); window.location.href = './index.html'; },
+    });
+
+    initHuddleUpload({ currentIsAdmin: true, currentUser });
+    initCircularUpload();
+    initNewsletterUpload();
+
+    initRosterUpload({
+        currentUser,
+        currentIsAdmin: true,
+        parseUrl:   'https://europe-west2-myb-roster.cloudfunctions.net/parseRosterPDF',
+        getIdToken: async () => { await sessionReady; return auth.currentUser?.getIdToken(); },
+        loadOverrides,
+    });
+
+    initAuthSetup({ currentIsAdmin: true });
+
+    // ============================================
+    // COLLAPSIBLE CARD HEADERS
+    // ============================================
+    initCardCollapse('huddleToggleHeader',         'huddleBody',         'huddleChevron');
+    initCardCollapse('circularUploadToggleHeader',    'circularUploadBody',    'circularUploadChevron');
+    initCardCollapse('newsletterUploadToggleHeader', 'newsletterUploadBody', 'newsletterUploadChevron');
+    initCardCollapse('rosterUploadToggleHeader',   'rosterUploadBody',   'rosterUploadChevron');
+    initCardCollapse('authSetupToggleHeader',   'authSetupBody',   'authSetupChevron');
+    initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
+    initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
+    initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
+
+    // ============================================
+    // WORK EMAIL PROGRESS
+    // ============================================
+    (async function initWorkEmailStatus() {
+        // All active accounts — excludes leavers (hidden:true without managerOnly).
+        // Management accounts (hidden:true + managerOnly:true) are included: the admin
+        // sets their emails here since they have no Settings page of their own.
+        const eligible = teamMembers.filter(m => !m.hidden || m.managerOnly);
+        const content  = document.getElementById('emailStatusContent');
+        if (!content) return;
+
+        try {
+            // Wait for the Firebase Auth session so Firestore rules pass.
+            await sessionReady;
+            const contacts = await adminReadWithRetry(getAllStaffContacts);
+
+            // Mutable maps — updated in-place after an admin saves an email.
+            const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
+            const savedNames = new Set(emailMap.keys());
+
+            content.innerHTML = '';
+
+            // Grade filter
+            const filterRow = document.createElement('div');
+            filterRow.className = 'email-filter-row';
+            const filterSelect = document.createElement('select');
+            filterSelect.id = 'emailGradeFilter';
+            filterSelect.className = 'email-filter-select';
+            filterSelect.setAttribute('aria-label', 'Filter by grade');
+            [['', 'All grades'], ['CEA', 'CEA'], ['CES', 'CES'], ['Dispatcher', 'Dispatcher'], ['Management', 'Management']].forEach(([val, lbl]) => {
+                const opt = document.createElement('option');
+                opt.value = val;
+                opt.textContent = lbl;
+                filterSelect.appendChild(opt);
+            });
+            filterRow.appendChild(filterSelect);
+            content.appendChild(filterRow);
+
+            // Summary and list — re-rendered on grade change
+            const summaryEl = document.createElement('p');
+            summaryEl.className = 'email-count-summary';
+            summaryEl.setAttribute('aria-live', 'polite');
+            content.appendChild(summaryEl);
+
+            const listContainer = document.createElement('div');
+            content.appendChild(listContainer);
+
+            function renderForGrade(/** @type {string} */ grade) {
+                const pool     = grade ? eligible.filter(m => m.role === grade) : eligible;
+                const total    = pool.length;
+                const added    = pool.filter(m =>  savedNames.has(m.name));
+                const notAdded = pool.filter(m => !savedNames.has(m.name));
+                const gradeLabel = grade || 'staff';
+
+                summaryEl.innerHTML = `<strong class="email-count-num">${added.length}</strong> of <strong>${total}</strong> ${gradeLabel} have added their work email`;
+
+                listContainer.innerHTML = '';
+
+                // Who has added — show name + email for easy verification
+                if (added.length > 0) {
+                    const addedLabel = document.createElement('p');
+                    addedLabel.className = 'email-count-added-label';
+                    addedLabel.textContent = `Added (${added.length}):`;
+                    listContainer.appendChild(addedLabel);
+
+                    const addedList = document.createElement('div');
+                    addedList.className = 'email-count-list email-count-list--added';
+                    added.forEach(m => {
+                        const rowEl = document.createElement('div');
+                        rowEl.className = 'email-added-row';
+
+                        const chip = document.createElement('span');
+                        chip.className = 'email-count-chip email-count-chip--added';
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'email-chip-name';
+                        nameSpan.textContent = m.name;
+                        const emailSpan = document.createElement('span');
+                        emailSpan.className = 'email-chip-email';
+                        emailSpan.textContent = emailMap.get(m.name) || '';
+                        chip.appendChild(nameSpan);
+                        chip.appendChild(emailSpan);
+
+                        const editBtn = document.createElement('button');
+                        editBtn.type = 'button';
+                        editBtn.className = 'email-set-btn';
+                        editBtn.textContent = 'Edit';
+                        editBtn.setAttribute('aria-label', `Edit email for ${m.name}`);
+
+                        const removeBtn = document.createElement('button');
+                        removeBtn.type = 'button';
+                        removeBtn.className = 'email-set-btn email-set-btn--remove';
+                        removeBtn.textContent = 'Remove';
+                        removeBtn.setAttribute('aria-label', `Remove email for ${m.name}`);
+
+                        rowEl.appendChild(chip);
+                        rowEl.appendChild(editBtn);
+                        rowEl.appendChild(removeBtn);
+                        addedList.appendChild(rowEl);
+
+                        editBtn.addEventListener('click', () => {
+                            // Check this row's state BEFORE the close-others loop so the
+                            // loop's reset of editBtn.textContent to 'Edit' doesn't make
+                            // the subsequent check always false (Cancel → Edit → not Cancel → opens form again).
+                            if (editBtn.textContent === 'Cancel') {
+                                editBtn.textContent = 'Edit';
+                                rowEl.nextElementSibling?.classList.contains('email-set-form')
+                                    && rowEl.nextElementSibling.remove();
+                                return;
+                            }
+                            // Close any other open edit form in the list
+                            addedList.querySelectorAll('.email-set-form').forEach(f => {
+                                const prevRow = f.previousElementSibling;
+                                f.remove();
+                                if (prevRow?.querySelector('.email-set-btn')?.textContent === 'Cancel') {
+                                    const setBtn = prevRow.querySelector('.email-set-btn');
+                                    if (setBtn) setBtn.textContent = 'Edit';
+                                }
+                            });
+                            editBtn.textContent = 'Cancel';
+
+                            const form = document.createElement('div');
+                            form.className = 'email-set-form';
+                            form.setAttribute('role', 'group');
+                            form.setAttribute('aria-label', `Edit email for ${m.name}`);
+
+                            const input = document.createElement('input');
+                            input.type = 'email';
+                            input.className = 'email-set-input';
+                            input.placeholder = 'firstname.surname';
+                            input.autocomplete = 'off';
+                            input.autocapitalize = 'off';
+                            input.spellcheck = false;
+                            input.value = emailMap.get(m.name) || '';
+                            input.setAttribute('aria-label', `Work email address for ${m.name}`);
+                            input.enterKeyHint = 'done';
+                            input.addEventListener('blur', () => {
+                                const v = input.value.trim();
+                                if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+                            });
+
+                            const saveBtn = document.createElement('button');
+                            saveBtn.type = 'button';
+                            saveBtn.className = 'email-set-save';
+                            saveBtn.textContent = 'Save';
+
+                            const errorEl = document.createElement('span');
+                            errorEl.className = 'email-set-error';
+                            errorEl.setAttribute('role', 'alert');
+                            errorEl.setAttribute('aria-live', 'polite');
+
+                            form.appendChild(input);
+                            form.appendChild(saveBtn);
+                            form.appendChild(errorEl);
+                            rowEl.after(form);
+                            input.select();
+
+                            saveBtn.addEventListener('click', async () => {
+                                const rawVal = input.value.trim();
+                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
+                                const email = input.value.trim();
+                                if (!isValidEmail(email)) {
+                                    errorEl.textContent = 'Please enter a valid email address';
+                                    input.focus();
+                                    return;
+                                }
+                                saveBtn.disabled = true;
+                                saveBtn.textContent = 'Saving…';
+                                errorEl.textContent = '';
+                                try {
+                                    await saveStaffContact(m.name, email);
+                                    emailMap.set(m.name, email);
+                                    renderForGrade(filterSelect.value);
+                                    filterSelect.focus();
+                                } catch (e) {
+                                    console.error('[WorkEmailStatus] edit failed', e);
+                                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
+                                    saveBtn.disabled = false;
+                                    saveBtn.textContent = 'Save';
+                                }
+                            });
+
+                            input.addEventListener('keydown', e => {
+                                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+                                if (e.key === 'Escape') { form.remove(); editBtn.textContent = 'Edit'; }
+                            });
+                        });
+
+                        removeBtn.addEventListener('click', async () => {
+                            if (removeBtn.dataset.confirm !== 'pending') {
+                                removeBtn.dataset.confirm = 'pending';
+                                removeBtn.textContent = 'Confirm?';
+                                setTimeout(() => {
+                                    if (removeBtn.dataset.confirm === 'pending') {
+                                        removeBtn.dataset.confirm = '';
+                                        removeBtn.textContent = 'Remove';
+                                    }
+                                }, 3000);
+                                return;
+                            }
+                            removeBtn.disabled = true;
+                            removeBtn.textContent = 'Removing…';
+                            try {
+                                await deleteStaffContact(m.name);
+                                emailMap.delete(m.name);
+                                savedNames.delete(m.name);
+                                renderForGrade(filterSelect.value);
+                                filterSelect.focus();
+                            } catch (e) {
+                                console.error('[WorkEmailStatus] remove failed', e);
+                                removeBtn.disabled = false;
+                                removeBtn.dataset.confirm = '';
+                                removeBtn.textContent = 'Remove';
+                            }
+                        });
+                    });
+                    listContainer.appendChild(addedList);
+                }
+
+                // Who hasn't yet — each row has a "Set email" button for admin entry
+                if (notAdded.length === 0) {
+                    const done = document.createElement('p');
+                    done.className = 'email-count-done';
+                    done.textContent = `✓ All ${gradeLabel} have added their work email${grade ? '' : ' — ready for the next step'}.`;
+                    listContainer.appendChild(done);
+                } else {
+                    const missingLabel = document.createElement('p');
+                    missingLabel.className = 'email-count-missing-label';
+                    missingLabel.textContent = `Still to add (${notAdded.length}):`;
+                    listContainer.appendChild(missingLabel);
+
+                    const list = document.createElement('div');
+                    list.className = 'email-count-list email-count-list--missing';
+
+                    notAdded.forEach(m => {
+                        const rowEl = document.createElement('div');
+                        rowEl.className = 'email-missing-row';
+
+                        const nameSpan = document.createElement('span');
+                        nameSpan.className = 'email-count-chip';
+                        nameSpan.textContent = m.name;
+
+                        const setBtn = document.createElement('button');
+                        setBtn.type = 'button';
+                        setBtn.className = 'email-set-btn';
+                        setBtn.textContent = 'Set email';
+                        setBtn.setAttribute('aria-label', `Set work email for ${m.name}`);
+                        setBtn.dataset.member = m.name;
+
+                        rowEl.appendChild(nameSpan);
+                        rowEl.appendChild(setBtn);
+                        list.appendChild(rowEl);
+
+                        setBtn.addEventListener('click', () => {
+                            // Toggle: if this row's form is already open, close it
+                            const existing = rowEl.nextElementSibling?.classList.contains('email-set-form')
+                                ? rowEl.nextElementSibling : null;
+                            if (existing) {
+                                existing.remove();
+                                setBtn.textContent = 'Set email';
+                                return;
+                            }
+
+                            // Close any other open form in the list first
+                            list.querySelectorAll('.email-set-form').forEach(f => {
+                                const prevRow = f.previousElementSibling;
+                                f.remove();
+                                const btn = prevRow?.querySelector('.email-set-btn');
+                                if (btn) btn.textContent = 'Set email';
+                            });
+
+                            setBtn.textContent = 'Cancel';
+
+                            const form = document.createElement('div');
+                            form.className = 'email-set-form';
+                            form.setAttribute('role', 'group');
+                            form.setAttribute('aria-label', `Set email for ${m.name}`);
+
+                            const input = document.createElement('input');
+                            input.type = 'email';
+                            input.className = 'email-set-input';
+                            input.placeholder = 'firstname.surname';
+                            input.autocomplete = 'off';
+                            input.autocapitalize = 'off';
+                            input.spellcheck = false;
+                            input.setAttribute('aria-label', `Work email address for ${m.name}`);
+                            input.enterKeyHint = 'done';
+                            input.addEventListener('blur', () => {
+                                const v = input.value.trim();
+                                if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+                            });
+
+                            const saveBtn = document.createElement('button');
+                            saveBtn.type = 'button';
+                            saveBtn.className = 'email-set-save';
+                            saveBtn.textContent = 'Save';
+
+                            const errorEl = document.createElement('span');
+                            errorEl.className = 'email-set-error';
+                            errorEl.setAttribute('role', 'alert');
+                            errorEl.setAttribute('aria-live', 'polite');
+
+                            form.appendChild(input);
+                            form.appendChild(saveBtn);
+                            form.appendChild(errorEl);
+                            rowEl.after(form);
+                            input.focus();
+
+                            saveBtn.addEventListener('click', async () => {
+                                const rawVal = input.value.trim();
+                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
+                                const email = input.value.trim();
+                                if (!isValidEmail(email)) {
+                                    errorEl.textContent = 'Please enter a valid email address';
+                                    input.focus();
+                                    return;
+                                }
+                                saveBtn.disabled = true;
+                                saveBtn.textContent = 'Saving…';
+                                errorEl.textContent = '';
+                                try {
+                                    await saveStaffContact(m.name, email);
+                                    emailMap.set(m.name, email);
+                                    savedNames.add(m.name);
+                                    renderForGrade(filterSelect.value);
+                                    // The saved member moved to "Added" chips — no set-email button
+                                    // remains. Return focus to the grade filter so the user can continue.
+                                    filterSelect.focus();
+                                } catch (e) {
+                                    console.error('[WorkEmailStatus] save failed', e);
+                                    errorEl.textContent = 'Couldn\'t save — check your connection and try again';
+                                    saveBtn.disabled = false;
+                                    saveBtn.textContent = 'Save';
+                                }
+                            });
+
+                            input.addEventListener('keydown', e => {
+                                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+                                if (e.key === 'Escape') {
+                                    form.remove();
+                                    setBtn.textContent = 'Set email';
+                                }
+                            });
+                        });
+                    });
+
+                    listContainer.appendChild(list);
+                }
+            }
+
+            renderForGrade('');
+            filterSelect.addEventListener('change', () => renderForGrade(filterSelect.value));
+
+        } catch (err) {
+            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load email status — check your connection and reload.</p>';
+            console.error('[WorkEmailStatus]', err);
+        }
+    })();
+
+    // Show a banner if Firebase Auth couldn't establish a real admin session.
+    // Anonymous fallback still resolves the Promise so the page renders, but
+    // Cloud Functions and Storage both require a valid admin token — they'll
+    // reject silently without this warning.
+    sessionReady.then(ok => {
+        if (!ok || /** @type {any} */ (window)._mybAuthError) {
+            const main   = document.querySelector('.container');
+            if (!main) return;
+            const banner = document.createElement('p');
+            banner.className   = 'ops-auth-warning';
+            banner.textContent = 'We couldn\'t confirm your admin sign-in. Please sign out and back in before using these tools.';
+            main.prepend(banner);
+        }
+    });
+
+    // ============================================
+    // SHARED PDF UPLOAD HELPER (Newsletter + Circular)
+    // ============================================
+    /**
+     * Wires file validation, date init, and upload for a PDF-upload card.
+     * @param {{ dateId: string, fileId: string, fileLabelId: string, uploadBtnId: string,
+     *           feedbackId: string, uploadFn: Function, successMsg: (date: string) => string,
+     *           btnLabel: string, logPrefix: string }} cfg
+     */
+    function _initDocUpload(cfg) {
+        const dateInput = /** @type {HTMLInputElement} */ (document.getElementById(cfg.dateId));
+        const fileInput = /** @type {HTMLInputElement} */ (document.getElementById(cfg.fileId));
+        const fileLabel = document.getElementById(cfg.fileLabelId);
+        const uploadBtn = /** @type {HTMLButtonElement} */ (document.getElementById(cfg.uploadBtnId));
+        const feedback  = document.getElementById(cfg.feedbackId);
+        if (!dateInput || !fileInput || !uploadBtn || !feedback || !fileLabel) return;
+
+        dateInput.value = formatISO(new Date());
+        dateInput.max   = formatISO(new Date());
+
+        fileInput.addEventListener('change', () => {
+            const file = (fileInput.files || [])[0];
+            feedback.textContent = '';
+            feedback.className = 'huddle-feedback';
+            if (!file) {
+                fileLabel.classList.remove('visible');
+                uploadBtn.disabled = true;
+                return;
+            }
+            const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+            if (!isPdf) {
+                fileLabel.classList.remove('visible');
+                uploadBtn.disabled = true;
+                feedback.textContent = 'Please choose a PDF file';
+                feedback.className = 'huddle-feedback huddle-feedback--err';
+                fileInput.value = '';
+                return;
+            }
+            if (file.size > 20 * 1024 * 1024) {
+                fileLabel.classList.remove('visible');
+                uploadBtn.disabled = true;
+                feedback.textContent = 'File too large — maximum 20 MB';
+                feedback.className = 'huddle-feedback huddle-feedback--err';
+                fileInput.value = '';
+                return;
+            }
+            fileLabel.textContent = file.name;
+            fileLabel.classList.add('visible');
+            uploadBtn.disabled = false;
+        });
+
+        uploadBtn.addEventListener('click', async () => {
+            const date = dateInput.value;
+            const file = (fileInput.files || [])[0];
+            if (!date || !file) return;
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading…';
+            feedback.textContent = '';
+            feedback.className = 'huddle-feedback';
+            try {
+                await sessionReady;
+                await cfg.uploadFn(date, file, currentUser);
+                feedback.textContent = cfg.successMsg(date);
+                feedback.className = 'huddle-feedback huddle-feedback--ok';
+                fileInput.value = '';
+                fileLabel.textContent = '';
+                fileLabel.classList.remove('visible');
+            } catch (err) {
+                console.error(`[${cfg.logPrefix}] Upload failed:`, err);
+                feedback.textContent = (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH'
+                    ? "That file isn't a valid PDF — please choose the original file"
+                    : 'Upload failed — please try again';
+                feedback.className = 'huddle-feedback huddle-feedback--err';
+                uploadBtn.disabled = false;
+            } finally {
+                uploadBtn.textContent = cfg.btnLabel;
+            }
+        });
+    }
+
+    // ============================================
+    // MARYLEBONE NEWSLETTER UPLOAD
+    // ============================================
+    function initNewsletterUpload() {
+        _initDocUpload({
+            dateId: 'newsletterDate', fileId: 'newsletterFileInput',
+            fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
+            feedbackId: 'newsletterFeedback', uploadFn: uploadNewsletter,
+            successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
+            btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
+        });
+    }
+
+    // ============================================
+    // WEEKLY RETAIL CIRCULAR UPLOAD
+    // ============================================
+    function initCircularUpload() {
+        _initDocUpload({
+            dateId: 'circularDate', fileId: 'circularFileInput',
+            fileLabelId: 'circularFileName', uploadBtnId: 'circularUploadBtn',
+            feedbackId: 'circularFeedback', uploadFn: uploadCircular,
+            successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
+            btnLabel: 'Upload Circular', logPrefix: 'Circular',
+        });
+    }
+
+    // ============================================
+    // ICON LIGHTBOX — About panel (shared about-lightbox.js)
+    // ============================================
+    (function () {
+        const about = initAboutLightbox({
+            appLabel: 'MYB Roster Operations',
+            bugLinkId: 'opsBugReportLink',
+            getUserName: () => currentUser,
+        });
+        if (about) openAboutLightbox = about.open;
+
+        // Header logo is a back-to-calendar button (About moved to the drawer logo).
+        const headerIcon = document.getElementById('appIcon');
+        if (!headerIcon) return;
+        headerIcon.title = 'Back to calendar';
+        headerIcon.setAttribute('aria-label', 'Back to calendar');
+        headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
+    })();
+
+    // ============================================
+    // TIPS LIGHTBOX — ? button on each card
+    // Lifecycle, renderer, and button wiring live in tips-lightbox.js — only the
+    // content data is owned here.
+    // ============================================
+    (function () {
+        const CARD_TIPS = {
+            'daily-huddle': {
+                title: 'Daily Huddle',
+                sections: [{ items: [
+                    { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff open it via ☰ → <strong>Daily Huddle</strong> on the main app' },
+                    { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
+                    { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
+                    { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
+                ]}],
+            },
+            'weekly-circular': {
+                title: 'Weekly Retail Circular',
+                sections: [{ items: [
+                    { icon: '📰', html: 'Upload the weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
+                    { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
+                    { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
+                    { icon: '🤖', html: 'In a future update this will upload automatically, like the Huddle' },
+                ]}],
+            },
+            'newsletter': {
+                title: 'Marylebone Newsletter',
+                sections: [{ items: [
+                    { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter PDF — staff open it from <strong>☰ → Marylebone Newsletter</strong>' },
+                    { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
+                    { icon: '📅', html: 'Set the date to the issue date of the newsletter' },
+                ]}],
+            },
+            'weekly-roster': {
+                title: 'Weekly Roster upload',
+                sections: [
+                    { heading: 'How it works', items: [
+                        { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> (always a Saturday)' },
+                        { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — the app reads the shifts (takes ~15 seconds)' },
+                        { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
+                        { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
+                    ]},
+                    { heading: 'Conflicts', items: [
+                        { icon: '⚠️', html: 'If a day already has a <strong>recorded change</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
+                        { icon: '🔄', html: 'Old roster uploads are replaced automatically — only your manual changes show a warning if the new PDF disagrees' },
+                    ]},
+                ],
+            },
+            'staff-login': {
+                title: 'Staff Login Accounts',
+                sections: [{ items: [
+                    { icon: '🔐', html: 'Creates a secure login for every active staff member so the app knows who is saving changes' },
+                    { icon: '✅', html: 'Safe to run any time — people who already have an account are skipped, so it won\'t break anything' },
+                    { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
+                    { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
+                ]}],
+            },
+            'work-email-progress': {
+                title: 'Work Email Progress',
+                sections: [
+                    { heading: 'What it\'s for', items: [
+                        { icon: '🔑', html: 'Staff save their work email to enable <strong>password recovery</strong> in a future update — nothing uses it right now. It\'s Stage 1 of the password security project.' },
+                        { icon: '🔒', html: 'Each person can only see their <strong>own email</strong>. As admin you can see all of them.' },
+                    ]},
+                    { heading: 'How it works', items: [
+                        { icon: '⚙️', html: 'CEA, CES, and Dispatcher staff can add their own email in ☰ → <strong>Settings → Work Email</strong> — the easiest way to get them to register' },
+                        { icon: '📝', html: 'You can enter an email on behalf of any staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
+                        { icon: '🔑', html: '<strong>Management accounts</strong> aren\'t in the Settings sign-in dropdown, so they can\'t sign in directly through Settings — use the <strong>Set email</strong> button on their behalf, or have them sign in via Admin first' },
+                        { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
+                    ]},
+                ],
+            },
+            'usage': {
+                title: 'Usage',
+                sections: [
+                    { heading: 'What it shows', items: [
+                        { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts have signed in this calendar month and over the last 30 days' },
+                        { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month' },
+                    ]},
+                    { heading: 'Privacy', items: [
+                        { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored' },
+                        { icon: '📱', html: 'Counts are per account-device, so someone using both a phone and a laptop may count twice — treat the numbers as a usage trend, not an exact headcount' },
+                    ]},
+                ],
+            },
+            'error-log': {
+                title: 'Error Log',
+                sections: [
+                    { heading: 'What it captures', items: [
+                        { icon: '🐛', html: 'Uncaught JS errors from <strong>any authenticated page</strong> (admin, pay calculator, operations, settings) — across all users\' sessions, not just yours' },
+                        { icon: '⎘', html: 'Tap <strong>⎘ Copy</strong> on any error to copy all details (message, page, app version, browser) formatted for diagnosis' },
+                    ]},
+                    { heading: 'Resolving errors', items: [
+                        { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed and hides it from the active list — it is <strong>not deleted immediately</strong>, just archived for 90 days then pruned automatically' },
+                        { icon: '🔄', html: 'You don\'t need to manually clean up the log — resolved errors expire on their own' },
+                    ]},
+                    { heading: 'What to act on', items: [
+                        { icon: '⚠️', html: '<strong>Worth investigating:</strong> the same error from multiple people, or new errors appearing after a deployment' },
+                        { icon: '🔕', html: '<strong>Usually safe to resolve:</strong> isolated one-off errors, cross-origin/extension errors (no page or version shown), brief network failures' },
+                    ]},
+                ],
+            },
+        };
+
+        initTipsLightbox(CARD_TIPS);
+    })();
+
+    // ============================================
+    // ERROR LOG CARD
+    // ============================================
+    (async function initErrorLog() {
+        const content = document.getElementById('errorLogContent');
+        if (!content) return;
+
         try {
             await sessionReady;
-            await cfg.uploadFn(date, file, currentUser);
-            feedback.textContent = cfg.successMsg(date);
-            feedback.className = 'huddle-feedback huddle-feedback--ok';
-            fileInput.value = '';
-            fileLabel.textContent = '';
-            fileLabel.classList.remove('visible');
-        } catch (err) {
-            console.error(`[${cfg.logPrefix}] Upload failed:`, err);
-            feedback.textContent = (/** @type {any} */ (err))?.message === 'SIGNATURE_MISMATCH'
-                ? "That file isn't a valid PDF — please choose the original file"
-                : 'Upload failed — please try again';
-            feedback.className = 'huddle-feedback huddle-feedback--err';
-            uploadBtn.disabled = false;
-        } finally {
-            uploadBtn.textContent = cfg.btnLabel;
-        }
-    });
-}
+            const errors = await adminReadWithRetry(getClientErrors);
 
-// ============================================
-// MARYLEBONE NEWSLETTER UPLOAD
-// ============================================
-function initNewsletterUpload() {
-    _initDocUpload({
-        dateId: 'newsletterDate', fileId: 'newsletterFileInput',
-        fileLabelId: 'newsletterFileName', uploadBtnId: 'newsletterUploadBtn',
-        feedbackId: 'newsletterFeedback', uploadFn: uploadNewsletter,
-        successMsg: date => `Newsletter uploaded for ${date} — staff can open it from ☰ → Marylebone Newsletter`,
-        btnLabel: 'Upload Newsletter', logPrefix: 'Newsletter',
-    });
-}
+            content.innerHTML = '';
 
-// ============================================
-// WEEKLY RETAIL CIRCULAR UPLOAD
-// ============================================
-function initCircularUpload() {
-    _initDocUpload({
-        dateId: 'circularDate', fileId: 'circularFileInput',
-        fileLabelId: 'circularFileName', uploadBtnId: 'circularUploadBtn',
-        feedbackId: 'circularFeedback', uploadFn: uploadCircular,
-        successMsg: date => `Circular uploaded for ${date} — staff can open it from ☰ → Weekly Retail Circular`,
-        btnLabel: 'Upload Circular', logPrefix: 'Circular',
-    });
-}
+            // Visually-hidden live region so resolving an error is announced to AT
+            // (the row just gains a strikethrough class otherwise — a silent change).
+            const errStatus = document.createElement('div');
+            errStatus.className = 'sr-only';
+            errStatus.setAttribute('role', 'status');
+            errStatus.setAttribute('aria-live', 'polite');
+            content.appendChild(errStatus);
 
-// ============================================
-// ICON LIGHTBOX — About panel (shared about-lightbox.js)
-// ============================================
-(function () {
-    const about = initAboutLightbox({
-        appLabel: 'MYB Roster Operations',
-        bugLinkId: 'opsBugReportLink',
-        getUserName: () => currentUser,
-    });
-    if (about) openAboutLightbox = about.open;
-
-    // Header logo is a back-to-calendar button (About moved to the drawer logo).
-    const headerIcon = document.getElementById('appIcon');
-    if (!headerIcon) return;
-    headerIcon.title = 'Back to calendar';
-    headerIcon.setAttribute('aria-label', 'Back to calendar');
-    headerIcon.addEventListener('click', () => { window.location.href = './index.html'; });
-})();
-
-// ============================================
-// TIPS LIGHTBOX — ? button on each card
-// Lifecycle, renderer, and button wiring live in tips-lightbox.js — only the
-// content data is owned here.
-// ============================================
-(function () {
-    const CARD_TIPS = {
-        'daily-huddle': {
-            title: 'Daily Huddle',
-            sections: [{ items: [
-                { icon: '📋', html: 'Upload the day\'s Huddle briefing — staff open it via ☰ → <strong>Daily Huddle</strong> on the main app' },
-                { icon: '📄', html: '<strong>PDF</strong> — opens in the browser. <strong>Word (.docx)</strong> — displayed inside the app' },
-                { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
-                { icon: '🤖', html: 'The Huddle email uploads automatically each day — use this card if you need to upload it manually' },
-            ]}],
-        },
-        'weekly-circular': {
-            title: 'Weekly Retail Circular',
-            sections: [{ items: [
-                { icon: '📰', html: 'Upload the weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
-                { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
-                { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
-                { icon: '🤖', html: 'In a future update this will upload automatically, like the Huddle' },
-            ]}],
-        },
-        'newsletter': {
-            title: 'Marylebone Newsletter',
-            sections: [{ items: [
-                { icon: '🗞️', html: 'Upload the latest Marylebone Newsletter PDF — staff open it from <strong>☰ → Marylebone Newsletter</strong>' },
-                { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
-                { icon: '📅', html: 'Set the date to the issue date of the newsletter' },
-            ]}],
-        },
-        'weekly-roster': {
-            title: 'Weekly Roster upload',
-            sections: [
-                { heading: 'How it works', items: [
-                    { icon: '1️⃣', html: 'Choose the <strong>roster type</strong> (CEA/Bilingual, CES, or Dispatcher) and the <strong>week ending date</strong> (always a Saturday)' },
-                    { icon: '2️⃣', html: 'Choose the PDF roster file and tap <strong>Read roster</strong> — the app reads the shifts (takes ~15 seconds)' },
-                    { icon: '3️⃣', html: 'Review each person\'s changes — <strong>Save</strong> or <strong>Skip</strong> each day individually' },
-                    { icon: '4️⃣', html: 'Tap <strong>Save changes</strong> to write approved shifts to the roster' },
-                ]},
-                { heading: 'Conflicts', items: [
-                    { icon: '⚠️', html: 'If a day already has a <strong>recorded change</strong> that differs from the PDF, it shows as a conflict — choose which to keep' },
-                    { icon: '🔄', html: 'Old roster uploads are replaced automatically — only your manual changes show a warning if the new PDF disagrees' },
-                ]},
-            ],
-        },
-        'staff-login': {
-            title: 'Staff Login Accounts',
-            sections: [{ items: [
-                { icon: '🔐', html: 'Creates a secure login for every active staff member so the app knows who is saving changes' },
-                { icon: '✅', html: 'Safe to run any time — people who already have an account are skipped, so it won\'t break anything' },
-                { icon: '👤', html: 'Run this whenever someone <strong>joins</strong> the roster to give them access' },
-                { icon: '🚪', html: 'Tick <strong>"Disable accounts for leavers"</strong> and run it when someone <strong>leaves</strong> — their account is disabled so they can no longer sign in' },
-            ]}],
-        },
-        'work-email-progress': {
-            title: 'Work Email Progress',
-            sections: [
-                { heading: 'What it\'s for', items: [
-                    { icon: '🔑', html: 'Staff save their work email to enable <strong>password recovery</strong> in a future update — nothing uses it right now. It\'s Stage 1 of the password security project.' },
-                    { icon: '🔒', html: 'Each person can only see their <strong>own email</strong>. As admin you can see all of them.' },
-                ]},
-                { heading: 'How it works', items: [
-                    { icon: '⚙️', html: 'CEA, CES, and Dispatcher staff can add their own email in ☰ → <strong>Settings → Work Email</strong> — the easiest way to get them to register' },
-                    { icon: '📝', html: 'You can enter an email on behalf of any staff member using the <strong>Set email</strong> button next to their name — useful if they\'re having trouble or their phone is unavailable' },
-                    { icon: '🔑', html: '<strong>Management accounts</strong> aren\'t in the Settings sign-in dropdown, so they can\'t sign in directly through Settings — use the <strong>Set email</strong> button on their behalf, or have them sign in via Admin first' },
-                    { icon: '✅', html: 'Green chips at the top show who has registered. Use the <strong>All / CEA / CES / Dispatcher / Management</strong> filter to track each grade.' },
-                ]},
-            ],
-        },
-        'usage': {
-            title: 'Usage',
-            sections: [
-                { heading: 'What it shows', items: [
-                    { icon: '👥', html: '<strong>Accounts active</strong> — how many individual staff accounts have signed in this calendar month and over the last 30 days' },
-                    { icon: '📊', html: '<strong>Page popularity</strong> — how many times each page has been opened this month' },
-                ]},
-                { heading: 'Privacy', items: [
-                    { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it counts <em>how many</em> accounts and visits, never <em>which</em> account did what. No names, no per-person history is stored' },
-                    { icon: '📱', html: 'Counts are per account-device, so someone using both a phone and a laptop may count twice — treat the numbers as a usage trend, not an exact headcount' },
-                ]},
-            ],
-        },
-        'error-log': {
-            title: 'Error Log',
-            sections: [
-                { heading: 'What it captures', items: [
-                    { icon: '🐛', html: 'Uncaught JS errors from <strong>any authenticated page</strong> (admin, pay calculator, operations, settings) — across all users\' sessions, not just yours' },
-                    { icon: '⎘', html: 'Tap <strong>⎘ Copy</strong> on any error to copy all details (message, page, app version, browser) formatted for diagnosis' },
-                ]},
-                { heading: 'Resolving errors', items: [
-                    { icon: '✓', html: 'Tapping <strong>Resolve</strong> marks an error as reviewed and hides it from the active list — it is <strong>not deleted immediately</strong>, just archived for 90 days then pruned automatically' },
-                    { icon: '🔄', html: 'You don\'t need to manually clean up the log — resolved errors expire on their own' },
-                ]},
-                { heading: 'What to act on', items: [
-                    { icon: '⚠️', html: '<strong>Worth investigating:</strong> the same error from multiple people, or new errors appearing after a deployment' },
-                    { icon: '🔕', html: '<strong>Usually safe to resolve:</strong> isolated one-off errors, cross-origin/extension errors (no page or version shown), brief network failures' },
-                ]},
-            ],
-        },
-    };
-
-    initTipsLightbox(CARD_TIPS);
-})();
-
-// ============================================
-// ERROR LOG CARD
-// ============================================
-(async function initErrorLog() {
-    const content = document.getElementById('errorLogContent');
-    if (!content) return;
-
-    try {
-        await sessionReady;
-        const errors = await adminReadWithRetry(getClientErrors);
-
-        content.innerHTML = '';
-
-        // Visually-hidden live region so resolving an error is announced to AT
-        // (the row just gains a strikethrough class otherwise — a silent change).
-        const errStatus = document.createElement('div');
-        errStatus.className = 'sr-only';
-        errStatus.setAttribute('role', 'status');
-        errStatus.setAttribute('aria-live', 'polite');
-        content.appendChild(errStatus);
-
-        if (errors.length === 0) {
-            const none = document.createElement('p');
-            none.className = 'email-count-done';
-            none.textContent = '✓ No errors recorded.';
-            content.appendChild(none);
-            return;
-        }
-
-        errors.forEach(err => {
-            const row = document.createElement('div');
-            row.className = 'error-row' + (err.resolved ? ' error-row--resolved' : '');
-
-            // Summary line: when · member · page · message
-            const summary = document.createElement('div');
-            summary.className = 'error-summary';
-            const addSpan = (/** @type {string} */ cls, /** @type {string} */ text) => {
-                const s = document.createElement('span');
-                s.className = cls;
-                s.textContent = text;
-                summary.appendChild(s);
-            };
-            addSpan('error-when',    err.timestamp?.toDate ? _relativeTime(err.timestamp.toDate()) : '—');
-            addSpan('error-member',  err.memberName ?? '—');
-            addSpan('error-page',    err.page ?? '—');
-            addSpan('error-version', `v${err.appVersion ?? '—'}`);
-            addSpan('error-msg',     err.message ?? '—');
-            row.appendChild(summary);
-
-            // Stack trace — collapsed by default
-            if (err.stack) {
-                const details = document.createElement('details');
-                details.className = 'error-stack-details';
-                const sum = document.createElement('summary');
-                sum.textContent = 'Stack trace';
-                const pre = document.createElement('pre');
-                pre.className = 'error-stack';
-                pre.textContent = err.stack;
-                details.appendChild(sum);
-                details.appendChild(pre);
-                row.appendChild(details);
+            if (errors.length === 0) {
+                const none = document.createElement('p');
+                none.className = 'email-count-done';
+                none.textContent = '✓ No errors recorded.';
+                content.appendChild(none);
+                return;
             }
 
-            // Action buttons
-            const actions = document.createElement('div');
-            actions.className = 'error-actions';
-
-            const copyBtn = document.createElement('button');
-            copyBtn.className = 'btn-action btn-secondary error-copy-btn';
-            copyBtn.textContent = '⎘ Copy for Claude';
-            copyBtn.addEventListener('click', () => {
-                navigator.clipboard.writeText(_formatForClaude(err)).then(() => {
-                    copyBtn.textContent = '✓ Copied';
-                    setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
-                }).catch(() => {
-                    copyBtn.textContent = '✗ Copy failed';
-                    setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
-                });
-            });
-            actions.appendChild(copyBtn);
-
-            if (!err.resolved) {
-                const resolveBtn = document.createElement('button');
-                resolveBtn.className = 'btn-action btn-secondary error-resolve-btn';
-                resolveBtn.textContent = '✓ Resolve';
-                resolveBtn.addEventListener('click', async () => {
-                    resolveBtn.disabled = true;
-                    try {
-                        await resolveClientError(err.id);
-                        row.classList.add('error-row--resolved');
-                        resolveBtn.remove();
-                        errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
-                    } catch {
-                        resolveBtn.disabled = false;
-                        resolveBtn.textContent = '✗ Failed — tap to retry';
-                        setTimeout(() => { resolveBtn.textContent = '✓ Resolve'; }, 3000);
-                    }
-                });
-                actions.appendChild(resolveBtn);
-            }
-
-            row.appendChild(actions);
-            content.appendChild(row);
-        });
-
-    } catch (e) {
-        content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load error log — check your connection and reload.</p>';
-        console.error('[ErrorLog]', e);
-    }
-})();
-
-// ============================================
-// USAGE CARD
-// ============================================
-(async function initUsageCard() {
-    const content = document.getElementById('usageContent');
-    if (!content) return;
-
-    // Page id → emoji + label, matching the app's nav vocabulary (📅 Calendar,
-    // 📝 Admin, 💷 Pay, 🔧 Ops, ⚙ Settings, 🔗 Links).
-    /** @type {Record<string, {emoji: string, label: string}>} */
-    const PAGE_META = {
-        calendar:   { emoji: '📅', label: 'Calendar' },
-        admin:      { emoji: '📝', label: 'Admin' },
-        paycalc:    { emoji: '💷', label: 'Pay calculator' },
-        operations: { emoji: '🔧', label: 'Operations' },
-        settings:   { emoji: '⚙️', label: 'Settings' },
-        links:      { emoji: '🔗', label: 'Links' },
-    };
-
-    try {
-        await sessionReady;
-        const stats = await adminReadWithRetry(getUsageStats);
-        content.innerHTML = '';
-
-        // Active-account headline numbers.
-        const accounts = document.createElement('div');
-        accounts.className = 'usage-stats';
-        accounts.innerHTML =
-            `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsThisMonth}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">👥</span> accounts this month</span></div>` +
-            `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
-            `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
-        content.appendChild(accounts);
-
-        // Page popularity (this month).
-        const heading = document.createElement('p');
-        heading.className = 'usage-section-label';
-        heading.textContent = `Page popularity — ${_usageMonthLabel(stats.month)}`;
-        content.appendChild(heading);
-
-        if (!stats.pageCounts.length) {
-            const none = document.createElement('p');
-            none.className = 'auth-desc';
-            none.textContent = 'No page views recorded yet this month.';
-            content.appendChild(none);
-        } else {
-            const max = stats.pageCounts[0].count || 1;
-            const list = document.createElement('div');
-            list.className = 'usage-bars';
-            stats.pageCounts.forEach(({ page, count }) => {
-                const meta  = PAGE_META[page];
-                const emoji = meta ? meta.emoji : '📄';
-                // Known labels are static/safe; an unknown page key (a tampered client
-                // could write one) is escaped before it reaches innerHTML.
-                const label = meta ? meta.label : escapeHtml(page);
-                const pct   = Math.max(4, Math.round((count / max) * 100));
+            errors.forEach(err => {
                 const row = document.createElement('div');
-                row.className = 'usage-bar-row';
-                row.innerHTML =
-                    `<span class="usage-bar-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
-                    `<span class="usage-bar-track"><span class="usage-bar-fill" style="width:${pct}%"></span></span>` +
-                    `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
-                list.appendChild(row);
+                row.className = 'error-row' + (err.resolved ? ' error-row--resolved' : '');
+
+                // Summary line: when · member · page · message
+                const summary = document.createElement('div');
+                summary.className = 'error-summary';
+                const addSpan = (/** @type {string} */ cls, /** @type {string} */ text) => {
+                    const s = document.createElement('span');
+                    s.className = cls;
+                    s.textContent = text;
+                    summary.appendChild(s);
+                };
+                addSpan('error-when',    err.timestamp?.toDate ? _relativeTime(err.timestamp.toDate()) : '—');
+                addSpan('error-member',  err.memberName ?? '—');
+                addSpan('error-page',    err.page ?? '—');
+                addSpan('error-version', `v${err.appVersion ?? '—'}`);
+                addSpan('error-msg',     err.message ?? '—');
+                row.appendChild(summary);
+
+                // Stack trace — collapsed by default
+                if (err.stack) {
+                    const details = document.createElement('details');
+                    details.className = 'error-stack-details';
+                    const sum = document.createElement('summary');
+                    sum.textContent = 'Stack trace';
+                    const pre = document.createElement('pre');
+                    pre.className = 'error-stack';
+                    pre.textContent = err.stack;
+                    details.appendChild(sum);
+                    details.appendChild(pre);
+                    row.appendChild(details);
+                }
+
+                // Action buttons
+                const actions = document.createElement('div');
+                actions.className = 'error-actions';
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'btn-action btn-secondary error-copy-btn';
+                copyBtn.textContent = '⎘ Copy for Claude';
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(_formatForClaude(err)).then(() => {
+                        copyBtn.textContent = '✓ Copied';
+                        setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
+                    }).catch(() => {
+                        copyBtn.textContent = '✗ Copy failed';
+                        setTimeout(() => { copyBtn.textContent = '⎘ Copy for Claude'; }, 2000);
+                    });
+                });
+                actions.appendChild(copyBtn);
+
+                if (!err.resolved) {
+                    const resolveBtn = document.createElement('button');
+                    resolveBtn.className = 'btn-action btn-secondary error-resolve-btn';
+                    resolveBtn.textContent = '✓ Resolve';
+                    resolveBtn.addEventListener('click', async () => {
+                        resolveBtn.disabled = true;
+                        try {
+                            await resolveClientError(err.id);
+                            row.classList.add('error-row--resolved');
+                            resolveBtn.remove();
+                            errStatus.textContent = `Error from ${err.memberName ?? 'unknown'} marked resolved`;
+                        } catch {
+                            resolveBtn.disabled = false;
+                            resolveBtn.textContent = '✗ Failed — tap to retry';
+                            setTimeout(() => { resolveBtn.textContent = '✓ Resolve'; }, 3000);
+                        }
+                    });
+                    actions.appendChild(resolveBtn);
+                }
+
+                row.appendChild(actions);
+                content.appendChild(row);
             });
-            content.appendChild(list);
+
+        } catch (e) {
+            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load error log — check your connection and reload.</p>';
+            console.error('[ErrorLog]', e);
         }
+    })();
 
-        const note = document.createElement('p');
-        note.className = 'usage-note';
-        note.textContent = 'Anonymous counts only — never who did what.';
-        content.appendChild(note);
+    // ============================================
+    // USAGE CARD
+    // ============================================
+    (async function initUsageCard() {
+        const content = document.getElementById('usageContent');
+        if (!content) return;
 
-    } catch (e) {
-        content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load usage — check your connection and reload.</p>';
-        console.error('[Usage]', e);
+        // Page id → emoji + label, matching the app's nav vocabulary (📅 Calendar,
+        // 📝 Admin, 💷 Pay, 🔧 Ops, ⚙ Settings, 🔗 Links).
+        /** @type {Record<string, {emoji: string, label: string}>} */
+        const PAGE_META = {
+            calendar:   { emoji: '📅', label: 'Calendar' },
+            admin:      { emoji: '📝', label: 'Admin' },
+            paycalc:    { emoji: '💷', label: 'Pay calculator' },
+            operations: { emoji: '🔧', label: 'Operations' },
+            settings:   { emoji: '⚙️', label: 'Settings' },
+            links:      { emoji: '🔗', label: 'Links' },
+        };
+
+        try {
+            await sessionReady;
+            const stats = await adminReadWithRetry(getUsageStats);
+            content.innerHTML = '';
+
+            // Active-account headline numbers.
+            const accounts = document.createElement('div');
+            accounts.className = 'usage-stats';
+            accounts.innerHTML =
+                `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsThisMonth}</span>` +
+                `<span class="usage-stat-lbl"><span aria-hidden="true">👥</span> accounts this month</span></div>` +
+                `<div class="usage-stat"><span class="usage-stat-num">${stats.accountsLast30}</span>` +
+                `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
+            content.appendChild(accounts);
+
+            // Page popularity (this month).
+            const heading = document.createElement('p');
+            heading.className = 'usage-section-label';
+            heading.textContent = `Page popularity — ${_usageMonthLabel(stats.month)}`;
+            content.appendChild(heading);
+
+            if (!stats.pageCounts.length) {
+                const none = document.createElement('p');
+                none.className = 'auth-desc';
+                none.textContent = 'No page views recorded yet this month.';
+                content.appendChild(none);
+            } else {
+                const max = stats.pageCounts[0].count || 1;
+                const list = document.createElement('div');
+                list.className = 'usage-bars';
+                stats.pageCounts.forEach(({ page, count }) => {
+                    const meta  = PAGE_META[page];
+                    const emoji = meta ? meta.emoji : '📄';
+                    // Known labels are static/safe; an unknown page key (a tampered client
+                    // could write one) is escaped before it reaches innerHTML.
+                    const label = meta ? meta.label : escapeHtml(page);
+                    const pct   = Math.max(4, Math.round((count / max) * 100));
+                    const row = document.createElement('div');
+                    row.className = 'usage-bar-row';
+                    row.innerHTML =
+                        `<span class="usage-bar-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                        `<span class="usage-bar-track"><span class="usage-bar-fill" style="width:${pct}%"></span></span>` +
+                        `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
+                    list.appendChild(row);
+                });
+                content.appendChild(list);
+            }
+
+            const note = document.createElement('p');
+            note.className = 'usage-note';
+            note.textContent = 'Anonymous counts only — never who did what.';
+            content.appendChild(note);
+
+        } catch (e) {
+            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load usage — check your connection and reload.</p>';
+            console.error('[Usage]', e);
+        }
+    })();
+
+    /** "2026-06" → "June 2026" for the Usage card heading. */
+    function _usageMonthLabel(/** @type {string} */ ym) {
+        const [y, m] = String(ym).split('-').map(Number);
+        if (!y || !m) return ym;
+        return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
     }
-})();
 
-/** "2026-06" → "June 2026" for the Usage card heading. */
-function _usageMonthLabel(/** @type {string} */ ym) {
-    const [y, m] = String(ym).split('-').map(Number);
-    if (!y || !m) return ym;
-    return new Date(y, m - 1, 1).toLocaleString('en-GB', { month: 'long', year: 'numeric' });
-}
-
-/** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23". */
-function _relativeTime(/** @type {Date} */ date) {
-    const secs = Math.floor((Date.now() - date.getTime()) / 1000);
-    const exact = date.toLocaleString('en-GB', {
-        day: 'numeric', month: 'short',
-        hour: '2-digit', minute: '2-digit',
-    });
-    let rel;
-    if (secs < 60)    rel = `${secs}s ago`;
-    else if (secs < 3600)  rel = `${Math.floor(secs / 60)}m ago`;
-    else if (secs < 86400) rel = `${Math.floor(secs / 3600)}h ago`;
-    else                   rel = `${Math.floor(secs / 86400)}d ago`;
-    return `${rel} · ${exact}`;
-}
-
-/** Build the plain-text block that gets pasted into Claude for diagnosis. */
-function _formatForClaude(/** @type {any} */ err) {
-    const when = err.timestamp?.toDate
-        ? err.timestamp.toDate().toLocaleString('en-GB', {
-            day: 'numeric', month: 'short', year: 'numeric',
+    /** Format a relative time string with the exact time appended, e.g. "3h ago · 22 Jun 14:23". */
+    function _relativeTime(/** @type {Date} */ date) {
+        const secs = Math.floor((Date.now() - date.getTime()) / 1000);
+        const exact = date.toLocaleString('en-GB', {
+            day: 'numeric', month: 'short',
             hour: '2-digit', minute: '2-digit',
-          })
-        : 'unknown';
-    return [
-        '🐛 App error — please diagnose',
-        '',
-        `App version: ${err.appVersion ?? '—'}`,
-        `Page:        ${err.page ?? '—'}`,
-        `Member:      ${err.memberName ?? '—'}`,
-        `Time:        ${when}`,
-        `Device:      ${err.userAgent ?? '—'}`,
-        '',
-        `Error: ${err.message ?? '—'}`,
-        '',
-        err.stack ? `Stack:\n${err.stack}` : '(no stack trace)',
-    ].join('\n');
-}
+        });
+        let rel;
+        if (secs < 60)    rel = `${secs}s ago`;
+        else if (secs < 3600)  rel = `${Math.floor(secs / 60)}m ago`;
+        else if (secs < 86400) rel = `${Math.floor(secs / 3600)}h ago`;
+        else                   rel = `${Math.floor(secs / 86400)}d ago`;
+        return `${rel} · ${exact}`;
+    }
 
-// ============================================
-registerServiceWorker();
-sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); });
+    /** Build the plain-text block that gets pasted into Claude for diagnosis. */
+    function _formatForClaude(/** @type {any} */ err) {
+        const when = err.timestamp?.toDate
+            ? err.timestamp.toDate().toLocaleString('en-GB', {
+                day: 'numeric', month: 'short', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })
+            : 'unknown';
+        return [
+            '🐛 App error — please diagnose',
+            '',
+            `App version: ${err.appVersion ?? '—'}`,
+            `Page:        ${err.page ?? '—'}`,
+            `Member:      ${err.memberName ?? '—'}`,
+            `Time:        ${when}`,
+            `Device:      ${err.userAgent ?? '—'}`,
+            '',
+            `Error: ${err.message ?? '—'}`,
+            '',
+            err.stack ? `Stack:\n${err.stack}` : '(no stack trace)',
+        ].join('\n');
+    }
+
+    // ============================================
+    registerServiceWorker();
+    sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); });
+
+}

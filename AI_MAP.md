@@ -259,12 +259,16 @@ The page-AUTHORISATION layer — `ARCHITECTURE_PLAN.md` Track 1, **Phase 3** (v1
 
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
-- **Page-access via the policy layer (ARCHITECTURE_PLAN.md Phase 4a, v14.61):** the access gate routes through `requirePage({ status: currentUser ? 'named' : 'signedOut', member }, 'operations')` from `auth-policy.js` — `login` → overlay, `forbidden` → redirect to `admin.html`, `allow` → proceed — and the B1 enforcement decides via `requirePage(getAuthSnapshot(), 'operations') === 'login'`. **First coordinator to consume the new store + policy.** Behaviour-preserving (the local-derived snapshot keeps today's optimistic render; the existing e2e passes unchanged). The testable `init()` wrap (4a.2) and optimistic reads (4b) are deferred — see the plan appendix.
+- **Exported `init()` wrap (ARCHITECTURE_PLAN.md Phase 4a.2, v14.65):** the whole coordinator body is `export function init()`, called by `operations-boot.js` (the page loads the boot file, not this module directly — CSP `script-src 'self'` blocks an inline call). The former top-level `throw`s on the login/forbidden gate became early `return`s. Importing this module no longer auto-runs it, so a test can drive `init()` with mocked deps. First coordinator to get the wrap.
+- **Page-access via the policy layer (ARCHITECTURE_PLAN.md Phase 4a, v14.61):** the access gate routes through `requirePage({ status: currentUser ? 'named' : 'signedOut', member }, 'operations')` from `auth-policy.js` — `login` → overlay, `forbidden` → redirect to `admin.html`, `allow` → proceed — and the B1 enforcement decides via `requirePage(getAuthSnapshot(), 'operations') === 'login'`. **First coordinator to consume the new store + policy.** Behaviour-preserving (the local-derived snapshot keeps today's optimistic render; the existing e2e passes unchanged). Optimistic admin reads (4b, v14.62) wrap the three admin-gated read cards in `adminReadWithRetry()` (force token refresh + retry once on stale-claim `permission-denied`).
 - Session guard (legacy description): reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; the redirect/login decision is the `requirePage` outcome above
 - Calls `ensureFirebaseSession(name)` from `session.js` to re-establish Firebase Auth on page load
 - Calls `initHuddleUpload()`, `initRosterUpload()`, `initAuthSetup()`, `initNavPanel({ isAdmin: true })`; runs `initErrorLog()` IIFE (Error Log card, v13.31)
 - Work Email Progress card (v13.30) shows per-grade breakdown (All / CEA / CES / Dispatcher filter) of who has and hasn't added a work email — "Added (N)" green chips + "Still to add (N)" grey chips
 - Owns icon lightbox, tips lightbox, and collapsible card wiring for the operations cards
+
+### `operations-boot.js`
+2-line bootstrap for `operations.html` (Phase 4a.2, v14.65). Imports `init` from `operations-app.js` and calls it. Exists because CSP `script-src 'self'` blocks an inline `init()` call, and because keeping the call out of the coordinator lets a test `import { init }` without auto-running the page. No logic of its own.
 
 ### `admin-al.js`
 Annual Leave Booking section (extracted v9.93).
