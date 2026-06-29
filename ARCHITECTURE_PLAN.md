@@ -274,7 +274,19 @@ Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap;
    optimistic 'named', preserving the exact prior trigger. Behaviour-preserving: 665 unit + 68 e2e
    pass unchanged (incl. admin signed-in render + B1 `failSignIn` re-show-login).
 4. **Settings / Pay Calculator** — Settings matters for push + work-email; Pay Calculator stays
-   **soft** (calculator works locally even if Firebase fails).
+   **soft** (calculator works locally even if Firebase fails). **DONE (Phase 7, v14.66):**
+   - *Settings* — mirrors Admin: the `if (!isAuthenticated)` gate routes through
+     `requirePage(..., 'settings')` (policy `role: null` → any named user; no 'forbidden'), and the
+     `!named` B1 check through `requirePage(getAuthSnapshot(), 'settings')`.
+   - *Pay Calculator* — the soft Firebase-confirmation path (`_initErrorReporting`) now decides via
+     `requirePage(getAuthSnapshot(), 'paycalc')` — being `soft` it returns only `allow`/`soft-allow`,
+     never `login`, so the calculator is never blocked (warn-only on `soft-allow`). **Gate #1 (no
+     local session → login overlay) is DELIBERATELY left outside the policy**: paycalc needs a local
+     member identity to namespace its per-member localStorage, a precondition stricter than the
+     page-soft policy (whose tested invariant is "soft never yields login"). Documented in-code so it
+     is never "simplified" into requirePage (which would regress to rendering with no identity).
+   - Behaviour-preserving: 665 unit + 68 e2e pass unchanged (incl. settings login + B1 re-show-login,
+     and "paycalc stays SOFT — calculator renders, no redirect").
 - **Calendar** is left until last (or untouched) unless B3 requires it — it is the most
   staff-visible page.
 

@@ -21,6 +21,8 @@ import {
 import { resetOverrides, fetchOverridesForPeriod, getRosterSuggestion } from './paycalc-roster-suggestions.js';
 import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';
+import { requirePage } from './auth-policy.js';
+import { getAuthSnapshot } from './auth-state.js';
 import { initLoginOverlay } from './login-overlay.js';
 import {
   CONFIG, getPeriods, currentPeriodNum,
@@ -52,11 +54,20 @@ import { fd, fdShort, fmt } from './paycalc-format.js';
 'use strict';
 
 
-// ── SESSION GUARD ─────────────────────────────────────────────────────────────
+// ── SESSION GUARD (local-identity precondition) ───────────────────────────────
 // Not signed in → show the shared in-place sign-in (no redirect elsewhere). After sign-in,
 // reload back into the calculator. getSession() (session.js) enforces the 30-day absolute /
 // 7-day idle expiry and refreshes the idle clock — a raw localStorage read would treat an
 // expired session as valid forever. Throw to halt the rest of module init (overlay is shown).
+//
+// DELIBERATELY NOT routed through requirePage('paycalc') (ARCHITECTURE_PLAN.md Phase 7). The
+// paycalc policy is `soft`, which by its tested invariant NEVER returns 'login' — a signed-out user
+// would get 'soft-allow'. But the calculator needs a member identity to namespace its per-member
+// localStorage (pcPrefix/SK), so a *local name* is a hard precondition, stricter than the page
+// policy. The policy's `soft` applies only to the Firebase-confirmation path (_initErrorReporting
+// below): once a local name exists, an unconfirmed/anonymous Firebase session never blocks the
+// calculator. Do not "simplify" this gate into requirePage — it would regress to rendering with no
+// identity.
 (function () {
   if (!getSession()?.name) {
     initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess: () => window.location.reload() });
@@ -1300,12 +1311,16 @@ registerServiceWorker();
 (function _initErrorReporting() {
   const name = getSession()?.name;
   const afterAuth = () => { initErrorReporter(); recordUsage('paycalc', name ?? null); };
-  // SOFT enforcement (B1.2): the pay calculator is localStorage-based and writes no isolated
-  // data, so a degraded/anonymous session must NEVER block it — we only log if the named-session
-  // requirement is on and we couldn't establish the member's own session. (ROSTER_CONFIG is
+  // SOFT enforcement (B1.2), now decided via the policy (ARCHITECTURE_PLAN.md Phase 7): the pay
+  // calculator is localStorage-based and writes no isolated data, so a degraded/anonymous session
+  // must NEVER block it. requirePage('paycalc') honours that — being `soft`, it returns ONLY 'allow'
+  // (named confirmed) or 'soft-allow' (Firebase identity unconfirmed), never 'login'/'forbidden'. We
+  // only log when the requirement is on AND the store reports 'soft-allow' (the member's own session
+  // wasn't confirmed) — equivalent to the old `!named`. The store is fed by the Phase-2 bridge inside
+  // ensureNamedSession, so getAuthSnapshot() reflects the terminal identity here. (ROSTER_CONFIG is
   // roster-data's CONFIG, imported as ROSTER_CONFIG to avoid the paycalc-periods CONFIG clash.)
   if (name) ensureNamedSession(name)
-      .then(named => { if (ROSTER_CONFIG.ENFORCE_NAMED_SESSION && !named) console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
+      .then(() => { if (ROSTER_CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'paycalc').decision === 'soft-allow') console.warn('[Auth] paycalc running without a named session — error reporting may not record.'); })
       .catch(() => {/* reporter still starts below */})
       .finally(afterAuth);
   else afterAuth();

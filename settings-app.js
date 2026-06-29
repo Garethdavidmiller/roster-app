@@ -13,6 +13,8 @@ import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
 import { initLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
+import { requirePage } from './auth-policy.js';
+import { getAuthSnapshot } from './auth-state.js';
 import { initCardCollapse } from './overlay.js';
 import { initAboutLightbox } from './about-lightbox.js';
 import { initTipsLightbox } from './tips-lightbox.js';
@@ -42,7 +44,17 @@ initNavPanel({
     onSignOut:   currentUser ? () => { clearSession(); window.location.href = './index.html'; } : null,
 });
 
-if (isAuthenticated) {
+// Page-access via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 7). Settings'
+// policy is "any named user" (role null) — no 'forbidden' path. The snapshot maps the LOCAL
+// session-existence flag (isAuthenticated = !!currentSession) to an optimistic 'named' status —
+// preserving the exact prior trigger — so requirePage returns 'login' iff there is no local session
+// (decision identical to the old `if (!isAuthenticated)`). member is irrelevant: Settings needs no role.
+const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'settings');
+if (_access.decision === 'login') {
+    initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() });
+    resolveSession(false); // fulfil sessionReady on the non-auth path (initErrorReporter runs on both paths)
+} else {
+    // _access.decision === 'allow' (a named user; Settings requires no role).
     // Re-establish Firebase Auth in the background. A returning user skips the
     // login handler, so auth.currentUser may still be null for a moment and
     // an immediate Firestore write would fail the request.auth rule.
@@ -50,16 +62,15 @@ if (isAuthenticated) {
     // can import sessionReady instead of reading window._mybSession.
     const _setAuth = ensureNamedSession(currentUser);
     resolveSession(_setAuth);
-    // B1.2: if the named-session requirement is on and we can't confirm this member's OWN
-    // session, clear it and show the login overlay to re-authenticate. Flag OFF → resolves
-    // true (anonymous fallback), so this never fires and behaviour is unchanged.
-    _setAuth.then(named => {
-        if (CONFIG.ENFORCE_NAMED_SESSION && !named) { clearSession(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
+    // B1.2 enforcement, now decided via the policy: once the named session resolves, the store
+    // (fed by the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity,
+    // so `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN
+    // named session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag
+    // OFF → resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
+    _setAuth.then(() => {
+        if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
     });
     initApp();
-} else {
-    initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() });
-    resolveSession(false); // fulfil sessionReady on the non-auth path (initErrorReporter runs on both paths)
 }
 registerServiceWorker();
 sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); });
