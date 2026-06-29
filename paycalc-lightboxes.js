@@ -15,7 +15,8 @@ import { HELP_CONTENT } from './paycalc-help.js';
 import { archiveNotice, isNoticeExpired } from './nav-panel.js';
 import { lsGet, lsSet } from './ls.js';
 import { GRADES } from './paycalc-calc.js';
-import { SK, NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration } from './paycalc-migrations.js';
+import { SK, NOTICE_YTD_KEY, hasPendingLegacyMigration, resolveLegacyMigration,
+         readPayslipActuals, writePayslipActuals, clearPayslipActuals } from './paycalc-migrations.js';
 import { getLoggedMember } from './paycalc-settings.js';
 
 // Shared seen-flag key — used by the welcome lightbox and the YTD notice (which
@@ -199,6 +200,66 @@ export function initPaycalcLightboxes() {
       window.location.reload();
     });
     owner.open();
+  })();
+
+  // ── OWNER-ONLY PAYSLIP ACTUALS IMPORT (device-local; v14.69) ────────────────
+  // Real payslip figures are never served (moved out of roster-data.js at v14.68).
+  // G. Miller seeds them once per device here; paycalc-app.js/-hpp.js then show the
+  // actual-vs-estimate comparison from localStorage. Only ever visible to G. Miller.
+  (function () {
+    if (getLoggedMember()?.name !== 'G. Miller') return;
+    const trigger = document.getElementById('actualsImportBtn');
+    const lb      = document.getElementById('actualsLightbox');
+    if (!trigger || !lb) return;
+    trigger.hidden = false;
+
+    const input  = /** @type {HTMLTextAreaElement|null} */ (document.getElementById('actualsInput'));
+    const status = document.getElementById('actualsStatus');
+    const setStatus = (/** @type {string} */ msg) => { if (status) status.textContent = msg; };
+
+    const dialog = createLightbox({
+      overlay:  lb,
+      content:  /** @type {Element|undefined} */ (document.getElementById('actualsContent') ?? undefined),
+      closeBtn: /** @type {Element|undefined} */ (document.getElementById('actualsClose') ?? undefined),
+      onOpen() {
+        const stored = readPayslipActuals();
+        const n = Object.keys(stored).length;
+        if (input) input.value = n ? JSON.stringify(stored, null, 1) : '';
+        setStatus(n ? `${n} period${n !== 1 ? 's' : ''} stored on this device.`
+                    : 'No actuals stored on this device.');
+      },
+    });
+
+    trigger.addEventListener('click', () => dialog.open());
+
+    document.getElementById('actualsImport')?.addEventListener('click', () => {
+      const raw = (input?.value || '').trim();
+      if (!raw) { setStatus('Paste your JSON first.'); return; }
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch { setStatus('That is not valid JSON — check the text and try again.'); return; }
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        setStatus('Expected a JSON object keyed by payday date.'); return;
+      }
+      const keys = Object.keys(parsed);
+      // Require the numeric fields the result display reads (gross/tax/ni/net), so a
+      // malformed paste can never reach fmt(undefined) and TypeError inside calculate().
+      // sl/varPay are optional (treated as absent when missing).
+      const _num = ['gross', 'tax', 'ni', 'net'];
+      const ok = keys.length > 0 && keys.every(k =>
+        /^\d{4}-\d{2}-\d{2}$/.test(k) && parsed[k] && typeof parsed[k] === 'object' &&
+        _num.every(f => typeof parsed[k][f] === 'number' && isFinite(parsed[k][f])));
+      if (!ok) { setStatus('Each key must be a YYYY-MM-DD date with numeric gross, tax, ni and net.'); return; }
+      const n = writePayslipActuals(parsed);
+      setStatus(`Imported ${n} period${n !== 1 ? 's' : ''}. Reloading…`);
+      window.location.reload();
+    });
+
+    document.getElementById('actualsClear')?.addEventListener('click', () => {
+      clearPayslipActuals();
+      setStatus('Cleared. Reloading…');
+      window.location.reload();
+    });
   })();
 
   return { openAboutLightbox };

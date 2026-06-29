@@ -356,8 +356,15 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
      posture as today, no lockout.
   2. **Re-provision first:** run "Set up accounts" so the new `manager` claim is set on all six
      manager accounts (and every `name`/`admin` claim is reasserted). Then force/await a token
-     refresh for all active sessions (forced re-auth, or a short `getIdToken(true)` sweep on next
-     app open) so every live token gains its correct-tier claim.
+     refresh for all active sessions so every live token gains its correct-tier claim.
+     **The `getIdToken(true)` sweep mechanism is now BUILT (v14.71):** `CONFIG.CLAIM_EPOCH` in
+     `roster-data.js` + `refreshClaimsIfStale()` in `session.js` (called fire-and-forget from
+     `ensureNamedSession` once a named session resolves). It force-refreshes each device's token
+     ONCE per epoch bump, gated by `localStorage('myb_claim_epoch')` — so to sweep all active
+     sessions you **bump `CLAIM_EPOCH` and deploy**, and every device refreshes on its next app open.
+     Shipped at `CLAIM_EPOCH: 1`, which also accelerates B2 (managers pick up the `manager` claim on
+     next open instead of waiting for the hourly auto-refresh). 6 unit tests in `session.test.mjs`.
+     For the strict cutover: bump `CLAIM_EPOCH` → 2, deploy, let the sweep window pass, then ship strict.
   3. After the window, deploy the **strict** rule (drop the `|| no-name` branch).
   - Pick a low-traffic window. **Verify in a fresh private window, never your installed phone.**
 - **Rollback:** redeploy the permissive rule (instant), or revert to `request.auth != null`.
@@ -468,7 +475,11 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
       + `setupRosterAuth` `manager` claim + `linkDesigns`/`pushSubscriptions` decisions + emulator tests.
       **BUILT v14.53** (branch; 173 rules tests green). Not deployed — see the B2 deploy runbook
       (re-provision + manager token refresh required before the rule is relied upon).
-- [ ] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**)
+- [~] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**).
+      **Client sweep BUILT v14.71** (`CONFIG.CLAIM_EPOCH` + `refreshClaimsIfStale()`, 6 tests) — the
+      deterministic token-refresh mechanism. **Remaining (owner-gated):** re-provision audit, pick a
+      low-traffic window, bump `CLAIM_EPOCH`→2 + let the sweep run, verify the private-window matrix,
+      THEN deploy the strict rule (drop the `!('name' in token)` branch from `overrides` create/update/delete).
 - [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
 - [ ] C2 — email verification
 - [ ] C4 — forgotten-password reset

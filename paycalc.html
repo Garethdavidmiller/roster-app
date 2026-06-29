@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v14.68 -->
+<!-- MYB Roster — Pay Calculator v14.72 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -117,6 +117,11 @@
 
       <button type="button" class="btn-primary" id="saveSettingsBtn" style="margin-top:8px">Save settings</button>
       <div id="settingsSaveFeedback" role="status" aria-live="polite" style="font-size:var(--type-small);color:var(--success-text);text-align:center;min-height:18px;margin-top:6px"></div>
+
+      <!-- Owner-only: device-local payslip actuals import. Hidden by default; revealed by
+           paycalc-lightboxes.js only when the logged-in member is G. Miller. -->
+      <button type="button" id="actualsImportBtn" hidden
+              style="margin-top:10px;font-size:var(--type-small);background:none;border:none;text-decoration:underline;cursor:pointer;padding:4px;color:var(--text-faint)">Import payslip actuals (this device)</button>
 
     </div>
   </div>
@@ -690,6 +695,20 @@
     <p class="notice-body">This device already has saved Pay Calculator data (tax code, YTD figures, grade). If you share this phone, only choose &ldquo;Yes&rdquo; if it&rsquo;s <strong>yours</strong> &mdash; it will move into your account. Otherwise start fresh. Closing this leaves it untouched and asks again next time.</p>
     <button id="dataOwnerMine" class="btn-action btn-primary" type="button">Yes, it&rsquo;s mine</button>
     <button id="dataOwnerFresh" class="btn-action btn-secondary" type="button">No &mdash; start fresh</button>
+  </div>
+</div>
+
+<!-- Owner-only: import device-local payslip actuals (paste JSON; never served — v14.69) -->
+<div id="actualsLightbox" class="lb-overlay" role="dialog" aria-label="Import payslip actuals" aria-modal="true">
+  <div id="actualsContent" class="lb-content notice-lb-content">
+    <button id="actualsClose" class="lb-close" type="button" aria-label="Close">✕</button>
+    <div class="notice-badge notice-badge--pay">💷 Pay</div>
+    <div class="lightbox-app-name">Payslip actuals (this device)</div>
+    <p class="notice-body">Paste your payslip-actuals JSON (an object keyed by payday, e.g. <code>{"2025-04-11": {"gross": …, "tax": …, "ni": …, "sl": …, "net": …, "varPay": …}}</code>). Stored only in this browser &mdash; never sent anywhere.</p>
+    <textarea id="actualsInput" rows="6" aria-label="Payslip actuals JSON" style="width:100%;font-family:monospace;font-size:var(--type-small);box-sizing:border-box"></textarea>
+    <div id="actualsStatus" role="status" aria-live="polite" style="font-size:var(--type-small);min-height:18px;margin:6px 0"></div>
+    <button id="actualsImport" class="btn-action btn-primary" type="button">Import</button>
+    <button id="actualsClear" class="btn-action btn-secondary" type="button">Clear stored data</button>
   </div>
 </div>
 

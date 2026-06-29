@@ -262,7 +262,11 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = {}) {
     _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
     let ok = await ensureFirebaseSession(name);
-    if (!CONFIG.ENFORCE_NAMED_SESSION) { _syncAuthTerminal(name); return ok; }   // flag off → legacy behaviour, no gating
+    if (!CONFIG.ENFORCE_NAMED_SESSION) {
+        _syncAuthTerminal(name);
+        if (firebaseSessionIsNamed()) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget)
+        return ok;   // flag off → legacy behaviour, no gating
+    }
     let attempt = 0;
     while (!ok && attempt < retries && isTransientAuthError(getFirebaseAuthError())) {
         _feedAuth({ type: 'TRANSIENT', error: getFirebaseAuthError() ?? null });   // store: degraded
@@ -272,7 +276,36 @@ export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = 
         ok = await ensureFirebaseSession(name);
     }
     _syncAuthTerminal(name);
-    return ok && firebaseSessionIsNamed();
+    const named = firebaseSessionIsNamed();
+    if (named) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget; one-shot per device)
+    return ok && named;
+}
+
+/** Device-level localStorage key recording the last CONFIG.CLAIM_EPOCH this device refreshed for. */
+const CLAIM_EPOCH_KEY = 'myb_claim_epoch';
+
+/**
+ * B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Force a one-time ID-token refresh per
+ * device when `CONFIG.CLAIM_EPOCH` advances, so a session holding a token minted BEFORE a custom
+ * claim existed (e.g. the B2 `manager` claim) picks it up immediately instead of waiting for the
+ * ~hourly auto-refresh — the deterministic "every active token carries its correct-tier claim"
+ * precondition the B3 strict rule needs. Best-effort and idempotent: gated by a localStorage epoch
+ * flag (one refresh per device per bump), acts only on a live (named) session, and swallows any
+ * error (a stale token self-heals on the normal refresh cycle). Fire-and-forget — never blocks page
+ * load; the refreshed token is used by the NEXT request.
+ * @param {number} epoch  CONFIG.CLAIM_EPOCH
+ * @returns {Promise<void>}
+ */
+export async function refreshClaimsIfStale(epoch) {
+    try {
+        if (!epoch) return;
+        const seen = parseInt(lsGet(CLAIM_EPOCH_KEY) || '0', 10) || 0;
+        if (seen >= epoch) return;
+        const user = auth.currentUser;
+        if (!user) return;                          // no live session — nothing to refresh
+        await user.getIdToken(true);                // mint a fresh token carrying current claims
+        lsSet(CLAIM_EPOCH_KEY, String(epoch));      // record: this device has swept for this epoch
+    } catch { /* best-effort — the token self-heals on the ~hourly refresh cycle */ }
 }
 
 /**

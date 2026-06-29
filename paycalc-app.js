@@ -48,7 +48,7 @@ import { initCardCollapse } from './overlay.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
-import { SK, periodKey, hppEstKey, hppActualKey, runMigrations } from './paycalc-migrations.js';
+import { SK, periodKey, hppEstKey, hppActualKey, runMigrations, readPayslipActuals } from './paycalc-migrations.js';
 import { initPaycalcLightboxes } from './paycalc-lightboxes.js';
 import { fd, fdShort, fmt } from './paycalc-format.js';
 'use strict';
@@ -791,26 +791,60 @@ export function init() {
         _lastBdBodyHtml = bd;
       }
 
-      const _netLabel = document.getElementById('netLabel');
-      const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
-          : _bpThisPeriod > 0  ? 'inc. back pay'
-          : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
-          : null;
-      if (_netLabel) _netLabel.textContent = _suffix
-          ? `💷 Estimated Take-Home Pay (${_suffix})`
-          : '💷 Estimated Take-Home Pay';
-      const _peekBtn = document.getElementById('resultPeekBtn');
-      if (_peekBtn) _peekBtn.textContent = _suffix
-          ? `↑ Estimated take-home (${_suffix}): ${fmt(net)}`
-          : `↑ Estimated take-home: ${fmt(net)}`;
-      const _stickyAmt = document.getElementById('stickyAmount');
-      if (_stickyAmt) _stickyAmt.textContent = fmt(net);
-      const _stickyLbl = document.getElementById('stickyLabel');
-      if (_stickyLbl) _stickyLbl.textContent = _suffix
-          ? `💷 Estimated take-home (${_suffix})`
-          : '💷 Estimated take-home';
-      /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
-        `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
+      // ── G. Miller actual payslip override (device-local, v14.69) ────────────────
+      // If G. Miller is logged in and this period has DEVICE-LOCAL payslip data
+      // (readPayslipActuals — imported once per device, never served), show the
+      // actual figures; the breakdown below still shows the estimate for comparison.
+      const _actualKey  = _curP ? formatISO(_curP.payday) : null;
+      const _actual     = _actualKey && getLoggedMember()?.name === 'G. Miller'
+        ? readPayslipActuals()[_actualKey] : null;
+      const _netLabel   = document.getElementById('netLabel');
+
+      if (_actual) {
+        if (_netLabel) _netLabel.textContent = '✅ Your Actual Take-Home Pay';
+        /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(_actual.net);
+        /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display   = 'none';
+        /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'none';
+        /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
+          <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>
+          <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(_actual.tax)}</span></div>
+          <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(_actual.ni)}</span></div>
+          ${_actual.sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(_actual.sl)}</span></div>` : ''}
+          <div class="sum-row sum-net"><span class="lbl">Actual take-home</span><span class="val">${fmt(_actual.net)}</span></div>
+          <div class="sum-row" style="border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px;font-size:var(--type-small);color:var(--text-faint)">
+            <span class="lbl">Calculator estimate</span><span class="val">${fmt(net)}</span>
+          </div>
+        `;
+        /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
+          `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
+        const _peekBtn = document.getElementById('resultPeekBtn');
+        if (_peekBtn) _peekBtn.textContent = `↑ Actual take-home: ${fmt(_actual.net)}`;
+        const _stickyAmt = document.getElementById('stickyAmount');
+        if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
+        // Keep the sticky label honest — this figure is the confirmed actual, not an estimate.
+        const _stickyLbl = document.getElementById('stickyLabel');
+        if (_stickyLbl) _stickyLbl.textContent = '✅ Actual take-home';
+      } else {
+        const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
+            : _bpThisPeriod > 0  ? 'inc. back pay'
+            : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
+            : null;
+        if (_netLabel) _netLabel.textContent = _suffix
+            ? `💷 Estimated Take-Home Pay (${_suffix})`
+            : '💷 Estimated Take-Home Pay';
+        const _peekBtn = document.getElementById('resultPeekBtn');
+        if (_peekBtn) _peekBtn.textContent = _suffix
+            ? `↑ Estimated take-home (${_suffix}): ${fmt(net)}`
+            : `↑ Estimated take-home: ${fmt(net)}`;
+        const _stickyAmt = document.getElementById('stickyAmount');
+        if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+        const _stickyLbl = document.getElementById('stickyLabel');
+        if (_stickyLbl) _stickyLbl.textContent = _suffix
+            ? `💷 Estimated take-home (${_suffix})`
+            : '💷 Estimated take-home';
+        /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
+          `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
+      }
 
       const _bannerEl = document.getElementById('bpActiveBanner');
       if (_bannerEl) {

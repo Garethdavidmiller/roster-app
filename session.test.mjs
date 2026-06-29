@@ -57,9 +57,9 @@ const {
     sessionReady, resolveSession,
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
-    ensureNamedSession, isTransientAuthError,
+    ensureNamedSession, isTransientAuthError, refreshClaimsIfStale,
 } = await import('./session.js');
-const { nameToEmail } = await import('./firebase-client.js');
+const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
 const { getAuthSnapshot, _resetAuthState } = await import('./auth-state.js');
 const { CONFIG } = await import('./roster-data.js');
@@ -512,5 +512,67 @@ describe('clearSession', () => {
     test('calls firebase signOut', () => {
         clearSession();
         assert.equal(_signOutCalled, true);
+    });
+});
+
+// ── refreshClaimsIfStale (B3 claim-refresh sweep) ──────────────────────────────
+describe('refreshClaimsIfStale (B3 claim-refresh sweep)', () => {
+    /** Set the mocked auth.currentUser to a stub that records getIdToken(force) calls. */
+    function withUser() {
+        const calls = [];
+        auth.currentUser = { getIdToken: async (/** @type {boolean} */ force) => { calls.push(force); } };
+        return calls;
+    }
+
+    test('epoch 0 / falsy → no refresh, no flag written', async () => {
+        store.clear();
+        const calls = withUser();
+        await refreshClaimsIfStale(0);
+        assert.equal(calls.length, 0);
+        assert.equal(store.has('myb_claim_epoch'), false);
+        auth.currentUser = null;
+    });
+
+    test('no live session → no refresh', async () => {
+        store.clear();
+        auth.currentUser = null;
+        await refreshClaimsIfStale(1);
+        assert.equal(store.has('myb_claim_epoch'), false);
+    });
+
+    test('first sweep for an epoch → force-refreshes once and records the epoch', async () => {
+        store.clear();
+        const calls = withUser();
+        await refreshClaimsIfStale(1);
+        assert.deepEqual(calls, [true]);                         // getIdToken(true) exactly once, forced
+        assert.equal(store.get('myb_claim_epoch'), '1');
+        auth.currentUser = null;
+    });
+
+    test('already swept for this epoch → no second refresh', async () => {
+        store.clear();
+        store.set('myb_claim_epoch', '2');
+        const calls = withUser();
+        await refreshClaimsIfStale(2);
+        assert.equal(calls.length, 0);                           // seen >= epoch → skip
+        auth.currentUser = null;
+    });
+
+    test('epoch advanced past the recorded one → refreshes again', async () => {
+        store.clear();
+        store.set('myb_claim_epoch', '1');
+        const calls = withUser();
+        await refreshClaimsIfStale(2);
+        assert.deepEqual(calls, [true]);
+        assert.equal(store.get('myb_claim_epoch'), '2');
+        auth.currentUser = null;
+    });
+
+    test('getIdToken failure is swallowed (best-effort) and the flag is NOT advanced', async () => {
+        store.clear();
+        auth.currentUser = { getIdToken: async () => { throw new Error('network'); } };
+        await refreshClaimsIfStale(1);                           // must not throw
+        assert.equal(store.has('myb_claim_epoch'), false);       // flag only set after a successful refresh
+        auth.currentUser = null;
     });
 });

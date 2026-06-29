@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.68';
+export const APP_VERSION = '14.72';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -53,7 +53,21 @@ export const CONFIG = {
     // ⚠️ KILL-SWITCH / REVERT: set this back to `false` (a one-line deploy, no rules or data
     //   change) to instantly restore the pre-B1 behaviour — anonymous fallback + self-heal — if
     //   any staff member is unexpectedly bounced to re-login and cannot get back in.
-    ENFORCE_NAMED_SESSION:            true,
+    // ⚠️ TEMPORARILY DISABLED (v14.72) — staff reported freezing on the login overlay even when
+    //   signed in (B1 re-login loop: a write page can't confirm the named session, clears it, and
+    //   re-shows the overlay). Reverted to pre-B1 behaviour to restore access while the root cause is
+    //   diagnosed. Set back to `true` once fixed. See SECURITY_RELEASE_PLAN.md → B1 kill-switch.
+    ENFORCE_NAMED_SESSION:            false,
+    // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
+    // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
+    // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly
+    // auto-refresh. Gated per-device by localStorage `myb_claim_epoch`; a force-refresh is a no-op
+    // when the token is already current, so bumping is harmless. Bump again immediately before the
+    // B3 strict-rule cutover so every active token carries its correct-tier claim first.
+    // ⚠️ DISABLED (0) alongside the B1 kill-switch (v14.72) to remove the forced token refresh as a
+    //   variable while diagnosing the login freeze. `refreshClaimsIfStale` no-ops when epoch is 0.
+    //   Restore to 1 (or bump) when re-enabling the B3 sweep.
+    CLAIM_EPOCH:                      0,
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };

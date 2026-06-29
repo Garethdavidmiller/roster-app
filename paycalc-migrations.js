@@ -102,6 +102,32 @@ export function ytdTaxKey(ty)     { return `${pcPrefix()}ytd_tax_${ty.label.repl
  *  Device-level — not namespaced. */
 export const NOTICE_YTD_KEY = 'myb_pc_ytd_notice_shown';
 
+// ── DEVICE-LOCAL PAYSLIP ACTUALS (v14.69) ─────────────────────────────────────
+// A member's own real payslip figures, keyed by ISO payday, used by the Pay
+// Calculator's actual-vs-estimate comparison. Stored ONLY in the member's own
+// browser (namespaced via pcPrefix, so per-member and never shared) — never in a
+// served file (real pay figures were moved out of roster-data.js at v14.68 for
+// privacy). Seeded once per device via the owner-only import in paycalc.html.
+/** The active member's payslip-actuals storage key (namespaced → per-member). */
+export function payslipActualsKey() { return `${pcPrefix()}actuals`; }
+
+/** Read the active member's device-local payslip actuals. Returns {} when none are
+ *  stored or the stored JSON is unparseable. @returns {Record<string, any>} */
+export function readPayslipActuals() {
+    try { const raw = lsGet(payslipActualsKey()); return raw ? JSON.parse(raw) : {}; }
+    catch { return {}; }
+}
+
+/** Persist a payslip-actuals map (ISO-payday → { gross, tax, ni, sl, net, varPay })
+ *  for the active member. @param {Record<string, any>} map @returns {number} count stored */
+export function writePayslipActuals(map) {
+    lsSet(payslipActualsKey(), JSON.stringify(map || {}));
+    return Object.keys(map || {}).length;
+}
+
+/** Delete the active member's device-local payslip actuals. */
+export function clearPayslipActuals() { lsDel(payslipActualsKey()); }
+
 /** Device-level `myb_pc_*` keys that must NOT be moved into a member namespace:
  *  one-time migration guards and per-device "seen" flags. Everything else under
  *  the `myb_pc_` prefix is member-financial data and gets namespaced. */
