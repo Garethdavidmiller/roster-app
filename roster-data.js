@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.70';
+export const APP_VERSION = '14.71';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -54,6 +54,13 @@ export const CONFIG = {
     //   change) to instantly restore the pre-B1 behaviour — anonymous fallback + self-heal — if
     //   any staff member is unexpectedly bounced to re-login and cannot get back in.
     ENFORCE_NAMED_SESSION:            true,
+    // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
+    // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
+    // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly
+    // auto-refresh. Gated per-device by localStorage `myb_claim_epoch`; a force-refresh is a no-op
+    // when the token is already current, so bumping is harmless. Bump again immediately before the
+    // B3 strict-rule cutover so every active token carries its correct-tier claim first.
+    CLAIM_EPOCH:                      1,
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
