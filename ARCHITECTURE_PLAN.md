@@ -258,8 +258,13 @@ Wrap each coordinator body in an exported `init()` called by a 2-line bootstrap;
 `throw new Error('Not signed in')` with explicit guard/early-return; route through
 `requirePageAuth`. Order and rationale:
 1. **Operations** — admin-only, recently raced, many async cards, touches Functions+Firestore+
-   Storage, lower staff-facing blast radius than Calendar.
-2. **Links** — currently client-side designer gating; benefits most from the policy map.
+   Storage, lower staff-facing blast radius than Calendar. **DONE** (4a v14.61, 4b v14.62).
+2. **Links** — currently client-side designer gating; benefits most from the policy map. **DONE
+   (Phase 5, v14.63):** the two-gate `!currentUser` / `!isLinksDesigner` block and the `!named` B1
+   check both route through `requirePage(..., 'links')` now (designer-only policy); the inline
+   `CONFIG.LINKS_DESIGNERS` test moved into `rolesFor`. Behaviour-preserving — 68 e2e pass unchanged
+   (incl. the links designer-load + B1 `failSignIn` redirect cases). 4b's stale-claim retry does NOT
+   apply: links reads `linkDesigns` (`request.auth != null`), not an admin-claim-gated collection.
 3. **Admin** — bigger and more sensitive (override writes are core data); migrate after the pattern
    is proven.
 4. **Settings / Pay Calculator** — Settings matters for push + work-email; Pay Calculator stays
