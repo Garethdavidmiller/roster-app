@@ -92,7 +92,7 @@ The single source of truth for all roster data.
 - `getWeekNumberForDate(member, date)` · `getALEntitlement(member, year)` · `getMembersForGrade(grade)` · `isSunday(dateStr)`
 - `avatarInitials(name)` / `avatarHue(name)` — initials + stable per-name colour for the nav-panel footer badge (called directly in `nav-panel.js`; no fetch/storage)
 - `escapeHtml(s)` / `formatISO(date)` / `isValidEmail(s)` — shared string/date/validation utilities used app-wide
-- `CONFIG` (incl. `ADMIN_NAMES`, `LINKS_DESIGNERS`, `MIN_YEAR`/`MAX_YEAR`, payday anchors), `MILLER_ACTUALS` (real payslip records for `paycalc.test.mjs`), and the re-exported raw roster arrays from `roster-cycle-data.js`
+- `CONFIG` (incl. `ADMIN_NAMES`, `LINKS_DESIGNERS`, `MIN_YEAR`/`MAX_YEAR`, payday anchors) and the re-exported raw roster arrays from `roster-cycle-data.js`. (`MILLER_ACTUALS` was moved OUT to `test-fixtures/miller-actuals.js` at v14.68 — privacy; see ARCHITECTURE_PLAN.md → MILLER_ACTUALS.)
 - (This module exports ~50 symbols — the above are the cross-referenced, load-bearing ones; see the file for the full list.)
 ### `calendar-app.js`
 Coordinator for `index.html`. Delegates state, swipe, rendering, override cache, and member selection to sub-modules.

@@ -12,7 +12,7 @@
  * Do not edit here for: pay maths, period date maths, HPP formula, back-pay maths.
  */
 
-import { CONFIG as ROSTER_CONFIG, formatISO, MILLER_ACTUALS, parseSmartFloat } from './roster-data.js';
+import { CONFIG as ROSTER_CONFIG, formatISO, parseSmartFloat } from './roster-data.js';
 import {
   GRADES, RATE_125, RATE_150, RATE_300,
   getTaxYearForOffset, getThresholds, getLondonAllowanceForPeriod,
@@ -83,7 +83,6 @@ export function init() {
     }
 
     // Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
-    // MILLER_ACTUALS imported from roster-data.js — payslip figures for G. Miller only.
     // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js
 
     // ── COORDINATOR STATE ─────────────────────────────────────────────────────────
@@ -792,60 +791,26 @@ export function init() {
         _lastBdBodyHtml = bd;
       }
 
-      // ── G. Miller actual payslip override ──────────────────────────────────────
-      // If the logged-in member is G. Miller and this period has hardcoded payslip
-      // data, replace the estimate display with the actual figures. The breakdown
-      // section below still shows the estimate so the comparison is visible.
-      const _actualKey  = _curP ? formatISO(_curP.payday) : null;
-      const _actual     = _actualKey && getLoggedMember()?.name === 'G. Miller'
-        ? (/** @type {Record<string,any>} */ (MILLER_ACTUALS))[_actualKey] : null;
-      const _netLabel   = document.getElementById('netLabel');
-
-      if (_actual) {
-        if (_netLabel) _netLabel.textContent = '✅ Your Actual Take-Home Pay';
-        /** @type {HTMLElement} */ (document.getElementById('netDisplay')).textContent = fmt(_actual.net);
-        /** @type {HTMLElement} */ (document.getElementById('payslipNote')).style.display   = 'none';
-        /** @type {HTMLElement} */ (document.getElementById('absenceCaveat')).style.display = 'none';
-        /** @type {HTMLElement} */ (document.getElementById('summary')).innerHTML = `
-          <div class="sum-row sum-gross"><span class="lbl">Total pay</span><span class="val">${fmt(_actual.gross)}</span></div>
-          <div class="sum-row sum-ded"><span class="lbl">Income Tax</span><span class="val">−${fmt(_actual.tax)}</span></div>
-          <div class="sum-row sum-ded"><span class="lbl">National Insurance</span><span class="val">−${fmt(_actual.ni)}</span></div>
-          ${_actual.sl > 0 ? `<div class="sum-row sum-ded"><span class="lbl">Student Loan</span><span class="val">−${fmt(_actual.sl)}</span></div>` : ''}
-          <div class="sum-row sum-net"><span class="lbl">Actual take-home</span><span class="val">${fmt(_actual.net)}</span></div>
-          <div class="sum-row" style="border-top:1px solid var(--border-light);margin-top:6px;padding-top:6px;font-size:var(--type-small);color:var(--text-faint)">
-            <span class="lbl">Calculator estimate</span><span class="val">${fmt(net)}</span>
-          </div>
-        `;
-        /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
-          `Compare with estimate &nbsp;<span class="bd-arrow">▼</span>`;
-        const _peekBtn = document.getElementById('resultPeekBtn');
-        if (_peekBtn) _peekBtn.textContent = `↑ Actual take-home: ${fmt(_actual.net)}`;
-        const _stickyAmt = document.getElementById('stickyAmount');
-        if (_stickyAmt) _stickyAmt.textContent = fmt(_actual.net);
-        // Keep the sticky label honest — this figure is the confirmed actual, not an estimate.
-        const _stickyLbl = document.getElementById('stickyLabel');
-        if (_stickyLbl) _stickyLbl.textContent = '✅ Actual take-home';
-      } else {
-        const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
-            : _bpThisPeriod > 0  ? 'inc. back pay'
-            : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
-            : null;
-        if (_netLabel) _netLabel.textContent = _suffix
-            ? `💷 Estimated Take-Home Pay (${_suffix})`
-            : '💷 Estimated Take-Home Pay';
-        const _peekBtn = document.getElementById('resultPeekBtn');
-        if (_peekBtn) _peekBtn.textContent = _suffix
-            ? `↑ Estimated take-home (${_suffix}): ${fmt(net)}`
-            : `↑ Estimated take-home: ${fmt(net)}`;
-        const _stickyAmt = document.getElementById('stickyAmount');
-        if (_stickyAmt) _stickyAmt.textContent = fmt(net);
-        const _stickyLbl = document.getElementById('stickyLabel');
-        if (_stickyLbl) _stickyLbl.textContent = _suffix
-            ? `💷 Estimated take-home (${_suffix})`
-            : '💷 Estimated take-home';
-        /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
-          `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
-      }
+      const _netLabel = document.getElementById('netLabel');
+      const _suffix = _bpThisPeriod > 0 && _hppForPeriod > 0 ? 'inc. back pay & HPP'
+          : _bpThisPeriod > 0  ? 'inc. back pay'
+          : _hppForPeriod > 0  ? `inc. HPP${_hppIsEstimate ? ' estimate' : ''}`
+          : null;
+      if (_netLabel) _netLabel.textContent = _suffix
+          ? `💷 Estimated Take-Home Pay (${_suffix})`
+          : '💷 Estimated Take-Home Pay';
+      const _peekBtn = document.getElementById('resultPeekBtn');
+      if (_peekBtn) _peekBtn.textContent = _suffix
+          ? `↑ Estimated take-home (${_suffix}): ${fmt(net)}`
+          : `↑ Estimated take-home: ${fmt(net)}`;
+      const _stickyAmt = document.getElementById('stickyAmount');
+      if (_stickyAmt) _stickyAmt.textContent = fmt(net);
+      const _stickyLbl = document.getElementById('stickyLabel');
+      if (_stickyLbl) _stickyLbl.textContent = _suffix
+          ? `💷 Estimated take-home (${_suffix})`
+          : '💷 Estimated take-home';
+      /** @type {HTMLElement} */ (document.getElementById('bdBtn')).innerHTML =
+        `Full pay breakdown &nbsp;<span class="bd-arrow">▼</span>`;
 
       const _bannerEl = document.getElementById('bpActiveBanner');
       if (_bannerEl) {
