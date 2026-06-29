@@ -69,6 +69,36 @@ _opsAuth.then(() => {
     }
 });
 
+/**
+ * Run an admin-only Firestore read, self-healing a stale auth token (Phase 4b,
+ * ARCHITECTURE_PLAN.md). The three Operations read cards (Work Email, Error Log,
+ * Usage) all read admin-gated collections. Immediately after "Set up accounts"
+ * the freshly-minted token does not yet carry the `admin` claim — Firebase only
+ * refreshes ID tokens ~hourly — so the first read fails `permission-denied` even
+ * though the account IS an admin. Rather than make the admin wait (or reload),
+ * we force a token refresh once and retry, picking up the claim immediately.
+ *
+ * Fail-safe: only retries on `permission-denied` with a live user; any other
+ * error (offline, etc.) is re-thrown so the card's existing catch shows its
+ * silent-fallback message. Retries at most once — a genuinely non-admin token
+ * still throws on the second attempt and falls through to the card's catch.
+ * @template T
+ * @param {() => Promise<T>} readFn  The admin-gated read (e.g. getClientErrors).
+ * @returns {Promise<T>}
+ */
+async function adminReadWithRetry(readFn) {
+    try {
+        return await readFn();
+    } catch (err) {
+        const user = auth.currentUser;
+        if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
+            await user.getIdToken(true);   // force refresh → pick up the admin claim
+            return await readFn();          // retry once with the fresh token
+        }
+        throw err;
+    }
+}
+
 
 // ============================================
 // PAGE INIT
@@ -129,7 +159,7 @@ initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
     try {
         // Wait for the Firebase Auth session so Firestore rules pass.
         await sessionReady;
-        const contacts = await getAllStaffContacts();
+        const contacts = await adminReadWithRetry(getAllStaffContacts);
 
         // Mutable maps — updated in-place after an admin saves an email.
         const emailMap   = new Map(contacts.filter(c => c.workEmail).map(c => [c.memberName, c.workEmail]));
@@ -729,7 +759,7 @@ function initCircularUpload() {
 
     try {
         await sessionReady;
-        const errors = await getClientErrors();
+        const errors = await adminReadWithRetry(getClientErrors);
 
         content.innerHTML = '';
 
@@ -852,7 +882,7 @@ function initCircularUpload() {
 
     try {
         await sessionReady;
-        const stats = await getUsageStats();
+        const stats = await adminReadWithRetry(getUsageStats);
         content.innerHTML = '';
 
         // Active-account headline numbers.

@@ -389,10 +389,17 @@ store/policy consumption** above. Deferred so 4a stays a small, reviewable, beha
 diff. (It also needs a `operations-boot.js` 2-line bootstrap because CSP `script-src 'self'` blocks
 inline module scripts.) Pick it up once 4a has proven the consumption pattern.
 
-### 4b — optimistic reads (the one beneficial behaviour change)
-Decouple the three admin read cards (work-email / error-log / usage) from the full `sessionReady`
-gate: start once `auth.currentUser` exists; on `permission-denied`, `getIdToken(true)` once then
-retry. Fixes the cold-load latency. Separate + revertible.
+### 4b — self-healing admin reads (the one beneficial behaviour change) — BUILT v14.62
+The three admin read cards (work-email / error-log / usage) read admin-gated collections. The
+observed latency was NOT the `sessionReady` await (which resolves on the same `onAuthStateChanged`
+the reads would optimistically start from — so an "optimistic start" that skips it buys nothing);
+it was a **stale-claim `permission-denied`**. Immediately after "Set up accounts" the freshly-minted
+token has no `admin` claim yet (Firebase refreshes ID tokens only ~hourly), so the first read fails
+even though the account IS an admin. So 4b is **retry-only**, not optimistic-start: keep
+`await sessionReady`, then run each read through `adminReadWithRetry(readFn)` in `operations-app.js`
+— on `permission-denied` with a live user it `getIdToken(true)` once (force-refresh → pick up the
+claim) and retries once; any other error re-throws to the card's existing silent-fallback catch.
+The optimistic-start idea was dropped as no-benefit. Separate + revertible.
 
 ### Tests & safety net
 - **Behaviour preservation is proven by the EXISTING e2e passing UNCHANGED**: admin loads (not
