@@ -351,3 +351,52 @@ rely on URL obscurity, or leave it in `roster-data.js`. Decoupling it from `rost
 - **Migrate one coordinator at a time**, Operations → Links → Admin → Settings/Paycalc.
 - **Keep the `sessionReady` shim until every page is migrated.**
 - **The server is the security boundary** — never treat client auth state as enforcement.
+
+---
+
+## Appendix: Phase 4 detailed scope (Operations first) — scoped v14.61
+
+Phase 4 makes the FIRST coordinator actually CONSUME the store + policy. Two owner decisions are
+settled:
+
+1. **Split 4a / 4b.** Ship the structural consumption first (4a), the read-latency improvement
+   second (4b) — so the riskiest change lands with reads behaving exactly as today.
+2. **No write-gating UI change.** Every Operations write handler ALREADY `await sessionReady`
+   before executing (huddle.js, operations-app.js circular/newsletter + roster, admin-auth.js), and
+   the buttons gate on file-selection (which outlasts sign-in). So a premature tap simply waits then
+   writes — the reviewer's M1 is adequately handled, and the server is the boundary regardless.
+   Adding a visible "confirming…" disabled state would be a behaviour change with ~zero benefit.
+   **Therefore 4a is behaviour-PRESERVING**, not behaviour-adjacent.
+
+### 4a — consume `requirePage` + the store (behaviour-preserving)
+- **Access gate:** replace the two top-level `if (!currentUser)` / `if (!isAdmin)` blocks with ONE
+  `requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations')`
+  decision — `login` → overlay (was Gate A), `forbidden` → redirect to admin (was Gate B), `allow`
+  → continue. The synthesised "local-derived" snapshot preserves today's fast render from
+  localStorage (it treats a present local session as `named`, exactly today's optimism).
+- **B1 enforcement:** the existing `_opsAuth.then(...)` keeps its once-only timing but now decides
+  via `requirePage(getAuthSnapshot(), 'operations') === 'login'` (the store reflects the terminal
+  Firebase identity by then, fed by the Phase-2 bridge). `clearSession()` + overlay unchanged.
+- **Unchanged:** `sessionReady`, every write handler, the read cards, all chrome/card behaviour,
+  the `throw`s (kept — see 4a.2). Small diff at the top of `operations-app.js`; imports
+  `requirePage` + `getAuthSnapshot`.
+
+### 4a.2 — testable `init()` wrap + `throw`→`return` (DEFERRED, separable)
+The plan's "wrap each coordinator in an exported `init()`, remove the top-level throws" is a real
+goal but is an **~880-line re-indent** of `operations-app.js` and needs ~17 import-mocks (or full
+dep-injection) to unit-test the wiring — high-risk for the first migration, and **independent of the
+store/policy consumption** above. Deferred so 4a stays a small, reviewable, behaviour-preserving
+diff. (It also needs a `operations-boot.js` 2-line bootstrap because CSP `script-src 'self'` blocks
+inline module scripts.) Pick it up once 4a has proven the consumption pattern.
+
+### 4b — optimistic reads (the one beneficial behaviour change)
+Decouple the three admin read cards (work-email / error-log / usage) from the full `sessionReady`
+gate: start once `auth.currentUser` exists; on `permission-denied`, `getIdToken(true)` once then
+retry. Fixes the cold-load latency. Separate + revertible.
+
+### Tests & safety net
+- **Behaviour preservation is proven by the EXISTING e2e passing UNCHANGED**: admin loads (not
+  redirected), non-admin redirected, not-signed-in shows the overlay, B1 `failSignIn` re-shows
+  login. `requirePage` itself is already unit-tested (auth-policy.test.mjs).
+- **Rollback:** revert the single `operations-app.js` commit — isolated to one coordinator, no
+  shared-module change. **Verify in a private window, never an installed phone.**
