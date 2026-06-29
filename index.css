@@ -2183,6 +2183,44 @@
             .huddle-open-btn:hover { background: var(--primary-blue-dark); }
         }
 
+        /* ---- Circular / Newsletter viewer (#docViewer) ---- */
+        /* Inherits the centred lightbox chrome from .lb-overlay/.lb-content; only the
+           inner title/body/button need styling. Always-PDF, so it shows an Open button. */
+        .doc-viewer-title {
+            font-size: var(--type-large);
+            font-weight: 700;
+            color: var(--primary-blue);
+            text-align: center;
+            margin: 4px 0 16px;
+            letter-spacing: -0.3px;
+        }
+        .doc-viewer-body { text-align: center; padding-bottom: 4px; }
+        .doc-viewer-loading,
+        .doc-viewer-empty {
+            font-size: var(--type-body);
+            color: var(--text-mid);
+            margin: 8px 0;
+        }
+        .doc-open-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: var(--primary-blue);
+            color: white;
+            border: none;
+            border-radius: 999px;
+            font-size: var(--type-button);
+            font-weight: 700;
+            padding: 14px 28px;
+            cursor: pointer;
+            touch-action: manipulation;
+            transition: background var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+        }
+        .doc-open-btn:active { transform: scale(var(--press-scale)); }
+        @media (hover: hover) and (pointer: fine) {
+            .doc-open-btn:hover { background: var(--primary-blue-dark); }
+        }
+
         /* ---- Month/year jump picker overlay ---- */
         /* #monthJumpOverlay uses .lb-overlay; unique: lower z-index, slightly faster fade */
         #monthJumpOverlay { z-index: 7000; transition: opacity 0.18s ease; }

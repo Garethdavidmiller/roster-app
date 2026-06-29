@@ -23,6 +23,7 @@ Read CLAUDE.md first for project identity, version bumping rules, and architectu
 | Calendar member selection — getSelectedMemberIndex, getCurrentMember, populateTeamMemberDropdown, validateTeamMembers | `calendar-member.js` |
 | Calendar rendering — buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection | `calendar-renderer.js` |
 | Huddle viewer overlay, _triggerAutoOpen, hashchange, subscription | `calendar-huddle-viewer.js` |
+| Circular/Newsletter in-app viewer (#circular/#newsletter notification deep link) | `calendar-doc-viewer.js` |
 | Team Week View — initTeamView (grid, navigation, Firestore fetch, toggle) | `calendar-team-view.js` |
 | Override priority, member-start, rest-shift helpers — tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift, computePeriodDeleteIds | `override-utils.js` |
 | Body scroll lock, overlay history, focus trap, lightbox lifecycle, card collapse (lockBodyScroll, trapFocus, createLightbox, initCardCollapse, etc.) | `overlay.js` |
@@ -171,6 +172,11 @@ Huddle viewer overlay — extracted from `calendar-app.js` at v11.40. Only expor
 - `initHuddleViewer()` — sets up the viewer overlay, subscribes to Firestore via `subscribeToLatestHuddle`, wires the `#huddle` hash handler (used by both the nav-panel "Daily Huddle" link and notification taps)
 - `sanitiseHtml(html)` — internal; DOMPurify sanitisation for DOCX huddles
 - `_triggerAutoOpen(huddle)` — **two content types, do not unify:** HTML huddles render inline; PDF/DOCX huddles render an in-overlay "📄 Open Huddle" button (`#huddleOpenFileBtn`) because a `#huddle`-hash open carries no user activation — a direct `window.open`/`location.href` would be pop-up-blocked or knock the PWA out of standalone. Full rationale: OPERATIONS_REFERENCE.md → "Huddle notification tap behaviour".
+
+### `calendar-doc-viewer.js`
+In-app viewer for the Weekly Retail Circular and Marylebone Newsletter, opened from a `#circular`/`#newsletter` notification deep link (the `onCircularCreated`/`onNewsletterCreated` Cloud Function triggers fan out the push). Only export is `initDocViewer()`.
+- Both documents are always PDFs, so the viewer mirrors the Huddle's PDF path: a centred `createLightbox` card showing the feature title + an "Open" button (a real gesture → `window.open`, popup-safe; `isSafeStorageUrl`-guarded). Empty/error states show a short message.
+- One-shot fetch (`getLatestCircular`/`getLatestNewsletter`) on open — no persistent subscription (unlike the Huddle, which needs live state for its button). The nav-drawer links still open these in a new tab (`nav-panel.js`); migrating them to this viewer is a possible follow-up.
 
 ### `admin-app.js`
 Login, session management, shared DOM handles, and the glue that wires all admin modules together.

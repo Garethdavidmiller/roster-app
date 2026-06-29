@@ -360,6 +360,45 @@ function fileSignatureMatches(buf, fileType) {
     return false;
 }
 
+// ── Push notification design language ─────────────────────────────────────────
+// Single source of truth for Web Push payloads. See .claude/rules/notifications.md.
+// The leading emoji MUST match the feature's in-app icon (nav drawer / card) so a
+// notification visibly belongs to its part of the app. Adding a notifying feature =
+// one entry here + build via buildPushPayload (never a hand-written literal).
+
+const NOTIFICATION_FEATURES = {
+    // Document arrivals — title "<emoji> Latest <Doc>". "Latest" (not "Today's") because
+    // a document is republished regularly and the Huddle is the next-day plan sent the
+    // evening before, so day-relative words are inaccurate by the time it is read.
+    huddle:     { emoji: '📋',  tag: 'huddle',       defaultHeadline: 'Latest Huddle',                 hashPath: '/#huddle' },
+    circular:   { emoji: '📰',  tag: 'circular',     defaultHeadline: 'Latest Retail Circular',        hashPath: '/#circular' },
+    newsletter: { emoji: '🗞️', tag: 'newsletter',   defaultHeadline: 'Latest Marylebone Newsletter',  hashPath: '/#newsletter' },
+    // Event reminder — title "<emoji> <Event> — <urgency>"; caller passes headline + url.
+    pay:        { emoji: '💷',  tag: 'pay-reminder' },
+};
+
+/**
+ * Build a Web Push payload to the notification design language.
+ * Guarantees the leading feature emoji, the per-feature tag, and a deep-link URL.
+ *
+ * @param {object} opts
+ * @param {keyof NOTIFICATION_FEATURES} opts.feature - notification feature key
+ * @param {string} opts.body                         - the supporting line (no emoji)
+ * @param {string} [opts.baseUrl]                    - origin for the default deep link (document features)
+ * @param {string} [opts.headline]                   - override the default headline (required for event features)
+ * @param {string} [opts.url]                        - override the default deep link (required for event features)
+ * @returns {{title: string, body: string, tag: string, url: string}}
+ */
+function buildPushPayload({ feature, body, baseUrl, headline, url }) {
+    const f = NOTIFICATION_FEATURES[feature];
+    if (!f) throw new Error(`Unknown notification feature: ${feature}`);
+    const finalHeadline = headline || f.defaultHeadline;
+    if (!finalHeadline) throw new Error(`No headline for notification feature: ${feature}`);
+    const finalUrl = url || (f.hashPath ? `${baseUrl}${f.hashPath}` : undefined);
+    if (!finalUrl) throw new Error(`No url for notification feature: ${feature}`);
+    return { title: `${f.emoji} ${finalHeadline}`, body, tag: f.tag, url: finalUrl };
+}
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 module.exports = {
@@ -375,4 +414,6 @@ module.exports = {
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
+    NOTIFICATION_FEATURES,
+    buildPushPayload,
 };

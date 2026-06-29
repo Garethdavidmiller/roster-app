@@ -148,6 +148,7 @@ roster-app/
 ├── calendar-member.js      ← team member selection for index.html: getSelectedMemberIndex, getCurrentMember, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName
 ├── calendar-renderer.js    ← calendar cell/grid building for index.html: buildCalendarContainer, createCalendarHeader, createDayCell, getSwipeDirection
 ├── calendar-huddle-viewer.js    ← Huddle viewer overlay: initHuddleViewer, _triggerAutoOpen, hashchange
+├── calendar-doc-viewer.js  ← Circular/Newsletter in-app viewer (index.html): initDocViewer — opens a #circular/#newsletter notification deep link in a centred lightbox with an "Open" button (PDF). Reuses createLightbox; separate from the Huddle viewer.
 ├── nav-panel.js            ← shared nav drawer: initNavPanel, NAV_PAGES/INFORMATION/GUIDES, archiveNotice, isNoticeExpired
 ├── notif.js                ← shared Web Push: notifSupported, getNotifState, peekNotifState, enable/disableNotifications
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
@@ -606,6 +607,8 @@ UX experiments tried and reverted, plus future capabilities: **see `ROADMAP.md`*
 Daily Huddle PDF/DOCX → Power Automate → `ingestHuddle` → Firebase Storage + Firestore `huddles` collection + push notification. The upload button is labelled **"Choose file"** (not "Choose PDF") — intentional, Huddles can be PDF or DOCX.
 
 Full flow diagram, request format, gotchas, and Security Rules: **see `OPERATIONS_REFERENCE.md`**.
+
+**Push notification design language:** all Web Push payloads (Huddle, Pay, and future Circular/Newsletter) must follow `.claude/rules/notifications.md` — leading emoji = the feature's in-app icon, "Latest X" for document arrivals, calm/no-exclamation tone, monochrome badge, and a single `buildPushPayload` builder. Never hand-write a payload literal.
 
 ---
 

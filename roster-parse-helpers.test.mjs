@@ -24,6 +24,8 @@ const {
     nameToEmail,
     nameToPassword,
     fileSignatureMatches,
+    NOTIFICATION_FEATURES,
+    buildPushPayload,
 } = require('./functions/roster-parse-helpers.js');
 
 // ── fileSignatureMatches ──────────────────────────────────────────────────────
@@ -481,5 +483,57 @@ describe('isPayCutoffDay agrees with isCutoffDate over full 2026 calendar year',
             }
         }
         assert.deepEqual(mismatches, [], `Implementations disagree on ${mismatches.length} date(s):\n${mismatches.join('\n')}`);
+    });
+});
+
+// ── buildPushPayload (notification design language) ───────────────────────────
+describe('buildPushPayload', () => {
+    const BASE = 'https://myb-roster.web.app';
+
+    test('huddle: "📋 Latest Huddle", huddle tag, scope-relative #huddle deep link', () => {
+        const p = buildPushPayload({ feature: 'huddle', body: 'Tap to read the latest day plan.', baseUrl: BASE });
+        assert.equal(p.title, '📋 Latest Huddle');
+        assert.equal(p.tag, 'huddle');
+        assert.equal(p.url, `${BASE}/#huddle`);
+        assert.equal(p.body, 'Tap to read the latest day plan.');
+    });
+
+    test('circular and newsletter use their feature emoji + "Latest" headline', () => {
+        const c = buildPushPayload({ feature: 'circular', body: 'x', baseUrl: BASE });
+        assert.equal(c.title, '📰 Latest Retail Circular');
+        assert.equal(c.url, `${BASE}/#circular`);
+        const n = buildPushPayload({ feature: 'newsletter', body: 'x', baseUrl: BASE });
+        assert.equal(n.title, '🗞️ Latest Marylebone Newsletter');
+        assert.equal(n.url, `${BASE}/#newsletter`);
+    });
+
+    test('pay (event): caller-supplied headline + url, pay-reminder tag', () => {
+        const p = buildPushPayload({
+            feature: 'pay',
+            headline: 'Payday Friday — hours cutoff today',
+            body: 'Open the Pay Calculator to estimate your 28 March pay.',
+            url: `${BASE}/paycalc.html?payday=2026-03-28`,
+        });
+        assert.equal(p.title, '💷 Payday Friday — hours cutoff today');
+        assert.equal(p.tag, 'pay-reminder');
+        assert.equal(p.url, `${BASE}/paycalc.html?payday=2026-03-28`);
+    });
+
+    test('unknown feature throws', () => {
+        assert.throws(() => buildPushPayload({ feature: 'bogus', body: 'x', baseUrl: BASE }), /Unknown notification feature/);
+    });
+
+    test('event feature without headline/url throws (no silent bad payload)', () => {
+        assert.throws(() => buildPushPayload({ feature: 'pay', body: 'x', baseUrl: BASE }), /No headline/);
+    });
+
+    test('design-language invariants hold for every feature: one leading emoji, no exclamation, title within budget', () => {
+        for (const [key, f] of Object.entries(NOTIFICATION_FEATURES)) {
+            const title = f.defaultHeadline ? `${f.emoji} ${f.defaultHeadline}` : `${f.emoji} Payday Friday — hours cutoff today`;
+            assert.ok(title.startsWith(f.emoji), `${key} title must lead with its feature emoji`);
+            assert.ok(!title.includes('!'), `${key} title must not use an exclamation mark`);
+            assert.ok(title.length <= 40, `${key} title "${title}" exceeds the 40-char budget (${title.length})`);
+            assert.ok(typeof f.tag === 'string' && f.tag.length > 0, `${key} must have a stable tag`);
+        }
     });
 });

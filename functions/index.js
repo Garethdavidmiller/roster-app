@@ -34,11 +34,11 @@ const {
     mapColumnHeadersToDates,
     buildSafeEntries,
     applySundayScanCorrections,
-    huddleDayLabel,
     isPayCutoffDay,
     nameToEmail,
     nameToPassword,
     fileSignatureMatches,
+    buildPushPayload,
 } = require('./roster-parse-helpers');
 const rosterMembers = require('./roster-members.json');
 
@@ -438,6 +438,47 @@ exports.onHuddleCreated = onDocumentCreated(
     }
 );
 
+// ============================================================================
+// onCircularCreated / onNewsletterCreated — Firestore triggers
+// ============================================================================
+// Circulars and newsletters are browser-upload-only (no Power Automate path), so
+// unlike the Huddle there is no double-send concern — the create trigger is the
+// single notification source. Fires on CREATE only, so re-uploading a correction
+// to the same date (setDoc overwrite = UPDATE) does not re-notify.
+
+/** Fan out a document-arrival push for a circular/newsletter, to the design language. */
+async function sendDocPushNotifications(feature, body, vapidPrivate) {
+    setupWebPush(vapidPrivate);
+    await fanOutPush(buildPushPayload({ feature, body, baseUrl: STAFF_SITE_URL }), `[${feature}]`);
+    console.log(`[${feature}] notification sent`);
+}
+
+exports.onCircularCreated = onDocumentCreated(
+    { document: 'circulars/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
+    async event => {
+        const date = event.params.date;
+        console.log(`[onCircularCreated] ${date} — fanning out push`);
+        try {
+            await sendDocPushNotifications('circular', "Tap to read this week's retail update.", VAPID_PRIVATE_KEY);
+        } catch (err) {
+            console.warn('[onCircularCreated] Push fan-out error:', err.message);
+        }
+    }
+);
+
+exports.onNewsletterCreated = onDocumentCreated(
+    { document: 'newsletters/{date}', secrets: [VAPID_PRIVATE_KEY], region: 'europe-west2' },
+    async event => {
+        const date = event.params.date;
+        console.log(`[onNewsletterCreated] ${date} — fanning out push`);
+        try {
+            await sendDocPushNotifications('newsletter', 'Tap to read the latest newsletter.', VAPID_PRIVATE_KEY);
+        } catch (err) {
+            console.warn('[onNewsletterCreated] Push fan-out error:', err.message);
+        }
+    }
+);
+
 // Module-level flag so setVapidDetails() is only called once per warm instance.
 // Secrets are not available at module init, so we defer to first call.
 let _vapidConfigured = false;
@@ -552,20 +593,15 @@ async function sendHuddlePushNotifications(huddleDate, vapidPrivate) {
     }
     setupWebPush(vapidPrivate);
 
-    // Build smart day label — compare huddle date to today in London timezone.
-    // nowInLondon() reads parts directly via Intl so the result is independent
-    // of the server's local TZ setting (Cloud Run is UTC but the code shouldn't
-    // rely on that).
-    const { year, month, day } = nowInLondon();
-    const dayLabel = huddleDayLabel(huddleDate, new Date(year, month, day));
-
-    await fanOutPush({
-        title: 'Marylebone Roster',
-        body:  `${dayLabel} Huddle is ready`,
-        tag:   'huddle',
-        url:   `${STAFF_SITE_URL}/#huddle`,
-    }, '[push]');
-    console.log(`[push] "${dayLabel} Huddle is ready" sent`);
+    // Notification design language (.claude/rules/notifications.md): "📋 Latest Huddle".
+    // "Latest" (not "Today's") because the Huddle is the next-day plan sent the evening
+    // before, so a day-relative label is inaccurate by the time staff read it.
+    await fanOutPush(buildPushPayload({
+        feature: 'huddle',
+        body:    'Tap to read the latest day plan.',
+        baseUrl: STAFF_SITE_URL,
+    }), '[push]');
+    console.log(`[push] Huddle notification sent for ${huddleDate}`);
 }
 
 /**
@@ -585,12 +621,14 @@ async function sendPayPushNotifications(payday, vapidPrivate) {
     const paydayDay = payday.toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'Europe/London' });
     const paydayFmt = payday.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', timeZone: 'Europe/London' });
 
-    await fanOutPush({
-        title: `💷 Payday is ${paydayDay}!`,
-        body:  `Hours cutoff today — open the Pay Calculator to estimate your ${paydayFmt} pay`,
-        tag:   'pay-reminder',
-        url:   `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
-    }, '[payReminder]');
+    // Event-reminder grammar (.claude/rules/notifications.md): "💷 <Event> — <urgency>",
+    // calm/no-exclamation tone, action in the body.
+    await fanOutPush(buildPushPayload({
+        feature:  'pay',
+        headline: `Payday ${paydayDay} — hours cutoff today`,
+        body:     `Open the Pay Calculator to estimate your ${paydayFmt} pay.`,
+        url:      `${STAFF_SITE_URL}/paycalc.html?payday=${paydayISO}`,
+    }), '[payReminder]');
     console.log(`[payReminder] Pay reminder sent — payday ${paydayISO}`);
 }
 
