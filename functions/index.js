@@ -441,10 +441,18 @@ exports.onHuddleCreated = onDocumentCreated(
 // ============================================================================
 // onCircularCreated / onNewsletterCreated — Firestore triggers
 // ============================================================================
-// Circulars and newsletters are browser-upload-only (no Power Automate path), so
-// unlike the Huddle there is no double-send concern — the create trigger is the
-// single notification source. Fires on CREATE only, so re-uploading a correction
-// to the same date (setDoc overwrite = UPDATE) does not re-notify.
+// Circulars and newsletters are browser-upload-only today, so unlike the Huddle there
+// is no double-send concern — the create trigger is the single notification source.
+// Fires on CREATE only, so re-uploading a correction to the same date (setDoc overwrite
+// = UPDATE) does not re-notify.
+//
+// FUTURE — Power Automate automation: this trigger fires on doc CREATE regardless of
+// WHO writes it (Firestore triggers fire for Admin SDK writes too). So a future
+// ingestCircular/ingestNewsletter Cloud Function only needs to WRITE the Firestore doc —
+// the push is sent automatically here, no notification code to add. Crucially, that
+// future ingest must NOT also fan out push inline (the way ingestHuddle does): doing so
+// would double-notify and force the same `uploadedBy === 'power-automate'` guard the
+// Huddle needs. Keep the trigger as the single source. See .claude/rules/notifications.md.
 
 /** Fan out a document-arrival push for a circular/newsletter, to the design language. */
 async function sendDocPushNotifications(feature, body, vapidPrivate) {

@@ -549,7 +549,7 @@ uploadedBy   Member name string
 ```
 Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
 Written by: `uploadCircular(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestCircular()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Weekly Retail Circular.
+Read by: `getLatestCircular()` in `firebase-client.js`, called from `calendar-doc-viewer.js` when the `#circular` viewer opens (the ☰ → Weekly Retail Circular link and Circular notification taps both deep-link to `index.html#circular`).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 **newsletters** (v13.59)
@@ -564,7 +564,7 @@ uploadedBy   Member name string
 ```
 Read: open (no auth required — `calendar-app.js` has no session; matches Huddle model). Write: admin only (Storage rules also enforce PDF-only, ≤20 MB).
 Written by: `uploadNewsletter(date, file, uploadedBy)` in `firebase-client.js`, called from `operations-app.js`.
-Read by: `getLatestNewsletter()` in `firebase-client.js`, called from `nav-panel.js` when staff tap ☰ → Marylebone Newsletter.
+Read by: `getLatestNewsletter()` in `firebase-client.js`, called from `calendar-doc-viewer.js` when the `#newsletter` viewer opens (the ☰ → Marylebone Newsletter link and Newsletter notification taps both deep-link to `index.html#newsletter`).
 Auto-prunes: documents older than 6 months are deleted (Firestore doc + Storage file) fire-and-forget on every upload via `_pruneOldDocs()` in `firebase-client.js`.
 
 Override cache key: `"memberName|YYYY-MM-DD"`
