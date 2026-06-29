@@ -1,9 +1,11 @@
 # ARCHITECTURE_PLAN.md — Auth/session consolidation (Track 1) and supporting refactors
 
-*Status: **Phase 0 (characterisation net) complete v14.57** — identity layer (`session.test.mjs`,
-43 tests) + claim layer (`firestore.rules.test.mjs` B2 tests) fully pin current intended behaviour;
-the page-policy layer is pinned by flag-ON e2e and completes per-coordinator during Track 3. Phase 1
-(the pure `auth-state-core.js` reducer) is the next step. Companion to `SECURITY_RELEASE_PLAN.md`.
+*Status: **Phase 0 (characterisation net) + Phase 1 (pure reducer) complete (v14.57–v14.58).**
+Phase 0: identity layer (`session.test.mjs`, 43) + claim layer (`firestore.rules.test.mjs` B2) pin
+current intended behaviour; page-policy layer pinned by flag-ON e2e, completes per-coordinator in
+Track 3. Phase 1: `auth-state-core.js` — the pure `reduceAuthState` state machine, 24 tests, not yet
+wired in. **Phase 2 (the `auth-state.js` Firebase/localStorage shell + the `sessionReady` re-impl on
+top of it) is the next step.** Companion to `SECURITY_RELEASE_PLAN.md`.
 This plan is a **behaviour-preserving structural refactor** of how the app reasons about identity and
 page access. It must land **before B3** (the strict token-refresh sweep) and must NOT change runtime
 auth behaviour itself — B3 changes behaviour later, on top of the clean base this builds. Not
@@ -206,8 +208,14 @@ manager / designer claim present / missing / stale.
     Track 3 (Phases 4–7)**, not up front. This is the documented two-part split, now resolved:
     nothing further is needed before Phase 1.
 
-### Phase 1 — Pure reducer (`auth-state-core.js`)
-The functional core: `reduceAuthState(prev, event)`. No I/O. Heavily unit-tested. Not yet wired in.
+### Phase 1 — Pure reducer (`auth-state-core.js`) — ✅ DONE (v14.58)
+The functional core: `reduceAuthState(prev, event) → next` + `INITIAL_STATE` + `AUTH_STATUSES`. No
+I/O (no DOM/Firebase/localStorage). Seven identity states; eight events (RESOLVE_START / NAMED /
+ANONYMOUS / NONE / TRANSIENT / RETRY / FATAL / SIGN_OUT); unknown events inert; every result a new
+frozen object, never mutates prev. Maps 1:1 onto the Phase-0 outcomes. 24 tests in
+`auth-state-core.test.mjs` (each event, the RETRY-only-from-degraded guard, purity/immutability,
+and realistic lifecycles incl. transient-recover). **Not wired into anything** — behaviour
+unchanged. Listed in the SW precache lists + CLAUDE.md/AI_MAP so it ships ready for Phase 2.
 
 ### Phase 2 — Shell adapter (`auth-state.js`)
 Wrap Firebase/localStorage; internally delegate to today's `session.js` functions at first (safe).

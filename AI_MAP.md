@@ -241,6 +241,12 @@ Shared auth/session module — canonical source for session logic (v11.40).
 - `window._mybAuthError` — set on `ensureFirebaseSession()` failure; surfaced by `admin-auth.js` for diagnostics. Stores the primary Firebase error code, or `"${primaryCode} + anon:${anonCode}"` if the anonymous-sign-in fallback also failed.
 - Imported by: `admin-app.js`, `settings-app.js`, `operations-app.js`, `paycalc-app.js`, `links-app.js` (v12.49 / v13.74)
 
+### `auth-state-core.js`
+The PURE identity state machine — `ARCHITECTURE_PLAN.md` Track 1, **Phase 1** (v14.58). No DOM, no Firebase, no localStorage, no redirects: only `reduceAuthState(state, event) → state` + `INITIAL_STATE` + `AUTH_STATUSES`. **Not wired into anything yet** — the Phase-2 shell (`auth-state.js`) will translate real Firebase/localStorage signals into events and own the single in-flight resolution; this module owns ONLY the status-determination logic currently scattered across `ensureFirebaseSession`'s `_fbIdentity` writes.
+- States (identity facts, never page-auth outcomes): `initialising` / `resolving` / `named` / `anonymous` / `signedOut` / `degraded` / `error`. `needsLogin`/`forbidden` are policy outcomes (Phase 3), deliberately not states.
+- Events: `RESOLVE_START{member}` (member null = anonymous bootstrap), `NAMED{member}`, `ANONYMOUS`, `NONE{error}`→signedOut, `TRANSIENT{error}`→degraded (member preserved), `RETRY` (degraded→resolving only; no-op otherwise), `FATAL{error}`→error, `SIGN_OUT`→signedOut. Unknown event → state unchanged. Every result is a new frozen object; never mutates prev.
+- Maps 1:1 onto the Phase-0 characterisation outcomes (`session.test.mjs`). Tested by `auth-state-core.test.mjs` (24 tests).
+
 ### `operations-app.js`
 Coordinator for `operations.html` (admin-only, v10.99).
 - Session guard: reads the shared `myb_admin_session` localStorage key via `getSession()` from `session.js`; redirects to `admin.html` if not authenticated or not in `CONFIG.ADMIN_NAMES`
