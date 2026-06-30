@@ -611,3 +611,54 @@ session forgeable" + anonymous-fallback entries, this plan).
 5. **Enable** the flag (low-traffic check; client-side reversible) — then it's ready for B2.
 - **Gate to start B2:** B1 enabled and stable for a few days with no re-auth complaints, so no
   claim-less write sessions remain when B2's strict rule lands.
+
+---
+
+## Appendix: A2 — Workload Identity Federation runbook (scoped v14.93)
+
+**Goal:** retire the long-lived `FIREBASE_SERVICE_ACCOUNT` JSON key (today: `echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json` in all 3 deploy workflows) and authenticate CI with **short-lived GitHub OIDC tokens** instead — so there is no standing, full-project credential sitting in GitHub secrets.
+
+**Why it matters:** the SA JSON is a long-lived key with Hosting/Functions/Rules deploy rights. If it ever leaks (a careless log, a forked PR, a compromised action) it's a project compromise until manually rotated. WIF tokens last minutes and are cryptographically scoped to **this repo**. Isolated change — touches CI only, no app/runtime code, fully reversible.
+
+### What the OWNER does (GCP Console / gcloud) — one-time
+Needs: the project **number** (not id) and the SA email — the `client_email` inside the current `FIREBASE_SERVICE_ACCOUNT` secret JSON (e.g. `github-deployer@myb-roster.iam.gserviceaccount.com` or the `firebase-adminsdk-…` SA). Keep its existing deploy roles — WIF changes only *how* it's authenticated, not *what* it can do.
+1. Enable APIs (usually already on): `iamcredentials.googleapis.com`, `sts.googleapis.com`.
+2. Create a **Workload Identity Pool**, e.g. `github-pool`.
+3. Create an **OIDC Provider** in it, e.g. `github-provider`:
+   - Issuer: `https://token.actions.githubusercontent.com`
+   - Attribute mapping: `google.subject=assertion.sub`, `attribute.repository=assertion.repository`
+   - **Attribute CONDITION (the security boundary — do NOT skip):** `assertion.repository == 'Garethdavidmiller/roster-app'`
+4. Let the GitHub principal impersonate the SA — grant on the SA:
+   `roles/iam.workloadIdentityUser` to
+   `principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/attribute.repository/Garethdavidmiller/roster-app`
+5. Hand back two NON-secret values (store as GitHub repo *Variables*): the provider resource name
+   `projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/github-pool/providers/github-provider`, and the SA email.
+
+### What CLAUDE does (workflow YAML) — after the pool exists
+Per workflow, add job `permissions: { contents: read, id-token: write }` and replace the "Write service account key" step with:
+```yaml
+- uses: google-github-actions/auth@<pinned-sha>   # v2
+  with:
+    workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+    service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+```
+The auth action writes a short-lived credential file and exports `GOOGLE_APPLICATION_CREDENTIALS`, which `firebase deploy` already honours — so the deploy step itself is unchanged (just drop the `GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json` line).
+
+### Cutover sequence (de-risked — one workflow first)
+1. Owner builds the pool/provider/binding + sets the 2 repo Variables.
+2. Claude migrates **`deploy-rules.yml` only** (lowest frequency; gated by emulator tests). **Keep the secret in place.**
+3. `workflow_dispatch` a real rules deploy → confirm it succeeds via OIDC with no `/tmp/key.json` in the job log.
+4. Once proven, migrate `deploy-hosting.yml` + `deploy-functions.yml`; prove each.
+5. After all three are green on WIF for a release or two, owner **deletes the `FIREBASE_SERVICE_ACCOUNT` secret AND disables/deletes the SA JSON key in GCP** (the actual security win — do not skip this final rotation).
+
+### Risks & mitigations
+| Risk | Mitigation |
+|------|-----------|
+| Misconfig stops **all** deploys | One workflow first; secret kept as fallback; revert the YAML step to roll back instantly |
+| **Provider created without the repo condition** → ANY GitHub repo could impersonate the SA (serious exposure) | The `attribute.repository == '…/roster-app'` condition is mandatory; the impersonation binding is also scoped to the repo's principalSet |
+| `id-token: write` added to the job | Required for OIDC; scoped to the job, standard |
+| Functions deploy needs Cloud Build/Run/Artifact Registry roles | No change — WIF swaps the auth mechanism, not the SA's roles (which already work today) |
+| Using PROJECT_ID where PROJECT_NUMBER is required | WIF resource names use the numeric project **number** — easy to get wrong |
+| Old key left active after cutover (defeats the purpose) | The final rotate/delete is an explicit step 5, not optional |
+
+**Gate to start:** owner has created the pool + provider (with the repo condition) + binding and supplied the two Variables. **Until then, do NOT touch the workflow YAML** — migrating before the pool exists would break deploys.
