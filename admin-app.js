@@ -49,17 +49,18 @@ const currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
 const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
 // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
-/** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in, run the inline
- *  work-email check on top of the overlay (no jarring reload between sign-in and the email prompt
- *  — v13.68), then reload. Every page now signs in in place, so there is no ?redirect= return
- *  hop to honour any more. */
+/** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in, reload straight
+ *  into the app.
+ *  The work-email check is DELIBERATELY NOT awaited here (v14.74). It used to run inline on the
+ *  login overlay before the reload (v13.68), but it awaits a Firestore read (getStaffContact), and
+ *  the FIRST read after a fresh sign-in can take several seconds (connection + auth-token handshake
+ *  warming up) — which froze the user on the login overlay (the v14.72–73 login-freeze reports).
+ *  The check still runs on the very next page load via initEmailCheck() below, which is
+ *  async/non-blocking, so a slow read can never block sign-in again. */
 function showAdminLogin() {
     initLoginOverlay({
         pageLabel: 'Admin',
-        onSuccess: async (/** @type {string} */ name) => {
-            await _runEmailCheck(name);
-            window.location.reload();
-        },
+        onSuccess: () => { window.location.reload(); },
     });
 }
 
