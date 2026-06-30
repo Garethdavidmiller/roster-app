@@ -23,12 +23,12 @@
 
 | Secret | What it is |
 |--------|-----------|
-| `FIREBASE_SERVICE_ACCOUNT` | Service account key JSON with Functions deploy permissions |
+| ~~`FIREBASE_SERVICE_ACCOUNT`~~ | **Retired — no longer used.** All three deploy workflows now authenticate via **Workload Identity Federation** (short-lived GitHub OIDC tokens exchanged for the `github-deploy@myb-roster.iam.gserviceaccount.com` service account — pool `github-pool`, provider `github-provider`, repo-scoped by an `assertion.repository` condition). No long-lived key is stored in GitHub. Once the WIF cutover is merged, delete this secret and the old SA JSON key. See SECURITY_RELEASE_PLAN.md → Appendix A2. |
 | `HUDDLE_SECRET` | Bearer token for `ingestHuddle` — also set in Firebase Secret Manager |
 | `ANTHROPIC_API_KEY` | Claude AI key for `parseRosterPDF` — Firebase Secret Manager only |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push keys — Firebase Secret Manager only |
 
-**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting, added v8.14) · `deploy-rules.yml` (Firestore/Storage rules). The GitHub Pages staff mirror at `garethdavidmiller.github.io/roster-app/` is served by the **roster-app repo's own native Pages** ("pages build and deployment" — Settings → Pages → Deploy from `main`/root), so there is **no Pages workflow file**. (The old cross-repo `deploy-pages.yml` + `PAGES_DEPLOY_TOKEN` secret were removed v14.25: redundant — they pushed a copy to a separate bare-origin `garethdavidmiller.github.io` repo that nothing used, and failed on every run.)
+**Workflows:** `deploy-functions.yml` (functions only) · `deploy-hosting.yml` (PWA → Firebase Hosting, added v8.14) · `deploy-rules.yml` (Firestore/Storage rules). **All three authenticate via Workload Identity Federation** (`google-github-actions/auth`, pinned `v2.1.13`) — each job declares `permissions: id-token: write` and exchanges GitHub's OIDC token for short-lived credentials; there is no `FIREBASE_SERVICE_ACCOUNT` key file. The GitHub Pages staff mirror at `garethdavidmiller.github.io/roster-app/` is served by the **roster-app repo's own native Pages** ("pages build and deployment" — Settings → Pages → Deploy from `main`/root), so there is **no Pages workflow file**. (The old cross-repo `deploy-pages.yml` + `PAGES_DEPLOY_TOKEN` secret were removed v14.25: redundant — they pushed a copy to a separate bare-origin `garethdavidmiller.github.io` repo that nothing used, and failed on every run.)
 
 **⚠️ Firebase API key referrer restriction — add every domain the app is served from:**
 The Firebase web API key is restricted to specific HTTP referrers in GCP Console → APIs & Services → Credentials. If a domain is missing, **every Firebase Auth call silently fails** — sign-ins, Firestore writes, and push subscriptions all break with no visible error in the app UI. Current allowlist must include:

@@ -58,9 +58,9 @@ jobs:
       # github-deploy service account. The action writes an external_account credential
       # file and exports GOOGLE_APPLICATION_CREDENTIALS, which the Firebase CLI picks up
       # automatically — so the deploy steps below need no explicit credential wiring.
-      # This is the CANARY workflow: it proves WIF before deploy-hosting.yml and
-      # deploy-functions.yml migrate. Those two intentionally still use the
-      # FIREBASE_SERVICE_ACCOUNT secret as the fallback until WIF is confirmed here.
+      # This was the CANARY workflow that proved WIF first; deploy-hosting.yml and
+      # deploy-functions.yml now authenticate the same way. The FIREBASE_SERVICE_ACCOUNT
+      # secret is retired — no deploy workflow references a key file any more.
       # Full plan + cutover sequence: SECURITY_RELEASE_PLAN.md → Appendix A2.
       - name: Authenticate to Google Cloud (Workload Identity Federation)
         uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
