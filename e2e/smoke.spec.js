@@ -114,6 +114,75 @@ test('admin: login overlay renders with JS-populated grade options', async ({ pa
     expect(errors, 'Uncaught JS exceptions on admin.html').toHaveLength(0);
 });
 
+// ── LOGIN OVERLAY — the actual sign-in click flow (DOM-level, v14.79) ──────
+// The unit suite (login-overlay.test.mjs) tests the DOM-free core (runNamedSignIn); these drive
+// the REAL overlay markup + wiring in a browser — selecting grade/name, typing the surname
+// password, clicking Sign in — which is where the v14.72–75 freeze regressions actually lived.
+
+// Helper: select the first real grade, then its first member, and return that member's expected
+// surname password (mirrors normaliseSurname in firebase-client.js: drop the initial, keep the
+// surname, lowercase, strip non-alpha).
+async function pickFirstMemberAndPassword(page) {
+    await expect(page.locator('#loginGrade option').nth(1)).toBeAttached();
+    await page.locator('#loginGrade').selectOption({ index: 1 });
+    await expect(page.locator('#loginName option').nth(1)).toBeAttached();
+    const name = await page.locator('#loginName option').nth(1).getAttribute('value');
+    await page.locator('#loginName').selectOption(name);
+    const pw = name.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return { name, pw };
+}
+
+test('login overlay: while auth is in flight, button shows "Signing in…", no session is saved, and Back is inert', async ({ page }) => {
+    // Make Firebase sign-in hang forever so we can observe the in-flight UI deterministically.
+    await page.addInitScript(() => { window.__E2E = { hangSignIn: true }; });
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+
+    const { pw } = await pickFirstMemberAndPassword(page);
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+
+    // In-flight: the button is disabled with the progress label, and NO local session exists yet —
+    // the whole point of the v14.75 fix is that saveSession runs only AFTER auth resolves.
+    await expect(page.locator('#loginSubmit')).toHaveText('Signing in…');
+    await expect(page.locator('#loginSubmit')).toBeDisabled();
+    const session = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(session, 'no local session may be written while auth is pending').toBeNull();
+
+    // The Back link is marked inert (v14.79). Dispatching a click (bypassing the CSS pointer-events
+    // guard) must hit the JS preventDefault guard, so the page does NOT navigate away mid sign-in.
+    await expect(page.locator('.login-back')).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator('.login-back')).toHaveClass(/login-back--busy/);
+    await page.locator('.login-back').dispatchEvent('click');
+    await page.waitForTimeout(150);
+    await expect(page, 'Back link must not navigate during an in-flight sign-in').toHaveURL(/admin\.html/);
+    const stillNone = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(stillNone, 'still no session after the (blocked) Back click').toBeNull();
+});
+
+test('login overlay: a failed named sign-in (B1 on) shows an error, restores the button, re-enables Back, writes no session', async ({ page }) => {
+    // Enforce named sessions AND force sign-in to fail → runNamedSignIn returns ok:false.
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+
+    const { pw } = await pickFirstMemberAndPassword(page);
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+
+    // Failure path: an error is shown, the button returns to its idle label, and no session is saved.
+    await expect(page.locator('#loginError')).toBeVisible();
+    await expect(page.locator('#loginSubmit')).toHaveText('Sign in →');
+    await expect(page.locator('#loginSubmit')).toBeEnabled();
+    const session = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(session, 'a failed enforced sign-in must not write a local session').toBeNull();
+
+    // Back link is no longer inert once the attempt settled.
+    await expect(page.locator('.login-back')).not.toHaveClass(/login-back--busy/);
+    await expect(page.locator('.login-back')).not.toHaveAttribute('aria-disabled', 'true');
+});
+
 // ── PAY CALCULATOR (paycalc.html) ─────────────────────────────────────────
 
 test('paycalc: shows the in-place login when not signed in (no redirect)', async ({ page }) => {

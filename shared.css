@@ -1695,6 +1695,10 @@ button.nav-panel-link--notices {
     transition: color 0.12s;
 }
 @media (hover: hover) and (pointer: fine) { .login-back:hover { color: var(--text-dark); } }
+/* While a sign-in is genuinely in flight the Back link is inert — leaving mid-submit is the
+   "half signed-in" escape route the v14.75 login fix closed (JS preventDefault is the real guard;
+   this just makes the disabled state visible). */
+.login-back--busy { opacity: 0.4; pointer-events: none; cursor: default; }
 
 
 /* ══════════════════════════════════════════════════════════════════

@@ -137,12 +137,21 @@ is now owned solely by `attempt()`'s inner `finally` (keyed on `_lockedUntil`, n
   treats `myb_email_check_done_<member>` as the last-confirmed timestamp and re-prompts every ~3 months
   (`EMAIL_CHECK_INTERVAL_MS`); `_dismiss()` stamps the time. Legacy `'1'` flags read as due so the
   cadence starts cleanly. See CLAUDE.md "Work email check" decision.
-- **Login-click-path tests (review's test list):** the suite covers session helpers + overlay
-  presence but NOT the full sign-in click flow — which is why these regressions slipped through. Add:
-  (1) no local session written while the auth promise is pending; (2) session saved only on success;
-  (3) auth timeout leaves no session + restores the button; (4) email check doesn't run merely
-  because Admin has a local session; (5) the old v14.67 hang regression. Needs DOM-mocked
-  `initLoginOverlay` (firebase-client/session/ls/roster-data mocked, like `session.test.mjs`).
+- **Login-click-path tests (review's test list) — ✅ DONE (v14.79).** Added two DOM-level Playwright
+  tests that drive the REAL overlay (select grade/name, type the surname password, click Sign in),
+  not just the pure `runNamedSignIn` core: (1) while Firebase auth is in flight (`__E2E.hangSignIn`
+  fixture hook → sign-in never resolves) the button reads "Signing in…", **no** `myb_admin_session`
+  is written, and the Back link is inert; (2) a failed enforced sign-in (`enforceNamedSession` +
+  `__E2E.failSignIn`) shows an error, restores the "Sign in →" button, re-enables Back, and writes no
+  session. e2e count 68 → 72. (The "no save while pending / save only on success / timeout path"
+  logic also stays covered by the pure `login-overlay.test.mjs`.)
+- **Back-link hardening during sign-in — ✅ DONE (v14.79, from the external review of v14.78).** The
+  `← Back to roster` anchor in `login-overlay.js` previously had no guard, so a mid-submit tap could
+  navigate away during the auth round trip and re-open the half-signed-in escape route the v14.75 fix
+  closed (Escape was already guarded; the anchor was not). Fix: a `_signingIn` flag (true ONLY during
+  the Firebase round trip, NOT during a 30s password lockout — so a lockout still lets you reach the
+  public roster) drives a `preventDefault` click guard plus a visible inert state (`.login-back--busy`
+  in `shared.css` + `aria-disabled`); both are cleared in `attempt()`'s `finally`.
 - **Confirm the live PWA is actually serving the latest version**, not stale SW cache, when testing —
   About panel shows the version; or DevTools: `fetch('./roster-data.js?b='+Date.now()).then(r=>r.text()).then(t=>console.log(t.match(/APP_VERSION = '([\d.]+)'/)))`.
 

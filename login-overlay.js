@@ -127,6 +127,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const passwordInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginPassword'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
+    const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
 
     overlay.classList.add('visible');
     lockBodyScroll();
@@ -179,6 +180,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     let _failCount   = 0;
     let _lockedUntil = 0;
     let _attempting  = false;
+    let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
     // This client-side lockout is a UX measure only — it resets on page reload. Real rate
     // limiting is enforced server-side by Firebase Auth.
 
@@ -222,9 +224,14 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
             lsSet(GRADE_KEY, gradeSelect.value);
             // Visible in-progress state — establishing the Firebase session is a network round trip,
-            // so the button must not look idle (and silently swallow taps) while we wait.
+            // so the button must not look idle (and silently swallow taps) while we wait. The Back
+            // link is also made inert for this window (see the .login-back guard below) so a mid-
+            // submit "Back to roster" tap can't strand the user in the half signed-in state.
             submitBtn.disabled = true;
             submitBtn.textContent = 'Signing in…';
+            _signingIn = true;
+            backLink.classList.add('login-back--busy');
+            backLink.setAttribute('aria-disabled', 'true');
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
@@ -254,8 +261,18 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // an early-returned (mutex-held) call would otherwise clear the flag mid-flight and let a
             // concurrent attempt start. `_attempting` is owned solely here + in the lockout timer.
             if (Date.now() >= _lockedUntil) _attempting = false;
+            // Auth is no longer in flight once attempt() settles (the success path has already left
+            // the page, so re-enabling Back here is moot for it but correct for every other exit).
+            _signingIn = false;
+            backLink.classList.remove('login-back--busy');
+            backLink.removeAttribute('aria-disabled');
         }
     }
+
+    // Don't abandon an in-flight sign-in via the Back link — same intent as the Escape guard above.
+    // Gated on `_signingIn` (true ONLY during the Firebase round trip), NOT on submitBtn.disabled,
+    // so a mere 30s password lockout still lets the user escape to the public roster.
+    backLink.addEventListener('click', e => { if (_signingIn) e.preventDefault(); });
 
     submitBtn.addEventListener('click', () => { attempt().catch(() => {}); });
     passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().catch(() => {}); });
