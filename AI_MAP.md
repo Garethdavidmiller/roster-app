@@ -1,6 +1,6 @@
 # AI_MAP.md — Claude routing guide for MYB Roster
 
-*Last updated: June 2026 — v14.80 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.90 · Updated every 0.10 version*
 
 Use this file to decide which source file to read or edit for a given task.
 Read CLAUDE.md first for project identity, version bumping rules, and architecture constraints.
@@ -473,7 +473,8 @@ Single Firestore initialisation point — import `db` and Firestore helpers from
 - `getStaffContact(memberName)` / `saveStaffContact(memberName, workEmail)` / `deleteStaffContact(memberName)` / `getAllStaffContacts()` — `staffContact` collection; singular helpers called from `settings-app.js`; `getAllStaffContacts` called from `operations-app.js`
 - `logClientError(data)` / `getClientErrors()` / `resolveClientError(id)` — `clientErrors` collection (v13.31); `logClientError` called from `error-reporter.js`, read/resolve called from `operations-app.js`. Ordering/retention policy delegated to `client-errors.js` (v13.48).
 - `recordPageView(pageId)` / `recordActiveAccount({month, day})` / `getUsageStats()` — anonymous `analytics` usage counters (v14.14). `recordPageView`/`recordActiveAccount` are increment-only fire-and-forget, called from `usage-reporter.js`; `getUsageStats` reads the page-view + active-account docs (and prunes stale daily buckets) for the `operations-app.js` Usage card. Date/aggregation maths delegated to `usage-stats.js`. No member identity is stored — uniqueness is deduped client-side in `usage-reporter.js`.
-- `recordPerfSample({page, metric, bucket, mode, conn})` — anonymous page-load latency counter (Project 0, v14.89), increment-only fire-and-forget into `analytics/perf_<YYYY-MM>.samples[<key>]`. Called from `perf-reporter.js`; the key is built by `perf-stats.perfSampleKey` from `APP_VERSION` + the dimensions (all non-identifying — no member, no raw ms). The Operations read/dashboard for this data is a deliberate follow-up.
+- `recordPerfSample({page, metric, bucket, mode, conn})` — anonymous page-load latency counter (Project 0, v14.89), increment-only fire-and-forget into `analytics/perf_<YYYY-MM>.samples[<key>]`. Called from `perf-reporter.js`; the key is built by `perf-stats.perfSampleKey` from `APP_VERSION` + the dimensions (all non-identifying — no member, no raw ms).
+- `getPerfStats()` — admin-only read for the Operations "App speed" card (v14.90): reads `analytics/perf_<YYYY-MM>` and returns the plain-language summary (overall + per-page quick/ok/slow bands) from the pure `perf-stats.summarisePerf` for the `domReady` metric. The card render (`initPageSpeedCard` in `operations-app.js`) maps it to a verdict + per-page speed bars; bucketing/verdict maths is the pure `perf-stats.js` module.
 - `uploadCircular(date, file, uploadedBy)` — writes PDF to `circulars/{date}-{uploadId}.pdf` in Firebase Storage (versioned path; old file deleted after Firestore commit succeeds) and upserts the `circulars/{date}` Firestore doc (includes `storagePath` field for cleanup tracking); also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.58, versioned path v13.99)
 - `getLatestCircular()` — queries `circulars` collection, returns latest doc's data (with `storageUrl`) or null; called from `nav-panel.js` (☰ direct open) and `calendar-doc-viewer.js` (notification-tap viewer) (v13.58)
 - `uploadNewsletter(date, file, uploadedBy)` — writes PDF to `newsletters/{date}-{uploadId}.pdf` in Firebase Storage (versioned path; old file deleted after Firestore commit succeeds) and upserts the `newsletters/{date}` Firestore doc (includes `storagePath` field for cleanup tracking); also fire-and-forget prunes documents older than 6 months via `_pruneOldDocs()` after each upload; called from `operations-app.js` (v13.59, versioned path v13.99)
@@ -498,7 +499,9 @@ Anonymous page-load latency recorder (Project 0 instrumentation, v14.89) — the
 Pure latency maths for the perf pipeline — no DOM, no Firebase, no timing reads. Imported by `firebase-client.js` and `perf-reporter.js`; tested by `perf-stats.test.mjs`.
 - `PERF_BUCKETS` — the five coarse, map-key-safe duration buckets (`lt500ms` … `over8s`)
 - `bucketDuration(ms)` — ms → a bucket id, or `null` for a non-finite/negative value (skip the sample)
-- `perfSampleKey({version,page,metric,bucket,mode,conn})` / `parsePerfSampleKey(key)` — the pipe-joined Firestore map key and its inverse (the only dimensions recorded — all non-identifying)
+- `perfSampleKey({version,page,metric,bucket,mode,conn})` / `parsePerfSampleKey(key)` — the pipe-joined Firestore map key and its inverse (sanitises the version's dots → `_`, since a `.` is a Firestore field-path hazard in a map key)
+- `SPEED_GROUPS` — the three plain-language bands (`quick`/`ok`/`slow`) the buckets roll up into, with labels + tone, for the Operations "App speed" card
+- `summarisePerf(samples, {metric})` — rolls the raw samples into overall + per-page quick/ok/slow band counts (and percentages) for one metric; `perfVerdict(overall)` — a one-line plain-English verdict + status tone. Both pure, tested.
 
 ### `client-errors.js`
 Pure error-log ordering and retention logic — no DOM, no Firebase. Imported by `firebase-client.js` only.

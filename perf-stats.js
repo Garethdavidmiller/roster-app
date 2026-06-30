@@ -52,3 +52,73 @@ export function parsePerfSampleKey(key) {
     const [version, page, metric, bucket, mode, conn] = String(key).split('|');
     return { version, page, metric, bucket, mode, conn };
 }
+
+// ── Plain-language summary for the Operations "App speed" card ──────────────────
+// The fine PERF_BUCKETS roll up into THREE non-technical speed bands. A non-technical admin reads
+// "Quick / A moment / Slow", never milliseconds. Order matters: good → bad (drives bar/legend order).
+/** @typedef {{ label: string, sub: string, tone: 'good'|'ok'|'bad', buckets: string[] }} SpeedGroup */
+/** @type {Record<'quick'|'ok'|'slow', SpeedGroup>} */
+export const SPEED_GROUPS = {
+    quick: { label: 'Quick',    sub: 'under 1 second', tone: 'good', buckets: ['lt500ms', '500ms-1s'] },
+    ok:    { label: 'A moment', sub: '1 to 3 seconds', tone: 'ok',   buckets: ['1-3s'] },
+    slow:  { label: 'Slow',     sub: 'over 3 seconds', tone: 'bad',  buckets: ['3-8s', 'over8s'] },
+};
+
+/** bucket id → speed group id ('quick'|'ok'|'slow'). */
+const _BUCKET_GROUP = (() => {
+    /** @type {Record<string, 'quick'|'ok'|'slow'>} */ const m = {};
+    for (const g of /** @type {Array<'quick'|'ok'|'slow'>} */ (Object.keys(SPEED_GROUPS))) {
+        for (const b of SPEED_GROUPS[g].buckets) m[b] = g;
+    }
+    return m;
+})();
+
+/** @param {{quick:number, ok:number, slow:number}} g → adds total + integer percentages. */
+function _withPct(g) {
+    const total = g.quick + g.ok + g.slow;
+    const pct = (/** @type {number} */ n) => (total ? Math.round((n / total) * 100) : 0);
+    return { quick: g.quick, ok: g.ok, slow: g.slow, total, pctQuick: pct(g.quick), pctOk: pct(g.ok), pctSlow: pct(g.slow) };
+}
+
+/**
+ * Roll the raw `analytics/perf_<month>.samples` map up into the three speed bands — overall and
+ * per page — for ONE metric (default 'domReady', i.e. how fast the page opened). PURE; no identity
+ * is involved (the keys never carry one). Malformed/zero counts are skipped.
+ * @param {Record<string, number>} samples
+ * @param {{ metric?: string }} [opts]
+ * @returns {{ total: number, overall: ReturnType<typeof _withPct>, byPage: Array<{ page: string } & ReturnType<typeof _withPct>> }}
+ */
+export function summarisePerf(samples, { metric = 'domReady' } = {}) {
+    const overall = { quick: 0, ok: 0, slow: 0 };
+    /** @type {Record<string, {quick:number, ok:number, slow:number}>} */
+    const pages = {};
+    let total = 0;
+    for (const [key, raw] of Object.entries(samples || {})) {
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        const { page, metric: mtr, bucket } = parsePerfSampleKey(key);
+        if (mtr !== metric) continue;
+        const group = _BUCKET_GROUP[bucket];
+        if (!group || !page) continue;
+        overall[group] += n;
+        (pages[page] || (pages[page] = { quick: 0, ok: 0, slow: 0 }))[group] += n;
+        total += n;
+    }
+    const byPage = Object.keys(pages)
+        .map(p => ({ page: p, ..._withPct(pages[p]) }))
+        .sort((a, b) => b.total - a.total || a.page.localeCompare(b.page));
+    return { total, overall: _withPct(overall), byPage };
+}
+
+/**
+ * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
+ * ≥20% slow → bad; else ≥80% quick → good; else ok. Empty → a "still building up" message.
+ * @param {ReturnType<typeof _withPct>} overall
+ * @returns {{ tone: 'good'|'ok'|'bad'|'none', text: string }}
+ */
+export function perfVerdict(overall) {
+    if (!overall || !overall.total) return { tone: 'none', text: 'Not enough data yet — this builds up as staff use the app.' };
+    if (overall.pctSlow >= 20)  return { tone: 'bad',  text: 'Some staff are waiting too long for pages to open.' };
+    if (overall.pctQuick >= 80) return { tone: 'good', text: 'Pages are opening quickly for staff.' };
+    return { tone: 'ok', text: 'Pages mostly open quickly, with some slower loads.' };
+}

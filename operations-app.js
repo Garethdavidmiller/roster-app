@@ -10,7 +10,8 @@
  */
 
 import { CONFIG, teamMembers, formatISO, isValidEmail, escapeHtml } from './roster-data.js';
-import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats } from './firebase-client.js';
+import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats, getPerfStats } from './firebase-client.js';
+import { SPEED_GROUPS, perfVerdict } from './perf-stats.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
@@ -168,6 +169,7 @@ export function init() {
     initCardCollapse('workEmailToggleHeader',   'workEmailBody',   'workEmailChevron');
     initCardCollapse('errorLogToggleHeader',   'errorLogBody',   'errorLogChevron');
     initCardCollapse('usageToggleHeader',   'usageBody',   'usageChevron');
+    initCardCollapse('pageSpeedToggleHeader',   'pageSpeedBody',   'pageSpeedChevron');
 
     // ============================================
     // WORK EMAIL PROGRESS
@@ -752,6 +754,22 @@ export function init() {
                     ]},
                 ],
             },
+            'page-speed': {
+                title: 'App speed',
+                sections: [
+                    { heading: 'What it shows', items: [
+                        { icon: '⚡', html: 'How long pages took to <strong>open</strong> for staff this month, grouped into <strong>Quick</strong> (under 1s), <strong>A moment</strong> (1–3s) and <strong>Slow</strong> (over 3s)' },
+                        { icon: '📄', html: 'The bar for each page shows the mix — a page with a lot of red is opening slowly for some staff' },
+                    ]},
+                    { heading: 'How to read it', items: [
+                        { icon: '🟢', html: 'Mostly green is healthy. A page is usually slower on a <strong>weak phone signal</strong> or right after an <strong>app update</strong> (the first load rebuilds the cache)' },
+                        { icon: '🔴', html: 'If a page is <strong>consistently</strong> red across many loads, that\'s worth raising — it\'s not just one person on a bad connection' },
+                    ]},
+                    { heading: 'Privacy', items: [
+                        { icon: '🔒', html: 'Completely <strong>anonymous</strong> — it records <em>how fast</em> pages opened, never <em>who</em> opened them. No names are stored' },
+                    ]},
+                ],
+            },
             'error-log': {
                 title: 'Error Log',
                 sections: [
@@ -960,6 +978,92 @@ export function init() {
         } catch (e) {
             content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load usage — check your connection and reload.</p>';
             console.error('[Usage]', e);
+        }
+    })();
+
+    // ── App speed card (Project 0 latency, surfaced in plain language) ──────────────
+    (async function initPageSpeedCard() {
+        const content = document.getElementById('pageSpeedContent');
+        if (!content) return;
+
+        /** @type {Record<string, {emoji: string, label: string}>} */
+        const PAGE_META = {
+            calendar:   { emoji: '📅', label: 'Calendar' },
+            admin:      { emoji: '📝', label: 'Admin' },
+            paycalc:    { emoji: '💷', label: 'Pay calculator' },
+            operations: { emoji: '🔧', label: 'Operations' },
+            settings:   { emoji: '⚙️', label: 'Settings' },
+            links:      { emoji: '🔗', label: 'Links' },
+        };
+        const TONE_CLASS = { good: 'good', ok: 'ok', bad: 'bad', none: 'none' };
+        /** width:% segments (good/ok/slow) from a {quick,ok,slow,total} band row.
+         *  @param {{quick:number, ok:number, slow:number, total:number}} b */
+        const segs = (b) => {
+            if (!b.total) return '';
+            const w = (/** @type {number} */ n) => (n / b.total) * 100;
+            return `<span class="speed-seg speed-seg--good" style="width:${w(b.quick)}%"></span>` +
+                   `<span class="speed-seg speed-seg--ok"   style="width:${w(b.ok)}%"></span>` +
+                   `<span class="speed-seg speed-seg--bad"  style="width:${w(b.slow)}%"></span>`;
+        };
+
+        try {
+            await sessionReady;
+            const stats = await adminReadWithRetry(getPerfStats);
+            const verdict = perfVerdict(stats.overall);
+            content.innerHTML = '';
+
+            // Headline verdict — big % "quick" + a plain-English sentence, tinted by tone.
+            const v = document.createElement('div');
+            v.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
+            const sub = stats.total
+                ? `${stats.overall.pctQuick}% opened in under a second this month.`
+                : 'It fills in as staff open the app over the coming days.';
+            v.innerHTML =
+                `<span class="speed-verdict-num">${stats.total ? stats.overall.pctQuick + '%' : '—'}</span>` +
+                `<span class="speed-verdict-text">${verdict.text}<span class="speed-verdict-sub">${sub}</span></span>`;
+            content.appendChild(v);
+
+            if (stats.total) {
+                // Legend — the three plain-language bands.
+                const legend = document.createElement('div');
+                legend.className = 'speed-legend';
+                legend.innerHTML = /** @type {Array<'quick'|'ok'|'slow'>} */ (['quick', 'ok', 'slow']).map(g => {
+                    const grp = SPEED_GROUPS[g];
+                    return `<span class="speed-legend-item"><span class="speed-dot speed-dot--${grp.tone}"></span>${grp.label} <span class="speed-legend-sub">(${grp.sub})</span></span>`;
+                }).join('');
+                content.appendChild(legend);
+
+                // Per-page breakdown.
+                const heading = document.createElement('p');
+                heading.className = 'usage-section-label';
+                heading.textContent = `By page — ${_usageMonthLabel(stats.month)}`;
+                content.appendChild(heading);
+
+                const rows = document.createElement('div');
+                rows.className = 'speed-rows';
+                stats.byPage.forEach(p => {
+                    const meta  = PAGE_META[p.page];
+                    const emoji = meta ? meta.emoji : '📄';
+                    const label = meta ? meta.label : escapeHtml(p.page);
+                    const row = document.createElement('div');
+                    row.className = 'speed-row';
+                    row.innerHTML =
+                        `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                        `<span class="speed-bar" role="img" aria-label="${p.pctQuick}% quick, ${p.pctOk}% a moment, ${p.pctSlow}% slow">${segs(p)}</span>` +
+                        `<span class="speed-row-count">${p.total.toLocaleString('en-GB')}</span>`;
+                    rows.appendChild(row);
+                });
+                content.appendChild(rows);
+            }
+
+            const note = document.createElement('p');
+            note.className = 'usage-note';
+            note.textContent = 'Speeds are how long a page took to open. Anonymous — never who.';
+            content.appendChild(note);
+
+        } catch (e) {
+            content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load app speed — check your connection and reload.</p>';
+            console.error('[AppSpeed]', e);
         }
     })();
 

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v14.80 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.90 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `14.80` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `14.90` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -135,7 +135,7 @@ See `AI_MAP.md` for full module descriptions and export lists.
 roster-app/
 ├── index.html              ← main PWA app (HTML + CSS only)
 ├── admin.html              ← staff self-service portal: AL booking, absence, override list
-├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Usage, Staff Login Accounts
+├── operations.html         ← admin-only: Huddle upload, Circular upload, Newsletter upload, Roster upload, Work Email Progress, Error Log, Usage, App Speed (Project 0 latency), Staff Login Accounts
 ├── settings.html           ← Notifications, Work Email
 ├── paycalc.html            ← pay calculator (HTML + CSS only)
 ├── calendar-app.js         ← coordinator for index.html: event wiring, month navigation, Team Week View, notification wiring

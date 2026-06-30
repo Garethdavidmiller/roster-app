@@ -747,3 +747,87 @@ select:focus-visible, input:focus-visible {
     color: var(--text-mid);
     margin: 12px 0 0;
 }
+
+/* ── App speed card (Project 0 latency, plain-language) ───────────────────────── */
+/* Fill colours for the speed bands. --warning-amber is a dark TEXT amber (low lightness); as a
+   swatch/bar fill it reads brown, so brighten it toward the brand gold for an obvious "amber". */
+:root {
+    --speed-good: var(--success-green);
+    --speed-ok:   color-mix(in oklch, var(--warning-amber) 42%, var(--accent-gold));
+    --speed-bad:  var(--error-red);
+}
+.speed-verdict {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1.5px solid var(--border-light);
+    margin-bottom: 14px;
+}
+.speed-verdict-num {
+    font-size: var(--type-xl);
+    font-weight: 800;
+    line-height: 1;
+    flex: none;
+}
+.speed-verdict-text { font-size: var(--type-small); line-height: 1.4; color: var(--text-dark); }
+.speed-verdict-sub  { display: block; color: var(--text-mid); margin-top: 2px; }
+/* Tone tints — green good / amber ok / red bad / neutral none. */
+.speed-verdict--good { background: var(--success-green-bg);                              border-color: var(--success-green-border); }
+.speed-verdict--good .speed-verdict-num { color: var(--success-green); }
+.speed-verdict--ok   { background: color-mix(in oklch, var(--warning-amber) 12%, white); border-color: color-mix(in oklch, var(--warning-amber) 45%, white); }
+.speed-verdict--ok   .speed-verdict-num { color: var(--warning-amber); }
+.speed-verdict--bad  { background: var(--error-bg);                                      border-color: color-mix(in oklch, var(--error-red) 35%, white); }
+.speed-verdict--bad  .speed-verdict-num { color: var(--error-red); }
+.speed-verdict--none .speed-verdict-num { color: var(--text-mid); }
+
+.speed-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-bottom: 12px;
+    font-size: var(--type-small);
+    color: var(--text-mid);
+}
+.speed-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.speed-legend-sub  { color: var(--text-light); }
+.speed-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.speed-dot--good { background: var(--speed-good); }
+.speed-dot--ok   { background: var(--speed-ok); }
+.speed-dot--bad  { background: var(--speed-bad); }
+
+.speed-rows { display: flex; flex-direction: column; gap: 8px; }
+.speed-row {
+    display: grid;
+    grid-template-columns: minmax(90px, 38%) 1fr auto;
+    align-items: center;
+    gap: 10px;
+}
+.speed-row-label {
+    font-size: var(--type-small);
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.speed-bar {
+    display: flex;
+    height: 12px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--surface-sunken);
+    border: 1px solid var(--border-light);
+}
+.speed-seg { height: 100%; }
+.speed-seg--good { background: var(--speed-good); }
+.speed-seg--ok   { background: var(--speed-ok); }
+.speed-seg--bad  { background: var(--speed-bad); }
+.speed-row-count {
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: var(--primary-blue);
+    font-variant-numeric: tabular-nums;
+    min-width: 2.5ch;
+    text-align: right;
+}
