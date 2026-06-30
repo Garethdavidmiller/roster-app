@@ -22,6 +22,7 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
+import { recordPageLatency } from './perf-reporter.js';
 import { lsGet, lsSet } from './ls.js';
 import {
     DAYS,
@@ -1537,7 +1538,7 @@ export function init() {
             }
         },
     });
-    sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); });
+    sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links'); });
 
     // ============================================
     // BOOT

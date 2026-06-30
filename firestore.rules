@@ -322,7 +322,16 @@ service cloud.firestore {
           (docId == 'activeAccounts' &&
            request.resource.data.keys().hasOnly(['months', 'daily']) &&
            (!('months' in request.resource.data) || request.resource.data.months is map) &&
-           (!('daily'  in request.resource.data) || request.resource.data.daily  is map))
+           (!('daily'  in request.resource.data) || request.resource.data.daily  is map)) ||
+          // Page-load latency (Project 0): analytics/perf_YYYY-MM = { month: 'YYYY-MM', samples: {…} }.
+          // Anonymous bucketed counters keyed by non-identifying dimensions (perf-stats.perfSampleKey);
+          // like the activeAccounts sub-maps, the dynamic sample keys/values can't be validated here
+          // (App Check is the eventual integrity control — non-sensitive aggregate counts).
+          (docId.matches('perf_[0-9]{4}-[0-9]{2}') &&
+           request.resource.data.keys().hasOnly(['month', 'samples']) &&
+           request.resource.data.month is string &&
+           docId == 'perf_' + request.resource.data.month &&
+           request.resource.data.samples is map)
         );
       allow delete: if false;
     }

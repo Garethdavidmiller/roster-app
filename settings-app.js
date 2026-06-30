@@ -21,6 +21,7 @@ import { initTipsLightbox } from './tips-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
+import { recordPageLatency } from './perf-reporter.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
 // `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.settings, ARCHITECTURE_PLAN.md Phase 9)
@@ -74,7 +75,7 @@ if (_access.decision === 'login') {
     initAuthorised();
 }
 registerServiceWorker();
-sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); });
+sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings'); });
 
 /**
  * The authorised (signed-in) init body. Called directly on a normal already-signed-in load, or from

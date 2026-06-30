@@ -812,6 +812,7 @@ describe('pushSubscriptions', () => {
 describe('analytics', () => {
     const VALID_PV = () => ({ month: '2026-06', counts: { calendar: 1, paycalc: 1 } });
     const VALID_ACTIVE = () => ({ months: { '2026-06': 3 }, daily: { '2026-06-25': 2 } });
+    const VALID_PERF = () => ({ month: '2026-06', samples: { '14_88|calendar|ttfb|lt500ms|browser|4g': 3 } });
 
     test('admin can read', async () => {
         await assertSucceeds(getDoc(doc(adminDb(), 'analytics', 'pv_2026-06')));
@@ -835,6 +836,26 @@ describe('analytics', () => {
 
     test('auth can write an active-accounts doc with only one bucket present', async () => {
         await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'activeAccounts'), { months: { '2026-06': 1 } }));
+    });
+
+    test('auth can write a perf-latency doc (Project 0)', async () => {
+        await assertSucceeds(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
+    });
+
+    test('auth cannot write a perf doc with an extra field', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), { ...VALID_PERF(), memberName: 'G. Miller' }));
+    });
+
+    test('auth cannot write a perf doc whose month != the doc id', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-06'), { month: '2026-07', samples: {} }));
+    });
+
+    test('auth cannot write a perf doc whose id is not perf_YYYY-MM', async () => {
+        await assertFails(setDoc(doc(staffDb(), 'analytics', 'perf_2026-6'), { month: '2026-6', samples: {} }));
+    });
+
+    test('anon (no Firebase session) cannot write a perf doc', async () => {
+        await assertFails(setDoc(doc(anonDb(), 'analytics', 'perf_2026-06'), VALID_PERF()));
     });
 
     test('anon (no Firebase session) cannot write', async () => {

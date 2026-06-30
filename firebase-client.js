@@ -22,6 +22,8 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
 import { monthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
+import { perfSampleKey } from './perf-stats.js';
+import { APP_VERSION } from './roster-data.js';
 
 const firebaseConfig = {
     apiKey:            'AIzaSyBxB7eJ9LKkL5U9I9-IjNOVE_1RNeRGZWM',
@@ -681,6 +683,25 @@ export function recordActiveAccount({ month = null, day = null } = {}) {
     if (!month && !day) return;
     setDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts'), data, { merge: true })
         .catch(() => {/* best-effort analytics */});
+}
+
+/**
+ * Increment an anonymous page-load latency counter (Project 0 instrumentation). Lives in one doc per
+ * month, `analytics/perf_<YYYY-MM>`, as `{ month, samples: { <key>: int } }`. The key bundles only
+ * non-identifying dimensions (app version, page, metric, duration BUCKET, PWA mode, connection class)
+ * — never a member or a raw millisecond value. Decision/bucketing maths is the pure perf-stats.js
+ * module; this is just the Firestore I/O. Fire-and-forget — telemetry must never affect the app.
+ * @param {{ page: string, metric: string, bucket: string, mode: string, conn: string }} sample
+ */
+export function recordPerfSample({ page, metric, bucket, mode, conn }) {
+    if (!bucket) return;
+    const m = monthKey(new Date());
+    const key = perfSampleKey({ version: APP_VERSION, page, metric, bucket, mode, conn });
+    setDoc(
+        doc(db, COLLECTIONS.analytics, `perf_${m}`),
+        { month: m, samples: { [key]: increment(1) } },
+        { merge: true },
+    ).catch(() => {/* best-effort analytics */});
 }
 
 /**

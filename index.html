@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Calendar v14.86 -->
+<!-- MYB Roster — Calendar v14.89 -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -30,6 +30,10 @@
          (deferred) Firebase load starts from an already-open connection. -->
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+    <!-- Firebase Auth endpoints — overlap TLS with HTML parse so the first sign-in / token restore
+         (the calendar signs in anonymously on load) isn't a cold connection. -->
+    <link rel="preconnect" href="https://identitytoolkit.googleapis.com" crossorigin>
+    <link rel="preconnect" href="https://securetoken.googleapis.com" crossorigin>
 
     <!-- Preload critical JS modules so the browser fetches them in parallel with CSS -->
     <link rel="modulepreload" href="./calendar-app.js">

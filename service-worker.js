@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v14.86
+// MYB Roster — Service Worker v14.89
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,7 +22,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '14.86';
+const APP_VERSION = '14.89';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -48,7 +48,7 @@ const NETWORK_FIRST_FILES = [
     'admin-al.js', 'admin-sick.js',
     'operations-app.js', 'operations-boot.js', 'settings-app.js', 'links-app.js', 'links-boot.js', 'links-design.js',
     'overlay.js', 'session.js', 'auth-state-core.js', 'auth-state.js', 'auth-policy.js', 'sw-register.js', 'error-reporter.js',
-    'usage-reporter.js', 'usage-stats.js',
+    'usage-reporter.js', 'usage-stats.js', 'perf-reporter.js', 'perf-stats.js',
     'about-lightbox.js', 'tips-lightbox.js', 'login-overlay.js',
     'roster-data.js', 'roster-cycle-data.js', 'firebase-client.js', 'client-errors.js',
     'shared.css',
@@ -109,6 +109,8 @@ const CORE_ASSETS = [
     "./error-reporter.js",
     "./usage-reporter.js",
     "./usage-stats.js",
+    "./perf-reporter.js",
+    "./perf-stats.js",
     "./roster-data.js",
     "./roster-cycle-data.js",
     "./firebase-client.js",
