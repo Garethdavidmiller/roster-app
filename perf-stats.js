@@ -38,8 +38,12 @@ export function bucketDuration(ms) {
  * @returns {string}
  */
 export function perfSampleKey({ version, page, metric, bucket, mode, conn }) {
-    const v = String(version).replace(/\./g, '_');
-    return [v, page, metric, bucket, mode, conn].join('|');
+    // Sanitise EVERY component: a `.` is a Firestore field-path hazard in a map key (it nests the
+    // value wrongly) and a `|` would break parsePerfSampleKey. Only the version has a dot today and
+    // the rest are fixed tokens — but `conn` comes from navigator.connection.effectiveType, so harden
+    // defensively in case a non-conforming browser ever returns an unexpected string.
+    const safe = (/** @type {any} */ x) => String(x).replace(/[.|]/g, '_');
+    return [version, page, metric, bucket, mode, conn].map(safe).join('|');
 }
 
 /**

@@ -677,4 +677,23 @@ describe('auth generation guard', () => {
         assert.equal(ok, true);
         assert.equal(getFirebaseIdentity(), 'named');
     });
+
+    test('a superseded RETRY does not clobber the winner via the top reset (ENFORCE-on retry loop)', async () => {
+        // The bug the v14.91 review caught: ensureNamedSession's retry loop re-enters ensureFirebaseSession
+        // with its STALE gen; the unguarded top `_fbIdentity='none'` reset then clobbered a newer winner.
+        // Repro: ENFORCE on (so the retry loop runs); attempt 1's first sign-in is TRANSIENT → it enters
+        // the loop and waits; attempt 2 wins as 'named'; then attempt 1's delayed retry runs its reset.
+        CONFIG.ENFORCE_NAMED_SESSION = true;
+        _signInBehavior = (/** @type {number} */ n) => (n === 1 ? 'auth/network-request-failed' : 'ok');
+
+        const p1 = ensureNamedSession('G. Miller', { retries: 1, delayMs: 60 }); // call 1 (transient) → retry loop
+        await new Promise(r => setTimeout(r, 10));                                // let attempt 1 reach its setTimeout
+        await ensureNamedSession('G. Miller');                                    // attempt 2 (call 2) wins → 'named'
+        assert.equal(getFirebaseIdentity(), 'named', 'attempt 2 won');
+
+        await p1;   // attempt 1's delayed retry (call 3) runs — its top reset must be gen-guarded
+        assert.equal(getFirebaseIdentity(), 'named',
+            'a superseded retry must not reset _fbIdentity to none — the global and the store would disagree');
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+    });
 });

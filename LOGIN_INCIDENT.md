@@ -188,12 +188,16 @@ change, no architecture dependency):
 
 ## Re-enable checklist (do NOT do until login confirmed smooth on the deployed build)
 
-- [x] **Stale-auth generation guard — DONE (v14.87).** `session.js` `_authGen`: each `ensureNamedSession`
-      takes a generation and a superseded (timed-out, late-resolving) attempt drops ALL its terminal
-      writes, so it can't downgrade the winner's `_fbIdentity`/auth-store identity. This was the reviews'
-      stated prerequisite for re-enabling strict enforcement — without it, a stale completion under B1
-      could trigger a spurious re-login. No behaviour change while B1 is off (no overlapping attempts on a
-      normal load). Tested in `session.test.mjs` ("auth generation guard").
+- [x] **Stale-auth generation guard — DONE (v14.87, correctness fix v14.91).** `session.js` `_authGen`:
+      each `ensureNamedSession` takes a generation and a superseded (timed-out, late-resolving) attempt
+      drops ALL its terminal writes, so it can't downgrade the winner's `_fbIdentity`/auth-store identity.
+      This was the reviews' stated prerequisite for re-enabling strict enforcement — without it, a stale
+      completion under B1 could trigger a spurious re-login. **v14.91:** a review caught one terminal-state
+      write the v14.87 guard had left UNGUARDED — the top `_fbIdentity='none'` reset in `ensureFirebaseSession`.
+      With ENFORCE on, a superseded retry (ensureNamedSession re-enters with its stale gen) ran that reset
+      AFTER the winner committed, leaving `_fbIdentity` stuck at `'none'` while the store read `'named'`
+      (the exact disagreement the guard exists to prevent). Now gen-guarded; regression test added
+      (ENFORCE-on retry-loop overlap, verified to fail without the fix). No behaviour change while B1 is off.
 - [ ] Owner confirms login is smooth across roles (admin, manager, CEA, CES, dispatcher) in a private window.
 - [ ] Re-enable B1: `ENFORCE_NAMED_SESSION = true` (one clean commit, revert the ⚠️ comment).
 - [ ] Re-enable B3 sweep: `CLAIM_EPOCH = 1` (or bump).

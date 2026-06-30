@@ -55,6 +55,12 @@ describe('perfSampleKey / parsePerfSampleKey', () => {
         const key = perfSampleKey({ version: '14.88', page: 'calendar', metric: 'ttfb', bucket: 'over8s', mode: 'browser', conn: 'unknown' });
         assert.ok(!key.includes('.'), 'no dot in the key');
     });
+
+    test('sanitises a dot/pipe in ANY component (e.g. a non-conforming connection value)', () => {
+        const key = perfSampleKey({ version: '14.88', page: 'calendar', metric: 'domReady', bucket: '1-3s', mode: 'browser', conn: 'weird.type|x' });
+        assert.ok(!key.includes('.'), 'no dot');
+        assert.equal(key.split('|').length, 6, 'still exactly six components (pipe in a value was neutralised)');
+    });
 });
 
 describe('summarisePerf', () => {
