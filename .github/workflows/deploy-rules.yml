@@ -15,6 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
@@ -52,20 +53,28 @@ jobs:
       - name: Run Firestore and Storage rules tests
         run: npm run test:rules
 
-      - name: Write service account key
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json
+      # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
+      # GitHub's per-run OIDC token is exchanged for short-lived credentials for the
+      # github-deploy service account. The action writes an external_account credential
+      # file and exports GOOGLE_APPLICATION_CREDENTIALS, which the Firebase CLI picks up
+      # automatically — so the deploy steps below need no explicit credential wiring.
+      # This is the CANARY workflow: it proves WIF before deploy-hosting.yml and
+      # deploy-functions.yml migrate. Those two intentionally still use the
+      # FIREBASE_SERVICE_ACCOUNT secret as the fallback until WIF is confirmed here.
+      # Full plan + cutover sequence: SECURITY_RELEASE_PLAN.md → Appendix A2.
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
 
       - name: Deploy Firestore rules and indexes
         run: |
           npx firebase deploy --only firestore:rules,firestore:indexes --project myb-roster
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json
 
       - name: Deploy Storage rules
         # Separate step so a Storage permission error does not prevent Firestore rules from deploying.
-        # If this step fails, check that FIREBASE_SERVICE_ACCOUNT has the Storage Admin role
-        # (roles/storage.admin) in the Google Cloud Console for project myb-roster.
+        # If this step fails, check that the github-deploy service account has the
+        # Firebase Rules Admin role (roles/firebaserules.admin) for project myb-roster.
         run: |
           npx firebase deploy --only storage --project myb-roster
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json
