@@ -720,9 +720,12 @@ initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // on the shared auth promise defined above, the same one the push renewal awaits.
 calendarAuthReady.finally(() => {
     initErrorReporter();
-    // The calendar is anonymous (no member arg → page view only, no active-account, as before), but
-    // pass the SELECTED member as the identity so the developer's own testing is excluded from stats.
-    const _calIdentity = (/** @type {any} */ (getCurrentMember()))?.name ?? null;
+    // The calendar is anonymous (no member arg → page view only, no active-account, as before). For the
+    // admin-exclusion identity use the signed-in SESSION name, NOT the selected dropdown member: the
+    // default dropdown selection is an admin (CONFIG.DEFAULT_MEMBER_NAME = 'G. Miller'), so keying on it
+    // would wrongly exclude every fresh anonymous visitor. A signed-in admin (the developer) — identified
+    // by the shared session, the same signal the authenticated pages use — is the real thing to skip.
+    const _calIdentity = getSession()?.name ?? null;
     recordUsage('calendar', null, _calIdentity);
     recordPageLatency('calendar', _calIdentity);
 });

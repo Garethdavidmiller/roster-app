@@ -1071,13 +1071,16 @@ export function init() {
         };
         /** A toned verdict banner: big % "quick" + plain sentence + a sub line.
          *  @param {{tone:'good'|'ok'|'bad'|'none', text:string}} verdict
-         *  @param {{pctQuick:number}} overall @param {number} total @param {string} unit */
-        const verdictBanner = (verdict, overall, total, unit) => {
+         *  @param {{pctQuick:number}} overall @param {number} total @param {string} unit
+         *  @param {string} [windowLabel] - "this month" / "last month", for the sub line */
+        const verdictBanner = (verdict, overall, total, unit, windowLabel = 'this month') => {
             const div = document.createElement('div');
             div.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
             const sub = total
-                ? `${overall.pctQuick}% within a second · ${total.toLocaleString('en-GB')} ${unit} this month`
-                : 'Fills in as staff use the app over the coming days.';
+                ? `${overall.pctQuick}% within a second · ${total.toLocaleString('en-GB')} ${unit} ${windowLabel}`
+                : (windowLabel === 'this month'
+                    ? 'Fills in as staff use the app over the coming days.'
+                    : 'No data recorded last month.');
             div.innerHTML =
                 `<span class="speed-verdict-num">${total ? overall.pctQuick + '%' : '—'}</span>` +
                 `<span class="speed-verdict-text">${verdict.text}<span class="speed-verdict-sub">${sub}</span></span>`;
@@ -1158,11 +1161,12 @@ export function init() {
             /** Render the body for the active window. */
             const render = () => {
                 const w = stats[/** @type {'thisMonth'|'lastMonth'} */ (active)];   // { month, login, fcp, pages }
+                const windowLabel = active === 'thisMonth' ? 'this month' : 'last month';
                 body.innerHTML = '';
 
                 // Section 1 — Signing in (a distinct journey).
                 body.appendChild(subhead('🔑', 'Signing in'));
-                body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins'));
+                body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins', windowLabel));
                 if (w.login.total) body.appendChild(overallBar(w.login.overall));
 
                 if (w.login.total || w.fcp.total || w.pages.total) body.appendChild(legendEl());
@@ -1171,9 +1175,9 @@ export function init() {
                 body.appendChild(subhead('📄', 'Opening pages'));
                 body.appendChild(noteLine('Two moments when a page opens — when it first appears on screen, then when it’s fully ready to use.'));
                 body.appendChild(subMilestone('✨', 'First appears'));
-                body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page views'));
+                body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page views', windowLabel));
                 body.appendChild(subMilestone('✅', 'Fully ready'));
-                body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page loads'));
+                body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page loads', windowLabel));
 
                 if (w.fcp.total || w.pages.total) body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.month));
 

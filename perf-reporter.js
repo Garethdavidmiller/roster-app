@@ -84,6 +84,11 @@ export function recordPageLatency(page, identity = null) {
 
         if (excluded) return;   // developer's own session: marker consumed above, nothing else recorded
 
+        // First Contentful Paint (metric 'fcp') — when the user first SEES content, i.e. the page
+        // "appears". From the Paint Timing API, a SEPARATE timeline to Navigation Timing's domReady
+        // ("fully ready") — so record it BEFORE the nav-timing guard below, never gated on it.
+        recordFcp(page, mode, conn);
+
         // Navigation-timing metrics for THIS page (every load).
         const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
         if (!nav) return;   // Navigation Timing L2 unsupported (old Safari) — skip silently
@@ -93,12 +98,6 @@ export function recordPageLatency(page, identity = null) {
             const bucket = bucketDuration(metrics[metric]);
             if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });
         }
-
-        // First Contentful Paint (metric 'fcp') — when the user first SEES content, i.e. the page
-        // "appears". From the Paint Timing API, a different timeline to Navigation Timing's domReady
-        // ("fully ready"). Usually already recorded by now (FCP fires before the coordinator runs);
-        // the observer is a fallback for a late paint.
-        recordFcp(page, mode, conn);
     } catch { /* best-effort — latency telemetry must never affect the app */ }
 }
 
