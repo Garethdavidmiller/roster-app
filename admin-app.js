@@ -55,12 +55,16 @@ const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
  *  login overlay before the reload (v13.68), but it awaits a Firestore read (getStaffContact), and
  *  the FIRST read after a fresh sign-in can take several seconds (connection + auth-token handshake
  *  warming up) — which froze the user on the login overlay (the v14.72–73 login-freeze reports).
- *  The check still runs on the very next page load via initEmailCheck() below, which is
- *  async/non-blocking, so a slow read can never block sign-in again. */
+ *  Instead, onSuccess sets a one-shot "pending" marker and reloads; the check then runs on the next
+ *  page load via initEmailCheck() (async/non-blocking), gated so it appears ONLY after a real login
+ *  and at most once every ~3 months (Fix 4 + cadence, v14.77; see _emailCheckDue / _runEmailCheck). */
 function showAdminLogin() {
     initLoginOverlay({
         pageLabel: 'Admin',
-        onSuccess: () => { window.location.reload(); },
+        onSuccess: (/** @type {string} */ name) => {
+            lsSet(`myb_email_check_pending_${name}`, '1');
+            window.location.reload();
+        },
     });
 }
 
@@ -1370,22 +1374,40 @@ async function purgeSundayAL() {
 
 // ---- One-time work email check (shown once per device after login) ----
 
+/** ~3-monthly work-email re-confirmation cadence (v14.77). */
+const EMAIL_CHECK_INTERVAL_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** True if the member is DUE a work-email confirmation: never confirmed, a legacy/non-timestamp
+ *  flag, or last confirmed ≥ 3 months ago. `myb_email_check_done_<member>` stores the last-confirmed
+ *  time in ms. The pre-v14.77 flag was the literal '1' (done-forever) — that and any junk parse
+ *  small (< a real ms timestamp), so they read as due and the new cadence starts cleanly.
+ */
+function _emailCheckDue(/** @type {string} */ member) {
+    const raw  = lsGet(`myb_email_check_done_${member}`);
+    const last = raw ? parseInt(raw, 10) : 0;
+    if (!Number.isFinite(last) || last < 1e12) return true;   // never / legacy '1' / junk → due
+    return Date.now() - last >= EMAIL_CHECK_INTERVAL_MS;
+}
+
 /**
  * Inner promise-based engine for the email check overlay.
- * Returns without showing if the check is already done on this device,
- * or if the Firestore fetch fails (never blocks the app).
+ * Returns without showing unless this is a fresh login (pending marker) AND the check is due
+ * (≥ 3 months since last confirmed), or if the Firestore fetch fails (never blocks the app).
  * Resolves when the user confirms or saves their email.
  * @param {any} member
  */
 async function _runEmailCheck(member) {
-    if (lsGet(`myb_email_check_done_${member}`)) return;
+    // Fix 4 + cadence (v14.77): prompt ONLY right after a fresh login (the one-shot pending marker
+    // set in showAdminLogin) — never on a random Admin page load — and only when actually due
+    // (≥ 3 months since last confirmed). Consume the marker as soon as we decide, so the modal can
+    // never reappear on a later non-login load this session; the result is stamped on dismiss.
+    const pendingKey = `myb_email_check_pending_${member}`;
+    if (!lsGet(pendingKey)) return;            // not a fresh login → don't prompt
+    lsDel(pendingKey);                         // one-shot: consume the login marker now
+    if (!_emailCheckDue(member)) return;       // confirmed within the last ~3 months — nothing to do
 
-    // Time-box the Firestore read. The email check runs on the login path BEFORE the
-    // post-login reload, so a slow/hung getStaffContact would otherwise freeze the user
-    // on the login overlay even though their session is already saved (the v14.72 login
-    // freeze). On timeout (or any error) we skip the check this time and let login
-    // proceed — it simply re-appears on the next load. The check is a one-time nudge,
-    // never load-bearing, so skipping it is harmless.
+    // Time-box the Firestore read so a slow/hung getStaffContact can't hang the (now async,
+    // off-login-path) check. On timeout/error we skip it this load — it reappears on the next login.
     let existing = null;
     try {
         existing = await Promise.race([
@@ -1432,7 +1454,8 @@ async function _runEmailCheck(member) {
         }
 
         function _dismiss() {
-            lsSet(`myb_email_check_done_${member}`, '1');
+            // Stamp the confirmation time so the check is not due again for ~3 months (v14.77).
+            lsSet(`myb_email_check_done_${member}`, String(Date.now()));
             loginOverlay?.removeAttribute('aria-hidden');
             overlay.classList.remove('open');
             const content = /** @type {HTMLElement} */ (document.getElementById('emailCheckContent'));

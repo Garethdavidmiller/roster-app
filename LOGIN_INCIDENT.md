@@ -117,11 +117,12 @@ login: which request stalls — `accounts:signInWithPassword`, `securetoken…/t
 
 ## Recommended follow-ups from the external review (not yet done — lower priority than the freeze fix)
 
-- **Email-check trigger marker (review "Fix 4"):** `initEmailCheck` runs on every authenticated Admin
-  load whose `myb_email_check_done_<member>` flag is absent — not "only after a fresh login." With
-  v14.75's no-half-login fix the surreal "escape → return → modal" path is largely closed, but a
-  cleaner design gates the modal on a `myb_email_check_pending_<member>` marker set only on a clean
-  login, cleared on dismiss. Optional polish; changes feature behaviour, so deferred during the incident.
+- **Email-check trigger marker (review "Fix 4") — ✅ DONE (v14.77), with a 3-monthly cadence (owner
+  request).** The modal now shows ONLY after a real login (one-shot `myb_email_check_pending_<member>`
+  set in `showAdminLogin.onSuccess`, consumed on the next load) AND only when due — `_emailCheckDue()`
+  treats `myb_email_check_done_<member>` as the last-confirmed timestamp and re-prompts every ~3 months
+  (`EMAIL_CHECK_INTERVAL_MS`); `_dismiss()` stamps the time. Legacy `'1'` flags read as due so the
+  cadence starts cleanly. See CLAUDE.md "Work email check" decision.
 - **Login-click-path tests (review's test list):** the suite covers session helpers + overlay
   presence but NOT the full sign-in click flow — which is why these regressions slipped through. Add:
   (1) no local session written while the auth promise is pending; (2) session saved only on success;
