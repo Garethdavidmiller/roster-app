@@ -1095,3 +1095,27 @@ All 489 TS2339 errors resolved with JSDoc `/** @type {HTMLXxxElement} */` casts.
 #### Phase 9c — `strict: true` ✓ (completed June 2026)
 
 `"strict": true` added to `jsconfig.json`. All 1560 errors across 46 files resolved: null-safety (`!` non-null assertions and `if (!el) return` guards), implicit-any parameters (`@param {any}` JSDoc), implicit-any variables (`/** @type {any} */` annotations), object-indexing (`/** @type {Record<string, any>} */` casts), and `unknown`-typed catch bindings (`/** @type {any} */` casts on `err`). No `// @ts-ignore` suppressions — all fixes are explicit type annotations or runtime-safe guards. 446 tests pass. Phase 9d (replacing `any` casts with precise types) is now unblocked.
+
+## Deferred backlog (from the v14.96 external review)
+
+A thorough external review of v14.96 confirmed no release blocker for current small-team use. Most
+findings were already done (B1 re-enabled v14.98; App-speed admin-exclusion v14.95) or already
+sequenced (B3 strict cutover, B4 server-side role lists, the C-series password track, in-place login
+rollout, the app-perf caching pass). Quick wins (fail-closed uploads, stale auth-doc fixes, a
+MILLER_ACTUALS export guard, the primeAuth comment) shipped at v14.99. Two items captured here:
+
+### M8 — lazy-load heavy Cloud Function dependencies (cold-start)
+
+`functions/index.js` requires `@anthropic-ai/sdk`, `mammoth`, and `web-push` at the top level, so
+every function pays their load cost even when it doesn't use them. Move each to a lazy `require()`
+inside the function that needs it — Anthropic only in `parseRosterPDF`, `mammoth` only for DOCX
+huddle ingest, `web-push` only in the notification fan-out. Medium value (functions cold-start),
+low risk (mechanical), independent of the auth release. Functions tests already cover the helpers.
+
+### L4 — paycalc collapsible fixed `max-height` can clip long content
+
+`paycalc.css` (~line 256) gives open collapsible bodies a fixed `max-height` for the open/close
+animation. Very long dynamically-generated content (e.g. a large back-pay breakdown) could exceed
+the cap and clip. Fix options: measure height and remove the cap after the transition, or drop the
+animation for the long generated sections. Verify it actually clips at realistic content sizes
+before changing — it may be within the cap in practice. Low priority.

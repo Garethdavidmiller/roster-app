@@ -333,3 +333,20 @@ test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-c
         assert.ok(preloadedMods.has(mod), `paycalc.html is missing a modulepreload for ${mod}.js`);
     }
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Privacy guard: real payslip figures (MILLER_ACTUALS) must live ONLY in the test
+// fixture (test-fixtures/miller-actuals.js, excluded from Firebase Hosting), never
+// exported from served production JS. Moved out of roster-data.js at v14.68; this
+// asserts it can't creep back in.
+// ──────────────────────────────────────────────────────────────────────────────
+test('roster-data.js does not export MILLER_ACTUALS (payslip data stays in the test fixture)', () => {
+    const src = readFileSync(join(ROOT, 'roster-data.js'), 'utf8');
+    const exportsDecl = /export\s+(?:const|let|var|function)\s+MILLER_ACTUALS\b/.test(src);
+    const exportsList = /export\s*\{[^}]*\bMILLER_ACTUALS\b[^}]*\}/.test(src);
+    assert.ok(
+        !exportsDecl && !exportsList,
+        'MILLER_ACTUALS must NOT be exported from roster-data.js — real payslip figures belong only in ' +
+        'test-fixtures/miller-actuals.js (excluded from Firebase Hosting), never in served production JS.',
+    );
+});

@@ -219,8 +219,9 @@ I/O (no DOM/Firebase/localStorage). Seven identity states; eight events (RESOLVE
 ANONYMOUS / NONE / TRANSIENT / RETRY / FATAL / SIGN_OUT); unknown events inert; every result a new
 frozen object, never mutates prev. Maps 1:1 onto the Phase-0 outcomes. 24 tests in
 `auth-state-core.test.mjs` (each event, the RETRY-only-from-degraded guard, purity/immutability,
-and realistic lifecycles incl. transient-recover). **Not wired into anything** — behaviour
-unchanged. Listed in the SW precache lists + CLAUDE.md/AI_MAP so it ships ready for Phase 2.
+and realistic lifecycles incl. transient-recover). Originally shipped not-wired; **now live** —
+consumed via the store (auth-state.js) → coordinators (since v14.98). Listed in the SW precache
+lists + CLAUDE.md/AI_MAP.
 
 ### Phase 2 — The auth STORE (`auth-state.js`) — ✅ DONE (v14.59)
 The store holds the single identity state (`getAuthSnapshot` / `subscribeAuth` / `dispatchAuth` over
@@ -237,9 +238,10 @@ The original 2.5 re-routed `sessionReady` through the machine. On reflection tha
 benefit**: `sessionReady` is awaited by every write page, so re-sourcing it could change its value or
 timing. Instead, the store and `sessionReady` are **both driven by the same `ensureNamedSession`
 resolution**, so they cannot diverge — which IS the "single source / never two authoritative models"
-property 2.5 was for, achieved with **zero change to `sessionReady`**. Phase 2 is OBSERVING ONLY
-(every feed wrapped so a store error can't break auth; nothing consumes the store yet). The literal
-re-route is therefore dropped, not deferred — the goal is already met. (Calendar's anonymous bootstrap
+property 2.5 was for, achieved with **zero change to `sessionReady`**. The store is now consumed by
+the coordinators (Phase 3 `requirePage` gate, active since the v14.98 B1 re-enable; every feed still
+wrapped so a store error can't break auth). The literal re-route is therefore dropped, not deferred —
+the goal is already met. (Calendar's anonymous bootstrap
 and paycalc's direct `ensureFirebaseSession` feed the store when those pages migrate, Phase 7.)
 
 ### Phase 3 — Policy map + `requirePageAuth` guards — ✅ DONE (v14.60)
@@ -249,7 +251,8 @@ guides open) + the **pure** `requirePageAuth(snapshot, policy, roles) → { deci
 five decisions `allow / soft-allow / login / forbidden / pending` + `rolesFor(member)` (CONFIG glue)
 + `requirePage(snapshot, page)` (coordinator convenience, fails closed on unknown page). Encodes the
 invariants: degraded never grants authority (→ pending, not allow), soft never blocks, public always
-allows, server is the boundary. 42 tests. Not wired in — behaviour unchanged. **Decision deviation
+allows, server is the boundary. 42 tests. **Now consumed** by the 5 write coordinators' access gate
+(active when `ENFORCE_NAMED_SESSION` is on, i.e. since v14.98). **Decision deviation
 from the plan's four outcomes:** added `pending` for the resolving/degraded states (a "not yet"
 outcome the coordinator shows as loading/reconnecting) — necessary because `subscribeAuth` fires on
 those transient states. The read-vs-write distinction is left as the documented `page→page.action`
