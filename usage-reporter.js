@@ -21,14 +21,22 @@
 import { recordPageView, recordActiveAccount } from './firebase-client.js';
 import { lsGet, lsSet } from './ls.js';
 import { monthKey, dayKey, shouldCountMonth, shouldCountRolling } from './usage-stats.js';
+import { CONFIG } from './roster-data.js';
 
 /**
  * Record a page view, and — if a signed-in member is supplied — count them toward
  * the active-account metric (deduped client-side per month and per rolling window).
  * @param {string} page - stable page id: 'calendar' | 'admin' | 'paycalc' | 'operations' | 'settings' | 'links'
  * @param {string|null} [member] - the signed-in member's name, or null/omitted for anonymous page views
+ * @param {string|null} [identity] - the active member's name for the admin-exclusion check; defaults to
+ *        `member`. If it is an admin (the developer), NOTHING is recorded — the figures must reflect real
+ *        staff, not test loads. The anonymous calendar passes its selected member here while leaving
+ *        `member` null (so it still records a page view but no active-account, as before).
  */
-export function recordUsage(page, member = null) {
+export function recordUsage(page, member = null, identity = member) {
+    // Exclude the developer/admin's own sessions (CONFIG.ADMIN_NAMES) so usage reflects real staff.
+    if (identity && CONFIG.ADMIN_NAMES.includes(identity)) return;
+
     try { recordPageView(page); } catch (_e) { /* best-effort */ }
 
     if (!member) return;

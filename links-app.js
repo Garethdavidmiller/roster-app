@@ -1538,7 +1538,7 @@ export function init() {
             }
         },
     });
-    sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links'); });
+    sessionReady.then(() => { initErrorReporter(); recordUsage('links', currentUser); recordPageLatency('links', currentUser); });
 
     // ============================================
     // BOOT

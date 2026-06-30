@@ -114,12 +114,21 @@ export function summarisePerf(samples, { metric = 'domReady' } = {}) {
     return { total, overall: _withPct(overall), byPage };
 }
 
-/** Plain-English verdict copy per journey ('pages' = opening any page; 'login' = signing in). */
+/**
+ * Plain-English verdict copy per journey:
+ *   'login' = signing in · 'fcp' = a page first appearing on screen · 'pages' = a page being fully ready.
+ */
 const VERDICT_TEXT = {
     pages: {
-        good: 'Pages are opening quickly for staff.',
-        ok:   'Pages mostly open quickly, with some slower loads.',
-        bad:  'Some staff are waiting too long for pages to open.',
+        good: 'Pages become fully ready quickly for staff.',
+        ok:   'Pages mostly become ready quickly, with some slower loads.',
+        bad:  'Some staff are waiting too long for pages to be ready.',
+        none: 'Not enough data yet — this builds up as staff use the app.',
+    },
+    fcp: {
+        good: 'Pages appear on screen almost instantly.',
+        ok:   'Pages mostly appear quickly, with some slower first paints.',
+        bad:  'Some staff wait too long before anything appears on screen.',
         none: 'Not enough data yet — this builds up as staff use the app.',
     },
     login: {
@@ -134,7 +143,7 @@ const VERDICT_TEXT = {
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
  * ≥20% slow → bad; else ≥80% quick → good; else ok. Empty → a "still building up" message.
  * @param {ReturnType<typeof _withPct>} overall
- * @param {'pages'|'login'} [kind]  which journey the copy describes
+ * @param {'pages'|'login'|'fcp'} [kind]  which journey the copy describes
  * @returns {{ tone: 'good'|'ok'|'bad'|'none', text: string }}
  */
 export function perfVerdict(overall, kind = 'pages') {

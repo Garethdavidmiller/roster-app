@@ -1667,7 +1667,7 @@ registerServiceWorker({
         }, { once: true });
     },
 });
-sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin'); });
+sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); recordPageLatency('admin', currentUser); });
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
 function wireNavPanel() {

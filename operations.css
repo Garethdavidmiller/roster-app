@@ -843,3 +843,50 @@ select:focus-visible, input:focus-visible {
     min-width: 2.5ch;
     text-align: right;
 }
+
+/* Window toggle: This month / Last month. A simple segmented control. */
+.speed-toggle {
+    display: inline-flex;
+    border: 1.5px solid var(--border-light);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-bottom: 14px;
+    background: var(--surface-sunken);
+}
+.speed-toggle-btn {
+    border: none;
+    background: transparent;
+    padding: 6px 14px;
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: var(--text-mid);
+    cursor: pointer;
+}
+.speed-toggle-btn--on {
+    background: var(--primary-blue);
+    color: white;
+}
+
+/* The two "opening a page" milestones (✨ First appears / ✅ Fully ready) — lighter, indented
+   under the "Opening pages" section heading so the hierarchy reads as section → milestone. */
+.speed-subhead--sub {
+    margin: 10px 0 6px;
+    font-weight: 600;
+    color: var(--text-mid);
+}
+.speed-note {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    line-height: 1.4;
+    margin: 0 0 10px;
+}
+
+/* Per-page dual bars: label | appears bar | ready bar | count. */
+.speed-row--dual { grid-template-columns: minmax(78px, 34%) 1fr 1fr auto; }
+.speed-dual-head { margin-bottom: -2px; }
+.speed-dual-label {
+    font-size: var(--type-micro);
+    color: var(--text-light);
+    text-align: center;
+    text-transform: lowercase;
+}

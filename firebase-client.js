@@ -21,7 +21,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 // @ts-ignore
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
-import { monthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
+import { monthKey, prevMonthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
 import { perfSampleKey, summarisePerf } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
 
@@ -705,38 +705,52 @@ export function recordPerfSample({ page, metric, bucket, mode, conn }) {
 }
 
 /**
- * Read this month's latency for the Operations "App speed" card (admin-only). Returns plain-language
- * quick/ok/slow summaries for TWO journeys — `login` (sign-in to usable, the synthetic 'login' page)
- * and `pages` (how fast each page opened, the 'domReady' metric) — computed by the pure perf-stats
- * module. No identity is involved.
- * @returns {Promise<{ month: string, login: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf> }>}
+ * Read latency for the Operations "App speed" card (admin-only), for THIS month and LAST month (the
+ * comparison window — trend across deploys, and a stable reference early in a month). Each window
+ * carries plain-language quick/ok/slow summaries for THREE journeys: `login` (sign-in to usable),
+ * `fcp` (a page first appearing on screen) and `pages` (a page being fully ready, the 'domReady'
+ * metric). Computed by the pure perf-stats module. No identity is involved.
+ * @returns {Promise<{ thisMonth: PerfWindow, lastMonth: PerfWindow }>}
+ * @typedef {{ month: string, login: ReturnType<typeof summarisePerf>, fcp: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf> }} PerfWindow
  */
 export async function getPerfStats() {
-    const m = monthKey(new Date());
-    const snap = await getDoc(doc(db, COLLECTIONS.analytics, `perf_${m}`));
-    const data = snap.exists() ? /** @type {any} */ (snap.data()) : { samples: {} };
-    const samples = data.samples || {};
-    return {
-        month: m,
-        login: summarisePerf(samples, { metric: 'loginTotal' }),
-        pages: summarisePerf(samples, { metric: 'domReady' }),
+    const now = new Date();
+    const m = monthKey(now);
+    const pm = prevMonthKey(now);
+    const [thisSnap, lastSnap] = await Promise.all([
+        getDoc(doc(db, COLLECTIONS.analytics, `perf_${m}`)),
+        getDoc(doc(db, COLLECTIONS.analytics, `perf_${pm}`)),
+    ]);
+    /** @param {any} snap @param {string} month @returns {PerfWindow} */
+    const windowFor = (snap, month) => {
+        const samples = (snap.exists() ? /** @type {any} */ (snap.data()) : {}).samples || {};
+        return {
+            month,
+            login: summarisePerf(samples, { metric: 'loginTotal' }),
+            fcp:   summarisePerf(samples, { metric: 'fcp' }),
+            pages: summarisePerf(samples, { metric: 'domReady' }),
+        };
     };
+    return { thisMonth: windowFor(thisSnap, m), lastMonth: windowFor(lastSnap, pm) };
 }
 
 /**
  * Read the usage figures for the Operations "Usage" card (admin-only). Also prunes
  * daily buckets outside the retention window, fire-and-forget, so the rolling doc
  * stays bounded (mirrors the resolved-error prune in getClientErrors).
- * @returns {Promise<{ month: string, pageCounts: Array<{page: string, count: number}>, accountsThisMonth: number, accountsLast30: number, monthsHistory: Record<string, number> }>}
+ * @returns {Promise<{ month: string, prevMonth: string, pageCounts: Array<{page: string, count: number}>, prevPageCounts: Array<{page: string, count: number}>, accountsThisMonth: number, accountsLast30: number, monthsHistory: Record<string, number> }>}
  */
 export async function getUsageStats() {
     const now = new Date();
     const m = monthKey(now);
-    const [pvSnap, aaSnap] = await Promise.all([
+    const pm = prevMonthKey(now);
+    const [pvSnap, pvPrevSnap, aaSnap] = await Promise.all([
         getDoc(doc(db, COLLECTIONS.analytics, `pv_${m}`)),
+        getDoc(doc(db, COLLECTIONS.analytics, `pv_${pm}`)),
         getDoc(doc(db, COLLECTIONS.analytics, 'activeAccounts')),
     ]);
     const pv = pvSnap.exists() ? /** @type {any} */ (pvSnap.data()) : { counts: {} };
+    const pvPrev = pvPrevSnap.exists() ? /** @type {any} */ (pvPrevSnap.data()) : { counts: {} };
     const aa = aaSnap.exists() ? /** @type {any} */ (aaSnap.data()) : { months: {}, daily: {} };
     const daily = aa.daily || {};
 
@@ -757,7 +771,9 @@ export async function getUsageStats() {
 
     return {
         month: m,
+        prevMonth: pm,
         pageCounts: orderPageCounts(pv.counts || {}),
+        prevPageCounts: orderPageCounts(pvPrev.counts || {}),
         accountsThisMonth: Number((aa.months || {})[m]) || 0,
         accountsLast30: sumDailyWindow(daily, now),
         monthsHistory: aa.months || {},

@@ -6,12 +6,28 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-    monthKey, dayKey, shouldCountMonth, shouldCountRolling,
+    monthKey, prevMonthKey, dayKey, shouldCountMonth, shouldCountRolling,
     recentDayKeys, sumDailyWindow, orderPageCounts, staleDailyKeys,
     ROLLING_WINDOW_DAYS,
 } from './usage-stats.js';
 
 const DAY = 86400000;
+
+describe('prevMonthKey', () => {
+    test('returns the previous calendar month', () => {
+        assert.equal(prevMonthKey(new Date(2026, 5, 30)), '2026-05'); // Jun → May
+        assert.equal(prevMonthKey(new Date(2026, 5, 1)),  '2026-05'); // any day of the month
+    });
+    test('crosses the year boundary (Jan → previous Dec)', () => {
+        assert.equal(prevMonthKey(new Date(2026, 0, 15)), '2025-12');
+    });
+    test('is never equal to this month', () => {
+        for (let m = 0; m < 12; m++) {
+            const d = new Date(2026, m, 14);
+            assert.notEqual(prevMonthKey(d), monthKey(d));
+        }
+    });
+});
 
 describe('monthKey / dayKey', () => {
     test('zero-pads month and day', () => {

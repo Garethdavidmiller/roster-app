@@ -25,6 +25,16 @@ export function monthKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/**
+ * "YYYY-MM" for the calendar month BEFORE the given date — the comparison window for the
+ * Operations cards ("this month" vs "last month"). Crosses the year boundary correctly
+ * (Jan → previous Dec) because `new Date(y, -1, 1)` rolls the year back.
+ * @param {Date} d
+ */
+export function prevMonthKey(d) {
+    return monthKey(new Date(d.getFullYear(), d.getMonth() - 1, 1));
+}
+
 /** "YYYY-MM-DD" for a Date (local time). @param {Date} d */
 export function dayKey(d) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
