@@ -756,6 +756,16 @@ select:focus-visible, input:focus-visible {
     --speed-ok:   color-mix(in oklch, var(--warning-amber) 42%, var(--accent-gold));
     --speed-bad:  var(--error-red);
 }
+.speed-subhead {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--type-small);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin: 16px 0 8px;
+}
+.speed-subhead:first-child { margin-top: 2px; }
 .speed-verdict {
     display: flex;
     align-items: center;

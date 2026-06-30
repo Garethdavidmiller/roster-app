@@ -211,8 +211,12 @@ export async function ensureFirebaseSession(name, _gen) {
         if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = code; // surfaced by admin-auth.js
     };
 
-    _fbIdentity  = 'none';        // reset; set to 'named'/'anonymous' on the path that wins (provably fresh at entry)
-    _fbAuthError = undefined;
+    // Reset for this attempt — but ONLY while it is still current. A SUPERSEDED retry (ensureNamedSession
+    // re-enters ensureFirebaseSession with its now-stale gen after a newer attempt already won) must NOT
+    // run this reset: commit/recordError below are gen-guarded, but an unguarded reset here would clobber
+    // the winner's `_fbIdentity` to 'none' and leave it stuck there (the store would read 'named' while
+    // the global reads 'none' — the exact disagreement the guard exists to prevent). Found in review.
+    if (fresh()) { _fbIdentity = 'none'; _fbAuthError = undefined; }
     await authReady;
     // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
     // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in, where the first call just

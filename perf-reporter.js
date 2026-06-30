@@ -19,7 +19,24 @@
  */
 
 import { recordPerfSample } from './firebase-client.js';
-import { bucketDuration } from './perf-stats.js';
+import { bucketDuration, loginDurationBucket } from './perf-stats.js';
+
+// Sign-in timing marker: a wall-clock timestamp stored at the "Sign in" click (login-overlay.js),
+// read once on the destination page (recordPageLatency below) to record login-to-usable time. Stored
+// in sessionStorage so it survives the post-login reload (same tab); cleared on read, on a failed
+// sign-in, and recency-guarded so an abandoned attempt can't log a bogus time. (iOS private mode
+// throws on sessionStorage — all access is wrapped.)
+const LOGIN_T0_KEY = 'myb_perf_login_t0';
+
+/** Mark the start of a sign-in attempt (call when the user commits — i.e. the network sign-in begins). */
+export function markLoginStart() {
+    try { sessionStorage.setItem(LOGIN_T0_KEY, String(Date.now())); } catch { /* sessionStorage unavailable */ }
+}
+
+/** Clear the sign-in marker — call on a FAILED sign-in so a later page load can't record a stale time. */
+export function clearLoginStart() {
+    try { sessionStorage.removeItem(LOGIN_T0_KEY); } catch { /* sessionStorage unavailable */ }
+}
 
 /** Read non-identifying environment dimensions (PWA display mode + connection class). */
 function envContext() {
@@ -41,9 +58,23 @@ function envContext() {
  */
 export function recordPageLatency(page) {
     try {
+        const { mode, conn } = envContext();
+
+        // Login-to-usable: if a sign-in started this session, record how long until the page became
+        // usable. Attributed to the synthetic page id 'login' (login speed is ONE number, not split by
+        // destination) so it can never pollute a real page's stats. One-shot: cleared before recording.
+        try {
+            const t0 = Number(sessionStorage.getItem(LOGIN_T0_KEY));
+            if (t0) {
+                sessionStorage.removeItem(LOGIN_T0_KEY);
+                const bucket = loginDurationBucket(t0, Date.now());
+                if (bucket) recordPerfSample({ page: 'login', metric: 'loginTotal', bucket, mode, conn });
+            }
+        } catch { /* sessionStorage unavailable — skip login timing */ }
+
+        // Navigation-timing metrics for THIS page (every load).
         const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
         if (!nav) return;   // Navigation Timing L2 unsupported (old Safari) — skip silently
-        const { mode, conn } = envContext();
         /** @type {Record<string, number>} */
         const metrics = { ttfb: nav.responseEnd, domReady: nav.domContentLoadedEventEnd };
         for (const metric of Object.keys(metrics)) {

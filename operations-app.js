@@ -1005,26 +1005,43 @@ export function init() {
                    `<span class="speed-seg speed-seg--ok"   style="width:${w(b.ok)}%"></span>` +
                    `<span class="speed-seg speed-seg--bad"  style="width:${w(b.slow)}%"></span>`;
         };
+        /** A small "🔑 Signing in" / "📄 Opening pages" section heading. @param {string} emoji @param {string} label */
+        const subhead = (emoji, label) => {
+            const p = document.createElement('p');
+            p.className = 'speed-subhead';
+            p.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
+            return p;
+        };
+        /** A toned verdict banner: big % "quick" + plain sentence + a sub line.
+         *  @param {{tone:'good'|'ok'|'bad'|'none', text:string}} verdict
+         *  @param {{pctQuick:number}} overall @param {number} total @param {string} unit */
+        const verdictBanner = (verdict, overall, total, unit) => {
+            const div = document.createElement('div');
+            div.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
+            const sub = total
+                ? `${overall.pctQuick}% within a second · ${total.toLocaleString('en-GB')} ${unit} this month`
+                : 'Fills in as staff use the app over the coming days.';
+            div.innerHTML =
+                `<span class="speed-verdict-num">${total ? overall.pctQuick + '%' : '—'}</span>` +
+                `<span class="speed-verdict-text">${verdict.text}<span class="speed-verdict-sub">${sub}</span></span>`;
+            return div;
+        };
 
         try {
             await sessionReady;
             const stats = await adminReadWithRetry(getPerfStats);
-            const verdict = perfVerdict(stats.overall);
             content.innerHTML = '';
 
-            // Headline verdict — big % "quick" + a plain-English sentence, tinted by tone.
-            const v = document.createElement('div');
-            v.className = `speed-verdict speed-verdict--${TONE_CLASS[verdict.tone]}`;
-            const sub = stats.total
-                ? `${stats.overall.pctQuick}% opened in under a second this month.`
-                : 'It fills in as staff open the app over the coming days.';
-            v.innerHTML =
-                `<span class="speed-verdict-num">${stats.total ? stats.overall.pctQuick + '%' : '—'}</span>` +
-                `<span class="speed-verdict-text">${verdict.text}<span class="speed-verdict-sub">${sub}</span></span>`;
-            content.appendChild(v);
+            // ── Section 1: Signing in (login-to-usable; the metric the login work is all about) ──
+            content.appendChild(subhead('🔑', 'Signing in'));
+            content.appendChild(verdictBanner(perfVerdict(stats.login.overall, 'login'), stats.login.overall, stats.login.total, 'sign-ins'));
 
-            if (stats.total) {
-                // Legend — the three plain-language bands.
+            // ── Section 2: Opening pages (how fast each page opened) ──
+            content.appendChild(subhead('📄', 'Opening pages'));
+            content.appendChild(verdictBanner(perfVerdict(stats.pages.overall, 'pages'), stats.pages.overall, stats.pages.total, 'page loads'));
+
+            if (stats.pages.total) {
+                // Legend — the three plain-language bands (shared by both sections' bars).
                 const legend = document.createElement('div');
                 legend.className = 'speed-legend';
                 legend.innerHTML = /** @type {Array<'quick'|'ok'|'slow'>} */ (['quick', 'ok', 'slow']).map(g => {
@@ -1041,7 +1058,7 @@ export function init() {
 
                 const rows = document.createElement('div');
                 rows.className = 'speed-rows';
-                stats.byPage.forEach(p => {
+                stats.pages.byPage.forEach(p => {
                     const meta  = PAGE_META[p.page];
                     const emoji = meta ? meta.emoji : '📄';
                     const label = meta ? meta.label : escapeHtml(p.page);
@@ -1058,7 +1075,7 @@ export function init() {
 
             const note = document.createElement('p');
             note.className = 'usage-note';
-            note.textContent = 'Speeds are how long a page took to open. Anonymous — never who.';
+            note.textContent = 'Speeds are how long the app took to respond. Anonymous — never who.';
             content.appendChild(note);
 
         } catch (e) {

@@ -2,7 +2,7 @@
 // Run with: node --test perf-stats.test.mjs   (part of test:hygiene)
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, perfVerdict } from './perf-stats.js';
+import { PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey, summarisePerf, perfVerdict, loginDurationBucket, LOGIN_MAX_MS } from './perf-stats.js';
 
 /** Build a samples map from [page, metric, bucket, count] rows (version/mode/conn fixed). */
 function samplesFrom(rows) {
@@ -55,6 +55,12 @@ describe('perfSampleKey / parsePerfSampleKey', () => {
         const key = perfSampleKey({ version: '14.88', page: 'calendar', metric: 'ttfb', bucket: 'over8s', mode: 'browser', conn: 'unknown' });
         assert.ok(!key.includes('.'), 'no dot in the key');
     });
+
+    test('sanitises a dot/pipe in ANY component (e.g. a non-conforming connection value)', () => {
+        const key = perfSampleKey({ version: '14.88', page: 'calendar', metric: 'domReady', bucket: '1-3s', mode: 'browser', conn: 'weird.type|x' });
+        assert.ok(!key.includes('.'), 'no dot');
+        assert.equal(key.split('|').length, 6, 'still exactly six components (pipe in a value was neutralised)');
+    });
 });
 
 describe('summarisePerf', () => {
@@ -103,5 +109,28 @@ describe('perfVerdict', () => {
     test('mixed but not slow-heavy → ok', () => {
         const r = summarisePerf(samplesFrom([['admin', 'domReady', 'lt500ms', 5], ['admin', 'domReady', '1-3s', 5]]));
         assert.equal(perfVerdict(r.overall).tone, 'ok');    // 50% quick, 0% slow, <80% quick
+    });
+
+    test('login kind uses sign-in copy; tone logic unchanged', () => {
+        const empty = perfVerdict(summarisePerf({}).overall, 'login');
+        assert.equal(empty.tone, 'none');
+        assert.match(empty.text, /sign-ins/i);
+        const good = perfVerdict(summarisePerf(samplesFrom([['login', 'loginTotal', 'lt500ms', 9], ['login', 'loginTotal', '1-3s', 1]]), { metric: 'loginTotal' }).overall, 'login');
+        assert.equal(good.tone, 'good');
+        assert.match(good.text, /Signing in/i);
+    });
+});
+
+describe('loginDurationBucket', () => {
+    test('buckets a plausible recent span', () => {
+        assert.equal(loginDurationBucket(1000, 1000 + 300), 'lt500ms');
+        assert.equal(loginDurationBucket(1000, 1000 + 2000), '1-3s');
+    });
+    test('ignores missing / invalid / future / stale markers', () => {
+        assert.equal(loginDurationBucket(0, 5000), null, 'no marker');
+        assert.equal(loginDurationBucket(NaN, 5000), null, 'invalid');
+        assert.equal(loginDurationBucket(5000, 4000), null, 'clock went backwards');
+        assert.equal(loginDurationBucket(1000, 1000 + LOGIN_MAX_MS), null, 'stale (>= max)');
+        assert.equal(loginDurationBucket(1000, 1000 + LOGIN_MAX_MS + 1), null, 'well past max');
     });
 });

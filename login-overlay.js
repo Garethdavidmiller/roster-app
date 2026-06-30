@@ -22,6 +22,7 @@ import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
 import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
+import { markLoginStart, clearLoginStart } from './perf-reporter.js';
 
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
@@ -270,6 +271,9 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             backLink.classList.add('login-back--busy');
             backLink.setAttribute('aria-disabled', 'true');
             startStatusProgress();
+            // Start the login-to-usable timer (perf telemetry) — the moment the user commits to signing
+            // in. Read once on the destination page; cleared on failure below. (See perf-reporter.js.)
+            markLoginStart();
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
@@ -285,6 +289,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             });
             if (!_result.ok) {
                 clearStatusProgress();
+                clearLoginStart();   // failed sign-in — drop the timer so a later load can't log a stale time
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
                 showError(/** @type {string} */ (_result.error));

@@ -38,8 +38,12 @@ export function bucketDuration(ms) {
  * @returns {string}
  */
 export function perfSampleKey({ version, page, metric, bucket, mode, conn }) {
-    const v = String(version).replace(/\./g, '_');
-    return [v, page, metric, bucket, mode, conn].join('|');
+    // Sanitise EVERY component: a `.` is a Firestore field-path hazard in a map key (it nests the
+    // value wrongly) and a `|` would break parsePerfSampleKey. Only the version has a dot today and
+    // the rest are fixed tokens — but `conn` comes from navigator.connection.effectiveType, so harden
+    // defensively in case a non-conforming browser ever returns an unexpected string.
+    const safe = (/** @type {any} */ x) => String(x).replace(/[.|]/g, '_');
+    return [version, page, metric, bucket, mode, conn].map(safe).join('|');
 }
 
 /**
@@ -110,15 +114,52 @@ export function summarisePerf(samples, { metric = 'domReady' } = {}) {
     return { total, overall: _withPct(overall), byPage };
 }
 
+/** Plain-English verdict copy per journey ('pages' = opening any page; 'login' = signing in). */
+const VERDICT_TEXT = {
+    pages: {
+        good: 'Pages are opening quickly for staff.',
+        ok:   'Pages mostly open quickly, with some slower loads.',
+        bad:  'Some staff are waiting too long for pages to open.',
+        none: 'Not enough data yet — this builds up as staff use the app.',
+    },
+    login: {
+        good: 'Signing in is quick for staff.',
+        ok:   'Signing in mostly feels quick, with some slower sign-ins.',
+        bad:  'Signing in is taking too long for some staff.',
+        none: 'No sign-ins recorded yet this month.',
+    },
+};
+
 /**
  * One-line plain-English verdict for the overall speed, with a status tone for colour. Thresholds:
  * ≥20% slow → bad; else ≥80% quick → good; else ok. Empty → a "still building up" message.
  * @param {ReturnType<typeof _withPct>} overall
+ * @param {'pages'|'login'} [kind]  which journey the copy describes
  * @returns {{ tone: 'good'|'ok'|'bad'|'none', text: string }}
  */
-export function perfVerdict(overall) {
-    if (!overall || !overall.total) return { tone: 'none', text: 'Not enough data yet — this builds up as staff use the app.' };
-    if (overall.pctSlow >= 20)  return { tone: 'bad',  text: 'Some staff are waiting too long for pages to open.' };
-    if (overall.pctQuick >= 80) return { tone: 'good', text: 'Pages are opening quickly for staff.' };
-    return { tone: 'ok', text: 'Pages mostly open quickly, with some slower loads.' };
+export function perfVerdict(overall, kind = 'pages') {
+    const text = VERDICT_TEXT[kind] || VERDICT_TEXT.pages;
+    if (!overall || !overall.total) return { tone: 'none', text: text.none };
+    if (overall.pctSlow >= 20)  return { tone: 'bad',  text: text.bad };
+    if (overall.pctQuick >= 80) return { tone: 'good', text: text.good };
+    return { tone: 'ok', text: text.ok };
+}
+
+/** A login-to-usable span older than this is treated as a stale/abandoned marker and ignored. */
+export const LOGIN_MAX_MS = 120000;   // 2 minutes
+
+/**
+ * Bucket a login-to-usable duration from a stored start timestamp (perf-reporter's sign-in marker).
+ * Returns a PERF_BUCKETS id, or null when the marker is missing/invalid, in the future, or implausibly
+ * old (an abandoned sign-in — don't record a bogus huge time). PURE.
+ * @param {number} t0   Date.now() captured at the Sign-in click
+ * @param {number} now  Date.now() at the "page usable" point
+ * @param {number} [maxMs]
+ * @returns {string|null}
+ */
+export function loginDurationBucket(t0, now, maxMs = LOGIN_MAX_MS) {
+    if (!(t0 > 0) || !(now >= t0)) return null;   // missing/invalid marker, or clock went backwards
+    const elapsed = now - t0;
+    if (elapsed >= maxMs) return null;            // stale/abandoned — ignore
+    return bucketDuration(elapsed);
 }
