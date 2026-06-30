@@ -92,6 +92,7 @@ The single source of truth for all roster data.
 - `getWeekNumberForDate(member, date)` · `getALEntitlement(member, year)` · `getMembersForGrade(grade)` · `isSunday(dateStr)`
 - `avatarInitials(name)` / `avatarHue(name)` — initials + stable per-name colour for the nav-panel footer badge (called directly in `nav-panel.js`; no fetch/storage)
 - `escapeHtml(s)` / `formatISO(date)` / `isValidEmail(s)` — shared string/date/validation utilities used app-wide
+- `isChilternWorkEmail(s)` — true only for a valid email on the `CONFIG.WORK_EMAIL_DOMAIN` (`chilternrailways.co.uk`) domain; the client-side mirror of the staffContact firestore.rules domain check (v14.97). Used by settings/operations/admin work-email save paths
 - `CONFIG` (incl. `ADMIN_NAMES`, `LINKS_DESIGNERS`, `MIN_YEAR`/`MAX_YEAR`, payday anchors) and the re-exported raw roster arrays from `roster-cycle-data.js`. (`MILLER_ACTUALS` was moved OUT to `test-fixtures/miller-actuals.js` at v14.68 — privacy; see ARCHITECTURE_PLAN.md → MILLER_ACTUALS.)
 - (This module exports ~50 symbols — the above are the cross-referenced, load-bearing ones; see the file for the full list.)
 ### `calendar-app.js`

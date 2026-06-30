@@ -14,7 +14,7 @@
  *   notifications, pay calculator, roster data structure, shared CSS.
  */
 
-import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail } from './roster-data.js';
+import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
@@ -1520,7 +1520,7 @@ async function _runEmailCheck(member) {
 
         input.addEventListener('blur', () => {
             const v = input.value.trim();
-            if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+            if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
         });
 
         saveBtn.addEventListener('click', async () => {
@@ -1532,6 +1532,10 @@ async function _runEmailCheck(member) {
             }
             if (!isValidEmail(email)) {
                 errorEl.textContent = 'That doesn\'t look like a valid email address.';
+                input.focus(); return;
+            }
+            if (!isChilternWorkEmail(email)) {
+                errorEl.textContent = `Please use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN}).`;
                 input.focus(); return;
             }
             saveBtn.disabled = true;

@@ -182,7 +182,10 @@ service cloud.firestore {
         request.resource.data.workEmail is string &&
         request.resource.data.workEmail.size() >= 5 &&
         request.resource.data.workEmail.size() <= 200 &&
-        request.resource.data.workEmail.matches('[^@]+@[^@]+') &&
+        // Must be a Chiltern work email — exactly the @chilternrailways.co.uk domain
+        // (case-insensitive; the "@" + anchors reject look-alikes and subdomains). The client
+        // validator isChilternWorkEmail() in roster-data.js mirrors this — keep the two in sync.
+        request.resource.data.workEmail.matches('(?i)^[^@]+@chilternrailways\\.co\\.uk$') &&
         request.resource.data.updatedAt is timestamp;
       allow delete: if request.auth != null &&
         (request.auth.token.name == memberName || request.auth.token.admin == true);

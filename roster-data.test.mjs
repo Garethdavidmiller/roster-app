@@ -6,7 +6,7 @@
  * Covers: bank holidays, Easter, paydays, cutoffs, AL entitlement, validation.
  */
 
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
     getBankHolidays,
@@ -39,7 +39,34 @@ import {
     isSunday,
     CONFIG,
     fixedRoster,
+    isValidEmail,
+    isChilternWorkEmail,
 } from './roster-data.js';
+
+describe('isChilternWorkEmail', () => {
+    test('accepts a valid Chiltern work email (any case on the domain)', () => {
+        assert.equal(isChilternWorkEmail('john.smith@chilternrailways.co.uk'), true);
+        assert.equal(isChilternWorkEmail('  John.Smith@ChilternRailways.CO.UK  '), true);
+    });
+    test('rejects a valid email on the wrong domain', () => {
+        assert.equal(isChilternWorkEmail('john.smith@gmail.com'), false);
+        assert.equal(isChilternWorkEmail('john@arriva.co.uk'), false);
+    });
+    test('rejects look-alike and subdomain spoofs', () => {
+        assert.equal(isChilternWorkEmail('x@evil-chilternrailways.co.uk'), false);
+        assert.equal(isChilternWorkEmail('x@sub.chilternrailways.co.uk'), false);
+        assert.equal(isChilternWorkEmail('x@chilternrailways.co.uk.evil.com'), false);
+    });
+    test('rejects non-emails and non-strings', () => {
+        assert.equal(isChilternWorkEmail('notanemail'), false);
+        assert.equal(isChilternWorkEmail(''), false);
+        assert.equal(isChilternWorkEmail(/** @type {any} */ (null)), false);
+    });
+    test('uses CONFIG.WORK_EMAIL_DOMAIN as the single source', () => {
+        assert.equal(CONFIG.WORK_EMAIL_DOMAIN, 'chilternrailways.co.uk');
+        assert.equal(isChilternWorkEmail('a@' + CONFIG.WORK_EMAIL_DOMAIN), true);
+    });
+});
 
 // ---------------------------------------------------------------------------
 // Helpers

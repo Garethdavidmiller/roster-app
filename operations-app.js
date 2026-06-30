@@ -9,7 +9,7 @@
  * Edit here for: page-level session handling, card order, nav wiring.
  */
 
-import { CONFIG, teamMembers, formatISO, isValidEmail, escapeHtml } from './roster-data.js';
+import { CONFIG, teamMembers, formatISO, isValidEmail, isChilternWorkEmail, escapeHtml } from './roster-data.js';
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats, getPerfStats } from './firebase-client.js';
 import { SPEED_GROUPS, perfVerdict } from './perf-stats.js';
 import { initErrorReporter } from './error-reporter.js';
@@ -308,7 +308,7 @@ export function init() {
                             input.enterKeyHint = 'done';
                             input.addEventListener('blur', () => {
                                 const v = input.value.trim();
-                                if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+                                if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
                             });
 
                             const saveBtn = document.createElement('button');
@@ -329,10 +329,15 @@ export function init() {
 
                             saveBtn.addEventListener('click', async () => {
                                 const rawVal = input.value.trim();
-                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
+                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@' + CONFIG.WORK_EMAIL_DOMAIN;
                                 const email = input.value.trim();
                                 if (!isValidEmail(email)) {
                                     errorEl.textContent = 'Please enter a valid email address';
+                                    input.focus();
+                                    return;
+                                }
+                                if (!isChilternWorkEmail(email)) {
+                                    errorEl.textContent = `Use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN})`;
                                     input.focus();
                                     return;
                                 }
@@ -459,7 +464,7 @@ export function init() {
                             input.enterKeyHint = 'done';
                             input.addEventListener('blur', () => {
                                 const v = input.value.trim();
-                                if (v && !v.includes('@')) input.value = v + '@chilternrailways.co.uk';
+                                if (v && !v.includes('@')) input.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
                             });
 
                             const saveBtn = document.createElement('button');
@@ -480,10 +485,15 @@ export function init() {
 
                             saveBtn.addEventListener('click', async () => {
                                 const rawVal = input.value.trim();
-                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@chilternrailways.co.uk';
+                                if (rawVal && !rawVal.includes('@')) input.value = rawVal + '@' + CONFIG.WORK_EMAIL_DOMAIN;
                                 const email = input.value.trim();
                                 if (!isValidEmail(email)) {
                                     errorEl.textContent = 'Please enter a valid email address';
+                                    input.focus();
+                                    return;
+                                }
+                                if (!isChilternWorkEmail(email)) {
+                                    errorEl.textContent = `Use a Chiltern work email (@${CONFIG.WORK_EMAIL_DOMAIN})`;
                                     input.focus();
                                     return;
                                 }
