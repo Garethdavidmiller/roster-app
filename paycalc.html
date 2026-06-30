@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- MYB Roster — Pay Calculator v14.93 -->
+<!-- MYB Roster — Pay Calculator v14.94 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -24,6 +24,56 @@
   <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
   <title>MYB Roster — Pay Calculator</title>
   <link rel="stylesheet" href="./paycalc.css">
+
+  <!--
+    Module preload (v14.94 load-speed pass). paycalc's static import graph is the deepest
+    in the app — paycalc-boot → paycalc-app → 32 modules, several levels down to
+    session → firebase-client → the gstatic Firebase SDK. Without these hints the browser
+    discovers modules in a WATERFALL (parse a file, THEN fetch its imports), so the heavy
+    cross-origin Firebase SDK doesn't even start downloading until the chain reaches
+    firebase-client — and DOMContentLoaded can't fire until the whole graph is fetched.
+    Declaring the graph here lets every module (and the SDK) fetch in parallel from the
+    moment the HTML is parsed, collapsing the waterfall. modulepreload only fetches/compiles
+    — execution order is unchanged, so this is purely a speed-up with no behaviour change.
+    The list is kept honest by sw-asset-check.test.mjs, which fails if it drifts from
+    paycalc's real transitive graph or from the Firebase version pinned in firebase-client.js.
+  -->
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js" crossorigin>
+  <link rel="modulepreload" href="https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js" crossorigin>
+  <link rel="modulepreload" href="./about-lightbox.js">
+  <link rel="modulepreload" href="./auth-policy.js">
+  <link rel="modulepreload" href="./auth-state-core.js">
+  <link rel="modulepreload" href="./auth-state.js">
+  <link rel="modulepreload" href="./client-errors.js">
+  <link rel="modulepreload" href="./error-reporter.js">
+  <link rel="modulepreload" href="./firebase-client.js">
+  <link rel="modulepreload" href="./login-overlay.js">
+  <link rel="modulepreload" href="./ls.js">
+  <link rel="modulepreload" href="./nav-panel.js">
+  <link rel="modulepreload" href="./notif.js">
+  <link rel="modulepreload" href="./overlay.js">
+  <link rel="modulepreload" href="./paycalc-app.js">
+  <link rel="modulepreload" href="./paycalc-backpay.js">
+  <link rel="modulepreload" href="./paycalc-calc.js">
+  <link rel="modulepreload" href="./paycalc-format.js">
+  <link rel="modulepreload" href="./paycalc-help.js">
+  <link rel="modulepreload" href="./paycalc-hpp.js">
+  <link rel="modulepreload" href="./paycalc-lightboxes.js">
+  <link rel="modulepreload" href="./paycalc-migrations.js">
+  <link rel="modulepreload" href="./paycalc-periods.js">
+  <link rel="modulepreload" href="./paycalc-roster-hint.js">
+  <link rel="modulepreload" href="./paycalc-roster-suggestions.js">
+  <link rel="modulepreload" href="./paycalc-settings.js">
+  <link rel="modulepreload" href="./perf-reporter.js">
+  <link rel="modulepreload" href="./perf-stats.js">
+  <link rel="modulepreload" href="./roster-cycle-data.js">
+  <link rel="modulepreload" href="./roster-data.js">
+  <link rel="modulepreload" href="./session.js">
+  <link rel="modulepreload" href="./sw-register.js">
+  <link rel="modulepreload" href="./usage-reporter.js">
+  <link rel="modulepreload" href="./usage-stats.js">
+
   <link rel="manifest" href="./manifest.json">
 </head>
 <body>

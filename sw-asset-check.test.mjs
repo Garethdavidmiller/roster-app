@@ -246,3 +246,82 @@ test('Firestore collections in firebase-client.js all have firestore.rules entri
         `Collections in COLLECTIONS constant but missing from firestore.rules:\n  ${missing.join('\n  ')}`
     );
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// paycalc.html <link rel="modulepreload"> hints must stay in sync with paycalc's
+// real static import graph. The preloads collapse the module-fetch waterfall (see
+// the comment block in paycalc.html); if an import is added/removed and the hints
+// aren't updated, the speed-up silently regresses for that module — and a stale
+// gstatic Firebase version would preload the wrong SDK file. This guards both.
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Resolve the transitive set of LOCAL (./) static module deps reachable from `entry`. */
+function staticLocalGraph(entry) {
+    const seen = new Set();
+    const walk = (file) => {
+        if (seen.has(file)) return;
+        seen.add(file);
+        let src;
+        try { src = readFileSync(join(ROOT, file), 'utf8'); } catch { return; }
+        const deps = [];
+        let m;
+        // "... from './path'" — covers single-line AND multiline import/export blocks
+        const fromRe = /\bfrom\s*["']([^"']+)["']/g;
+        while ((m = fromRe.exec(src))) deps.push(m[1]);
+        // side-effect imports: import './path'
+        const sideRe = /^\s*import\s*["']([^"']+)["']/gm;
+        while ((m = sideRe.exec(src))) deps.push(m[1]);
+        for (const p of deps) {
+            if (!p.startsWith('./')) continue;   // ignore gstatic + bare specifiers
+            walk(p.slice(2));
+        }
+    };
+    walk(entry);
+    return seen;
+}
+
+test('paycalc.html modulepreload hints match its real transitive module graph', () => {
+    const html = readFileSync(join(ROOT, 'paycalc.html'), 'utf8');
+
+    // The local module graph paycalc actually loads (entry script handles boot itself).
+    const graph = staticLocalGraph('paycalc-boot.js');
+    graph.delete('paycalc-boot.js');
+    const expected = [...graph].filter(f => f.endsWith('.js')).sort();
+
+    // The local modules paycalc.html declares as preloads.
+    const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\.\/([^"]+)"/g)]
+        .map(x => x[1]).sort();
+
+    const missing = expected.filter(f => !preloaded.includes(f));
+    const stale   = preloaded.filter(f => !expected.includes(f));
+    assert.deepEqual(
+        { missing, stale }, { missing: [], stale: [] },
+        'paycalc.html modulepreload list is out of sync with paycalc-boot.js\'s static graph.\n' +
+        `  Add a <link rel="modulepreload"> for: ${missing.join(', ') || '(none)'}\n` +
+        `  Remove the stale preload for:        ${stale.join(', ') || '(none)'}`
+    );
+});
+
+test('paycalc.html gstatic Firebase preloads match the SDK version in firebase-client.js', () => {
+    const client = readFileSync(join(ROOT, 'firebase-client.js'), 'utf8');
+    const versions = new Set(
+        [...client.matchAll(/gstatic\.com\/firebasejs\/([\d.]+)\//g)].map(x => x[1])
+    );
+    assert.equal(versions.size, 1, `firebase-client.js references multiple SDK versions: ${[...versions].join(', ')}`);
+    const version = [...versions][0];
+
+    const html = readFileSync(join(ROOT, 'paycalc.html'), 'utf8');
+    const preloadedSdk = [...html.matchAll(
+        /<link rel="modulepreload" href="https:\/\/www\.gstatic\.com\/firebasejs\/([\d.]+)\/(firebase-[a-z]+)\.js" crossorigin>/g
+    )];
+
+    // Every gstatic preload must be at the pinned version, and the three core SDK
+    // modules paycalc needs on the critical path must all be preloaded.
+    for (const [, v, mod] of preloadedSdk) {
+        assert.equal(v, version, `paycalc.html preloads ${mod} at ${v} but firebase-client.js uses ${version}`);
+    }
+    const preloadedMods = new Set(preloadedSdk.map(x => x[2]));
+    for (const mod of ['firebase-app', 'firebase-auth', 'firebase-firestore']) {
+        assert.ok(preloadedMods.has(mod), `paycalc.html is missing a modulepreload for ${mod}.js`);
+    }
+});
