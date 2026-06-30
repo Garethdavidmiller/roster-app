@@ -24,6 +24,7 @@ import { initAboutLightbox } from './about-lightbox.js';
 import { registerServiceWorker } from './sw-register.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
+import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
@@ -717,7 +718,7 @@ initCalendarTooltip();
 initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // Error reporter + usage counter both write to Firestore (need request.auth) — gate them
 // on the shared auth promise defined above, the same one the push renewal awaits.
-calendarAuthReady.finally(() => { initErrorReporter(); recordUsage('calendar'); });
+calendarAuthReady.finally(() => { initErrorReporter(); recordUsage('calendar'); recordPageLatency('calendar'); });
 
 const _calendarSession = getSession();
 initNavPanel({

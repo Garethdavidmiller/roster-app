@@ -13,6 +13,7 @@ import { CONFIG, teamMembers, formatISO, isValidEmail, escapeHtml } from './rost
 import { auth, getAllStaffContacts, saveStaffContact, deleteStaffContact, getClientErrors, resolveClientError, uploadCircular, uploadNewsletter, getUsageStats } from './firebase-client.js';
 import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
+import { recordPageLatency } from './perf-reporter.js';
 import { loadOverrides } from './admin-overrides.js';
 import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
@@ -1009,6 +1010,6 @@ export function init() {
 
     // ============================================
     registerServiceWorker();
-    sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); });
+    sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations'); });
 
 }
