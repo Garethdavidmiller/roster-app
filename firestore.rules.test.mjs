@@ -485,6 +485,30 @@ describe('staffContact', () => {
         );
     });
 
+    test('cannot create with a non-Chiltern domain', async () => {
+        for (const bad of [
+            'john@gmail.com',
+            'john@arriva.co.uk',
+            'x@evil-chilternrailways.co.uk',
+            'x@sub.chilternrailways.co.uk',
+            'x@chilternrailways.co.uk.evil.com',
+        ]) {
+            await assertFails(
+                setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                    ...VALID_CONTACT(MEMBER), workEmail: bad,
+                })
+            );
+        }
+    });
+
+    test('accepts the Chiltern domain in any case', async () => {
+        await assertSucceeds(
+            setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {
+                ...VALID_CONTACT(MEMBER), workEmail: 'John.Smith@ChilternRailways.CO.UK',
+            })
+        );
+    });
+
     test('cannot create with email shorter than 5 chars', async () => {
         await assertFails(
             setDoc(doc(namedDb(MEMBER), 'staffContact', MEMBER), {

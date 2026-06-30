@@ -4,9 +4,10 @@
 login is smooth, including the previously-frozen joiner accounts (Okeke, Jedlinski). Now in
 **MONITORING**. The fix was the login-contract change (timeout `ensureNamedSession` + only save the
 local session after auth resolves + visible "Signing in…" state) on top of the earlier email-check
-fixes. **Two things remain open:** (1) **B1** (`ENFORCE_NAMED_SESSION`) and the **B3 sweep**
-(`CLAIM_EPOCH`) are still **OFF** — re-enable per the checklist below once the owner is satisfied
-login is stable for a few days; (2) a **residual slight slowness connecting to Firestore on first
+fixes. **Status update (v14.98):** **B1 (`ENFORCE_NAMED_SESSION`) has been RE-ENABLED** (`true`) now
+that login has been stable since the v14.75 fix and B1 was exonerated. The **B3 sweep (`CLAIM_EPOCH`)
+stays OFF (`0`)** — it belongs with the B3 strict-rule cutover, not this step. **Remaining open:** (1)
+the **B3** strict override rule + claim-refresh sweep (next security step); (2) a **residual slight slowness connecting to Firestore on first
 load** — owner notes this is **pre-existing / long-standing**, it is now **OFF the login critical
 path** (non-blocking — login no longer waits on it), and it is **deferred** (likely the first-read
 connection + auth-token handshake; revisit later if it gets worse). This file is the running memory
@@ -19,7 +20,7 @@ so any session can resume without re-deriving it. Not version-stamped; not a run
 
 | Flag / rule | Value now | Was | Why changed |
 |-------------|-----------|-----|-------------|
-| `CONFIG.ENFORCE_NAMED_SESSION` (B1) | **`false`** (rolled back v14.72) | `true` (since v14.42) | Suspected (wrongly) as the freeze cause; kept off until login is stable |
+| `CONFIG.ENFORCE_NAMED_SESSION` (B1) | **`true`** (RE-ENABLED v14.98) | `false` (rolled back v14.72) | Exonerated; re-enabled once login confirmed stable on the v14.75 fix |
 | `CONFIG.CLAIM_EPOCH` (B3 sweep) | **`0`** = disabled (rolled back v14.72) | `1` (v14.71) | Removed forced `getIdToken(true)` as a variable while diagnosing |
 | B2 override rule + `manager` claim | **LIVE** (merged, deployed) | n/a | NOT rolled back — server-side, permissive, not implicated |
 | B3 strict override rule | **NOT shipped** (still permissive) | n/a | Was never deployed; gated on the freeze being resolved |
@@ -199,7 +200,7 @@ change, no architecture dependency):
       (the exact disagreement the guard exists to prevent). Now gen-guarded; regression test added
       (ENFORCE-on retry-loop overlap, verified to fail without the fix). No behaviour change while B1 is off.
 - [ ] Owner confirms login is smooth across roles (admin, manager, CEA, CES, dispatcher) in a private window.
-- [ ] Re-enable B1: `ENFORCE_NAMED_SESSION = true` (one clean commit, revert the ⚠️ comment).
-- [ ] Re-enable B3 sweep: `CLAIM_EPOCH = 1` (or bump).
+- [x] Re-enable B1: `ENFORCE_NAMED_SESSION = true` (done v14.98, one clean commit). Verify live in a private window across roles, then watch login for a day; one-line revert if needed.
+- [ ] Re-enable B3 sweep: `CLAIM_EPOCH = 1` (or bump) — with the B3 strict cutover, not before.
 - [ ] Verify again, then resume the **B3 strict cutover** (drop `!('name' in token)` from `overrides`
       create/update/delete) per SECURITY_RELEASE_PLAN.md → B3.

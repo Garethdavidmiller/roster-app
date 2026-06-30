@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.96';
+export const APP_VERSION = '14.98';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -44,6 +44,7 @@ export const CONFIG = {
     ADMIN_NAMES:                      ['G. Miller'],                              // Names with elevated admin access (roster upload, huddle upload, auth setup) — add names here to grant full admin rights
     LINKS_DESIGNERS:                  ['G. Miller', 'S. Silva'],                  // Names with access to the Links design workspace
     MANAGER_NAMES:                    ['S. Stewart', 'D. Watts', 'D. Harris', 'S. Gumbo', 'N. Bedingfield', 'H. Croft'], // Managers & clerks — can view/edit all staff data but cannot access master admin features (upload, auth setup)
+    WORK_EMAIL_DOMAIN:               'chilternrailways.co.uk',                   // Authoritative Chiltern work-email domain — single source for the auto-append + the staffContact domain validation (settings/operations/admin + firestore.rules)
     // Security release B1 kill-switch (SECURITY_RELEASE_PLAN.md → "Appendix: B1 detailed scope").
     // ENABLED (true, v14.42). The write pages (admin/operations/settings/links) require the
     //   member's OWN named Firebase session — no anonymous fallback and no browser-side account
@@ -56,8 +57,12 @@ export const CONFIG = {
     // ⚠️ TEMPORARILY DISABLED (v14.72) — staff reported freezing on the login overlay even when
     //   signed in (B1 re-login loop: a write page can't confirm the named session, clears it, and
     //   re-shows the overlay). Reverted to pre-B1 behaviour to restore access while the root cause is
-    //   diagnosed. Set back to `true` once fixed. See SECURITY_RELEASE_PLAN.md → B1 kill-switch.
-    ENFORCE_NAMED_SESSION:            false,
+    //   diagnosed. See SECURITY_RELEASE_PLAN.md → B1 kill-switch.
+    // ✅ RE-ENABLED (v14.98) — the freeze root cause is FIXED: runNamedSignIn now commits the local
+    //   session ONLY after auth resolves (v14.75), reinforced by the stale-auth generation guard
+    //   (v14.87); and B1 was EXONERATED in diagnosis (the freeze persisted with B1 OFF, so B1 was
+    //   never the cause). The KILL-SWITCH above still applies — set back to `false` to revert instantly.
+    ENFORCE_NAMED_SESSION:            true,
     // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
     // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
     // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly
@@ -891,6 +896,21 @@ export function avatarHue(name) {
  */
 export function isValidEmail(v) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v);
+}
+
+/**
+ * True if `v` is a valid Chiltern WORK email — a valid address whose domain is exactly
+ * `CONFIG.WORK_EMAIL_DOMAIN` (case-insensitive on the domain). The "@" anchor rejects look-alikes
+ * (`x@evil-chilternrailways.co.uk`) and subdomains (`x@sub.chilternrailways.co.uk`). Mirrors the
+ * staffContact write rule in firestore.rules — keep the two in sync. Single authoritative validator
+ * for the work-email save paths (settings-app / operations-app / admin-app).
+ * @param {string} v
+ * @returns {boolean}
+ */
+export function isChilternWorkEmail(v) {
+    if (typeof v !== 'string') return false;
+    const e = v.trim();
+    return isValidEmail(e) && e.toLowerCase().endsWith('@' + CONFIG.WORK_EMAIL_DOMAIN);
 }
 
 /**

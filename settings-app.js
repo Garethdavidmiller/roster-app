@@ -7,7 +7,7 @@
  * a user already signed in on admin.html will arrive here without seeing the login overlay.
  */
 
-import { CONFIG, isValidEmail } from './roster-data.js';
+import { CONFIG, isValidEmail, isChilternWorkEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
@@ -139,7 +139,7 @@ function initContactCard() {
     emailInput.addEventListener('change', markUserTyped);
     emailInput.addEventListener('blur', () => {
         const v = emailInput.value.trim();
-        if (v && !v.includes('@')) emailInput.value = v + '@chilternrailways.co.uk';
+        if (v && !v.includes('@')) emailInput.value = v + '@' + CONFIG.WORK_EMAIL_DOMAIN;
     });
 
     function setFeedback(/** @type {any} */ msg, /** @type {any} */ state) {
@@ -189,7 +189,7 @@ function initContactCard() {
 
     saveBtn.addEventListener('click', async () => {
         const raw = emailInput.value.trim();
-        if (raw && !raw.includes('@')) emailInput.value = raw + '@chilternrailways.co.uk';
+        if (raw && !raw.includes('@')) emailInput.value = raw + '@' + CONFIG.WORK_EMAIL_DOMAIN;
         const email = emailInput.value.trim();
         setFeedback('', '');
 
@@ -200,6 +200,11 @@ function initContactCard() {
         }
         if (!isValidEmail(email)) {
             setFeedback('That doesn\'t look like a valid email address.', 'err');
+            emailInput.focus();
+            return;
+        }
+        if (!isChilternWorkEmail(email)) {
+            setFeedback(`Please use your Chiltern work email (ending @${CONFIG.WORK_EMAIL_DOMAIN}).`, 'err');
             emailInput.focus();
             return;
         }

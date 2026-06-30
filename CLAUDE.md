@@ -497,7 +497,7 @@ Auto-prunes: docs older than **3 months** (Firestore doc + Storage file) are del
 **staffContact** (v12.68)
 ```
 memberName  Must match teamMembers[n].name exactly — used as the document ID
-workEmail   Work email address (5–200 chars, must contain @)
+workEmail   Work email address (5–200 chars; must be the `@chilternrailways.co.uk` domain — case-insensitive, anchored so look-alikes/subdomains are rejected). Enforced by firestore.rules AND the client `isChilternWorkEmail()` (roster-data.js, single source `CONFIG.WORK_EMAIL_DOMAIN`); keep the two in sync (v14.97)
 updatedAt   Firestore server timestamp
 ```
 Read/write restricted: owner can read/write their own doc; admin can read all.
