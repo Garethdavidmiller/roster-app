@@ -601,3 +601,81 @@ directly, and `admin-app.js` gets simpler. (Update CLAUDE.md's "Work email check
 **Dependency note:** independent of B1/B3 (works with `ENFORCE_NAMED_SESSION` either state). Best done
 **after** the owner confirms the v14.79–80 login changes are stable in production, so this builds on a
 known-good baseline rather than stacking onto an unverified one.
+
+---
+
+## Appendix: Phase 10 — Remove the duplicate post-login `ensureNamedSession` — scoped v14.86
+
+The v14.83 login review's "next major latency improvement after removing reload": after an in-place
+sign-in, the login overlay establishes the named session, then the coordinator's authorised body
+**immediately calls `ensureNamedSession` again** (operations-app.js:81, links:92, admin:1598,
+settings:1598-equiv, paycalc's `_initErrorReporting`). The proposal: have the overlay pass its
+**confirmed** auth result into `onSuccess`, and let the page resolve `sessionReady` from that known
+result instead of re-confirming.
+
+### ⚠️ Read this first — the cost/benefit changed after v14.84
+The latency this would save is **now largely already captured** by the `auth.currentUser` fast path
+(v14.84, session.js): on the in-place path the overlay's sign-in set `auth.currentUser` **in the same
+page context**, so the second `ensureNamedSession` → `ensureFirebaseSession` hits the synchronous
+fast path (`auth.currentUser` matches → return immediately, no `onAuthStateChanged` wait, no network).
+So the "duplicate auth" is already a **synchronous near-noop**, not a second round trip. What remains
+to be saved is only: one redundant store dispatch (`RESOLVE_START`→`NAMED`), the `_fbIdentity`
+reset/re-set, and a couple of microtasks — **microscopic**. The genuine remaining value is
+**not latency** but: (a) eliminating a theoretical stale-completion race on `_fbIdentity`/the store,
+and (b) contract cleanliness. Weigh that against the risk below before building.
+
+### Mechanism (if built)
+1. **`runNamedSignIn`** already computes `named` (login-overlay.js:61) but returns only `{ ok }`.
+   Return `{ ok, named }`.
+2. **`attempt()`** passes it on: `await onSuccess(name, { named, authConfirmed: true })`. (Backwards-
+   compatible — existing `onSuccess(name)` callbacks ignore the 2nd arg.)
+3. **Coordinator in-place path** uses it instead of re-confirming:
+   - `resolveSession(true)` directly (the session is active — the overlay just confirmed it in this
+     same page context), **skipping** `ensureNamedSession(currentUser)` and the B1 `.then` re-check.
+
+### Why skipping is safe ONLY on the in-place path
+- `auth.currentUser` is already live (same page, just signed in) → no need to restore/establish.
+- The store (`getAuthSnapshot`) **already reflects `named`** — the overlay's `ensureNamedSession`
+  dispatched it on this same page's store. So the B1 re-check (`requirePage(getAuthSnapshot(),…)==='login'`)
+  would *pass* anyway; skipping it is redundant-removal, not a behaviour change.
+- Under `ENFORCE_NAMED_SESSION` ON, `onSuccess` only fires when `runNamedSignIn` returned `ok:true`,
+  which under enforce **means `named`** — so "auth confirmed named" is guaranteed when we get here.
+- The **reload path and the already-signed-in load path are untouched** — they genuinely need
+  `ensureNamedSession` (fresh page / cold restore), so they keep calling it. The optimisation applies
+  *only* to the in-place `onSuccess` entry.
+
+### The hard part — the two coordinator styles differ
+- **Branch-style (admin, settings)** — EASY. `onSuccess` already calls `initAuthorised()` directly, so
+  thread the result: `onSuccess: (name, auth) => initAuthorised({ authConfirmed: auth })`, and inside
+  `initAuthorised`, `if (opts.authConfirmed) resolveSession(true); else { const a = ensureNamedSession(currentUser); resolveSession(a); a.then(b1check); }`.
+- **init-wrapped (operations, links, paycalc)** — HARDER. `onSuccess` is `() => init()` (re-invokes the
+  whole coordinator). To pass the auth result, `init` must accept a param threaded down to the
+  authorised body: `onSuccess: (name, auth) => init({ authConfirmed: auth })`. That widens `init()`'s
+  signature and the `*-boot.js` call stays `init()` (no arg) — workable but more churn, for the same
+  near-zero latency gain. **Recommendation: do NOT touch the init-wrapped ones** — the fast path
+  already covers them and the re-invoke threading isn't worth it. If built at all, do **admin + settings
+  only** (where it's a clean `initAuthorised(opts)` change).
+
+### Risk
+- Touches the **one-shot `sessionReady`** (resolve `true` instead of the `ensureNamedSession` promise)
+  and **B1 enforcement** (skips a re-check) — both load-bearing. Mitigated by: the change is confined
+  to the in-place `onSuccess` entry (reload/returning paths unchanged), and it's behind the per-page
+  `INPLACE_LOGIN` flag (off in prod).
+- New failure mode to test: a page that resolves `sessionReady(true)` but whose `auth.currentUser`
+  somehow isn't live → a write would fail `request.auth`. Can't happen on the in-place path
+  (`saveSession` + the overlay's `ensureNamedSession` both completed before `onSuccess`), but the test
+  must assert it.
+
+### Test plan
+- Unit: `runNamedSignIn` returns `{ ok, named }` for each branch (named, anonymous-with-flag-off,
+  enforce-fail). DOM-free, extends `login-overlay.test.mjs`.
+- e2e: admin/settings in-place sign-in still renders + writes work (extend the existing no-reload
+  tests to also perform a Firestore-touching action and assert no `auth/session-expired`).
+- Assert `ensureNamedSession` is **not** called a second time on the in-place path (spy/count), and
+  **is** called on the reload + already-signed-in paths.
+
+### Recommendation & sequencing
+**Low priority.** Do it only **after** in-place login is enabled and proven live (per the review), and
+even then treat it as optional polish — scope it to **admin + settings**, skip the init-wrapped trio.
+If the live in-place experience already feels instant (likely, given the fast path), this can be
+**dropped** with no real loss. Strictly after Phase 9 is live; independent of B1/B3.
