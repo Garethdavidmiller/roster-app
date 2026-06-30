@@ -25,6 +25,8 @@ let _createCalled  = false;  // did the code attempt browser-side account creati
 let _anonCalled    = false;  // did the code attempt an anonymous fallback?
 let _signInCalls   = 0;      // how many times email/password sign-in was attempted (for retry tests)
 let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed (primeAuth/fast-path tests)
+/** @type {Promise<void>|null} */
+let _signInGate    = null;   // if set, email/password sign-in awaits it before resolving (generation-guard test)
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
 
 mock.module('./firebase-client.js', {
@@ -38,7 +40,7 @@ mock.module('./firebase-client.js', {
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
         // _signInBehavior may be a string (same every call) OR a function (callNumber → code),
         // which lets a test model a transient blip that clears on a later retry.
-        signInWithEmailAndPassword:     async () => { _signInCalls++; const b = typeof _signInBehavior === 'function' ? _signInBehavior(_signInCalls) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
+        signInWithEmailAndPassword:     async () => { const n = ++_signInCalls; if (_signInGate) await _signInGate; const b = typeof _signInBehavior === 'function' ? _signInBehavior(n) : _signInBehavior; if (b !== 'ok') _authThrow(b); },
         createUserWithEmailAndPassword: async () => { _createCalled = true; if (_createBehavior !== 'ok') _authThrow(_createBehavior); },
         signInAnonymously:              async () => { _anonCalled = true; if (_anonBehavior !== 'ok') _authThrow(_anonBehavior); },
         signOut:                        async () => { _signOutCalled = true; },
@@ -628,6 +630,51 @@ describe('primeAuth + currentUser fast path', () => {
         assert.equal(ok, true);
         assert.equal(_signOutCalled, true, 'the anonymous live session is signed out, not reused');
         assert.equal(_signInCalls, 1, 'then a fresh named sign-in runs');
+        assert.equal(getFirebaseIdentity(), 'named');
+    });
+});
+
+// ── Generation guard — a stale (timed-out) attempt must not clobber a newer one (v14.87) ──
+// runNamedSignIn time-boxes auth but cannot CANCEL the underlying Firebase promise, so a hung attempt
+// can resolve LATE — after the user retried and a newer attempt already won. The guard drops the late
+// completion's terminal writes so it can't downgrade the winner's identity (which under B1 would
+// trigger a spurious re-login).
+describe('auth generation guard', () => {
+    beforeEach(() => {
+        store.clear();
+        _existingUser    = null;
+        _signInBehavior  = 'ok';
+        _signInCalls     = 0;
+        _signInGate      = null;
+        auth.currentUser = null;
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+    });
+    afterEach(() => { _signInGate = null; auth.currentUser = null; });
+
+    test('a superseded attempt that resumes and FAILS does not clobber the winner’s named identity', async () => {
+        // Attempt 1 hangs at sign-in; Attempt 2 starts and wins as 'named'; Attempt 1 then resumes and
+        // its sign-in FAILS → without the guard it would fall back to 'anonymous' and overwrite _fbIdentity.
+        _signInBehavior = (/** @type {number} */ n) => (n === 1 ? 'auth/invalid-credential' : 'ok');
+        /** @type {() => void} */ let releaseGate = () => {};
+        _signInGate = new Promise(r => { releaseGate = r; });
+
+        const p1 = ensureFirebaseSession('G. Miller');          // attempt 1 — hangs awaiting the gate
+        for (let i = 0; i < 6; i++) await Promise.resolve();    // let it reach the gate
+        _signInGate = null;                                     // attempt 2 won't gate
+
+        const ok2 = await ensureFirebaseSession('G. Miller');   // attempt 2 — wins
+        assert.equal(ok2, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+
+        releaseGate();                                          // attempt 1 resumes → fails → anonymous (STALE)
+        await p1;
+        assert.equal(getFirebaseIdentity(), 'named', 'the stale attempt must not overwrite the winner');
+    });
+
+    test('the latest (current) attempt still writes identity normally', async () => {
+        // Sanity: with no superseding attempt, the guard is a pure no-op — identity is published.
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
         assert.equal(getFirebaseIdentity(), 'named');
     });
 });

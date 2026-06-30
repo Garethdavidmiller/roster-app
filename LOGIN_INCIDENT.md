@@ -188,6 +188,12 @@ change, no architecture dependency):
 
 ## Re-enable checklist (do NOT do until login confirmed smooth on the deployed build)
 
+- [x] **Stale-auth generation guard — DONE (v14.87).** `session.js` `_authGen`: each `ensureNamedSession`
+      takes a generation and a superseded (timed-out, late-resolving) attempt drops ALL its terminal
+      writes, so it can't downgrade the winner's `_fbIdentity`/auth-store identity. This was the reviews'
+      stated prerequisite for re-enabling strict enforcement — without it, a stale completion under B1
+      could trigger a spurious re-login. No behaviour change while B1 is off (no overlapping attempts on a
+      normal load). Tested in `session.test.mjs` ("auth generation guard").
 - [ ] Owner confirms login is smooth across roles (admin, manager, CEA, CES, dispatcher) in a private window.
 - [ ] Re-enable B1: `ENFORCE_NAMED_SESSION = true` (one clean commit, revert the ⚠️ comment).
 - [ ] Re-enable B3 sweep: `CLAIM_EPOCH = 1` (or bump).

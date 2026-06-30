@@ -105,6 +105,14 @@ let _fbIdentity = 'none';
 /** @type {string | undefined} The auth error code behind the last non-'named' outcome, for diagnostics. */
 let _fbAuthError;
 
+/** Monotonic auth-attempt generation (stale-completion guard, SECURITY_RELEASE_PLAN.md prep for B1/B3).
+ *  `runNamedSignIn` time-boxes the auth promise but cannot CANCEL the underlying Firebase work, so a
+ *  timed-out attempt can resolve LATE — after the user retried and a newer attempt already won. A
+ *  superseded attempt (its captured gen ≠ this counter) must drop ALL its terminal writes so it can't
+ *  clobber the shared `_fbIdentity`/auth-store to a stale value (which under B1 could cause a spurious
+ *  re-login). Each `ensureNamedSession` bumps it; `ensureFirebaseSession` inherits or (direct call) bumps. */
+let _authGen = 0;
+
 /**
  * The Firebase identity `ensureFirebaseSession` last established on a write page.
  * @returns {'named' | 'anonymous' | 'none'}
@@ -183,10 +191,27 @@ export function primeAuth() {
  *    can be surfaced in diagnostic messages.
  *
  * @param {string} name - Member display name (exact teamMembers match)
+ * @param {number} [_gen] - Internal: the caller's auth-attempt generation (stale-completion guard).
+ *   ensureNamedSession passes its generation; omit on a direct call and a fresh one is taken.
  * @returns {Promise<boolean>} true if a Firebase Auth session is active afterwards
  */
-export async function ensureFirebaseSession(name) {
-    _fbIdentity  = 'none';        // reset; set to 'named'/'anonymous' on the path that wins
+export async function ensureFirebaseSession(name, _gen) {
+    // Generation guard (see `_authGen`). ensureNamedSession passes its generation in; a direct call
+    // (e.g. tests) takes a fresh one. A superseded attempt drops its terminal writes via `commit`/
+    // `recordError` so a late completion can't clobber a newer attempt's identity/diagnostics.
+    const gen = _gen ?? ++_authGen;
+    const fresh = () => gen === _authGen;
+    /** Publish the winning identity, then return `result` — only if this attempt is still current.
+     *  @param {'named'|'anonymous'|'none'} identity @param {boolean} result @returns {boolean} */
+    const commit = (identity, result) => { if (fresh()) _fbIdentity = identity; return result; };
+    /** Record auth-error diagnostics for the CURRENT attempt only. @param {string|undefined} code */
+    const recordError = (code) => {
+        if (!fresh()) return;
+        _fbAuthError = code;
+        if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = code; // surfaced by admin-auth.js
+    };
+
+    _fbIdentity  = 'none';        // reset; set to 'named'/'anonymous' on the path that wins (provably fresh at entry)
     _fbAuthError = undefined;
     await authReady;
     // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
@@ -203,7 +228,7 @@ export async function ensureFirebaseSession(name) {
     // Person A was active on a shared browser and Person B now selects their name),
     // must not be reused — sign out and re-authenticate under the correct identity.
     if (existing) {
-        if (!existing.isAnonymous && existing.email === nameToEmail(name)) { _fbIdentity = 'named'; return true; }
+        if (!existing.isAnonymous && existing.email === nameToEmail(name)) return commit('named', true);
         await firebaseSignOut(auth);
     }
 
@@ -217,8 +242,7 @@ export async function ensureFirebaseSession(name) {
 
     try {
         await signInWithEmailAndPassword(auth, email, fbPassword);
-        _fbIdentity = 'named';
-        return true;
+        return commit('named', true);
     } catch (e) {
         const _e = /** @type {any} */ (e);
         firstError = _e.code;
@@ -230,8 +254,7 @@ export async function ensureFirebaseSession(name) {
             try {
                 await createUserWithEmailAndPassword(auth, email, fbPassword);
                 console.warn('[Auth] Created Firebase Auth account for', name);
-                _fbIdentity = 'named';
-                return true;
+                return commit('named', true);
             } catch (createErr) {
                 const _ce = /** @type {any} */ (createErr);
                 console.warn('[Auth] createUser failed:', _ce.code, 'for', email);
@@ -243,10 +266,7 @@ export async function ensureFirebaseSession(name) {
         // Fall through to the fallback below.
     }
 
-    _fbAuthError = firstError;
-    // window guard: ensureFirebaseSession is a browser path, but the typeof check lets the
-    // unit tests exercise the fallback branch under Node (no window) without throwing.
-    if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = firstError; // surfaced by admin-auth.js in diagnostics
+    recordError(firstError);   // diagnostics (current attempt only)
 
     // B1 (SECURITY_RELEASE_PLAN.md): when the named-session requirement is on, do NOT fall
     // back to an anonymous session — a write page must carry the member's OWN identity. Return
@@ -254,8 +274,7 @@ export async function ensureFirebaseSession(name) {
     // Default (flag off): keep today's anonymous fallback so nothing changes until you flip it on.
     if (CONFIG.ENFORCE_NAMED_SESSION) {
         console.warn('[Auth] Named session not established; anonymous fallback disabled (ENFORCE_NAMED_SESSION). Error:', firstError);
-        _fbIdentity = 'none';
-        return false;
+        return commit('none', false);
     }
 
     // Fallback: anonymous sign-in satisfies `request.auth != null`.
@@ -266,15 +285,12 @@ export async function ensureFirebaseSession(name) {
     try {
         await signInAnonymously(auth);
         console.warn('[Auth] Anonymous session established for', name);
-        _fbIdentity = 'anonymous';
-        return true;
+        return commit('anonymous', true);
     } catch (anonErr) {
         const _ae = /** @type {any} */ (anonErr);
         console.error('[Auth] Anonymous sign-in failed:', _ae.code);
-        _fbIdentity  = 'none';
-        _fbAuthError = `${firstError} + anon:${_ae.code}`;
-        if (typeof window !== 'undefined') /** @type {any} */ (window)._mybAuthError = `${firstError} + anon:${_ae.code}`;
-        return false;
+        recordError(`${firstError} + anon:${_ae.code}`);
+        return commit('none', false);
     }
 }
 
@@ -304,21 +320,26 @@ export function isTransientAuthError(code) { return !!code && _TRANSIENT_AUTH_CO
  * @returns {Promise<boolean>} true if it is safe to proceed (named session, or flag off)
  */
 export async function ensureNamedSession(name, { retries = 2, delayMs = 300 } = {}) {
+    const gen = ++_authGen;   // generation guard — a superseded attempt must not publish a stale terminal state
     _feedAuth({ type: 'RESOLVE_START', member: name });   // store: resolving (observing only — Phase 2)
-    let ok = await ensureFirebaseSession(name);
+    let ok = await ensureFirebaseSession(name, gen);
     if (!CONFIG.ENFORCE_NAMED_SESSION) {
-        _syncAuthTerminal(name);
-        if (firebaseSessionIsNamed()) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget)
+        if (gen === _authGen) {   // not superseded by a newer attempt → safe to publish the terminal state
+            _syncAuthTerminal(name);
+            if (firebaseSessionIsNamed()) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget)
+        }
         return ok;   // flag off → legacy behaviour, no gating
     }
     let attempt = 0;
-    while (!ok && attempt < retries && isTransientAuthError(getFirebaseAuthError())) {
+    // `gen === _authGen` stops a superseded attempt from continuing to retry (and dispatching stale events).
+    while (!ok && attempt < retries && gen === _authGen && isTransientAuthError(getFirebaseAuthError())) {
         _feedAuth({ type: 'TRANSIENT', error: getFirebaseAuthError() ?? null });   // store: degraded
         attempt++;
         await new Promise(r => setTimeout(r, delayMs * attempt));
         _feedAuth({ type: 'RETRY' });   // store: resolving again
-        ok = await ensureFirebaseSession(name);
+        ok = await ensureFirebaseSession(name, gen);
     }
+    if (gen !== _authGen) return false;   // superseded — drop a stale completion (don't publish its terminal state)
     _syncAuthTerminal(name);
     const named = firebaseSessionIsNamed();
     if (named) refreshClaimsIfStale(CONFIG.CLAIM_EPOCH);   // B3 sweep (fire-and-forget; one-shot per device)
