@@ -1108,6 +1108,12 @@ export function validateShiftRules(toSave, memberName) {
  * @throws {Error} 'auth/session-expired' if no Firebase Auth session, or Firestore error
  */
 export async function recordRangeOverrides({ type, value, memberName, dates, changedBy }) {
+    // Wait for the Firebase Auth session to be (re-)established before the currentUser check —
+    // mirrors executeSave(). A returning user has a valid LOCAL session but auth.currentUser is null
+    // for a moment while Firebase restores; without this await an AL/sick save fired in that window
+    // throws a FALSE 'auth/session-expired' (the v14.83 review's write-race). sessionReady resolves on
+    // the same onAuthStateChanged the restore completes on, so the wait is sub-second on a normal load.
+    await sessionReady;
     if (!auth.currentUser) throw new Error('auth/session-expired');
 
     const memberObj = teamMembers.find(m => m.name === memberName);

@@ -43,6 +43,11 @@ mock.module('./firebase-client.js', {
     },
 });
 
+// admin-overrides.js imports `sessionReady` from session.js; recordRangeOverrides/executeSave await it
+// before the auth.currentUser check (the v14.86 write-race fix). Provide an already-resolved promise so
+// those awaits don't hang on the real (never-resolved-in-test) sessionReady.
+mock.module('./session.js', { namedExports: { sessionReady: Promise.resolve(true) } });
+
 const {
     getEffectiveShift,
     validateShiftRules,
