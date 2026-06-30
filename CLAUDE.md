@@ -23,7 +23,7 @@
 
 | Secret | What it is |
 |--------|-----------|
-| ~~`FIREBASE_SERVICE_ACCOUNT`~~ | **Retired — no longer used.** All three deploy workflows now authenticate via **Workload Identity Federation** (short-lived GitHub OIDC tokens exchanged for the `github-deploy@myb-roster.iam.gserviceaccount.com` service account — pool `github-pool`, provider `github-provider`, repo-scoped by an `assertion.repository` condition). No long-lived key is stored in GitHub. Once the WIF cutover is merged, delete this secret and the old SA JSON key. See SECURITY_RELEASE_PLAN.md → Appendix A2. |
+| ~~`FIREBASE_SERVICE_ACCOUNT`~~ | **Retired — no longer used.** All three deploy workflows now authenticate via **Workload Identity Federation** (short-lived GitHub OIDC tokens exchanged for the `github-deploy@myb-roster.iam.gserviceaccount.com` service account — pool `github-pool`, provider `github-provider`, repo-scoped by an `assertion.repository` condition). No deploy workflow references a key file. The old SA JSON key has been deleted (deploys confidence-checked with it gone); deleting the `FIREBASE_SERVICE_ACCOUNT` GitHub secret is the final cleanup step. See SECURITY_RELEASE_PLAN.md → Appendix A2. |
 | `HUDDLE_SECRET` | Bearer token for `ingestHuddle` — also set in Firebase Secret Manager |
 | `ANTHROPIC_API_KEY` | Claude AI key for `parseRosterPDF` — Firebase Secret Manager only |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | Web Push keys — Firebase Secret Manager only |

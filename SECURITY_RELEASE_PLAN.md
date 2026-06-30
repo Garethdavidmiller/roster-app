@@ -645,7 +645,7 @@ Per workflow, add job `permissions: { contents: read, id-token: write }` and rep
 The auth action writes a short-lived credential file and exports `GOOGLE_APPLICATION_CREDENTIALS`, which `firebase deploy` already honours — so the deploy step itself is unchanged (just drop the `GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json` line).
 
 ### Cutover sequence (de-risked — one workflow first)
-**STATUS: implemented — steps 1–4 DONE; step 5 (secret + key deletion) is the only remaining owner action.**
+**STATUS: implemented and live — steps 1–4 DONE; merged to `main`; old SA JSON key DELETED (deploys confidence-checked with the key gone). Only loose end: confirm the `FIREBASE_SERVICE_ACCOUNT` GitHub secret is also deleted.**
 Implementation note: the provider resource name and SA email are written **directly in each
 workflow YAML** (they are not secrets), rather than via the two repo Variables the draft suggested —
 simpler, and keeps the whole config visible in the workflow file. Pool `github-pool`, provider
@@ -659,10 +659,10 @@ simpler, and keeps the whole config visible in the workflow file. Pool `github-p
 4. ✅ Migrated `deploy-hosting.yml` + `deploy-functions.yml`; each proven green via `workflow_dispatch`
    from the WIF branch (auth step + deploy step both green; functions needed the gen2 role set —
    Cloud Functions/Run/Build/Artifact Registry/Eventarc/Scheduler/Secret Manager/Service Account User).
-5. ⏳ **REMAINING:** after the WIF branch is merged to `main`, owner **deletes the
-   `FIREBASE_SERVICE_ACCOUNT` secret AND disables/deletes the SA JSON key in GCP** (the actual security
-   win — do not skip this final rotation). Merge first so `main`'s hosting/functions workflows are on
-   WIF before the secret disappears.
+5. ✅ Merged to `main`; owner **deleted the old SA JSON key in GCP** and re-ran a deploy from `main`
+   with the key gone (green) — the actual security win is realised. **Loose end:** confirm the
+   `FIREBASE_SERVICE_ACCOUNT` GitHub secret has also been removed (it is no longer referenced by any
+   workflow, so it is inert, but leaving it is needless attack surface).
 
 ### Risks & mitigations
 | Risk | Mitigation |

@@ -263,6 +263,14 @@ function staticLocalGraph(entry) {
         seen.add(file);
         let src;
         try { src = readFileSync(join(ROOT, file), 'utf8'); } catch { return; }
+        // Strip comments first. The `from '...'` scan below matches that substring
+        // anywhere, so a module path written inside a JSDoc/usage comment (e.g.
+        // "// re-exported from './foo.js'") would otherwise inject a PHANTOM module and
+        // make the walker recurse into an unrelated subtree — a spurious CI failure.
+        // Preserve "://" so import URLs like https://… are not mangled.
+        src = src
+            .replace(/\/\*[\s\S]*?\*\//g, '')        // block comments
+            .replace(/(^|[^:])\/\/[^\n]*/g, '$1');   // line comments (but not the // in a URL)
         const deps = [];
         let m;
         // "... from './path'" — covers single-line AND multiline import/export blocks
