@@ -18,10 +18,12 @@ import { CONFIG } from './roster-data.js';
 import { dispatchAuth } from './auth-state.js';
 
 /**
- * Feed the auth STORE (ARCHITECTURE_PLAN.md Phase 2) — OBSERVING ONLY. This is a pure
- * side-effect: nothing consumes the store yet, so it cannot change any page's behaviour,
- * and it is wrapped so a store error can NEVER break the auth path. `sessionReady` and
- * every existing flow are untouched. (Phase 4+ coordinators will subscribe to the store.)
+ * Feed the auth STORE (ARCHITECTURE_PLAN.md Phase 2). This is a pure side-effect, wrapped so
+ * a store error can NEVER break the auth path; `sessionReady` and every existing flow are
+ * untouched (session.js still owns the Firebase lifecycle). The store IS now consumed: the 5
+ * write coordinators read it at init via `getAuthSnapshot()` + `requirePage()` (auth-policy.js),
+ * active now that `ENFORCE_NAMED_SESSION` is on. The full single-owner auth shell (live
+ * subscriptions, `sessionReady` re-routed onto the store) is still future work.
  * @param {{ type: string, member?: string|null, error?: string|null }} event
  */
 function _feedAuth(event) {
@@ -161,7 +163,9 @@ function _consumePrimedAuthUser() {
  *
  * Idempotent and best-effort: a failure here resolves to null, so `ensureFirebaseSession` simply
  * does the restore itself, exactly as before. It changes NO security and NO outcome — pure latency
- * overlap. Tests never call it, so the consume path stays null there and behaviour is unchanged.
+ * overlap: the consume path resolves to null whenever nothing was primed, so behaviour is identical
+ * whether or not `primeAuth()` ran. (One-shot per page: `_authPrimed` is not reset after consumption,
+ * so only the first sign-in attempt on a page benefits from the pre-warm.)
  * @returns {void}
  */
 export function primeAuth() {

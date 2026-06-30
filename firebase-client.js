@@ -190,23 +190,25 @@ function _getStorageSdk() {
  * performs (`functions/roster-parse-helpers.js`) — PDF must start with `%PDF-`,
  * DOCX (a ZIP container) with `PK\x03\x04`.
  *
- * **Fails OPEN on a read error** (an unreadable slice resolves silently) so a
- * defensive read hiccup can never block a genuine upload — the daily Huddle path
- * must stay reliable. It throws only on a *positive* content mismatch, which a real
- * PDF/DOCX can never trigger.
+ * **Fails CLOSED** (v14.99): a file that can't be read, or is shorter than the 5-byte
+ * signature window, can't be a genuine PDF/DOCX — a real one is always ≥5 bytes and reads
+ * fine — so reject it rather than wave it through. This is an admin-only manual-upload path,
+ * so a rejection is retryable (it never affects the server-side daily Huddle ingest, which
+ * runs its own `fileSignatureMatches` check). Throws on a read error, a too-short file, or a
+ * positive content mismatch.
  *
  * @param {File}            file - the chosen file
  * @param {'pdf'|'docx'}    expectedType - the type derived from the filename
- * @returns {Promise<void>} resolves when valid or unverifiable; throws `Error('SIGNATURE_MISMATCH')` on a clear mismatch
+ * @returns {Promise<void>} resolves when valid; throws `Error('SIGNATURE_MISMATCH')` when invalid/unreadable
  */
 export async function assertFileSignature(file, expectedType) {
     let bytes;
     try {
         bytes = new Uint8Array(await file.slice(0, 5).arrayBuffer());
     } catch {
-        return; // can't read the file — fail open, never block a real upload
+        throw new Error('SIGNATURE_MISMATCH'); // can't read the file — fail CLOSED (admin-only, retryable)
     }
-    if (bytes.length < 5) return; // too short to judge (and too short to be a real doc) — fail open
+    if (bytes.length < 5) throw new Error('SIGNATURE_MISMATCH'); // too short to be a real PDF/DOCX — fail closed
     // %PDF-  → 25 50 44 46 2D
     const isPdfSig = bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 &&
                      bytes[3] === 0x46 && bytes[4] === 0x2D;
