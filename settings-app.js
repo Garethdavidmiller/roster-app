@@ -75,7 +75,7 @@ if (_access.decision === 'login') {
     initAuthorised();
 }
 registerServiceWorker();
-sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings'); });
+sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); recordPageLatency('settings', currentUser); });
 
 /**
  * The authorised (signed-in) init body. Called directly on a normal already-signed-in load, or from

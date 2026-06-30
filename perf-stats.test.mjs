@@ -119,6 +119,14 @@ describe('perfVerdict', () => {
         assert.equal(good.tone, 'good');
         assert.match(good.text, /Signing in/i);
     });
+
+    test('fcp kind uses "appear on screen" copy; tone logic unchanged', () => {
+        const r = summarisePerf(samplesFrom([['paycalc', 'fcp', 'lt500ms', 9], ['paycalc', 'fcp', '1-3s', 1]]), { metric: 'fcp' });
+        const good = perfVerdict(r.overall, 'fcp');
+        assert.equal(good.tone, 'good');                 // 90% quick → good, same thresholds
+        assert.match(good.text, /appear/i);              // FCP-specific wording
+        assert.equal(perfVerdict(summarisePerf({}).overall, 'fcp').tone, 'none');
+    });
 });
 
 describe('loginDurationBucket', () => {

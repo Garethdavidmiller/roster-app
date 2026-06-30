@@ -20,6 +20,7 @@
 
 import { recordPerfSample } from './firebase-client.js';
 import { bucketDuration, loginDurationBucket } from './perf-stats.js';
+import { CONFIG } from './roster-data.js';
 
 // Sign-in timing marker: a wall-clock timestamp stored at the "Sign in" click (login-overlay.js),
 // read once on the destination page (recordPageLatency below) to record login-to-usable time. Stored
@@ -54,23 +55,34 @@ function envContext() {
  * Record this page's navigation-timing latency (bucketed), anonymously. Best-effort and silent: any
  * missing API or error simply records nothing.
  * @param {string} page - stable page id: 'calendar' | 'admin' | 'paycalc' | 'operations' | 'settings' | 'links'
+ * @param {string|null} [identity] - the active member's name; if it is an admin (the developer), this
+ *        session is the developer testing the app, so NOTHING is recorded — the figures must reflect
+ *        real staff, not test loads. Pass the signed-in member, or the calendar's selected member.
  * @returns {void}
  */
-export function recordPageLatency(page) {
+export function recordPageLatency(page, identity = null) {
     try {
+        // Exclude the developer/admin's own sessions (CONFIG.ADMIN_NAMES) so speed figures reflect real
+        // staff — but still CONSUME the one-shot login marker below, so an excluded sign-in can't leave a
+        // stale marker that mis-times a later load.
+        const excluded = !!(identity && CONFIG.ADMIN_NAMES.includes(identity));
         const { mode, conn } = envContext();
 
         // Login-to-usable: if a sign-in started this session, record how long until the page became
         // usable. Attributed to the synthetic page id 'login' (login speed is ONE number, not split by
-        // destination) so it can never pollute a real page's stats. One-shot: cleared before recording.
+        // destination). One-shot: the marker is ALWAYS cleared (even when excluded); only RECORDED when not.
         try {
             const t0 = Number(sessionStorage.getItem(LOGIN_T0_KEY));
             if (t0) {
                 sessionStorage.removeItem(LOGIN_T0_KEY);
-                const bucket = loginDurationBucket(t0, Date.now());
-                if (bucket) recordPerfSample({ page: 'login', metric: 'loginTotal', bucket, mode, conn });
+                if (!excluded) {
+                    const bucket = loginDurationBucket(t0, Date.now());
+                    if (bucket) recordPerfSample({ page: 'login', metric: 'loginTotal', bucket, mode, conn });
+                }
             }
         } catch { /* sessionStorage unavailable — skip login timing */ }
+
+        if (excluded) return;   // developer's own session: marker consumed above, nothing else recorded
 
         // Navigation-timing metrics for THIS page (every load).
         const nav = /** @type {any} */ (performance.getEntriesByType?.('navigation')?.[0]);
@@ -81,5 +93,34 @@ export function recordPageLatency(page) {
             const bucket = bucketDuration(metrics[metric]);
             if (bucket) recordPerfSample({ page, metric, bucket, mode, conn });
         }
+
+        // First Contentful Paint (metric 'fcp') — when the user first SEES content, i.e. the page
+        // "appears". From the Paint Timing API, a different timeline to Navigation Timing's domReady
+        // ("fully ready"). Usually already recorded by now (FCP fires before the coordinator runs);
+        // the observer is a fallback for a late paint.
+        recordFcp(page, mode, conn);
     } catch { /* best-effort — latency telemetry must never affect the app */ }
+}
+
+/**
+ * Record First Contentful Paint for `page` (bucketed), best-effort. Reads the existing paint entry if
+ * present; otherwise observes once for a late paint. Never throws.
+ * @param {string} page @param {string} mode @param {string} conn
+ */
+function recordFcp(page, mode, conn) {
+    try {
+        const report = (/** @type {number} */ startTime) => {
+            const bucket = bucketDuration(startTime);
+            if (bucket) recordPerfSample({ page, metric: 'fcp', bucket, mode, conn });
+        };
+        const existing = (performance.getEntriesByType?.('paint') || [])
+            .find(e => e.name === 'first-contentful-paint');
+        if (existing) { report(existing.startTime); return; }
+        if (typeof PerformanceObserver !== 'function') return;   // unsupported — skip silently
+        const obs = new PerformanceObserver((list) => {
+            const e = list.getEntries().find(x => x.name === 'first-contentful-paint');
+            if (e) { obs.disconnect(); report(e.startTime); }
+        });
+        obs.observe({ type: 'paint', buffered: true });
+    } catch { /* best-effort — FCP telemetry must never affect the app */ }
 }

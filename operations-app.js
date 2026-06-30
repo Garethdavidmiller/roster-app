@@ -937,22 +937,34 @@ export function init() {
                 `<span class="usage-stat-lbl"><span aria-hidden="true">📅</span> active in last 30 days</span></div>`;
             content.appendChild(accounts);
 
-            // Page popularity (this month).
+            // Page popularity — This month / Last month toggle (trend; stable early in a month).
+            let popActive = 'this';
+            const popToggle = document.createElement('div');
+            popToggle.className = 'speed-toggle';
+            popToggle.setAttribute('role', 'group');
+            popToggle.setAttribute('aria-label', 'Time window');
             const heading = document.createElement('p');
             heading.className = 'usage-section-label';
-            heading.textContent = `Page popularity — ${_usageMonthLabel(stats.month)}`;
-            content.appendChild(heading);
+            const popBody = document.createElement('div');
 
-            if (!stats.pageCounts.length) {
-                const none = document.createElement('p');
-                none.className = 'auth-desc';
-                none.textContent = 'No page views recorded yet this month.';
-                content.appendChild(none);
-            } else {
-                const max = stats.pageCounts[0].count || 1;
+            const renderPop = () => {
+                const counts = popActive === 'this' ? stats.pageCounts : stats.prevPageCounts;
+                const month  = popActive === 'this' ? stats.month : stats.prevMonth;
+                heading.textContent = `Page popularity — ${_usageMonthLabel(month)}`;
+                popBody.innerHTML = '';
+                if (!counts.length) {
+                    const none = document.createElement('p');
+                    none.className = 'auth-desc';
+                    none.textContent = popActive === 'this'
+                        ? 'No page views recorded yet this month.'
+                        : 'No page views recorded last month.';
+                    popBody.appendChild(none);
+                    return;
+                }
+                const max = counts[0].count || 1;
                 const list = document.createElement('div');
                 list.className = 'usage-bars';
-                stats.pageCounts.forEach(({ page, count }) => {
+                counts.forEach(({ page, count }) => {
                     const meta  = PAGE_META[page];
                     const emoji = meta ? meta.emoji : '📄';
                     // Known labels are static/safe; an unknown page key (a tampered client
@@ -967,12 +979,36 @@ export function init() {
                         `<span class="usage-bar-count">${count.toLocaleString('en-GB')}</span>`;
                     list.appendChild(row);
                 });
-                content.appendChild(list);
-            }
+                popBody.appendChild(list);
+            };
+
+            [['this', 'This month'], ['last', 'Last month']].forEach(([key, label]) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'speed-toggle-btn' + (key === popActive ? ' speed-toggle-btn--on' : '');
+                btn.textContent = label;
+                btn.setAttribute('aria-pressed', String(key === popActive));
+                btn.addEventListener('click', () => {
+                    if (popActive === key) return;
+                    popActive = key;
+                    popToggle.querySelectorAll('.speed-toggle-btn').forEach((b, i) => {
+                        const on = (i === 0 ? 'this' : 'last') === popActive;
+                        b.classList.toggle('speed-toggle-btn--on', on);
+                        b.setAttribute('aria-pressed', String(on));
+                    });
+                    renderPop();
+                });
+                popToggle.appendChild(btn);
+            });
+
+            content.appendChild(popToggle);
+            content.appendChild(heading);
+            content.appendChild(popBody);
+            renderPop();
 
             const note = document.createElement('p');
             note.className = 'usage-note';
-            note.textContent = 'Anonymous counts only — never who did what.';
+            note.textContent = 'Anonymous counts only — never who did what. Your own (admin) loads are excluded.';
             content.appendChild(note);
 
         } catch (e) {
@@ -1048,54 +1084,127 @@ export function init() {
             return div;
         };
 
+        /** A lighter sub-heading for the two "opening a page" milestones. @param {string} emoji @param {string} label */
+        const subMilestone = (emoji, label) => {
+            const p = document.createElement('p');
+            p.className = 'speed-subhead speed-subhead--sub';
+            p.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
+            return p;
+        };
+        /** A small muted framing line. @param {string} text */
+        const noteLine = (text) => {
+            const p = document.createElement('p');
+            p.className = 'speed-note';
+            p.textContent = text;
+            return p;
+        };
+        /** Per-page rows showing BOTH milestones — an "appears" bar and a "ready" bar per page — so the
+         *  same page's two speeds sit together and one page's "appears" can be scanned against every other.
+         *  @param {Array<any>} fcpByPage @param {Array<any>} pagesByPage @param {string} month */
+        const dualRows = (fcpByPage, pagesByPage, month) => {
+            const frag = document.createDocumentFragment();
+            const heading = document.createElement('p');
+            heading.className = 'usage-section-label';
+            heading.textContent = `By page — ${_usageMonthLabel(month)}`;
+            frag.appendChild(heading);
+
+            const fcpMap   = new Map(fcpByPage.map(p => [p.page, p]));
+            const pagesMap = new Map(pagesByPage.map(p => [p.page, p]));
+            const allPages = [...new Set([...pagesMap.keys(), ...fcpMap.keys()])]
+                .sort((a, b) => (pagesMap.get(b)?.total || 0) - (pagesMap.get(a)?.total || 0)
+                             || (fcpMap.get(b)?.total   || 0) - (fcpMap.get(a)?.total   || 0)
+                             || a.localeCompare(b));
+
+            const rows = document.createElement('div');
+            rows.className = 'speed-rows';
+            const head = document.createElement('div');
+            head.className = 'speed-row speed-row--dual speed-dual-head';
+            head.innerHTML = '<span></span><span class="speed-dual-label">appears</span><span class="speed-dual-label">ready</span><span></span>';
+            rows.appendChild(head);
+
+            allPages.forEach(pg => {
+                const meta  = PAGE_META[pg];
+                const emoji = meta ? meta.emoji : '📄';
+                const label = meta ? meta.label : escapeHtml(pg);
+                const f = fcpMap.get(pg);
+                const r = pagesMap.get(pg);
+                const count = (r?.total) || (f?.total) || 0;
+                const row = document.createElement('div');
+                row.className = 'speed-row speed-row--dual';
+                row.innerHTML =
+                    `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
+                    `<span class="speed-bar" role="img" aria-label="appears: ${f ? f.pctQuick : 0}% quick">${f ? segs(f) : ''}</span>` +
+                    `<span class="speed-bar" role="img" aria-label="ready: ${r ? r.pctQuick : 0}% quick">${r ? segs(r) : ''}</span>` +
+                    `<span class="speed-row-count">${count.toLocaleString('en-GB')}</span>`;
+                rows.appendChild(row);
+            });
+            frag.appendChild(rows);
+            return frag;
+        };
+
         try {
             await sessionReady;
-            const stats = await adminReadWithRetry(getPerfStats);
+            const stats = await adminReadWithRetry(getPerfStats);   // { thisMonth, lastMonth }
             content.innerHTML = '';
 
-            const hasData = stats.login.total || stats.pages.total;
+            // ── Window toggle: This month / Last month (trend across deploys; stable early in a month) ──
+            let active = 'thisMonth';
+            const toggle = document.createElement('div');
+            toggle.className = 'speed-toggle';
+            toggle.setAttribute('role', 'group');
+            toggle.setAttribute('aria-label', 'Time window');
+            const body = document.createElement('div');
 
-            // ── Section 1: Signing in (login-to-usable; the metric the login work is all about) ──
-            // Verdict + an overall band bar so it shows the SAME Quick/A moment/Slow split as pages.
-            content.appendChild(subhead('🔑', 'Signing in'));
-            content.appendChild(verdictBanner(perfVerdict(stats.login.overall, 'login'), stats.login.overall, stats.login.total, 'sign-ins'));
-            if (stats.login.total) content.appendChild(overallBar(stats.login.overall));
+            /** Render the body for the active window. */
+            const render = () => {
+                const w = stats[/** @type {'thisMonth'|'lastMonth'} */ (active)];   // { month, login, fcp, pages }
+                body.innerHTML = '';
 
-            // Shared colour key (explains the login bar above + the page bars below).
-            if (hasData) content.appendChild(legendEl());
+                // Section 1 — Signing in (a distinct journey).
+                body.appendChild(subhead('🔑', 'Signing in'));
+                body.appendChild(verdictBanner(perfVerdict(w.login.overall, 'login'), w.login.overall, w.login.total, 'sign-ins'));
+                if (w.login.total) body.appendChild(overallBar(w.login.overall));
 
-            // ── Section 2: Opening pages (how fast each page opened) ──
-            content.appendChild(subhead('📄', 'Opening pages'));
-            content.appendChild(verdictBanner(perfVerdict(stats.pages.overall, 'pages'), stats.pages.overall, stats.pages.total, 'page loads'));
+                if (w.login.total || w.fcp.total || w.pages.total) body.appendChild(legendEl());
 
-            if (stats.pages.total) {
-                // Per-page breakdown.
-                const heading = document.createElement('p');
-                heading.className = 'usage-section-label';
-                heading.textContent = `By page — ${_usageMonthLabel(stats.month)}`;
-                content.appendChild(heading);
+                // Section 2 — Opening a page: two milestones in timeline order (appears → ready).
+                body.appendChild(subhead('📄', 'Opening pages'));
+                body.appendChild(noteLine('Two moments when a page opens — when it first appears on screen, then when it’s fully ready to use.'));
+                body.appendChild(subMilestone('✨', 'First appears'));
+                body.appendChild(verdictBanner(perfVerdict(w.fcp.overall, 'fcp'), w.fcp.overall, w.fcp.total, 'page views'));
+                body.appendChild(subMilestone('✅', 'Fully ready'));
+                body.appendChild(verdictBanner(perfVerdict(w.pages.overall, 'pages'), w.pages.overall, w.pages.total, 'page loads'));
 
-                const rows = document.createElement('div');
-                rows.className = 'speed-rows';
-                stats.pages.byPage.forEach(p => {
-                    const meta  = PAGE_META[p.page];
-                    const emoji = meta ? meta.emoji : '📄';
-                    const label = meta ? meta.label : escapeHtml(p.page);
-                    const row = document.createElement('div');
-                    row.className = 'speed-row';
-                    row.innerHTML =
-                        `<span class="speed-row-label"><span aria-hidden="true">${emoji}</span> ${label}</span>` +
-                        `<span class="speed-bar" role="img" aria-label="${p.pctQuick}% quick, ${p.pctOk}% a moment, ${p.pctSlow}% slow">${segs(p)}</span>` +
-                        `<span class="speed-row-count">${p.total.toLocaleString('en-GB')}</span>`;
-                    rows.appendChild(row);
+                if (w.fcp.total || w.pages.total) body.appendChild(dualRows(w.fcp.byPage, w.pages.byPage, w.month));
+
+                const note = document.createElement('p');
+                note.className = 'usage-note';
+                note.textContent = 'Speeds are how long the app took to respond. Your own (admin) loads are excluded. Anonymous — never who.';
+                body.appendChild(note);
+            };
+
+            [['thisMonth', 'This month'], ['lastMonth', 'Last month']].forEach(([key, label]) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'speed-toggle-btn' + (key === active ? ' speed-toggle-btn--on' : '');
+                btn.textContent = label;
+                btn.setAttribute('aria-pressed', String(key === active));
+                btn.addEventListener('click', () => {
+                    if (active === key) return;
+                    active = key;
+                    toggle.querySelectorAll('.speed-toggle-btn').forEach((b, i) => {
+                        const on = (i === 0 ? 'thisMonth' : 'lastMonth') === active;
+                        b.classList.toggle('speed-toggle-btn--on', on);
+                        b.setAttribute('aria-pressed', String(on));
+                    });
+                    render();
                 });
-                content.appendChild(rows);
-            }
+                toggle.appendChild(btn);
+            });
 
-            const note = document.createElement('p');
-            note.className = 'usage-note';
-            note.textContent = 'Speeds are how long the app took to respond. Anonymous — never who.';
-            content.appendChild(note);
+            content.appendChild(toggle);
+            content.appendChild(body);
+            render();
 
         } catch (e) {
             content.innerHTML = '<p class="auth-desc" style="color:var(--error-red)">Couldn\'t load app speed — check your connection and reload.</p>';
@@ -1150,6 +1259,6 @@ export function init() {
 
     // ============================================
     registerServiceWorker();
-    sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations'); });
+    sessionReady.then(() => { initErrorReporter(); recordUsage('operations', currentUser); recordPageLatency('operations', currentUser); });
 
 }

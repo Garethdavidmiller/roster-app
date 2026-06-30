@@ -163,7 +163,7 @@ roster-app/
 ├── error-reporter.js       ← shared uncaught-error reporter: initErrorReporter() — writes to Firestore clientErrors
 ├── usage-reporter.js       ← shared anonymous usage recorder: recordUsage(page, member?) — page popularity + active-account counts (client-side dedup; no identity stored)
 ├── usage-stats.js          ← pure usage maths: monthKey, dayKey, shouldCountMonth, shouldCountRolling, recentDayKeys, sumDailyWindow, orderPageCounts, staleDailyKeys
-├── perf-reporter.js        ← shared anonymous latency recorder (Project 0): recordPageLatency(page) — buckets Navigation Timing (ttfb, domReady) → Firestore analytics/perf_<YYYY-MM>; no identity, no raw ms
+├── perf-reporter.js        ← shared anonymous latency recorder (Project 0): recordPageLatency(page, identity?) — buckets Navigation Timing (ttfb, domReady) + Paint Timing (fcp) → Firestore analytics/perf_<YYYY-MM>; no identity, no raw ms. Skips recording when `identity` is an admin (the developer's own test loads) — but still consumes the one-shot login marker
 ├── perf-stats.js           ← pure latency maths: PERF_BUCKETS, bucketDuration, perfSampleKey, parsePerfSampleKey
 ├── calendar-team-view.js        ← Team Week View: state, grid render, Firestore fetch, toggle
 ├── override-utils.js   ← override/member-start/shift helpers: tsToMillis, shouldReplaceOverride, isBeforeMemberStart, isRestShift
@@ -542,14 +542,16 @@ Read/resolved by: `getClientErrors` / `resolveClientError` in `firebase-client.j
 ```
 Document  analytics/pv_<YYYY-MM>   { month: "YYYY-MM", counts: { <pageId>: <int> } }  — page popularity per month
 Document  analytics/activeAccounts { months: { "YYYY-MM": <int> }, daily: { "YYYY-MM-DD": <int> } } — unique active-account counts
-Document  analytics/perf_<YYYY-MM> { month: "YYYY-MM", samples: { "<ver>|<page>|<metric>|<bucket>|<mode>|<conn>": <int> } } — page-load latency (Project 0, v14.89)
+Document  analytics/perf_<YYYY-MM> { month: "YYYY-MM", samples: { "<ver>|<page>|<metric>|<bucket>|<mode>|<conn>": <int> } } — page-load latency (Project 0, v14.89). Metrics: ttfb · fcp (first-contentful-paint, "appears") · domReady ("fully ready") · loginTotal (sign-in). admin loads excluded (v14.95)
 ```
 Page ids: `calendar` | `admin` | `paycalc` | `operations` | `settings` | `links`.
 Uniqueness of "active accounts" is deduped **client-side** (localStorage flags keyed by member name, which never leave the device) so the server only ever receives `increment(1)` — it stores *how many* accounts were active, never *which*. "Last 30 days" = sum of the `daily` buckets over the rolling window (each account self-suppresses for the window, so the sum is a true unique count). Counts are per account-device (multi-device users count more than once) — a usage trend, not an exact headcount.
 Write: any authenticated session (`request.auth != null`), including the calendar's anonymous Firebase session. Values aren't individually validatable (Firestore can't restrict to increment-only) — App Check is the eventual integrity control; the data is non-sensitive aggregate counts. No client delete.
 Read: admin only (`request.auth.token.admin == true`).
 Written by: `recordPageView` / `recordActiveAccount` in `firebase-client.js`, called from `usage-reporter.js` (`recordUsage`) on every page. Read by: `getUsageStats` in `firebase-client.js`, called from `operations-app.js` Usage card (which also prunes daily buckets past ~35 days). Decision/aggregation maths is the pure `usage-stats.js` module.
-The `perf_<YYYY-MM>` doc (Project 0, v14.89) holds anonymous page-load latency: `recordPageLatency(page)` in `perf-reporter.js` buckets Navigation Timing (`ttfb`/`domReady`) and calls `recordPerfSample` in `firebase-client.js`; key dimensions (version/page/metric/bucket/PWA mode/connection class) are non-identifying — no member, no raw ms. The Operations read/dashboard for it is a deliberate follow-up; until then it accumulates for Firestore-console / ad-hoc comparison across deploys. Bucketing maths is the pure `perf-stats.js` module.
+The `perf_<YYYY-MM>` doc (Project 0, v14.89) holds anonymous page-load latency: `recordPageLatency(page, identity?)` in `perf-reporter.js` buckets Navigation Timing (`ttfb`/`domReady`) **and Paint Timing (`fcp` — first-contentful-paint, "appears on screen")** and calls `recordPerfSample` in `firebase-client.js`; key dimensions (version/page/metric/bucket/PWA mode/connection class) are non-identifying — no member, no raw ms. **Admin (developer) sessions are excluded** so figures reflect real staff. The Operations "App speed" card (`getPerfStats` → `initPageSpeedCard`) reads THIS month + LAST month and shows two journeys — 🔑 Signing in, and 📄 Opening pages as two milestones (✨ First appears / ✅ Fully ready) with both bars per page. Bucketing/verdict maths is the pure `perf-stats.js` module.
+
+**Admin-exclusion (usage + speed, v14.95):** both `recordUsage` and `recordPageLatency` drop a session whose active member is in `CONFIG.ADMIN_NAMES` — the figures must reflect real staff, not the developer's own testing. It is a WRITE-time filter (no identity is stored, so it can't be filtered on read); historical pre-v14.95 data stays polluted, but is clean going forward. The Operations cards now also offer a **This month / Last month** window (month-over-month trend; last month is a stable full window early in a month) — active accounts keep their existing "Last 30 days" rolling figure.
 
 **circulars** (v13.58)
 ```

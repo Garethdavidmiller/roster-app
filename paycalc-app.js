@@ -1330,7 +1330,7 @@ export function init() {
     // outcome so synchronous init errors are still captured locally.
     (function _initErrorReporting() {
       const name = getSession()?.name;
-      const afterAuth = () => { initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc'); };
+      const afterAuth = () => { initErrorReporter(); recordUsage('paycalc', name ?? null); recordPageLatency('paycalc', name ?? null); };
       // SOFT enforcement (B1.2), now decided via the policy (ARCHITECTURE_PLAN.md Phase 7): the pay
       // calculator is localStorage-based and writes no isolated data, so a degraded/anonymous session
       // must NEVER block it. requirePage('paycalc') honours that — being `soft`, it returns ONLY 'allow'

@@ -718,7 +718,14 @@ initCalendarTooltip();
 initCalendarKeyboard({ navigateToPaycalc, openDayDetail });
 // Error reporter + usage counter both write to Firestore (need request.auth) — gate them
 // on the shared auth promise defined above, the same one the push renewal awaits.
-calendarAuthReady.finally(() => { initErrorReporter(); recordUsage('calendar'); recordPageLatency('calendar'); });
+calendarAuthReady.finally(() => {
+    initErrorReporter();
+    // The calendar is anonymous (no member arg → page view only, no active-account, as before), but
+    // pass the SELECTED member as the identity so the developer's own testing is excluded from stats.
+    const _calIdentity = (/** @type {any} */ (getCurrentMember()))?.name ?? null;
+    recordUsage('calendar', null, _calIdentity);
+    recordPageLatency('calendar', _calIdentity);
+});
 
 const _calendarSession = getSession();
 initNavPanel({
