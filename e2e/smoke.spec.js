@@ -379,7 +379,7 @@ for (const width of [1280, 1440]) {
         // robust to the centred max-width:1100 container + narrow-left/wide-right split.
         // An auto-placement regression (the v14.31 symptom) would break this separation.
         const leftIds  = ['#huddleUploadCard', '#circularUploadCard', '#newsletterUploadCard'];
-        const rightIds = ['#rosterUploadCard', '#workEmailCard', '#errorLogCard', '#usageCard', '#authSetupCard'];
+        const rightIds = ['#rosterUploadCard', '#workEmailCard', '#errorLogCard', '#usageCard', '#pageSpeedCard', '#authSetupCard'];
         const boxesOf = async ids => Promise.all(ids.map(id => page.locator(id).boundingBox()));
         const leftBoxes  = await boxesOf(leftIds);
         const rightBoxes = await boxesOf(rightIds);
@@ -392,6 +392,17 @@ for (const width of [1280, 1440]) {
         expect(rightWidth, 'roster column should be wider than the publishing column').toBeGreaterThan(leftWidth);
     });
 }
+
+// App speed card (Project 0): renders its plain-language summary without throwing. Firebase is
+// stubbed (getDoc → empty), so getPerfStats yields no data and the card shows the "still building
+// up" empty state — proving the read + perfVerdict + render path runs end-to-end.
+test('operations: App speed card renders the empty-state verdict (no throw)', async ({ page }) => {
+    await seedSession(page, 'G. Miller');
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', String(Date.now())));
+    await page.goto('/operations.html');
+    await expect(page.locator('#pageSpeedCard')).toBeVisible();
+    await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');
+});
 
 // Work Email Progress rows must not overflow the card on a narrow phone. The bug
 // (v14.35): each row is a flex item inside the --added flex COLUMN, which inherited

@@ -22,7 +22,7 @@ import { initializeFirestore, getFirestore, persistentLocalCache, collection, qu
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, setPersistence, indexedDBLocalPersistence, browserLocalPersistence, browserSessionPersistence } from 'https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js';
 import { orderClientErrors, expiredResolvedIds } from './client-errors.js';
 import { monthKey, sumDailyWindow, orderPageCounts, staleDailyKeys } from './usage-stats.js';
-import { perfSampleKey } from './perf-stats.js';
+import { perfSampleKey, summarisePerf } from './perf-stats.js';
 import { APP_VERSION } from './roster-data.js';
 
 const firebaseConfig = {
@@ -702,6 +702,19 @@ export function recordPerfSample({ page, metric, bucket, mode, conn }) {
         { month: m, samples: { [key]: increment(1) } },
         { merge: true },
     ).catch(() => {/* best-effort analytics */});
+}
+
+/**
+ * Read this month's page-load latency for the Operations "App speed" card (admin-only). Returns the
+ * plain-language summary (overall + per-page quick/ok/slow bands) computed by the pure perf-stats
+ * module — for the 'domReady' metric (how fast the page opened). No identity is involved.
+ * @returns {Promise<{ month: string } & ReturnType<typeof summarisePerf>>}
+ */
+export async function getPerfStats() {
+    const m = monthKey(new Date());
+    const snap = await getDoc(doc(db, COLLECTIONS.analytics, `perf_${m}`));
+    const data = snap.exists() ? /** @type {any} */ (snap.data()) : { samples: {} };
+    return { month: m, ...summarisePerf(data.samples || {}, { metric: 'domReady' }) };
 }
 
 /**
