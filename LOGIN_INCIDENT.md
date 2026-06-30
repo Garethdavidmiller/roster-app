@@ -1,9 +1,17 @@
 # LOGIN_INCIDENT.md — live working log for the login freeze/slowness
 
-*Status: **OPEN / UNRESOLVED** as of v14.74 (Jun 2026). Owner reports login still not
-"totally fixed." This file is the running memory of what was changed, what was rolled back, and
-what is still suspected, so any session can resume diagnosis without re-deriving it. Not
-version-stamped; not a runtime asset. Branch: `claude/review-claude-md-mKJbK`.*
+*Status: **LOGIN FREEZE RESOLVED at v14.75** (Jun 2026) — owner-confirmed in a private window:
+login is smooth, including the previously-frozen joiner accounts (Okeke, Jedlinski). Now in
+**MONITORING**. The fix was the login-contract change (timeout `ensureNamedSession` + only save the
+local session after auth resolves + visible "Signing in…" state) on top of the earlier email-check
+fixes. **Two things remain open:** (1) **B1** (`ENFORCE_NAMED_SESSION`) and the **B3 sweep**
+(`CLAIM_EPOCH`) are still **OFF** — re-enable per the checklist below once the owner is satisfied
+login is stable for a few days; (2) a **residual slight slowness connecting to Firestore on first
+load** — owner notes this is **pre-existing / long-standing**, it is now **OFF the login critical
+path** (non-blocking — login no longer waits on it), and it is **deferred** (likely the first-read
+connection + auth-token handshake; revisit later if it gets worse). This file is the running memory
+so any session can resume without re-deriving it. Not version-stamped; not a runtime asset. Branch:
+`claude/review-claude-md-mKJbK`.*
 
 ---
 

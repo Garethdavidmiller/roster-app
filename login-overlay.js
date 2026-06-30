@@ -40,6 +40,42 @@ function withTimeout(promise, ms) {
     ]).finally(() => clearTimeout(timer)));
 }
 
+/**
+ * The DOM-free core of a sign-in attempt (exported for tests). Establishes the member's named
+ * Firebase session, time-boxed, and commits the LOCAL session ONLY if auth genuinely resolves — so
+ * a slow/hung auth can never leave a "half signed-in" state (the v14.72–75 login-freeze class; see
+ * LOGIN_INCIDENT.md). Pure of DOM: the caller passes the already-name-bound session helpers and the
+ * enforce flag, and applies the button/error effects from the result.
+ *
+ * @param {object} deps
+ * @param {boolean} deps.enforce                            CONFIG.ENFORCE_NAMED_SESSION
+ * @param {() => Promise<boolean>} deps.ensureNamedSession  pre-bound to the member name
+ * @param {() => void} deps.saveSession                     pre-bound to the member name
+ * @param {() => void} deps.clearSession
+ * @param {() => (string|null|undefined)} deps.getAuthError
+ * @param {(code: any) => boolean} deps.isTransient
+ * @param {number} [deps.timeoutMs]
+ * @returns {Promise<{ ok: boolean, error?: string }>}  ok=true ⇒ local session saved; caller runs onSuccess
+ */
+export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession, clearSession, getAuthError, isTransient, timeoutMs = 8000 }) {
+    let named = false, authResolved = true;
+    try {
+        named = await withTimeout(ensureNamedSession(), timeoutMs);
+    } catch {
+        authResolved = false;   // timed out (or threw) → treat as not signed in
+    }
+    if (!authResolved || (enforce && !named)) {
+        clearSession();         // never leave a stale/legacy session behind a failed sign-in
+        return { ok: false, error: !authResolved
+            ? 'Couldn’t complete sign-in — check your connection and try again.'
+            : isTransient(getAuthError())
+                ? 'Couldn’t reach sign-in — check your connection and try again.'
+                : 'Couldn’t complete sign-in. Ask your manager to set up your account.' };
+    }
+    saveSession();              // commit ONLY now that auth has genuinely resolved
+    return { ok: true };
+}
+
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in". */
 function overlayHtml(/** @type {string} */ pageLabel) {
     return `
@@ -189,41 +225,24 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             submitBtn.disabled = true;
             submitBtn.textContent = 'Signing in…';
 
-            // Establish the member's Firebase Auth session so Firestore rules accept their writes.
-            // TIME-BOXED (8s): a slow/hung Firebase Auth step (token restore, sign-in, anonymous
-            // fallback) must never strand the user on the overlay. And — the load-bearing part — we
-            // do NOT save the local session until auth resolves. Saving it first (the old order at
-            // v14.74-) created a "half signed-in" state the rest of the app honoured even though the
-            // overlay never finished: a slow auth left the user able to navigate away as a phantom
-            // signed-in user, and Admin then ran its email check off that stray session. Now nothing
-            // is written until sign-in genuinely completes.
-            let named = false, authResolved = true;
-            try {
-                named = await withTimeout(ensureNamedSession(name), 8000);
-            } catch {
-                authResolved = false;   // timed out (or threw) → treat as not signed in
-            }
-
-            if (!authResolved || (CONFIG.ENFORCE_NAMED_SESSION && !named)) {
-                // Surname matched locally but sign-in didn't complete (timeout, or — when enforcing
-                // — the member's OWN Firebase session couldn't be established; usually an
-                // unprovisioned account, since browser account creation is disabled). Leave NO local
-                // session behind, restore the button, and explain. Re-entering works once the cause
-                // clears; persistent enforce-failures route to admin break-glass.
-                clearSession();
+            // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
+            // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
+            // class; see runNamedSignIn / LOGIN_INCIDENT.md). On failure we restore the button and
+            // show the message it returns; on success we hand off to onSuccess (reload/navigate).
+            const _result = await runNamedSignIn({
+                enforce:            CONFIG.ENFORCE_NAMED_SESSION,
+                ensureNamedSession: () => ensureNamedSession(name),
+                saveSession:        () => saveSession(name),
+                clearSession,
+                getAuthError:       getFirebaseAuthError,
+                isTransient:        isTransientAuthError,
+            });
+            if (!_result.ok) {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
-                showError(!authResolved
-                    ? 'Couldn’t complete sign-in — check your connection and try again.'
-                    : isTransientAuthError(getFirebaseAuthError())
-                        ? 'Couldn’t reach sign-in — check your connection and try again.'
-                        : 'Couldn’t complete sign-in. Ask your manager to set up your account.');
+                showError(/** @type {string} */ (_result.error));
                 return;
             }
-
-            // Auth resolved (named — or, flag off, an acceptable anonymous fallback). ONLY NOW commit
-            // the local session and hand off to the caller (which reloads / navigates).
-            saveSession(name);
             await onSuccess(name);
             // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } finally {
