@@ -28,6 +28,18 @@ import { lockBodyScroll, trapFocus } from './overlay.js';
 const GRADE_ORDER = ['CEA', 'CES', 'Dispatcher', 'Management'];
 const GRADE_KEY   = 'myb_login_grade';
 
+/** Resolve `promise`, or reject after `ms`, so a hung async step can't strand the login overlay.
+ *  Clears the timer on either outcome. (The underlying promise keeps running — that is fine; a late
+ *  success is simply ignored and benefits the next attempt.)
+ *  @template T @param {Promise<T>} promise @param {number} ms @returns {Promise<T>} */
+function withTimeout(promise, ms) {
+    /** @type {any} */ let timer;
+    return /** @type {Promise<T>} */ (Promise.race([
+        promise,
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timed out')), ms); }),
+    ]).finally(() => clearTimeout(timer)));
+}
+
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in". */
 function overlayHtml(/** @type {string} */ pageLabel) {
     return `
@@ -172,20 +184,46 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             }
 
             lsSet(GRADE_KEY, gradeSelect.value);
-            saveSession(name);
+            // Visible in-progress state — establishing the Firebase session is a network round trip,
+            // so the button must not look idle (and silently swallow taps) while we wait.
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Signing in…';
+
             // Establish the member's Firebase Auth session so Firestore rules accept their writes.
-            const named = await ensureNamedSession(name);
-            if (CONFIG.ENFORCE_NAMED_SESSION && !named) {
-                // Surname matched locally but the member's OWN Firebase session couldn't be
-                // established. Don't leave a local session that can't write; explain why.
-                // Persistent failure is almost always an unprovisioned account (browser account
-                // creation is disabled when enforcing) — point them at admin break-glass.
+            // TIME-BOXED (8s): a slow/hung Firebase Auth step (token restore, sign-in, anonymous
+            // fallback) must never strand the user on the overlay. And — the load-bearing part — we
+            // do NOT save the local session until auth resolves. Saving it first (the old order at
+            // v14.74-) created a "half signed-in" state the rest of the app honoured even though the
+            // overlay never finished: a slow auth left the user able to navigate away as a phantom
+            // signed-in user, and Admin then ran its email check off that stray session. Now nothing
+            // is written until sign-in genuinely completes.
+            let named = false, authResolved = true;
+            try {
+                named = await withTimeout(ensureNamedSession(name), 8000);
+            } catch {
+                authResolved = false;   // timed out (or threw) → treat as not signed in
+            }
+
+            if (!authResolved || (CONFIG.ENFORCE_NAMED_SESSION && !named)) {
+                // Surname matched locally but sign-in didn't complete (timeout, or — when enforcing
+                // — the member's OWN Firebase session couldn't be established; usually an
+                // unprovisioned account, since browser account creation is disabled). Leave NO local
+                // session behind, restore the button, and explain. Re-entering works once the cause
+                // clears; persistent enforce-failures route to admin break-glass.
                 clearSession();
-                showError(isTransientAuthError(getFirebaseAuthError())
-                    ? 'Couldn’t reach sign-in — check your connection and try again.'
-                    : 'Couldn’t complete sign-in. Ask your manager to set up your account.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sign in →';
+                showError(!authResolved
+                    ? 'Couldn’t complete sign-in — check your connection and try again.'
+                    : isTransientAuthError(getFirebaseAuthError())
+                        ? 'Couldn’t reach sign-in — check your connection and try again.'
+                        : 'Couldn’t complete sign-in. Ask your manager to set up your account.');
                 return;
             }
+
+            // Auth resolved (named — or, flag off, an acceptable anonymous fallback). ONLY NOW commit
+            // the local session and hand off to the caller (which reloads / navigates).
+            saveSession(name);
             await onSuccess(name);
             // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } finally {

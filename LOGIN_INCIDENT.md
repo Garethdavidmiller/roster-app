@@ -71,7 +71,17 @@ login: which request stalls — `accounts:signInWithPassword`, `securetoken…/t
   `onSuccess` now just `window.location.reload()`. The email check still runs on the next page load
   via `initEmailCheck()` (already wired, fire-and-forget, with the 4s read cap), so no Firestore read
   remains on the login→reload path.
-- Owner on 14.74: **"not sure it is totally fixed."** ← we are here.
+- Owner on 14.74: **"not sure it is totally fixed."** Then provided an external code review.
+- **v14.75 FIX (the deeper login-contract fix, from the external review — verified correct):**
+  `login-overlay.js` `attempt()` was saving the local session (`saveSession(name)`) **before**
+  `await ensureNamedSession(name)`, and that await had **no timeout**. So a slow Firebase Auth step
+  (token restore / sign-in / anonymous fallback) left the overlay stuck while the app already
+  honoured the saved session → "half signed-in" (navigate away = phantom signed-in; Admin later ran
+  its email check off the stray session). v14.75: (1) wrap `ensureNamedSession` in an **8s
+  `withTimeout`**; (2) **only `saveSession` AFTER auth resolves** (on timeout/enforce-failure: no
+  session written, button restored, error shown); (3) visible **"Signing in…"** disabled button.
+  This is the real remaining freeze fix (my v14.72–74 only addressed the email-check half). 671 unit
+  + 68 e2e pass (incl. all B1 login-overlay paths).
 
 ---
 
@@ -96,6 +106,22 @@ login: which request stalls — `accounts:signInWithPassword`, `securetoken…/t
    the first real read isn't cold — only if the slowness is confirmed to be first-read latency.
 4. Confirm whether the slowness is account-specific (joiners Okeke/Jedlinski) or universal — if
    account-specific, re-check those accounts' provisioning/claims from "Set up accounts."
+
+## Recommended follow-ups from the external review (not yet done — lower priority than the freeze fix)
+
+- **Email-check trigger marker (review "Fix 4"):** `initEmailCheck` runs on every authenticated Admin
+  load whose `myb_email_check_done_<member>` flag is absent — not "only after a fresh login." With
+  v14.75's no-half-login fix the surreal "escape → return → modal" path is largely closed, but a
+  cleaner design gates the modal on a `myb_email_check_pending_<member>` marker set only on a clean
+  login, cleared on dismiss. Optional polish; changes feature behaviour, so deferred during the incident.
+- **Login-click-path tests (review's test list):** the suite covers session helpers + overlay
+  presence but NOT the full sign-in click flow — which is why these regressions slipped through. Add:
+  (1) no local session written while the auth promise is pending; (2) session saved only on success;
+  (3) auth timeout leaves no session + restores the button; (4) email check doesn't run merely
+  because Admin has a local session; (5) the old v14.67 hang regression. Needs DOM-mocked
+  `initLoginOverlay` (firebase-client/session/ls/roster-data mocked, like `session.test.mjs`).
+- **Confirm the live PWA is actually serving the latest version**, not stale SW cache, when testing —
+  About panel shows the version; or DevTools: `fetch('./roster-data.js?b='+Date.now()).then(r=>r.text()).then(t=>console.log(t.match(/APP_VERSION = '([\d.]+)'/)))`.
 
 ## Re-enable checklist (do NOT do until login confirmed smooth on the deployed build)
 
