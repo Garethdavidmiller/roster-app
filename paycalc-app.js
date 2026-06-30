@@ -83,7 +83,11 @@ export function init() {
       // with the just-saved session. The per-member namespace is handled for free: runMigrations()
       // (below) calls setPaycalcNamespace(getLoggedMember()) and saveSession already wrote the member
       // before onSuccess, so loadSettings reads the right namespace. (ARCHITECTURE_PLAN.md Phase 9.)
-      const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN ? () => init() : () => window.location.reload();
+      // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
+      // path is never less robust than the reload path (the overlay is already torn down by then).
+      const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN
+          ? () => { try { init(); } catch { window.location.reload(); } }
+          : () => window.location.reload();
       initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });
       return;
     }

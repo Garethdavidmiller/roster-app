@@ -57,7 +57,11 @@ export function init() {
         //    pass (we return now), so re-entering runs it exactly ONCE with the just-saved session —
         //    no reload, no double-wiring. Do NOT resolveSession(false) here, or the one-shot
         //    sessionReady would be poisoned before the in-place pass can resolve it true.
-        const onSuccess = CONFIG.INPLACE_LOGIN ? () => init() : () => window.location.reload();
+        // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
+        // path is never less robust than the reload path (the overlay is already torn down by then).
+        const onSuccess = CONFIG.INPLACE_LOGIN
+            ? () => { try { init(); } catch { window.location.reload(); } }
+            : () => window.location.reload();
         initLoginOverlay({ pageLabel: 'Operations', onSuccess });
         if (!CONFIG.INPLACE_LOGIN) resolveSession(false);
         return;
