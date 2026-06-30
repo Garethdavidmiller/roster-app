@@ -49,3 +49,31 @@ The **roster-assist hint bar** pre-fills Sat/Sun/BH/Boxing Day/RDW hours from ba
 **`CONDITIONAL_ROWS`** — data-driven array: condition → row IDs → field IDs. `updateBhRows(p)` iterates it. Adding future conditional rows means one array entry, not new show/hide logic.
 
 **Per-member localStorage namespacing (v14.11)** — all per-member paycalc keys are prefixed with a member segment (`myb_pc_<slug>_…`) so two staff sharing a browser cannot read each other's pay data. `pcPrefix()` in `paycalc-migrations.js` is the single source of the prefix; `SK` and every key builder derive from it. `setPaycalcNamespace()` is invoked once from `runMigrations` (before `loadSettings`) to activate the member's namespace. Pre-existing shared/legacy data is **not** silently claimed — `hasPendingLegacyMigration()` detects it and `paycalc-lightboxes.js` prompts the member (mine → move / fresh → discard / ✕ → decide later); `resolveLegacyMigration()` applies the choice and sets the `myb_pc_ns_migrated` guard (v14.25). Device-level flags (migration guards, "seen notice/welcome", `myb_pc_ns_migrated`) stay unnamespaced — see `DEVICE_KEYS`. Never build a paycalc key without `pcPrefix()`/`SK`.
+
+## Payslip line names — match these EXACTLY (source of truth)
+
+**Principle:** the pay calculator is only useful if staff can find each figure on their actual
+Chiltern payslip. So every "Shows as … on your payslip" pointer, field label, and notice MUST use
+the payslip's own wording verbatim — never a paraphrase. The authoritative source is the real
+payslip; the figures used by the regression tests live in `test-fixtures/miller-actuals.js`
+(`gross` = the payslip's **"Taxable Pay"** line). When the calculator gains a new pay item, find its
+exact payslip line name first and quote it.
+
+| In-app item | Exact payslip line name | Rate |
+|-------------|-------------------------|------|
+| Pension contribution | `Smart RPS CR Scheme` | — |
+| Year-to-date pay figure (for accurate tax) | `Taxable Pay` (in the **Year to Date** box) | — |
+| Year-to-date tax figure | `Tax Paid` (in the **Year to Date** box) | — |
+| London Allowance | `London Allowance` | fixed |
+| Saturday (rostered) | `Ord Basic Pay @1.25` | 1.25× |
+| Bank Holiday worked (rostered) | `Bank Holiday Rostered 1.25` | 1.25× |
+| Bank Holiday overtime | `Bank Holiday Overtime 1.25` | 1.25× |
+| Overtime | `Overtime 1.25` | 1.25× |
+| Rest Day Worked | `RDW 1.25` | 1.25× |
+| Rest Day Worked — Sunday | `RDW Sun 1.5` | 1.5× |
+| Boxing Day | `Bank Holiday Overtime 3.0` | 3.0× |
+| Peer training | shows as **extra basic pay** (no distinct line) | basic |
+
+**Year to Date:** always spell it out as "Year to Date" (never bare "YTD") and call the two figures
+exactly `Taxable Pay` / `Tax Paid` — NOT "Gross Pay" (the YTD figure is taxable pay, post-pension,
+not gross). Don't invent friendlier names for these — the whole point is they match the payslip box.

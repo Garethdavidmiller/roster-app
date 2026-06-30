@@ -131,10 +131,10 @@ export function initPaycalcLightboxes() {
       onClose: () => {
         archiveNotice({
           id:      'ytd_2627',
-          title:   'Enter your YTD figures',
+          title:   'Enter your Year to Date figures',
           section: 'Pay',
           date:    NOTICE_DATE,
-          body:    'Open ⚙️ Your Settings and enter your YTD Gross Pay and YTD Tax Paid from your most recent payslip for accurate monthly tax estimates.',
+          body:    'Open ⚙️ Your Settings and copy your Taxable Pay and Tax Paid from the Year to Date box on your most recent payslip, for accurate tax estimates.',
         });
         lsSet(NOTICE_YTD_KEY, '1');
       },

@@ -248,7 +248,7 @@ function renderCalendar() {
             const errDiv = document.createElement('div');
             errDiv.className = 'calendar-error';
             errDiv.setAttribute('role', 'alert');
-            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact the admin team.</p>';
+            errDiv.innerHTML = '<h2><span aria-hidden="true">⚠️</span> Couldn\'t display your roster</h2><p>Close the app and open it again. If it keeps happening, check your connection or contact your manager.</p>';
             calendarDisplay.innerHTML = '';
             calendarDisplay.appendChild(errDiv);
         }
@@ -416,7 +416,7 @@ try {
             allErrors.forEach(error => console.error('  - ' + error));
             const banner = document.getElementById('errorBanner');
             if (banner) {
-                banner.textContent = '⚠️ The app couldn\'t load some staff details — please tell the admin team.';
+                banner.textContent = '⚠️ Some roster details couldn\'t load — please tell your manager.';
                 banner.classList.add('visible');
             }
         }

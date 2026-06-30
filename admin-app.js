@@ -1295,7 +1295,7 @@ function applyPermissions() {
     const savedHint = document.querySelector('#overridesToggleHeader .hint');
     if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
     if (sickHint)  sickHint.textContent = 'Record your own absence days — sickness, family, or any other reason';
-    if (savedHint) savedHint.textContent = 'Your schedule changes — tap any row to edit or delete';
+    if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
     // Auto-open the Annual Leave card — most staff visit here primarily to book AL
     const alBody    = document.getElementById('alBody');
