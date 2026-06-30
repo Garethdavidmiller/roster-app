@@ -124,6 +124,46 @@ export function firebaseSessionIsNamed() { return _fbIdentity === 'named'; }
  */
 export function getFirebaseAuthError() { return _fbAuthError; }
 
+/** Resolve the first onAuthStateChanged emission (the IndexedDB session restore) once. */
+function _restoreFirstAuthUser() {
+    return new Promise(resolve => {
+        const unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => { unsub(); resolve(user); });
+    });
+}
+
+/** Pre-warmed restore promise from primeAuth(), consumed exactly once by ensureFirebaseSession.
+ *  @type {Promise<any>|null} */
+let _primedAuthUser = null;
+let _authPrimed     = false;
+
+/** Take the pre-warmed restore promise if one is pending (one-shot). Returns null when not primed,
+ *  so the caller falls back to a fresh restore. @returns {Promise<any>|null} */
+function _consumePrimedAuthUser() {
+    const p = _primedAuthUser;
+    _primedAuthUser = null;
+    return p;
+}
+
+/**
+ * Pre-warm Firebase Auth restoration BEFORE the user submits the login form — call when the login
+ * overlay mounts. It kicks off `authReady` (persistence setup) and the first `onAuthStateChanged`
+ * emission (the IndexedDB session restore) in the background, so by the time the user finishes
+ * typing their password `ensureFirebaseSession` skips straight to the sign-in network call instead
+ * of first paying for that setup + restore. The restore overlaps the user's typing.
+ *
+ * Idempotent and best-effort: a failure here resolves to null, so `ensureFirebaseSession` simply
+ * does the restore itself, exactly as before. It changes NO security and NO outcome — pure latency
+ * overlap. Tests never call it, so the consume path stays null there and behaviour is unchanged.
+ * @returns {void}
+ */
+export function primeAuth() {
+    if (_authPrimed) return;
+    _authPrimed = true;
+    _primedAuthUser = Promise.resolve(authReady)
+        .then(() => _restoreFirstAuthUser())
+        .catch(() => null);
+}
+
 /**
  * Guarantee a live Firebase Auth session for a logged-in member.
  *
@@ -149,11 +189,13 @@ export async function ensureFirebaseSession(name) {
     _fbIdentity  = 'none';        // reset; set to 'named'/'anonymous' on the path that wins
     _fbAuthError = undefined;
     await authReady;
-    // auth.currentUser is null synchronously even when a session exists in
-    // IndexedDB. Wait for the first onAuthStateChanged to get the real state.
-    const existing = await new Promise(resolve => {
-        const unsub = onAuthStateChanged(auth, (/** @type {any} */ user) => { unsub(); resolve(user); });
-    });
+    // First auth state for this restore. auth.currentUser is null synchronously even when a session
+    // exists in IndexedDB, so we wait for the first onAuthStateChanged. If the login overlay
+    // pre-warmed this via primeAuth() (fired when it mounted), consume that already-in-flight promise
+    // so the restore overlapped the user's typing instead of starting now — a pure latency win, no
+    // behaviour change. One-shot: any later call (e.g. the ensureNamedSession retry) does a fresh
+    // restore, and tests — which never prime — always take the fresh path.
+    const existing = await (_consumePrimedAuthUser() || _restoreFirstAuthUser());
     // Only reuse a persisted session when it belongs to the expected user.
     // An anonymous fallback session, or a session for a different member (e.g.
     // Person A was active on a shared browser and Person B now selects their name),

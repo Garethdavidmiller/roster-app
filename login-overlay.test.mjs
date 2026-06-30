@@ -24,6 +24,7 @@ import { mock } from 'node:test';
 mock.module('./session.js', { namedExports: {
     getSurname: () => '', saveSession: () => {}, clearSession: () => {},
     ensureNamedSession: async () => true, isTransientAuthError: () => false, getFirebaseAuthError: () => null,
+    primeAuth: () => {},
 } });
 mock.module('./ls.js', { namedExports: { lsGet: () => null, lsSet: () => {}, lsDel: () => {} } });
 mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => {}, trapFocus: () => {} } });

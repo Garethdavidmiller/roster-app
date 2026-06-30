@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-*Last updated: June 2026 — v14.70 · Updated every 0.10 version*
+*Last updated: June 2026 — v14.80 · Updated every 0.10 version*
 
 # Claude Code Instructions — MYB Roster App
 
@@ -11,7 +11,7 @@
 | GitHub repository | `Garethdavidmiller/roster-app` |
 | Firebase project ID | `myb-roster` |
 | Firebase project region | `europe-west2` (London) |
-| Current app version | `14.70` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
+| Current app version | `14.80` (latest 0.10 milestone; exact value in `roster-data.js` — `APP_VERSION` is authoritative). The version stamp in **every** doc (this file, AI_MAP, OPERATIONS_REFERENCE, KNOWN_LIMITATIONS, ROADMAP) is enforced against the latest 0.10 milestone by `sw-asset-check.test.mjs` and `githooks/pre-commit` — a bump crossing a 0.10 line fails until each doc is reviewed and re-stamped. |
 | Hosted URL | Deployed to Firebase Hosting via GitHub Actions on push to `main` |
 | Staff-facing URL | `https://myb-roster.web.app` (canonical — Firebase Hosting; **primary install + notification target** since v14.29). A GitHub Pages mirror is still served at `https://garethdavidmiller.github.io/roster-app/` — the **roster-app repo's OWN** Pages, built from `main`; **note the `/roster-app/` path**, NOT the bare origin (which is a separate empty repo that 404s) — kept alive only for staff who already installed from it. `STAFF_SITE_URL` in `functions/index.js` is now the bare `https://myb-roster.web.app` (no sub-path). It only sets the notification payload's path/hash — each device's service worker discards the origin and re-bases the page onto its own scope, so existing github.io installs keep working. See API key note below. |
 | Cloud Function URLs | `https://europe-west2-myb-roster.cloudfunctions.net/ingestHuddle` |
@@ -154,8 +154,8 @@ roster-app/
 ├── overlay.js              ← shared overlay helpers: lockBodyScroll, createLightbox, _pushOverlayState, trapFocus, initCardCollapse
 ├── about-lightbox.js       ← shared About (#iconLightbox) panel: initAboutLightbox(). Used by all six pages
 ├── tips-lightbox.js        ← shared per-card Tips panel: initTipsLightbox(CARD_TIPS, { getIsAdmin })
-├── login-overlay.js        ← shared in-place sign-in overlay for all 5 protected pages: initLoginOverlay({ pageLabel, onSuccess }). Injects its own markup; owns grade/name dropdowns, surname-password check, client rate-limit. The DOM-free sign-in core is `runNamedSignIn(deps)` (exported, tested): time-boxes ensureNamedSession (8s) and commits the local session ONLY after auth resolves — never before (the v14.75 half-signed-in/freeze fix; see LOGIN_INCIDENT.md). No page redirects elsewhere to log in.
-├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, getSession, saveSession, clearSession, getFirebaseIdentity/firebaseSessionIsNamed/getFirebaseAuthError (B0 named-vs-anonymous signal)
+├── login-overlay.js        ← shared in-place sign-in overlay for all 5 protected pages: initLoginOverlay({ pageLabel, onSuccess }). Injects its own markup; owns grade/name dropdowns, surname-password check, client rate-limit. The DOM-free sign-in core is `runNamedSignIn(deps)` (exported, tested): time-boxes ensureNamedSession (8s) and commits the local session ONLY after auth resolves — never before (the v14.75 half-signed-in/freeze fix; see LOGIN_INCIDENT.md). No page redirects elsewhere to log in. Login-latency/UX (v14.79–80): calls `primeAuth()` on mount to pre-warm Firebase Auth while the user types; disables the "← Back to roster" link while a sign-in is genuinely in flight (`_signingIn` → preventDefault + `.login-back--busy`); and a `#loginStatus` line escalates ("Checking…"→1.5s→4s) so a multi-second wait reads as progress.
+├── session.js              ← shared auth/session: AUTH_KEY, ensureFirebaseSession, primeAuth (v14.80 login pre-warm), getSession, saveSession, clearSession, getFirebaseIdentity/firebaseSessionIsNamed/getFirebaseAuthError (B0 named-vs-anonymous signal)
 ├── auth-state-core.js      ← PURE identity state machine (ARCHITECTURE_PLAN.md Track 1, Phase 1): reduceAuthState(state, event)→state + INITIAL_STATE. No DOM/Firebase/localStorage. Tested by auth-state-core.test.mjs.
 ├── auth-state.js           ← auth STORE (Phase 2): getAuthSnapshot/subscribeAuth/dispatchAuth over the reducer. Imports ONLY auth-state-core.js (no session/firebase — acyclic). session.js FEEDS it (observing only; sessionReady untouched). Phase 4+ coordinators subscribe. Tested by auth-state.test.mjs.
 ├── auth-policy.js          ← page-AUTHORISATION (Phase 3): PAGE_POLICIES map + pure requirePageAuth(snapshot, policy, roles)→{decision,reason} (allow/soft-allow/login/forbidden/pending) + rolesFor(member) (CONFIG glue) + requirePage(snapshot, page) convenience. CLIENT UX only — server rules are the real boundary. NOT wired in yet (Phase 4+ coordinators will consume it). Tested by auth-policy.test.mjs.

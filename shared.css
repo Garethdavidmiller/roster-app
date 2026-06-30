@@ -1699,6 +1699,15 @@ button.nav-panel-link--notices {
    "half signed-in" escape route the v14.75 login fix closed (JS preventDefault is the real guard;
    this just makes the disabled state visible). */
 .login-back--busy { opacity: 0.4; pointer-events: none; cursor: default; }
+/* Staged "still working" reassurance under the Sign in button (display:none until it has text). */
+.login-status {
+    display: none;
+    font-size: 12px;
+    color: var(--text-light);
+    margin: 10px 0 2px;
+    line-height: 1.35;
+}
+.login-status.visible { display: block; }
 
 
 /* ══════════════════════════════════════════════════════════════════

@@ -155,6 +155,37 @@ is now owned solely by `attempt()`'s inner `finally` (keyed on `_lockedUntil`, n
 - **Confirm the live PWA is actually serving the latest version**, not stale SW cache, when testing —
   About panel shows the version; or DevTools: `fetch('./roster-data.js?b='+Date.now()).then(r=>r.text()).then(t=>console.log(t.match(/APP_VERSION = '([\d.]+)'/)))`.
 
+## Login latency improvements (v14.79–80, from the latency review)
+
+A four-layer latency review was actioned **safest-first**. Shipped now (no security/behaviour
+change, no architecture dependency):
+
+- **Pre-warm Firebase Auth** — `primeAuth()` (session.js) is fired when the login overlay mounts; it
+  starts `authReady` + the first `onAuthStateChanged` restore in the background and caches it.
+  `ensureFirebaseSession` consumes that promise **once** instead of starting the restore on submit, so
+  the IndexedDB restore overlaps the user's typing. One-shot + best-effort: not primed / failed /
+  tests → fresh restore, identical to before. **This is the low-risk latency win the review ranked
+  highest.**
+- **Staged progress + success confirmation** — a `#loginStatus` line escalates while auth is in flight
+  ("Checking your sign-in…" → 1.5s → 4s), and on success the button shows "Signed in — opening X…"
+  before the reload, so a multi-second wait reads as progress, not a freeze.
+- **Back link disabled during an in-flight sign-in** (v14.79, above).
+
+**Deliberately deferred (need the architecture/security work first — do NOT hack page-by-page):**
+
+1. **Stop doing auth twice — remove the post-login `reload()`** and instead remove the overlay +
+   initialise the page in place. The single biggest win, BUT it depends on finishing the auth-state
+   store + retiring the one-shot `sessionReady` (a coordinator currently resolves `sessionReady(false)`
+   on the login path, which a no-reload flow can't re-resolve true). Tracked in ARCHITECTURE_PLAN.md.
+2. **Split the login shell from the Firebase import** (lazy `import('./session.js')` only after the
+   local surname check) — lower value here than it looks, because every protected page's coordinator
+   already imports session.js→firebase-client at module load, so the overlay isn't the thing pulling
+   Firebase in. Revisit alongside #1.
+3. **Strict named sessions remove the slow create-user/anonymous fallback path** → faster, clearer
+   failures. Gated on B1/B3 being re-enabled (below) after accounts are provisioned.
+4. **Email check as a banner, not a full-screen modal** — explicitly NOT changed unilaterally: CLAUDE.md
+   records the "mandatory once shown, no ✕" decision (GDPR/contactability). An owner call.
+
 ## Re-enable checklist (do NOT do until login confirmed smooth on the deployed build)
 
 - [ ] Owner confirms login is smooth across roles (admin, manager, CEA, CES, dispatcher) in a private window.

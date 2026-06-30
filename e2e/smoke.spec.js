@@ -146,6 +146,8 @@ test('login overlay: while auth is in flight, button shows "Signing in…", no s
     // the whole point of the v14.75 fix is that saveSession runs only AFTER auth resolves.
     await expect(page.locator('#loginSubmit')).toHaveText('Signing in…');
     await expect(page.locator('#loginSubmit')).toBeDisabled();
+    // The staged status line gives "still working" reassurance during the wait (v14.80).
+    await expect(page.locator('#loginStatus')).toHaveText('Checking your sign-in…');
     const session = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
     expect(session, 'no local session may be written while auth is pending').toBeNull();
 

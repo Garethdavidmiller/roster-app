@@ -19,7 +19,7 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError } from './session.js';
+import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
 import { lockBodyScroll, trapFocus } from './overlay.js';
 
@@ -97,6 +97,7 @@ function overlayHtml(/** @type {string} */ pageLabel) {
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
+        <div id="loginStatus" class="login-status" aria-live="polite"></div>
         <a href="index.html" class="login-back">← Back to roster</a>
     </div>`;
 }
@@ -127,10 +128,15 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const passwordInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginPassword'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
+    const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
     const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
 
     overlay.classList.add('visible');
     lockBodyScroll();
+    // Pre-warm Firebase Auth restoration now, while the user is still picking grade/name and typing
+    // their password — so the sign-in click pays only for the network sign-in, not persistence setup
+    // + IndexedDB restore on top. Best-effort and side-effect-free (see primeAuth in session.js).
+    primeAuth();
 
     overlay.addEventListener('keydown', e => {
         // Ignore Escape while a sign-in is in progress — navigating mid-submit would leave the
@@ -190,6 +196,21 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         errorEl.classList.add('visible');
     }
 
+    // Staged "still working" reassurance under the button while auth is in flight. The button itself
+    // stays "Signing in…"; this line escalates so a multi-second wait (app update / weak signal)
+    // reads as progress, not a freeze. Cleared the moment the attempt settles. Kept calm and
+    // non-technical (no "Firebase"/"token" jargon) per the owner's quiet-app principle.
+    /** @type {ReturnType<typeof setTimeout>[]} */
+    let _statusTimers = [];
+    /** @param {string} msg */
+    function setStatus(msg) { statusEl.textContent = msg; statusEl.classList.toggle('visible', !!msg); }
+    function startStatusProgress() {
+        setStatus('Checking your sign-in…');
+        _statusTimers.push(setTimeout(() => setStatus('Still checking your secure session…'), 1500));
+        _statusTimers.push(setTimeout(() => setStatus('Still working — this can take a few seconds after an app update or on a weak signal.'), 4000));
+    }
+    function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setStatus(''); }
+
     async function attempt() {
         if (_attempting || Date.now() < _lockedUntil) return;
         _attempting = true;
@@ -232,6 +253,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             _signingIn = true;
             backLink.classList.add('login-back--busy');
             backLink.setAttribute('aria-disabled', 'true');
+            startStatusProgress();
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
@@ -246,11 +268,16 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 isTransient:        isTransientAuthError,
             });
             if (!_result.ok) {
+                clearStatusProgress();
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
                 showError(/** @type {string} */ (_result.error));
                 return;
             }
+            // Confirm success before the (usually slow) reload kicks in, so there is no silent
+            // "did it work?" gap between the click and the destination page appearing.
+            clearStatusProgress();
+            submitBtn.textContent = `Signed in — opening ${pageLabel}…`;
             await onSuccess(name);
             // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } finally {
@@ -266,6 +293,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             _signingIn = false;
             backLink.classList.remove('login-back--busy');
             backLink.removeAttribute('aria-disabled');
+            clearStatusProgress();   // belt-and-braces: no progress timer outlives an attempt
         }
     }
 
