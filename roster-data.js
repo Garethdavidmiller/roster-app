@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.97';
+export const APP_VERSION = '14.98';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -57,8 +57,12 @@ export const CONFIG = {
     // ⚠️ TEMPORARILY DISABLED (v14.72) — staff reported freezing on the login overlay even when
     //   signed in (B1 re-login loop: a write page can't confirm the named session, clears it, and
     //   re-shows the overlay). Reverted to pre-B1 behaviour to restore access while the root cause is
-    //   diagnosed. Set back to `true` once fixed. See SECURITY_RELEASE_PLAN.md → B1 kill-switch.
-    ENFORCE_NAMED_SESSION:            false,
+    //   diagnosed. See SECURITY_RELEASE_PLAN.md → B1 kill-switch.
+    // ✅ RE-ENABLED (v14.98) — the freeze root cause is FIXED: runNamedSignIn now commits the local
+    //   session ONLY after auth resolves (v14.75), reinforced by the stale-auth generation guard
+    //   (v14.87); and B1 was EXONERATED in diagnosis (the freeze persisted with B1 OFF, so B1 was
+    //   never the cause). The KILL-SWITCH above still applies — set back to `false` to revert instantly.
+    ENFORCE_NAMED_SESSION:            true,
     // B3 claim-refresh sweep (SECURITY_RELEASE_PLAN.md → B3). Bump this integer to force every
     // device to refresh its Firebase ID token ONCE on next app open — picking up newly-set custom
     // claims (e.g. the B2 `manager` claim) immediately instead of waiting for the ~hourly
