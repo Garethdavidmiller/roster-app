@@ -19,9 +19,9 @@
  */
 
 import { CONFIG, getMembersForGrade } from './roster-data.js';
-import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError } from './session.js';
+import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
-import { lockBodyScroll, trapFocus } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
 
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
@@ -76,6 +76,22 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
     return { ok: true };
 }
 
+/**
+ * Tear down the in-place login overlay (in-place sign-in / CONFIG.INPLACE_LOGIN — ARCHITECTURE_PLAN.md
+ * Phase 9). A coordinator whose `onSuccess` initialises the page in place (rather than reloading) calls
+ * this to remove the overlay and reveal the now-rendered page. Safe to call when no overlay is present
+ * (a normal already-signed-in load) — it then does nothing, so coordinators can call it unconditionally
+ * on their authorised path. Only unlocks body scroll when an overlay actually existed, so it never
+ * disturbs scroll state on a page that never showed the overlay.
+ * @returns {void}
+ */
+export function dismissLoginOverlay() {
+    const el = document.getElementById('loginOverlay');
+    if (!el) return;
+    el.remove();
+    unlockBodyScroll();
+}
+
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in". */
 function overlayHtml(/** @type {string} */ pageLabel) {
     return `
@@ -97,6 +113,7 @@ function overlayHtml(/** @type {string} */ pageLabel) {
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>
+        <div id="loginStatus" class="login-status" aria-live="polite"></div>
         <a href="index.html" class="login-back">← Back to roster</a>
     </div>`;
 }
@@ -127,9 +144,15 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     const passwordInput = /** @type {HTMLInputElement} */ (overlay.querySelector('#loginPassword'));
     const submitBtn     = /** @type {HTMLButtonElement} */ (overlay.querySelector('#loginSubmit'));
     const errorEl       = /** @type {HTMLElement} */ (overlay.querySelector('#loginError'));
+    const statusEl      = /** @type {HTMLElement} */ (overlay.querySelector('#loginStatus'));
+    const backLink      = /** @type {HTMLAnchorElement} */ (overlay.querySelector('.login-back'));
 
     overlay.classList.add('visible');
     lockBodyScroll();
+    // Pre-warm Firebase Auth restoration now, while the user is still picking grade/name and typing
+    // their password — so the sign-in click pays only for the network sign-in, not persistence setup
+    // + IndexedDB restore on top. Best-effort and side-effect-free (see primeAuth in session.js).
+    primeAuth();
 
     overlay.addEventListener('keydown', e => {
         // Ignore Escape while a sign-in is in progress — navigating mid-submit would leave the
@@ -179,6 +202,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
     let _failCount   = 0;
     let _lockedUntil = 0;
     let _attempting  = false;
+    let _signingIn   = false;   // true ONLY while Firebase auth is genuinely in flight (not lockout)
     // This client-side lockout is a UX measure only — it resets on page reload. Real rate
     // limiting is enforced server-side by Firebase Auth.
 
@@ -187,6 +211,21 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
         errorEl.textContent = msg;
         errorEl.classList.add('visible');
     }
+
+    // Staged "still working" reassurance under the button while auth is in flight. The button itself
+    // stays "Signing in…"; this line escalates so a multi-second wait (app update / weak signal)
+    // reads as progress, not a freeze. Cleared the moment the attempt settles. Kept calm and
+    // non-technical (no "Firebase"/"token" jargon) per the owner's quiet-app principle.
+    /** @type {ReturnType<typeof setTimeout>[]} */
+    let _statusTimers = [];
+    /** @param {string} msg */
+    function setStatus(msg) { statusEl.textContent = msg; statusEl.classList.toggle('visible', !!msg); }
+    function startStatusProgress() {
+        setStatus('Checking your sign-in…');
+        _statusTimers.push(setTimeout(() => setStatus('Still checking your secure session…'), 1500));
+        _statusTimers.push(setTimeout(() => setStatus('Still working — this can take a few seconds after an app update or on a weak signal.'), 4000));
+    }
+    function clearStatusProgress() { _statusTimers.forEach(clearTimeout); _statusTimers = []; setStatus(''); }
 
     async function attempt() {
         if (_attempting || Date.now() < _lockedUntil) return;
@@ -222,9 +261,15 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
 
             lsSet(GRADE_KEY, gradeSelect.value);
             // Visible in-progress state — establishing the Firebase session is a network round trip,
-            // so the button must not look idle (and silently swallow taps) while we wait.
+            // so the button must not look idle (and silently swallow taps) while we wait. The Back
+            // link is also made inert for this window (see the .login-back guard below) so a mid-
+            // submit "Back to roster" tap can't strand the user in the half signed-in state.
             submitBtn.disabled = true;
             submitBtn.textContent = 'Signing in…';
+            _signingIn = true;
+            backLink.classList.add('login-back--busy');
+            backLink.setAttribute('aria-disabled', 'true');
+            startStatusProgress();
 
             // DOM-free core: time-boxes auth and commits the local session ONLY on success, so a
             // slow/hung Firebase Auth can never leave a "half signed-in" state (the v14.72–75 freeze
@@ -239,11 +284,16 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                 isTransient:        isTransientAuthError,
             });
             if (!_result.ok) {
+                clearStatusProgress();
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Sign in →';
                 showError(/** @type {string} */ (_result.error));
                 return;
             }
+            // Confirm success before the (usually slow) reload kicks in, so there is no silent
+            // "did it work?" gap between the click and the destination page appearing.
+            clearStatusProgress();
+            submitBtn.textContent = `Signed in — opening ${pageLabel}…`;
             await onSuccess(name);
             // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } finally {
@@ -254,8 +304,19 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             // an early-returned (mutex-held) call would otherwise clear the flag mid-flight and let a
             // concurrent attempt start. `_attempting` is owned solely here + in the lockout timer.
             if (Date.now() >= _lockedUntil) _attempting = false;
+            // Auth is no longer in flight once attempt() settles (the success path has already left
+            // the page, so re-enabling Back here is moot for it but correct for every other exit).
+            _signingIn = false;
+            backLink.classList.remove('login-back--busy');
+            backLink.removeAttribute('aria-disabled');
+            clearStatusProgress();   // belt-and-braces: no progress timer outlives an attempt
         }
     }
+
+    // Don't abandon an in-flight sign-in via the Back link — same intent as the Escape guard above.
+    // Gated on `_signingIn` (true ONLY during the Firebase round trip), NOT on submitBtn.disabled,
+    // so a mere 30s password lockout still lets the user escape to the public roster.
+    backLink.addEventListener('click', e => { if (_signingIn) e.preventDefault(); });
 
     submitBtn.addEventListener('click', () => { attempt().catch(() => {}); });
     passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().catch(() => {}); });

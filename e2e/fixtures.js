@@ -60,18 +60,24 @@ export class FieldPath {}                               // literal field path (u
 export const onSnapshot = () => noop; // returns the unsubscribe fn; never fires in tests
 
 // ---- auth ----
-// Sign-in normally resolves. A test can set window.__E2E = { failSignIn: true } (via
-// addInitScript, before page scripts) to make every sign-in path reject — used by the B1
-// named-session enforcement tests. The rejection carries a persistent (non-transient) code so
-// ensureNamedSession does not retry. Reads the flag at CALL time so it is honoured after init.
-const _e2eFail = (code) => () => (globalThis.__E2E && globalThis.__E2E.failSignIn)
-    ? Promise.reject(Object.assign(new Error('e2e'), { code }))
-    : Promise.resolve({ user: { uid: 'test' } });
+// Sign-in normally resolves. Two test hooks (set via addInitScript before page scripts, read at
+// CALL time so they're honoured after init):
+//   window.__E2E = { failSignIn: true }  → every sign-in path rejects with a persistent (non-
+//      transient) code so ensureNamedSession does not retry — the B1 named-session enforcement tests.
+//   window.__E2E = { hangSignIn: true }  → every sign-in path returns a promise that NEVER resolves
+//      — exercises the login overlay's in-flight state (the "Signing in…" button + the disabled Back
+//      link that the v14.79 guard added). hangSignIn takes precedence over failSignIn.
+const _e2eAuth = (code) => () => {
+    const e2e = globalThis.__E2E || {};
+    if (e2e.hangSignIn) return new Promise(() => {});
+    if (e2e.failSignIn) return Promise.reject(Object.assign(new Error('e2e'), { code }));
+    return Promise.resolve({ user: { uid: 'test' } });
+};
 export const getAuth = () => ({ currentUser: null });
 export const onAuthStateChanged = (_auth, cb) => { Promise.resolve().then(() => cb && cb(null)); return noop; };
-export const signInWithEmailAndPassword = _e2eFail('auth/invalid-credential');
-export const createUserWithEmailAndPassword = _e2eFail('auth/operation-not-allowed');
-export const signInAnonymously = _e2eFail('auth/operation-not-allowed');
+export const signInWithEmailAndPassword = _e2eAuth('auth/invalid-credential');
+export const createUserWithEmailAndPassword = _e2eAuth('auth/operation-not-allowed');
+export const signInAnonymously = _e2eAuth('auth/operation-not-allowed');
 export const signOut = () => Promise.resolve();
 export const setPersistence = () => Promise.resolve();
 export const indexedDBLocalPersistence = marker('idb');
@@ -107,6 +113,21 @@ export async function enforceNamedSession(page) {
     await page.route('**/roster-data.js', async route => {
         const res  = await route.fetch();
         const body = (await res.text()).replace(/ENFORCE_NAMED_SESSION:\s*false/, 'ENFORCE_NAMED_SESSION: true');
+        await route.fulfill({ response: res, body, contentType: 'text/javascript' });
+    });
+}
+
+/**
+ * Turn the in-place sign-in flag ON for one test by rewriting roster-data.js as it is served —
+ * flips `INPLACE_LOGIN: false` to `true` without touching the real file or the production default.
+ * Call BEFORE page.goto(). With it on, the init()-wrapped coordinators (operations/links/paycalc)
+ * initialise the page in place after sign-in instead of reloading. (ARCHITECTURE_PLAN.md Phase 9.)
+ * @param {import('@playwright/test').Page} page
+ */
+export async function enableInplaceLogin(page) {
+    await page.route('**/roster-data.js', async route => {
+        const res  = await route.fetch();
+        const body = (await res.text()).replace(/INPLACE_LOGIN:\s*false/, 'INPLACE_LOGIN: true');
         await route.fulfill({ response: res, body, contentType: 'text/javascript' });
     });
 }

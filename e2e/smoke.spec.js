@@ -18,7 +18,7 @@
  * Run: npx playwright test
  */
 
-import { test, expect, enforceNamedSession } from './fixtures.js';
+import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -112,6 +112,77 @@ test('admin: login overlay renders with JS-populated grade options', async ({ pa
     expect(gradeCount, '#loginGrade should have JS-added grade options').toBeGreaterThan(1);
 
     expect(errors, 'Uncaught JS exceptions on admin.html').toHaveLength(0);
+});
+
+// ── LOGIN OVERLAY — the actual sign-in click flow (DOM-level, v14.79) ──────
+// The unit suite (login-overlay.test.mjs) tests the DOM-free core (runNamedSignIn); these drive
+// the REAL overlay markup + wiring in a browser — selecting grade/name, typing the surname
+// password, clicking Sign in — which is where the v14.72–75 freeze regressions actually lived.
+
+// Helper: select the first real grade, then its first member, and return that member's expected
+// surname password (mirrors normaliseSurname in firebase-client.js: drop the initial, keep the
+// surname, lowercase, strip non-alpha).
+async function pickFirstMemberAndPassword(page) {
+    await expect(page.locator('#loginGrade option').nth(1)).toBeAttached();
+    await page.locator('#loginGrade').selectOption({ index: 1 });
+    await expect(page.locator('#loginName option').nth(1)).toBeAttached();
+    const name = await page.locator('#loginName option').nth(1).getAttribute('value');
+    await page.locator('#loginName').selectOption(name);
+    const pw = name.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    return { name, pw };
+}
+
+test('login overlay: while auth is in flight, button shows "Signing in…", no session is saved, and Back is inert', async ({ page }) => {
+    // Make Firebase sign-in hang forever so we can observe the in-flight UI deterministically.
+    await page.addInitScript(() => { window.__E2E = { hangSignIn: true }; });
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+
+    const { pw } = await pickFirstMemberAndPassword(page);
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+
+    // In-flight: the button is disabled with the progress label, and NO local session exists yet —
+    // the whole point of the v14.75 fix is that saveSession runs only AFTER auth resolves.
+    await expect(page.locator('#loginSubmit')).toHaveText('Signing in…');
+    await expect(page.locator('#loginSubmit')).toBeDisabled();
+    // The staged status line gives "still working" reassurance during the wait (v14.80).
+    await expect(page.locator('#loginStatus')).toHaveText('Checking your sign-in…');
+    const session = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(session, 'no local session may be written while auth is pending').toBeNull();
+
+    // The Back link is marked inert (v14.79). Dispatching a click (bypassing the CSS pointer-events
+    // guard) must hit the JS preventDefault guard, so the page does NOT navigate away mid sign-in.
+    await expect(page.locator('.login-back')).toHaveAttribute('aria-disabled', 'true');
+    await expect(page.locator('.login-back')).toHaveClass(/login-back--busy/);
+    await page.locator('.login-back').dispatchEvent('click');
+    await page.waitForTimeout(150);
+    await expect(page, 'Back link must not navigate during an in-flight sign-in').toHaveURL(/admin\.html/);
+    const stillNone = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(stillNone, 'still no session after the (blocked) Back click').toBeNull();
+});
+
+test('login overlay: a failed named sign-in (B1 on) shows an error, restores the button, re-enables Back, writes no session', async ({ page }) => {
+    // Enforce named sessions AND force sign-in to fail → runNamedSignIn returns ok:false.
+    await enforceNamedSession(page);
+    await page.addInitScript(() => { window.__E2E = { failSignIn: true }; });
+    await page.goto('/admin.html');
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+
+    const { pw } = await pickFirstMemberAndPassword(page);
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+
+    // Failure path: an error is shown, the button returns to its idle label, and no session is saved.
+    await expect(page.locator('#loginError')).toBeVisible();
+    await expect(page.locator('#loginSubmit')).toHaveText('Sign in →');
+    await expect(page.locator('#loginSubmit')).toBeEnabled();
+    const session = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
+    expect(session, 'a failed enforced sign-in must not write a local session').toBeNull();
+
+    // Back link is no longer inert once the attempt settled.
+    await expect(page.locator('.login-back')).not.toHaveClass(/login-back--busy/);
+    await expect(page.locator('.login-back')).not.toHaveAttribute('aria-disabled', 'true');
 });
 
 // ── PAY CALCULATOR (paycalc.html) ─────────────────────────────────────────
@@ -551,4 +622,71 @@ test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', asy
     await seedSession(page, 'G. Miller');   // G. Miller is a links designer
     await page.goto('/links.html');
     await expect(page).toHaveURL(/links\.html$/);
+});
+
+// ── IN-PLACE SIGN-IN (INPLACE_LOGIN flag ON) — Phase 9 ─────────────────────────
+// With the flag ON, the init()-wrapped coordinators (operations/links/paycalc) initialise the page
+// IN PLACE after a confirmed sign-in instead of window.location.reload(). The discriminator is a
+// `window.__noReload` marker set AFTER load but BEFORE the click: a reload wipes window, so if the
+// marker survives the sign-in the page did NOT reload. We also assert the overlay was torn down and
+// a signed-in surface rendered, and the URL never changed.
+
+/** Drive the real login overlay: find the grade that lists `fullName`, select it, type the surname
+ *  password (mirrors normaliseSurname), submit. The fixture's default sign-in resolves. */
+async function signInThroughOverlay(page, fullName) {
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    const grades = await page.locator('#loginGrade option').evaluateAll(
+        opts => opts.map(o => o.value).filter(Boolean));
+    for (const g of grades) {
+        await page.locator('#loginGrade').selectOption(g);
+        const names = await page.locator('#loginName option').evaluateAll(opts => opts.map(o => o.value));
+        if (names.includes(fullName)) break;
+    }
+    await page.locator('#loginName').selectOption(fullName);
+    const pw = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+}
+
+test('in-place sign-in: operations initialises without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    await page.goto('/operations.html');           // not signed in → overlay
+    await page.evaluate(() => { window.__noReload = 1; });   // a reload would wipe this
+    await signInThroughOverlay(page, 'G. Miller');  // admin → passes the operations gate
+
+    // Overlay torn down in place, signed-in surface present, URL unchanged, and NO reload happened.
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#huddleUploadCard')).toBeVisible();
+    await expect(page).toHaveURL(/operations\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+test('in-place sign-in: links initialises without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    await page.goto('/links.html');
+    await page.evaluate(() => { window.__noReload = 1; });
+    await signInThroughOverlay(page, 'G. Miller');  // designer → passes the links gate
+
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('body.auth-ready')).toBeVisible();   // authorised body ran in place
+    await expect(page).toHaveURL(/links\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+test('in-place sign-in: paycalc initialises (period selector built) without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    // Suppress the one-time notices so nothing overlays the calculator after sign-in.
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_pay_welcome_shown', '1');
+        localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    await page.evaluate(() => { window.__noReload = 1; });
+    await signInThroughOverlay(page, 'G. Miller');
+
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();  // calculator built in place
+    await expect(page).toHaveURL(/paycalc\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });

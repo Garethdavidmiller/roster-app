@@ -137,14 +137,54 @@ is now owned solely by `attempt()`'s inner `finally` (keyed on `_lockedUntil`, n
   treats `myb_email_check_done_<member>` as the last-confirmed timestamp and re-prompts every ~3 months
   (`EMAIL_CHECK_INTERVAL_MS`); `_dismiss()` stamps the time. Legacy `'1'` flags read as due so the
   cadence starts cleanly. See CLAUDE.md "Work email check" decision.
-- **Login-click-path tests (review's test list):** the suite covers session helpers + overlay
-  presence but NOT the full sign-in click flow — which is why these regressions slipped through. Add:
-  (1) no local session written while the auth promise is pending; (2) session saved only on success;
-  (3) auth timeout leaves no session + restores the button; (4) email check doesn't run merely
-  because Admin has a local session; (5) the old v14.67 hang regression. Needs DOM-mocked
-  `initLoginOverlay` (firebase-client/session/ls/roster-data mocked, like `session.test.mjs`).
+- **Login-click-path tests (review's test list) — ✅ DONE (v14.79).** Added two DOM-level Playwright
+  tests that drive the REAL overlay (select grade/name, type the surname password, click Sign in),
+  not just the pure `runNamedSignIn` core: (1) while Firebase auth is in flight (`__E2E.hangSignIn`
+  fixture hook → sign-in never resolves) the button reads "Signing in…", **no** `myb_admin_session`
+  is written, and the Back link is inert; (2) a failed enforced sign-in (`enforceNamedSession` +
+  `__E2E.failSignIn`) shows an error, restores the "Sign in →" button, re-enables Back, and writes no
+  session. e2e count 68 → 72. (The "no save while pending / save only on success / timeout path"
+  logic also stays covered by the pure `login-overlay.test.mjs`.)
+- **Back-link hardening during sign-in — ✅ DONE (v14.79, from the external review of v14.78).** The
+  `← Back to roster` anchor in `login-overlay.js` previously had no guard, so a mid-submit tap could
+  navigate away during the auth round trip and re-open the half-signed-in escape route the v14.75 fix
+  closed (Escape was already guarded; the anchor was not). Fix: a `_signingIn` flag (true ONLY during
+  the Firebase round trip, NOT during a 30s password lockout — so a lockout still lets you reach the
+  public roster) drives a `preventDefault` click guard plus a visible inert state (`.login-back--busy`
+  in `shared.css` + `aria-disabled`); both are cleared in `attempt()`'s `finally`.
 - **Confirm the live PWA is actually serving the latest version**, not stale SW cache, when testing —
   About panel shows the version; or DevTools: `fetch('./roster-data.js?b='+Date.now()).then(r=>r.text()).then(t=>console.log(t.match(/APP_VERSION = '([\d.]+)'/)))`.
+
+## Login latency improvements (v14.79–80, from the latency review)
+
+A four-layer latency review was actioned **safest-first**. Shipped now (no security/behaviour
+change, no architecture dependency):
+
+- **Pre-warm Firebase Auth** — `primeAuth()` (session.js) is fired when the login overlay mounts; it
+  starts `authReady` + the first `onAuthStateChanged` restore in the background and caches it.
+  `ensureFirebaseSession` consumes that promise **once** instead of starting the restore on submit, so
+  the IndexedDB restore overlaps the user's typing. One-shot + best-effort: not primed / failed /
+  tests → fresh restore, identical to before. **This is the low-risk latency win the review ranked
+  highest.**
+- **Staged progress + success confirmation** — a `#loginStatus` line escalates while auth is in flight
+  ("Checking your sign-in…" → 1.5s → 4s), and on success the button shows "Signed in — opening X…"
+  before the reload, so a multi-second wait reads as progress, not a freeze.
+- **Back link disabled during an in-flight sign-in** (v14.79, above).
+
+**Deliberately deferred (need the architecture/security work first — do NOT hack page-by-page):**
+
+1. **Stop doing auth twice — remove the post-login `reload()`** and instead remove the overlay +
+   initialise the page in place. The single biggest win, BUT it depends on finishing the auth-state
+   store + retiring the one-shot `sessionReady` (a coordinator currently resolves `sessionReady(false)`
+   on the login path, which a no-reload flow can't re-resolve true). Tracked in ARCHITECTURE_PLAN.md.
+2. **Split the login shell from the Firebase import** (lazy `import('./session.js')` only after the
+   local surname check) — lower value here than it looks, because every protected page's coordinator
+   already imports session.js→firebase-client at module load, so the overlay isn't the thing pulling
+   Firebase in. Revisit alongside #1.
+3. **Strict named sessions remove the slow create-user/anonymous fallback path** → faster, clearer
+   failures. Gated on B1/B3 being re-enabled (below) after accounts are provisioned.
+4. **Email check as a banner, not a full-screen modal** — explicitly NOT changed unilaterally: CLAUDE.md
+   records the "mandatory once shown, no ✕" decision (GDPR/contactability). An owner call.
 
 ## Re-enable checklist (do NOT do until login confirmed smooth on the deployed build)
 

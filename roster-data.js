@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.78';
+export const APP_VERSION = '14.82';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -68,6 +68,16 @@ export const CONFIG = {
     //   variable while diagnosing the login freeze. `refreshClaimsIfStale` no-ops when epoch is 0.
     //   Restore to 1 (or bump) when re-enabling the B3 sweep.
     CLAIM_EPOCH:                      0,
+    // In-place sign-in (ARCHITECTURE_PLAN.md → "Phase 9 — Remove the post-login reload"). When a
+    // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
+    // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
+    // (true) = the page initialises in place — the coordinator's authorised body runs directly and
+    // the overlay is torn down — no reload, no white flash, no second auth-restore. Migration switch:
+    // flip ON per coordinator as each is proven (only the init()-wrapped pages — operations/links/
+    // paycalc — honour it so far; admin/settings still reload regardless until their batch lands).
+    // ⚠️ KILL-SWITCH: set back to `false` to instantly restore the reload path everywhere (one-line
+    //   deploy, no other change). Keep OFF until login is confirmed stable in production.
+    INPLACE_LOGIN:                    false,
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };

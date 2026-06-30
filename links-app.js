@@ -12,7 +12,7 @@
 import { CONFIG, teamMembers, weeklyRoster, bilingualRoster, escapeHtml } from './roster-data.js';
 import { db, doc, getDoc, setDoc, addDoc, deleteDoc, collection, getDocs, serverTimestamp, COLLECTIONS } from './firebase-client.js';
 import { initNavPanel, archiveNotice, isNoticeExpired } from './nav-panel.js';
-import { initLoginOverlay } from './login-overlay.js';
+import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -59,10 +59,19 @@ export function init() {
     // authz layer instead of an inline CONFIG.LINKS_DESIGNERS check.
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'links');
     if (_access.decision === 'login') {
-        // Not signed in → show the shared in-place sign-in (no redirect). Reload on success; the
-        // reloaded page re-checks access. Throw to halt the rest of module init — overlay is shown.
-        initLoginOverlay({ pageLabel: 'Links', onSuccess: () => window.location.reload() });
-        resolveSession(false);
+        // Not signed in → show the shared in-place sign-in (no redirect). On success: INPLACE_LOGIN off
+        // (default) → reload (today's path) + resolveSession(false) on this non-auth load; on → re-invoke
+        // init() in place (the authorised body below never ran on this pass, so re-entering runs it
+        // exactly once with the just-saved session — no reload, no double-wiring). Do NOT
+        // resolveSession(false) when in-place, or the one-shot sessionReady is poisoned before the
+        // in-place pass can resolve it true. (ARCHITECTURE_PLAN.md Phase 9.)
+        // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
+        // path is never less robust than the reload path (the overlay is already torn down by then).
+        const onSuccess = CONFIG.INPLACE_LOGIN
+            ? () => { try { init(); } catch { window.location.reload(); } }
+            : () => window.location.reload();
+        initLoginOverlay({ pageLabel: 'Links', onSuccess });
+        if (!CONFIG.INPLACE_LOGIN) resolveSession(false);
         return;
     }
     if (_access.decision === 'forbidden') {
@@ -71,6 +80,9 @@ export function init() {
         return;
     }
     // _access.decision === 'allow' → proceed (signed-in designer).
+    // In-place sign-in: remove the still-mounted overlay if we re-entered via onSuccess. No-op on a
+    // normal already-signed-in load (no overlay present).
+    dismissLoginOverlay();
 
     // B1.2 enforcement, now decided via the policy. Once the named session resolves, the store (fed by
     // the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
