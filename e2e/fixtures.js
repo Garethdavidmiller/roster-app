@@ -118,16 +118,17 @@ export async function enforceNamedSession(page) {
 }
 
 /**
- * Turn the in-place sign-in flag ON for one test by rewriting roster-data.js as it is served —
- * flips `INPLACE_LOGIN: false` to `true` without touching the real file or the production default.
- * Call BEFORE page.goto(). With it on, the init()-wrapped coordinators (operations/links/paycalc)
- * initialise the page in place after sign-in instead of reloading. (ARCHITECTURE_PLAN.md Phase 9.)
+ * Turn in-place sign-in ON (for ALL coordinators) for one test by rewriting roster-data.js as it is
+ * served — flips every per-page key in the `INPLACE_LOGIN: { … }` object to `true` without touching the
+ * real file or the production default. Call BEFORE page.goto(). Each test only exercises one page, so
+ * enabling all is harmless and keeps the helper simple. (ARCHITECTURE_PLAN.md Phase 9.)
  * @param {import('@playwright/test').Page} page
  */
 export async function enableInplaceLogin(page) {
     await page.route('**/roster-data.js', async route => {
         const res  = await route.fetch();
-        const body = (await res.text()).replace(/INPLACE_LOGIN:\s*false/, 'INPLACE_LOGIN: true');
+        const body = (await res.text()).replace(/INPLACE_LOGIN:\s*\{[^}]*\}/,
+            'INPLACE_LOGIN: { operations: true, links: true, paycalc: true, admin: true, settings: true }');
         await route.fulfill({ response: res, body, contentType: 'text/javascript' });
     });
 }

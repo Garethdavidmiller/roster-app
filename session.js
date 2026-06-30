@@ -189,13 +189,15 @@ export async function ensureFirebaseSession(name) {
     _fbIdentity  = 'none';        // reset; set to 'named'/'anonymous' on the path that wins
     _fbAuthError = undefined;
     await authReady;
-    // First auth state for this restore. auth.currentUser is null synchronously even when a session
-    // exists in IndexedDB, so we wait for the first onAuthStateChanged. If the login overlay
-    // pre-warmed this via primeAuth() (fired when it mounted), consume that already-in-flight promise
-    // so the restore overlapped the user's typing instead of starting now — a pure latency win, no
-    // behaviour change. One-shot: any later call (e.g. the ensureNamedSession retry) does a fresh
-    // restore, and tests — which never prime — always take the fresh path.
-    const existing = await (_consumePrimedAuthUser() || _restoreFirstAuthUser());
+    // First auth state for this restore. Fast path: if auth.currentUser is ALREADY populated (a live
+    // session — e.g. the SECOND ensureFirebaseSession of an in-place sign-in, where the first call just
+    // established it), use it synchronously and skip the onAuthStateChanged wait entirely. It is null
+    // synchronously during a cold IndexedDB restore (the common first-load case), so otherwise we wait
+    // for the first emission. If the login overlay pre-warmed that via primeAuth() (fired when it
+    // mounted), consume the already-in-flight promise so the restore overlapped the user's typing — a
+    // pure latency win, no behaviour change. One-shot: a later call does a fresh restore; tests (which
+    // never prime, and whose mock currentUser is null) always take the await path.
+    const existing = auth.currentUser || await (_consumePrimedAuthUser() || _restoreFirstAuthUser());
     // Only reuse a persisted session when it belongs to the expected user.
     // An anonymous fallback session, or a session for a different member (e.g.
     // Person A was active on a shared browser and Person B now selects their name),

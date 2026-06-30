@@ -24,6 +24,7 @@ let _anonBehavior   = 'ok';
 let _createCalled  = false;  // did the code attempt browser-side account creation?
 let _anonCalled    = false;  // did the code attempt an anonymous fallback?
 let _signInCalls   = 0;      // how many times email/password sign-in was attempted (for retry tests)
+let _onAuthSubs    = 0;      // how many times onAuthStateChanged was subscribed (primeAuth/fast-path tests)
 const _authThrow = code => { const e = new Error(code); /** @type {any} */ (e).code = code; throw e; };
 
 mock.module('./firebase-client.js', {
@@ -32,7 +33,7 @@ mock.module('./firebase-client.js', {
         authReady:                      Promise.resolve(),
         // Invoke the callback asynchronously with the configured existing user, then return
         // the unsubscribe fn (matching the real onAuthStateChanged contract session.js relies on).
-        onAuthStateChanged:             (_auth, cb) => { Promise.resolve().then(() => cb(_existingUser)); return () => {}; },
+        onAuthStateChanged:             (_auth, cb) => { _onAuthSubs++; Promise.resolve().then(() => cb(_existingUser)); return () => {}; },
         nameToEmail:                    name => name.toLowerCase().replace(/\s+/g, '.') + '@myb.test',
         normaliseSurname:               name => name.split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z]/g, ''),
         // _signInBehavior may be a string (same every call) OR a function (callNumber → code),
@@ -57,7 +58,7 @@ const {
     sessionReady, resolveSession,
     getSurname, getSession, saveSession, clearSession,
     ensureFirebaseSession, getFirebaseIdentity, firebaseSessionIsNamed, getFirebaseAuthError,
-    ensureNamedSession, isTransientAuthError, refreshClaimsIfStale,
+    ensureNamedSession, isTransientAuthError, refreshClaimsIfStale, primeAuth,
 } = await import('./session.js');
 const { nameToEmail, auth } = await import('./firebase-client.js');
 // The real (pure) auth store — session.js feeds it; these tests verify the Phase-2 bridge.
@@ -574,5 +575,59 @@ describe('refreshClaimsIfStale (B3 claim-refresh sweep)', () => {
         await refreshClaimsIfStale(1);                           // must not throw
         assert.equal(store.has('myb_claim_epoch'), false);       // flag only set after a successful refresh
         auth.currentUser = null;
+    });
+});
+
+// ── primeAuth pre-warm + auth.currentUser fast path (login latency, v14.80–83) ──
+describe('primeAuth + currentUser fast path', () => {
+    beforeEach(() => {
+        store.clear();
+        _existingUser    = null;
+        _signInBehavior  = 'ok';
+        _signInCalls     = 0;
+        _onAuthSubs      = 0;
+        auth.currentUser = null;
+        CONFIG.ENFORCE_NAMED_SESSION = false;
+    });
+    afterEach(() => { auth.currentUser = null; });
+
+    test('primeAuth pre-subscribes the restore once and ensureFirebaseSession consumes it (no 2nd subscription)', async () => {
+        _existingUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        primeAuth();
+        // flush the authReady → _restoreFirstAuthUser microtask chain so the eager subscription happens
+        for (let i = 0; i < 5; i++) await Promise.resolve();
+        assert.equal(_onAuthSubs, 1, 'primeAuth subscribes the first auth-state once, eagerly');
+
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.equal(_onAuthSubs, 1, 'the primed restore was consumed — no second onAuthStateChanged');
+
+        primeAuth();   // one-shot per page life: a second prime is a no-op
+        for (let i = 0; i < 5; i++) await Promise.resolve();
+        assert.equal(_onAuthSubs, 1, 'primeAuth is idempotent');
+    });
+
+    test('fast path: a live matching named currentUser returns immediately (no restore wait, no sign-in)', async () => {
+        auth.currentUser = { isAnonymous: false, email: nameToEmail('G. Miller') };
+        _existingUser    = null;   // onAuthStateChanged would yield null — proving we did NOT consult it
+
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(getFirebaseIdentity(), 'named');
+        assert.equal(_onAuthSubs, 0, 'currentUser fast path skips the onAuthStateChanged subscription');
+        assert.equal(_signInCalls, 0, 'and skips the sign-in network call entirely');
+    });
+
+    test('fast path still VALIDATES identity: an anonymous live session is not reused — signs out + re-auths', async () => {
+        auth.currentUser = { isAnonymous: true, email: null };
+        _existingUser    = null;
+        _signOutCalled   = false;
+
+        const ok = await ensureFirebaseSession('G. Miller');
+        assert.equal(ok, true);
+        assert.equal(_signOutCalled, true, 'the anonymous live session is signed out, not reused');
+        assert.equal(_signInCalls, 1, 'then a fresh named sign-in runs');
+        assert.equal(getFirebaseIdentity(), 'named');
     });
 });

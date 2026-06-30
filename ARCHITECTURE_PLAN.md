@@ -449,8 +449,11 @@ The optimistic-start idea was dropped as no-benefit. Separate + revertible.
 
 ## Appendix: Phase 9 — Remove the post-login reload (in-place sign-in) — scoped v14.80; BUILT v14.81–83 (flag-gated, default OFF)
 
-**Status (v14.83): all five coordinators BUILT behind `CONFIG.INPLACE_LOGIN` (default false → today's
-reload, unchanged). Operations/Links/Paycalc landed v14.81–82 (re-invoke `init()`); Admin/Settings
+**Status (v14.83; per-page flag v14.85): all five coordinators BUILT behind the per-page
+`CONFIG.INPLACE_LOGIN` object (`{ operations, links, paycalc, admin, settings }`, all default false →
+today's reload, unchanged). Per-page (not one global switch) so a page can be enabled, watched live,
+and rolled back in isolation — and because it is NOT the B1 risk class (it changes only post-sign-in
+rendering, with a `reload()` fallback, never whether auth succeeds). Operations/Links/Paycalc landed v14.81–82 (re-invoke `init()`); Admin/Settings
 v14.83.** Admin/Settings are branch-style (no `init()` to re-invoke), so their signed-in body was
 extracted into an `initAuthorised()` that (a) refreshes the now-`let` identity vars from the just-saved
 session, (b) `dismissLoginOverlay()`s, (c) runs the body, (d) wires the nav. The nav is **deferred** past
@@ -560,11 +563,15 @@ directly, and `admin-app.js` gets simpler. (Update CLAUDE.md's "Work email check
 - Paycalc's **data-ownership** `resolveLegacyMigration → reload` (separate flow).
 
 ### Risk + rollback
-- Auth is load-bearing; the freeze history demands caution. **Gate the whole behaviour behind one
-  `CONFIG.INPLACE_LOGIN` flag** (default `false` → today's reload) so it can be switched off in one
-  line without redeploying logic, and flip it **per coordinator, one at a time, validated in a private
-  window** before the next. Each coordinator is an independent, revertible commit (the Phase-4
-  discipline). The flag also lets the owner A/B it live.
+- Auth is load-bearing; the freeze history demands caution. **Gate behind a PER-PAGE
+  `CONFIG.INPLACE_LOGIN` object** (`{ operations, links, paycalc, admin, settings }`, all default
+  `false` → today's reload) so each page can be switched on/off in one line and flipped **one at a
+  time, validated in a private window** before the next. Per-page (not one global boolean) keeps the
+  blast radius to a single page — the explicit lesson from the B1 global flip. Each coordinator is an
+  independent, revertible commit (the Phase-4 discipline); the per-page key also lets the owner A/B one
+  page live. NOTE: this is NOT the B1 risk class — INPLACE only changes post-sign-in rendering
+  (render-in-place vs reload), the sign-in/session/identity are unchanged, and every in-place path
+  falls back to `reload()` on a throw, so a bad page self-heals and can never lock anyone out.
 - The new failure mode to watch: a feature listener wired twice, or `initAuthorised` running before
   `saveSession` committed. Both are prevented by construction (runs once; `saveSession` precedes
   `onSuccess` in `runNamedSignIn`) — but they are exactly what the e2e below must assert.
@@ -588,7 +595,8 @@ directly, and `admin-app.js` gets simpler. (Update CLAUDE.md's "Work email check
 3. **Links**, then **Paycalc** (init-wrapped).
 4. **Admin** (branch-style; folds in the email-check simplification).
 5. **Settings** + the `refreshNavIdentity` nav-panel API (last; the only shared-module addition).
-6. Flip `INPLACE_LOGIN` on for all once each is proven; later, delete the flag + the dead reload paths.
+6. Flip `INPLACE_LOGIN.<page>` on **one page at a time** (paycalc/operations first, admin last), each
+   proven live before the next; once all are stable, delete the flag + the dead reload paths.
 
 **Dependency note:** independent of B1/B3 (works with `ENFORCE_NAMED_SESSION` either state). Best done
 **after** the owner confirms the v14.79–80 login changes are stable in production, so this builds on a

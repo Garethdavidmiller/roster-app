@@ -12,10 +12,11 @@
  *
  * `auth-state.js` imports NEITHER `session.js` NOR `firebase-client.js`.
  *
- * Phase 2 is OBSERVING ONLY: nothing consumes the store yet, and `session.js` feeds it purely
- * as a side-effect (wrapped so a store error can never break auth), so `sessionReady` and every
- * page behave exactly as before. Phase 4+ coordinators subscribe to it; the policy layer
- * (Phase 3) reads it. ONLY the session.js bridge dispatches — everything else subscribes.
+ * `session.js` feeds the store purely as a side-effect (wrapped so a store error can never break
+ * auth), so `sessionReady` and every page behave exactly as before. The store is now CONSUMED via
+ * the policy layer: the migrated coordinators (operations/links/admin/settings, Phase 4–7) call
+ * `requirePage(getAuthSnapshot(), …)` (auth-policy.js) for their B1 enforcement decision. ONLY the
+ * session.js bridge dispatches — everything else reads via `getAuthSnapshot`/`subscribeAuth`.
  */
 import { reduceAuthState, INITIAL_STATE } from './auth-state-core.js';
 

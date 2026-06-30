@@ -42,7 +42,7 @@ if (new URLSearchParams(location.search).has('logout')) {
 }
 
 // ---- Check session immediately ----
-// `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN, ARCHITECTURE_PLAN.md Phase 9)
+// `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.admin, ARCHITECTURE_PLAN.md Phase 9)
 // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
 // signed out, so the load-time values are null. With the flag off they are assigned once and never
 // change, identical to before. (The AL/sick sections read currentUser via a live getter so a later
@@ -73,7 +73,7 @@ function showAdminLogin() {
             lsSet(`myb_email_check_pending_${name}`, '1');
             // Flag on → initialise in place (fall back to reload if init throws mid-wiring, so the
             // in-place path is never less robust than reload). Flag off → reload, exactly as before.
-            if (CONFIG.INPLACE_LOGIN) {
+            if (CONFIG.INPLACE_LOGIN.admin) {
                 try { initAuthorised(); } catch { window.location.reload(); }
             } else {
                 window.location.reload();
@@ -1682,7 +1682,7 @@ function wireNavPanel() {
 // Wire the nav now EXCEPT on the in-place login path, where initAuthorised() defers it so it renders
 // with the signed-in identity (the full-screen overlay covers the burger meanwhile). Flag off → wired
 // now exactly as before (null identity on the login screen, corrected after the reload).
-if (!CONFIG.INPLACE_LOGIN || _access.decision !== 'login') wireNavPanel();
+if (!CONFIG.INPLACE_LOGIN.admin || _access.decision !== 'login') wireNavPanel();
 
 // Calendar pill in the nav drawer: write the current fieldDate month/year to
 // localStorage before navigating so index.html opens on the same month the user

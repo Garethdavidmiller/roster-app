@@ -11,10 +11,12 @@
  * (runNamedSignIn) is DOM-free and takes ALL its dependencies as arguments, so the tests drive it
  * directly with recording stubs — no fake DOM, no real Firebase.
  *
- * NOT covered here (deliberate): the email-check trigger marker ("Fix 4" in the review) was deferred
- * and is not implemented, and the DOM wiring of attempt() (reading form values, button text). The
- * load-bearing contract — "commit the local session ONLY after auth genuinely resolves, time-boxed"
- * — lives entirely in runNamedSignIn and is fully exercised below.
+ * NOT covered here (deliberate): the DOM wiring of attempt() itself (reading form values, button
+ * text, the in-place vs reload onSuccess) is exercised by the Playwright e2e suite (e2e/smoke.spec.js),
+ * not this unit file. The email-check trigger marker ("Fix 4") is now IMPLEMENTED — set in each
+ * coordinator's onSuccess (e.g. admin-app.js) and consumed by _runEmailCheck. The load-bearing
+ * contract — "commit the local session ONLY after auth genuinely resolves, time-boxed" — lives
+ * entirely in runNamedSignIn and is fully exercised below.
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

@@ -23,7 +23,7 @@ import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
-// `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN, ARCHITECTURE_PLAN.md Phase 9)
+// `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN.settings, ARCHITECTURE_PLAN.md Phase 9)
 // these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
 // signed out, so the load-time values are null. With the flag off they are assigned once and never
 // change, identical to before.
@@ -58,18 +58,18 @@ const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', m
 // Wire the nav now EXCEPT on the in-place login path, where it is deferred to initAuthorised() so it
 // renders ONCE with the signed-in identity (the full-screen overlay covers the burger meanwhile).
 // Flag off → wired now exactly as before.
-if (!CONFIG.INPLACE_LOGIN || _access.decision !== 'login') wireNavPanel();
+if (!CONFIG.INPLACE_LOGIN.settings || _access.decision !== 'login') wireNavPanel();
 
 if (_access.decision === 'login') {
     // On success: flag off (default) → reload + resolveSession(false) on this non-auth load (today's
     // path); flag on → initialise in place via initAuthorised(), falling back to a reload if it throws
     // mid-wiring (never less robust than reload). Don't resolveSession(false) when in-place, or the
     // one-shot sessionReady is poisoned before initAuthorised can resolve it true.
-    const onSuccess = CONFIG.INPLACE_LOGIN
+    const onSuccess = CONFIG.INPLACE_LOGIN.settings
         ? () => { try { initAuthorised(); } catch { window.location.reload(); } }
         : () => window.location.reload();
     initLoginOverlay({ pageLabel: 'Settings', onSuccess });
-    if (!CONFIG.INPLACE_LOGIN) resolveSession(false); // fulfil sessionReady on the non-auth path
+    if (!CONFIG.INPLACE_LOGIN.settings) resolveSession(false); // fulfil sessionReady on the non-auth path
 } else {
     initAuthorised();
 }

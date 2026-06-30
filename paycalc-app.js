@@ -85,7 +85,7 @@ export function init() {
       // before onSuccess, so loadSettings reads the right namespace. (ARCHITECTURE_PLAN.md Phase 9.)
       // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
       // path is never less robust than the reload path (the overlay is already torn down by then).
-      const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN
+      const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN.paycalc
           ? () => { try { init(); } catch { window.location.reload(); } }
           : () => window.location.reload();
       initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });

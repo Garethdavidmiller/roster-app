@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.83';
+export const APP_VERSION = '14.86';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -72,12 +72,18 @@ export const CONFIG = {
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
     // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
     // (true) = the page initialises in place — the coordinator's authorised body runs directly and
-    // the overlay is torn down — no reload, no white flash, no second auth-restore. All five protected
-    // coordinators (operations, links, paycalc, admin, settings) honour it (v14.81 + v14.83). Single
-    // global switch — flip ON once login is confirmed stable, validating one coordinator at a time.
-    // ⚠️ KILL-SWITCH: set back to `false` to instantly restore the reload path everywhere (one-line
-    //   deploy, no other change). Keep OFF until login is confirmed stable in production.
-    INPLACE_LOGIN:                    false,
+    // the overlay is torn down — no reload, no white flash, no second auth-restore.
+    //
+    // PER-PAGE (not a single global switch) so the rollout has a SMALL blast radius — turn it on for
+    // ONE coordinator, watch it live for a few days, roll back just that page if needed. This is NOT
+    // the B1 (ENFORCE_NAMED_SESSION) class of risk: INPLACE only changes what happens AFTER an already-
+    // confirmed sign-in (render-in-place vs reload), the sign-in/session/identity are byte-for-byte the
+    // same, and every in-place path falls back to `reload()` if it throws — so a bad page self-heals to
+    // today's behaviour and can never lock anyone out. Recommended order: paycalc/operations first,
+    // admin last (highest-traffic, most-wired). Each coordinator reads ONLY its own key.
+    // ⚠️ KILL-SWITCH: set any key back to `false` to instantly restore that page's reload path.
+    //   Keep all OFF until login is confirmed stable in production.
+    INPLACE_LOGIN:                    { operations: false, links: false, paycalc: false, admin: false, settings: false },
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
