@@ -645,11 +645,24 @@ Per workflow, add job `permissions: { contents: read, id-token: write }` and rep
 The auth action writes a short-lived credential file and exports `GOOGLE_APPLICATION_CREDENTIALS`, which `firebase deploy` already honours — so the deploy step itself is unchanged (just drop the `GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json` line).
 
 ### Cutover sequence (de-risked — one workflow first)
-1. Owner builds the pool/provider/binding + sets the 2 repo Variables.
-2. Claude migrates **`deploy-rules.yml` only** (lowest frequency; gated by emulator tests). **Keep the secret in place.**
-3. `workflow_dispatch` a real rules deploy → confirm it succeeds via OIDC with no `/tmp/key.json` in the job log.
-4. Once proven, migrate `deploy-hosting.yml` + `deploy-functions.yml`; prove each.
-5. After all three are green on WIF for a release or two, owner **deletes the `FIREBASE_SERVICE_ACCOUNT` secret AND disables/deletes the SA JSON key in GCP** (the actual security win — do not skip this final rotation).
+**STATUS: implemented — steps 1–4 DONE; step 5 (secret + key deletion) is the only remaining owner action.**
+Implementation note: the provider resource name and SA email are written **directly in each
+workflow YAML** (they are not secrets), rather than via the two repo Variables the draft suggested —
+simpler, and keeps the whole config visible in the workflow file. Pool `github-pool`, provider
+`github-provider`, project number `532910998075`, SA `github-deploy@myb-roster.iam.gserviceaccount.com`,
+`google-github-actions/auth` pinned to `v2.1.13` (commit `c200f369`). The `assertion.repository ==
+'Garethdavidmiller/roster-app'` condition is set on the provider.
+
+1. ✅ Owner built the pool/provider/binding (+ granted `github-deploy` the deploy roles).
+2. ✅ Migrated **`deploy-rules.yml` only**, secret kept in place.
+3. ✅ `workflow_dispatch` rules deploy succeeded via OIDC (whole run green, no `/tmp/key.json`).
+4. ✅ Migrated `deploy-hosting.yml` + `deploy-functions.yml`; each proven green via `workflow_dispatch`
+   from the WIF branch (auth step + deploy step both green; functions needed the gen2 role set —
+   Cloud Functions/Run/Build/Artifact Registry/Eventarc/Scheduler/Secret Manager/Service Account User).
+5. ⏳ **REMAINING:** after the WIF branch is merged to `main`, owner **deletes the
+   `FIREBASE_SERVICE_ACCOUNT` secret AND disables/deletes the SA JSON key in GCP** (the actual security
+   win — do not skip this final rotation). Merge first so `main`'s hosting/functions workflows are on
+   WIF before the secret disappears.
 
 ### Risks & mitigations
 | Risk | Mitigation |
