@@ -705,16 +705,22 @@ export function recordPerfSample({ page, metric, bucket, mode, conn }) {
 }
 
 /**
- * Read this month's page-load latency for the Operations "App speed" card (admin-only). Returns the
- * plain-language summary (overall + per-page quick/ok/slow bands) computed by the pure perf-stats
- * module — for the 'domReady' metric (how fast the page opened). No identity is involved.
- * @returns {Promise<{ month: string } & ReturnType<typeof summarisePerf>>}
+ * Read this month's latency for the Operations "App speed" card (admin-only). Returns plain-language
+ * quick/ok/slow summaries for TWO journeys — `login` (sign-in to usable, the synthetic 'login' page)
+ * and `pages` (how fast each page opened, the 'domReady' metric) — computed by the pure perf-stats
+ * module. No identity is involved.
+ * @returns {Promise<{ month: string, login: ReturnType<typeof summarisePerf>, pages: ReturnType<typeof summarisePerf> }>}
  */
 export async function getPerfStats() {
     const m = monthKey(new Date());
     const snap = await getDoc(doc(db, COLLECTIONS.analytics, `perf_${m}`));
     const data = snap.exists() ? /** @type {any} */ (snap.data()) : { samples: {} };
-    return { month: m, ...summarisePerf(data.samples || {}, { metric: 'domReady' }) };
+    const samples = data.samples || {};
+    return {
+        month: m,
+        login: summarisePerf(samples, { metric: 'loginTotal' }),
+        pages: summarisePerf(samples, { metric: 'domReady' }),
+    };
 }
 
 /**

@@ -150,6 +150,9 @@ test('login overlay: while auth is in flight, button shows "Signing in…", no s
     await expect(page.locator('#loginStatus')).toHaveText('Checking your sign-in…');
     const session = await page.evaluate(() => localStorage.getItem('myb_admin_session'));
     expect(session, 'no local session may be written while auth is pending').toBeNull();
+    // The login-to-usable timer (markLoginStart) is set when the sign-in begins (v14.92).
+    const t0 = await page.evaluate(() => sessionStorage.getItem('myb_perf_login_t0'));
+    expect(Number(t0), 'login timer marker is set at sign-in start').toBeGreaterThan(0);
 
     // The Back link is marked inert (v14.79). Dispatching a click (bypassing the CSS pointer-events
     // guard) must hit the JS preventDefault guard, so the page does NOT navigate away mid sign-in.
@@ -396,12 +399,16 @@ for (const width of [1280, 1440]) {
 // App speed card (Project 0): renders its plain-language summary without throwing. Firebase is
 // stubbed (getDoc → empty), so getPerfStats yields no data and the card shows the "still building
 // up" empty state — proving the read + perfVerdict + render path runs end-to-end.
-test('operations: App speed card renders the empty-state verdict (no throw)', async ({ page }) => {
+test('operations: App speed card renders both sections + empty-state verdict (no throw)', async ({ page }) => {
     await seedSession(page, 'G. Miller');
     await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', String(Date.now())));
     await page.goto('/operations.html');
     await expect(page.locator('#pageSpeedCard')).toBeVisible();
-    await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');
+    // Two journeys: "Signing in" (login) + "Opening pages" (page-open), both empty on a stubbed read.
+    await expect(page.locator('#pageSpeedContent')).toContainText('Signing in');
+    await expect(page.locator('#pageSpeedContent')).toContainText('Opening pages');
+    await expect(page.locator('#pageSpeedContent')).toContainText('No sign-ins recorded yet'); // login empty state
+    await expect(page.locator('#pageSpeedContent')).toContainText('Not enough data yet');       // pages empty state
 });
 
 // Work Email Progress rows must not overflow the card on a narrow phone. The bug
@@ -670,6 +677,10 @@ test('in-place sign-in: operations initialises without a reload', async ({ page 
     await expect(page.locator('#huddleUploadCard')).toBeVisible();
     await expect(page).toHaveURL(/operations\.html$/);
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+    // The login-to-usable timer was set at sign-in and CONSUMED (cleared) once the page became usable
+    // (recordPageLatency on the authed page) — proving the marker round-trip (v14.92).
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('myb_perf_login_t0')),
+        'login timer marker is consumed once the page is usable').toBeNull();
 });
 
 test('in-place sign-in: links initialises without a reload', async ({ page }) => {

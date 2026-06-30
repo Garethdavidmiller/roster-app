@@ -30,6 +30,7 @@ mock.module('./session.js', { namedExports: {
 } });
 mock.module('./ls.js', { namedExports: { lsGet: () => null, lsSet: () => {}, lsDel: () => {} } });
 mock.module('./overlay.js', { namedExports: { lockBodyScroll: () => {}, unlockBodyScroll: () => {}, trapFocus: () => {} } });
+mock.module('./perf-reporter.js', { namedExports: { markLoginStart: () => {}, clearLoginStart: () => {}, recordPageLatency: () => {} } });
 
 const { runNamedSignIn } = await import('./login-overlay.js');
 
