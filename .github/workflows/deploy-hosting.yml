@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write   # required for GitHub OIDC → Workload Identity Federation (A2)
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -54,10 +55,16 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-      - name: Write service account key
-        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > /tmp/key.json
+      # Authenticate to Google Cloud via Workload Identity Federation — no long-lived key.
+      # GitHub's per-run OIDC token is exchanged for short-lived credentials for the
+      # github-deploy service account; the action exports GOOGLE_APPLICATION_CREDENTIALS,
+      # which the Firebase CLI picks up automatically. Migrated after deploy-rules.yml
+      # proved WIF in production. See SECURITY_RELEASE_PLAN.md → Appendix A2.
+      - name: Authenticate to Google Cloud (Workload Identity Federation)
+        uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2.1.13
+        with:
+          workload_identity_provider: 'projects/532910998075/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-deploy@myb-roster.iam.gserviceaccount.com'
 
       - name: Deploy to Firebase Hosting
         run: npx firebase deploy --only hosting --project myb-roster
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/key.json
