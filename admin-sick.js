@@ -24,14 +24,15 @@ let _sickFeedbackTimer = null;
  * @param {Function}          deps.updateALBanner       Refreshes the AL entitlement banner
  * @param {Function}          deps.updateALBookedBox    Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox  Refreshes the sick booked-periods box
- * @param {string|null}       deps.currentUser          Logged-in user name (for changedBy field)
+ * @param {() => (string|null)} deps.getCurrentUser      Live getter for the logged-in user name (for the
+ *   changedBy field) — a getter, not a value, so an in-place sign-in (Phase 9) is reflected at write time
  * @param {Function}          deps.showInChangeAShift   Jumps the Change a Shift section to a member + date
  * @param {Function}          deps.showSuccess          Shows the scroll-independent bottom success toast
  */
 export function initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift, showSuccess,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser, showInChangeAShift, showSuccess,
 }) {
 const sickFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('sickFrom'));
 const sickTo       = /** @type {HTMLInputElement}  */ (document.getElementById('sickTo'));
@@ -134,7 +135,7 @@ sickSaveBtn.addEventListener('click', async () => {
 
     try {
         const { workingCount } = await recordRangeOverrides({
-            type: 'sick', value: 'SICK', memberName: member, dates, changedBy: currentUser ?? '',
+            type: 'sick', value: 'SICK', memberName: member, dates, changedBy: getCurrentUser() ?? '',
         });
 
         if (!workingCount) {

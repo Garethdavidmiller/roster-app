@@ -17,7 +17,7 @@
 import { CONFIG, teamMembers, DAY_NAMES, MONTH_ABB, getALEntitlement, getBaseShift, escapeHtml, formatISO, isSunday, SWIPE_THRESHOLD, SWIPE_VELOCITY, isValidEmail } from './roster-data.js';
 import { db, doc, writeBatch, getStaffContact, saveStaffContact, COLLECTIONS } from './firebase-client.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
-import { initLoginOverlay } from './login-overlay.js';
+import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
 import { TYPES, PILL_TYPES, getAllOverrides, setAllOverrides, initOverrides, loadOverrides, renderWeekGrid, buildWeekGridInto, updateWeekNavLabel, renderTable, executeSave, validateShiftRules, formatDisplay, resetBulkPills, updateSaveBtn, resetTableMemberFilter } from './admin-overrides.js';
@@ -42,11 +42,16 @@ if (new URLSearchParams(location.search).has('logout')) {
 }
 
 // ---- Check session immediately ----
-const currentSession = getSession();
-const isAuthenticated = !!currentSession;
-const currentUser     = currentSession?.name ?? null;
-const currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
-const currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
+// `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN, ARCHITECTURE_PLAN.md Phase 9)
+// these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
+// signed out, so the load-time values are null. With the flag off they are assigned once and never
+// change, identical to before. (The AL/sick sections read currentUser via a live getter so a later
+// in-place save still stamps the correct `changedBy`.)
+let currentSession = getSession();
+let isAuthenticated = !!currentSession;
+let currentUser     = currentSession?.name ?? null;
+let currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
+let currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
 
 // ---- Login overlay (shared in-place sign-in; see login-overlay.js) ----
 /** Show the shared sign-in overlay configured for Admin. On a confirmed sign-in, reload straight
@@ -62,8 +67,17 @@ function showAdminLogin() {
     initLoginOverlay({
         pageLabel: 'Admin',
         onSuccess: (/** @type {string} */ name) => {
+            // Mark a real login so the work-email check can fire (consumed by _runEmailCheck on the
+            // next pass / in initAuthorised). Set on BOTH paths so the email-check behaviour is
+            // identical whether we reload or initialise in place.
             lsSet(`myb_email_check_pending_${name}`, '1');
-            window.location.reload();
+            // Flag on → initialise in place (fall back to reload if init throws mid-wiring, so the
+            // in-place path is never less robust than reload). Flag off → reload, exactly as before.
+            if (CONFIG.INPLACE_LOGIN) {
+                try { initAuthorised(); } catch { window.location.reload(); }
+            } else {
+                window.location.reload();
+            }
         },
     });
 }
@@ -1028,7 +1042,7 @@ initALSection({
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
+    getCurrentUser: () => currentUser, showALConfirm, hideALConfirm, showInChangeAShift,
     showSuccess,
 });
 
@@ -1038,7 +1052,7 @@ initALSection({
 initSickSection({
     sickMember,
     syncSickMemberDisplay, populateMemberDropdown, lastMember,
-    updateALBanner, updateALBookedBox, updateSickBookedBox, currentUser, showInChangeAShift,
+    updateALBanner, updateALBookedBox, updateSickBookedBox, getCurrentUser: () => currentUser, showInChangeAShift,
     showSuccess,
 });
 
@@ -1554,10 +1568,28 @@ async function initEmailCheck(member) {
 // irrelevant to the decision because Admin requires no role.
 const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'admin');
 if (_access.decision === 'login') {
-    // Not signed in → show login overlay; do not load any Firestore data.
+    // Not signed in → show login overlay; do not load any Firestore data. On a confirmed sign-in,
+    // showAdminLogin's onSuccess reloads (flag off) or runs initAuthorised() in place (flag on).
     showAdminLogin();
 } else {
     // _access.decision === 'allow' (a named user; Admin requires no role).
+    initAuthorised();
+}
+
+/**
+ * Authorised (signed-in) init body — ARCHITECTURE_PLAN.md Phase 9. Runs exactly once per page life:
+ * directly on a normal already-signed-in load, or from showAdminLogin's onSuccess on the in-place path.
+ */
+function initAuthorised() {
+    // Refresh identity — on the in-place path the module loaded signed-out, so re-read the just-saved
+    // session (saveSession ran before onSuccess). No-op re-read on a normal signed-in load.
+    currentSession = getSession();
+    currentUser     = currentSession?.name ?? null;
+    currentIsAdmin   = CONFIG.ADMIN_NAMES.includes(currentUser);
+    currentIsManager = (CONFIG.MANAGER_NAMES || []).includes(currentUser);
+    isAuthenticated = !!currentSession;
+    // In-place: remove the still-mounted overlay to reveal the page. No-op on a normal load.
+    dismissLoginOverlay();
     // Returning user with a valid localStorage session never passes through the
     // login click handler, so re-establish the Firebase Auth session here.
     // Without this, auth.currentUser stays null and every Firestore write fails.
@@ -1619,6 +1651,9 @@ if (_access.decision === 'login') {
     }
     // One-time email check — fire-and-forget; async Firestore fetch inside.
     initEmailCheck(currentUser);
+    // Nav panel — deferred here on the in-place login path so it renders with the signed-in identity
+    // (deduped by initNavPanel's navPanelInit guard if already wired on a normal load).
+    wireNavPanel();
 }
 
 // ============================================
@@ -1634,14 +1669,20 @@ registerServiceWorker({
 sessionReady.then(() => { initErrorReporter(); recordUsage('admin', currentUser); });
 
 // ── Navigation panel ─────────────────────────────────────────────────────────
-initNavPanel({
-    currentPage: 'admin',
-    memberName:  currentUser,
-    isAdmin:         currentIsAdmin,
-    isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
-    onLogoClick: () => openAboutLightbox?.(),
-    onSignOut:   () => { clearSession(); window.location.reload(); },
-});
+function wireNavPanel() {
+    initNavPanel({
+        currentPage: 'admin',
+        memberName:  currentUser,
+        isAdmin:         currentIsAdmin,
+        isLinksDesigner: CONFIG.LINKS_DESIGNERS.includes(currentUser),
+        onLogoClick: () => openAboutLightbox?.(),
+        onSignOut:   () => { clearSession(); window.location.reload(); },
+    });
+}
+// Wire the nav now EXCEPT on the in-place login path, where initAuthorised() defers it so it renders
+// with the signed-in identity (the full-screen overlay covers the burger meanwhile). Flag off → wired
+// now exactly as before (null identity on the login screen, corrected after the reload).
+if (!CONFIG.INPLACE_LOGIN || _access.decision !== 'login') wireNavPanel();
 
 // Calendar pill in the nav drawer: write the current fieldDate month/year to
 // localStorage before navigating so index.html opens on the same month the user

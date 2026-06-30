@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '14.82';
+export const APP_VERSION = '14.83';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -72,9 +72,9 @@ export const CONFIG = {
     // protected page's login overlay confirms a sign-in, OFF (false) = today's behaviour: the
     // overlay's onSuccess does `window.location.reload()` and the reloaded page re-runs init. ON
     // (true) = the page initialises in place — the coordinator's authorised body runs directly and
-    // the overlay is torn down — no reload, no white flash, no second auth-restore. Migration switch:
-    // flip ON per coordinator as each is proven (only the init()-wrapped pages — operations/links/
-    // paycalc — honour it so far; admin/settings still reload regardless until their batch lands).
+    // the overlay is torn down — no reload, no white flash, no second auth-restore. All five protected
+    // coordinators (operations, links, paycalc, admin, settings) honour it (v14.81 + v14.83). Single
+    // global switch — flip ON once login is confirmed stable, validating one coordinator at a time.
     // ⚠️ KILL-SWITCH: set back to `false` to instantly restore the reload path everywhere (one-line
     //   deploy, no other change). Keep OFF until login is confirmed stable in production.
     INPLACE_LOGIN:                    false,

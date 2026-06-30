@@ -690,3 +690,36 @@ test('in-place sign-in: paycalc initialises (period selector built) without a re
     await expect(page).toHaveURL(/paycalc\.html$/);
     expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });
+
+test('in-place sign-in: admin initialises (member selector + nav identity) without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    // Mark the work-email check as recently done so its modal isn't "due" and can't cover the page.
+    await page.addInitScript(() => localStorage.setItem('myb_email_check_done_G. Miller', String(Date.now())));
+    await page.goto('/admin.html');
+    await page.evaluate(() => { window.__noReload = 1; });
+    await signInThroughOverlay(page, 'G. Miller');
+
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#fieldMember')).toBeVisible();           // admin working surface rendered
+    await expect(page.locator('body.auth-ready')).toBeVisible();        // initAuthorised ran in place
+    // Nav was deferred + wired with the signed-in identity (footer member badge present).
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanelAvatar')).toBeVisible();
+    await expect(page).toHaveURL(/admin\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+test('in-place sign-in: settings initialises (work-email card + nav identity) without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    await page.goto('/settings.html');
+    await page.evaluate(() => { window.__noReload = 1; });
+    await signInThroughOverlay(page, 'G. Miller');
+
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    // initApp() → initContactCard() → initCardCollapse sets aria-expanded on the Work Email header.
+    await expect(page.locator('#contactToggleHeader')).toHaveAttribute('aria-expanded', 'false');
+    await page.locator('#navMenuBtn').click();
+    await expect(page.locator('#navPanelAvatar')).toBeVisible();        // nav wired with identity
+    await expect(page).toHaveURL(/settings\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});

@@ -11,7 +11,7 @@ import { CONFIG, isValidEmail } from './roster-data.js';
 import { getStaffContact, saveStaffContact, deleteStaffContact } from './firebase-client.js';
 import { initNavPanel } from './nav-panel.js';
 import { initHuddleNotifications } from './huddle.js';
-import { initLoginOverlay } from './login-overlay.js';
+import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { ensureNamedSession, getSession, clearSession, sessionReady, resolveSession } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -23,26 +23,31 @@ import { initErrorReporter } from './error-reporter.js';
 import { recordUsage } from './usage-reporter.js';
 
 // ── Check session ─────────────────────────────────────────────────────────────
-const currentSession   = getSession();
-const isAuthenticated  = !!currentSession;
-const currentUser      = currentSession?.name ?? null;
+// `let` (not const): on the in-place sign-in path (CONFIG.INPLACE_LOGIN, ARCHITECTURE_PLAN.md Phase 9)
+// these are refreshed inside initAuthorised() from the just-saved session — the module loaded while
+// signed out, so the load-time values are null. With the flag off they are assigned once and never
+// change, identical to before.
+let currentSession   = getSession();
+let isAuthenticated  = !!currentSession;
+let currentUser      = currentSession?.name ?? null;
 
 // Assigned by initIconLightbox (runs inside initApp when signed in); the closure
 // below only reads it when the drawer logo is tapped.
 /** @type {any} */
 let openAboutLightbox = null;
 
-// Nav panel is always initialised — even when not signed in, so the user can
-// navigate to Calendar or Admin rather than being stranded on the login overlay.
-// onSignOut is null when not authenticated, which hides the footer.
-initNavPanel({
-    currentPage: 'settings',
-    memberName:  currentUser,
-    isAdmin:         currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
-    isLinksDesigner: currentUser ? CONFIG.LINKS_DESIGNERS.includes(currentUser) : false,
-    onLogoClick: () => openAboutLightbox?.(),
-    onSignOut:   currentUser ? () => { clearSession(); window.location.href = './index.html'; } : null,
-});
+// Nav panel. Always initialised — even when not signed in — so the user can navigate to Calendar or
+// Admin rather than being stranded. onSignOut is null when not authenticated, which hides the footer.
+function wireNavPanel() {
+    initNavPanel({
+        currentPage: 'settings',
+        memberName:  currentUser,
+        isAdmin:         currentUser ? CONFIG.ADMIN_NAMES.includes(currentUser) : false,
+        isLinksDesigner: currentUser ? CONFIG.LINKS_DESIGNERS.includes(currentUser) : false,
+        onLogoClick: () => openAboutLightbox?.(),
+        onSignOut:   currentUser ? () => { clearSession(); window.location.href = './index.html'; } : null,
+    });
+}
 
 // Page-access via the Phase-3 policy (auth-policy.js → ARCHITECTURE_PLAN.md Phase 7). Settings'
 // policy is "any named user" (role null) — no 'forbidden' path. The snapshot maps the LOCAL
@@ -50,30 +55,55 @@ initNavPanel({
 // preserving the exact prior trigger — so requirePage returns 'login' iff there is no local session
 // (decision identical to the old `if (!isAuthenticated)`). member is irrelevant: Settings needs no role.
 const _access = requirePage({ status: isAuthenticated ? 'named' : 'signedOut', member: currentUser }, 'settings');
+// Wire the nav now EXCEPT on the in-place login path, where it is deferred to initAuthorised() so it
+// renders ONCE with the signed-in identity (the full-screen overlay covers the burger meanwhile).
+// Flag off → wired now exactly as before.
+if (!CONFIG.INPLACE_LOGIN || _access.decision !== 'login') wireNavPanel();
+
 if (_access.decision === 'login') {
-    initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() });
-    resolveSession(false); // fulfil sessionReady on the non-auth path (initErrorReporter runs on both paths)
+    // On success: flag off (default) → reload + resolveSession(false) on this non-auth load (today's
+    // path); flag on → initialise in place via initAuthorised(), falling back to a reload if it throws
+    // mid-wiring (never less robust than reload). Don't resolveSession(false) when in-place, or the
+    // one-shot sessionReady is poisoned before initAuthorised can resolve it true.
+    const onSuccess = CONFIG.INPLACE_LOGIN
+        ? () => { try { initAuthorised(); } catch { window.location.reload(); } }
+        : () => window.location.reload();
+    initLoginOverlay({ pageLabel: 'Settings', onSuccess });
+    if (!CONFIG.INPLACE_LOGIN) resolveSession(false); // fulfil sessionReady on the non-auth path
 } else {
-    // _access.decision === 'allow' (a named user; Settings requires no role).
-    // Re-establish Firebase Auth in the background. A returning user skips the
-    // login handler, so auth.currentUser may still be null for a moment and
-    // an immediate Firestore write would fail the request.auth rule.
-    // resolveSession() fulfils sessionReady so feature modules (initApp handlers)
+    initAuthorised();
+}
+registerServiceWorker();
+sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); });
+
+/**
+ * The authorised (signed-in) init body. Called directly on a normal already-signed-in load, or from
+ * the login overlay's onSuccess on the in-place path. Runs exactly once per page life either way.
+ */
+function initAuthorised() {
+    // Refresh identity — on the in-place path the module loaded signed-out, so re-read the just-saved
+    // session (saveSession ran before onSuccess). Identical no-op re-read on a normal signed-in load.
+    currentSession  = getSession();
+    currentUser     = currentSession?.name ?? null;
+    isAuthenticated = !!currentSession;
+    // In-place: remove the still-mounted overlay to reveal the page. No-op on a normal load.
+    dismissLoginOverlay();
+    // Re-establish Firebase Auth in the background. A returning user skips the login handler, so
+    // auth.currentUser may still be null for a moment and an immediate Firestore write would fail the
+    // request.auth rule. resolveSession() fulfils sessionReady so feature modules (initApp handlers)
     // can import sessionReady instead of reading window._mybSession.
     const _setAuth = ensureNamedSession(currentUser);
     resolveSession(_setAuth);
-    // B1.2 enforcement, now decided via the policy: once the named session resolves, the store
-    // (fed by the Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity,
-    // so `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN
-    // named session could not be confirmed — equivalent to the old `if (ENFORCE && !named)`. Flag
-    // OFF → resolves 'named'/'anonymous' to 'allow', so this never fires (unchanged).
+    // B1.2 enforcement, decided via the policy: once the named session resolves, the store (fed by the
+    // Phase-2 bridge inside ensureNamedSession) reflects the terminal Firebase identity, so
+    // `requirePage(getAuthSnapshot(), 'settings')` returns 'login' exactly when this member's OWN named
+    // session could not be confirmed. Flag OFF → resolves to 'allow', so this never fires (unchanged).
     _setAuth.then(() => {
         if (CONFIG.ENFORCE_NAMED_SESSION && requirePage(getAuthSnapshot(), 'settings').decision === 'login') { clearSession(); initLoginOverlay({ pageLabel: 'Settings', onSuccess: () => window.location.reload() }); }
     });
     initApp();
+    wireNavPanel();   // deduped by initNavPanel's navPanelInit guard if the nav was already wired above
 }
-registerServiceWorker();
-sessionReady.then(() => { initErrorReporter(); recordUsage('settings', currentUser); });
 
 // ── Main app init (runs when authenticated) ───────────────────────────────────
 function initApp() {
