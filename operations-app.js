@@ -1012,6 +1012,27 @@ export function init() {
             p.innerHTML = `<span aria-hidden="true">${emoji}</span> ${label}`;
             return p;
         };
+        /** A full-width overall band bar (Quick/A moment/Slow) — used for the aggregate login section,
+         *  so it shows the SAME three bands as the per-page bars (not just a single headline %).
+         *  @param {{quick:number, ok:number, slow:number, total:number, pctQuick:number, pctOk:number, pctSlow:number}} b */
+        const overallBar = (b) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'speed-bar speed-bar--overall';
+            wrap.setAttribute('role', 'img');
+            wrap.setAttribute('aria-label', `${b.pctQuick}% quick, ${b.pctOk}% a moment, ${b.pctSlow}% slow`);
+            wrap.innerHTML = segs(b);
+            return wrap;
+        };
+        /** The shared colour key (Quick/A moment/Slow) — explains both the login bar and the page bars. */
+        const legendEl = () => {
+            const legend = document.createElement('div');
+            legend.className = 'speed-legend';
+            legend.innerHTML = /** @type {Array<'quick'|'ok'|'slow'>} */ (['quick', 'ok', 'slow']).map(g => {
+                const grp = SPEED_GROUPS[g];
+                return `<span class="speed-legend-item"><span class="speed-dot speed-dot--${grp.tone}"></span>${grp.label} <span class="speed-legend-sub">(${grp.sub})</span></span>`;
+            }).join('');
+            return legend;
+        };
         /** A toned verdict banner: big % "quick" + plain sentence + a sub line.
          *  @param {{tone:'good'|'ok'|'bad'|'none', text:string}} verdict
          *  @param {{pctQuick:number}} overall @param {number} total @param {string} unit */
@@ -1032,24 +1053,22 @@ export function init() {
             const stats = await adminReadWithRetry(getPerfStats);
             content.innerHTML = '';
 
+            const hasData = stats.login.total || stats.pages.total;
+
             // ── Section 1: Signing in (login-to-usable; the metric the login work is all about) ──
+            // Verdict + an overall band bar so it shows the SAME Quick/A moment/Slow split as pages.
             content.appendChild(subhead('🔑', 'Signing in'));
             content.appendChild(verdictBanner(perfVerdict(stats.login.overall, 'login'), stats.login.overall, stats.login.total, 'sign-ins'));
+            if (stats.login.total) content.appendChild(overallBar(stats.login.overall));
+
+            // Shared colour key (explains the login bar above + the page bars below).
+            if (hasData) content.appendChild(legendEl());
 
             // ── Section 2: Opening pages (how fast each page opened) ──
             content.appendChild(subhead('📄', 'Opening pages'));
             content.appendChild(verdictBanner(perfVerdict(stats.pages.overall, 'pages'), stats.pages.overall, stats.pages.total, 'page loads'));
 
             if (stats.pages.total) {
-                // Legend — the three plain-language bands (shared by both sections' bars).
-                const legend = document.createElement('div');
-                legend.className = 'speed-legend';
-                legend.innerHTML = /** @type {Array<'quick'|'ok'|'slow'>} */ (['quick', 'ok', 'slow']).map(g => {
-                    const grp = SPEED_GROUPS[g];
-                    return `<span class="speed-legend-item"><span class="speed-dot speed-dot--${grp.tone}"></span>${grp.label} <span class="speed-legend-sub">(${grp.sub})</span></span>`;
-                }).join('');
-                content.appendChild(legend);
-
                 // Per-page breakdown.
                 const heading = document.createElement('p');
                 heading.className = 'usage-section-label';
