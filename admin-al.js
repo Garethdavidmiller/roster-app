@@ -36,7 +36,8 @@ export function triggerConfirmedALSave() {
  * @param {Function}          deps.updateALBanner      Refreshes the AL entitlement banner
  * @param {Function}          deps.updateALBookedBox   Refreshes the AL booked-periods box
  * @param {Function}          deps.updateSickBookedBox Refreshes the sick booked-periods box
- * @param {string|null}       deps.currentUser         Logged-in user name (for changedBy field)
+ * @param {() => (string|null)} deps.getCurrentUser     Live getter for the logged-in user name (for the
+ *   changedBy field) — a getter, not a value, so an in-place sign-in (Phase 9) is reflected at write time
  * @param {Function}          deps.showALConfirm       Shows the over-entitlement confirmation bar
  * @param {Function}          deps.hideALConfirm       Hides the over-entitlement confirmation bar
  * @param {Function}          deps.showInChangeAShift  Jumps the Change a Shift section to a member + date
@@ -47,7 +48,7 @@ export function initALSection({
     syncMemberDisplay,
     populateMemberDropdown, lastMember,
     updateALBanner, updateALBookedBox, updateSickBookedBox,
-    currentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
+    getCurrentUser, showALConfirm, hideALConfirm, showInChangeAShift, showSuccess,
 }) {
 const alFrom     = /** @type {HTMLInputElement}  */ (document.getElementById('alFrom'));
 const alTo       = /** @type {HTMLInputElement}  */ (document.getElementById('alTo'));
@@ -199,7 +200,7 @@ alSaveBtn.addEventListener('click', async () => {
 
     try {
         const { workingCount } = await recordRangeOverrides({
-            type: 'annual_leave', value: 'AL', memberName: member, dates, changedBy: currentUser ?? '',
+            type: 'annual_leave', value: 'AL', memberName: member, dates, changedBy: getCurrentUser() ?? '',
         });
 
         if (!workingCount) {

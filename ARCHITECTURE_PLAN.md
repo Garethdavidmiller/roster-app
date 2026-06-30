@@ -447,7 +447,24 @@ The optimistic-start idea was dropped as no-benefit. Separate + revertible.
 
 ---
 
-## Appendix: Phase 9 — Remove the post-login reload (in-place sign-in) — scoped v14.80
+## Appendix: Phase 9 — Remove the post-login reload (in-place sign-in) — scoped v14.80; BUILT v14.81–83 (flag-gated, default OFF)
+
+**Status (v14.83): all five coordinators BUILT behind `CONFIG.INPLACE_LOGIN` (default false → today's
+reload, unchanged). Operations/Links/Paycalc landed v14.81–82 (re-invoke `init()`); Admin/Settings
+v14.83.** Admin/Settings are branch-style (no `init()` to re-invoke), so their signed-in body was
+extracted into an `initAuthorised()` that (a) refreshes the now-`let` identity vars from the just-saved
+session, (b) `dismissLoginOverlay()`s, (c) runs the body, (d) wires the nav. The nav is **deferred** past
+sign-in on the in-place login path (the full-screen overlay covers the burger meanwhile), so it renders
+once with the signed-in identity — **no `refreshNavIdentity` API was needed**. Admin's AL/Sick sections,
+wired unconditionally at module load, now read the logged-in user via a live `getCurrentUser()` getter
+(not a captured value) so an in-place save still stamps the correct `changedBy`. The work-email pending
+marker is preserved (set on both paths) so the email-check behaviour is identical either way. Every
+in-place `onSuccess` falls back to `reload()` if `init()`/`initAuthorised()` throws. Coverage: 5 e2e
+no-reload tests (one per coordinator) + the whole suite passing with the flag OFF proves equivalence.
+Remaining: flip the flag ON in production after the login changes are confirmed stable, validating one
+coordinator at a time in a private window.
+
+
 
 The login-latency review's **biggest single win**: today every protected page signs in, then
 `window.location.reload()`s, and the reloaded page re-does work it just finished. This phase replaces
