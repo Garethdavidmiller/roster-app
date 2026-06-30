@@ -67,11 +67,11 @@ export function init() {
         // in-place pass can resolve it true. (ARCHITECTURE_PLAN.md Phase 9.)
         // In-place re-invocation falls back to a reload if init() throws mid-wiring, so the in-place
         // path is never less robust than the reload path (the overlay is already torn down by then).
-        const onSuccess = CONFIG.INPLACE_LOGIN
+        const onSuccess = CONFIG.INPLACE_LOGIN.links
             ? () => { try { init(); } catch { window.location.reload(); } }
             : () => window.location.reload();
         initLoginOverlay({ pageLabel: 'Links', onSuccess });
-        if (!CONFIG.INPLACE_LOGIN) resolveSession(false);
+        if (!CONFIG.INPLACE_LOGIN.links) resolveSession(false);
         return;
     }
     if (_access.decision === 'forbidden') {
