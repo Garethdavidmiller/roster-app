@@ -211,6 +211,7 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
                         submitBtn.textContent = 'Sign in →';
                         _failCount = 0;
                         _lockedUntil = 0;
+                        _attempting = false;   // release the mutex the inner finally kept latched
                     }, 30_000);
                 }
                 showError('Incorrect password. Please try again.');
@@ -246,12 +247,16 @@ export function initLoginOverlay({ pageLabel, onSuccess }) {
             await onSuccess(name);
             // onSuccess reloads/navigates; the resets below are harmless (the page is leaving).
         } finally {
-            // Don't reset during the 30s lockout (submit is disabled) so a queued click can't slip
-            // through; otherwise allow the next attempt. The click handler also resets as a backstop.
-            if (!submitBtn.disabled) _attempting = false;
+            // Release the in-flight mutex on completion — EXCEPT during the 30s lockout, whose own
+            // timer (above) releases it when it expires. Keyed on `_lockedUntil` (not the button's
+            // disabled state, which is also true during the "Signing in…" success window) so a real
+            // attempt is serialised end-to-end. The handlers below must NOT also reset `_attempting`:
+            // an early-returned (mutex-held) call would otherwise clear the flag mid-flight and let a
+            // concurrent attempt start. `_attempting` is owned solely here + in the lockout timer.
+            if (Date.now() >= _lockedUntil) _attempting = false;
         }
     }
 
-    submitBtn.addEventListener('click', () => { attempt().finally(() => { _attempting = false; }); });
-    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().finally(() => { _attempting = false; }); });
+    submitBtn.addEventListener('click', () => { attempt().catch(() => {}); });
+    passwordInput.addEventListener('keydown', e => { if (e.key === 'Enter') attempt().catch(() => {}); });
 }

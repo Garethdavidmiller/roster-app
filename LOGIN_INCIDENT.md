@@ -115,6 +115,20 @@ login: which request stalls — `accounts:signInWithPassword`, `securetoken…/t
 4. Confirm whether the slowness is account-specific (joiners Okeke/Jedlinski) or universal — if
    account-specific, re-check those accounts' provisioning/claims from "Set up accounts."
 
+## Comprehensive review (v14.78) — 3 independent adversarial passes + all gates
+
+A max-effort review of all security + architecture + login code: 678 unit + 173 rules + 68 e2e all
+green, plus 3 parallel reviewers (login flow / security rules+claims / architecture Track 1).
+**Security: clean. Architecture: clean.** Login: **one real low-severity bug found and FIXED (v14.78)** —
+the `_attempting` sign-in mutex didn't actually serialise attempts: the per-handler
+`.finally(() => _attempting = false)` cleared the flag even for early-returned (mutex-held) calls, so
+repeated Enter during the auth round-trip could start a second concurrent `runNamedSignIn`. Benign in
+this build (idempotent post-await `saveSession`, duplicate `reload()`, lockout still held by
+`_lockedUntil` — no freeze / half-signed-in / security impact) but a genuine defect. Fix: `_attempting`
+is now owned solely by `attempt()`'s inner `finally` (keyed on `_lockedUntil`, not button state) + the
+30s-lockout timer; the handlers no longer reset it. The login-freeze class itself is confirmed fixed
+(saveSession is single-site + post-auth; no Firestore/auth call on the login critical path).
+
 ## Recommended follow-ups from the external review (not yet done — lower priority than the freeze fix)
 
 - **Email-check trigger marker (review "Fix 4") — ✅ DONE (v14.77), with a 3-monthly cadence (owner
