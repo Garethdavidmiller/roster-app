@@ -23,7 +23,7 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 import { getSession, clearSession, ensureNamedSession } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
-import { initLoginOverlay } from './login-overlay.js';
+import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import {
   CONFIG, getPeriods, currentPeriodNum,
   hasBoxingDay, hasBankHoliday,
@@ -78,9 +78,18 @@ export function init() {
     // calculator. Do not "simplify" this gate into requirePage — it would regress to rendering with no
     // identity.
     if (!getSession()?.name) {
-      initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess: () => window.location.reload() });
+      // On success: INPLACE_LOGIN off (default) → reload back into the calculator (today's path); on →
+      // re-invoke init() in place — the body below never ran on this pass, so re-entering runs it once
+      // with the just-saved session. The per-member namespace is handled for free: runMigrations()
+      // (below) calls setPaycalcNamespace(getLoggedMember()) and saveSession already wrote the member
+      // before onSuccess, so loadSettings reads the right namespace. (ARCHITECTURE_PLAN.md Phase 9.)
+      const onSuccess = ROSTER_CONFIG.INPLACE_LOGIN ? () => init() : () => window.location.reload();
+      initLoginOverlay({ pageLabel: 'Pay Calculator', onSuccess });
       return;
     }
+    // In-place sign-in: remove the still-mounted overlay if we re-entered via onSuccess. No-op on a
+    // normal already-signed-in load (no overlay present).
+    dismissLoginOverlay();
 
     // Period helpers, grade helpers, settings, roster hint, HPP, back-pay all imported above.
     // SK, periodKey, hppEstKey, hppActualKey imported from paycalc-migrations.js

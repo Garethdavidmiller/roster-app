@@ -18,7 +18,7 @@
  * Run: npx playwright test
  */
 
-import { test, expect, enforceNamedSession } from './fixtures.js';
+import { test, expect, enforceNamedSession, enableInplaceLogin } from './fixtures.js';
 
 // Collect uncaught JS exceptions on a page. Firebase network/auth errors are
 // filtered out — they're expected when running against localhost with no valid
@@ -622,4 +622,71 @@ test('B1 flag ON + sign-in OK: links loads for a designer (not redirected)', asy
     await seedSession(page, 'G. Miller');   // G. Miller is a links designer
     await page.goto('/links.html');
     await expect(page).toHaveURL(/links\.html$/);
+});
+
+// ── IN-PLACE SIGN-IN (INPLACE_LOGIN flag ON) — Phase 9 ─────────────────────────
+// With the flag ON, the init()-wrapped coordinators (operations/links/paycalc) initialise the page
+// IN PLACE after a confirmed sign-in instead of window.location.reload(). The discriminator is a
+// `window.__noReload` marker set AFTER load but BEFORE the click: a reload wipes window, so if the
+// marker survives the sign-in the page did NOT reload. We also assert the overlay was torn down and
+// a signed-in surface rendered, and the URL never changed.
+
+/** Drive the real login overlay: find the grade that lists `fullName`, select it, type the surname
+ *  password (mirrors normaliseSurname), submit. The fixture's default sign-in resolves. */
+async function signInThroughOverlay(page, fullName) {
+    await expect(page.locator('#loginOverlay')).toBeVisible();
+    const grades = await page.locator('#loginGrade option').evaluateAll(
+        opts => opts.map(o => o.value).filter(Boolean));
+    for (const g of grades) {
+        await page.locator('#loginGrade').selectOption(g);
+        const names = await page.locator('#loginName option').evaluateAll(opts => opts.map(o => o.value));
+        if (names.includes(fullName)) break;
+    }
+    await page.locator('#loginName').selectOption(fullName);
+    const pw = fullName.split(' ').slice(1).join('').toLowerCase().replace(/[^a-z]/g, '');
+    await page.locator('#loginPassword').fill(pw);
+    await page.locator('#loginSubmit').click();
+}
+
+test('in-place sign-in: operations initialises without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    await page.goto('/operations.html');           // not signed in → overlay
+    await page.evaluate(() => { window.__noReload = 1; });   // a reload would wipe this
+    await signInThroughOverlay(page, 'G. Miller');  // admin → passes the operations gate
+
+    // Overlay torn down in place, signed-in surface present, URL unchanged, and NO reload happened.
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#huddleUploadCard')).toBeVisible();
+    await expect(page).toHaveURL(/operations\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+test('in-place sign-in: links initialises without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    await page.goto('/links.html');
+    await page.evaluate(() => { window.__noReload = 1; });
+    await signInThroughOverlay(page, 'G. Miller');  // designer → passes the links gate
+
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('body.auth-ready')).toBeVisible();   // authorised body ran in place
+    await expect(page).toHaveURL(/links\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
+});
+
+test('in-place sign-in: paycalc initialises (period selector built) without a reload', async ({ page }) => {
+    await enableInplaceLogin(page);
+    // Suppress the one-time notices so nothing overlays the calculator after sign-in.
+    await page.addInitScript(() => {
+        localStorage.setItem('myb_pc_pay_welcome_shown', '1');
+        localStorage.setItem('myb_pc_ytd_notice_shown', '1');
+        localStorage.setItem('myb_pc_ns_migrated', '1');
+    });
+    await page.goto('/paycalc.html');
+    await page.evaluate(() => { window.__noReload = 1; });
+    await signInThroughOverlay(page, 'G. Miller');
+
+    await expect(page.locator('#loginOverlay')).toHaveCount(0);
+    await expect(page.locator('#periodSelect option').first()).toBeAttached();  // calculator built in place
+    await expect(page).toHaveURL(/paycalc\.html$/);
+    expect(await page.evaluate(() => window.__noReload), 'page must not have reloaded').toBe(1);
 });

@@ -21,7 +21,7 @@
 import { CONFIG, getMembersForGrade } from './roster-data.js';
 import { getSurname, saveSession, clearSession, ensureNamedSession, isTransientAuthError, getFirebaseAuthError, primeAuth } from './session.js';
 import { lsGet, lsSet } from './ls.js';
-import { lockBodyScroll, trapFocus } from './overlay.js';
+import { lockBodyScroll, unlockBodyScroll, trapFocus } from './overlay.js';
 
 // Full grade order — Management last. The login lists every grade; per-page ACCESS control
 // (admin-only Operations, designer-only Links) is enforced by the caller after sign-in, not here.
@@ -74,6 +74,22 @@ export async function runNamedSignIn({ enforce, ensureNamedSession, saveSession,
     }
     saveSession();              // commit ONLY now that auth has genuinely resolved
     return { ok: true };
+}
+
+/**
+ * Tear down the in-place login overlay (in-place sign-in / CONFIG.INPLACE_LOGIN — ARCHITECTURE_PLAN.md
+ * Phase 9). A coordinator whose `onSuccess` initialises the page in place (rather than reloading) calls
+ * this to remove the overlay and reveal the now-rendered page. Safe to call when no overlay is present
+ * (a normal already-signed-in load) — it then does nothing, so coordinators can call it unconditionally
+ * on their authorised path. Only unlocks body scroll when an overlay actually existed, so it never
+ * disturbs scroll state on a page that never showed the overlay.
+ * @returns {void}
+ */
+export function dismissLoginOverlay() {
+    const el = document.getElementById('loginOverlay');
+    if (!el) return;
+    el.remove();
+    unlockBodyScroll();
 }
 
 /** Build the overlay markup. `pageLabel` sets the subtitle, e.g. "Admin" → "Admin · Sign in". */

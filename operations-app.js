@@ -18,7 +18,7 @@ import { initRosterUpload } from './admin-roster-upload.js';
 import { initHuddleUpload } from './huddle.js';
 import { initAuthSetup } from './admin-auth.js';
 import { initNavPanel } from './nav-panel.js';
-import { initLoginOverlay } from './login-overlay.js';
+import { initLoginOverlay, dismissLoginOverlay } from './login-overlay.js';
 import { getSession, clearSession, ensureNamedSession, sessionReady, resolveSession } from './session.js';
 import { requirePage } from './auth-policy.js';
 import { getAuthSnapshot } from './auth-state.js';
@@ -50,10 +50,16 @@ export function init() {
     // this routes the same decision through the shared authz layer instead of inline checks.
     const _access = requirePage({ status: currentUser ? 'named' : 'signedOut', member: currentUser }, 'operations');
     if (_access.decision === 'login') {
-        // Not signed in → show the shared in-place sign-in (no redirect). Reload on success; the
-        // reloaded page re-checks access. Throw to halt the rest of module init — overlay is shown.
-        initLoginOverlay({ pageLabel: 'Operations', onSuccess: () => window.location.reload() });
-        resolveSession(false);
+        // Not signed in → show the shared in-place sign-in (no redirect). On success:
+        //  • INPLACE_LOGIN off (default) → reload; the reloaded page re-checks access (today's path).
+        //    resolveSession(false) fulfils sessionReady on this non-auth load.
+        //  • INPLACE_LOGIN on → re-invoke init() in place: the authorised body below never ran on this
+        //    pass (we return now), so re-entering runs it exactly ONCE with the just-saved session —
+        //    no reload, no double-wiring. Do NOT resolveSession(false) here, or the one-shot
+        //    sessionReady would be poisoned before the in-place pass can resolve it true.
+        const onSuccess = CONFIG.INPLACE_LOGIN ? () => init() : () => window.location.reload();
+        initLoginOverlay({ pageLabel: 'Operations', onSuccess });
+        if (!CONFIG.INPLACE_LOGIN) resolveSession(false);
         return;
     }
     if (_access.decision === 'forbidden') {
@@ -62,6 +68,9 @@ export function init() {
         return;
     }
     // _access.decision === 'allow' → proceed (signed-in admin).
+    // In-place sign-in: if we re-entered via the overlay's onSuccess, the overlay is still mounted —
+    // remove it to reveal the page. No-op on a normal already-signed-in load (no overlay present).
+    dismissLoginOverlay();
 
     // Resolve sessionReady so admin-auth.js and huddle.js (feature modules) can
     // import sessionReady and await it instead of reading window._mybSession.
