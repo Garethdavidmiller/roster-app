@@ -91,7 +91,7 @@ function showAdminLogin() {
 let openAboutLightbox = null;
 (function() {
     const about = initAboutLightbox({
-        appLabel: 'MYB Roster Admin',
+        appLabel: 'Marylebone Roster — Admin',
         bugLinkId: 'adminBugReportLink',
         getUserName: () => currentUser || 'Unknown',
     });
@@ -114,7 +114,7 @@ let openAboutLightbox = null;
     /** Tips content keyed by data-card attribute on each .btn-card-tips button. */
     const CARD_TIPS = {
         'change-shift': {
-            title: 'Record a Shift',
+            title: 'Change a Shift',
             sections: [
                 { heading: 'One shift', items: [
                     { icon: '1️⃣', html: 'Select a <strong>staff member</strong> and <strong>week</strong> at the top', adminOnly: true },
@@ -149,7 +149,7 @@ let openAboutLightbox = null;
             title: 'Record Absence',
             sections: [
                 { heading: 'What to use it for', items: [
-                    { icon: '🤧', html: '<strong>Sickness</strong> — any number of days' },
+                    { icon: '🤧', html: '<strong>Illness or time off</strong> — any number of days' },
                     { icon: '👨‍👩‍👧', html: '<strong>Family or domestic emergency</strong> — e.g. child ill, caring for a relative' },
                     { icon: '🪑', html: 'You don\'t need to say why — only the dates are saved, not the reason' },
                 ]},

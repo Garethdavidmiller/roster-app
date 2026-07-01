@@ -46,7 +46,7 @@ export function initPaycalcLightboxes() {
   let openAboutLightbox = null;
   (function () {
     const about = initAboutLightbox({
-      appLabel: 'MYB Pay Calculator',
+      appLabel: 'Marylebone Roster — Pay Calculator',
       getUserName: () => getLoggedMember()?.name,
     });
     if (about) openAboutLightbox = about.open;

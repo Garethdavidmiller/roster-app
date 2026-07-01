@@ -483,7 +483,7 @@ try {
             const printHint     = document.getElementById('lightboxPrintHint');
 
             const about = initAboutLightbox({
-                appLabel: 'MYB Roster',
+                appLabel: 'Marylebone Roster',
                 getUserName: () => (/** @type {any} */ (getCurrentMember()))?.name || 'Not selected',
                 onOpen() {
                     // Swap content based on current view mode

@@ -294,7 +294,7 @@ initTipsLightbox(CARD_TIPS);
 // About panel (version, update status, bug link) is the shared about-lightbox.js.
 function initIconLightbox() {
     const about = initAboutLightbox({
-        appLabel: 'MYB Roster Settings',
+        appLabel: 'Marylebone Roster — Settings',
         getUserName: () => currentUser,
     });
     if (about) openAboutLightbox = about.open;

@@ -24,7 +24,7 @@ import { createLightbox } from './overlay.js';
  * has no #iconLightbox.
  *
  * @param {object} [opts]
- * @param {string}   [opts.appLabel='MYB Roster'] - App name used in the bug-report subject/body
+ * @param {string}   [opts.appLabel='Marylebone Roster'] - App name used in the bug-report subject/body
  * @param {string}   [opts.bugLinkId='bugReportLink'] - id of the bug-report <a> in this page's markup
  * @param {Function} [opts.getUserName] - Returns the logged-in user's name for the bug report;
  *                                        omit on pages without a session (no User line is added)
@@ -34,7 +34,7 @@ import { createLightbox } from './overlay.js';
  *                                        #lightboxPrintBtn (e.g. calendar's landscape team print)
  * @returns {{ open: () => void, close: () => void }|null}
  */
-export function initAboutLightbox({ appLabel = 'MYB Roster', bugLinkId = 'bugReportLink', getUserName, onOpen, printFn } = {}) {
+export function initAboutLightbox({ appLabel = 'Marylebone Roster', bugLinkId = 'bugReportLink', getUserName, onOpen, printFn } = {}) {
     const lightbox = document.getElementById('iconLightbox');
     if (!lightbox) return null;
     const content  = document.getElementById('iconLightboxContent');

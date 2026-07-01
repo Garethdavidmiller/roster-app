@@ -665,7 +665,7 @@ export function init() {
     // ============================================
     (function () {
         const about = initAboutLightbox({
-            appLabel: 'MYB Roster Operations',
+            appLabel: 'Marylebone Roster — Operations',
             bugLinkId: 'opsBugReportLink',
             getUserName: () => currentUser,
         });
@@ -698,7 +698,7 @@ export function init() {
             'weekly-circular': {
                 title: 'Weekly Retail Circular',
                 sections: [{ items: [
-                    { icon: '📰', html: 'Upload the weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
+                    { icon: '📰', html: 'Upload the Weekly Retail Circular PDF — staff open it from <strong>☰ → Weekly Retail Circular</strong>' },
                     { icon: '🔄', html: 'Uploading a new file for the same date overwrites the previous one' },
                     { icon: '📅', html: 'Set the date to the week the circular covers — usually the Friday it was issued' },
                     { icon: '🤖', html: 'In a future update this will upload automatically, like the Huddle' },
