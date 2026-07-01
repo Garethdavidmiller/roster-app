@@ -804,11 +804,11 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
 - **Cold page-load (this section):** Batches 1/3/4 shipped (preconnect, stale-while-revalidate JS/CSS,
   paycalc modulepreload). **Next:** the deferred lazy-Firebase pass below — but **only if** the
   App-speed data shows the Firebase SDK dominating paycalc's cold load; otherwise leave it.
-- **Login latency (separate track):** the post-login `reload()` is being removed page-by-page
-  (in-place login). **paycalc (v15.07) + operations (v15.08) + links (v15.09) + admin (v15.16)
-  ENABLED; only settings remains (all-staff, LAST) — flip it after a multi-day watch of admin live.**
-  paycalc + admin are the real validation (ops/links are reached already-signed-in, so their in-place
-  path rarely fires). Full plan + rollout order: **ARCHITECTURE_PLAN.md → Phase 9**.
+- **Login latency (separate track):** the post-login `reload()` has been removed page-by-page
+  (in-place login). **ROLLOUT COMPLETE — all five coordinators enabled: paycalc (v15.07), operations
+  (v15.08), links (v15.09), admin (v15.16), settings (v15.17).** The per-page kill-switch in
+  `CONFIG.INPLACE_LOGIN` still stands (set any key back to `false` to revert that page). Full plan:
+  **ARCHITECTURE_PLAN.md → Phase 9**.
 
 ### Shipped
 
