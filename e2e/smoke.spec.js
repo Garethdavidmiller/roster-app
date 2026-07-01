@@ -58,10 +58,18 @@ function seedSession(page, name = 'G. Miller') {
     }, name);
 }
 
+// Seed a chosen calendar member so index.html renders the grid instead of the first-run
+// "choose your name" prompt (which shows only when NO member is saved AND not signed in).
+// Use in calendar render/geometry tests that assert the grid. (Onboarding H1.)
+function seedMember(page, name = 'G. Miller') {
+    return page.addInitScript((n) => localStorage.setItem('myb_roster_selected_member', n), name);
+}
+
 // ── CALENDAR (index.html) ──────────────────────────────────────────────────
 
 test('calendar: renders the current month from roster data', async ({ page }) => {
     const errors = collectFatalErrors(page);
+    await seedMember(page);   // saved member → render the grid, not the first-run prompt (H1)
     await page.goto('/');
 
     // .month-year is built entirely by JS — if this is visible, the whole
@@ -72,6 +80,20 @@ test('calendar: renders the current month from roster data', async ({ page }) =>
     await expect(page.locator('.calendar-day').first()).toBeVisible();
 
     expect(errors, 'Uncaught JS exceptions on index.html').toHaveLength(0);
+});
+
+test('calendar: first run (no saved member, not signed in) shows the choose-your-name prompt', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    await page.goto('/');   // fresh context: no saved member, no session → first run
+    // Prompt shows INSTEAD of a rendered roster.
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await expect(page.locator('.calendar-day')).toHaveCount(0);
+    await expect(page.locator('#teamMemberSelect option').first()).toHaveText('— Choose your name —');
+    // Picking a name renders the real calendar and clears the prompt (index 0 is the placeholder).
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.first-run-prompt')).toHaveCount(0);
+    expect(errors, 'Uncaught JS exceptions on first-run calendar').toHaveLength(0);
 });
 
 test('calendar: member dropdown is populated by JS from teamMembers', async ({ page }) => {
@@ -481,6 +503,7 @@ for (const width of DESKTOP_WIDTHS) {
     test(`calendar desktop @${width}px: renders, no horizontal overflow`, async ({ page }) => {
         const errors = collectFatalErrors(page);
         await page.setViewportSize({ width, height: 800 });
+        await seedMember(page);
         await page.goto('/');
         await expect(page.locator('.month-year')).toBeVisible();
         await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -495,6 +518,7 @@ for (const width of DESKTOP_WIDTHS) {
 // oversized control row forcing the page wider (or producing a stray scrollbar).
 test('calendar desktop @1024×720 (short height): renders, no horizontal overflow', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 720 });
+    await seedMember(page);
     await page.goto('/');
     await expect(page.locator('.month-year')).toBeVisible();
     await expect(page.locator('.calendar-day').first()).toBeVisible();
@@ -509,6 +533,7 @@ test('calendar desktop @1024×720 (short height): renders, no horizontal overflo
 test('team view desktop @1280px: grid renders, table scrolls internally without page overflow', async ({ page }) => {
     const errors = collectFatalErrors(page);
     await page.setViewportSize({ width: 1280, height: 800 });
+    await seedMember(page);
     await page.goto('/');
     await expect(page.locator('#teamMemberSelect option').first()).toBeAttached();
     await page.locator('#teamViewBtn').click();

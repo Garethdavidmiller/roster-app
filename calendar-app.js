@@ -28,7 +28,7 @@ import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
 import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
-import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName } from './calendar-member.js';
+import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
 import { initSwipeHandler, isSwipeCooldown } from './calendar-swipe.js';
@@ -182,10 +182,34 @@ function _showStaleMemberBanner(staleName, fallbackName) {
     setTimeout(() => banner.classList.remove('visible'), 30000);
 }
 
+/**
+ * First-run state (Onboarding H1): no member picked yet and not signed in. Show a prompt
+ * to choose a name INSTEAD of rendering the default member's roster (which a brand-new user
+ * could mistake for their own). Picking a name fires the dropdown `change` handler →
+ * saveSelectedMember → renderCalendar, which replaces this prompt with the real calendar.
+ */
+function showFirstRunPrompt() {
+    const el = document.getElementById('calendarDisplay');
+    if (!el) return;
+    el.innerHTML =
+        '<div class="first-run-prompt">' +
+          '<div class="first-run-emoji" aria-hidden="true">👋</div>' +
+          '<h2>Choose your name to see your shifts</h2>' +
+          '<p>Pick your name from the list at the top of the page, and your roster will appear.</p>' +
+        '</div>';
+    // Don't leave a real member's name on the print header while no one is selected.
+    document.querySelector('.header')?.removeAttribute('data-member-name');
+}
+
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).
 // Sets data-member-name for print header then builds and inserts fresh container.
 function renderCalendar() {
     try {
+        // First-run (no member picked, not signed in): show the choose-your-name prompt instead
+        // of the default member's roster. Guarding renderCalendar itself covers EVERY render path
+        // — init, the initial Firestore fetch's re-render, swipe — so the prompt is never
+        // overwritten. Picking a name saves it → isFirstRun() false → normal render. (H1)
+        if (isFirstRun()) { showFirstRunPrompt(); return; }
         const member = getCurrentMember();
 
         // If the previously-selected member was removed from the roster, show a one-time notice.
@@ -431,7 +455,9 @@ try {
         const staleAtLoad = takeStaleMemberName();
         if (staleAtLoad) _showStaleMemberBanner(staleAtLoad, (/** @type {any} */ (getCurrentMember())).name);
 
-        // Restore team view if the user was in it before the last refresh
+        // Restore team view if the user was in it before the last refresh; else render the
+        // personal calendar. renderCalendar() itself shows the first-run "choose your name"
+        // prompt when no member is picked and no session exists (see its guard). (H1)
         if (lsGet('myb_team_view') === '1') {
             teamView.restoreTeamView();
         } else {

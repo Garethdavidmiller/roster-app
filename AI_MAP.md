@@ -157,6 +157,7 @@ Team member selection for `index.html` — extracted from `calendar-app.js` at v
 - `takeStaleMemberName()` — consume-and-clear accessor for the stale-name flag; called by `renderCalendar()` to show a one-time banner
 - `getCurrentMember()` — returns the resolved `teamMembers` entry for the selected index
 - `saveSelectedMember(index)` — persists selection by name to localStorage via `lsSet`
+- `isFirstRun()` — true only for a brand-new visitor (no saved member AND no session); distinct from the stale-member case. `calendar-app.js` shows a "choose your name" prompt instead of the default member's roster, and `populateTeamMemberDropdown()` leads with a `— Choose your name —` placeholder (Onboarding H1, v15.11)
 - `getDefaultMemberIndex()` — resolves `CONFIG.DEFAULT_MEMBER_NAME` to an index at runtime
 - `populateTeamMemberDropdown()` — builds flat or optgroup `<select>` depending on number of distinct roles
 - `validateTeamMembers()` — checks team member object shape; returns error string array

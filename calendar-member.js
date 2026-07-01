@@ -35,6 +35,19 @@ export function getDefaultMemberIndex() {
     return idx !== -1 ? idx : 0;
 }
 
+/**
+ * True only for a brand-new visitor: NO saved member AND NO signed-in session.
+ * Distinct from the stale-member case (saved-but-removed → getSelectedMemberIndex sets
+ * `_staleMemberName` and falls back to default). Consumed by calendar-app.js to show a
+ * "choose your name" prompt instead of rendering the default member's roster, which a new
+ * user could mistake for their own. Once they pick a name it's saved and this returns false
+ * forever after. (Onboarding H1.)
+ * @returns {boolean}
+ */
+export function isFirstRun() {
+    return !lsGet('myb_roster_selected_member') && !getSession()?.name;
+}
+
 /** @returns {number} */
 export function getSelectedMemberIndex() {
     const savedName = lsGet('myb_roster_selected_member');
@@ -70,7 +83,19 @@ export function populateTeamMemberDropdown() {
     const select = document.getElementById('teamMemberSelect');
     if (!select) return;
     select.innerHTML = '';
+    const firstRun = isFirstRun();
     const selectedIndex = getSelectedMemberIndex();
+
+    // First run: lead with a placeholder and pre-select NOTHING real, so a brand-new
+    // visitor is prompted to pick their own name rather than shown someone else's roster.
+    if (firstRun) {
+        const ph = document.createElement('option');
+        ph.value = '';
+        ph.textContent = '— Choose your name —';
+        ph.selected = true;
+        ph.disabled = true;
+        select.appendChild(ph);
+    }
 
     // Build dropdown — flat list if only one role present, optgroup per role if multiple.
     const visibleMembers = teamMembers
@@ -90,7 +115,7 @@ export function populateTeamMemberDropdown() {
                     const option = document.createElement('option');
                     option.value = String(index);
                     option.textContent = member.name;
-                    if (index === selectedIndex) option.selected = true;
+                    if (!firstRun && index === selectedIndex) option.selected = true;
                     group.appendChild(option);
                 });
             select.appendChild(group);
@@ -100,7 +125,7 @@ export function populateTeamMemberDropdown() {
             const option = document.createElement('option');
             option.value = String(index);
             option.textContent = member.name;
-            if (index === selectedIndex) option.selected = true;
+            if (!firstRun && index === selectedIndex) option.selected = true;
             select.appendChild(option);
         });
     }

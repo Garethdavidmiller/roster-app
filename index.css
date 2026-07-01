@@ -2402,5 +2402,29 @@
             .calendar-fetching .calendar-day::after { animation: none; }
         }
 
+        /* First-run "choose your name" prompt (Onboarding H1) — shown in #calendarDisplay
+           for a brand-new visitor (no member picked, not signed in) instead of the default
+           member's roster. Replaced by the real calendar as soon as a name is selected. */
+        .first-run-prompt {
+            text-align: center;
+            max-width: 420px;
+            margin: 28px auto;
+            padding: 40px 24px;
+            background: var(--surface);
+            border-radius: 14px;
+        }
+        .first-run-prompt .first-run-emoji { font-size: 40px; margin-bottom: 6px; }
+        .first-run-prompt h2 {
+            font-size: var(--type-large);
+            color: var(--text-dark);
+            margin: 0 0 8px;
+        }
+        .first-run-prompt p {
+            font-size: var(--type-body);
+            color: var(--text-mid);
+            line-height: 1.4;
+            margin: 0;
+        }
+
 
 
