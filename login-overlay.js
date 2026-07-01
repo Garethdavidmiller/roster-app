@@ -110,7 +110,8 @@ function overlayHtml(/** @type {string} */ pageLabel) {
         </div>
         <div class="login-field">
             <label for="loginPassword">Password</label>
-            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+            <input type="password" id="loginPassword" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" aria-describedby="loginPwHint">
+            <div id="loginPwHint" class="login-hint">Initial password: your surname in lowercase, no spaces.</div>
         </div>
         <div id="loginError" class="login-error" aria-live="polite"></div>
         <button type="button" id="loginSubmit">Sign in →</button>

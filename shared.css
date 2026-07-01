@@ -1614,6 +1614,15 @@ button.nav-panel-link--notices {
     letter-spacing: 0.4px;
     margin-bottom: 5px;
 }
+/* First-timer helper under the password field — the initial password convention
+   (surname) isn't guessable otherwise. Not a secret: protection is Firebase
+   rate-limiting + Firestore rules, so showing it costs nothing. (Onboarding H2.) */
+.login-hint {
+    font-size: var(--type-small);
+    color: var(--text-mid);
+    margin-top: 5px;
+    line-height: 1.35;
+}
 /* Login overlay form fields — styled HERE in shared.css so every page's login renders them
    identically. Previously only pages with a generic `select, input {}` rule (admin/operations)
    styled these; settings fell back to raw browser controls — the "settings login looks weird on
