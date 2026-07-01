@@ -445,9 +445,9 @@ The optimistic-start idea was dropped as no-benefit. Separate + revertible.
 
 **Status (v14.83; per-page flag v14.85; ROLLOUT STARTED v15.07): all five coordinators BUILT behind
 the per-page `CONFIG.INPLACE_LOGIN` object (`{ operations, links, paycalc, admin, settings }`).
-**paycalc is now ENABLED (v15.07)** — the first rollout page (login confirmed stable: freeze fixed
-v14.75, B1 re-enabled v14.98); the other four remain `false` (today's reload) pending the App-speed
-read. Per-page (not one global switch) so a page can be enabled, watched live,
+**paycalc (v15.07), operations (v15.08), links (v15.09) and admin (v15.16) are now ENABLED** — login
+confirmed stable (freeze fixed v14.75, B1 re-enabled v14.98); only **settings** remains `false`
+(today's reload), pending a multi-day watch of admin live before the final flip. Per-page (not one global switch) so a page can be enabled, watched live,
 and rolled back in isolation — and because it is NOT the B1 risk class (it changes only post-sign-in
 rendering, with a `reload()` fallback, never whether auth succeeds). Operations/Links/Paycalc landed v14.81–82 (re-invoke `init()`); Admin/Settings
 v14.83.** Admin/Settings are branch-style (no `init()` to re-invoke), so their signed-in body was

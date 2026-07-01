@@ -10,7 +10,7 @@
 // automatically by the CACHE_NAME in service-worker.js, which embeds APP_VERSION.
 
 /** Single source of truth for the app version. Update this on every commit that touches app behaviour. */
-export const APP_VERSION = '15.15';
+export const APP_VERSION = '15.16';
 
 // ============================================
 // PERFORMANCE CACHES — declared early so they're out of TDZ before any
@@ -87,12 +87,13 @@ export const CONFIG = {
     // today's behaviour and can never lock anyone out. Recommended order: paycalc/operations first,
     // admin last (highest-traffic, most-wired). Each coordinator reads ONLY its own key.
     // ⚠️ KILL-SWITCH: set any key back to `false` to instantly restore that page's reload path.
-    //   ROLLOUT: paycalc (v15.07), operations (v15.08), links (v15.09) — the three init-wrapped
-    //   coordinators. Login confirmed stable (freeze fixed v14.75, B1 re-enabled v14.98). NOTE:
-    //   ops/links are reached already-signed-in (their pill is hidden when signed out), so their
-    //   in-place path rarely fires — paycalc is the real validation, and it works. admin + settings
-    //   (branch-style, all-staff) are LAST — do a genuine multi-day watch before each.
-    INPLACE_LOGIN:                    { operations: true, links: true, paycalc: true, admin: false, settings: false },
+    //   ROLLOUT: paycalc (v15.07), operations (v15.08), links (v15.09), admin (v15.16) — the four
+    //   coordinators proven so far. Login confirmed stable (freeze fixed v14.75, B1 re-enabled v14.98).
+    //   NOTE: ops/links are reached already-signed-in (their pill is hidden when signed out), so their
+    //   in-place path rarely fires — paycalc + admin are the real validation. settings (branch-style,
+    //   all-staff, and the one page that inits its nav while UNSIGNED) is LAST — enable it only after a
+    //   genuine multi-day watch of admin live.
+    INPLACE_LOGIN:                    { operations: true, links: true, paycalc: true, admin: true, settings: false },
     SUPPORT_EMAIL:                    'Gareth.Miller@chilternrailways.co.uk',     // Bug report destination — update here if the address ever changes
     APP_VERSION,                                                                   // Mirrors top-level APP_VERSION for backward compatibility with consuming files
 };
