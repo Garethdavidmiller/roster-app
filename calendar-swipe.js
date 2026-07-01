@@ -33,11 +33,12 @@ export function isSwipeCooldown() { return _swipeCooldown; }
  *   changeMonth: (delta: number) => void,
  *   renderCalendar: () => void,
  *   updateLegend: () => void,
+ *   updateNavButtonState: () => void,
  *   navigateToPaycalc: (str: string) => void,
  *   openDayDetail: ((cell: Element) => void) | null,
  * }} deps
  */
-export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, navigateToPaycalc, openDayDetail }) {
+export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, updateLegend, updateNavButtonState, navigateToPaycalc, openDayDetail }) {
     const calendarDisplay = document.getElementById('calendarDisplay');
     if (!calendarDisplay) return;
 
@@ -254,8 +255,9 @@ export function initSwipeHandler({ isTeamViewMode, changeMonth, renderCalendar, 
             }
 
             changeMonth(direction === 'left' ? 1 : -1);
-            document.title = `MYB Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
+            document.title = `Marylebone Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
             updateLegend();
+            updateNavButtonState?.();   // refresh Prev/Next disabled state at year boundaries after a swipe
 
             current.style.transition       = TRANSITION;
             current.style.transform        = `translate3d(${direction === 'left' ? -w : w}px, 0, 0)`;

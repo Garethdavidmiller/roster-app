@@ -323,10 +323,14 @@ function isPayCutoffDay(date) {
     const FIRST_PAYDAY_MS = Date.UTC(2026, 1, 13, 12, 0, 0); // 13 Feb 2026, noon UTC
     const INTERVAL_DAYS   = 28;
     const MS_PER_DAY      = 86_400_000;
+    // Rebuild the intended CALENDAR day at noon UTC from the input's local components. The caller
+    // builds `date` with the local-timezone `new Date(y, m, d)`, so mixing its raw getTime() with
+    // setUTCHours could land the +6-day candidate on the wrong UTC day on a non-UTC runtime and make
+    // the 28-day modulo miss (silently stopping cutoff reminders). This makes it TZ-independent.
+    const dayNoonUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12, 0, 0);
     // Cutoff is 6 days before payday (Saturday before a Friday)
-    const candidate = new Date(date.getTime() + 6 * MS_PER_DAY);
-    candidate.setUTCHours(12, 0, 0, 0);
-    const diff = candidate.getTime() - FIRST_PAYDAY_MS;
+    const candidate = dayNoonUtc + 6 * MS_PER_DAY;
+    const diff = candidate - FIRST_PAYDAY_MS;
     // Use abs so the 28-day cycle is detected in both directions from the anchor.
     // The original `if (diff < 0) return false` guard incorrectly excluded Jan 10
     // (6 days before the Jan 16 payday, one cycle before the Feb 13 anchor).

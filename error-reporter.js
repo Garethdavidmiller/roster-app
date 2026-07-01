@@ -45,9 +45,13 @@ function _report(err, src = '') {
             (message.includes('net::') || message.includes('NetworkError') ||
              message.includes('Failed to fetch') || message.includes('Load failed'))) return;
 
-        // Errors whose source URL is a different origin belong to extensions or
-        // injected scripts — out of scope for this app.
-        if (src && src.startsWith('http') && !src.includes(location.hostname)) return;
+        // Errors whose source URL is a different origin usually belong to extensions or injected
+        // scripts — out of scope. But the app's OWN dependencies load from CDNs (Firebase SDK on
+        // www.gstatic.com, Mammoth on cdn.jsdelivr.net), and a crash inside those is a genuine
+        // app-breaking failure that must reach the Error Log — so allowlist those origins.
+        const _APP_SCRIPT_ORIGINS = ['www.gstatic.com', 'cdn.jsdelivr.net'];
+        if (src && src.startsWith('http') && !src.includes(location.hostname) &&
+            !_APP_SCRIPT_ORIGINS.some(o => src.includes(o))) return;
 
         // One report per distinct message per page session — don't flood Firestore if
         // the same bug fires on every keypress or scroll event.

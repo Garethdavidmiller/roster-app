@@ -95,7 +95,7 @@ service cloud.firestore {
         // createdAt is written by every path (serverTimestamp); changedBy only by the
         // manual/AL/sick paths — validate its type when present without requiring it.
         request.resource.data.createdAt is timestamp &&
-        (!request.resource.data.keys().hasAny(['changedBy']) || request.resource.data.changedBy is string) &&
+        (!request.resource.data.keys().hasAny(['changedBy']) || (request.resource.data.changedBy is string && request.resource.data.changedBy.size() <= 100)) &&
         // ── Per-member write isolation (B2, PERMISSIVE interim form) ──────────────────────
         // A staff member may write only their OWN override (token.name == the doc's memberName).
         // Two load-bearing bypasses: ADMIN writes for everyone (AL/sick on behalf + every

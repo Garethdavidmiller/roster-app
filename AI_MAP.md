@@ -147,6 +147,7 @@ Firestore override cache for `index.html` — extracted from `calendar-app.js` a
 - `fetchOverridesForRange(startStr, endStr)` — Firestore date-range query; populates cache, warns on duplicates, clears `shiftTypesMonthCache`
 - `ensureOverridesCached(year, month, renderFn)` — no-op if already fetched; fires background fetch then calls `renderFn()` on success (coordinator provides callback with teamView + member-change guards)
 - `getShiftTypesInMonth(member, year, month)` — memoised `Set<string>` of shift types appearing in a month; used by `updateLegend()`
+- `clearShiftTypesCache()` — invalidate that memo; callers writing straight into `rosterOverridesCache` (Team Week View's fetch) must call it or the month legend serves a stale type set (v15.22)
 - `monthKey(year, month)` — `"YYYY-MM"` key string for the `fetchedMonths` Set
 - `_initialFetchInProgress` — exported live binding; coordinator reads it to skip competing fetches during the initial 3-month load
 - `setInitialFetchInProgress(v)`, `addFetchedMonths(keys)`, `clearFetchedMonth(key)` — setters called by the coordinator's initial IIFE

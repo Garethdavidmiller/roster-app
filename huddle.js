@@ -134,8 +134,11 @@ function _initHuddleUpload(/** @type {boolean} */ currentIsAdmin, /** @type {str
     // Reveal card for admin
     card.style.display = '';
 
-    // Default date to today
+    // Default date to today, and cap at today — a future-dated Huddle would win the
+    // orderBy('date','desc') latest-Huddle query and shadow every real daily Huddle until manually
+    // deleted (pruneOldHuddles' 3-month-past cutoff can't remove a future doc). Matches _initDocUpload.
     dateInput.value = formatISO(new Date());
+    dateInput.max   = formatISO(new Date());
 
     function _rejectFile(/** @type {string} */ reason) {
         _fileLabel.classList.remove('visible');

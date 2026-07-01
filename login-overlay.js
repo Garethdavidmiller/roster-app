@@ -97,7 +97,7 @@ export function dismissLoginOverlay() {
 function overlayHtml(/** @type {string} */ pageLabel) {
     return `
     <div id="loginCard">
-        <img src="icon-192.png" alt="MYB Roster">
+        <img src="icon-192.png" alt="Marylebone Roster">
         <div class="login-app-name">Marylebone Roster</div>
         <div class="login-subtitle">${pageLabel} · Sign in</div>
         <div class="login-field">

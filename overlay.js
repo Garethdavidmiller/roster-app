@@ -66,8 +66,22 @@ export function dismissOverlay(el, { onKey, focusReturn, afterClose } = {}) {
     // transitionend never fires — finish immediately instead of making those
     // users wait out the 500 ms fallback with body scroll still locked.
     if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { finish(); return; }
-    const t = setTimeout(finish, 500);
-    el.addEventListener('transitionend', () => { clearTimeout(t); finish(); }, { once: true });
+    // Whichever fires first (the transition ending, or the 500 ms fallback when iOS suppresses
+    // transitionend on a backgrounded tab) runs finish() exactly once AND removes the listener.
+    // Previously the fallback timer left the {once:true} transitionend listener attached, so it
+    // survived and re-fired on the overlay's NEXT opening transition — hiding it right after it
+    // appeared and leaking a phantom history entry.
+    let _done = false;
+    /** @type {any} */ let _t;
+    const finishOnce = () => {
+        if (_done) return;
+        _done = true;
+        clearTimeout(_t);
+        el.removeEventListener('transitionend', finishOnce);
+        finish();
+    };
+    _t = setTimeout(finishOnce, 500);
+    el.addEventListener('transitionend', finishOnce);
 }
 
 /** Remove the pushed history entry when the overlay is closed by a button. */

@@ -212,7 +212,7 @@ roster-app/
 ├── guide.html / paycalc-guide.html / railcard-guide.html / fip.html ← printable guides (via nav panel)
 ├── railcard-guide.js       ← JS for railcard-guide.html: print, chip-bar navigation
 ├── guide-print.js          ← shared print button for guide.html and paycalc-guide.html
-├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512
+├── icon-*.png              ← 6 sizes: 120, 152, 167, 180, 192, 512 · icon-badge.png (monochrome notification badge, 96px)
 ├── fonts/
 │   └── inter-latin.woff2   ← self-hosted Inter variable font (latin, wght 100–900)
 ├── CLAUDE.md / AI_MAP.md / OPERATIONS_REFERENCE.md / KNOWN_LIMITATIONS.md / ROADMAP.md ← docs

@@ -788,37 +788,38 @@ saveBtn.addEventListener('click', async () => {
     const alInBatch = toSave.filter(e => e.type === 'annual_leave');
     if (alInBatch.length > 0) {
         const member      = /** @type {any} */ (teamMembers.find(m => m.name === memberName));
-        // Use the year of the AL dates being saved, not the current calendar year
-        const yearStr     = alInBatch[0].date.substring(0, 4);
-        const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
-        // Count existing AL for this year, excluding days being overwritten (they're replaced, not added)
         const overwriteDates  = new Set(alInBatch.filter(e => e.existingId).map(e => e.date));
-        // Also exclude days being purely deleted in this same batch (no replacement entry)
         const deletedALDates  = new Set(
             getAllOverrides()
                 .filter(o => toDelete.includes(o.id) && o.type === 'annual_leave')
                 .map(o => o.date)
         );
-        // Sundays are uncontracted — exclude from entitlement counts
-        const existingAL = getAllOverrides().filter(o =>
-            o.memberName === memberName &&
-            o.type       === 'annual_leave' &&
-            o.date       && o.date.startsWith(yearStr) &&
-            !overwriteDates.has(o.date) &&
-            !deletedALDates.has(o.date) &&
-            !isSunday(o.date)
-        ).length;
-        const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
-        const projectedTotal = existingAL + newALDates.length;
-        if (projectedTotal > entitlement) {
-            const over = projectedTotal - entitlement;
-            showALConfirm(
-                `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their AL entitlement`,
-                `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
-                toSave,
-                toDelete
-            );
-            return;
+        // Check EVERY calendar year the batch touches, not just the first entry's — a week grid
+        // spanning New Year (Dec/Jan) writes AL into two years, each with its own entitlement.
+        const years = [...new Set(alInBatch.map(e => e.date.substring(0, 4)))];
+        for (const yearStr of years) {
+            const entitlement = getALEntitlement(member, parseInt(yearStr, 10), getAllOverrides());
+            // Sundays are uncontracted — exclude from entitlement counts
+            const existingAL = getAllOverrides().filter(o =>
+                o.memberName === memberName &&
+                o.type       === 'annual_leave' &&
+                o.date       && o.date.startsWith(yearStr) &&
+                !overwriteDates.has(o.date) &&
+                !deletedALDates.has(o.date) &&
+                !isSunday(o.date)
+            ).length;
+            const newALDates = [...new Set(alInBatch.map(e => e.date).filter(d => d.startsWith(yearStr) && !isSunday(d)))];
+            const projectedTotal = existingAL + newALDates.length;
+            if (projectedTotal > entitlement) {
+                const over = projectedTotal - entitlement;
+                showALConfirm(
+                    `${memberName} will be ${over} day${over !== 1 ? 's' : ''} over their ${yearStr} AL entitlement`,
+                    `${projectedTotal} days used of ${entitlement} allowed in ${yearStr}`,
+                    toSave,
+                    toDelete
+                );
+                return;
+            }
         }
     }
 
@@ -1298,7 +1299,7 @@ function applyPermissions() {
     const sickHint = document.querySelector('#sickToggleHeader .hint');
     const savedHint = document.querySelector('#overridesToggleHeader .hint');
     if (alHint)    alHint.textContent   = 'Select a date range — rest days and Sundays are skipped automatically';
-    if (sickHint)  sickHint.textContent = 'Record your own absence days — sickness, family, or any other reason';
+    if (sickHint)  sickHint.textContent = 'Record your own absence days — for any reason';
     if (savedHint) savedHint.textContent = 'Your saved changes — tap any row to edit or delete';
 
     // Auto-open the Annual Leave card — most staff visit here primarily to book AL
@@ -1344,7 +1345,7 @@ function stampAdminPrintHeader() {
     const weekLabel = document.getElementById('weekNavLabel')?.textContent || '';
     const now       = new Date().toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' });
     const printHeaderEl = document.getElementById('printHeader');
-    if (printHeaderEl) printHeaderEl.innerHTML = `MYB Roster — ${escapeHtml(member)}<span class="print-sub">Week: ${escapeHtml(weekLabel)} · Printed: ${escapeHtml(now)}</span>`;
+    if (printHeaderEl) printHeaderEl.innerHTML = `Marylebone Roster — ${escapeHtml(member)}<span class="print-sub">Week: ${escapeHtml(weekLabel)} · Printed: ${escapeHtml(now)}</span>`;
 }
 stampAdminPrintHeader();
 window.addEventListener('beforeprint', stampAdminPrintHeader);

@@ -1,4 +1,4 @@
-// MYB Roster — Service Worker v15.21
+// MYB Roster — Service Worker v15.22
 // Strategy:
 //   HTML documents (navigations)
 //               → Network-first: a returning user always lands on the freshest
@@ -22,7 +22,7 @@
 // Cache name includes the app version so any app version bump triggers a full
 // cache refresh on all clients — staff always receive the latest roster logic.
 
-const APP_VERSION = '15.21';
+const APP_VERSION = '15.22';
 const CACHE_NAME  = `myb-roster-v${APP_VERSION}`;
 
 // The SW's scope path — '/' on Firebase Hosting, '/roster-app/' on the GitHub Pages
@@ -179,6 +179,7 @@ const ICON_ASSETS = [
     "./icon-180.png",
     "./icon-192.png",
     "./icon-512.png",
+    "./icon-badge.png",
 ];
 
 // ============================================
@@ -287,7 +288,7 @@ self.addEventListener("fetch", event => {
                 .then(r => r || (fallback ? caches.match(fallback) : null))
                 .then(r => r || (isDoc
                     ? new Response(
-                        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — MYB Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
+                        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Offline — Marylebone Roster</title></head><body><h1 style="font-family:sans-serif;padding:20px">Offline</h1><p style="font-family:sans-serif;padding:0 20px">${offlineMsg}</p></body></html>`,
                         { headers: { 'Content-Type': 'text/html', 'Cache-Control': 'no-store' }, status: 200 }
                       )
                     : Response.error()
@@ -383,12 +384,17 @@ self.addEventListener("message", event => {
 // notifications of the same type means the new one replaces the old one in
 // the Notification Centre rather than stacking.
 self.addEventListener("push", event => {
-    let data = { title: "Marylebone Roster", body: "Huddle is ready" };
+    // Neutral defensive fallback for a data-less / unparseable push — we can't know the feature, so
+    // do NOT assume a Huddle (the old fallback used the app name as title and mistagged everything as
+    // 'huddle', colliding with real Huddle notifications). Well-formed payloads come from
+    // buildPushPayload in functions/index.js and Object.assign over these defaults.
+    let data = { title: "Marylebone Roster", body: "Open the app for the latest update." };
     try { if (event.data) Object.assign(data, event.data.json()); } catch (_) {}
 
     const url = data.url || "./";
-    // Prefer explicit tag from payload; fall back to URL inference for legacy payloads.
-    const tag = data.tag || (url.includes('paycalc') ? 'pay-reminder' : 'huddle');
+    // Prefer explicit tag from payload; infer from the URL for legacy payloads; else a neutral tag
+    // (NOT 'huddle') so an unidentified push never replaces/mislabels a real Huddle notification.
+    const tag = data.tag || (url.includes('paycalc') ? 'pay-reminder' : 'update');
 
     event.waitUntil(
         self.registration.showNotification(data.title, {
@@ -399,7 +405,9 @@ self.addEventListener("push", event => {
             // GitHub Pages install, origin/icon-192.png 404s (bare origin = a different,
             // empty site). registration.scope ends in '/'.
             icon:    `${self.registration.scope}icon-192.png`,
-            badge:   `${self.registration.scope}icon-192.png`,
+            // Monochrome white-on-transparent silhouette — Android masks the badge to one colour in
+            // the status bar, so the full-colour icon-192 produced a muddy blob (notifications.md).
+            badge:   `${self.registration.scope}icon-badge.png`,
             tag,
             renotify: true,           // still vibrates/sounds even if replacing
             data:     { url },

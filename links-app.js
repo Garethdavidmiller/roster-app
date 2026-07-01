@@ -417,9 +417,13 @@ export function init() {
         try {
             await deleteDoc(doc(db, COLLECTIONS.linkDesigns, id));
             designs = designs.filter(x => x.id !== id);
-            if (id === compareDesignId) { compareDesignId = null; compareMode = false; }
+            // Exit compare mode if the compare target was deleted OR the delete drops below the 2
+            // designs compare needs. Deleting the ACTIVE design (not the compare target) while
+            // comparing used to leave compareMode true with <2 designs — a self-compare with the
+            // editable grid hidden and both compare controls disabled = soft-lock until reload.
+            if (id === compareDesignId || designs.length < 2) { compareDesignId = null; compareMode = false; }
             if (id === activeDesignId) _activateDesign(designs[0]);
-            else { renderDesignPicker(); renderCompare(); }
+            else { renderDesignPicker(); renderGrid(); renderCompare(); }
         } catch (err) {
             console.error('[Links] Delete failed:', err);
         }

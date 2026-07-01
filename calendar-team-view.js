@@ -24,6 +24,7 @@ const _unknownShiftWarned = new Set();
  *
  * @param {object} deps
  * @param {Map<any,any>} deps.rosterOverridesCache   Shared override cache keyed "memberName|date"
+ * @param {Function} deps.clearShiftTypesCache   Invalidates the month → shift-types legend memo
  * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
  * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
@@ -32,7 +33,7 @@ const _unknownShiftWarned = new Set();
  * @returns {{ toggleTeamView: any, applyTeamViewChrome: any, isTeamViewMode: any, renderTeamView: any,
  *             announceTeamWeek: any, restoreTeamView: any, jumpToCurrentWeek: any }}
  */
-export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, isFirstRun, renderCalendar,
+export function initTeamView({ rosterOverridesCache, clearShiftTypesCache, getSelectedMemberIndex, isFirstRun, renderCalendar,
                                 _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
@@ -339,7 +340,10 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, isF
                     updated = true;
                 }
             });
-            if (updated) renderTeamView(currentTeamGrade, { skipFetch: true });
+            // This wrote straight into rosterOverridesCache (not via fetchOverridesForRange), so
+            // invalidate the shift-types memo — otherwise the month legend serves a stale type set
+            // after returning to calendar view (e.g. an AL cell shows but its legend item stays hidden).
+            if (updated) { clearShiftTypesCache(); renderTeamView(currentTeamGrade, { skipFetch: true }); }
         } catch (err) {
             console.warn('[TeamView] Could not fetch week overrides:', err);
         }

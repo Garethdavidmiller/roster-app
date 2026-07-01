@@ -27,7 +27,7 @@ import { recordUsage } from './usage-reporter.js';
 import { recordPageLatency } from './perf-reporter.js';
 import { initHuddleViewer } from './calendar-huddle-viewer.js';
 import { initDocViewer } from './calendar-doc-viewer.js';
-import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, _initialFetchInProgress } from './calendar-overrides.js';
+import { rosterOverridesCache, ensureOverridesCached, getShiftTypesInMonth, clearShiftTypesCache, _initialFetchInProgress } from './calendar-overrides.js';
 import { getCurrentMember, getSelectedMemberIndex, saveSelectedMember, populateTeamMemberDropdown, validateTeamMembers, takeStaleMemberName, isFirstRun } from './calendar-member.js';
 import { buildCalendarContainer } from './calendar-renderer.js';
 import { getDisplayMonth, getDisplayYear, setDisplayMonth, setDisplayYear, changeDisplay, persistViewedMonth } from './calendar-state.js';
@@ -68,6 +68,7 @@ const { openDayDetail, closeALLightbox } = initCalendarLightboxes();
 // ============================================
 const teamView = initTeamView({
     rosterOverridesCache,
+    clearShiftTypesCache,
     getSelectedMemberIndex,
     isFirstRun,
     renderCalendar,
@@ -124,6 +125,26 @@ function navigateToPaycalc(paydayStr) {
 
 
 // AL and day-detail lightboxes initialised above via initCalendarLightboxes().
+
+// Refresh the Prev/Next buttons' disabled state at the MIN_YEAR/MAX_YEAR boundaries.
+// aria-disabled signals the limit to screen readers; opacity gives visual feedback. Called from
+// renderCalendar AND from the swipe commit (via the swipe handler dep) — a swipe off a boundary
+// month onto an already-cached month does not re-run renderCalendar, so without this the button
+// stays greyed-out and its click handler keeps hard-returning on a month where navigation is valid.
+function updateNavButtonState() {
+    const atStart = getDisplayYear() === CONFIG.MIN_YEAR && getDisplayMonth() === 0;
+    const atEnd   = getDisplayYear() === CONFIG.MAX_YEAR && getDisplayMonth() === 11;
+    const prevBtn = document.getElementById('prevMonth');
+    const nextBtn = document.getElementById('nextMonth');
+    if (prevBtn) {
+        prevBtn.setAttribute('aria-disabled', atStart ? 'true' : 'false');
+        prevBtn.style.opacity = atStart ? '0.4' : '';
+    }
+    if (nextBtn) {
+        nextBtn.setAttribute('aria-disabled', atEnd ? 'true' : 'false');
+        nextBtn.style.opacity = atEnd ? '0.4' : '';
+    }
+}
 
 // updateLegend — shows/hides conditional legend items:
 //   Spare/RDW/AL — only when that shift type actually appears this month
@@ -235,7 +256,7 @@ function renderCalendar() {
         const calendarDisplay = document.getElementById('calendarDisplay');
         if (!calendarDisplay) throw new Error('Calendar display element not found');
 
-        document.title = `MYB Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
+        document.title = `Marylebone Roster — ${MONTH_NAMES[getDisplayMonth()]} ${getDisplayYear()}`;
 
         // Persist so the user returns to the same month after closing the app
         persistViewedMonth();
@@ -247,20 +268,7 @@ function renderCalendar() {
         calendarDisplay.innerHTML = '';
         calendarDisplay.appendChild(calendarContainer);
 
-        // Update Prev/Next buttons at year/month boundaries
-        // aria-disabled signals the limit to screen readers; opacity gives visual feedback
-        const atStart = getDisplayYear() === CONFIG.MIN_YEAR && getDisplayMonth() === 0;
-        const atEnd   = getDisplayYear() === CONFIG.MAX_YEAR && getDisplayMonth() === 11;
-        const prevBtn = document.getElementById('prevMonth');
-        const nextBtn = document.getElementById('nextMonth');
-        if (prevBtn) {
-            prevBtn.setAttribute('aria-disabled', atStart ? 'true' : 'false');
-            prevBtn.style.opacity = atStart ? '0.4' : '';
-        }
-        if (nextBtn) {
-            nextBtn.setAttribute('aria-disabled', atEnd ? 'true' : 'false');
-            nextBtn.style.opacity = atEnd ? '0.4' : '';
-        }
+        updateNavButtonState();
 
         // Ensure Firestore overrides are cached for the displayed month.
         // No-op if already fetched; fires a background fetch and re-render if not
@@ -494,6 +502,7 @@ try {
             changeMonth,
             renderCalendar,
             updateLegend,
+            updateNavButtonState,
             navigateToPaycalc,
             openDayDetail: (cell) => openDayDetail?.(/** @type {HTMLElement} */ (cell)),
         });
