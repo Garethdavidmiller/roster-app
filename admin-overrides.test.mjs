@@ -95,6 +95,7 @@ const {
     setAllOverrides,
     getAllOverrides,
     recordRangeOverrides,
+    executeSave,
 } = await import('./admin-overrides.js');
 
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
@@ -415,12 +416,15 @@ describe('recordRangeOverrides — stale-claim retry', () => {
 
         assert.deepEqual(refreshCalls, [true], 'getIdToken(true) called exactly once, forced');
         assert.equal(result.workingCount, 1, 'the retried save reports the worked day');
+        // Exactly ONE AL doc — the failed first attempt's docs are discarded, so no ghost/duplicate
+        // row: the cache reflects only the successful retry's rebuilt batch (reviewer point 3).
         assert.equal(getAllOverrides().filter(o => o.type === 'annual_leave' && o.date === '2026-06-15').length, 1,
             'the AL override is written after the retry');
     });
 
-    test('a permission-denied that persists on retry is surfaced to the caller (no override written)', async () => {
-        mockAuth.currentUser = { uid: 'mgr', getIdToken: async () => {} };
+    test('a permission-denied that persists on retry surfaces to the caller, refreshes ONCE, writes nothing', async () => {
+        const refreshCalls = [];
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async (/** @type {boolean} */ f) => { refreshCalls.push(f); } };
         _failNextCommits = 2;   // both the first attempt and the retry fail
 
         // recordRangeOverrides has no try/catch — it rejects so the caller (AL/sick save handler)
@@ -432,6 +436,46 @@ describe('recordRangeOverrides — stale-claim retry', () => {
             }),
             /** @param {any} err */ err => err?.code === 'permission-denied',
         );
+        // One forced refresh only — no retry loop, so a genuine authorisation denial isn't masked.
+        assert.deepEqual(refreshCalls, [true], 'exactly one forced token refresh, then the denial stands');
         assert.equal(getAllOverrides().length, 0, 'nothing is written when both attempts fail');
+    });
+});
+
+// ── executeSave (Change a Shift path) — same stale-claim retry ─────────────────
+//
+// executeSave is the week-grid "Save changes" write. It has its OWN try/catch, so a persistent
+// permission-denied is swallowed into _showError (no throw) and the in-memory cache is NOT mutated.
+
+describe('executeSave — stale-claim retry', () => {
+
+    beforeEach(() => {
+        setAllOverrides([]);
+        _failNextCommits = 0;
+        mockAuth.currentUser = null;
+    });
+
+    test('a permission-denied write force-refreshes once, retries, and the shift save lands', async () => {
+        const refreshCalls = [];
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async (/** @type {boolean} */ f) => { refreshCalls.push(f); } };
+        _failNextCommits = 1;
+
+        await executeSave([{ memberName: 'G. Miller', date: '2026-06-15', type: 'shift', value: '07:00-15:00', note: '' }]);
+
+        assert.deepEqual(refreshCalls, [true], 'getIdToken(true) called exactly once, forced');
+        const saved = getAllOverrides().filter(o => o.date === '2026-06-15' && o.value === '07:00-15:00');
+        assert.equal(saved.length, 1, 'the shift override is cached after the retry (no ghost row from attempt 1)');
+    });
+
+    test('a persistent permission-denied leaves the cache untouched (UI cannot lie)', async () => {
+        setAllOverrides([{ id: 'keep-1', memberName: 'G. Miller', date: '2026-05-01', type: 'shift', value: '08:00-16:00' }]);
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async () => {} };
+        _failNextCommits = 2;   // both attempts fail — executeSave swallows into _showError
+
+        await executeSave([{ memberName: 'G. Miller', date: '2026-06-15', type: 'shift', value: '07:00-15:00', note: '' }]);
+
+        const all = getAllOverrides();
+        assert.equal(all.length, 1, 'no new doc cached when both attempts fail');
+        assert.equal(all[0].id, 'keep-1', 'the pre-existing cache entry is unchanged');
     });
 });
