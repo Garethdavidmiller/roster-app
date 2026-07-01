@@ -15,7 +15,7 @@ import { teamMembers, getBaseShift, formatISO, getShiftBadge, getSpecialDayBadge
          isSunday, DAY_NAMES, MONTH_ABB, escapeHtml } from './roster-data.js';
 import { isRestShift, shouldReplaceOverride } from './override-utils.js';
 import { db, collection, query, orderBy, limit, getDocs,
-         deleteDoc, doc, serverTimestamp, writeBatch, auth, COLLECTIONS } from './firebase-client.js';
+         deleteDoc, doc, serverTimestamp, writeBatch, auth, writeWithClaimRetry, COLLECTIONS } from './firebase-client.js';
 import { sessionReady } from './session.js';
 
 // ── TYPES ────────────────────────────────────────────────────────────────────
@@ -631,20 +631,27 @@ export async function executeSave(toSave, toDelete = []) {
     if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = `Saving ${total} change${total !== 1 ? 's' : ''}…`; }
 
     try {
-        const batch   = writeBatch(db);
-        /** @type {any[]} */
-        const newDocs = [];
+        // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a
+        // stale-claim `permission-denied` (a just-provisioned manager on a pre-`manager`-claim token).
+        // A WriteBatch can't be re-committed, so the batch (and newDocs) is rebuilt on each attempt;
+        // the thunk RETURNS newDocs so the retry's fresh doc IDs are the ones we cache below.
+        const newDocs = await writeWithClaimRetry(async () => {
+            const batch = writeBatch(db);
+            /** @type {any[]} */
+            const docs = [];
 
-        toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+            toDelete.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
 
-        toSave.forEach(entry => {
-            if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
-            const { existingId: _, ...data } = entry;
-            const newRef = doc(collection(db, COLLECTIONS.overrides));
-            batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
-            newDocs.push({ id: newRef.id, ...data, createdAt: new Date() });
+            toSave.forEach(entry => {
+                if (entry.existingId) batch.delete(doc(db, COLLECTIONS.overrides, entry.existingId));
+                const { existingId: _, ...data } = entry;
+                const newRef = doc(collection(db, COLLECTIONS.overrides));
+                batch.set(newRef, { ...data, source: 'manual', createdAt: serverTimestamp(), changedBy: _currentUser });
+                docs.push({ id: newRef.id, ...data, createdAt: new Date() });
+            });
+            await batch.commit();
+            return docs;
         });
-        await batch.commit();
 
         const parts = [];
         if (creates    > 0) parts.push(`${creates} added`);
@@ -913,9 +920,13 @@ function _initOverridesTable() {
             bulkDeleteBtn.disabled = true;
             bulkDeleteBtn.textContent = `Deleting ${ids.length}…`;
             try {
-                const batch = writeBatch(db);
-                ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
-                await batch.commit();
+                // Re-runnable thunk (fresh batch each attempt) so a stale-claim manager's bulk delete
+                // self-heals once via writeWithClaimRetry rather than erroring.
+                await writeWithClaimRetry(async () => {
+                    const batch = writeBatch(db);
+                    ids.forEach(id => batch.delete(doc(db, COLLECTIONS.overrides, id)));
+                    await batch.commit();
+                });
                 _allOverrides = _allOverrides.filter(o => !ids.includes(o.id));
                 renderTable();
                 _onAfterSave();
@@ -1149,34 +1160,42 @@ export async function recordRangeOverrides({ type, value, memberName, dates, cha
 
     if (!workingDates.length) return { workingCount: 0, sundayCount: sundayCorrections.length };
 
-    /** @type {any[]} */
-    const newDocs    = [];
-    const deletedIds = new Set();
-    const batch      = writeBatch(db);
+    // Build + commit as a re-runnable thunk so writeWithClaimRetry can retry once on a stale-claim
+    // `permission-denied` (a just-provisioned manager booking AL/absence on-behalf before their
+    // `manager` claim has propagated). The batch, newDocs and deletedIds are rebuilt on each attempt
+    // — a WriteBatch can't be re-committed — and the thunk RETURNS them so the retry's fresh doc IDs
+    // are the ones cached below.
+    const { newDocs, deletedIds } = await writeWithClaimRetry(async () => {
+        /** @type {any[]} */
+        const docs   = [];
+        const delIds = new Set();
+        const batch  = writeBatch(db);
 
-    workingDates.forEach(date => {
-        const existing = ovByDate.get(date);
-        if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(db, COLLECTIONS.overrides));
-        batch.set(newRef, {
-            memberName, date, type, value, note: '', source: 'manual',
-            createdAt: serverTimestamp(), changedBy,
+        workingDates.forEach(date => {
+            const existing = ovByDate.get(date);
+            if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
+            const newRef = doc(collection(db, COLLECTIONS.overrides));
+            batch.set(newRef, {
+                memberName, date, type, value, note: '', source: 'manual',
+                createdAt: serverTimestamp(), changedBy,
+            });
+            docs.push({ id: newRef.id, memberName, date, type, value, source: 'manual', note: '', createdAt: new Date() });
         });
-        newDocs.push({ id: newRef.id, memberName, date, type, value, source: 'manual', note: '', createdAt: new Date() });
-    });
 
-    sundayCorrections.forEach(date => {
-        const existing = ovByDate.get(date);
-        if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); deletedIds.add(existing.id); }
-        const newRef = doc(collection(db, COLLECTIONS.overrides));
-        batch.set(newRef, {
-            memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
-            createdAt: serverTimestamp(), changedBy,
+        sundayCorrections.forEach(date => {
+            const existing = ovByDate.get(date);
+            if (existing) { batch.delete(doc(db, COLLECTIONS.overrides, existing.id)); delIds.add(existing.id); }
+            const newRef = doc(collection(db, COLLECTIONS.overrides));
+            batch.set(newRef, {
+                memberName, date, type: 'correction', value: 'RD', note: '', source: 'manual',
+                createdAt: serverTimestamp(), changedBy,
+            });
+            docs.push({ id: newRef.id, memberName, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
         });
-        newDocs.push({ id: newRef.id, memberName, date, type: 'correction', value: 'RD', source: 'manual', note: '', createdAt: new Date() });
-    });
 
-    await batch.commit();
+        await batch.commit();
+        return { newDocs: docs, deletedIds: delIds };
+    });
 
     // Update in-memory cache — no Firestore round-trip needed
     _allOverrides = _allOverrides.filter(o => !deletedIds.has(o.id));

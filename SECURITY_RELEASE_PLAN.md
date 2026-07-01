@@ -339,15 +339,26 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
   another member's; a **manager** writes AND deletes another member's AL/sick (on-behalf works) but
   is still blocked from huddle/circular/newsletter/roster/auth; **admin** still writes for others;
   roster upload still saves — *then* tighten to strict.
-- **Optional independent hardening (v15.07 review H3):** today the only force-refresh on a stale-claim
-  `permission-denied` is `adminReadWithRetry` (admin *reads*); there is **no write-side equivalent**,
-  and `refreshClaimsIfStale` no-ops while `CLAIM_EPOCH == 0`. So a newly-provisioned or claim-changed
-  **manager** can appear signed in yet hit `permission-denied` on an on-behalf override *write* until
-  their token naturally refreshes (or they sign out/in; admin break-glass covers anything urgent). The
-  clean fix is the `CLAIM_EPOCH` sweep at cutover (above). As a **smaller safety net beforehand**, an
-  override write that fails `permission-denied` for a live named user could `getIdToken(true)` once and
-  retry once (mirroring `adminReadWithRetry`). **Do NOT bump `CLAIM_EPOCH` in the same release as a UX
-  rollout** (paycalc in-place login is mid-rollout) — separate the variables. See LOGIN_INCIDENT.md.
+- **Write-side stale-claim retry (v15.07 review H3) — ✓ DONE (v15.18).** This is **only the
+  write-side retry** — NOT the whole B3 claim-freshness story (re-provision, `CLAIM_EPOCH` sweep,
+  matrix verify, and removing the no-name Rules escape all still remain; see the checklist below).
+  `writeWithClaimRetry(writeFn)` in `firebase-client.js` (the write-side equivalent of
+  `adminReadWithRetry`) retries **exactly once**, and **only** on `err.code === 'permission-denied'`
+  with a live `auth.currentUser`, after a **forced** token refresh (`getIdToken(true)`); any other
+  error class (unavailable/network, deadline-exceeded, etc.) or a second denial is re-thrown, so a
+  genuine authorisation failure is never masked or looped. Wired into all three `admin-overrides.js`
+  override write paths — `executeSave` (shift changes), `recordRangeOverrides` (AL/absence), and the
+  override-list bulk delete — each passing a re-runnable build-and-commit thunk (a `WriteBatch` can't
+  be re-committed) whose return value is what updates the in-memory cache, so the cache/UI reflects
+  only the **successful** attempt (no ghost row from the failed one) and is never mutated when both
+  attempts fail. 4 retry tests in `admin-overrides.test.mjs` (recordRangeOverrides + executeSave,
+  incl. refresh-called-once and cache-untouched-on-persistent-denial; a single-commit `WriteBatch`
+  mock catches batch reuse). Bulk delete shares the identical wrapped-thunk pattern (verified by
+  inspection — its cache mutation is after the awaited commit, inside the `try`). This is a safety net
+  that is **independent of — and does not replace —** the `CLAIM_EPOCH` sweep at the actual cutover
+  (`refreshClaimsIfStale` still no-ops while `CLAIM_EPOCH == 0`). **Do NOT bump `CLAIM_EPOCH` in the
+  same release as a UX rollout** (in-place login just completed at v15.17) — separate the variables.
+  See LOGIN_INCIDENT.md.
 
 ### B4 — server-owned roster/role lists
 - **Goal:** `setupRosterAuth` stops trusting the member/admin lists sent by the client; move to

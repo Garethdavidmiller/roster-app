@@ -462,12 +462,11 @@ first-run-state changes — no data-model or auth change.
 2. **Sign-in password helper (H2) — ✓ SHIPPED v15.10.** A helper line under the login password field
    ("Initial password: your surname in lowercase, no spaces."), wired via `aria-describedby`. Shared
    overlay → all 5 protected pages. Not a secret (protection is rate-limiting + rules).
-3. **Pay Calculator first-use reframe (M3) — (a) copy ✓ SHIPPED v15.12; (b) optional follow-up.**
-   (a) The setup banner was reworded from "Enter your…" to "👋 Estimate your take-home — we've filled
-   in the usual defaults; check your hourly rate and tax code, then **Fill from calendar** to add your
-   hours" (JS-set + static). **(b) not done (optional):** a first-visit "▶ Start here → Fill from
-   calendar" affordance near the roster-hint bar for extra emphasis — pick up only if the reframe
-   alone doesn't land.
+3. **Pay Calculator first-use reframe (M3) — ✓ SHIPPED v15.12 (copy refined v15.14).** The setup
+   banner was reworded from "Enter your…" to "👋 Estimate your take-home — we've filled in the usual
+   defaults; check your hourly rate and tax code, then tap **Save settings**; you can add your hours
+   with **Fill from calendar**" (JS-set + static). The v15.14 pass named **Save settings** as the step
+   that actually dismisses the banner (it writes the settings key; Fill-from-calendar does not).
 
 ---
 

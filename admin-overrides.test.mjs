@@ -17,6 +17,30 @@ global.document = {
     createElement: () => ({ innerHTML: '', dataset: {}, style: {} }),
 };
 
+// Shared mock objects referenced by more than one export, hoisted so both the mock and the tests
+// can reach them. `auth` is mutated by tests to set currentUser.
+const mockAuth = { currentUser: null };
+
+// How many of the NEXT batch.commit() calls should throw `permission-denied` (tests set this to
+// simulate a stale-claim manager token). Each mock batch also refuses a second commit on the SAME
+// object, so a bug that reused a committed WriteBatch on retry would fail this test.
+let _failNextCommits = 0;
+
+// Faithful copy of firebase-client.writeWithClaimRetry so recordRangeOverrides exercises the real
+// retry wiring in tests (the true function can't be imported — firebase-client.js pulls the CDN).
+async function mockWriteWithClaimRetry(writeFn) {
+    try {
+        return await writeFn();
+    } catch (err) {
+        const user = mockAuth.currentUser;
+        if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
+            await user.getIdToken(true);
+            return await writeFn();
+        }
+        throw err;
+    }
+}
+
 // Must be called before importing the module under test.
 mock.module('./firebase-client.js', {
     namedExports: {
@@ -29,8 +53,24 @@ mock.module('./firebase-client.js', {
         deleteDoc:       async () => {},
         doc:             (() => { let n = 0; return () => ({ id: 'mock-doc-' + (++n) }); })(),
         serverTimestamp: () => null,
-        writeBatch:      () => ({ set: () => {}, delete: () => {}, commit: async () => {} }),
-        auth:                          { currentUser: null },
+        writeBatch:      () => {
+            let committed = false;
+            return {
+                set: () => {}, delete: () => {},
+                commit: async () => {
+                    if (committed) throw new Error('WriteBatch reused after commit()');
+                    committed = true;
+                    if (_failNextCommits > 0) {
+                        _failNextCommits--;
+                        const e = /** @type {any} */ (new Error('Missing or insufficient permissions'));
+                        e.code = 'permission-denied';
+                        throw e;
+                    }
+                },
+            };
+        },
+        writeWithClaimRetry:           mockWriteWithClaimRetry,
+        auth:                          mockAuth,
         authReady:                     Promise.resolve(),
         onAuthStateChanged:            () => () => {},
         nameToEmail:                   () => '',
@@ -55,6 +95,7 @@ const {
     setAllOverrides,
     getAllOverrides,
     recordRangeOverrides,
+    executeSave,
 } = await import('./admin-overrides.js');
 
 // Grab the mocked auth object so we can set currentUser for recordRangeOverrides tests.
@@ -345,5 +386,96 @@ describe('recordRangeOverrides — Sunday prohibition', () => {
         assert.equal(result.workingCount, 0);
         assert.equal(result.sundayCount, 0, 'RD Sunday must not trigger a correction doc');
         assert.equal(getAllOverrides().length, 0, 'No docs written for an RD Sunday');
+    });
+});
+
+// ── recordRangeOverrides — stale-claim write retry (B3 safety net, v15.18) ────
+//
+// A just-provisioned manager can hold a token minted before their `manager` claim existed, so the
+// first on-behalf override write fails `permission-denied`. writeWithClaimRetry force-refreshes the
+// token once and retries — the batch is REBUILT (a WriteBatch can't be re-committed).
+
+describe('recordRangeOverrides — stale-claim retry', () => {
+
+    beforeEach(() => {
+        setAllOverrides([]);
+        _failNextCommits = 0;
+        mockAuth.currentUser = null;
+    });
+
+    test('a permission-denied write force-refreshes the token once and retries, and the save succeeds', async () => {
+        const refreshCalls = [];
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async (/** @type {boolean} */ f) => { refreshCalls.push(f); } };
+        _failNextCommits = 1;   // first commit throws permission-denied; the retry's fresh batch succeeds
+
+        // Mon 15 Jun 2026 — G. Miller Week 1 is SPARE (worked), so one AL override is written.
+        const result = await recordRangeOverrides({
+            type: 'annual_leave', value: 'AL',
+            memberName: 'G. Miller', dates: ['2026-06-15'], changedBy: 'S. Stewart',
+        });
+
+        assert.deepEqual(refreshCalls, [true], 'getIdToken(true) called exactly once, forced');
+        assert.equal(result.workingCount, 1, 'the retried save reports the worked day');
+        // Exactly ONE AL doc — the failed first attempt's docs are discarded, so no ghost/duplicate
+        // row: the cache reflects only the successful retry's rebuilt batch (reviewer point 3).
+        assert.equal(getAllOverrides().filter(o => o.type === 'annual_leave' && o.date === '2026-06-15').length, 1,
+            'the AL override is written after the retry');
+    });
+
+    test('a permission-denied that persists on retry surfaces to the caller, refreshes ONCE, writes nothing', async () => {
+        const refreshCalls = [];
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async (/** @type {boolean} */ f) => { refreshCalls.push(f); } };
+        _failNextCommits = 2;   // both the first attempt and the retry fail
+
+        // recordRangeOverrides has no try/catch — it rejects so the caller (AL/sick save handler)
+        // shows its own error rather than silently reporting success.
+        await assert.rejects(
+            () => recordRangeOverrides({
+                type: 'annual_leave', value: 'AL',
+                memberName: 'G. Miller', dates: ['2026-06-15'], changedBy: 'S. Stewart',
+            }),
+            /** @param {any} err */ err => err?.code === 'permission-denied',
+        );
+        // One forced refresh only — no retry loop, so a genuine authorisation denial isn't masked.
+        assert.deepEqual(refreshCalls, [true], 'exactly one forced token refresh, then the denial stands');
+        assert.equal(getAllOverrides().length, 0, 'nothing is written when both attempts fail');
+    });
+});
+
+// ── executeSave (Change a Shift path) — same stale-claim retry ─────────────────
+//
+// executeSave is the week-grid "Save changes" write. It has its OWN try/catch, so a persistent
+// permission-denied is swallowed into _showError (no throw) and the in-memory cache is NOT mutated.
+
+describe('executeSave — stale-claim retry', () => {
+
+    beforeEach(() => {
+        setAllOverrides([]);
+        _failNextCommits = 0;
+        mockAuth.currentUser = null;
+    });
+
+    test('a permission-denied write force-refreshes once, retries, and the shift save lands', async () => {
+        const refreshCalls = [];
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async (/** @type {boolean} */ f) => { refreshCalls.push(f); } };
+        _failNextCommits = 1;
+
+        await executeSave([{ memberName: 'G. Miller', date: '2026-06-15', type: 'shift', value: '07:00-15:00', note: '' }]);
+
+        assert.deepEqual(refreshCalls, [true], 'getIdToken(true) called exactly once, forced');
+        const saved = getAllOverrides().filter(o => o.date === '2026-06-15' && o.value === '07:00-15:00');
+        assert.equal(saved.length, 1, 'the shift override is cached after the retry (no ghost row from attempt 1)');
+    });
+
+    test('a persistent permission-denied leaves the cache untouched (UI cannot lie)', async () => {
+        setAllOverrides([{ id: 'keep-1', memberName: 'G. Miller', date: '2026-05-01', type: 'shift', value: '08:00-16:00' }]);
+        mockAuth.currentUser = { uid: 'mgr', getIdToken: async () => {} };
+        _failNextCommits = 2;   // both attempts fail — executeSave swallows into _showError
+
+        await executeSave([{ memberName: 'G. Miller', date: '2026-06-15', type: 'shift', value: '07:00-15:00', note: '' }]);
+
+        const all = getAllOverrides();
+        assert.equal(all.length, 1, 'no new doc cached when both attempts fail');
+        assert.equal(all[0].id, 'keep-1', 'the pre-existing cache entry is unchanged');
     });
 });

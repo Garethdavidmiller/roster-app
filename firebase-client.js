@@ -125,6 +125,41 @@ export const authReady = setPersistence(auth, indexedDBLocalPersistence)
 export { signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
 
 /**
+ * Run a Firestore WRITE thunk, self-healing a stale-claim `permission-denied` once — the write-side
+ * mirror of operations-app.js `adminReadWithRetry` (SECURITY_RELEASE_PLAN.md → B3 "Optional
+ * independent hardening", v15.07 review H3).
+ *
+ * Why: a freshly-provisioned or claim-changed MANAGER can appear signed in yet hold a Firebase token
+ * minted *before* their `manager` claim existed (Firebase only refreshes ID tokens ~hourly). The
+ * per-member override-isolation rule then rejects their on-behalf write with `permission-denied`
+ * until the token naturally refreshes. Forcing one token refresh + one retry picks up the claim
+ * immediately, so the manager isn't told to "sign out and back in" for what is really a stale token.
+ *
+ * IMPORTANT: pass a thunk that BUILDS AND COMMITS a fresh batch each call — a Firestore `WriteBatch`
+ * cannot be re-committed after `commit()` (even a failed commit marks it used), so the retry must
+ * reconstruct the batch. Whatever the thunk returns is passed straight through.
+ *
+ * Fail-safe: only retries on `permission-denied` with a live user; any other error (offline, a
+ * genuinely unauthorised token) is re-thrown, and it retries at most once so a truly forbidden write
+ * still surfaces to the caller's catch.
+ * @template T
+ * @param {() => Promise<T>} writeFn  Builds + commits the write; re-runnable (fresh batch each call).
+ * @returns {Promise<T>}
+ */
+export async function writeWithClaimRetry(writeFn) {
+    try {
+        return await writeFn();
+    } catch (err) {
+        const user = auth.currentUser;
+        if (/** @type {any} */ (err)?.code === 'permission-denied' && user) {
+            await user.getIdToken(true);   // force refresh → pick up the newly-set claim
+            return await writeFn();          // retry once with the fresh token
+        }
+        throw err;
+    }
+}
+
+/**
  * Normalise a full display name down to a surname fragment: everything after
  * the first word, lowercased, letters only.
  *   "G. Miller"            → "miller"
