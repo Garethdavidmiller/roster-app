@@ -777,6 +777,14 @@ mobile (throttled Slow-4G + 4× CPU) in a private window** before/after — the 
 loads from the SW cache and hides the cold-load cost real first-time staff pay (same lesson as
 "the installed PWA masks live-site breakage").
 
+**Where we are (v15.07) — two independent latency tracks:**
+- **Cold page-load (this section):** Batches 1/3/4 shipped (preconnect, stale-while-revalidate JS/CSS,
+  paycalc modulepreload). **Next:** the deferred lazy-Firebase pass below — but **only if** the
+  App-speed data shows the Firebase SDK dominating paycalc's cold load; otherwise leave it.
+- **Login latency (separate track):** the post-login `reload()` is being removed page-by-page
+  (in-place login). **paycalc is ENABLED (v15.07); next = operations.** Full plan + rollout order:
+  **ARCHITECTURE_PLAN.md → Phase 9**.
+
 ### Shipped
 
 - **Batch 1 (v14.17) — preconnect + lazy DOMPurify + immutable icon caching.** All 6 app pages
