@@ -360,6 +360,78 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
   same release as a UX rollout** (in-place login just completed at v15.17) — separate the variables.
   See LOGIN_INCIDENT.md.
 
+#### B3 cutover runbook (staged, pre-window — nothing here is deployed)
+
+Everything below is **HELD**. It must NOT be committed to `firestore.rules` on any branch you will
+merge before the window — merging to `main` runs `deploy-rules.yml` and ships the rule LIVE. Apply it
+on a **fresh branch cut at window time**, in this order. (The write-side retry net, v15.18, is already
+live and means a manager who misses the sweep self-heals on first write — so this is safer than a cold
+cutover, but still do the sweep.)
+
+**Pre-window checks:** `CLAIM_EPOCH == 0`, `ENFORCE_NAMED_SESSION == true`, in-place-login rollout
+deployed and settled; `CONFIG.MANAGER_NAMES` matches current staff.
+
+**Step 1 — Re-provision (owner).** Operations → Set up accounts (sets `admin`/`manager`/`name` on every
+account). Idempotent — re-run in the window even if done earlier as a warm-up, to catch any account
+that changed since.
+
+**Step 2 — Force the token sweep (Claude edit + owner deploy).** Bump `CONFIG.CLAIM_EPOCH` `0 → 2`
+(higher than any previously-shipped value — 1 already shipped once — so every device force-refreshes
+once on next open regardless of its stored `myb_claim_epoch`). Deploy hosting. This is a **separate
+deploy from the rules** — do not ship strict rules in the same release. Wait for the sweep window (a
+few days of normal use so active devices re-open; force sign-out any stragglers).
+
+**Step 3 — Strict rule diff (Claude).** Remove the no-name escape from the `overrides` create/update
+AND delete blocks in `firestore.rules`:
+
+```diff
+           request.auth.token.name == request.resource.data.memberName ||
+           request.auth.token.admin == true ||
+-          request.auth.token.manager == true ||
+-          !('name' in request.auth.token)
++          request.auth.token.manager == true
+         );
+   ...
+       allow delete: if request.auth != null && (
+         request.auth.token.name == resource.data.memberName ||
+         request.auth.token.admin == true ||
+-        request.auth.token.manager == true ||
+-        !('name' in request.auth.token)
++        request.auth.token.manager == true
+       );
+```
+
+**Step 4 — Rules-test rework (Claude) — REQUIRED and non-obvious.** In `firestore.rules.test.mjs` the
+existing override **create** tests use `staffDb()` (an authed context with NO `name` claim), which today
+only passes isolation via the permissive escape. Under strict, `staffDb()` create is DENIED, so:
+- Replace `staffDb()` → `namedDb('G. Miller')` in **every override CREATE test** (VALID_OVERRIDE's
+  `memberName` is `'G. Miller'`). Otherwise the `assertSucceeds` field tests break, and the
+  `assertFails` field tests would pass for the WRONG reason (isolation denial, not field validation) —
+  masking a real regression.
+
+**Step 5 — Strict matrix tests to add** (create + a delete mirror):
+
+```js
+describe('overrides — strict isolation (B3)', () => {
+  test('staff writes OWN override',            async () => { await assertSucceeds(setDoc(doc(namedDb('G. Miller'),  'overrides', uid()), VALID_OVERRIDE())); });
+  test('staff CANNOT write another member',    async () => { await assertFails   (setDoc(doc(namedDb('A. Other'),   'overrides', uid()), VALID_OVERRIDE())); }); // memberName = G. Miller
+  test('manager writes another member',        async () => { await assertSucceeds(setDoc(doc(managerDb('S. Stewart'),'overrides', uid()), VALID_OVERRIDE())); });
+  test('admin writes another member',          async () => { await assertSucceeds(setDoc(doc(adminDb(),             'overrides', uid()), VALID_OVERRIDE())); });
+  test('no-name token DENIED (escape gone)',   async () => { await assertFails   (setDoc(doc(staffDb(),             'overrides', uid()), VALID_OVERRIDE())); });
+  test('anonymous DENIED',                     async () => { await assertFails   (setDoc(doc(anonDb(),              'overrides', uid()), VALID_OVERRIDE())); });
+});
+```
+
+**Step 6 — Deploy strict rules (owner).** Merge the strict branch → `deploy-rules.yml` runs the reworked
+suite as a gate, then ships. Do this **after** the Step 2 sweep window, never before.
+
+**Step 7 — Verify live (owner, private window):** staff writes own AL/absence ✓; staff cannot edit
+another's ✗; manager edits another's ✓ and is still blocked from huddle/circular/newsletter/roster/auth;
+admin edits others' ✓; roster upload saves ✓.
+
+**Rollback:** re-add the two escape lines and redeploy the permissive rule (instant), or revert
+`overrides` to `request.auth != null`. No data migration either way.
+
 ### B4 — server-owned roster/role lists
 - **Goal:** `setupRosterAuth` stops trusting the member/admin lists sent by the client; move to
   server-owned config with recent-login/revocation-aware checks, **dry-run** orphan removal,
@@ -465,9 +537,12 @@ fire on the same merge to `main`, so to avoid a brief manager lockout window do 
       B2 deploy runbook. **B3 is the strict tighten** (drop the `!('name' in token)` escape).
 - [~] B3 — claims audit + permissive→strict token-refresh rollout (**re-provision the manager claim too**).
       **Client sweep BUILT v14.71** (`CONFIG.CLAIM_EPOCH` + `refreshClaimsIfStale()`, 6 tests) — the
-      deterministic token-refresh mechanism. **Remaining (owner-gated):** re-provision audit, pick a
-      low-traffic window, bump `CLAIM_EPOCH`→2 + let the sweep run, verify the private-window matrix,
-      THEN deploy the strict rule (drop the `!('name' in token)` branch from `overrides` create/update/delete).
+      deterministic token-refresh mechanism. **Write-side stale-claim retry net BUILT v15.18**
+      (`writeWithClaimRetry`, all three override write paths). **Full cutover runbook STAGED** (exact
+      rule diff + reworked/added rules tests + ordered steps + rollback) — see "B3 cutover runbook"
+      above. **Remaining (owner-gated, in the window):** re-provision (done once as a warm-up; re-run
+      in-window), bump `CLAIM_EPOCH`→2 + let the sweep run, apply the staged strict rule + tests on a
+      fresh branch, verify the private-window matrix, THEN deploy.
 - [ ] B4 — server-owned role lists (**admin + manager + designer**, all generated server-side)
 - [ ] C2 — email verification
 - [ ] C4 — forgotten-password reset
