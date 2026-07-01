@@ -104,15 +104,16 @@ export const test = base.extend({
 
 /**
  * Turn the B1 named-session kill-switch ON for one test by rewriting roster-data.js as it is
- * served — flips `ENFORCE_NAMED_SESSION: false` to `true` without touching the real file or the
- * production default. Call BEFORE page.goto(). Pair with `window.__E2E = { failSignIn: true }`
- * (set via addInitScript) to exercise the enforcement paths.
+ * served — forces `ENFORCE_NAMED_SESSION` to `true` **regardless of the production default**
+ * (it is `true` in prod today; matching either literal keeps this fixture correct if the
+ * kill-switch is ever flipped back to `false`). Call BEFORE page.goto(). Pair with
+ * `window.__E2E = { failSignIn: true }` (set via addInitScript) to exercise the enforcement paths.
  * @param {import('@playwright/test').Page} page
  */
 export async function enforceNamedSession(page) {
     await page.route('**/roster-data.js', async route => {
         const res  = await route.fetch();
-        const body = (await res.text()).replace(/ENFORCE_NAMED_SESSION:\s*false/, 'ENFORCE_NAMED_SESSION: true');
+        const body = (await res.text()).replace(/ENFORCE_NAMED_SESSION:\s*(?:true|false)/, 'ENFORCE_NAMED_SESSION: true');
         await route.fulfill({ response: res, body, contentType: 'text/javascript' });
     });
 }

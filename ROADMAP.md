@@ -448,6 +448,34 @@ Each ships as its own small commit with a version bump, so any one can be revert
 
 ---
 
+## First-run onboarding usability (scoped — from the UX + v15.07 reviews) — not started
+
+Small, high-value first-use fixes for a brand-new, non-technical staff member. Independently
+shippable; each its own commit + version bump. Surfaced by the in-house "for dummies" UX review and
+confirmed by the external v15.07 review (H1/H2/M3). All are copy / first-run-state changes — **no**
+data-model or auth change.
+
+1. **First-run "choose your name" state (H1) — highest value.** A fresh user (no saved member, no
+   session) currently sees the default member's (`CONFIG.DEFAULT_MEMBER_NAME` = G. Miller) calendar
+   with no cue it isn't theirs — they may trust the wrong shifts. Fix: show a neutral
+   "👋 Choose your name to see your shifts" state and **do not render a real person's roster** until a
+   name is picked. Touch points: the default-member fallback in `calendar-member.js` + `calendar-app.js`
+   render. Keep existing saved-member behaviour unchanged.
+2. **Sign-in password helper (H2).** The login overlay doesn't tell a first-timer the initial-password
+   convention. Add one line under the password field — *"Initial password: your surname in lowercase,
+   no spaces."* — wired via `aria-describedby` on the input. **No security cost** (the password isn't a
+   secret; protection is Firebase rate-limiting + Firestore rules). Touch point: `login-overlay.js`
+   (shared across all 5 protected pages).
+3. **Pay Calculator first-use reframe (M3).** The setup banner reads like a mandatory payroll form
+   before any result shows. Reframe to *"Check these look right for you"*, default what's safe (grade
+   rate / pension / standard tax code) so a believable estimate shows immediately, and elevate
+   **"Fill from calendar"** as the suggested first action. Copy-led, low risk.
+
+**Sequencing:** ship 1 + 2 together (the two first-use trip-hazards, both small); 3 as a follow-up.
+Owner decides the exact wording before build.
+
+---
+
 ## Future capabilities — not committed, no fixed sequence
 
 Each area is independent unless a dependency is noted.
@@ -776,6 +804,14 @@ A deep, code-grounded performance pass (June 2026). **Measure cold loads with Li
 mobile (throttled Slow-4G + 4× CPU) in a private window** before/after — the installed PWA
 loads from the SW cache and hides the cold-load cost real first-time staff pay (same lesson as
 "the installed PWA masks live-site breakage").
+
+**Where we are (v15.07) — two independent latency tracks:**
+- **Cold page-load (this section):** Batches 1/3/4 shipped (preconnect, stale-while-revalidate JS/CSS,
+  paycalc modulepreload). **Next:** the deferred lazy-Firebase pass below — but **only if** the
+  App-speed data shows the Firebase SDK dominating paycalc's cold load; otherwise leave it.
+- **Login latency (separate track):** the post-login `reload()` is being removed page-by-page
+  (in-place login). **paycalc is ENABLED (v15.07); next = operations.** Full plan + rollout order:
+  **ARCHITECTURE_PLAN.md → Phase 9**.
 
 ### Shipped
 

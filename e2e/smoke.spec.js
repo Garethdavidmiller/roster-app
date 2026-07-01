@@ -31,9 +31,11 @@ function collectFatalErrors(page) {
             msg.includes('FirebaseError') ||
             msg.includes('auth/') ||
             msg.toLowerCase().includes('network request failed') ||
-            msg.toLowerCase().includes('failed to fetch') ||
-            msg.includes('Not authorised — redirecting') ||  // intentional throw to halt module after location.replace
-            msg.includes('Not signed in — showing login overlay')  // intentional throw to halt module after showing the in-place login
+            msg.toLowerCase().includes('failed to fetch')
+            // (The old 'Not authorised — redirecting' / 'Not signed in — showing login overlay'
+            //  suppressions were removed at v15.07: those top-level throws no longer exist — the
+            //  Phase 4a.2 coordinators early-return instead — so keeping the filters could only
+            //  ever hide a future real error that happened to match those strings.)
         ) return;
         errors.push(msg);
     });
