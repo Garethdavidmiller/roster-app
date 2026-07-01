@@ -176,7 +176,7 @@ export function initHuddleViewer() {
                     if (isSafeStorageUrl(huddle.storageUrl)) {
                         window.open(huddle.storageUrl, '_blank', 'noopener');
                     } else {
-                        body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact your manager.</p>';
+                        body.innerHTML = '<p class="huddle-error">This Huddle link is unavailable — please contact the admin.</p>';
                     }
                 });
                 openBtn?.focus();
