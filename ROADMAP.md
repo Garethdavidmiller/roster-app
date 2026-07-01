@@ -810,8 +810,8 @@ loads from the SW cache and hides the cold-load cost real first-time staff pay (
   paycalc modulepreload). **Next:** the deferred lazy-Firebase pass below — but **only if** the
   App-speed data shows the Firebase SDK dominating paycalc's cold load; otherwise leave it.
 - **Login latency (separate track):** the post-login `reload()` is being removed page-by-page
-  (in-place login). **paycalc is ENABLED (v15.07); next = operations.** Full plan + rollout order:
-  **ARCHITECTURE_PLAN.md → Phase 9**.
+  (in-place login). **paycalc (v15.07) + operations (v15.08) ENABLED; next = links.** Full plan +
+  rollout order: **ARCHITECTURE_PLAN.md → Phase 9**.
 
 ### Shipped
 
