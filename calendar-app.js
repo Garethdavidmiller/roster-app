@@ -69,6 +69,7 @@ const { openDayDetail, closeALLightbox } = initCalendarLightboxes();
 const teamView = initTeamView({
     rosterOverridesCache,
     getSelectedMemberIndex,
+    isFirstRun,
     renderCalendar,
     _pushOverlayState,
     _clearOverlayHistory,
@@ -195,10 +196,18 @@ function showFirstRunPrompt() {
         '<div class="first-run-prompt">' +
           '<div class="first-run-emoji" aria-hidden="true">👋</div>' +
           '<h2>Choose your name to see your shifts</h2>' +
-          '<p>Pick your name from the list at the top of the page, and your roster will appear.</p>' +
+          '<p>Pick your name from the menu above, and your roster will appear.</p>' +
         '</div>';
     // Don't leave a real member's name on the print header while no one is selected.
     document.querySelector('.header')?.removeAttribute('data-member-name');
+    // Announce to screen readers — the prompt replaces the calendar grid silently otherwise.
+    const announcer = document.getElementById('ariaAnnouncer');
+    if (announcer) {
+        announcer.textContent = '';
+        requestAnimationFrame(() => {
+            announcer.textContent = 'Choose your name from the menu above to see your shifts.';
+        });
+    }
 }
 
 // renderCalendar — used for all non-swipe navigation (buttons, keyboard, today).

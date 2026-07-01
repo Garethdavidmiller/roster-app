@@ -18,6 +18,14 @@ import { lsGet, lsSet, lsDel } from './ls.js';
 /** @type {string|null} */
 let _staleMemberName = null;
 
+// In-memory backstop for the selected member index. In iOS Safari private mode lsSet() silently
+// no-ops, so a picked name would never persist and isFirstRun() would stay true forever — the
+// first-run prompt would re-appear on every render and the user could never reach their calendar.
+// saveSelectedMember() records the choice here too, so within the page session the selection sticks
+// and the prompt clears even when localStorage is unavailable. (Onboarding H1, private-mode fix.)
+/** @type {number|null} */
+let _selectedIndexFallback = null;
+
 /**
  * Consume and clear the stale member name (if any).
  * renderCalendar() calls this to detect and announce a removed member.
@@ -53,7 +61,8 @@ const _hadSavedMemberAtStart = !!lsGet('myb_roster_selected_member');
  * @returns {boolean}
  */
 export function isFirstRun() {
-    return !_hadSavedMemberAtStart && !lsGet('myb_roster_selected_member') && !getSession()?.name;
+    return !_hadSavedMemberAtStart && _selectedIndexFallback === null
+        && !lsGet('myb_roster_selected_member') && !getSession()?.name;
 }
 
 /** @returns {number} */
@@ -67,6 +76,9 @@ export function getSelectedMemberIndex() {
         lsDel('myb_roster_selected_member');
         return getDefaultMemberIndex();
     }
+    // In-memory backstop for when localStorage writes silently fail (iOS private mode): a name
+    // picked this session was recorded here even though lsSet() no-opped.
+    if (_selectedIndexFallback !== null) return _selectedIndexFallback;
     // No saved selection — auto-select from the admin session if present so the
     // logged-in staff member sees their own calendar without triggering a cache clear.
     const sess = getSession();
@@ -80,9 +92,19 @@ export function getSelectedMemberIndex() {
     return getDefaultMemberIndex();
 }
 
+/**
+ * Test-only: clear the in-memory selection backstop so each unit test starts from a clean module
+ * state (mirrors how takeStaleMemberName() resets _staleMemberName in beforeEach). Not used in
+ * production — the fallback is meant to persist for the life of the page.
+ */
+export function _resetSelectionFallbackForTests() {
+    _selectedIndexFallback = null;
+}
+
 /** @param {number} index */
 export function saveSelectedMember(index) {
     if (index >= 0 && index < teamMembers.length) {
+        _selectedIndexFallback = index;
         lsSet('myb_roster_selected_member', teamMembers[index].name);
     }
 }

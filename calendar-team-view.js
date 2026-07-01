@@ -25,13 +25,14 @@ const _unknownShiftWarned = new Set();
  * @param {object} deps
  * @param {Map<any,any>} deps.rosterOverridesCache   Shared override cache keyed "memberName|date"
  * @param {Function} deps.getSelectedMemberIndex Returns index of logged-in member in teamMembers
+ * @param {Function} deps.isFirstRun             True for a brand-new visitor who hasn't picked a name
  * @param {Function} deps.renderCalendar         Called when team view is dismissed
  * @param {Function} deps._pushOverlayState      Registers Back-button close handler
  * @param {Function} deps._clearOverlayHistory   Removes Back-button handler when closing via button
  * @returns {{ toggleTeamView: any, applyTeamViewChrome: any, isTeamViewMode: any, renderTeamView: any,
  *             announceTeamWeek: any, restoreTeamView: any, jumpToCurrentWeek: any }}
  */
-export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, renderCalendar,
+export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, isFirstRun, renderCalendar,
                                 _pushOverlayState, _clearOverlayHistory }) {
 
     // ── STATE ─────────────────────────────────────────────────────────────────
@@ -166,9 +167,11 @@ export function initTeamView({ rosterOverridesCache, getSelectedMemberIndex, ren
             `<th scope="col" class="tv-day-header${i === todayIndex ? ' tv-today-col' : ''}">${DAY_NAMES[i]}<span class="tv-day-num">${d.getDate()}</span></th>`
         ).join('');
 
-        // Identify the logged-in member so their row can be visually distinguished.
+        // Identify the logged-in member so their row can be visually distinguished. On first run the
+        // member index falls back to the default member — that isn't "my" row, so suppress the
+        // highlight until the visitor has actually picked their name. (Onboarding H1.)
         const myIdx  = getSelectedMemberIndex();
-        const myName = myIdx >= 0 ? teamMembers[myIdx].name : null;
+        const myName = (!isFirstRun?.() && myIdx >= 0) ? teamMembers[myIdx].name : null;
 
         const tableBody = gradeMembers.length === 0
             ? `<tr><td colspan="8" class="tv-empty">No staff in this grade</td></tr>`

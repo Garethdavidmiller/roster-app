@@ -156,8 +156,8 @@ Team member selection for `index.html` — extracted from `calendar-app.js` at v
 - `getSelectedMemberIndex()` — resolves saved name → index; sets `_staleMemberName` flag if name no longer in roster; auto-selects from session if no saved preference
 - `takeStaleMemberName()` — consume-and-clear accessor for the stale-name flag; called by `renderCalendar()` to show a one-time banner
 - `getCurrentMember()` — returns the resolved `teamMembers` entry for the selected index
-- `saveSelectedMember(index)` — persists selection by name to localStorage via `lsSet`
-- `isFirstRun()` — true only for a brand-new visitor (no saved member AND no session); distinct from the stale-member case. `calendar-app.js` shows a "choose your name" prompt instead of the default member's roster, and `populateTeamMemberDropdown()` leads with a `— Choose your name —` placeholder (Onboarding H1, v15.11)
+- `saveSelectedMember(index)` — persists selection by name to localStorage via `lsSet`; also records an in-memory `_selectedIndexFallback` so a pick survives an iOS-private-mode `lsSet` no-op (v15.14)
+- `isFirstRun()` — true only for a brand-new visitor (no saved member AND no session AND no in-memory pick); distinct from the stale-member case. `calendar-app.js` shows a "choose your name" prompt instead of the default member's roster, and `populateTeamMemberDropdown()` leads with a `— Choose your name —` placeholder (Onboarding H1, v15.11). The in-memory backstop (v15.14) keeps the prompt cleared and the picked member resolved even when the localStorage write silently fails (private mode), avoiding a first-run dead-end; `_resetSelectionFallbackForTests()` clears it for unit tests
 - `getDefaultMemberIndex()` — resolves `CONFIG.DEFAULT_MEMBER_NAME` to an index at runtime
 - `populateTeamMemberDropdown()` — builds flat or optgroup `<select>` depending on number of distinct roles
 - `validateTeamMembers()` — checks team member object shape; returns error string array

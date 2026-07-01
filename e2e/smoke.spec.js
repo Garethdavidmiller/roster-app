@@ -99,6 +99,27 @@ test('calendar: first run (no saved member, not signed in) shows the choose-your
     expect(errors, 'Uncaught JS exceptions on first-run calendar').toHaveLength(0);
 });
 
+test('calendar: first-run pick survives a failed localStorage write (iOS private mode)', async ({ page }) => {
+    const errors = collectFatalErrors(page);
+    // Simulate iOS Safari private mode: writing the selected-member key throws, so it never persists.
+    // The in-memory backstop must still clear the first-run prompt and show the picked member's
+    // calendar — otherwise the prompt re-appears on every render and the app is a dead-end.
+    await page.addInitScript(() => {
+        const realSet = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+            if (key === 'myb_roster_selected_member') throw new Error('QuotaExceededError (simulated private mode)');
+            return realSet.call(this, key, value);
+        };
+    });
+    await page.goto('/');
+    await expect(page.locator('.first-run-prompt')).toBeVisible();
+    await page.locator('#teamMemberSelect').selectOption({ index: 1 });
+    // Pick sticks despite the write failure — calendar renders and the prompt is gone.
+    await expect(page.locator('.calendar-day').first()).toBeVisible();
+    await expect(page.locator('.first-run-prompt')).toHaveCount(0);
+    expect(errors, 'Uncaught JS exceptions in private-mode first-run').toHaveLength(0);
+});
+
 test('calendar: a removed saved member falls back to the calendar + stale banner, NOT the first-run prompt', async ({ page }) => {
     // Saved member that no longer exists in the roster (e.g. a leaver who was removed).
     await page.addInitScript(() => localStorage.setItem('myb_roster_selected_member', 'Z. Nonexistent'));

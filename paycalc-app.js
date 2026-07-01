@@ -319,7 +319,7 @@ export function init() {
         /** @type {HTMLElement} */ (document.getElementById('settingsHint')).textContent = `✓ ${ty.label} — £${rate}/hr · ${code}`;
       } else {
         /** @type {HTMLElement} */ (document.getElementById('setupBannerBody')).innerHTML =
-          `We've filled in the usual defaults — just <strong>check your hourly rate and tax code</strong> look right in ⚙️ Your Settings below, then tap <strong>Fill from calendar</strong> to add your hours. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
+          `We've filled in the usual defaults — <strong>check your hourly rate and tax code</strong> in ⚙️ Your Settings below, then tap <strong>Save settings</strong>. You can add your hours with <strong>Fill from calendar</strong>. These settings apply to ${ty.label} only — you'll be prompted again when the new tax year starts.`;
         /** @type {HTMLElement} */ (document.getElementById('setupBanner')).classList.remove('hidden');
         // Auto-open settings once per session per TY — only for returning users (new users
         // already see the settings card open). Show the in-card notice for returning users.

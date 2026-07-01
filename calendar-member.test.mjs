@@ -46,6 +46,7 @@ const {
     takeStaleMemberName, getDefaultMemberIndex,
     getSelectedMemberIndex, saveSelectedMember,
     getCurrentMember, validateTeamMembers,
+    isFirstRun, _resetSelectionFallbackForTests,
 } = await import('./calendar-member.js');
 
 const MEMBER_KEY = 'myb_roster_selected_member';
@@ -53,7 +54,8 @@ const MEMBER_KEY = 'myb_roster_selected_member';
 beforeEach(() => {
     store.clear();
     _session = null;
-    takeStaleMemberName();  // clear any stale name left by the previous test
+    takeStaleMemberName();               // clear any stale name left by the previous test
+    _resetSelectionFallbackForTests();   // clear the in-memory selection backstop between tests
 });
 
 // ── getDefaultMemberIndex ─────────────────────────────────────────────────────
@@ -145,6 +147,46 @@ describe('saveSelectedMember', () => {
     test('out-of-range index does not write to localStorage', () => {
         saveSelectedMember(99);
         assert.equal(store.get(MEMBER_KEY), undefined);
+    });
+});
+
+// ── isFirstRun (first-run onboarding, H1) ─────────────────────────────────────
+
+describe('isFirstRun', () => {
+    // Note: the _hadSavedMemberAtStart (module-load snapshot) axis can't vary within a single
+    // module instance, so it's covered by the e2e suite. These test the two runtime axes plus
+    // the in-memory selection backstop.
+    test('true for a brand-new visitor: no saved member, no session, nothing picked', () => {
+        assert.equal(isFirstRun(), true);
+    });
+
+    test('false when a saved member name is present', () => {
+        store.set(MEMBER_KEY, 'B. Jones');
+        assert.equal(isFirstRun(), false);
+    });
+
+    test('false when a signed-in session is present', () => {
+        _session = { name: 'B. Jones' };
+        assert.equal(isFirstRun(), false);
+    });
+
+    test('false after a name is picked, even if the localStorage write did not persist', () => {
+        // Simulate iOS private mode: saveSelectedMember records the in-memory backstop, then we
+        // clear the store to mimic lsSet() having silently no-opped. isFirstRun must stay false.
+        saveSelectedMember(1);
+        store.clear();
+        assert.equal(isFirstRun(), false);
+    });
+});
+
+// ── in-memory selection backstop (private-mode fix) ───────────────────────────
+
+describe('getSelectedMemberIndex — in-memory backstop', () => {
+    test('returns the picked index even when the localStorage write did not persist', () => {
+        // iOS private mode: lsSet no-ops, so no saved name — the backstop must still return the pick.
+        saveSelectedMember(1);   // B. Jones
+        store.clear();           // mimic the failed persist
+        assert.equal(getSelectedMemberIndex(), 1);
     });
 });
 
